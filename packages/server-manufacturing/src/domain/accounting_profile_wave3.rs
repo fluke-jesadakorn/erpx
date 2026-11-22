@@ -191,6 +191,34 @@ pub fn plan_create(id: String, draft: ProfileDraft) -> Result<CreatePlan, Busine
     })
 }
 
+/// Source rules the retained Finance boundary enforced before the wave-3
+/// cutover: WIP must be distinct from the inventory and conversion-cost
+/// accounts, and the profile must use an existing THB functional-currency
+/// chart. Both are checked after command replay so a retained receipt still
+/// replays even if the sources changed afterwards.
+pub fn require_profile_sources(
+    draft: &ProfileDraft,
+    chart_currency: Option<&str>,
+) -> Result<(), BusinessError> {
+    if draft.wip_account_id == draft.inventory_account_id
+        || draft.wip_account_id == draft.labor_account_id
+        || draft.wip_account_id == draft.overhead_account_id
+        || draft.wip_account_id == draft.scrap_account_id
+    {
+        return Err(BusinessError::invalid(
+            "MANUFACTURING_WIP_ACCOUNT",
+            "WIP must be separate from inventory and conversion-cost clearing accounts.",
+        ));
+    }
+    if chart_currency != Some("THB") {
+        return Err(BusinessError::invalid(
+            "MANUFACTURING_CURRENCY_ADAPTER",
+            "The production accounting adapter requires a THB functional-currency chart.",
+        ));
+    }
+    Ok(())
+}
+
 /// Independent current review: the reviewer must not be the preparer, the row
 /// must exist at the expected version and the source status must permit it.
 pub fn plan_review(
@@ -238,6 +266,28 @@ mod tests {
         let plan = plan_create("profile-1".into(), ProfileDraft::parse(&draft()).unwrap()).unwrap();
         assert_eq!(plan.id, "profile-1");
         assert_eq!(plan.version, 1);
+    }
+
+    #[test]
+    fn rejects_shared_wip_and_non_thb_chart() {
+        let draft = ProfileDraft::parse(&draft()).unwrap();
+        assert!(require_profile_sources(&draft, Some("THB")).is_ok());
+        assert_eq!(
+            require_profile_sources(&draft, Some("USD")).unwrap_err().code,
+            "MANUFACTURING_CURRENCY_ADAPTER"
+        );
+        assert_eq!(
+            require_profile_sources(&draft, None).unwrap_err().code,
+            "MANUFACTURING_CURRENCY_ADAPTER"
+        );
+        let shared = ProfileDraft {
+            wip_account_id: draft.inventory_account_id.clone(),
+            ..draft
+        };
+        assert_eq!(
+            require_profile_sources(&shared, Some("THB")).unwrap_err().code,
+            "MANUFACTURING_WIP_ACCOUNT"
+        );
     }
 
     #[test]

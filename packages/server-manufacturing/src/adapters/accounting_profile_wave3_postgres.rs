@@ -210,6 +210,24 @@ impl ProfileRepository for PgProfileCommand<'_> {
         })
     }
 
+    fn chart_currency<'a>(
+        &'a mut self,
+        chart_id: &'a str,
+        company_id: &'a str,
+    ) -> ProfileFuture<'a, Option<String>, Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            let row = sqlx::query(
+                "SELECT base_currency FROM finance_charts WHERE id=$1 AND company_id=$2",
+            )
+            .bind(chart_id)
+            .bind(company_id)
+            .fetch_optional(&mut *self.connection)
+            .await?;
+            Ok(row.map(|row| row.try_get("base_currency").unwrap_or_default()))
+        })
+    }
+
     fn ledger<'a>(
         &'a mut self,
         entry: &'a ProfileLedgerEntry<'a>,

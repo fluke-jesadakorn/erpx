@@ -8,6 +8,7 @@
 use crate::domain::accounting_profile_wave3::{
     CreatePlan, PROFILE_CREATE_OPERATION, PROFILE_RECORD_TYPE, ProfileDraft, ProfileRow,
     ReviewAction, ReviewInput, ReviewPlan, invalid, plan_create, plan_review,
+    require_profile_sources,
 };
 use erpx_server_runtime::public::http_support::serde_json::{self, Value};
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind, TimestampMillis};
@@ -97,6 +98,11 @@ pub trait ProfileRepository: Send {
         id: &'a str,
         company_id: &'a str,
     ) -> ProfileFuture<'a, Option<ProfileRow>, Self::Error>;
+    fn chart_currency<'a>(
+        &'a mut self,
+        chart_id: &'a str,
+        company_id: &'a str,
+    ) -> ProfileFuture<'a, Option<String>, Self::Error>;
     fn ledger<'a>(
         &'a mut self,
         entry: &'a ProfileLedgerEntry<'a>,
@@ -188,6 +194,10 @@ pub async fn create_profile<R: ProfileRepository>(
     if let Some(result) = prior {
         return serde_json::from_value(result).map_err(|_| R::Error::from(invalid()));
     }
+    let currency = repository
+        .chart_currency(&plan.draft.chart_id, &actor.company_id)
+        .await?;
+    require_profile_sources(&plan.draft, currency.as_deref()).map_err(R::Error::from)?;
     let result = serde_json::json!({
         "id": plan.id,
         "status": "draft",
