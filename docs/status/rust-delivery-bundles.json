@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4966,
+    "revision": 4968,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T17:41:43.560Z",
-      "expiresAt": "2026-11-22T18:11:43.560Z",
+      "heartbeatAt": "2026-11-22T17:47:53.420Z",
+      "expiresAt": "2026-11-22T18:17:53.420Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,11 +17202,11 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T17:41:43.560Z",
-          "expiresAt": "2026-11-22T18:11:43.560Z",
+          "heartbeatAt": "2026-11-22T17:47:53.420Z",
+          "expiresAt": "2026-11-22T18:17:53.420Z",
           "generation": 150
         },
-        "baseSha": "934c35ea1021a12c0006be69ee5e243e20619bb7",
+        "baseSha": "23d37ac31b8816cca36eb079e4b8aeb36f69352f",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17303,7 +17303,7 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "DEV AUTH ~done: rebuilt stale binary; :3199 native listener runs (health 200) with v4 config (bootstrap+financeJournalReads required; 3 holdings required else BINDINGS_MISMATCH). Seeded users via seed-local after starting MinIO:19100 (bucket erpx created with mc) + Redis:6379; signed-in jesadakorn.kirtnu@gmail.com/12345678 -> HTTP 200 + cookies. Bill route: 500 -> 401 (guard correct). BLOCKER: holding audience needs __Host-erpx-product session bound to audience holding:development:h001:<host>; manual insert into sso_session_bindings (session_id unique; authenticated_at/absolute_expires_at bigint ms; max 12h) inserted OK but get-session with Host acme still null -> session row token is a DIGEST of cookie (cookie 9855.. vs stored 57a8..), so product cookie must be a raw secret whose sha256 matches session.token; need native mint (sso flow requires __Host-erpx-sso txn cookie). NEXT: compute digest-compatible session (insert session.token=sha256(secret)) or drive /sso/start with proper txn, then authenticated bill call + TS-fallback proof.",
+        "nextAction": "DEV AUTH SOLVED: found digest = sha256(\"erpx-account-v1\\\\0\"+\"session\"+\"\\\\0\"+secret); minted holding session (child) + binding rows; read_session requires child.parent_session_id=parent, parent binding audience=account/parent NULL, account_device_accounts+browsers.active_session_id=parent, cb.authenticated_at==pb.authenticated_at, 12h cap -> GET :3199 get-session Host acme => 200 with usr_jesadakorn. Bill route chain improved 500 -> 401 -> 503 (account prefs) -> started :3198 listener w/ fieldServicePartsPostingSetups+prerequisites => prefs 200 -> 409 COMPANY_REQUIRED -> with x-erpx-context-company/assignment => 409 WORK_CONTEXT_CHANGED (x-erpx-context-revision value unknown; no revision column; account_workspace_preferences empty). Remaining: determine revision source (native selection revision) to satisfy header, then authenticated GET/POST bill proof. node_modules/server-only restored. :3199/:3198 listeners + MinIO/Redis running detached.",
         "handoff": {
           "runId": "run-20261122-c",
           "agentId": "lead",
@@ -107369,8 +107369,8 @@
           "runId": "run-20261122-d",
           "agentId": "worker-a",
           "claimedAt": "2026-11-22T15:23:17.746Z",
-          "heartbeatAt": "2026-11-22T17:41:43.560Z",
-          "expiresAt": "2026-11-22T18:11:43.560Z",
+          "heartbeatAt": "2026-11-22T17:47:53.420Z",
+          "expiresAt": "2026-11-22T18:17:53.420Z",
           "generation": 150
         },
         "dependsOn": [],
@@ -107437,7 +107437,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T17:41:43.561Z",
+    "updatedAt": "2026-11-22T17:47:53.423Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
