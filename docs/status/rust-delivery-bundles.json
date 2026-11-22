@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5023,
+    "revision": 5026,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T19:23:40.892Z",
-      "expiresAt": "2026-11-22T19:53:40.892Z",
+      "heartbeatAt": "2026-11-22T19:26:05.351Z",
+      "expiresAt": "2026-11-22T19:56:05.351Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,11 +17202,11 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T18:12:48.698Z",
-          "heartbeatAt": "2026-11-22T19:23:40.892Z",
-          "expiresAt": "2026-11-22T19:53:40.892Z",
+          "heartbeatAt": "2026-11-22T19:26:05.351Z",
+          "expiresAt": "2026-11-22T19:56:05.351Z",
           "generation": 150
         },
-        "baseSha": "e4c2ae78b5e7fd9d2914b5423d21bc1d8211c6a5",
+        "baseSha": "c493ce4308b5d392afa8add326f2952fbd969afe",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17317,7 +17317,7 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "THREE MORE MOUNTED: work_projection_wave2, executive_evidence_wave2, commercial_wave2. Fixes: std::sync::Arc import + FnMut captures (input/kind/values/company/actor/key) in work_projection; executive/commercial compiled clean. Wired home-read-cursor + work owner-write (slug->pool map shared with agent), executive evidence per holding (scope=holding_id), commercial grant-save per holding. Evidence :3198: /holdings/acme/work/home-read-cursor => 422 HOME_READ_CURSOR_REQUEST_INVALID; /holdings/acme/work/owner-write => 422 WORK_OWNER_WRITE_INVALID; /holdings/acme/executive/evidence-access => 400 (body decode, routed); /holdings/acme/commercial/grant-save => 400 (routed). Mounted total 10/15: runtime, crm, inventory, commerce, records, procurement, agent, work_projection, executive_evidence, commercial. Remaining 5: ecommerce, marketing_wave2, marketing_wave2_native, platform_administration, manage_erpx.",
+        "nextAction": "ALL 15 WAVE2 MODULES MOUNTED AND PROBED (details in previous revision): runtime, crm, inventory, commerce, records, procurement, agent, work_projection, executive_evidence, commercial, ecommerce, marketing x2, platform_administration, manage_erpx. New evidence this pass: rebuilt binary also serves the PMS router that blocked migrate.pms - POST :3198 /api/v1/holdings/acme/pms/guest-account now returns 409 WORK_CONTEXT_CHANGED (routed; previously 404 from a stale binary), /pms/rooms POST returns 405 (GET-only). NEXT: stop mounting and convert these served routes into closed slices. Highest-leverage candidates: (a) migrate.pms - re-run its owner checks at HEAD now that the route is live and record the caller switch; (b) retire.commercial.purchase-boundary - ERPX_NATIVE_COMMERCIAL_CONFIG is still absent in dev, so set it and prove the company-package-lifecycle route; (c) migrate.inventory.transit-and-count-writers - native inventory routes now served so caller switch can be proven. Also unchanged blockers: manufacturing suite needs the two foreign .test.rs files registered (TEST_INVENTORY_MISMATCH); migrations.ts receipt-over-HTTP yields 42P01 on control DB and cannot write into disposable test DBs (owner: runtime decision).",
         "handoff": {
           "runId": "run-20261122-d",
           "agentId": "lead",
@@ -107515,7 +107515,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T19:25:53.881Z",
+    "updatedAt": "2026-11-22T19:31:09.355Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
