@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4749,
+    "revision": 4764,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T11:29:10.523Z",
-      "expiresAt": "2026-11-22T11:59:10.523Z",
+      "heartbeatAt": "2026-11-22T11:45:19.342Z",
+      "expiresAt": "2026-11-22T12:15:19.342Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T11:29:10.523Z",
-          "expiresAt": "2026-11-22T11:59:10.523Z",
+          "heartbeatAt": "2026-11-22T11:45:19.342Z",
+          "expiresAt": "2026-11-22T12:15:19.342Z",
           "generation": 150
         },
         "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
@@ -17847,11 +17847,11 @@
           "runId": "run-20261122-d",
           "agentId": "worker-a",
           "claimedAt": "2026-11-22T10:45:28.036Z",
-          "heartbeatAt": "2026-11-22T11:29:10.523Z",
-          "expiresAt": "2026-11-22T11:59:10.523Z",
+          "heartbeatAt": "2026-11-22T11:45:19.342Z",
+          "expiresAt": "2026-11-22T12:15:19.342Z",
           "generation": 150
         },
-        "baseSha": "37c82dc1cadad19fd80e9c4b409de4c69955c2e4",
+        "baseSha": "d2381cff96c1a0dcf5c94ad22711f5f7c14754a6",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -18040,11 +18040,65 @@
             "result": "passed",
             "sourceSha": "37c82dc1cadad19fd80e9c4b409de4c69955c2e4",
             "note": "Composition five-way chain wiring (calendar + CRM + commerce + finance + payroll) compiles; 0 errors."
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration --all-targets",
+            "result": "passed",
+            "sourceSha": "d2381cff96c1a0dcf5c94ad22711f5f7c14754a6",
+            "note": "Worker people delegate + public re-exports + registered PG test target compile; 0 errors."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_targets",
+            "result": "passed",
+            "sourceSha": "d2381cff96c1a0dcf5c94ad22711f5f7c14754a6",
+            "note": "22 passed incl. worker routing/href/Monday/Bangkok/label extension."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_people_postgres",
+            "result": "passed",
+            "sourceSha": "d2381cff96c1a0dcf5c94ad22711f5f7c14754a6",
+            "note": "11 passed on disposable PG DBs (lead-run with ERPX_TEST_ADMIN_URL): roster week/request/coverage with Monday/Bangkok semantics, overtime/leave/expense with versions and participant arms, retirement clearance, fail-closed, rollback. Lead fixed: MySQL-? placeholders to positional $N, duplicated bind, unbalanced paren, unreachable scope assertion, harness inversion, seed revision-bump to 99 (migrations ship rev 8; revisions immutable)."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_calendar_postgres",
+            "result": "passed",
+            "sourceSha": "d2381cff96c1a0dcf5c94ad22711f5f7c14754a6",
+            "note": "7 passed (regression)."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_crm_postgres",
+            "result": "passed",
+            "sourceSha": "d2381cff96c1a0dcf5c94ad22711f5f7c14754a6",
+            "note": "8 passed (regression)."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_commerce_postgres",
+            "result": "passed",
+            "sourceSha": "d2381cff96c1a0dcf5c94ad22711f5f7c14754a6",
+            "note": "7 passed (regression)."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_finance_postgres",
+            "result": "passed",
+            "sourceSha": "d2381cff96c1a0dcf5c94ad22711f5f7c14754a6",
+            "note": "9 passed (regression)."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test inbox_payroll_postgres",
+            "result": "passed",
+            "sourceSha": "d2381cff96c1a0dcf5c94ad22711f5f7c14754a6",
+            "note": "7 passed (regression)."
+          },
+          {
+            "command": "cargo check -p erpx-service",
+            "result": "passed",
+            "sourceSha": "d2381cff96c1a0dcf5c94ad22711f5f7c14754a6",
+            "note": "Composition six-way chain wiring compiles; 0 errors."
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Payroll slice integrated at 37c82dc1 (delegate + chain wiring + PG 7/7 proven, pushed). Stays non-migrated: staff-legacy delegates (largest family, needs splitting) + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained.",
+        "nextAction": "People slice integrated at d2381cff (delegate + chain wiring + PG 11/11 proven, pushed). Stays non-migrated: support/procurement/inventory/sales/quality/legal/marketing/talent/manufacturing/learning/benefits/operations/records/identity_access/organization/customer_authority/workflow delegates + feature-apps inbox read switch (per-row 403/404 drop mapping at cutover) remain. Worker claim retained.",
         "handoff": null,
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-collaboration",
@@ -106731,7 +106785,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T11:29:10.524Z",
+    "updatedAt": "2026-11-22T12:07:32.318Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
