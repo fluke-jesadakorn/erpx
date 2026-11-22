@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4904,
+    "revision": 4906,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T15:23:30.512Z",
-      "expiresAt": "2026-11-22T15:53:30.512Z",
+      "heartbeatAt": "2026-11-22T15:43:25.103Z",
+      "expiresAt": "2026-11-22T16:13:25.103Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T15:23:30.512Z",
-          "expiresAt": "2026-11-22T15:53:30.512Z",
+          "heartbeatAt": "2026-11-22T15:43:25.103Z",
+          "expiresAt": "2026-11-22T16:13:25.103Z",
           "generation": 150
         },
         "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
@@ -107369,8 +107369,8 @@
           "runId": "run-20261122-d",
           "agentId": "worker-a",
           "claimedAt": "2026-11-22T15:23:17.746Z",
-          "heartbeatAt": "2026-11-22T15:23:30.512Z",
-          "expiresAt": "2026-11-22T15:53:30.512Z",
+          "heartbeatAt": "2026-11-22T15:43:25.103Z",
+          "expiresAt": "2026-11-22T16:13:25.103Z",
           "generation": 150
         },
         "dependsOn": [],
@@ -107380,7 +107380,7 @@
         "implementedCommit": null,
         "kind": "migration",
         "lastPushedSha": null,
-        "nextAction": "New task: cut the native supplier_bill_command port mirroring supplier_promise_command. Worker re-claims and builds per dispatch prompt; lead mounts the router + runs PG suites.",
+        "nextAction": "Bill command port integrated at cd19737 (port + PG 10/10 proven, pushed). Lead fixed 4 pre-existing bind_count mismatches (stmt_2/3/12/20, verified vs live TS binds), invoice join, decode bug, seeds. Next (lead-owned composition slice): implement ProcurementService capture/decide/policy with cross-owner staging + purchase admission, mount bill router beside promise, HTTP-level proof; then switch the 3 supply routes + commerce call site; then retire TS writers with KPI delta. Worker claim retained.",
         "owner": "procurement",
         "planRef": "docs/production-plan.md#rust-migration-current",
         "requiredPorts": [
@@ -107392,9 +107392,28 @@
         "status": "in_progress",
         "title": "Native supplier-bill command port mirroring supplier-promise",
         "workstream": "S01",
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-procurement --all-targets",
+            "note": "Worker bill command port + registered PG test target compile; 0 errors, no new warnings.",
+            "result": "passed",
+            "sourceSha": "cd19737ffda8676b1cd737987c2c5663f0df62ec"
+          },
+          {
+            "command": "cargo test -p erpx-server-procurement --lib",
+            "note": "8 passed incl. well-formedness gate (lead fixed 4 pre-existing bind_count mismatches verified against live TS binds).",
+            "result": "passed",
+            "sourceSha": "cd19737ffda8676b1cd737987c2c5663f0df62ec"
+          },
+          {
+            "command": "cargo test -p erpx-server-procurement --test supplier_bill_command_postgres",
+            "note": "10 passed on disposable PG DBs (lead-run with ERPX_TEST_ADMIN_URL): capture+replay, idempotency, fences, approve/return, policy save/replay/stale, authority, isolation, serializable guard. Lead fixed seed gaps + invoice join + decode bug.",
+            "result": "passed",
+            "sourceSha": "cd19737ffda8676b1cd737987c2c5663f0df62ec"
+          }
+        ],
         "retainedLegacy": [],
-        "baseSha": null,
+        "baseSha": "a957328268a7d1b293e13110437c141c078d5d37",
         "workflowIds": []
       }
     ],
@@ -107418,7 +107437,7 @@
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T15:23:30.514Z",
+    "updatedAt": "2026-11-22T15:54:21.414Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
