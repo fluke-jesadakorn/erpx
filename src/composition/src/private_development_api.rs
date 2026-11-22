@@ -3246,6 +3246,11 @@ async fn assemble_checked(
             String,
             erpx_server_runtime::public::postgres::DatabasePool,
         > = std::collections::BTreeMap::new();
+        let mut inventory_native_routers: Vec<Router> = Vec::new();
+        let mut inventory_company_pools: std::collections::BTreeMap<
+            String,
+            erpx_server_runtime::public::postgres::DatabasePool,
+        > = std::collections::BTreeMap::new();
         // Private development assembly: scheduled predicates admit locally and
         // production rendering still fails closed because it is not enabled.
         let runtime_policy =
@@ -4013,6 +4018,22 @@ async fn assemble_checked(
                     runtime_company_pools
                         .insert(company.as_str().to_owned(), pools[i + 1].clone());
                     crm_company_pools.insert(company.as_str().to_owned(), pools[i + 1].clone());
+                    inventory_company_pools
+                        .insert(company.as_str().to_owned(), pools[i + 1].clone());
+                    inventory_native_routers.push(
+                        crate::inventory_wave2::inventory_wave2_native_router(
+                            holding.host.clone(),
+                            holding.registration.slug.clone(),
+                            format!("https://{}", holding.host),
+                            Arc::new(
+                                crate::inventory_wave2::InventoryNativeBackend::new(
+                                    pools[i + 1].clone(),
+                                    Arc::new(SharedClock(clock.clone())),
+                                ),
+                            ),
+                        )
+                        .map_err(|_| "PRIVATE_API_INVENTORY_NATIVE_CONFIGURATION_INVALID")?,
+                    );
                     crm_native_routers.push(
                         crate::crm_wave2_native::crm_native_router(
                             holding.host.clone(),
@@ -6612,6 +6633,27 @@ async fn assemble_checked(
         }
         for crm_router in crm_native_routers {
             router = router.merge(crm_router);
+        }
+        for inventory_router in inventory_native_routers {
+            router = router.merge(inventory_router);
+        }
+        if !inventory_company_pools.is_empty() {
+            let inventory_companies: Vec<String> =
+                inventory_company_pools.keys().cloned().collect();
+            let inventory_backend = Arc::new(
+                crate::inventory_wave2::InventoryNativeBackend::new(
+                    pools.get(1).cloned().unwrap_or_else(|| pools[0].clone()),
+                    Arc::new(SharedClock(clock.clone())),
+                )
+                .with_companies(inventory_company_pools.clone()),
+            );
+            router = router.merge(
+                crate::inventory_wave2::inventory_wave2_company_router(
+                    inventory_companies,
+                    inventory_backend,
+                )
+                .map_err(|_| "PRIVATE_API_INVENTORY_NATIVE_CONFIGURATION_INVALID")?,
+            );
         }
         if !crm_company_pools.is_empty() {
             let crm_companies: Vec<String> = crm_company_pools.keys().cloned().collect();
