@@ -1,24 +1,26 @@
 //! Unit proof of the retained Inbox `source_type` -> destination table.
 use erpx_server_collaboration::public::inbox::{
     CalendarInboxTargets, CommerceInboxTargets, CrmInboxTargets, FinanceInboxTargets,
-    InboxTargetPort, InboxTargetVisibility, InventoryInboxTargets, LearningInboxTargets,
-    OperationsInboxTargets, PayrollInboxTargets, PeopleInboxTargets, ProcurementInboxTargets,
-    QualityInboxTargets, RecordsInboxTargets, SupportInboxTargets, TalentInboxTargets,
-    bangkok_coverage_weeks, benefit_election_href, calendar_appointment_href,
-    commerce_order_capability, commerce_order_href, crm_activity_href, crm_lead_href,
-    customer_followup_href, employee_request_href, encode_uri_component, expense_href,
-    finance_document_capability, finance_invoice_href, finance_journal_href, finance_refund_href,
+    GovernanceInboxTargets, InboxTargetPort, InboxTargetVisibility, InventoryInboxTargets,
+    LearningInboxTargets, OperationsInboxTargets, PayrollInboxTargets, PeopleInboxTargets,
+    ProcurementInboxTargets, QualityInboxTargets, RecordsInboxTargets, SupportInboxTargets,
+    TalentInboxTargets, access_review_href, bangkok_coverage_weeks, benefit_election_href,
+    business_acceptance_href, calendar_appointment_href, commerce_order_capability,
+    commerce_order_href, crm_activity_href, crm_lead_href, customer_followup_href,
+    employee_request_href, encode_uri_component, expense_href, finance_document_capability,
+    finance_invoice_href, finance_journal_href, finance_refund_href,
+    governance_history_capabilities, governance_required_permission,
     inventory_history_capabilities, inventory_transit_href, is_calendar_inbox_target,
     is_commerce_inbox_target, is_crm_inbox_target, is_finance_inbox_target,
-    is_inventory_inbox_target, is_learning_inbox_target, is_operations_inbox_target,
-    is_owned_inbox_target, is_payroll_inbox_target, is_people_inbox_target,
-    is_procurement_inbox_target, is_quality_inbox_target, is_records_inbox_target,
-    is_roster_monday, is_support_inbox_target, is_talent_inbox_target, landed_cost_href,
-    learning_assignment_href, learning_history_capabilities, leave_href, legal_kind_capability,
-    legal_record_href, manufacturing_order_href, marketing_candidate_href,
-    operational_exception_href, operations_history_capabilities, overtime_href,
-    parse_roster_coverage_id, payroll_advance_href, payroll_correction_href, post_href,
-    procurement_history_capability, procurement_rfq_href, quality_alert_href,
+    is_governance_inbox_target, is_inventory_inbox_target, is_learning_inbox_target,
+    is_operations_inbox_target, is_owned_inbox_target, is_payroll_inbox_target,
+    is_people_inbox_target, is_procurement_inbox_target, is_quality_inbox_target,
+    is_records_inbox_target, is_roster_monday, is_support_inbox_target, is_talent_inbox_target,
+    landed_cost_href, learning_assignment_href, learning_history_capabilities, leave_href,
+    legal_kind_capability, legal_record_href, manufacturing_order_href, marketing_candidate_href,
+    operational_exception_href, operations_history_capabilities, organization_change_href,
+    overtime_href, parse_roster_coverage_id, payroll_advance_href, payroll_correction_href,
+    post_href, procurement_history_capability, procurement_rfq_href, quality_alert_href,
     quality_history_capabilities, quality_hold_href, records_expense_href,
     records_history_capabilities, records_leave_href, records_source_kind,
     retirement_case_href, retained_inbox_destination, roster_request_href, roster_week_href,
@@ -1294,4 +1296,89 @@ fn records_kind_capability_tables_match_the_retained_gates() {
     assert_eq!(records_history_capabilities("request"), &[] as &[&str]);
     assert_eq!(records_history_capabilities("overtime"), &[] as &[&str]);
     assert_eq!(records_history_capabilities(""), &[] as &[&str]);
+}
+
+#[test]
+fn governance_slice_routes_to_the_native_delegate() {
+    for source_type in [
+        "iam_access_review",
+        "organization_change",
+        "company_business_acceptance",
+    ] {
+        assert!(is_governance_inbox_target(source_type), "{source_type}");
+    }
+    for other in [
+        "notice",
+        "collaboration_action",
+        "leave",
+        "expense",
+        "request",
+        "task",
+        "post",
+        "operational_exception",
+        "future_source",
+        "",
+    ] {
+        assert!(!is_governance_inbox_target(other), "{other}");
+    }
+    // The native delegate satisfies the composition port bound by
+    // `PgInboxTargets::with_delegate` at compile time.
+    assert_inbox_target_port(&GovernanceInboxTargets::new(None, None));
+    assert_inbox_target_port(&GovernanceInboxTargets::default());
+    assert_inbox_target_port(
+        &GovernanceInboxTargets::new(Some("branch"), Some("department")).assignment(Some("grant")),
+    );
+}
+
+#[test]
+fn governance_hrefs_encode_exactly_like_the_typescript_projection() {
+    assert_eq!(
+        access_review_href("camp-1"),
+        "/people/settings?section=reviews#camp-1"
+    );
+    assert_eq!(
+        access_review_href(ID),
+        format!("/people/settings?section=reviews#{ENCODED}")
+    );
+    assert_eq!(
+        organization_change_href("chg-1", "co"),
+        "/people/organization?view=legacy&company=co&tab=changes&changeId=chg-1#organization-change-chg-1"
+    );
+    assert_eq!(
+        business_acceptance_href(),
+        "/settings/business-readiness#company-setup-acceptance"
+    );
+}
+
+#[test]
+fn governance_kind_capability_tables_match_the_retained_gates() {
+    for source_type in [
+        "iam_access_review",
+        "organization_change",
+        "company_business_acceptance",
+    ] {
+        assert_eq!(
+            governance_history_capabilities(source_type),
+            &[] as &[&str],
+            "{source_type}"
+        );
+    }
+    assert_eq!(
+        governance_history_capabilities("organization"),
+        &[] as &[&str]
+    );
+    assert_eq!(governance_history_capabilities(""), &[] as &[&str]);
+    assert_eq!(
+        governance_required_permission("iam_access_review"),
+        Some("iam.review")
+    );
+    assert_eq!(
+        governance_required_permission("organization_change"),
+        Some("organization.manage")
+    );
+    assert_eq!(
+        governance_required_permission("company_business_acceptance"),
+        Some("organization.manage")
+    );
+    assert_eq!(governance_required_permission("organization"), None);
 }

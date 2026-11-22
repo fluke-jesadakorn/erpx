@@ -180,6 +180,10 @@ name = "inbox_records_postgres"
 path = "../../tests/integration/collaboration/rust-inbox-records-postgres.test.rs"
 
 [[test]]
+name = "inbox_governance_postgres"
+path = "../../tests/integration/collaboration/rust-inbox-governance-postgres.test.rs"
+
+[[test]]
 name = "collaboration_work_pg"
 path = "../../tests/integration/collaboration/rust-collaboration-work-pg-postgres.test.rs"
 

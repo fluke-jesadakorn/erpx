@@ -57,6 +57,11 @@ pub use crate::adapters::inbox_learning::{
     LearningInboxTargets, benefit_election_href, is_learning_inbox_target,
     learning_assignment_href, learning_history_capabilities,
 };
+pub use crate::adapters::inbox_governance::{
+    GovernanceInboxTargets, access_review_href, business_acceptance_href,
+    governance_history_capabilities, governance_required_permission, is_governance_inbox_target,
+    organization_change_href,
+};
 pub use crate::adapters::inbox_operations::{
     OperationsInboxTargets, is_operations_inbox_target, operational_exception_href,
     operations_history_capabilities, post_href, staff_task_href,
