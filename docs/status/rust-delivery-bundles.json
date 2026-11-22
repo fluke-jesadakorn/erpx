@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 4883,
+    "revision": 4891,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261122-d",
       "agentId": "lead",
       "startedAt": "2026-11-22T09:59:22.322Z",
-      "heartbeatAt": "2026-11-22T15:15:38.481Z",
-      "expiresAt": "2026-11-22T15:45:38.481Z",
+      "heartbeatAt": "2026-11-22T15:16:03.868Z",
+      "expiresAt": "2026-11-22T15:46:03.868Z",
       "generation": 150,
       "tokenHash": "8d5adbdcc813b08a3aa9c1c1336783fcb274eca721771d0bfc8860b743e85bfc"
     },
@@ -17202,8 +17202,8 @@
           "runId": "run-20261122-d",
           "agentId": "lead",
           "claimedAt": "2026-11-22T10:02:32.960Z",
-          "heartbeatAt": "2026-11-22T15:15:38.481Z",
-          "expiresAt": "2026-11-22T15:45:38.481Z",
+          "heartbeatAt": "2026-11-22T15:16:03.868Z",
+          "expiresAt": "2026-11-22T15:46:03.868Z",
           "generation": 150
         },
         "baseSha": "07b93cc3d354a7aa696c7b83807cea3c5b5107b5",
@@ -18576,14 +18576,14 @@
         ],
         "retainedLegacy": [],
         "blocker": "released with work preserved",
-        "nextAction": "KPI+retirement inventory recorded at 3d1883c (no code change): literal-DML formula scoped to business src = 0 at HEAD (writes go through builders/commands, not literals; repo-wide 4845 matches are tests/seeds/fixtures only); 136 executeCommand callers confirmed (the real TS-execution surface). Retirement scope ts-statements baseline = 45 (staff-notifications adapter 9 + inbox adapter 14 + messaging adapter 22, HEAD, uppercase literals) — delta 0 until removal. Removal inventory: inboxPage sole production caller is the route TS fallback (native-first since a9814e6); visibleNotifications/notificationWorkspace sole production caller is the workplace SSR inbox screen (must switch before removal); messagingOverview route is native-or-503 with TS internals+tests remaining. Blockers: container gateway proof (native config is container-bootstrap-only) and the workplace screen switch. Worker claim retained.",
+        "nextAction": "BLOCKED: container gateway proof impossible in macOS checkout (evidence 2026-11-22) — dev-container-start.ts:12 gates linux+root+/.dockerenv; docker daemon down (no /var/run/docker.sock); native listener hardwired 127.0.0.1:44817 with Linux identity checks (setpriv 65532, /proc, pgrep); no legal macOS port (AGENTS.md 3200-3299 only, transport validator rejects them). TS removal (inboxPage/messagingOverview/notificationWorkspace/visibleNotifications + TS exports, delta vs baseline 45) waits on proof. RESUME on Linux/container host: keyed dev-container bootstrap, authenticated gateway GETs on inbox notifications?view=unread + summary + SSR screen diffed vs TS fallback (denied/unknown/field-service, stock hrefs, badge); THEN remove fallbacks, delete TS handlers, record ts-statements delta, combined gates.",
         "handoff": {
           "runId": "run-20261122-d",
-          "agentId": "worker-a",
-          "at": "2026-11-22T15:05:52.584Z",
-          "previousStatus": "in_progress",
+          "agentId": "lead",
+          "at": "2026-11-22T15:17:51.167Z",
+          "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "KPI+retirement inventory recorded at 3d1883c (no code change): literal-DML formula scoped to business src = 0 at HEAD (writes go through builders/commands, not literals; repo-wide 4845 matches are tests/seeds/fixtures only); 136 executeCommand callers confirmed (the real TS-execution surface). Retirement scope ts-statements baseline = 45 (staff-notifications adapter 9 + inbox adapter 14 + messaging adapter 22, HEAD, uppercase literals) — delta 0 until removal. Removal inventory: inboxPage sole production caller is the route TS fallback (native-first since a9814e6); visibleNotifications/notificationWorkspace sole production caller is the workplace SSR inbox screen (must switch before removal); messagingOverview route is native-or-503 with TS internals+tests remaining. Blockers: container gateway proof (native config is container-bootstrap-only) and the workplace screen switch. Worker claim retained."
+          "nextAction": "BLOCKED: container gateway proof impossible in macOS checkout (evidence 2026-11-22) — dev-container-start.ts:12 gates linux+root+/.dockerenv; docker daemon down (no /var/run/docker.sock); native listener hardwired 127.0.0.1:44817 with Linux identity checks (setpriv 65532, /proc, pgrep); no legal macOS port (AGENTS.md 3200-3299 only, transport validator rejects them). TS removal (inboxPage/messagingOverview/notificationWorkspace/visibleNotifications + TS exports, delta vs baseline 45) waits on proof. RESUME on Linux/container host: keyed dev-container bootstrap, authenticated gateway GETs on inbox notifications?view=unread + summary + SSR screen diffed vs TS fallback (denied/unknown/field-service, stock hrefs, badge); THEN remove fallbacks, delete TS handlers, record ts-statements delta, combined gates."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-collaboration",
@@ -107258,20 +107258,20 @@
           "packages/server-commercial/src/adapters/package-grants.ts",
           "tests/unit/collaboration/**"
         ],
-        "blocker": null,
-        "claim": {
-          "runId": "run-20261122-d",
-          "agentId": "worker-a",
-          "claimedAt": "2026-11-22T15:06:19.234Z",
-          "heartbeatAt": "2026-11-22T15:15:38.481Z",
-          "expiresAt": "2026-11-22T15:45:38.481Z",
-          "generation": 150
-        },
+        "blocker": "released with work preserved",
+        "claim": null,
         "dependsOn": [
           "ports.common"
         ],
         "goalId": "G3",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261122-d",
+          "agentId": "worker-a",
+          "at": "2026-11-22T15:17:11.357Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Filtered summary integrated at ee59f69 (walk matches TS filtered pages, PG 4/4 proof, pushed). Screen switch + all parity items proven. Next: container gateway proof (env-blocked on macOS dev), TS inboxPage/messagingOverview retirement with KPI delta. Worker claim retained."
+        },
         "id": "migrate.workplace.inbox-screen-native",
         "implementedCommit": null,
         "kind": "migration",
@@ -107285,7 +107285,7 @@
         "resources": [
           "owner:collaboration"
         ],
-        "status": "in_progress",
+        "status": "blocked",
         "title": "Workplace SSR inbox screen on the native inbox read",
         "workstream": "S13",
         "checks": [
@@ -107363,17 +107363,17 @@
       "migratedPackets": 321,
       "statusCounts": {
         "pending": 14,
-        "in_progress": 1,
+        "in_progress": 0,
         "ready_for_integration": 1,
         "integrating": 0,
         "migrated": 321,
-        "blocked": 101,
+        "blocked": 102,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 150,
-    "updatedAt": "2026-11-22T15:15:38.483Z",
+    "updatedAt": "2026-11-22T15:17:51.169Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
