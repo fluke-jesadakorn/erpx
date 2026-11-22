@@ -77,7 +77,8 @@
     "./domain/rfqs": "./src/domain/rfqs.ts",
     "./domain/supplier-promises": "./src/domain/supplier-promises.ts",
     "./domain/request-progress": "./src/domain/request-progress.ts",
-    "./public/purchases": "./src/public/purchases.ts"
+    "./public/purchases": "./src/public/purchases.ts",
+    "./testing/supplier-bill-oracle": "./src/testing/supplier-bill-oracle.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

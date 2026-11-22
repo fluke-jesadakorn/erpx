@@ -23,7 +23,7 @@ export async function seedHospitalityBrowserDemo(input:{db:SqlDatabase;control:S
   const {pmsCommand,loadPms}=await import("../../../packages/server-pms/src/public/pms");
   const {posCommand}=await import("@erpx/server-pos/public/pos-core");
   const {saveMaster}=await import("@erpx/server-commerce/public/commerce");
-  const {saveSupplierInvoicePolicy}=await import("@erpx/server-procurement/public/supplier-bill-matching");
+  const {saveSupplierInvoicePolicy}=await import("@erpx/server-procurement/testing/supplier-bill-oracle");
   const f=await seedExpenseCompany(input.db,input.files);
   await input.db.prepare("UPDATE organization_nodes SET display_name=? WHERE id=?").bind(fixture.legalEntity,f.company).run();
   await input.db.prepare("UPDATE organization_nodes SET display_name=? WHERE id=?").bind("Riverside Lantern Bangkok",f.branch).run();

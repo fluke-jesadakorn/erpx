@@ -12,11 +12,12 @@ import {markFinanceJournalPosted} from '../../support/helpers/finance-journal-se
 import {confirmManualRate} from '@erpx/server-finance/public/company-money';
 import {completeCommerceReturn,decideCommerceReturn,invoiceFulfillment,orderSchema,requestCommerceReturn,saveMaster,saveOrder,transitionOrder} from '@erpx/server-commerce/public/commerce';
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
-import { captureSupplierBill, decideSupplierBill } from "@erpx/server-procurement/public/supplier-bill-matching";
+import {} from "@erpx/server-procurement/public/supplier-bill-matching";
 import { approveRefund, confirmRefundInstruction, exportRefundInstructions, prepareRefundInstruction, recoverRefundExport, refundConfirmationSchema, refundInstructionSchema, refundWorkspace } from "@erpx/server-finance/public/refunds";
 import { invoiceHistoryCte } from "@erpx/server-finance/public/finance-history";
 import { enableAttachmentV2ForTest } from "../../support/helpers/attachment-v2";
 import { seedNativeQualityRelease } from "../../../fixtures/quality/hold";
+import {captureSupplierBill, decideSupplierBill} from "@erpx/server-procurement/testing/supplier-bill-oracle";
 
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({ holdingResources: async () => ({ write: env.H001_DB, files: env.H001_FILES }), runtimeEnv: async () => env }));
 let f: Awaited<ReturnType<typeof expenseFixture>>;

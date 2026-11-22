@@ -336,7 +336,7 @@ if(mode==='prepare'||diagnostic){
     env.H001_DB.prepare("INSERT INTO service_team_members(company_id,team_id,user_id,responsibility) VALUES(?,?,?,?)").bind(f.company,serviceTeamId,f.tie.userId,'member'),
     env.H001_DB.prepare("INSERT INTO service_team_coverage(company_id,team_id,category,scope_kind,scope_node_id) VALUES(?,?,?,?,?)").bind(f.company,serviceTeamId,'purchasing','holding',f.company),
   ]);
-  const {saveSupplierInvoicePolicy}=await import("@erpx/server-procurement/public/supplier-bill-matching");
+  const {saveSupplierInvoicePolicy}=await import("@erpx/server-procurement/testing/supplier-bill-oracle");
   await saveSupplierInvoicePolicy(f.owner,{matchingMode:'required',expectedVersion:0,reason:'Demo Company requires independent receipt and supplier invoice matching before AP'},crypto.randomUUID());
   const {saveEmployeeRequest,employeeRequestSchema}=await import("@erpx/server-records/public/employee-requests");
   const purchaseRequest=await saveEmployeeRequest(env.H001_DB,employeeActor,null,employeeRequestSchema.parse({kind:'purchase',title:'Laptop 10 เครื่องสำหรับทีมบริการลูกค้า',description:'เปลี่ยนเครื่องที่หมดอายุและเพิ่มเครื่องสำหรับพนักงานใหม่ ใช้ข้อมูลจำลองเท่านั้น',location:'สำนักงานใหญ่ ชั้น 4',impact:'normal',branchId:f.branch,departmentId:f.department,neededDate:'2026-10-15',currency:'THB',items:[{description:'Business laptop พร้อมประกัน 3 ปี',quantity:'10',unit:'each',estimatedCost:'25000'}]}),crypto.randomUUID());

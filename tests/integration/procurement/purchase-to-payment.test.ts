@@ -23,7 +23,7 @@ import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {importBankStatement,postInvoice} from '@erpx/server-finance/public/finance';
 import {markFinanceJournalPosted} from '../../support/helpers/finance-journal-seed';
-import { captureSupplierBill, decideSupplierBill } from "@erpx/server-procurement/public/supplier-bill-matching";
+import {} from "@erpx/server-procurement/public/supplier-bill-matching";
 import {
   supplierBatchWorkspace,
   supplierInvoiceBatchWorkspace,
@@ -31,6 +31,7 @@ import {
   listSupplierBatches,
 } from "@erpx/server-procurement/public/supplier-payments";
 import { purchaseRequestProgress } from "@erpx/server-procurement/public/purchase-request-progress";
+import {captureSupplierBill, decideSupplierBill} from "@erpx/server-procurement/testing/supplier-bill-oracle";
 
 vi.mock("server-only", () => ({}));
 vi.mock("@erpx/server-runtime/adapters/runtime", () => ({
