@@ -5,13 +5,15 @@ import { requireWorkContext } from "@erpx/server-identity_access/public/authoriz
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-origin";
 import {
-  saveSupplierInvoicePolicy,
   supplierInvoicePolicy,
   supplierInvoicePolicySchema,
 } from "@erpx/server-procurement/public/supplier-bill-matching";
 import {ownedSaveSupplierBillPolicy} from "@erpx/feature-procurement/public/native-supplier-bill-command-owned";
 
 type Context = { params: Promise<{ holdingSlug: string }> };
+const nativeUnavailable = () => {
+  throw new ApiError(503, "NATIVE_PROCUREMENT_UNAVAILABLE", "The native Procurement service is unavailable.");
+};
 
 export async function GET(_request: Request, context: Context) {
   try {
@@ -36,7 +38,7 @@ export async function POST(request: Request, context: Context) {
     const actor = await requireWorkContext((await context.params).holdingSlug);
     const holdingSlug = (await context.params).holdingSlug;
     const input = supplierInvoicePolicySchema.parse(await request.json());
-    return Response.json(canonicalDestinationLinks({ data: (await ownedSaveSupplierBillPolicy(actor, holdingSlug, input, key)) ?? await saveSupplierInvoicePolicy(actor, input, key) }));
+    return Response.json(canonicalDestinationLinks({ data: await ownedSaveSupplierBillPolicy(actor, holdingSlug, input, key) ?? nativeUnavailable() }));
   } catch (error) {
     if (error instanceof z.ZodError)
       return errorResponse(new ApiError(422, "VALIDATION_FAILED", error.issues[0]?.message ?? "Invalid input."));
