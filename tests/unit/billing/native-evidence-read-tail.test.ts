@@ -11,6 +11,7 @@ vi.mock('../../../packages/server-billing/src/adapters/native-billing-owner-writ
   nativeBillingOwnerBind: ownerBind,
 }));
 const { drainBillingEvidenceScans } = await import('@erpx/server-billing/adapters/billing-attachments');
+const { billingApiRepository } = await import('@erpx/server-billing/adapters/billing-api');
 
 function env() {
   const query = vi.fn(async () => ({ rows: [] }));
@@ -35,6 +36,22 @@ describe('Billing owner-local evidence read tail', () => {
 
     expect(ownerQuery).toHaveBeenCalledWith(expect.anything(), 'scan_claim', [expect.any(Number), expect.any(Number), expect.any(String)]);
     expect(ownerQuery).toHaveBeenCalledWith(expect.anything(), 'scan_source', ['ev-1']);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('reads API evidence and account existence by typed kinds with only positional values and no local SQL', async () => {
+    ownerQuery.mockReset();
+    const query = vi.fn(async () => ({ rows: [] }));
+    const repository = billingApiRepository(() => ({ pool: { query } }) as never, true);
+
+    await repository.scopedEvidence('ev-1', 'h001');
+    expect(ownerQuery).toHaveBeenCalledWith(expect.anything(), 'evidence_scoped_read', ['ev-1', 'h001']);
+    await repository.existingEvidence('ev-1');
+    expect(ownerQuery).toHaveBeenCalledWith(expect.anything(), 'evidence_existing_read', ['ev-1']);
+    await repository.billingAccountExists('h001');
+    expect(ownerQuery).toHaveBeenCalledWith(expect.anything(), 'billing_account_exists', ['h001']);
+
+    expect(ownerQuery).toHaveBeenCalledTimes(3);
     expect(query).not.toHaveBeenCalled();
   });
 });

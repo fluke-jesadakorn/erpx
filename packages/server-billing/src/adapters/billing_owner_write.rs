@@ -46,6 +46,9 @@ fn sql(kind: &str) -> Option<&'static str> {
         EVIDENCE_STORAGE_LEDGER => r####"INSERT INTO billing_evidence_storage_ledger(id,evidence_id,holding_id,object_key,bytes,state,created_at,updated_at) SELECT $1,id,holding_id,object_key,size,'stored',$2,$2 FROM billing_evidence WHERE id=$3 ON CONFLICT(object_key) DO NOTHING"####,
         EVIDENCE_SCAN_ATTEMPT => r####"INSERT INTO billing_evidence_scan_attempts(id,evidence_id,attempt,state,created_at) VALUES($1,$2,1,'pending',$3) ON CONFLICT(evidence_id,attempt) DO NOTHING"####,
         EVIDENCE_EVENT_QUARANTINED => r####"INSERT INTO billing_evidence_events(id,evidence_id,holding_id,actor,action,details_json,created_at) VALUES($1,$2,$3,$4,'file.quarantined',$5,$6) ON CONFLICT(id) DO NOTHING"####,
+        EVIDENCE_SCOPED_READ => r####"SELECT * FROM billing_evidence WHERE id=$1 AND holding_id=$2"####,
+        EVIDENCE_EXISTING_READ => r####"SELECT * FROM billing_evidence WHERE id=$1"####,
+        BILLING_ACCOUNT_EXISTS => r####"SELECT 1 FROM billing_accounts WHERE holding_id=$1"####,
         SCAN_SOURCE => r####"SELECT * FROM billing_evidence WHERE id=$1"####,
         APP_FINANCE_PROJECTION => r####"SELECT invoice_satang,receivable_satang,received_satang,reversed_satang,credited_satang,stripe_status,synced_at FROM billing_test_finance_projection WHERE billing_invoice_id=$1 AND customer_holding_id=$2"####,
         RECONCILIATION_RUN => r####"INSERT INTO billing_evidence_reconciliation_runs(id,mode,upload_frozen,checksums_verified,scanner_engine,scanner_definition_at,ready,report_json,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)"####,
@@ -252,6 +255,49 @@ mod tests {
             now: 1,
         })
         .is_err());
+    }
+    #[test]
+    fn api_evidence_and_account_reads_are_owner_authored_and_fully_bound() {
+        let holding = HoldingId::new("h001").unwrap();
+        for (kind, sql, values, missing) in [
+            (
+                EVIDENCE_SCOPED_READ,
+                "SELECT * FROM billing_evidence WHERE id=$1 AND holding_id=$2",
+                vec![serde_json::json!("ev-1"), serde_json::json!("h001")],
+                vec![serde_json::json!("ev-1")],
+            ),
+            (
+                EVIDENCE_EXISTING_READ,
+                "SELECT * FROM billing_evidence WHERE id=$1",
+                vec![serde_json::json!("ev-1")],
+                vec![],
+            ),
+            (
+                BILLING_ACCOUNT_EXISTS,
+                "SELECT 1 FROM billing_accounts WHERE holding_id=$1",
+                vec![serde_json::json!("h001")],
+                vec![],
+            ),
+        ] {
+            let statement = billing_owner_statement(&holding, &BillingOwnerWriteInput {
+                kind: kind.into(),
+                values: values.clone(),
+                now: 1,
+            })
+            .unwrap_or_else(|_| panic!("{kind} is an allow-listed owner read kind"));
+            assert_eq!(statement.sql, sql);
+            assert_eq!(statement.values, values);
+            // A missing witness bind cannot widen an owner read.
+            assert!(billing_owner_statement(&holding, &BillingOwnerWriteInput {
+                kind: kind.into(),
+                values: missing,
+                now: 1,
+            })
+            .is_err());
+        }
+        // The scan-source and API evidence reads are independent kinds: a
+        // caller of one cannot silently switch statement shape to the other.
+        assert_ne!(SCAN_SOURCE, EVIDENCE_EXISTING_READ);
     }
     #[test]
     fn scan_source_read_is_owner_authored_and_single_bound() {
