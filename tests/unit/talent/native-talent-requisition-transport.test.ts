@@ -15,6 +15,7 @@ import {
   nativeTalentWorkspace,
 } from '../../../packages/feature-talent/src/public/native-talent-page';
 import {nativeTalentLifecycleCommand} from '../../../packages/server-talent/src/public/native-talent-lifecycle-page';
+import {nativeTalentReadAll,nativeTalentReadFirst} from '../../../packages/server-talent/src/adapters/native-talent-read';
 import {talentPurchaseControls} from '../../../packages/server-talent/src/public/purchases';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
@@ -229,4 +230,58 @@ describe('native Talent requisition transport',()=>{
     .toMatchObject({status:409,code:'CONFLICT'});
   expect(nativeTalentFailure(new Error('other'))).toBeUndefined();
  });
+});
+
+describe('native Talent detail read tail', () => {
+  const readConfig = JSON.stringify({
+    privateBaseUrl: 'http://127.0.0.1:44994',
+    timeoutMs: 1000,
+    holdings: [{ origin: 'https://acme.example.com', holdingSlug: 'acme', holdingId: 'h001' }],
+  });
+
+  it('plans owner detail reads through the mounted command-plan route with no local SQL', async () => {
+    const previous = process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+    process.env.ERPX_NATIVE_TALENT_READ_CONFIG = readConfig;
+    const plannedSql = 'SELECT * FROM talent_offers WHERE application_id=?';
+    const fetchMock = vi.fn(async (_url: unknown, init: { body?: string }) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      expect(body.kind).toBe('talent_rd_offers');
+      expect(body.values).toEqual(['app-1']);
+      return ok({ data: { statements: [{ sql: plannedSql, values: ['app-1'] }] } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const seen: string[] = [];
+    const db = {
+      prepare(sql: string) {
+        seen.push(sql);
+        return {
+          bind(...values: unknown[]) {
+            expect(values).toEqual(['app-1']);
+            return { first: async () => ({ id: 'offer-1' }), all: async () => ({ results: [{ id: 'offer-1' }] }) };
+          },
+        };
+      },
+    } as never;
+    try {
+      await expect(nativeTalentReadFirst('talent_rd_offers', ['app-1'], db)).resolves.toEqual({ id: 'offer-1' });
+      expect(seen).toEqual([plannedSql]);
+      expect(String(fetchMock.mock.calls[0][0])).toContain('/api/v1/holdings/acme/talent/command-plan');
+    } finally {
+      vi.unstubAllGlobals();
+      if (previous === undefined) delete process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+      else process.env.ERPX_NATIVE_TALENT_READ_CONFIG = previous;
+    }
+  });
+
+  it('fails closed without a native read config and never builds local SQL', async () => {
+    const previous = process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+    delete process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+    const db = { prepare: () => { throw new Error('owner-local reader must not build local SQL'); } } as never;
+    try {
+      await expect(nativeTalentReadAll('talent_rd_offers', ['app-1'], db))
+        .rejects.toMatchObject({ status: 503, code: 'NATIVE_TALENT_READ_UNAVAILABLE' });
+    } finally {
+      if (previous !== undefined) process.env.ERPX_NATIVE_TALENT_READ_CONFIG = previous;
+    }
+  });
 });

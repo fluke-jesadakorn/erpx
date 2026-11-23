@@ -8,9 +8,10 @@
 use crate::domain::requisition::{request_invalid, requisition_not_found};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
-    StatusCode, body::to_bytes, header, routing::get, serde_json,
+    StatusCode, body::to_bytes, header, post, routing::get, serde_json,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind, RecordId};
+use serde::Deserialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::{future::Future, pin::Pin, sync::Arc};
@@ -237,6 +238,10 @@ pub fn talent_requisition_http_router(
     }
     Ok(Router::new()
         .route(
+            "/api/v1/holdings/{holding_slug}/talent/command-plan",
+            post(plan_read),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/talent/requisitions",
             get(read_workspace).post(create_requisition),
         )
@@ -247,6 +252,48 @@ pub fn talent_requisition_http_router(
         .with_state(Arc::new(TalentRequisitionHttpState {
             targets: configured,
         })))
+}
+
+/// One owner read plan request. `kind` is an owner allow-listed discriminator;
+/// `values` are positional arguments, never SQL text.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct OwnerReadCommand {
+    kind: String,
+    values: Vec<Value>,
+}
+
+/// Plan an owner-owned caller-unit read. No SQL is accepted from the wire: the
+/// allow-listed read `kind` resolves to the exact statement in the native Talent
+/// read registry, which the TS caller prepares and executes on its own open
+/// unit. Reads carry no write ledger and never execute here.
+async fn plan_read(
+    State(state): State<Arc<TalentRequisitionHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async {
+        let _target = target(&state, &headers, &slug)?;
+        ensure_no_query(&request)?;
+        let bytes = to_bytes(request.into_body(), BODY_LIMIT)
+            .await
+            .map_err(|_| malformed())?;
+        let command: OwnerReadCommand = serde_json::from_slice(&bytes).map_err(|_| malformed())?;
+        let statement = crate::adapters::native_talent_read_sql::read_statement(&command.kind)
+            .ok_or_else(malformed)?;
+        if command.values.len() != statement.bind_count {
+            return Err(malformed());
+        }
+        Ok(serde_json::json!({
+            "statements": [{ "sql": statement.sql, "values": command.values }]
+        }))
+    }
+    .await;
+    match result {
+        Ok(data) => bounded(serde_json::json!({ "data": data })),
+        Err(error) => error_response(error),
+    }
 }
 
 async fn read_workspace(

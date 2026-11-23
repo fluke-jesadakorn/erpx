@@ -341,3 +341,74 @@ async fn router_rejects_unknown_targets_query_keys_bodies_and_routes() {
 
     server.abort();
 }
+
+#[tokio::test]
+async fn command_plan_returns_only_owner_authored_select_statements() {
+    let router = talent_requisition_http_router(vec![TalentRequisitionHttpTarget {
+        host: "acme.example.test".into(),
+        holding_slug: "acme".into(),
+        origin: "https://acme.example.test".into(),
+        backend: Arc::new(Noop),
+    }])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+
+    let (status, body, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/talent/command-plan",
+            "acme.example.test",
+            None,
+            r#"{"kind":"talent_rd_offers","values":["app-1"]}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(
+        body["data"]["statements"][0]["sql"],
+        serde_json::json!("SELECT * FROM talent_offers WHERE application_id=?")
+    );
+    assert_eq!(body["data"]["statements"][0]["values"], serde_json::json!(["app-1"]));
+
+    let (status, _, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/talent/command-plan",
+            "acme.example.test",
+            None,
+            r#"{"kind":"SELECT * FROM talent_offers","values":[]}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+
+    let (status, _, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/talent/command-plan",
+            "acme.example.test",
+            None,
+            r#"{"kind":"talent_rd_offers","values":[]}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+
+    let (status, _, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/talent/command-plan",
+            "other.example.test",
+            None,
+            r#"{"kind":"talent_rd_offers","values":["app-1"]}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 404);
+
+    server.abort();
+}

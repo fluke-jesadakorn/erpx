@@ -1,4 +1,5 @@
 import {withTalentPurchasedCommand,withTalentPurchasedRead,talentPurchaseControls} from "@erpx/server-talent/adapters/purchases";
+import {nativeTalentReadAll,nativeTalentReadFirst} from "./native-talent-read";
 import {SensitiveAttachmentTalentFacts} from "@erpx/server-talent/adapters/attachments-sensitive-facts";
 import {talentActionSchema} from "@erpx/server-talent/domain/talent";
 import {learningTalentSnapshotSources as identityaccessSnapshotSources} from '@erpx/server-identity_access/public/learning-talent-snapshot-sources';
@@ -110,26 +111,10 @@ async application(a,id){const write=await database();return await write
       )
       .bind(id, a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId)
       .first<Row>();},
-async history(id){const write=await database();return (
-      await write
-        .prepare(
-          "SELECT * FROM talent_application_events WHERE application_id=? ORDER BY version",
-        )
-        .bind(id)
-        .all<Row>()
-    ).results;},
-async proposal(id){const write=await database();return await write
-      .prepare("SELECT * FROM talent_proposals WHERE application_id=?")
-      .bind(id)
-      .first<Row>();},
-async offer(id){const write=await database();return await write
-      .prepare("SELECT * FROM talent_offers WHERE application_id=?")
-      .bind(id)
-      .first<Row>();},
-async handoff(offerId){const write=await database(),offer={id:offerId};return await write
-          .prepare("SELECT * FROM talent_hire_handoffs WHERE offer_id=?")
-          .bind(offer.id)
-          .first<Row>();},
+async history(id){return nativeTalentReadAll<Row>('talent_rd_application_events',[id],await database());},
+async proposal(id){return nativeTalentReadFirst<Row>('talent_rd_proposals',[id],await database());},
+async offer(id){return nativeTalentReadFirst<Row>('talent_rd_offers',[id],await database());},
+async handoff(offerId){return nativeTalentReadFirst<Row>('talent_rd_hire_handoffs',[offerId],await database());},
 });}
 export async function talentDetail(a:WorkContext,id:string){return withTalentPurchasedRead(a,["recruit.candidates","recruit.applications","recruit.offers"],async db=>{
  const database=db??await lazyDatabase(a)(),detail=await nativeTalentDetail(database)(a,id),offerDocuments=detail.canManageDocuments&&detail.offer?await SensitiveAttachmentTalentFacts(database).readTalentOffers1({targetId:String(detail.offer.id),companyId:a.companyId}):null;
