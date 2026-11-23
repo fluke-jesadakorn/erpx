@@ -55,6 +55,10 @@ fn sql(kind: &str) -> Option<&'static str> {
           AND included_seats=0 AND seat_monthly_satang IS NOT NULL
           AND storage_allowance_mode='per_paid_seat_time' AND effective_month>$1
         ORDER BY effective_month ASC,id ASC LIMIT 1"####,
+        TARGET_ROLLOUT_EFFECTIVE_PRICE => r####"SELECT id,included_original_bytes,seat_terms_status,rating_enabled
+      FROM billing_target_prices WHERE effective_month<=$1
+      ORDER BY effective_month DESC,id DESC LIMIT 1"####,
+        TARGET_ROLLOUT_RATED_SHADOW_PERIOD => r####"SELECT state,mode,total_satang,price_id,meter_snapshot_id,lines_json FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2"####,
         EVIDENCE_RETAIN => r####"INSERT INTO billing_evidence(id,holding_id,filename,mime,size,sha256,actor,created_at,object_key,detected_mime,source_state) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(id) DO NOTHING"####,
         EVIDENCE_STORAGE_LEDGER => r####"INSERT INTO billing_evidence_storage_ledger(id,evidence_id,holding_id,object_key,bytes,state,created_at,updated_at) SELECT $1,id,holding_id,object_key,size,'stored',$2,$2 FROM billing_evidence WHERE id=$3 ON CONFLICT(object_key) DO NOTHING"####,
         EVIDENCE_SCAN_ATTEMPT => r####"INSERT INTO billing_evidence_scan_attempts(id,evidence_id,attempt,state,created_at) VALUES($1,$2,1,'pending',$3) ON CONFLICT(evidence_id,attempt) DO NOTHING"####,
@@ -342,6 +346,47 @@ mod tests {
             .is_err());
         }
         assert_ne!(FORECAST_CURRENT_PRICE, FORECAST_FUTURE_PRICE);
+    }
+    #[test]
+    fn target_rollout_price_and_shadow_period_reads_are_owner_authored_and_fully_bound() {
+        let holding = HoldingId::new("h001").unwrap();
+        for (kind, sql, values, wrong) in [
+            (
+                TARGET_ROLLOUT_EFFECTIVE_PRICE,
+                "SELECT id,included_original_bytes,seat_terms_status,rating_enabled\n      FROM billing_target_prices WHERE effective_month<=$1\n      ORDER BY effective_month DESC,id DESC LIMIT 1",
+                vec![serde_json::json!("2027-02")],
+                vec![serde_json::json!("2027-02"), serde_json::json!("h001")],
+            ),
+            (
+                TARGET_ROLLOUT_RATED_SHADOW_PERIOD,
+                "SELECT state,mode,total_satang,price_id,meter_snapshot_id,lines_json FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2",
+                vec![serde_json::json!("h001"), serde_json::json!("2027-02")],
+                vec![serde_json::json!("h001")],
+            ),
+        ] {
+            let statement = billing_owner_statement(&holding, &BillingOwnerWriteInput {
+                kind: kind.into(),
+                values: values.clone(),
+                now: 1,
+            })
+            .unwrap_or_else(|_| panic!("{kind} is an allow-listed owner read kind"));
+            assert_eq!(statement.sql, sql);
+            assert_eq!(statement.values, values);
+            // A missing or widened bind cannot broaden an owner-local read.
+            assert!(billing_owner_statement(&holding, &BillingOwnerWriteInput {
+                kind: kind.into(),
+                values: vec![],
+                now: 1,
+            })
+            .is_err());
+            assert!(billing_owner_statement(&holding, &BillingOwnerWriteInput {
+                kind: kind.into(),
+                values: wrong,
+                now: 1,
+            })
+            .is_err());
+        }
+        assert_ne!(TARGET_ROLLOUT_EFFECTIVE_PRICE, TARGET_ROLLOUT_RATED_SHADOW_PERIOD);
     }
     #[test]
     fn api_evidence_and_account_reads_are_owner_authored_and_fully_bound() {

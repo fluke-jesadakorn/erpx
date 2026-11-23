@@ -19,6 +19,7 @@ const { drainBillingEvidenceScans } = await import('@erpx/server-billing/adapter
 const { billingApiRepository } = await import('@erpx/server-billing/adapters/billing-api');
 const { billingLink, applyLegacyStripeEvent } = await import('@erpx/server-billing/adapters/beta-billing');
 const { nativeSeatForecastRepository } = await import('@erpx/server-billing/adapters/billing-forecast');
+const { nativeTargetRolloutRepository } = await import('@erpx/server-billing/adapters/billing-target-rollout');
 
 function env() {
   const query = vi.fn(async () => ({ rows: [] }));
@@ -132,5 +133,32 @@ describe('Billing seat-forecast owner-local price read tail', () => {
 
     expect(ownerQuery).not.toHaveBeenCalled();
     expect(query).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('Billing target-rollout owner-local price read tail', () => {
+  it('reads the effective price and rated shadow period by typed owner kinds with only positional binds and no local SQL', async () => {
+    ownerQuery.mockReset();
+    const query = vi.fn(async () => ({ rows: [], rowCount: 0 }));
+    const repository = nativeTargetRolloutRepository({ query } as never);
+
+    await repository.effectivePrice('2027-02');
+    expect(ownerQuery).toHaveBeenCalledWith(expect.anything(), 'target_rollout_effective_price', ['2027-02']);
+    await repository.ratedShadowPeriod('h001', '2027-02');
+    expect(ownerQuery).toHaveBeenCalledWith(expect.anything(), 'target_rollout_rated_shadow_period', ['h001', '2027-02']);
+
+    expect(ownerQuery).toHaveBeenCalledTimes(2);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('leaves the commercial usage snapshot on the caller client', async () => {
+    ownerQuery.mockReset();
+    const query = vi.fn(async (_sql: string, _values: unknown[]) => ({ rows: [], rowCount: 0 }));
+    const repository = nativeTargetRolloutRepository({ query } as never);
+
+    await repository.usageSnapshot('h001', '2027-01');
+
+    expect(ownerQuery).not.toHaveBeenCalled();
+    expect(query).toHaveBeenCalledTimes(1);
   });
 });

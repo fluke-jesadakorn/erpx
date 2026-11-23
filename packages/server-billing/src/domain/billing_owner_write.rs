@@ -19,6 +19,8 @@ pub const BETA_INBOX_STATE: &str = "beta_inbox_state";
 pub const BETA_LEGACY_CUSTOMER: &str = "beta_legacy_customer";
 pub const FORECAST_CURRENT_PRICE: &str = "forecast_current_price";
 pub const FORECAST_FUTURE_PRICE: &str = "forecast_future_price";
+pub const TARGET_ROLLOUT_EFFECTIVE_PRICE: &str = "target_rollout_effective_price";
+pub const TARGET_ROLLOUT_RATED_SHADOW_PERIOD: &str = "target_rollout_rated_shadow_period";
 pub const EVIDENCE_RETAIN: &str = "evidence_retain";
 pub const EVIDENCE_STORAGE_LEDGER: &str = "evidence_storage_ledger";
 pub const EVIDENCE_SCAN_ATTEMPT: &str = "evidence_scan_attempt";
@@ -103,6 +105,8 @@ pub const OWNER_WRITE_KINDS: &[&str] = &[
     BETA_LEGACY_CUSTOMER,
     FORECAST_CURRENT_PRICE,
     FORECAST_FUTURE_PRICE,
+    TARGET_ROLLOUT_EFFECTIVE_PRICE,
+    TARGET_ROLLOUT_RATED_SHADOW_PERIOD,
     EVIDENCE_RETAIN,
     EVIDENCE_STORAGE_LEDGER,
     EVIDENCE_SCAN_ATTEMPT,

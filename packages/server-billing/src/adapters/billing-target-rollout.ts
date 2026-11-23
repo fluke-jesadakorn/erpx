@@ -1,14 +1,13 @@
 import {nativeCommercialOwnerRead,COMMERCIAL_RD_USAGE_SNAPSHOT} from '@erpx/server-commercial/adapters/native-owner-read';
+import {nativeBillingOwnerQuery} from '@erpx/server-billing/adapters/native-billing-owner-write';
 import 'server-only';
 import type {PoolClient} from 'pg';
 import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgres';
 import {calculateTargetRolloutReadiness as calculate,type TargetRolloutRepository} from '@erpx/server-billing/application/target-rollout';
 import type * as D from '@erpx/server-billing/domain/target-rollout';
 export type {TargetMarginReport,TargetRolloutReadiness} from '@erpx/server-billing/domain/target-rollout';
-export function nativeTargetRolloutRepository(c:PoolClient):TargetRolloutRepository{return {effectivePrice:(value0)=>c.query<D.EffectivePriceRow>(`SELECT id,included_original_bytes,seat_terms_status,rating_enabled
-      FROM billing_target_prices WHERE effective_month<=$1
-      ORDER BY effective_month DESC,id DESC LIMIT 1`,[value0]),
-ratedShadowPeriod:(value0,value1)=>c.query<D.RatedShadowPeriodRow>("SELECT state,mode,total_satang,price_id,meter_snapshot_id,lines_json FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2",[value0,value1]),
+export function nativeTargetRolloutRepository(c:PoolClient):TargetRolloutRepository{return {effectivePrice:async(value0)=>(await nativeBillingOwnerQuery(c,'target_rollout_effective_price',[value0])) as {rows:D.EffectivePriceRow[];rowCount:number|null},
+ratedShadowPeriod:async(value0,value1)=>(await nativeBillingOwnerQuery(c,'target_rollout_rated_shadow_period',[value0,value1])) as {rows:D.RatedShadowPeriodRow[];rowCount:number|null},
 usageSnapshot:async(value0,value1)=>c.query<D.UsageSnapshotRow>(`SELECT snapshot_id FROM (${await nativeCommercialOwnerRead(COMMERCIAL_RD_USAGE_SNAPSHOT)}) billing_usage_snapshots WHERE holding_id=$1 AND month=$2`,[value0,value1]),
 availableOperatingCosts:(value0,value1)=>c.query<D.AvailableOperatingCostsRow>(`SELECT o.category,o.amount_satang,e.source_state
        FROM billing_target_operating_costs o
