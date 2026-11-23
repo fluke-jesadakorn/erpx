@@ -16,8 +16,7 @@ import {
   benefitDetail,
   benefitWork,
 } from '@erpx/server-benefits/adapters/benefits-native-read';
-import { benefitsWorkspace as barrelWorkspace, benefitDetail as barrelDetail, benefitWork as barrelWork } from '@erpx/server-benefits/public/benefits';
-import { benefitsWorkspace as portWorkspace } from '@erpx/server-benefits/public/benefits-native-read';
+import { benefitsWorkspace as portWorkspace, benefitDetail as portDetail, benefitWork as portWork } from '@erpx/server-benefits/public/benefits-native-read';
 
 const actor = { userId: 'user' } as never;
 const election = (id: string, personId: string, status: string, updatedAt = 20) => ({
@@ -40,11 +39,10 @@ beforeEach(() => {
 });
 
 describe('Benefits native read delegation', () => {
-  it('keeps the compatibility barrel and the public port on the new native module', () => {
-    expect(barrelWorkspace).toBe(benefitsWorkspace);
-    expect(barrelDetail).toBe(benefitDetail);
-    expect(barrelWork).toBe(benefitWork);
+  it('exposes the native module through the public port', () => {
     expect(portWorkspace).toBe(benefitsWorkspace);
+    expect(portDetail).toBe(benefitDetail);
+    expect(portWork).toBe(benefitWork);
   });
 
   it('delegates the workspace and detail reads with the original arguments', async () => {

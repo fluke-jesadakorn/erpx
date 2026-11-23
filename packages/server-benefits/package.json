@@ -19,7 +19,6 @@
     "./adapters/attachments-sensitive-facts": "./src/adapters/attachments-sensitive-facts.ts",
     "./adapters/payroll-source-facts": "./src/adapters/payroll-source-facts.ts",
     "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
-    "./public/benefits": "./src/public/benefits.ts",
     "./public/benefits-native-read": "./src/public/benefits-native-read.ts",
     "./public/payroll-owner-facts": "./src/public/payroll-owner-facts.ts",
     "./public/people-package-obligations": "./src/public/people-package-obligations.ts",

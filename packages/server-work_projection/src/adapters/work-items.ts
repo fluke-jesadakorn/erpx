@@ -57,7 +57,7 @@ export function workSnapshotPorts(write: SqlDatabase): WorkSnapshotPorts {
                 case "collaborationActionWork": return (await import("@erpx/server-collaboration/public/collaboration-work")).collaborationActionWork(actor,async()=>(await import("@erpx/server-field_service/public/native-work")).nativeFieldCollaborationWork(actor));
                 case "operationsExceptionWork": return (await import("@erpx/server-operations/public/operations-exceptions")).operationsExceptionWork(actor,async()=>(await import("@erpx/server-field_service/public/native-work")).nativeFieldOperationsWork(actor));
                 case "learningWork": return (await import("@erpx/server-learning/public/learning")).nativeLearningWork(actor);
-                case "benefitWork": return (await import("@erpx/server-benefits/public/benefits")).benefitWork(actor);
+                case "benefitWork": return (await import("@erpx/server-benefits/public/benefits-native-read")).benefitWork(actor);
                 case "talentWork": return (await import("@erpx/server-talent/public/talent")).talentWork(actor);
                 case "marketingWork": return (await import("@erpx/server-marketing/public/marketing")).marketingWork(actor);
                 case "manufacturingWork": return (await import("@erpx/server-manufacturing/public/production")).manufacturingWork(actor);

@@ -47,7 +47,7 @@ export interface StaffNotificationPorts {
     getOrder(...args: Parameters<typeof import("@erpx/server-commerce/public/commerce").getOrder>): ReturnType<typeof import("@erpx/server-commerce/public/commerce").getOrder>;
     collaborationActionDetail(...args: Parameters<typeof import("@erpx/server-collaboration/public/collaboration-work").collaborationActionDetail>): ReturnType<typeof import("@erpx/server-collaboration/public/collaboration-work").collaborationActionDetail>;
     learningAssignmentDetail(...args: Parameters<typeof import("@erpx/workplace/lib/native-learning").nativeLearningDetailPage>): ReturnType<typeof import("@erpx/workplace/lib/native-learning").nativeLearningDetailPage>;
-    benefitDetail(...args: Parameters<typeof import("@erpx/server-benefits/public/benefits").benefitDetail>): ReturnType<typeof import("@erpx/server-benefits/public/benefits").benefitDetail>;
+    benefitDetail(...args: Parameters<typeof import("@erpx/server-benefits/public/benefits-native-read").benefitDetail>): ReturnType<typeof import("@erpx/server-benefits/public/benefits-native-read").benefitDetail>;
     talentDetail(...args: Parameters<typeof import("@erpx/server-talent/public/talent").talentDetail>): ReturnType<typeof import("@erpx/server-talent/public/talent").talentDetail>;
     marketingDetail(...args: Parameters<typeof import("@erpx/server-marketing/public/marketing").marketingDetail>): ReturnType<typeof import("@erpx/server-marketing/public/marketing").marketingDetail>;
     productionDetail(...args: Parameters<typeof import("@erpx/server-manufacturing/public/production").productionDetail>): ReturnType<typeof import("@erpx/server-manufacturing/public/production").productionDetail>;

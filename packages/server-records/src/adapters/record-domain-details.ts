@@ -6,7 +6,7 @@ import { agentWorkspace } from "@erpx/server-agent/public/agent-governance";
 import { productionWorkspace } from "@erpx/server-manufacturing/public/production";
 import { ecommerceWorkspace } from "@erpx/server-ecommerce/public/ecommerce";
 import { nativeLearningWorkspacePage } from "@erpx/workplace/lib/native-learning";
-import { benefitsWorkspace } from "@erpx/server-benefits/public/benefits";
+import { benefitsWorkspace } from "@erpx/server-benefits/public/benefits-native-read";
 import { talentWorkspace } from "@erpx/server-talent/public/talent";
 import { holdingResources as nativeHoldingResources } from '../../../../packages/server-runtime/src/public/runtime';
 import { policyRead as nativePolicyRead, policyNow as nativePolicyNow } from '@erpx/server-identity_access/public/iam-read-snapshot';

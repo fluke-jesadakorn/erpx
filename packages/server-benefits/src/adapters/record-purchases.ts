@@ -43,7 +43,7 @@ export async function requireBenefitWorkspaceRecordRead(database:SqlDatabase,act
  * flags cannot be reintroduced into a later shared Work presentation. */
 export async function filterBenefitWork(_database:SqlDatabase,actor:WorkContext,items:WorkItem[]){
  if(await peoplePackageEnforcementMode()==="disabled"||!items.some(item=>item.type==="benefit_enrollment"))return items;
- let current:WorkItem[];try{current=await(await import('@erpx/server-benefits/public/benefits')).benefitWork(actor);}catch(error){if(error instanceof ApiError&&[403,404].includes(error.status))return items.filter(item=>item.type!=="benefit_enrollment");throw error;}
+ let current:WorkItem[];try{current=await(await import('@erpx/server-benefits/public/benefits-native-read')).benefitWork(actor);}catch(error){if(error instanceof ApiError&&[403,404].includes(error.status))return items.filter(item=>item.type!=="benefit_enrollment");throw error;}
  const sources=new Map(current.map(item=>[item.id,item]));return items.flatMap(item=>{if(item.type!=="benefit_enrollment")return [item];const source=sources.get(item.id);if(!source)return [];const canAct=item.canAct&&source.canAct;return [{...item,canAct,...(!canAct?{queue:item.queue==='completed'?'completed' as const:'waiting' as const,actionKind:'work' as const,relationships:(item.relationships??[]).filter(value=>!['assigned','approval'].includes(value)),flow:item.flow?{...item.flow,canAct:false,canManage:false}:undefined}:{})}];});
 }
 export async function benefitMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){

@@ -4,7 +4,7 @@ import type { agentWorkspace } from "@erpx/server-agent/public/agent-governance"
 import type { productionWorkspace } from "@erpx/server-manufacturing/public/production";
 import type { ecommerceWorkspace } from "@erpx/server-ecommerce/public/ecommerce";
 import type { nativeLearningWorkspacePage as learningWorkspace } from "@erpx/workplace/lib/native-learning";
-import type { benefitsWorkspace } from "@erpx/server-benefits/public/benefits";
+import type { benefitsWorkspace } from "@erpx/server-benefits/public/benefits-native-read";
 import type { talentWorkspace } from "@erpx/server-talent/public/talent";
 import { type DomainRecordKind, isDomainRecordKind } from '@erpx/server-records/domain/record-domain-details';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
