@@ -57,3 +57,15 @@ it('clamps native current Expense Work actions to history-only without changing 
  const ports={listExpenses:async()=>[row],canEditExpense:()=>false,canReviewExpense:()=>false,canPostExpenses:()=>true,listTasks:unused,taskWorkState:unused,listCounts:unused,listTransfers:unused,canReadCounts:()=>false,canEditCount:()=>false,canReviewCount:()=>false,canEditTransfer:()=>false,canReviewTransfer:()=>false};
  expect((await createDomainWork(ports).getDomainWork(actor,'expense'))[0]).toMatchObject({id:row.id,canAct:false,queue:'waiting'});
 });
+it('reads the daily plan through the mounted native owner-read kind without local SQL',async()=>{
+ const ownerRow=vi.fn(async()=>({items_json:'[]',version:1})),ownerWrite=vi.fn(async()=>({})),prepare=vi.fn();
+ vi.doMock('../../../packages/server-work_projection/src/adapters/native-owner-write',()=>({nativeOwnerWrite:ownerWrite,nativeOwnerWriteRow:ownerRow}));
+ try{
+  const {dailyPlanUnit}=await import('@erpx/server-work_projection/adapters/daily-plan');
+  const row=await dailyPlanUnit({prepare} as never).read('company','user','2026-09-26');
+  expect(row).toEqual({items_json:'[]',version:1});
+  expect(ownerRow).toHaveBeenCalledWith('wp_daily_plan_read',['company','user','2026-09-26'],'wp-daily-plan-read:company:user:2026-09-26',{companyId:'company'});
+  expect(ownerWrite).not.toHaveBeenCalled();
+  expect(prepare).not.toHaveBeenCalled();
+ }finally{vi.doUnmock('../../../packages/server-work_projection/src/adapters/native-owner-write');}
+});

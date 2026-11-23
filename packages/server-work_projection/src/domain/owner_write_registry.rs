@@ -32,6 +32,7 @@ pub const WP_REMINDER_DELIVERY_UPSERT: &str = "wp_reminder_delivery_upsert";
 pub const WP_REMINDER_DELIVERY_CLAIM: &str = "wp_reminder_delivery_claim";
 pub const WP_REMINDER_AUTHORIZATION_INSERT: &str = "wp_reminder_authorization_insert";
 pub const WP_DAILY_PLAN_WRITE: &str = "wp_daily_plan_write";
+pub const WP_DAILY_PLAN_READ: &str = "wp_daily_plan_read";
 pub const WP_PAGE_LAYOUT_SAVE: &str = "wp_page_layout_save";
 pub const WP_PAGE_LAYOUT_RECEIPT_SAVE: &str = "wp_page_layout_receipt_save";
 pub const WP_QUICK_ACCESS_SAVE: &str = "wp_quick_access_save";
@@ -70,6 +71,7 @@ const KINDS: &[(&str, usize)] = &[
     (WP_REMINDER_DELIVERY_CLAIM, 5),
     (WP_REMINDER_AUTHORIZATION_INSERT, 11),
     (WP_DAILY_PLAN_WRITE, 8),
+    (WP_DAILY_PLAN_READ, 3),
     (WP_PAGE_LAYOUT_SAVE, 7),
     (WP_PAGE_LAYOUT_RECEIPT_SAVE, 9),
     (WP_QUICK_ACCESS_SAVE, 6),
@@ -108,6 +110,12 @@ pub fn returning(kind: &str) -> bool {
     )
 }
 
+/// Owner-authored SELECT kinds served by the mounted owner-read route. The
+/// reply carries the typed result row without a TypeScript-authored query.
+pub fn reading(kind: &str) -> bool {
+    kind == WP_DAILY_PLAN_READ
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -125,5 +133,14 @@ mod tests {
     fn returning_kinds_are_exact() {
         assert!(returning(WP_REMINDER_DELIVERY_CLAIM));
         assert!(!returning(WP_CAL_HISTORY_INSERT));
+    }
+
+    #[test]
+    fn owner_read_kinds_are_exact_and_arity_fenced() {
+        assert!(reading(WP_DAILY_PLAN_READ));
+        assert!(supported(WP_DAILY_PLAN_READ));
+        assert!(validate(WP_DAILY_PLAN_READ, 3).is_ok());
+        assert!(validate(WP_DAILY_PLAN_READ, 2).is_err());
+        assert!(!reading(WP_DAILY_PLAN_WRITE));
     }
 }

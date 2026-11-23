@@ -12,10 +12,11 @@ use crate::domain::owner_write_registry::{
     WP_CAL_OCCURRENCE_EXCEPTION_UPSERT, WP_CAL_OCCURRENCE_RESPONSE_UPSERT,
     WP_CAL_PARTICIPANT_CLONE, WP_CAL_PARTICIPANT_DELETE, WP_CAL_PARTICIPANT_INSERT,
     WP_CAL_REMINDER_DELIVERY_DELETE, WP_CAL_SERIES_DELETE, WP_CAL_SERIES_INSERT,
-    WP_CAL_SERIES_UPSERT, WP_CAL_SERIES_UNTIL, WP_DAILY_PLAN_WRITE, WP_PAGE_LAYOUT_RECEIPT_SAVE,
-    WP_PAGE_LAYOUT_SAVE, WP_PROJECTION_CHECKPOINT, WP_PROJECTION_RECEIPT, WP_QUICK_ACCESS_RECEIPT_SAVE,
-    WP_QUICK_ACCESS_SAVE, WP_REMINDER_AUTHORIZATION_INSERT, WP_REMINDER_DELIVERY_CLAIM,
-    WP_REMINDER_DELIVERY_UPSERT, WP_WORK_ITEM_UPSERT, returning,
+    WP_CAL_SERIES_UPSERT, WP_CAL_SERIES_UNTIL, WP_DAILY_PLAN_READ, WP_DAILY_PLAN_WRITE,
+    WP_PAGE_LAYOUT_RECEIPT_SAVE, WP_PAGE_LAYOUT_SAVE, WP_PROJECTION_CHECKPOINT,
+    WP_PROJECTION_RECEIPT, WP_QUICK_ACCESS_RECEIPT_SAVE, WP_QUICK_ACCESS_SAVE,
+    WP_REMINDER_AUTHORIZATION_INSERT, WP_REMINDER_DELIVERY_CLAIM, WP_REMINDER_DELIVERY_UPSERT,
+    WP_WORK_ITEM_UPSERT, reading, returning,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::BusinessError;
@@ -92,6 +93,8 @@ impl<'c> PgOwnerWrite<'c> {
                 "INSERT INTO calendar_reminder_execution_authorizations(command_id,appointment_id,recipient_id,company_id,actor_id,assignment_id,action,authority_json,source_hash,source_version,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11)",
             WP_DAILY_PLAN_WRITE =>
                 "INSERT INTO staff_daily_plans(company_id,user_id,plan_date,items_json,version,last_command_id,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(company_id,user_id,plan_date) DO UPDATE SET items_json=excluded.items_json,version=excluded.version,last_command_id=excluded.last_command_id,updated_at=excluded.updated_at WHERE staff_daily_plans.version=$8",
+            WP_DAILY_PLAN_READ =>
+                "SELECT items_json,version FROM staff_daily_plans WHERE company_id=$1 AND user_id=$2 AND plan_date=$3",
             WP_PAGE_LAYOUT_SAVE =>
                 "INSERT INTO page_layouts(company_id,owner_id,workspace_base,page_key,layout_json,version,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(company_id,owner_id,workspace_base,page_key) DO UPDATE SET layout_json=excluded.layout_json,version=excluded.version,updated_at=excluded.updated_at",
             WP_PAGE_LAYOUT_RECEIPT_SAVE =>
@@ -145,7 +148,18 @@ impl OwnerWritePort for PgOwnerWrite<'_> {
             return Err(PersistenceError::new("WORK_OWNER_WRITE_TRANSACTION_REQUIRED").into());
         }
         let sql = Self::sql(command.kind).map_err(OwnerWriteError::from)?;
-        let result = if returning(command.kind) {
+        let result = if reading(command.kind) {
+            let row = bind_all(sqlx::query(sql), command.values)
+                .fetch_optional(&mut *self.connection)
+                .await?;
+            row.map(|row| {
+                json!({
+                    "items_json": row.try_get::<Option<String>, _>("items_json").ok().flatten(),
+                    "version": row.try_get::<i64, _>("version").unwrap_or(0),
+                })
+            })
+            .unwrap_or(Value::Null)
+        } else if returning(command.kind) {
             let row = bind_all(sqlx::query(sql), command.values)
                 .fetch_optional(&mut *self.connection)
                 .await?;

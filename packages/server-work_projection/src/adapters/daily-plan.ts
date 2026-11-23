@@ -8,11 +8,13 @@ import type { WorkSnapshot } from "@erpx/server-work_projection/domain/work-item
 import { createDailyPlan, type DailyPlanUnit, type DailyPlanResult } from "@erpx/server-work_projection/application/daily-plan";
 import type { PlanRow } from "@erpx/server-work_projection/domain/daily-plan";
 import type { SqlStatement } from "@erpx/server-runtime/public/runtime/types";
-import { nativeOwnerWrite } from "./native-owner-write";
+import { nativeOwnerWrite, nativeOwnerWriteRow } from "./native-owner-write";
 const service = createDailyPlan<SqlStatement>({ clock: { now: () => Date.now() }, error: (status, code, message) => new ApiError(status, code, message) });
 export function dailyPlanUnit(db: SqlDatabase): DailyPlanUnit<SqlStatement> {
     return {
-        read: (companyId, userId, date) => db.prepare("SELECT items_json,version FROM staff_daily_plans WHERE company_id=? AND user_id=? AND plan_date=?").bind(companyId, userId, date).first<PlanRow>(),
+        // The owner-authored read executes in the mounted native owner-read
+        // route; no TypeScript SQL or fallback remains for this read.
+        read: (companyId, userId, date) => nativeOwnerWriteRow<PlanRow>('wp_daily_plan_read', [companyId, userId, date], `wp-daily-plan-read:${companyId}:${userId}:${date}`, { companyId }),
         lock: (companyId, userId, date) => db.prepare("SELECT version FROM staff_daily_plans WHERE company_id=? AND user_id=? AND plan_date=? FOR UPDATE").bind(companyId, userId, date),
         version: (key, companyId, userId, date, version) => assertion(db, key, "daily-plan-version", "COALESCE((SELECT version FROM staff_daily_plans WHERE company_id=? AND user_id=? AND plan_date=?),0)=?", [companyId, userId, date, version]),
         // Native axum owner write executes the plan upsert and its ledger.
