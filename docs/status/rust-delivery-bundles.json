@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6645,
+    "revision": 6704,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -110578,15 +110578,8 @@
         "resources": [
           "owner:identity_access"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wZ03",
-          "claimedAt": "2026-11-23T19:44:34.171Z",
-          "heartbeatAt": "2026-11-23T19:54:30.428Z",
-          "expiresAt": "2026-11-23T20:24:30.428Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -110607,19 +110600,35 @@
             "sourceSha": "1abac729d841f3448e17ddafad2363c360be3995",
             "before": 611,
             "after": 610
+          },
+          {
+            "command": "cargo check -p erpx-server-identity-access",
+            "result": "passed",
+            "sourceSha": "ec6caf015"
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --test people_access_read (6)",
+            "result": "passed",
+            "sourceSha": "ec6caf015"
+          },
+          {
+            "command": "cargo test -p erpx-server-identity-access --test people_access_read_postgres",
+            "result": "observed",
+            "sourceSha": "ec6caf015",
+            "note": "PG test seed inserts holding tables into the Control pool; parked pending fixture split."
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261123-codex",
-          "agentId": "hy4-wave-12",
-          "at": "2026-11-23T15:54:36.366Z",
-          "previousStatus": "integrating",
+          "runId": "run-20261123-f",
+          "agentId": "wZ03",
+          "at": "2026-11-23T20:23:27.018Z",
+          "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Worker source review at be30e2e27; runtime gates not rerun. Scope payroll consumer and native people-access reader together before deleting queries."
+          "nextAction": "Parked WIP; fixture blocker"
         },
-        "nextAction": "Worker source review at be30e2e27; runtime gates not rerun. Scope payroll consumer and native people-access reader together before deleting queries.",
+        "nextAction": "Parked WIP; fixture blocker",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -110899,6 +110908,15 @@
             "command": "vitest pms native transport + application 104/104",
             "result": "passed",
             "sourceSha": "41397cb7e"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pms/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ec6caf015",
+            "owner": "pms",
+            "before": 538,
+            "after": 537,
+            "note": "Removed redundant FOR UPDATE read; native refund context result used."
           }
         ],
         "retainedLegacy": [],
@@ -110911,7 +110929,7 @@
           "reason": "handoff",
           "nextAction": "Integrated; claim released"
         },
-        "nextAction": "Integrated; claim released",
+        "nextAction": "537 recorded; retry lock trade-off reviewed",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -112248,15 +112266,8 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wZ06",
-          "claimedAt": "2026-11-23T19:44:34.319Z",
-          "heartbeatAt": "2026-11-23T19:54:30.428Z",
-          "expiresAt": "2026-11-23T20:24:30.428Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -112292,19 +112303,43 @@
             "command": "vitest supplier-payment-read-port unit+integration 3/3",
             "result": "passed",
             "sourceSha": "3a44ccebb"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "7783536d8",
+            "owner": "finance",
+            "before": 2288,
+            "after": 2275,
+            "note": "13 supplier-payment SELECTs moved to the native finance command-plan read port."
+          },
+          {
+            "command": "cargo check -p erpx-server-finance + lib (50)",
+            "result": "passed",
+            "sourceSha": "7783536d8"
+          },
+          {
+            "command": "vitest supplier-payment-read-port unit (3) + integration (3) + procurement (2)",
+            "result": "passed",
+            "sourceSha": "7783536d8"
+          },
+          {
+            "command": "tsc root",
+            "result": "passed",
+            "sourceSha": "7783536d8"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "handoff",
         "scopeRefinementRequired": false,
-        "nextAction": "Owner parity integrated; mount is lead item",
+        "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261123-f",
-          "agentId": "wI02",
-          "at": "2026-11-23T18:02:59.834Z",
+          "agentId": "wZ06",
+          "at": "2026-11-23T20:20:29.704Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Owner parity integrated; mount is lead item"
+          "nextAction": "Integrated; claim released"
         }
       },
       {
@@ -112644,15 +112679,8 @@
         "resources": [
           "owner:pos"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wU02",
-          "claimedAt": "2026-11-23T18:38:16.118Z",
-          "heartbeatAt": "2026-11-23T19:54:30.428Z",
-          "expiresAt": "2026-11-23T20:24:30.428Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -112666,18 +112694,42 @@
             "command": "cargo test pos_obligation_reads_postgres 3/3",
             "result": "passed",
             "sourceSha": "f2079530ca0dba98f3443cd94b6e3e2ea21e3e0a"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d4efdbeff",
+            "owner": "pos",
+            "before": 348,
+            "after": 292,
+            "note": "Four obligation read kinds + settlement source constructor; cross-owner Finance/Commercial consumers documented."
+          },
+          {
+            "command": "cargo check -p erpx-server-pos --tests + lib (14)",
+            "result": "passed",
+            "sourceSha": "d4efdbeff"
+          },
+          {
+            "command": "cargo test -p erpx-server-pos --test pos_obligation_reads_postgres (4)",
+            "result": "passed",
+            "sourceSha": "d4efdbeff"
+          },
+          {
+            "command": "tsc server-pos",
+            "result": "passed",
+            "sourceSha": "d4efdbeff"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Worker source review at be30e2e27; runtime gates not rerun. Scope native add-on obligation repo and Finance/Commercial consumers together.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-codex",
-          "agentId": "hy4-pos",
-          "at": "2026-11-23T15:54:36.594Z",
-          "previousStatus": "integrating",
+          "runId": "run-20261123-f",
+          "agentId": "wU02",
+          "at": "2026-11-23T20:22:34.565Z",
+          "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Worker source review at be30e2e27; runtime gates not rerun. Scope native add-on obligation repo and Finance/Commercial consumers together."
+          "nextAction": "Integrated; claim released"
         }
       },
       {
@@ -115534,7 +115586,7 @@
         "owner": "manufacturing",
         "title": "Delete dead TS accounting-profile create/review path (156->154)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -115549,22 +115601,42 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wU03",
-          "claimedAt": "2026-11-23T18:42:45.943Z",
-          "heartbeatAt": "2026-11-23T19:54:30.428Z",
-          "expiresAt": "2026-11-23T20:24:30.428Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-manufacturing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ec6caf015",
+            "owner": "manufacturing",
+            "before": 155,
+            "after": 153,
+            "note": "Dead accounting-profile create/review writers + 2 SELECTs deleted; approvedProfile retained."
+          },
+          {
+            "command": "cargo check -p erpx-server-manufacturing + tests (63)",
+            "result": "passed",
+            "sourceSha": "ec6caf015"
+          },
+          {
+            "command": "tsc server-manufacturing + vitest bom transport (8)",
+            "result": "passed",
+            "sourceSha": "ec6caf015"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Delete dead createManufacturingAccountingProfile/reviewManufacturingAccountingProfile + profile/guardProfileVersion reads (2 SELECTs), repoint fixture and oracles to native posting-profile entrypoints; keep approvedProfile.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wU03",
+          "at": "2026-11-23T20:07:19.998Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -116551,7 +116623,7 @@
         "owner": "work_projection",
         "title": "Work projection TS read tail native cutover",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116563,22 +116635,42 @@
         "resources": [
           "owner:work_projection"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wZ04",
-          "claimedAt": "2026-11-23T19:46:39.125Z",
-          "heartbeatAt": "2026-11-23T19:54:30.428Z",
-          "expiresAt": "2026-11-23T20:24:30.428Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-work_projection/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d4efdbeff",
+            "owner": "work_projection",
+            "before": 113,
+            "after": 112,
+            "note": "Daily plan read via wp_daily_plan_read owner kind."
+          },
+          {
+            "command": "cargo check -p erpx-server-work-projection + lib (67)",
+            "result": "passed",
+            "sourceSha": "d4efdbeff"
+          },
+          {
+            "command": "vitest shared.work.services (14) + tsc root",
+            "result": "passed",
+            "sourceSha": "d4efdbeff"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest work_projection read family with a mounted native route/client (home unread/card/navigation/summary); switch it and delete redundant TS SQL; record a strictly lower count from 113.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wZ04",
+          "at": "2026-11-23T20:23:03.265Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -116587,7 +116679,7 @@
         "owner": "people_payroll",
         "title": "People payroll TS read tail native cutover",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116599,22 +116691,42 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wZ05",
-          "claimedAt": "2026-11-23T19:53:45.716Z",
-          "heartbeatAt": "2026-11-23T19:54:30.428Z",
-          "expiresAt": "2026-11-23T20:24:30.428Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d4efdbeff",
+            "owner": "people_payroll",
+            "before": 1658,
+            "after": 1657,
+            "note": "Payroll run record supplement read via native read-plan kind."
+          },
+          {
+            "command": "cargo check -p erpx-server-people-payroll + read plan unit (1)",
+            "result": "passed",
+            "sourceSha": "d4efdbeff"
+          },
+          {
+            "command": "vitest native-people-payroll-read-plan (3) + tsc owner",
+            "result": "passed",
+            "sourceSha": "d4efdbeff"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest people_payroll read family with a mounted native read port or single-consumer fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wZ05",
+          "at": "2026-11-23T20:23:11.988Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -116623,7 +116735,7 @@
         "owner": "marketing",
         "title": "Marketing TS read tail native cutover",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116635,22 +116747,32 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wZ07",
-          "claimedAt": "2026-11-23T19:45:48.346Z",
-          "heartbeatAt": "2026-11-23T19:54:30.428Z",
-          "expiresAt": "2026-11-23T20:24:30.428Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-marketing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ec6caf015",
+            "owner": "marketing",
+            "before": 131,
+            "after": 130,
+            "note": "Campaign list native owner statement."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest owner-local marketing read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record strictly lower from 131.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wZ07",
+          "at": "2026-11-23T20:06:23.752Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -116659,7 +116781,7 @@
         "owner": "support",
         "title": "Support TS read tail native cutover",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116671,22 +116793,32 @@
         "resources": [
           "owner:support"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wZ08",
-          "claimedAt": "2026-11-23T19:45:48.444Z",
-          "heartbeatAt": "2026-11-23T19:54:30.428Z",
-          "expiresAt": "2026-11-23T20:24:30.428Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "7783536d8",
+            "owner": "support",
+            "before": 153,
+            "after": 152,
+            "note": "Ticket evidence projection consolidated to one fixed SQL helper."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest owner-local support read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record strictly lower from 153.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wZ08",
+          "at": "2026-11-23T20:10:53.801Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -116695,7 +116827,7 @@
         "owner": "commerce",
         "title": "Commerce TS read tail native cutover (round 2)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116707,22 +116839,42 @@
         "resources": [
           "owner:commerce"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wZ09",
-          "claimedAt": "2026-11-23T19:45:48.523Z",
-          "heartbeatAt": "2026-11-23T19:54:30.428Z",
-          "expiresAt": "2026-11-23T20:24:30.428Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-commerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "7783536d8",
+            "owner": "commerce",
+            "before": 564,
+            "after": 563,
+            "note": "ecommerce currency configuration via mounted request-page-currency route."
+          },
+          {
+            "command": "cargo check -p erpx-server-commerce + ecommerce config read (3)",
+            "result": "passed",
+            "sourceSha": "7783536d8"
+          },
+          {
+            "command": "tsc commerce + ecommerce",
+            "result": "passed",
+            "sourceSha": "7783536d8"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the next smallest owner-local commerce read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record strictly lower from 564.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wZ09",
+          "at": "2026-11-23T20:18:45.162Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -116731,7 +116883,7 @@
         "owner": "legal",
         "title": "Native legal AI history authority + jobs.ts read retirement",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116747,22 +116899,47 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wZ10",
-          "claimedAt": "2026-11-23T19:46:06.614Z",
-          "heartbeatAt": "2026-11-23T19:54:30.428Z",
-          "expiresAt": "2026-11-23T20:24:30.428Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d4efdbeff",
+            "owner": "legal",
+            "before": 327,
+            "after": 326,
+            "note": "ai history native read; owner enforces legal.ai/enabled/purchase witness (composition binding pending)."
+          },
+          {
+            "command": "cargo check -p erpx-server-legal + lib auxiliary (26)",
+            "result": "passed",
+            "sourceSha": "d4efdbeff"
+          },
+          {
+            "command": "cargo test -p erpx-server-legal --test auxiliary_postgres (15)",
+            "result": "passed",
+            "sourceSha": "d4efdbeff"
+          },
+          {
+            "command": "tsc server-legal",
+            "result": "passed",
+            "sourceSha": "d4efdbeff"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Make native ai_history read enforce legal.ai permission + enabled Company + purchased item scope, switch jobs.ts history, delete the TS SELECT, add PG parity/denial tests; record 327->326. No composition.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; bind witness in legal composition",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wZ10",
+          "at": "2026-11-23T20:22:42.774Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; bind witness in legal composition"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -116771,7 +116948,7 @@
         "owner": "projects",
         "title": "Projects TS read tail native cutover",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116783,22 +116960,42 @@
         "resources": [
           "owner:projects"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wZ13",
-          "claimedAt": "2026-11-23T19:47:40.640Z",
-          "heartbeatAt": "2026-11-23T19:54:30.428Z",
-          "expiresAt": "2026-11-23T20:24:30.428Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-projects/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d4efdbeff",
+            "owner": "projects",
+            "before": 169,
+            "after": 167,
+            "note": "Project graph read via mounted native route; graphActuals SQL removed."
+          },
+          {
+            "command": "cargo check -p erpx-server-projects + lib (7) + graph/wbs tests (49)",
+            "result": "passed",
+            "sourceSha": "d4efdbeff"
+          },
+          {
+            "command": "vitest projects unit (135) + tsc root",
+            "result": "passed",
+            "sourceSha": "d4efdbeff"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wZ13",
+          "at": "2026-11-23T20:23:02.999Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -116882,6 +117079,390 @@
         "owner": "billing",
         "title": "Billing TS read tail native cutover (round 2)",
         "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-billing/src/**",
+          "tests/unit/billing/**",
+          "tests/integration/billing/**"
+        ],
+        "resources": [
+          "owner:billing"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-billing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "7783536d8",
+            "owner": "billing",
+            "before": 122,
+            "after": 121,
+            "note": "app_finance_projection native owner query."
+          },
+          {
+            "command": "cargo check -p erpx-server-billing + lib (31) + billing_commands (12)",
+            "result": "passed",
+            "sourceSha": "7783536d8"
+          },
+          {
+            "command": "vitest billing (91) + tsc server-billing",
+            "result": "passed",
+            "sourceSha": "7783536d8"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wZ16",
+          "at": "2026-11-23T20:10:54.137Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.customer_authority.read-tail-followup",
+        "goalId": "G4",
+        "owner": "customer_authority",
+        "title": "Customer authority TS read tail native cutover",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-customer_authority/src/**",
+          "tests/unit/customer_authority/**",
+          "tests/integration/customer_authority/**"
+        ],
+        "resources": [
+          "owner:customer_authority"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-customer_authority/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d4efdbeff",
+            "owner": "customer_authority",
+            "before": 110,
+            "after": 107,
+            "note": "Sales review counts native read-plan kind on the mounted customer-access router."
+          },
+          {
+            "command": "cargo check -p erpx-server-customer-authority + lib (5) + access/http/duplicates",
+            "result": "passed",
+            "sourceSha": "d4efdbeff"
+          },
+          {
+            "command": "tsc server-customer_authority",
+            "result": "passed",
+            "sourceSha": "d4efdbeff"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wZ17",
+          "at": "2026-11-23T20:22:54.278Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.talent.read-tail-followup",
+        "goalId": "G4",
+        "owner": "talent",
+        "title": "Talent TS read tail native cutover",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-talent/src/**",
+          "tests/unit/talent/**",
+          "tests/integration/talent/**"
+        ],
+        "resources": [
+          "owner:talent"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-talent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d4efdbeff",
+            "owner": "talent",
+            "before": 105,
+            "after": 101,
+            "note": "Four fixed detail reads via talent command-plan."
+          },
+          {
+            "command": "cargo check -p erpx-server-talent + requisition/http/lifecycle tests",
+            "result": "passed",
+            "sourceSha": "d4efdbeff"
+          },
+          {
+            "command": "tsc root + vitest talent transport (14)",
+            "result": "passed",
+            "sourceSha": "d4efdbeff"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wZ18",
+          "at": "2026-11-23T20:23:40.369Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.read-tail-r2",
+        "goalId": "G4",
+        "owner": "finance",
+        "title": "finance TS read tail native cutover (round 2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wAAfin",
+          "claimedAt": "2026-11-23T20:24:07.682Z",
+          "heartbeatAt": "2026-11-23T20:24:07.682Z",
+          "expiresAt": "2026-11-23T20:54:07.683Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.identity_access.read-tail-r2",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "title": "identity_access TS read tail native cutover (round 2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wAAide",
+          "claimedAt": "2026-11-23T20:24:07.771Z",
+          "heartbeatAt": "2026-11-23T20:24:07.771Z",
+          "expiresAt": "2026-11-23T20:54:07.771Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.commerce.read-tail-r2",
+        "goalId": "G4",
+        "owner": "commerce",
+        "title": "commerce TS read tail native cutover (round 2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-commerce/src/**",
+          "tests/unit/commerce/**",
+          "tests/integration/commerce/**"
+        ],
+        "resources": [
+          "owner:commerce"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wAAcom",
+          "claimedAt": "2026-11-23T20:24:07.857Z",
+          "heartbeatAt": "2026-11-23T20:24:07.857Z",
+          "expiresAt": "2026-11-23T20:54:07.857Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.support.read-tail-r2",
+        "goalId": "G4",
+        "owner": "support",
+        "title": "support TS read tail native cutover (round 2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wAAsup",
+          "claimedAt": "2026-11-23T20:24:07.933Z",
+          "heartbeatAt": "2026-11-23T20:24:07.933Z",
+          "expiresAt": "2026-11-23T20:54:07.933Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.marketing.read-tail-r2",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing TS read tail native cutover (round 2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**",
+          "tests/integration/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wAAmar",
+          "claimedAt": "2026-11-23T20:24:08.011Z",
+          "heartbeatAt": "2026-11-23T20:24:08.011Z",
+          "expiresAt": "2026-11-23T20:54:08.012Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.organization.read-tail-r2",
+        "goalId": "G4",
+        "owner": "organization",
+        "title": "organization TS read tail native cutover (round 2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-organization/src/**",
+          "tests/unit/organization/**",
+          "tests/integration/organization/**"
+        ],
+        "resources": [
+          "owner:organization"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wAAorg",
+          "claimedAt": "2026-11-23T20:24:08.089Z",
+          "heartbeatAt": "2026-11-23T20:24:08.089Z",
+          "expiresAt": "2026-11-23T20:54:08.089Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.billing.read-tail-r2",
+        "goalId": "G4",
+        "owner": "billing",
+        "title": "billing TS read tail native cutover (round 2)",
+        "kind": "migration",
         "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
@@ -116896,10 +117477,10 @@
         ],
         "claim": {
           "runId": "run-20261123-f",
-          "agentId": "wZ16",
-          "claimedAt": "2026-11-23T19:54:04.714Z",
-          "heartbeatAt": "2026-11-23T19:54:30.428Z",
-          "expiresAt": "2026-11-23T20:24:30.428Z",
+          "agentId": "wAAbil",
+          "claimedAt": "2026-11-23T20:24:08.168Z",
+          "heartbeatAt": "2026-11-23T20:24:08.168Z",
+          "expiresAt": "2026-11-23T20:54:08.168Z",
           "generation": 158
         },
         "baseSha": null,
@@ -116908,34 +117489,34 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Pick the next smallest owner-local billing read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record strictly lower from 122.",
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.customer_authority.read-tail-followup",
+        "id": "retire.people_payroll.read-tail-r2",
         "goalId": "G4",
-        "owner": "customer_authority",
-        "title": "Customer authority TS read tail native cutover",
+        "owner": "people_payroll",
+        "title": "people_payroll TS read tail native cutover (round 2)",
         "kind": "migration",
         "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
         "allowedPaths": [
-          "packages/server-customer_authority/src/**",
-          "tests/unit/customer_authority/**",
-          "tests/integration/customer_authority/**"
+          "packages/server-people_payroll/src/**",
+          "tests/unit/people_payroll/**",
+          "tests/integration/people_payroll/**"
         ],
         "resources": [
-          "owner:customer_authority"
+          "owner:people_payroll"
         ],
         "claim": {
           "runId": "run-20261123-f",
-          "agentId": "wZ17",
-          "claimedAt": "2026-11-23T19:54:04.793Z",
-          "heartbeatAt": "2026-11-23T19:54:30.428Z",
-          "expiresAt": "2026-11-23T20:24:30.428Z",
+          "agentId": "wAApeo",
+          "claimedAt": "2026-11-23T20:24:08.247Z",
+          "heartbeatAt": "2026-11-23T20:24:08.247Z",
+          "expiresAt": "2026-11-23T20:54:08.247Z",
           "generation": 158
         },
         "baseSha": null,
@@ -116944,34 +117525,34 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Pick the smallest owner-local customer_authority read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
       },
       {
-        "id": "retire.talent.read-tail-followup",
+        "id": "retire.projects.read-tail-r2",
         "goalId": "G4",
-        "owner": "talent",
-        "title": "Talent TS read tail native cutover",
+        "owner": "projects",
+        "title": "projects TS read tail native cutover (round 2)",
         "kind": "migration",
         "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
         "allowedPaths": [
-          "packages/server-talent/src/**",
-          "tests/unit/talent/**",
-          "tests/integration/talent/**"
+          "packages/server-projects/src/**",
+          "tests/unit/projects/**",
+          "tests/integration/projects/**"
         ],
         "resources": [
-          "owner:talent"
+          "owner:projects"
         ],
         "claim": {
           "runId": "run-20261123-f",
-          "agentId": "wZ18",
-          "claimedAt": "2026-11-23T19:54:04.871Z",
-          "heartbeatAt": "2026-11-23T19:54:30.428Z",
-          "expiresAt": "2026-11-23T20:24:30.428Z",
+          "agentId": "wAApro",
+          "claimedAt": "2026-11-23T20:24:08.325Z",
+          "heartbeatAt": "2026-11-23T20:24:08.325Z",
+          "expiresAt": "2026-11-23T20:54:08.325Z",
           "generation": 158
         },
         "baseSha": null,
@@ -116980,7 +117561,223 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Pick the smallest owner-local talent read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.operations.read-tail-r2",
+        "goalId": "G4",
+        "owner": "operations",
+        "title": "operations TS read tail native cutover (round 2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-operations/src/**",
+          "tests/unit/operations/**",
+          "tests/integration/operations/**"
+        ],
+        "resources": [
+          "owner:operations"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wAAope",
+          "claimedAt": "2026-11-23T20:24:08.403Z",
+          "heartbeatAt": "2026-11-23T20:24:08.403Z",
+          "expiresAt": "2026-11-23T20:54:08.403Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.crm.read-tail-r2",
+        "goalId": "G4",
+        "owner": "crm",
+        "title": "crm TS read tail native cutover (round 2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-crm/src/**",
+          "tests/unit/crm/**",
+          "tests/integration/crm/**"
+        ],
+        "resources": [
+          "owner:crm"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wAAcrm",
+          "claimedAt": "2026-11-23T20:24:08.483Z",
+          "heartbeatAt": "2026-11-23T20:24:08.483Z",
+          "expiresAt": "2026-11-23T20:54:08.483Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pos.read-tail-r2",
+        "goalId": "G4",
+        "owner": "pos",
+        "title": "pos TS read tail native cutover (round 2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pos/src/**",
+          "tests/unit/pos/**",
+          "tests/integration/pos/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wAApos",
+          "claimedAt": "2026-11-23T20:24:08.563Z",
+          "heartbeatAt": "2026-11-23T20:24:08.563Z",
+          "expiresAt": "2026-11-23T20:54:08.563Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.records.read-tail-r2",
+        "goalId": "G4",
+        "owner": "records",
+        "title": "records TS read tail native cutover (round 2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-records/src/**",
+          "tests/unit/records/**",
+          "tests/integration/records/**"
+        ],
+        "resources": [
+          "owner:records"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wAArec",
+          "claimedAt": "2026-11-23T20:24:08.640Z",
+          "heartbeatAt": "2026-11-23T20:24:08.640Z",
+          "expiresAt": "2026-11-23T20:54:08.640Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.sales.read-tail-r2",
+        "goalId": "G4",
+        "owner": "sales",
+        "title": "sales TS read tail native cutover (round 2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-sales/src/**",
+          "tests/unit/sales/**",
+          "tests/integration/sales/**"
+        ],
+        "resources": [
+          "owner:sales"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wAAsal",
+          "claimedAt": "2026-11-23T20:24:08.719Z",
+          "heartbeatAt": "2026-11-23T20:24:08.719Z",
+          "expiresAt": "2026-11-23T20:54:08.719Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.workflow.read-tail-r2",
+        "goalId": "G4",
+        "owner": "workflow",
+        "title": "workflow TS read tail native cutover (round 2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/**",
+          "tests/unit/workflow/**",
+          "tests/integration/workflow/**"
+        ],
+        "resources": [
+          "owner:workflow"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wAAwor",
+          "claimedAt": "2026-11-23T20:24:08.866Z",
+          "heartbeatAt": "2026-11-23T20:24:08.866Z",
+          "expiresAt": "2026-11-23T20:54:08.866Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
       }
@@ -116991,21 +117788,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 513,
+      "totalPackets": 528,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 21,
-        "in_progress": 17,
+        "in_progress": 18,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 146,
+        "blocked": 160,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T19:54:30.431Z",
+    "updatedAt": "2026-11-23T20:24:08.869Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
