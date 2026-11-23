@@ -3799,6 +3799,25 @@ pub fn pos_sale_statement(sale_id: &str) -> Result<NotificationStatement, Busine
     })
 }
 
+/// POS settings row for caller-owned POS workspace reads.
+///
+/// Pure constructor: the retained `readPosSettings1` read byte-identically
+/// (row by Company; the caller already authorizes Company scope before
+/// reading).
+pub fn pos_settings_statement(company: &str) -> Result<NotificationStatement, BusinessError> {
+    if company.is_empty() {
+        return Err(BusinessError::new(
+            FailureKind::InvalidInput,
+            "POS_SETTINGS_COMPANY_REQUIRED",
+            "A Company scope is required.",
+        ));
+    }
+    Ok(NotificationStatement {
+        sql: "SELECT * FROM pos_settings WHERE company_id=?".to_owned(),
+        values: vec![serde_json::Value::String(company.to_owned())],
+    })
+}
+
 /// POS registers list for caller-owned POS workspace reads.
 ///
 /// Pure constructor: the retired `readPosRegisters1` read byte-identically,

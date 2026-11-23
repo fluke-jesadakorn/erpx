@@ -1,5 +1,5 @@
 import { nativePosAll } from './native-owner-write';
-import { nativePosRegistersStatement, nativePosSaleStatement } from './native-pos-registers-statement';
+import { nativePosRegistersStatement, nativePosSaleStatement, nativePosSettingsStatement } from './native-pos-registers-statement';
 import { roomChargeReversalWork } from "@erpx/server-pos/adapters/room-charge-reversal-queue";
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
 import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/hospitality-owner-projection-sources";
@@ -36,7 +36,7 @@ function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
         }) => nativePosSaleStatement(db, actor, facts.saleId),
         readPosSettings1: (facts: {
             company: string;
-        }) => one(db, 'SELECT * FROM pos_settings WHERE company_id=?', facts.company),
+        }) => nativePosSettingsStatement(db, actor),
         readCommerceProducts1: facts => PosReadCommerceFacts(db).readCommerceProducts1(facts),
         readPosRegisters2: (facts: {
             company: string;

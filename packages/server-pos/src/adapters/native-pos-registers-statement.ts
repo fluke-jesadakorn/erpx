@@ -50,3 +50,24 @@ export async function nativePosSaleStatement(db: SqlDatabase, actor: WorkContext
   );
   return statement.first<PosRow>();
 }
+
+/** Owner-issued POS settings row. The caller already authorizes Company
+ * scope before reading; the Company bind comes from the session. */
+export async function nativePosSettingsStatement(db: SqlDatabase, actor: WorkContext): Promise<PosRow | null> {
+  const statement = await nativeNotificationStatement(
+    db,
+    actor,
+    {
+      companyId: actor.companyId,
+      userId: actor.userId,
+      recordType: 'pos_settings',
+      recordId: actor.companyId,
+      recordVersion: 1,
+      message: 'pos settings read',
+      kind: 'pos_settings',
+    },
+    randomUUID(),
+    Date.now(),
+  );
+  return statement.first<PosRow>();
+}

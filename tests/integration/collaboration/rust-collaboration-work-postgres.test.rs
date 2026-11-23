@@ -607,3 +607,29 @@ async fn pos_sale_statement_matches_retained_read() {
         })).await.unwrap();
     }).await;
 }
+
+#[tokio::test]
+async fn pos_settings_statement_matches_retained_read() {
+    use erpx_server_collaboration::public::notification_statement::pos_settings_statement;
+    fixture::with_database(2, |pool| async move {
+        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
+        migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
+        PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
+            sqlx::query("INSERT INTO pos_settings(company_id,enabled,currency,timezone,accounts_json) VALUES('company',true,'THB','Asia/Bangkok','{}')").execute(&mut *c).await?;
+            let statement = pos_settings_statement("company")?;
+            assert!(statement.sql.contains("pos_settings"));
+            assert_eq!(statement.values.len(), 1);
+            assert!(pos_settings_statement("").is_err());
+            let retained = "SELECT * FROM pos_settings WHERE company_id=?";
+            let via_statement = run_rows_statement(c, &statement).await?;
+            let via_retained = run_rows_raw(c, retained, &[Some("company".to_owned())]).await?;
+            assert_eq!(via_statement.len(), 1);
+            assert_eq!(via_statement, via_retained);
+            assert_eq!(via_statement[0].get("currency").and_then(|v| v.as_str()), Some("THB"));
+            let foreign = pos_settings_statement("other")?;
+            assert!(run_rows_statement(c, &foreign).await?.is_empty());
+            Ok(())
+        })).await.unwrap();
+    }).await;
+}
+
