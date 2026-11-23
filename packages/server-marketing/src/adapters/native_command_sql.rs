@@ -36,12 +36,6 @@ const STATEMENTS: &[NativeStatement] = &[
         scope: "holding",
     }, // public-submission.ts
     NativeStatement {
-        kind: "marketing_stmt_5",
-        sql: r#"INSERT INTO marketing_touches(id,company_id,lead_id,campaign_id,source,evidence,source_kind,source_id,occurred_at,created_by) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)"#,
-        bind_count: 10,
-        scope: "holding",
-    }, // crm-touches.ts
-    NativeStatement {
         kind: "marketing_stmt_6",
         sql: r#"INSERT INTO marketing_campaign_costs(id,company_id,campaign_id,journal_line_id,evidence,reviewed_by,created_at) VALUES($1,$2,$3,$4,$5,$6,$7)"#,
         bind_count: 7,
@@ -65,6 +59,12 @@ mod tests {
         assert_eq!(cost_link.bind_count, 7);
         assert_eq!(cost_link.scope, "holding");
         assert!(cost_link.sql.starts_with("INSERT INTO marketing_campaign_costs"));
+    }
+
+    #[test]
+    fn crm_touch_writer_is_retired() {
+        assert!(statement("marketing_stmt_5").is_none(), "marketing_stmt_5 must be retired with the crm-touches shim");
+        assert!(!supported("marketing_stmt_5"));
     }
 
     #[test]

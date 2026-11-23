@@ -25,7 +25,6 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import {salesRecipientEligibility} from "@erpx/server-sales/public/sales-recipient";
 import {BusinessRuleError} from "@erpx/server-shared/index";
 import {nativeCrmLeadNotification as notify} from "./native-crm-notification";
-import {prepareCrmSourceTouch} from "@erpx/server-marketing/public/crm-touches";
 import {createCRMApplication,type CRMRepository,type CRMMutation} from "@erpx/server-crm/application/leads";
 import {crmLeadSchema,crmLeadChangeSchema,crmOpportunitySchema} from "@erpx/server-crm/domain/leads";
 import {requireCRMPurchasedRead,crmSourceAccess,crmReferenceHistory,crmReferencePurchaseControls,withCRMPurchasedCommand,crmLeadCreateReferences,crmOpportunityReference,crmNativeReadFilter} from "@erpx/server-crm/adapters/purchases";

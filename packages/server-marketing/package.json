@@ -4,7 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./adapters/crm-touches": "./src/adapters/crm-touches.ts",
+
     "./adapters/executive-evidence-sources": "./src/adapters/executive-evidence-sources.ts",
     "./adapters/executive-metric-projections": "./src/adapters/executive-metric-projections.ts",
     "./adapters/attachment-purchases": "./src/adapters/attachment-purchases.ts",
@@ -29,7 +29,7 @@
     "./adapters/public-submission": "./src/adapters/public-submission.ts",
     "./adapters/public-form": "./src/adapters/public-form.ts",
     "./adapters/package-obligations": "./src/adapters/package-obligations.ts",
-    "./public/crm-touches": "./src/public/crm-touches.ts",
+
     "./public/executive-evidence-sources": "./src/public/executive-evidence-sources.ts",
     "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
     "./public/attachment-purchases": "./src/public/attachment-purchases.ts",
