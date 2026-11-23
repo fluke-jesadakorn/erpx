@@ -3248,6 +3248,7 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut learning_targets = Vec::new();
         let mut quality_targets = Vec::new();
+        let mut quality_work_context_targets = Vec::new();
         let mut hold_statement_targets = Vec::new();
         let mut identity_access_targets = Vec::new();
         let mut people_relationship_targets = Vec::new();
@@ -5280,6 +5281,23 @@ async fn assemble_checked(
                         )),
                     },
                 );
+                quality_work_context_targets.push(
+                    crate::quality_work_context_read::QualityWorkContextTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        service: Arc::new(
+                            crate::quality_work_context_read::QualityWorkContextService::new(
+                                authorizer.clone(),
+                                crate::quality_work_context_read::QualityWorkContextConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            ),
+                        ),
+                    },
+                );
                 hold_statement_targets.push(
                     erpx_server_quality::public::customer_return_hold_http::HoldStatementTarget {
                         host: holding.host.clone(),
@@ -6635,6 +6653,17 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_quality::public::quality_http::quality_router(quality_targets)
                     .map_err(|_| "PRIVATE_API_QUALITY_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !quality_work_context_targets.is_empty() {
+            router = router.merge(
+                crate::quality_work_context_read::quality_work_context_router(
+                    config.policy.clone(),
+                    config.holdings_registry.clone(),
+                    Arc::new(FinanceJournalReadScopeHeaders),
+                    quality_work_context_targets,
+                )
+                .map_err(|_| "PRIVATE_API_QUALITY_WORK_CONTEXT_CONFIGURATION_INVALID")?,
             );
         }
         if !hold_statement_targets.is_empty() {
@@ -9196,6 +9225,17 @@ async fn assemble_checked(
                     .map(|h| (h.host.clone(), h.registration.slug.clone()))
             })
             .collect(),
+        quality_work_context_targets: config
+            .operations_companies
+            .keys()
+            .filter_map(|holding_id| {
+                config
+                    .holdings
+                    .iter()
+                    .find(|h| &h.registration.holding_id == holding_id)
+                    .map(|h| (h.host.clone(), h.registration.slug.clone()))
+            })
+            .collect(),
         platform_targets: config
             .platform_administration_companies
             .keys()
@@ -9474,6 +9514,7 @@ struct Boundary {
     crm_command_targets: BTreeSet<(String, String)>,
     crm_activity_command_targets: BTreeSet<(String, String)>,
     crm_activity_workspace_targets: BTreeSet<(String, String)>,
+    quality_work_context_targets: BTreeSet<(String, String)>,
     marketing_command_targets: BTreeSet<(String, String)>,
     brand_targets: BTreeSet<(String, String)>,
     branding_targets: BTreeSet<(String, String)>,
@@ -11953,6 +11994,31 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         ["", "api", "v1", "holdings", _, "quality", ..] => state.policy.audience(host).is_some(),
         _ => false,
     };
+    let quality_work_context = request.method() == axum::http::Method::GET
+        && match request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice()
+        {
+            ["", "api", "v1", "holdings", slug, "quality", "work-context", "work"]
+            | [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "quality",
+                "work-context",
+                "holds",
+                _,
+                "detail-core",
+            ] => state
+                .quality_work_context_targets
+                .contains(&(host.to_owned(), (*slug).to_owned())),
+            _ => false,
+        };
     let pms = match request
         .uri()
         .path()
@@ -12568,6 +12634,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || assets
         || payroll
         || quality
+        || quality_work_context
         || pms
         || legal
         || messaging

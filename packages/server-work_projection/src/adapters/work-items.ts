@@ -70,7 +70,7 @@ export function workSnapshotPorts(write: SqlDatabase): WorkSnapshotPorts {
                 case "rfqWork": return (await import("@erpx/server-procurement/public/procurement-rfqs")).rfqWork(actor);
                 case "supplierPromiseWork": return (await import("@erpx/server-procurement/public/supplier-promises")).supplierPromiseWork(actor);
                 case "transitWork": return (await import("@erpx/server-inventory/public/inventory-transit")).transitWork(actor);
-                case "qualityWork": return (await import("@erpx/server-quality/public/quality")).qualityWork(actor);
+                case "qualityWork": return (await import("../../../feature-quality/src/public/server")).nativeQualityWork(actor).then(result=>result.items);
                 case "qualityAlertWork": return (await import("@erpx/server-quality/public/quality-alerts")).qualityAlertWork(actor);
                 case "supplierBatchWork": return (await import("@erpx/server-procurement/public/supplier-payments")).supplierBatchWork(actor);
                 case "refundWork": return (await import("@erpx/server-finance/public/refunds")).refundWork(actor);

@@ -220,6 +220,7 @@ mod procurement_rfq_target;
 pub mod projects;
 pub mod quality;
 pub mod quality_commands;
+pub mod quality_work_context_read;
 #[cfg(any(feature = "existing-business", feature = "records-command"))]
 pub mod records;
 #[cfg(any(feature = "existing-business", feature = "records-command"))]
