@@ -14,6 +14,16 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';impor
 const latestReportActorSelect =
   "SELECT actor_id FROM manufacturing_order_events WHERE order_id=? AND action='report' ORDER BY version DESC LIMIT 1";
 
+/** Owner-local fixed guard SQL: the approved-specification witness used by
+ * scenario and recommendation purchasing. Both guards execute the identical
+ * EXISTS on the caller's open production unit; one definition keeps them from
+ * drifting and removes the redundant TypeScript SQL. It stays a live statement
+ * inside its assertion on the same transaction and snapshot (no fail-closed
+ * live-read replacement) and is deliberately outside the RD_* read-plan
+ * registry (an atomic witness, not a projection). */
+const approvedSpecGuardSql =
+  "EXISTS(SELECT 1 FROM manufacturing_specifications WHERE id=? AND company_id=? AND version=? AND status='approved')";
+
 export function productionCommandSources(db:SqlDatabase){return {async specification(value:(string | number)[],v:number|undefined){return db
     .prepare(
       `SELECT * FROM manufacturing_specifications WHERE id=? AND company_id=? ${v ? "AND version=?" : ""}`,
@@ -36,8 +46,8 @@ async accountingProfiles(companyId:string){return db.prepare("SELECT id,status,v
           .bind(companyId).all<Row>();},
 async specificationLines(specificationId:string){return db.prepare("SELECT * FROM manufacturing_specification_lines WHERE specification_id=? ORDER BY ordinal")
       .bind(specificationId).all<Row>();},
-guardScenarioSpecification(key:string,value:"specification-source",specificationId:string,companyId:string,specificationVersion:number){return assertion(db, key, value, "EXISTS(SELECT 1 FROM manufacturing_specifications WHERE id=? AND company_id=? AND version=? AND status='approved')", [specificationId, companyId, specificationVersion]);},
-guardRecommendationSpecification(key:string,value:"specification-source",value2:string,companyId:string,value3:number){return assertion(db, key, value, "EXISTS(SELECT 1 FROM manufacturing_specifications WHERE id=? AND company_id=? AND version=? AND status='approved')", [value2, companyId, value3]);},
+guardScenarioSpecification(key:string,value:"specification-source",specificationId:string,companyId:string,specificationVersion:number){return assertion(db, key, value, approvedSpecGuardSql, [specificationId, companyId, specificationVersion]);},
+guardRecommendationSpecification(key:string,value:"specification-source",value2:string,companyId:string,value3:number){return assertion(db, key, value, approvedSpecGuardSql, [value2, companyId, value3]);},
  prepareManufacturingOrder(orderId:string,companyId:string,branch_id:string | number | null,warehouse_id:string | number | null,id:string,specification_id:string | number | null,specification_version:string | number | null,recommended_quantity_milli:string | number | null,userId:string,now:number,now2:number){return ownerWrite('order.create',[orderId,companyId,branch_id,warehouse_id,id,specification_id,specification_version,recommended_quantity_milli,userId,now,now2],String(orderId));},
  prepareManufacturingReleaseEvent(value:string,orderId:string,userId:string,reason:string,now:number){return ownerWrite('order.release-event',[value,orderId,userId,reason,now],String(orderId));},
 async scopedOrder(id:string,companyId:string,branchId:string | null,branchId2:string | null){return db

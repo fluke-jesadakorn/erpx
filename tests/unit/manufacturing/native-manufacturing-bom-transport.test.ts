@@ -162,10 +162,10 @@ describe('native Manufacturing BOM register transport',()=>{
 describe('Manufacturing finance-close read retirement',()=>{
   const src=new URL('../../../packages/server-manufacturing/src/',import.meta.url).pathname;
   const files=(dir:string):string[]=>nodeFs.readdirSync(dir).flatMap(name=>{const path=nodePath.join(dir,name);return nodeFs.statSync(path).isDirectory()?files(path):path.endsWith('.ts')?[path]:[];});
-  it('removed the four close-source SELECT modules and keeps the owner SELECT KPI at 150',()=>{
+  it('removed the four close-source SELECT modules and keeps the owner SELECT KPI at 149',()=>{
     const paths=files(src);
     expect(paths.some(path=>path.includes('finance-close-source'))).toBe(false);
-    expect(paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0)).toBe(150);
+    expect(paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0)).toBe(149);
   });
 });
 describe('Manufacturing owner-local report-actor read dedupe',()=>{
@@ -255,5 +255,34 @@ describe('Manufacturing executive-metric branch-label read dedupe',()=>{
       expect(source).toContain(needle);
     }
     expect(source).toContain('sourceDb.prepare(sql).bind(...values)');
+  });
+});
+describe('Manufacturing specification-source guard dedupe',()=>{
+  const source=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/production-command-sources.ts',import.meta.url),'utf8');
+  const registry=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/public/native_command.rs',import.meta.url),'utf8');
+  const sql="EXISTS(SELECT 1 FROM manufacturing_specifications WHERE id=? AND company_id=? AND version=? AND status='approved')";
+  it('keeps one fixed-SQL definition and switches both specification-source guards to it',()=>{
+    expect(source).toContain('const approvedSpecGuardSql');
+    expect(source.split(sql)).toHaveLength(2);
+    for(const [method,args] of [['guardScenarioSpecification','[specificationId, companyId, specificationVersion]'],['guardRecommendationSpecification','[value2, companyId, value3]']] as const){
+      const at=source.indexOf(method);
+      const body=source.slice(at,at+320);
+      expect(body).toContain('assertion(db, key, value, approvedSpecGuardSql,');
+      expect(body).toContain(args);
+    }
+  });
+  it('stays owner-local, outside the RD_* registry and free of fail-closed markers',()=>{
+    expect(sql).toContain("FROM manufacturing_specifications WHERE id=? AND company_id=? AND version=? AND status='approved'");
+    expect(sql).not.toContain('JOIN');
+    expect(registry).not.toContain(sql);
+    expect(registry).not.toContain('approvedSpecGuardSql');
+    for(const method of ['guardScenarioSpecification','guardRecommendationSpecification']){
+      const at=source.indexOf(method);
+      expect(source.slice(at,at+320)).not.toMatch(/503|UNAVAILABLE|fail closed/i);
+    }
+  });
+  it('keeps the identical live statement on both guards with their own binds',()=>{
+    expect(source).not.toMatch(/\.prepare\(("|')EXISTS\(SELECT 1 FROM manufacturing_specifications/);
+    expect(source.split('assertion(db, key, value, approvedSpecGuardSql,')).toHaveLength(3);
   });
 });
