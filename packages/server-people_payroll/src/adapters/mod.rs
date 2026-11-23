@@ -5,6 +5,7 @@ pub(crate) mod leave;
 pub(crate) mod native_command_http;
 pub(crate) mod native_command_postgres;
 pub(crate) mod native_command_sql;
+pub(crate) mod native_read_sql;
 pub(crate) mod roster_position_exit_postgres;
 pub(crate) mod workforce;
 pub(crate) mod workforce_reference;
