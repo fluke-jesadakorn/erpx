@@ -11,6 +11,7 @@ vi.mock('../../../packages/server-organization/src/adapters/native-organization-
 }));
 const {companyAcceptanceResultProjection} = await import('@erpx/server-organization/adapters/company-acceptance-result-projection');
 const {activeDepartmentFact} = await import('@erpx/server-organization/adapters/profile-facts');
+const {publicMarketingReceivingBranch} = await import('@erpx/server-organization/adapters/public-marketing-receiving-branch');
 
 function db(): SqlDatabase {
   return {prepare: vi.fn(() => {throw new Error('owner-local reader must not build local SQL');})} as unknown as SqlDatabase;
@@ -34,6 +35,14 @@ describe('Organization owner-local read tail', () => {
     one.mockResolvedValueOnce(null as never);
     await expect(activeDepartmentFact(handle, 'company', 'department')).resolves.toBe(false);
     expect(one).toHaveBeenCalledWith(handle, 'company', 'profile_active_department', ['department', 'company']);
+  });
+
+  it('resolves the public-form receiving branch by typed kind with only the Company value', async () => {
+    one.mockClear();
+    const handle = db();
+    one.mockResolvedValueOnce({id: 'branch'} as never);
+    await expect(publicMarketingReceivingBranch(handle, 'company')).resolves.toEqual({id: 'branch'});
+    expect(one).toHaveBeenCalledWith(handle, 'company', 'public_marketing_receiving_branch', ['company']);
   });
 
 });

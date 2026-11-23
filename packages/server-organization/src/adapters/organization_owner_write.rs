@@ -204,6 +204,12 @@ pub const PROFILE_ACTIVE_DEPARTMENT: &str = "profile_active_department";
 /// current access check, and this owner never substitutes for that check.
 pub const WORKSPACE_ROUTE_COMPANY: &str = "workspace_route_company";
 
+// -- public-marketing-receiving-branch -----------------------------------------
+/// Native-owned public-form receiving-branch read. SELECT-only, Company keyed
+/// and owner-local (`organization_nodes`); the caller keeps the form authority
+/// check and the transport never substitutes for it.
+pub const PUBLIC_MARKETING_RECEIVING_BRANCH: &str = "public_marketing_receiving_branch";
+
 /// Every kind this owner module accepts. Anything else is fail-closed.
 pub const KINDS: &[&str] = &[
     ORG_ATTACHMENT_NODE_VERSION_STEP,
@@ -298,6 +304,7 @@ pub const KINDS: &[&str] = &[
     COMPANY_ACCEPTANCE_RESULT_PROJECTION,
     PROFILE_ACTIVE_DEPARTMENT,
     WORKSPACE_ROUTE_COMPANY,
+    PUBLIC_MARKETING_RECEIVING_BRANCH,
 ];
 
 /// Tables admitted for the generic attachment owner version step. Column is
@@ -604,6 +611,9 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         WORKSPACE_ROUTE_COMPANY => {
             "SELECT c.id,c.slug FROM organization_nodes c WHERE c.kind='company' AND c.status='active' AND (?::text IS NULL OR EXISTS(SELECT 1 FROM organization_nodes b WHERE b.company_id=c.id AND b.parent_id=c.id AND b.kind='branch' AND b.status='active' AND b.slug=?)) AND (?::text IS NULL OR EXISTS(SELECT 1 FROM organization_nodes d WHERE d.company_id=c.id AND d.kind='department' AND d.status='active' AND d.slug=? AND ((?::text IS NULL AND d.branch_id IS NULL AND d.parent_id=c.id) OR (?::text IS NOT NULL AND EXISTS(SELECT 1 FROM organization_nodes b2 WHERE b2.company_id=c.id AND b2.parent_id=c.id AND b2.kind='branch' AND b2.status='active' AND b2.slug=? AND d.branch_id=b2.id AND d.parent_id=b2.id))))) AND (?::text IS NULL OR c.slug=? OR c.id=?) LIMIT 1"
+        }
+        PUBLIC_MARKETING_RECEIVING_BRANCH => {
+            "SELECT id FROM organization_nodes WHERE company_id=? AND kind IN ('branch','headquarters') AND status='active' ORDER BY id LIMIT 1"
         }
         _ => return None,
     })
@@ -1186,6 +1196,38 @@ mod tests {
         ];
         assert!(owner_statement(WORKSPACE_ROUTE_COMPANY, &full).is_ok());
         assert!(owner_statement(WORKSPACE_ROUTE_COMPANY, &nulls[..9]).is_err());
+    }
+
+    /// The public-form receiving-branch read retired from
+    /// `public-marketing-receiving-branch.ts` is native-owned, SELECT-only,
+    /// Company keyed and owner-local. Its single marketing consumer keeps the
+    /// form authority check; the typed kind sends only the Company value.
+    #[test]
+    fn public_marketing_receiving_branch_kind_is_select_only_and_company_scoped() {
+        let expected = "SELECT id FROM organization_nodes WHERE company_id=? AND kind IN ('branch','headquarters') AND status='active' ORDER BY id LIMIT 1";
+        assert!(supported(PUBLIC_MARKETING_RECEIVING_BRANCH));
+        assert_eq!(
+            sql(PUBLIC_MARKETING_RECEIVING_BRANCH).unwrap(),
+            expected,
+            "receiving-branch SQL must match the retired literal"
+        );
+        assert!(expected.starts_with("SELECT "));
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+            assert!(!expected.contains(forbidden), "receiving-branch read must not mutate: {forbidden}");
+        }
+        assert!(expected.contains("company_id=?"), "receiving-branch read must be Company scoped");
+        assert!(expected.contains("organization_nodes"), "receiving-branch read must stay owner-local");
+        assert!(!expected.contains("hr_people") && !expected.contains("hr_engagements"));
+        assert_eq!(expected.matches('?').count(), 1);
+        let (statement, values) = owner_statement(
+            PUBLIC_MARKETING_RECEIVING_BRANCH,
+            &[Value::from("company")],
+        )
+        .expect("receiving-branch statement");
+        assert_eq!(statement, expected);
+        assert_eq!(values.len(), 1);
+        assert_eq!(positional(expected), "SELECT id FROM organization_nodes WHERE company_id=$1 AND kind IN ('branch','headquarters') AND status='active' ORDER BY id LIMIT 1");
+        assert!(owner_statement(PUBLIC_MARKETING_RECEIVING_BRANCH, &[]).is_err());
     }
 
     /// Owner-local reads retired from `department-authority-reads.ts`: ten
