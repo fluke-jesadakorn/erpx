@@ -1143,27 +1143,27 @@
       "cases": [
         {
           "runner": "vitest",
-          "file": "tests/integration/support/support-sessions.test.ts",
-          "title": "reads pending and approved sessions and requires an explicit active capability",
-          "proof": "Seeds pending/approved owner sessions and capabilities, then verifies Workspace/Work, context, detail and the explicit capability gate."
+          "file": "tests/unit/support/session-read-retirement.test.ts",
+          "title": "keeps the public session barrel type-only",
+          "proof": "The Support session barrel exposes only types after the native read cutover."
         },
         {
           "runner": "vitest",
-          "file": "tests/integration/support/support-sessions.test.ts",
-          "title": "reads a whole-session revoke that removes all capability access while retaining immutable history",
-          "proof": "Seeds a revoked session and revoked capability with issue/revoke/reissue/session-revoke history, then verifies context denial and retained detail."
+          "file": "tests/unit/support/session-read-retirement.test.ts",
+          "title": "leaves no TypeScript session SELECT behind",
+          "proof": "No Support session SQL remains in the TypeScript owner."
         },
         {
           "runner": "vitest",
-          "file": "tests/integration/support/support-sessions.test.ts",
-          "title": "projects expiry and an inactive requested target without exposing context",
-          "proof": "Seeds expired access and revokes the requester assignment, then verifies effective expiry, Work blocker and context denial."
+          "file": "tests/unit/support/session-read-retirement.test.ts",
+          "title": "binds the Collaboration session target to the native Support session reader and drops the Work case",
+          "proof": "Collab notifications and Work projection use the native Support session detail/inbox target."
         },
         {
           "runner": "vitest",
-          "file": "tests/integration/support/support-sessions.test.ts",
-          "title": "keeps source and history immutable and rejects cross-scope reads",
-          "proof": "Seeds a pending session, rejects cross-scope details and verifies source/history immutability triggers."
+          "file": "tests/unit/support/session-read-retirement.test.ts",
+          "title": "preserves native 403/404 denial codes on the session detail target",
+          "proof": "Native denial codes map through the retained inward error boundary."
         }
       ],
       "moduleId": "support",
@@ -1181,27 +1181,27 @@
       "cases": [
         {
           "runner": "vitest",
-          "file": "tests/integration/support/support-sessions.test.ts",
-          "title": "reads pending and approved sessions and requires an explicit active capability",
-          "proof": "Seeds pending/approved owner sessions and capabilities, then verifies Workspace/Work, context, detail and the explicit capability gate."
+          "file": "tests/unit/support/session-read-retirement.test.ts",
+          "title": "keeps the public session barrel type-only",
+          "proof": "The Support session barrel exposes only types after the native read cutover."
         },
         {
           "runner": "vitest",
-          "file": "tests/integration/support/support-sessions.test.ts",
-          "title": "reads a whole-session revoke that removes all capability access while retaining immutable history",
-          "proof": "Seeds a revoked session and revoked capability with issue/revoke/reissue/session-revoke history, then verifies context denial and retained detail."
+          "file": "tests/unit/support/session-read-retirement.test.ts",
+          "title": "leaves no TypeScript session SELECT behind",
+          "proof": "No Support session SQL remains in the TypeScript owner."
         },
         {
           "runner": "vitest",
-          "file": "tests/integration/support/support-sessions.test.ts",
-          "title": "projects expiry and an inactive requested target without exposing context",
-          "proof": "Seeds expired access and revokes the requester assignment, then verifies effective expiry, Work blocker and context denial."
+          "file": "tests/unit/support/session-read-retirement.test.ts",
+          "title": "binds the Collaboration session target to the native Support session reader and drops the Work case",
+          "proof": "Collab notifications and Work projection use the native Support session detail/inbox target."
         },
         {
           "runner": "vitest",
-          "file": "tests/integration/support/support-sessions.test.ts",
-          "title": "keeps source and history immutable and rejects cross-scope reads",
-          "proof": "Seeds a pending session, rejects cross-scope details and verifies source/history immutability triggers."
+          "file": "tests/unit/support/session-read-retirement.test.ts",
+          "title": "preserves native 403/404 denial codes on the session detail target",
+          "proof": "Native denial codes map through the retained inward error boundary."
         }
       ],
       "moduleId": "support",

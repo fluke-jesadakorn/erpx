@@ -153,7 +153,7 @@ impl<C: Clock + Send + Sync + 'static> NativeCommandHttpBackend for MarketingNat
     fn execute<'a>(&'a self, request: NativeCommandHttpRequest<'a>) -> NativeCommandHttpFuture<'a> {
         Box::pin(async move {
             let caller = caller(request.headers)?;
-            let command = erpx_server_marketing::public::native_command::NativeCommand {
+            let command = NativeCommand {
                 kind: request.command.kind.clone(),
                 values: request.command.values.clone(),
                 now: request.command.now,
@@ -189,10 +189,16 @@ impl<C: Clock + Send + Sync + 'static> NativeCommandHttpBackend for MarketingNat
                             execute_native_command(&write_command, &write_key, &mut repository)
                                 .await?;
                         drop(repository);
-                        ledger(connection, &caller, &kind, &write_key, now, outcome.rows)
+                        // The statement's RETURNING rows travel to the TS client
+                        // as `data.rows`; the public rate limiter reads count
+                        // from the first returned row. The ledger keeps the
+                        // numeric row count as its existing receipt evidence.
+                        let returned = outcome.rows;
+                        let count = returned.len() as u64;
+                        ledger(connection, &caller, &kind, &write_key, now, count)
                             .await
                             .map_err(business)?;
-                        Ok((outcome.rows, json!({"kind": kind, "rows": outcome.rows})))
+                        Ok((count, json!({"kind": kind, "rows": returned})))
                     })
                 })
                 .await

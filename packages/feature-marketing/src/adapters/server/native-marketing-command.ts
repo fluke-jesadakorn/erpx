@@ -47,8 +47,12 @@ function configuration(): Settings {
 function reply(value: unknown): NativeMarketingResult {
   if (!record(value)) return unavailable();
   const body = value as Reply;
-  if (!record(body.data) || typeof body.data.kind !== 'string' || !Number.isSafeInteger(body.data.rows) || Number(body.data.rows) < 0) return unavailable();
-  return { rows: [], rowCount: Number(body.data.rows), kind: body.data.kind };
+  if (!record(body.data) || typeof body.data.kind !== 'string' || !Array.isArray(body.data.rows) || body.data.rows.some(row => !record(row))) return unavailable();
+  // `data.rows` carries the statement's RETURNING rows. A statement without
+  // RETURNING yields an empty array; `marketing_stmt_1`'s first row carries the
+  // submission count that the public rate limiter reads with `.first()`.
+  const rows = body.data.rows as Record<string, unknown>[];
+  return { rows, rowCount: rows.length, kind: body.data.kind };
 }
 
 function keyFor(kind: string, values: readonly unknown[]): string {

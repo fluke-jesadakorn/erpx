@@ -3,10 +3,10 @@
 //! caller-owned serializable connection and never opens a transaction.
 use crate::application::native_command::{NativeCommandFuture, NativeCommandRepository};
 use crate::domain::native_command;
-use serde_json::Value;
-use sqlx::postgres::PgArguments;
+use serde_json::{Map, Value};
+use sqlx::postgres::{PgArguments, PgRow};
 use sqlx::query::Query;
-use sqlx::{AssertSqlSafe, Connection, PgConnection};
+use sqlx::{AssertSqlSafe, Column, Connection, PgConnection, Row};
 
 pub struct PgNativeCommandRepository<'a> {
     connection: &'a mut PgConnection,
@@ -55,6 +55,32 @@ fn bind_batch(mut query: BoundQuery<'_>, values: Vec<Value>) -> BoundQuery<'_> {
     }
     query
 }
+/// Decode one returned row into a JSON object keyed by column name. The
+/// admitted statements only RETURN scalar columns (the public-limit count),
+/// but decoding by column name keeps the transport generic for future rows.
+fn row_json(row: &PgRow) -> Value {
+    let mut object = Map::new();
+    for column in row.columns() {
+        let name = column.name();
+        let value = row
+            .try_get::<Option<i64>, _>(name)
+            .ok()
+            .flatten()
+            .map(Value::from)
+            .or_else(|| row.try_get::<Option<f64>, _>(name).ok().flatten().map(Value::from))
+            .or_else(|| row.try_get::<Option<bool>, _>(name).ok().flatten().map(Value::from))
+            .or_else(|| row.try_get::<Option<String>, _>(name).ok().flatten().map(Value::from))
+            .or_else(|| {
+                row.try_get::<Option<sqlx::types::Json<Value>>, _>(name)
+                    .ok()
+                    .flatten()
+                    .map(|json| json.0)
+            })
+            .unwrap_or(Value::Null);
+        object.insert(name.to_owned(), value);
+    }
+    Value::Object(object)
+}
 impl NativeCommandRepository for PgNativeCommandRepository<'_> {
     fn connection(&mut self) -> Option<&mut PgConnection> {
         Some(&mut *self.connection)
@@ -64,17 +90,19 @@ impl NativeCommandRepository for PgNativeCommandRepository<'_> {
         sql: &'static str,
         values: Vec<Value>,
         _key: &'a str,
-    ) -> NativeCommandFuture<'a, u64> {
+    ) -> NativeCommandFuture<'a, Vec<Value>> {
         Box::pin(async move {
             if !self.connection.is_in_transaction() {
                 return Err(native_command::unavailable());
             }
             let query = bind_batch(sqlx::query(AssertSqlSafe(sql)), values);
-            let result = query
-                .execute(&mut *self.connection)
+            // `fetch_all` executes the statement and buffers its RETURNING rows.
+            // A statement without RETURNING executes normally and yields no rows.
+            let returned = query
+                .fetch_all(&mut *self.connection)
                 .await
                 .map_err(|_| native_command::unavailable())?;
-            Ok(result.rows_affected())
+            Ok(returned.iter().map(row_json).collect())
         })
     }
 }

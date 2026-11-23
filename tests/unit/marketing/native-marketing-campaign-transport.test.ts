@@ -1,4 +1,4 @@
-import {describe,it,expect,vi} from 'vitest';
+import {afterEach,beforeEach,describe,it,expect,vi} from 'vitest';
 vi.mock('server-only',()=>({}));
 import {
   createNativeMarketingCampaignClient,
@@ -220,5 +220,67 @@ describe('native Marketing campaign transport',()=>{
   expect(nativeMarketingCampaignFailure(new NativeMarketingCampaignError('MARKETING_CAMPAIGN_SOURCE_CHANGED',409,'Reload.')))
     .toMatchObject({status:409,code:'MARKETING_CAMPAIGN_SOURCE_CHANGED'});
   expect(nativeMarketingCampaignFailure(new Error('other'))).toBeUndefined();
+ });
+});
+
+describe('native Marketing command RETURNING-row transport',()=>{
+ const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
+   privateBaseUrl:'http://127.0.0.1:44996',
+   timeoutMs:1000,
+   holdings:[{origin:'https://acme.example.com',holdingSlug:'acme',holdingId:'h001',companyId:'company'}],
+   ...overrides,
+ });
+ const command=()=>import('../../../packages/feature-marketing/src/adapters/server/native-marketing-command');
+ const reply=(rows:unknown,kind='marketing_stmt_1')=>new Response(JSON.stringify({data:{kind,rows},context:{companyId:'company'}}),{status:200,headers:{'content-type':'application/json'}});
+ const previous=process.env.ERPX_NATIVE_MARKETING_CONFIG;
+ let fetchSpy:ReturnType<typeof vi.fn>;
+ beforeEach(()=>{
+   process.env.ERPX_NATIVE_MARKETING_CONFIG=config();
+   fetchSpy=vi.fn().mockImplementation(async()=>reply([{count:6}]));
+   vi.stubGlobal('fetch',fetchSpy);
+ });
+ afterEach(()=>{
+   vi.unstubAllGlobals();
+   if(previous===undefined)delete process.env.ERPX_NATIVE_MARKETING_CONFIG;
+   else process.env.ERPX_NATIVE_MARKETING_CONFIG=previous;
+ });
+
+ it('maps statement RETURNING rows into first, all and run with the exact row count',async()=>{
+   const {nativeMarketingStatement}=await command();
+   const statement=nativeMarketingStatement('marketing_stmt_1',{companyId:'company'}).bind('rate-key',6);
+   expect(await statement.first<{count:number}>()).toEqual({count:6});
+   expect(await statement.all()).toMatchObject({results:[{count:6}],meta:{changes:1}});
+   expect(await statement.run()).toMatchObject({results:[{count:6}],meta:{changes:1}});
+   expect(fetchSpy).toHaveBeenCalled();
+   const [url,init]=fetchSpy.mock.calls[0] as [URL,RequestInit];
+   expect(url.toString()).toBe('http://127.0.0.1:44996/api/v1/companies/company/marketing/native-command');
+   expect(JSON.parse(String(init.body))).toMatchObject({kind:'marketing_stmt_1',values:['rate-key',6]});
+   const headers=init.headers as Record<string,string>;
+   expect(headers['idempotency-key']).toMatch(/^MARKETING_NATIVE:native:/);
+   expect(headers['x-erpx-context-company']).toBe('company');
+ });
+
+ it('treats a statement without RETURNING as an empty row set',async()=>{
+   fetchSpy.mockImplementation(async()=>reply([],'marketing_stmt_2'));
+   const {nativeMarketingStatement}=await command();
+   expect(await nativeMarketingStatement('marketing_stmt_2',{companyId:'company'}).bind('candidate').run())
+     .toMatchObject({results:[],meta:{changes:0}});
+ });
+
+ it('fails closed when the native reply does not carry well-formed RETURNING rows',async()=>{
+   const {nativeMarketingStatement}=await command();
+   const statement=()=>nativeMarketingStatement('marketing_stmt_1',{companyId:'company'}).bind('rate-key',6);
+   // The pre-repair numeric `rows` shape must not be accepted as a payload.
+   for(const rows of [6,[{count:6},3],null]){
+     fetchSpy.mockImplementation(async()=>reply(rows));
+     await expect(statement().first()).rejects.toMatchObject({code:'MARKETING_NATIVE_COMMAND_UNAVAILABLE',status:503});
+   }
+ });
+
+ it('surfaces a rejected native command with the owner status',async()=>{
+   fetchSpy.mockImplementation(async()=>new Response(JSON.stringify({error:{code:'MARKETING_NATIVE_COMMAND_INVALID',message:'Use one bounded native marketing command.'}}),{status:422,headers:{'content-type':'application/json'}}));
+   const {nativeMarketingStatement}=await command();
+   await expect(nativeMarketingStatement('marketing_stmt_1',{companyId:'company'}).bind('rate-key',6).first())
+     .rejects.toMatchObject({status:422,code:'MARKETING_NATIVE_COMMAND_FAILED'});
  });
 });

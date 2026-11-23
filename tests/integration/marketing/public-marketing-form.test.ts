@@ -1,5 +1,6 @@
 import {afterAll,afterEach,beforeAll,expect,it,vi} from 'vitest';
 import {readFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {createMarketingAsset,createMarketingCandidate,changeMarketing,marketingDetail,marketingWorkspace} from "@erpx/server-marketing/public/marketing";
@@ -88,6 +89,28 @@ it('accepts a consented public form once and binds its retry key to the form',as
  const retry=await POST(request(formId),context(formId));expect((await retry.json()).data.id).toBe(result.data.id);
  expect((await POST(request(otherFormId),context(otherFormId))).status).toBe(409);
  expect(await db.prepare("SELECT count(*) n FROM marketing_lead_candidates WHERE id=? AND status='pending'").bind(result.data.id).first('n')).toBe(1);
+});
+
+it('returns 429 from the seventh public submission of a fresh form without resetting unrelated submissions',async()=>{
+ // A newly reviewed form owns a distinct rate key (hash(formId:ip)), so this
+ // case never clears or reuses another form's public submission bucket.
+ const {f,form}=await reviewedPresentation();
+ await publicMarketingPurchase(f.company,'sales');
+ await publicMarketingPurchase(f.company,'sales-marketing');
+ vi.stubEnv('ERPX_COMMERCE_PACKAGE_ENFORCEMENT','enforced');
+ const context={params:Promise.resolve({holdingSlug:'hotel',formId:String(form.id)})},url=`http://localhost:3100/api/public/marketing/hotel/${form.id}`;
+ const body={contactName:'Fictional rate visitor',contactDetail:'rate@simulation.test',brief:'One more bounded inquiry',consentAccepted:true,source:'Declared rate fixture'};
+ const submit=(suffix:string)=>POST(new Request(url,{method:'POST',headers:{host:'localhost:3100',origin:'http://localhost:3100','Content-Type':'application/json','Idempotency-Key':key()},body:JSON.stringify({...body,contactDetail:`${suffix}@simulation.test`})}),context);
+ const candidates=async()=>Number((await db.prepare('SELECT count(*)::int n FROM marketing_lead_candidates WHERE form_id=?').bind(form.id).first<number>('n'))??0);
+ const before=await candidates();
+ for(let i=1;i<=5;i++)expect((await submit(`accepted-${i}`)).status).toBe(201);
+ const sixth=await submit('sixth');expect(sixth.status).toBe(429);expect((await sixth.json()).error.code).toBe('FORM_RATE_LIMIT');
+ const seventh=await submit('seventh');expect(seventh.status).toBe(429);expect((await seventh.json()).error.code).toBe('FORM_RATE_LIMIT');
+ expect(await candidates()).toBe(before+5);
+ // The RETURNING count must reach the limiter and the rejected charge must roll
+ // back, so the bucket holds exactly the five accepted submissions.
+ const rateKey=createHash('sha256').update(`${form.id}:local`).digest('hex');
+ expect(await db.prepare('SELECT count FROM marketing_public_limits WHERE key=?').bind(rateKey).first('count')).toBe(5);
 });
 
 it('publishes only exact independently reviewed form content and native sanitized media then captures and hands off the original consent once',async()=>{

@@ -2,6 +2,7 @@
 use crate::adapters::native_command_sql::{NativeStatement, statement};
 use crate::domain::native_command::{self, CommandPlan, NativeCommand};
 use erpx_server_shared::public::BusinessError;
+use serde_json::Value;
 use sqlx::PgConnection;
 use std::future::Future;
 use std::pin::Pin;
@@ -9,10 +10,13 @@ use std::pin::Pin;
 pub type NativeCommandFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
 
+/// Result of one admitted statement. `rows` carries the actual RETURNING rows
+/// (empty for statements without RETURNING) so callers can read returned values
+/// such as the public-submission rate-limit count.
 #[derive(Clone, Debug, Default)]
 pub struct NativeCommandOutcome {
     pub kind: String,
-    pub rows: u64,
+    pub rows: Vec<Value>,
 }
 
 pub trait NativeCommandRepository: Send {
@@ -22,7 +26,7 @@ pub trait NativeCommandRepository: Send {
         sql: &'static str,
         values: Vec<serde_json::Value>,
         key: &'a str,
-    ) -> NativeCommandFuture<'a, u64>;
+    ) -> NativeCommandFuture<'a, Vec<Value>>;
 }
 
 pub fn admit(command: &NativeCommand) -> Result<&'static NativeStatement, BusinessError> {
@@ -47,4 +51,41 @@ pub fn execute_native_command<'a, R: NativeCommandRepository>(
             rows,
         })
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    struct ReturningRepository(Vec<Value>);
+    impl NativeCommandRepository for ReturningRepository {
+        fn connection(&mut self) -> Option<&mut PgConnection> {
+            None
+        }
+        fn execute<'a>(
+            &'a mut self,
+            _sql: &'static str,
+            _values: Vec<Value>,
+            _key: &'a str,
+        ) -> NativeCommandFuture<'a, Vec<Value>> {
+            let rows = self.0.clone();
+            Box::pin(async move { Ok(rows) })
+        }
+    }
+
+    #[tokio::test]
+    async fn outcome_carries_statement_returning_rows() {
+        let command = NativeCommand {
+            kind: "marketing_stmt_1".to_owned(),
+            values: vec![json!("rate-key"), json!(6)],
+            now: 0,
+        };
+        let mut repository = ReturningRepository(vec![json!({"count": 6})]);
+        let outcome = execute_native_command(&command, "marketing-key", &mut repository)
+            .await
+            .expect("admitted statement executes");
+        assert_eq!(outcome.kind, "marketing_stmt_1");
+        assert_eq!(outcome.rows, vec![json!({"count": 6})]);
+    }
 }
