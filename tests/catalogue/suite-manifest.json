@@ -54152,6 +54152,35 @@
       }
     },
     {
+      "id": "crm.native-crm-activity-workspace-transport.unit",
+      "lane": "unit",
+      "owner": "crm",
+      "modules": [
+        "crm"
+      ],
+      "files": [
+        "tests/unit/crm/native-crm-activity-workspace.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native CRM activity workspace client must validate exact owner payloads and fail closed."
+      },
+      "framework": "vitest",
+      "apps": [
+        "sales"
+      ],
+      "packages": [
+        "@erpx/server-crm",
+        "@erpx/server-identity_access",
+        "@erpx/server-runtime"
+      ]
+    },
+    {
       "id": "crm.native-crm-pipeline-transport.unit",
       "lane": "unit",
       "owner": "crm",
@@ -105907,6 +105936,33 @@
       "id": "inventory.native-inventory-pos-startup-state.unit",
       "files": [
         "tests/unit/inventory/native-inventory-pos-startup-state.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Sales price-list reads must use native read-plan kinds and fail closed without native transport."
+      },
+      "apps": [
+        "sales"
+      ],
+      "packages": [
+        "@erpx/server-sales"
+      ],
+      "id": "sales.native-sales-read.unit",
+      "files": [
+        "tests/unit/sales/native-sales-read.test.ts"
       ],
       "framework": "vitest"
     }

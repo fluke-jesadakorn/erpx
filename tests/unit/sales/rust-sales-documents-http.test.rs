@@ -355,3 +355,96 @@ async fn response_headers_are_private_and_bounded() {
     assert!(text.contains("x-content-type-options: nosniff"));
     server.abort();
 }
+
+#[tokio::test]
+async fn command_plan_returns_only_registered_owner_reads() {
+    use erpx_server_sales::public::native_sales_read_sql::{
+        RD_PRICE_LIST_ACTIVE, RD_PRICE_LIST_ITEMS_ACTIVE,
+    };
+
+    let router = sales_documents_router(vec![SalesDocumentsHttpTarget {
+        host: "acme.example.test".into(),
+        holding_slug: "acme".into(),
+        origin: "https://acme.example.test".into(),
+        backend: Arc::new(Noop),
+    }])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+
+    let (status, body, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/sales/command-plan",
+            "acme.example.test",
+            &format!("{{\"kind\":\"{RD_PRICE_LIST_ACTIVE}\",\"values\":[\"company\"]}}"),
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    let statements = body["data"]["statements"].as_array().expect("statements");
+    assert_eq!(statements.len(), 1);
+    assert_eq!(statements[0]["sql"], erpx_server_sales::public::native_sales_read_sql::read_statement(RD_PRICE_LIST_ACTIVE).unwrap().sql);
+    assert_eq!(statements[0]["values"][0], "company");
+
+    let (status, body, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/sales/command-plan",
+            "acme.example.test",
+            &format!("{{\"kind\":\"{RD_PRICE_LIST_ITEMS_ACTIVE}\",\"values\":[\"company\"]}}"),
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(
+        body["data"]["statements"][0]["sql"],
+        erpx_server_sales::public::native_sales_read_sql::read_statement(RD_PRICE_LIST_ITEMS_ACTIVE)
+            .unwrap()
+            .sql
+    );
+
+    // Unknown kinds, wrong bind counts, queries, writes and foreign hosts are rejected.
+    for raw in [
+        "{\"kind\":\"not_a_native_read\",\"values\":[\"company\"]}",
+        &format!("{{\"kind\":\"{RD_PRICE_LIST_ACTIVE}\",\"values\":[]}}"),
+        &format!("{{\"kind\":\"{RD_PRICE_LIST_ACTIVE}\",\"values\":[\"company\",\"extra\"]}}"),
+        "{\"kind\":\"sales_price_lists\",\"values\":[]}",
+    ] {
+        let (status, _, _) = http(
+            addr,
+            post(
+                "/api/v1/holdings/acme/sales/command-plan",
+                "acme.example.test",
+                raw,
+            ),
+        )
+        .await;
+        assert_eq!(status, 422, "{raw}");
+    }
+    let (status, _, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/sales/command-plan?x=1",
+            "acme.example.test",
+            &format!("{{\"kind\":\"{RD_PRICE_LIST_ACTIVE}\",\"values\":[\"company\"]}}"),
+        ),
+    )
+    .await;
+    assert_eq!(status, 422);
+    let (status, _, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/sales/command-plan",
+            "foreign.example.test",
+            &format!("{{\"kind\":\"{RD_PRICE_LIST_ACTIVE}\",\"values\":[\"company\"]}}"),
+        ),
+    )
+    .await;
+    assert_eq!(status, 404);
+
+    server.abort();
+}

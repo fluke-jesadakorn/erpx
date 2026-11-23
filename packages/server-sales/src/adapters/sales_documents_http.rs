@@ -10,7 +10,9 @@ use crate::domain::sales_documents::{
 };
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State, StatusCode,
-    header, routing::get, serde_json,
+    body::to_bytes, header,
+    routing::{get, post},
+    serde_json,
 };
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
@@ -109,6 +111,10 @@ pub fn sales_documents_router(
         .route(
             "/api/v1/holdings/{holding_slug}/sales/documents",
             get(list_documents),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/sales/command-plan",
+            post(plan_read),
         )
         .with_state(Arc::new(SalesDocumentsHttpState {
             targets: configured,
@@ -222,6 +228,63 @@ fn query(raw: Option<&str>) -> Result<BTreeMap<String, String>, BusinessError> {
         }
     }
     Ok(parsed)
+}
+
+/// Plan an owner-owned caller-unit read. No SQL is accepted from the wire: the
+/// allow-listed read `kind` resolves to the exact statement in the native Sales
+/// read registry, which the TypeScript caller prepares and executes on its own
+/// open unit. Reads carry no write ledger and never execute here.
+async fn plan_read(
+    State(state): State<Arc<SalesDocumentsHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    const BODY_LIMIT: usize = 16 * 1024;
+    let result = async move {
+        let _target = target(&state, request.headers(), &slug)?;
+        if request.uri().query().is_some() {
+            return Err(request_invalid());
+        }
+        let headers = request.headers().clone();
+        if !unique_header(&headers, "content-type")?
+            .is_some_and(|value| {
+                value
+                    .split(';')
+                    .next()
+                    .is_some_and(|value| value.trim().eq_ignore_ascii_case("application/json"))
+            })
+        {
+            return Err(request_invalid());
+        }
+        let bytes = to_bytes(request.into_body(), BODY_LIMIT)
+            .await
+            .map_err(|_| request_invalid())?;
+        let value: serde_json::Value =
+            serde_json::from_slice(&bytes).map_err(|_| request_invalid())?;
+        let object = value.as_object().ok_or_else(request_invalid)?;
+        let kind = object
+            .get("kind")
+            .and_then(|value| value.as_str())
+            .ok_or_else(request_invalid)?;
+        let values = object
+            .get("values")
+            .and_then(|value| value.as_array())
+            .cloned()
+            .ok_or_else(request_invalid)?;
+        let statement = crate::adapters::native_sales_read_sql::read_statement(kind)
+            .ok_or_else(request_invalid)?;
+        if values.len() != statement.bind_count {
+            return Err(request_invalid());
+        }
+        Ok(serde_json::json!({
+            "statements": [{ "sql": statement.sql, "values": values }]
+        }))
+    }
+    .await;
+    match result {
+        Ok(data) => bounded(serde_json::json!({"data": data})),
+        Err(error) => error_response(error),
+    }
 }
 
 async fn list_documents(
