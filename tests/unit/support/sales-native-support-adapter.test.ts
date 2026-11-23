@@ -27,6 +27,6 @@ describe('Sales native Support read cutover', () => {
     expect(barrel).not.toContain('supportWorkspace,');
     expect(barrel).not.toContain('supportRecipients,');
     const adapter = await readFile(new URL('../../../packages/server-support/src/adapters/support.ts', import.meta.url), 'utf8');
-    expect(adapter.match(/SELECT/g)).toHaveLength(6);
+    expect(adapter.match(/SELECT/g)).toHaveLength(5);
   });
 });

@@ -144,4 +144,43 @@ describe('support service-team coverage native read', () => {
       delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
     }
   });
+
+  it('carries no retired ticket/incident event-history SQL in the switched adapters', async () => {
+    const detail = await source('packages/server-support/src/adapters/support.ts');
+    const incidents = await source('packages/server-support/src/adapters/support-incidents.ts');
+    expect(detail).not.toContain('FROM support_ticket_events WHERE ticket_id=?');
+    expect(incidents).not.toContain('FROM support_incident_events WHERE incident_id=?');
+    expect(detail).toContain('SUPPORT_RD_TICKET_EVENT_HISTORY');
+    expect(incidents).toContain('SUPPORT_RD_INCIDENT_EVENT_HISTORY');
+  });
+
+  it('plans ticket and incident event history in Rust with owner-scoped binds', async () => {
+    const batch = vi.fn(async () => [{ results: [{ id: 'e1', version: 2 }], success: true, meta: { changes: 0, duration: 0 } }]);
+    const db = { prepare: vi.fn(() => ({ bind: vi.fn() })), batch } as unknown as SqlDatabase;
+    process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      ok('SELECT * FROM support_ticket_events WHERE ticket_id=? ORDER BY version DESC', ['ticket-1']),
+    );
+    try {
+      const { nativeSupportReadAll, SUPPORT_RD_TICKET_EVENT_HISTORY, SUPPORT_RD_INCIDENT_EVENT_HISTORY } =
+        await import('@erpx/server-support/adapters/native-support-read');
+      await expect(nativeSupportReadAll(SUPPORT_RD_TICKET_EVENT_HISTORY, ['ticket-1'], db)
+        .then((result: { results: unknown[] }) => result.results)).resolves.toEqual([{ id: 'e1', version: 2 }]);
+      expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({
+        kind: 'support_rd_ticket_event_history',
+        values: ['ticket-1'],
+      });
+
+      fetchMock.mockClear();
+      await expect(nativeSupportReadAll(SUPPORT_RD_INCIDENT_EVENT_HISTORY, ['incident-1'], db)
+        .then((result: { results: unknown[] }) => result.results)).resolves.toEqual([{ id: 'e1', version: 2 }]);
+      expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({
+        kind: 'support_rd_incident_event_history',
+        values: ['incident-1'],
+      });
+    } finally {
+      fetchMock.mockRestore();
+      delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
+    }
+  });
 });

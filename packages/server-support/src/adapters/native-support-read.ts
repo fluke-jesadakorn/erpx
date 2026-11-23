@@ -22,6 +22,8 @@ export const SUPPORT_RD_SERVICE_TEAM_COVERAGE = 'support_rd_service_team_coverag
 export const SUPPORT_RD_SERVICE_TEAM_NAME = 'support_rd_service_team_name';
 export const SUPPORT_RD_TICKET_PORTAL_RESPONSE = 'support_rd_ticket_portal_response';
 export const SUPPORT_RD_TICKET_PORTAL_ACKNOWLEDGED_AT = 'support_rd_ticket_portal_acknowledged_at';
+export const SUPPORT_RD_TICKET_EVENT_HISTORY = 'support_rd_ticket_event_history';
+export const SUPPORT_RD_INCIDENT_EVENT_HISTORY = 'support_rd_incident_event_history';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'SUPPORT_NATIVE_READ_UNAVAILABLE', 'The native Support read service is unavailable.');

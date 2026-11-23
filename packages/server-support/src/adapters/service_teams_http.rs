@@ -612,6 +612,8 @@ mod tests {
                 json!(["binding-1", "response-1"]),
                 200,
             ),
+            ("support_rd_ticket_event_history", json!(["ticket-1"]), 200),
+            ("support_rd_incident_event_history", json!(["incident-1"]), 200),
             (
                 "support_rd_service_coverage_history",
                 json!(["company", "extra"]),
@@ -624,6 +626,8 @@ mod tests {
                 json!(["binding-1"]),
                 422,
             ),
+            ("support_rd_ticket_event_history", json!([]), 422),
+            ("support_rd_incident_event_history", json!([]), 422),
             ("SELECT 1 FROM service_teams", json!([]), 422),
         ] {
             let response = block_on(plan_read(
