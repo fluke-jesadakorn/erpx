@@ -104844,6 +104844,34 @@
         "@erpx/server-runtime",
         "@erpx/server-shared"
       ]
+    },
+    {
+      "lane": "unit",
+      "owner": "shared.executive",
+      "modules": [
+        "runtime"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Runtime executive generation must take its source lock from the native runtime statement and fail closed without native authority."
+      },
+      "apps": [
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-runtime",
+        "@erpx/server-platform_administration"
+      ],
+      "id": "shared.executive.executive-generation-source-lock.unit",
+      "files": [
+        "tests/unit/shared.executive/executive-generation-source-lock.test.ts"
+      ],
+      "framework": "vitest"
     }
   ]
 }
