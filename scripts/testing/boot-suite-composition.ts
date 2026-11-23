@@ -27,8 +27,11 @@
  *     comment (guard pattern copied from rust-postgres.rs).
  *
  * Usage: bun scripts/testing/boot-suite-composition.ts
- *          --suite=inventory.transit.integration [--keep]
+ *          --suite=inventory.transit.integration [--keep|--serve]
  * --keep skips teardown for debugging; the default tears everything down.
+ * --serve keeps the instance up for a lane runner: after printing the env
+ * matrix it waits for stdin EOF, then tears everything down the normal way.
+ * test.ts spawns --serve, injects the matrix, runs the lane, closes stdin.
  */
 import { spawn, type ChildProcess } from 'node:child_process';
 import { randomBytes, createHash } from 'node:crypto';
@@ -59,18 +62,21 @@ function fail(code: string, detail?: string): never {
   throw new Error(detail ? `${code}:${detail}` : code);
 }
 
-function parseArguments(argv: readonly string[]): { suite: string; keep: boolean } {
+function parseArguments(argv: readonly string[]): { suite: string; keep: boolean; serve: boolean } {
   const args = argv[0] === '--' ? argv.slice(1) : [...argv];
   let suite: string | undefined;
   let keep = false;
+  let serve = false;
   for (const argument of args) {
     if (argument === '--keep') keep = true;
+    else if (argument === '--serve') serve = true;
     else if (argument.startsWith('--suite=')) suite = argument.slice('--suite='.length);
-    else fail('BOOT_SUITE_USAGE_REQUIRED', 'expected --suite=<id> [--keep]');
+    else fail('BOOT_SUITE_USAGE_REQUIRED', 'expected --suite=<id> [--keep|--serve]');
   }
-  if (!suite) fail('BOOT_SUITE_USAGE_REQUIRED', 'expected --suite=<id> [--keep]');
+  if (!suite) fail('BOOT_SUITE_USAGE_REQUIRED', 'expected --suite=<id> [--keep|--serve]');
   if (!(SUPPORTED_SUITES as readonly string[]).includes(suite)) fail('BOOT_SUITE_PROBE_UNSUPPORTED', suite);
-  return { suite, keep };
+  if (keep && serve) fail('BOOT_SUITE_USAGE_REQUIRED', '--keep and --serve are exclusive');
+  return { suite, keep, serve };
 }
 
 /** Admin URL resolution mirrors test.ts databaseCredentials(): shell wins, then ignored local env files. */
@@ -406,6 +412,11 @@ function printEnvMatrix(port: number): void {
     ERPX_NATIVE_INVENTORY_STOCK_CONFIG: { privateBaseUrl: baseUrl, timeoutMs: 10000, holdings: [acme] },
     ERPX_NATIVE_INVENTORY_AVAILABILITY_CONFIG: { privateBaseUrl: baseUrl, timeoutMs: 10000, holdings: [acme] },
     ERPX_NATIVE_COLLABORATION_CONFIG: { privateBaseUrl: baseUrl, timeoutMs: 10000 },
+    ERPX_NATIVE_COMMERCE_WAVE2_CONFIG: { privateBaseUrl: baseUrl, host: 'acme.jesadakorn.com', holdingSlug: 'acme', origin: 'https://acme.jesadakorn.com', timeoutMs: 10000 },
+    ERPX_NATIVE_COMMERCIAL_WAVE2_CONFIG: { privateBaseUrl: baseUrl, host: 'acme.jesadakorn.com', holdingSlug: 'acme', origin: 'https://acme.jesadakorn.com', timeoutMs: 10000 },
+    ERPX_NATIVE_COMMERCE_OWNER_WRITE_CONFIG: { privateBaseUrl: baseUrl, host: 'acme.jesadakorn.com', holdingSlug: 'acme', origin: 'https://acme.jesadakorn.com', timeoutMs: 10000 },
+    ERPX_NATIVE_FINANCE_OWNER_WRITE_CONFIG: { privateBaseUrl: baseUrl, timeoutMs: 10000, holdings: [{ ...acme }] },
+    ERPX_NATIVE_WORKFLOW_WAVE3_CONFIG: { privateBaseUrl: baseUrl, timeoutMs: 10000 },
   };
   console.log('BOOT_SUITE_ENV_MATRIX_BEGIN:test.ts injects these shell exports for the lane');
   for (const [name, value] of Object.entries(matrix)) {
@@ -464,7 +475,7 @@ async function verifyDbsGone(admin: string, names: string[]): Promise<void> {
 }
 
 async function run(): Promise<void> {
-  const { suite, keep } = parseArguments(process.argv.slice(2));
+  const { suite, keep, serve } = parseArguments(process.argv.slice(2));
   console.log(`BOOT_SUITE_START:${suite}:keep=${keep ? '1' : '0'}`);
   const admin = adminUrl();
   const { password: _password } = assertAdminEndpoint(admin);
@@ -519,6 +530,14 @@ async function run(): Promise<void> {
     console.log(`BOOT_SUITE_PROBE_NOPE:status=${missing.status}:code=${missing.code}`);
     if (missing.status !== 404 || missing.code !== 'NOT_FOUND') fail('BOOT_SUITE_PROBE_NOPE_UNEXPECTED', `${missing.status}:${missing.code}`);
     printEnvMatrix(port);
+    if (serve) {
+      console.log(`BOOT_SUITE_SERVE_READY:port=${port}`);
+      await new Promise<void>(resolveServe => {
+        process.stdin.resume();
+        process.stdin.on('end', () => resolveServe());
+        process.stdin.on('close', () => resolveServe());
+      });
+    }
     if (keep) {
       succeeded = true;
       console.log(`BOOT_SUITE_KEEP:instance=http://127.0.0.1:${port}:pid=${child?.pid}:config=${configurationPath}:log=${logPath}`);

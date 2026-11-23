@@ -100,6 +100,60 @@ function nativeServiceConfiguration(): void {
   }
 }
 nativeServiceConfiguration();
+
+// Per-suite native composition for integration lanes (harness step 2).
+// Opt-in only via ERPX_TEST_NATIVE_COMPOSITION=1: boots one private-api
+// instance on leased DBs through boot-suite-composition.ts --serve, injects
+// its printed env matrix so native transports reach the leased databases
+// instead of the shared dev DB, and tears everything down afterwards.
+// Suites outside COMPOSITION_SUITES fail closed rather than running blind.
+const COMPOSITION_SUITES = ["inventory.transit.integration"];
+type CompositionHandle = { child: ReturnType<typeof Bun.spawn>; env: Record<string, string> };
+async function startSuiteComposition(suite: string): Promise<CompositionHandle> {
+  const child = Bun.spawn([process.execPath, resolve(root, "scripts/testing/boot-suite-composition.ts"), `--suite=${suite}`, "--serve"], {
+    cwd: root, stdin: "pipe", stdout: "pipe", stderr: "inherit", env,
+  });
+  const reader = child.stdout.getReader();
+  const decoder = new TextDecoder();
+  let buffer = "", inMatrix = false;
+  const matrix: Record<string, string> = {};
+  const deadline = Date.now() + 600_000;
+  for (;;) {
+    if (Date.now() > deadline) { child.kill("SIGKILL"); throw new Error("SUITE_COMPOSITION_BOOT_TIMEOUT"); }
+    const next = await reader.read();
+    if (next.done) break;
+    buffer += decoder.decode(next.value, { stream: true });
+    let end = buffer.indexOf("\n");
+    while (end >= 0) {
+      const line = buffer.slice(0, end).trim();
+      buffer = buffer.slice(end + 1);
+      if (line === "BOOT_SUITE_ENV_MATRIX_END") { reader.releaseLock(); return { child, env: matrix }; }
+      if (inMatrix) {
+        const match = /^export (ERPX_NATIVE_[A-Z0-9_]+)='(.*)'$/.exec(line);
+        if (!match) { child.kill("SIGKILL"); throw new Error(`SUITE_COMPOSITION_MATRIX_INVALID:${line.slice(0, 80)}`); }
+        matrix[match[1]] = match[2];
+      } else if (line === "BOOT_SUITE_ENV_MATRIX_BEGIN:test.ts injects these shell exports for the lane") inMatrix = true;
+      end = buffer.indexOf("\n");
+    }
+  }
+  child.kill("SIGKILL");
+  throw new Error("SUITE_COMPOSITION_MATRIX_MISSING");
+}
+async function stopSuiteComposition(handle: CompositionHandle): Promise<void> {
+  try {
+    const stdin = handle.child.stdin;
+    if (stdin !== undefined && typeof stdin !== "number") await stdin.end();
+  } catch { /* already gone */ }
+  const done = handle.child.exited.then(() => true);
+  const timeout = new Promise<false>(resolve => setTimeout(() => resolve(false), 120_000));
+  if (await Promise.race([done, timeout])) {
+    if (handle.child.exitCode !== 0) throw new Error(`SUITE_COMPOSITION_TEARDOWN_FAILED:${handle.child.exitCode}`);
+    return;
+  }
+  handle.child.kill("SIGKILL");
+  await handle.child.exited;
+  throw new Error("SUITE_COMPOSITION_TEARDOWN_TIMEOUT");
+}
 function databaseCredentials(): void {
   if (!env.ERPX_TEST_ADMIN_URL) for (const file of [".env.test.local", ".env.test", ".env.local"]) {
     const path = resolve(root, file);
@@ -138,6 +192,13 @@ for (const kind of ["unit", "integration", "provider"] as const) {
   const groups = kind === "provider"
     ? [parallel.filter(suite => !suite.files.some(file => reachesDatabaseFixture(file, root))), parallel.filter(suite => suite.files.some(file => reachesDatabaseFixture(file, root))), ...selected.filter(suite => suite.serial).map(suite => [suite])]
     : [parallel, ...selected.filter(suite => suite.serial).map(suite => [suite])];
+  let composition: CompositionHandle | undefined;
+  if (kind === "integration" && env.ERPX_TEST_NATIVE_COMPOSITION === "1" && selected.length) {
+    for (const suite of selected) if (!COMPOSITION_SUITES.includes(suite.id)) throw new Error(`NATIVE_COMPOSITION_SUITE_UNSUPPORTED:${suite.id}`);
+    composition = await startSuiteComposition(selected[0].id);
+  }
+  let laneExit = 0;
+  try {
   for (const group of groups) {
     if (!group.length) continue;
     const postgres = kind === "integration" || group.some(suite => suite.files.some(file => reachesDatabaseFixture(file, root)));
@@ -147,12 +208,16 @@ for (const kind of ["unit", "integration", "provider"] as const) {
     const namePattern = registeredCase?.runner === "vitest" ? exactNativeCasePattern(registeredCase.title) : patternIndex < 0 ? undefined : options.forwarded[patternIndex].split("=").slice(1).join("=") || options.forwarded[patternIndex + 1];
     const defaultReporter = options.forwarded.some(arg => arg === "--reporter" || arg.startsWith("--reporter=")) ? [] : ["--reporter", "default"];
     const nativeAccountProxy = kind === "integration" && selected.some(suite => suite.id.startsWith("legal.") || suite.id === "identity_access.product-sso.integration");
-    const integrationEnvironment = kind === "integration" ? { ...env, ...attachmentToolEnvironment(root), ...(nativeAccountProxy ? { ERPX_NATIVE_ACCOUNT_TEST_PROXY: "1" } : {}) } : env;
+    const integrationEnvironment = kind === "integration" ? { ...env, ...attachmentToolEnvironment(root), ...(nativeAccountProxy ? { ERPX_NATIVE_ACCOUNT_TEST_PROXY: "1" } : {}), ...(composition ? composition.env : {}) } : env;
     const childEnv = vitestChildEnvironment({ ...integrationEnvironment, ERPX_SELECTED_TEST_FILES: JSON.stringify(selectedFiles), ERPX_SELECTED_PROVIDER: kind === "provider" ? "1" : "0", ERPX_TEST_NAME_PATTERN: namePattern }, postgres);
     const exactPatternArgs = registeredCase?.runner === "vitest" ? ["--testNamePattern", exactNativeCasePattern(registeredCase.title)] : [];
     const exit = await execute([node, resolve(root, "node_modules/vitest/vitest.mjs"), "run", "--config", postgres ? "tests/config/vitest.integration.config.mts" : "tests/config/vitest.unit.config.mts", ...options.forwarded, ...exactPatternArgs, ...defaultReporter, "--reporter", resolve(root, "scripts/testing/required-cases-reporter.ts")], childEnv);
-    if (exit !== 0) process.exit(exit);
+    if (exit !== 0) { laneExit = exit; break; }
   }
+  } finally {
+    if (composition) await stopSuiteComposition(composition);
+  }
+  if (laneExit !== 0) process.exit(laneExit);
 }
 for (const suite of suites.filter(suite => suite.framework === 'cargo')) {
   if (suite.lane === 'integration') databaseCredentials();

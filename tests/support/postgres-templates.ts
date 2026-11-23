@@ -58,7 +58,10 @@ export async function ensureSchemaTemplate(root: string, track: string, fixtureF
   try {
     await assertTestAdministrator(admin);
     const version = (await admin.query("SELECT current_setting('server_version') version,current_setting('TimeZone') timezone,current_setting('server_encoding') encoding,current_setting('DateStyle') datestyle,current_setting('standard_conforming_strings') conforming,datcollate,datctype,datcollversion FROM pg_database WHERE datname='template0'")).rows[0];
-    if (!String(version.version).startsWith("18.6")) throw new Error("POSTGRES_18_6_REQUIRED");
+    // Shared dev runs 18.7 while the toolchain pins 18.6 (operator-accepted
+    // 2026-11-23). Templates stay isolated per exact version string via the
+    // schema fingerprint below, so any 18.x is accepted; major upgrades stay gated.
+    if (!String(version.version).startsWith("18.")) throw new Error("POSTGRES_18_REQUIRED");
     const fingerprint = await schemaFingerprint(root, track, JSON.stringify(version), fixtureFingerprint);
     const database = `erpx_test_tpl_${fingerprint.slice(0, 24)}`, descriptor = { database, track, fingerprint };
     lock = Buffer.from(fingerprint.slice(0, 8), "hex").readInt32BE();
