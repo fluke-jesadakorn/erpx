@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6297,
+    "revision": 6305,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-f",
       "agentId": "lead",
       "startedAt": "2026-11-23T16:54:33.142Z",
-      "heartbeatAt": "2026-11-23T17:14:11.855Z",
-      "expiresAt": "2026-11-23T17:44:11.855Z",
+      "heartbeatAt": "2026-11-23T17:16:05.391Z",
+      "expiresAt": "2026-11-23T17:46:05.391Z",
       "generation": 158,
       "tokenHash": "786b04e6db95d7a97c392a0b212dc2cfdd563bbd8cc6545681f5e6ff248eceaa"
     },
@@ -9769,8 +9769,8 @@
           "runId": "run-20261123-f",
           "agentId": "wA02",
           "claimedAt": "2026-11-23T16:59:08.086Z",
-          "heartbeatAt": "2026-11-23T17:14:11.855Z",
-          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "heartbeatAt": "2026-11-23T17:16:05.391Z",
+          "expiresAt": "2026-11-23T17:46:05.391Z",
           "generation": 158
         },
         "baseSha": "f205ed3aac2d99e7cbef528a6426aeca2931161d",
@@ -10594,8 +10594,8 @@
           "runId": "run-20261123-f",
           "agentId": "wC01",
           "claimedAt": "2026-11-23T17:08:19.667Z",
-          "heartbeatAt": "2026-11-23T17:14:11.855Z",
-          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "heartbeatAt": "2026-11-23T17:16:05.391Z",
+          "expiresAt": "2026-11-23T17:46:05.391Z",
           "generation": 158
         },
         "baseSha": "0807b7d6ff9921cac319f5bc37fb02233edcbb52",
@@ -14102,8 +14102,8 @@
           "runId": "run-20261123-f",
           "agentId": "wB09",
           "claimedAt": "2026-11-23T17:00:00.290Z",
-          "heartbeatAt": "2026-11-23T17:14:11.855Z",
-          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "heartbeatAt": "2026-11-23T17:16:05.391Z",
+          "expiresAt": "2026-11-23T17:46:05.391Z",
           "generation": 158
         },
         "baseSha": "ec09d655f70a7ad6deb6342c2ad7be02ae6651af",
@@ -14586,8 +14586,8 @@
           "runId": "run-20261123-f",
           "agentId": "wB11",
           "claimedAt": "2026-11-23T17:00:00.408Z",
-          "heartbeatAt": "2026-11-23T17:14:11.855Z",
-          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "heartbeatAt": "2026-11-23T17:16:05.391Z",
+          "expiresAt": "2026-11-23T17:46:05.391Z",
           "generation": 158
         },
         "baseSha": "ec09d655f70a7ad6deb6342c2ad7be02ae6651af",
@@ -15734,15 +15734,8 @@
         "resources": [
           "owner:manage_erpx"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wC02",
-          "claimedAt": "2026-11-23T17:08:19.750Z",
-          "heartbeatAt": "2026-11-23T17:14:11.855Z",
-          "expiresAt": "2026-11-23T17:44:11.855Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -15766,18 +15759,37 @@
             "command": "cargo test onboarding 10/10 + vitest 10/10",
             "result": "passed",
             "sourceSha": "f0f2eb8b8d07c0a2235d584b386fd00c5df3b54a"
+          },
+          {
+            "command": "retirement:ts-writes -- ':(glob)packages/server-manage_erpx/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b0a7e1eac12a5e26381ac0bd05ec2d90ea5f4054",
+            "owner": "manage_erpx",
+            "before": 16,
+            "after": 0,
+            "note": "wC02: seven residual writes plus earlier owner writes now native/fail-closed; KPI 0 at b0a7e1eac verified by git grep; ports owner_write_registry/email_delivery mounted."
+          },
+          {
+            "command": "cargo check -p erpx-server-manage-erpx --locked",
+            "result": "passed",
+            "sourceSha": "b0a7e1eac12a5e26381ac0bd05ec2d90ea5f4054"
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api,existing-business,contracts --locked",
+            "result": "passed",
+            "sourceSha": "b0a7e1eac12a5e26381ac0bd05ec2d90ea5f4054"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "At be30e2e27, compare existing onboarding packet 54e8ffa2 with current source and confirm the seven reported residual writes before adding bounded retire.manage_erpx.residual-writers with the CLI. Read-only ledger and source review complete. No new runtime tests or cutover.",
+        "blocker": "handoff",
+        "nextAction": "Zero-writer close-out recorded; claim released",
         "handoff": {
-          "runId": "run-20261123-codex",
-          "agentId": "hy4-manage_erpx",
-          "at": "2026-11-23T15:22:43.716Z",
-          "previousStatus": "integrating",
+          "runId": "run-20261123-f",
+          "agentId": "wC02",
+          "at": "2026-11-23T17:16:48.923Z",
+          "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "At be30e2e27, compare existing onboarding packet 54e8ffa2 with current source and confirm the seven reported residual writes before adding bounded retire.manage_erpx.residual-writers with the CLI. Read-only ledger and source review complete. No new runtime tests or cutover."
+          "nextAction": "Zero-writer close-out recorded; claim released"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-manage-erpx",
@@ -31942,8 +31954,8 @@
           "runId": "run-20261123-f",
           "agentId": "wC03",
           "claimedAt": "2026-11-23T17:08:19.842Z",
-          "heartbeatAt": "2026-11-23T17:14:11.855Z",
-          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "heartbeatAt": "2026-11-23T17:16:05.391Z",
+          "expiresAt": "2026-11-23T17:46:05.391Z",
           "generation": 158
         },
         "baseSha": null,
@@ -40995,8 +41007,8 @@
           "runId": "run-20261123-f",
           "agentId": "wC13",
           "claimedAt": "2026-11-23T17:09:52.500Z",
-          "heartbeatAt": "2026-11-23T17:14:11.855Z",
-          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "heartbeatAt": "2026-11-23T17:16:05.391Z",
+          "expiresAt": "2026-11-23T17:46:05.391Z",
           "generation": 158
         },
         "baseSha": null,
@@ -45545,15 +45557,8 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wC04",
-          "claimedAt": "2026-11-23T17:08:19.933Z",
-          "heartbeatAt": "2026-11-23T17:14:11.855Z",
-          "expiresAt": "2026-11-23T17:44:11.855Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "151c7daa379ae71ea9dbd5816717f4e5f4ada32b",
         "lastPushedSha": "151c7daa379ae71ea9dbd5816717f4e5f4ada32b",
@@ -45602,18 +45607,33 @@
             "command": "cargo test manufacturing_lots 13/13",
             "result": "passed",
             "sourceSha": "ef6d5c7a3b1021ab332603cfce1dbb7396a611f7"
+          },
+          {
+            "command": "cargo check -p erpx-server-manufacturing",
+            "result": "passed",
+            "sourceSha": "f48e2c363037444936676a4117f4a9dd6a911935"
+          },
+          {
+            "command": "cargo test -p erpx-server-manufacturing --test manufacturing_lots",
+            "result": "passed",
+            "sourceSha": "f48e2c363037444936676a4117f4a9dd6a911935"
+          },
+          {
+            "command": "tsc root",
+            "result": "passed",
+            "sourceSha": "f48e2c363037444936676a4117f4a9dd6a911935"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Lead ran cargo test --locked -p erpx-server-manufacturing --test manufacturing_lots at a741f2319 working tree: 13 passed; git diff --check passed. Verify actual Axum command authority and source-bound owner retirement delta before integrating.",
+        "blocker": "handoff",
+        "nextAction": "Verified; claim released",
         "handoff": {
-          "runId": "run-20261123-codex",
-          "agentId": "codex-lead",
-          "at": "2026-11-23T16:00:51.965Z",
+          "runId": "run-20261123-f",
+          "agentId": "wC04",
+          "at": "2026-11-23T17:16:13.239Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Lead ran cargo test --locked -p erpx-server-manufacturing --test manufacturing_lots at a741f2319 working tree: 13 passed; git diff --check passed. Verify actual Axum command authority and source-bound owner retirement delta before integrating."
+          "nextAction": "Verified; claim released"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -50556,8 +50576,15 @@
         "resources": [
           "owner:inventory"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wE01",
+          "claimedAt": "2026-11-23T17:16:56.748Z",
+          "heartbeatAt": "2026-11-23T17:16:56.748Z",
+          "expiresAt": "2026-11-23T17:46:56.748Z",
+          "generation": 158
+        },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
         "implementedCommit": "3949130da1e0021b4d72ac43c0e21d225f75b9c4",
         "lastPushedSha": null,
@@ -50638,7 +50665,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Operator stopped run; worker interrupted. Preserve WIP. Review existing source and previous task handoff before resuming.",
         "handoff": {
           "runId": "run-codex-inventory-parity",
@@ -51070,8 +51097,8 @@
           "runId": "run-20261123-f",
           "agentId": "wC10",
           "claimedAt": "2026-11-23T17:09:52.294Z",
-          "heartbeatAt": "2026-11-23T17:14:11.855Z",
-          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "heartbeatAt": "2026-11-23T17:16:05.391Z",
+          "expiresAt": "2026-11-23T17:46:05.391Z",
           "generation": 158
         },
         "baseSha": null,
@@ -53175,8 +53202,8 @@
           "runId": "run-20261123-f",
           "agentId": "wC09",
           "claimedAt": "2026-11-23T17:09:43.405Z",
-          "heartbeatAt": "2026-11-23T17:14:11.855Z",
-          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "heartbeatAt": "2026-11-23T17:16:05.391Z",
+          "expiresAt": "2026-11-23T17:46:05.391Z",
           "generation": 158
         },
         "baseSha": null,
@@ -109653,8 +109680,15 @@
         "resources": [
           "owner:commerce"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wE03",
+          "claimedAt": "2026-11-23T17:16:56.864Z",
+          "heartbeatAt": "2026-11-23T17:16:56.864Z",
+          "expiresAt": "2026-11-23T17:46:56.864Z",
+          "generation": 158
+        },
         "baseSha": "89cf1fc2547a1bad396f281fe620266bf9914034",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -109701,7 +109735,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Operator authorized takeover. Prior OpenCode session ended idle/interrupted; reviewed checkout and preserved all WIP for task-by-task reconciliation.",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261123-e",
           "agentId": "lead",
@@ -109741,8 +109775,8 @@
           "runId": "run-20261123-f",
           "agentId": "wC12",
           "claimedAt": "2026-11-23T17:09:52.403Z",
-          "heartbeatAt": "2026-11-23T17:14:11.855Z",
-          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "heartbeatAt": "2026-11-23T17:16:05.391Z",
+          "expiresAt": "2026-11-23T17:46:05.391Z",
           "generation": 158
         },
         "baseSha": "d15bbdf7095f86bedb5c69bd0f4b297c357f0061",
@@ -109962,8 +109996,8 @@
           "runId": "run-20261123-f",
           "agentId": "wB05",
           "claimedAt": "2026-11-23T16:59:59.566Z",
-          "heartbeatAt": "2026-11-23T17:14:11.855Z",
-          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "heartbeatAt": "2026-11-23T17:16:05.391Z",
+          "expiresAt": "2026-11-23T17:46:05.391Z",
           "generation": 158
         },
         "baseSha": "dbb5267714fb222c1665428fc0b7c9aec613e926",
@@ -110046,8 +110080,8 @@
           "runId": "run-20261123-f",
           "agentId": "wC14",
           "claimedAt": "2026-11-23T17:13:29.800Z",
-          "heartbeatAt": "2026-11-23T17:14:11.855Z",
-          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "heartbeatAt": "2026-11-23T17:16:05.391Z",
+          "expiresAt": "2026-11-23T17:46:05.391Z",
           "generation": 158
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -111574,8 +111608,8 @@
           "runId": "run-20261123-f",
           "agentId": "wC15",
           "claimedAt": "2026-11-23T17:13:50.646Z",
-          "heartbeatAt": "2026-11-23T17:14:11.855Z",
-          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "heartbeatAt": "2026-11-23T17:16:05.391Z",
+          "expiresAt": "2026-11-23T17:46:05.391Z",
           "generation": 158
         },
         "baseSha": "b43f5c44303dce8d26635e05538a1877c2fac494",
@@ -112576,8 +112610,8 @@
           "runId": "run-20261123-f",
           "agentId": "wD03",
           "claimedAt": "2026-11-23T17:15:22.471Z",
-          "heartbeatAt": "2026-11-23T17:15:22.471Z",
-          "expiresAt": "2026-11-23T17:45:22.471Z",
+          "heartbeatAt": "2026-11-23T17:16:05.391Z",
+          "expiresAt": "2026-11-23T17:46:05.391Z",
           "generation": 158
         },
         "baseSha": null,
@@ -112617,8 +112651,8 @@
           "runId": "run-20261123-f",
           "agentId": "wD01",
           "claimedAt": "2026-11-23T17:15:22.271Z",
-          "heartbeatAt": "2026-11-23T17:15:22.271Z",
-          "expiresAt": "2026-11-23T17:45:22.271Z",
+          "heartbeatAt": "2026-11-23T17:16:05.391Z",
+          "expiresAt": "2026-11-23T17:46:05.391Z",
           "generation": 158
         },
         "baseSha": null,
@@ -112659,8 +112693,8 @@
           "runId": "run-20261123-f",
           "agentId": "wD04",
           "claimedAt": "2026-11-23T17:15:22.573Z",
-          "heartbeatAt": "2026-11-23T17:15:22.573Z",
-          "expiresAt": "2026-11-23T17:45:22.573Z",
+          "heartbeatAt": "2026-11-23T17:16:05.391Z",
+          "expiresAt": "2026-11-23T17:46:05.391Z",
           "generation": 158
         },
         "baseSha": null,
@@ -112700,8 +112734,8 @@
           "runId": "run-20261123-f",
           "agentId": "wD02",
           "claimedAt": "2026-11-23T17:15:22.369Z",
-          "heartbeatAt": "2026-11-23T17:15:22.369Z",
-          "expiresAt": "2026-11-23T17:45:22.369Z",
+          "heartbeatAt": "2026-11-23T17:16:05.391Z",
+          "expiresAt": "2026-11-23T17:46:05.391Z",
           "generation": 158
         },
         "baseSha": null,
@@ -112715,6 +112749,39 @@
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": []
+      },
+      {
+        "id": "integrate.work_projection.work-report-mount",
+        "goalId": "G3",
+        "owner": "work_projection",
+        "title": "Mount native work-report router in private composition",
+        "kind": "integration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "src/composition/src/native_work_report.rs",
+          "src/composition/src/lib.rs",
+          "src/composition/src/private_development_api.rs",
+          "tests/unit/shared.work/rust-work-report-composition.test.rs",
+          "tests/catalogue/suite-manifest.json",
+          "packages/server-work_projection/Cargo.toml"
+        ],
+        "resources": [
+          "owner:work_projection",
+          "resource:composition"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement WorkReportHttpBackend over the Holding authorizer + read_work_report_projection, build targets from config holdings, merge work_report_router, add composition unit test",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -112737,7 +112804,7 @@
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T17:15:22.578Z",
+    "updatedAt": "2026-11-23T17:16:56.868Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
