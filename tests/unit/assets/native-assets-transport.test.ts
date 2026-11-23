@@ -2,6 +2,7 @@ import {describe,it,expect,vi} from 'vitest';
 import {readFile} from 'node:fs/promises';
 import {capabilityDelivery} from '../../../packages/catalogue/src/capability-delivery';
 vi.mock('server-only',()=>({}));
+vi.mock('next/headers',()=>({headers:async()=>new Headers({host:'acme.example.com',cookie:'__Host-erpx-product=session'})}));
 import {createNativeAssetsClient,type NativeAssetsPageContext} from '../../../packages/feature-assets/src/adapters/server/native-assets';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
@@ -185,5 +186,68 @@ describe('native Assets transport',()=>{
   expect(owned).toContain('nativeMaintenanceCommand');
   expect(owned).toContain("purpose: 'settle-existing'");
   expect(owned).not.toContain('nativeMaintenanceTransitionAvailable');
+ });
+});
+
+/** Asset source cutover oracle: the source facts consumed by Records and
+ * Support come only from the mounted native Assets contract. No owner SQL for
+ * `operational_assets` remains in TypeScript and digest rechecks fail closed. */
+describe('Asset source-record policy is native-only',()=>{
+ const key='ERPX_NATIVE_ASSETS_CONFIG';
+ const config=()=>JSON.stringify({privateBaseUrl:'http://127.0.0.1:44991',timeoutMs:1000,holdings:[{origin:'https://acme.example.com',holdingSlug:'acme',holdingId:'h001'}]});
+ const sourceActor={
+  userId:'owner',holdingId:'h001',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,
+  assignmentId:'assignment',role:'owner',assignmentScope:'holding',scope:{kind:'holding'},
+  authority:{revision:7,assignmentVersion:3},modules:['assets'],iam:{permissions:['records.read']},
+ } as unknown as import('@erpx/server-identity_access/public/authorization').WorkContext;
+ const context={userId:'owner',holdingId:'h001',companyId:'company',branchId:null,departmentId:null,
+  branchSlug:null,departmentSlug:null,assignmentId:'assignment',assignmentVersion:3,revision:7,
+  role:'owner',assignmentScopeKind:'holding',modules:['assets'],permissions:['records.read'],expiresAt:9_007_199_254_740_991};
+ const row=(id='source',version=3)=>({id,company_id:'company',branch_id:null,department_id:null,
+  name:'Asset source',lifecycle_status:'in_service',version});
+ const ok=(data:unknown)=>new Response(JSON.stringify({data,context}),{status:200,headers:{'content-type':'application/json'}});
+ const policy=async()=>await import('../../../packages/server-records/src/adapters/source-record-policy');
+ const mockRuntime=()=>vi.doMock('../../../packages/server-runtime/src/public/runtime',()=>({
+  holdingResources:async()=>({write:{prepare:()=>{throw Error('Legacy Asset source SQL must not execute');}}}),
+ }));
+ let spy:ReturnType<typeof vi.spyOn>;
+ it('reads the asset source through the native owner with a digest recheck and no TypeScript SQL',async()=>{
+  vi.resetModules();mockRuntime();vi.stubEnv(key,config());
+  spy=vi.spyOn(globalThis,'fetch').mockImplementation(async()=>ok({asset:row()}));
+  try{
+   const p=await policy();
+   const source=await p.readSourceRecord(sourceActor,{kind:'asset',id:'source',version:3});
+   expect(source).toMatchObject({id:'source',version:3,title:'Asset source',status:'in_service',href:'/assets/source'});
+   expect(spy).toHaveBeenCalledTimes(2);
+   expect(String(spy.mock.calls[0][0])).toBe('http://127.0.0.1:44991/api/v1/holdings/acme/assets?id=source');
+  }finally{spy.mockRestore();vi.unstubAllEnvs();vi.doUnmock('../../../packages/server-runtime/src/public/runtime');vi.resetModules();}
+ });
+ it('fails closed for same-unit callers, source guards and a changed digest',async()=>{
+  vi.resetModules();mockRuntime();vi.stubEnv(key,config());
+  try{
+   const p=await policy();
+   const db={prepare:vi.fn()} as unknown as import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
+   await expect(p.readSourceRecord(sourceActor,{kind:'asset',id:'source'},db)).rejects.toMatchObject({status:503,code:'ASSET_RECORD_SOURCE_NATIVE_UNIT_REQUIRED'});
+   await expect(p.sourceRecordGuards(db,sourceActor,'key',{kind:'asset',id:'source',version:3,href:'/assets/'} as never)).rejects.toMatchObject({status:503,code:'ASSET_RECORD_SOURCE_NATIVE_UNIT_REQUIRED'});
+   spy=vi.spyOn(globalThis,'fetch').mockImplementation(async()=>ok({asset:row()}));
+   await expect(p.readSourceRecord(sourceActor,{kind:'asset',id:'source',version:2})).rejects.toMatchObject({status:409,code:'SOURCE_RECORD_CHANGED'});
+   spy.mockRestore();
+   spy=vi.spyOn(globalThis,'fetch').mockImplementation(async()=>ok({asset:row()}));
+   spy.mockResolvedValueOnce(ok({asset:row()})).mockResolvedValueOnce(ok({asset:row('source',4)}));
+   await expect(p.readSourceRecord(sourceActor,{kind:'asset',id:'source'})).rejects.toMatchObject({status:409,code:'SOURCE_RECORD_CHANGED'});
+  }finally{spy?.mockRestore();vi.unstubAllEnvs();vi.doUnmock('../../../packages/server-runtime/src/public/runtime');vi.resetModules();}
+ });
+ it('uses native asset identifiers in the support ticket source predicate',async()=>{
+  vi.stubEnv(key,config());
+  spy=vi.spyOn(globalThis,'fetch').mockImplementation(async()=>ok({items:[row('asset-1'),row('asset-2')]}));
+  try{
+   const {supportTicketSourceReadPredicate}=await import('../../../packages/server-support/src/adapters/ticket-source-read-policy');
+   const predicate=await supportTicketSourceReadPredicate(sourceActor);
+   expect(predicate.sql).toContain("'asset'");
+   expect(predicate.bindings).toContain('asset-1');
+   expect(predicate.bindings).toContain('asset-2');
+   expect(predicate.sql).not.toContain('operational_assets');
+   expect(spy).toHaveBeenCalledTimes(2);
+  }finally{spy.mockRestore();vi.unstubAllEnvs();}
  });
 });

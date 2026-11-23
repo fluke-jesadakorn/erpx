@@ -21,8 +21,8 @@ export { sourceRecordKind, sourceRecordInput, type AuthorizedSourceRecord } from
 import { ownedRecordSource as commerceSource } from '@erpx/server-commerce/public/records-source-facts';
 import {nativeSourceRecord} from '@erpx/server-field_service/public/native-source-record';
 import { ownedRecordSource as posSource } from '@erpx/server-pos/public/records-source-facts';
-import { ownedRecordSource as assetsSource } from '@erpx/server-assets/public/records-source-facts';
 import { headers } from 'next/headers';
+import { createHash } from 'node:crypto';
 import type { SourceRow } from '@erpx/server-records/public/source-record-contract';
 /** Native Maintenance record_source bridge. The owning Rust port
  * (`erpx_server_maintenance::public::record_source`) reads the plan/work row
@@ -124,6 +124,126 @@ export async function nativeMaintenanceSourceRecord(actor: WorkContext, kind: Ma
     return { id: row.id, company_id: row.company_id, branch_id: branchId, department_id: departmentId,
         version: row.version, title: row.title, status: row.status };
 }
+/** Native Assets record-source bridge. The owning Rust port
+ * (`erpx_server_assets::public::record_source`) reads the asset row inside the
+ * caller's serializable unit and rechecks its SHA-256 image digest; this
+ * transport carries only a scoped detail read to that native owner. No owner
+ * SQL or fallback remains in TypeScript. */
+type AssetNativeSettings = {
+    privateBaseUrl: string;
+    timeoutMs: number;
+    holdings: { origin: string; holdingSlug: string; holdingId: string }[];
+};
+const assetFail = (status: number, code: string): never => {
+    throw new ApiError(status, code, 'The native Assets source record is unavailable.');
+};
+const assetObject = (value: unknown): value is Record<string, unknown> =>
+    !!value && typeof value === 'object' && !Array.isArray(value);
+const assetText = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
+function assetConfig(raw: string): AssetNativeSettings {
+    let value: unknown;
+    try { value = JSON.parse(raw); } catch { return assetFail(503, 'NATIVE_ASSET_SOURCE_RECORD_CONFIG_INVALID'); }
+    if (!assetObject(value) || typeof value.privateBaseUrl !== 'string' ||
+        !Number.isSafeInteger(value.timeoutMs) || (value.timeoutMs as number) < 250 || (value.timeoutMs as number) > 30000 ||
+        !Array.isArray(value.holdings) || value.holdings.length < 1 || value.holdings.length > 64)
+        return assetFail(503, 'NATIVE_ASSET_SOURCE_RECORD_CONFIG_INVALID');
+    let base: URL;
+    try { base = new URL(value.privateBaseUrl); } catch { return assetFail(503, 'NATIVE_ASSET_SOURCE_RECORD_CONFIG_INVALID'); }
+    if (base.protocol !== 'http:' || !['127.0.0.1', '[::1]'].includes(base.hostname) || !base.port ||
+        base.username || base.password || value.privateBaseUrl !== base.origin)
+        return assetFail(503, 'NATIVE_ASSET_SOURCE_RECORD_CONFIG_INVALID');
+    for (const holding of value.holdings) {
+        if (!assetObject(holding) || typeof holding.origin !== 'string' ||
+            typeof holding.holdingSlug !== 'string' || !assetText(holding.holdingId))
+            return assetFail(503, 'NATIVE_ASSET_SOURCE_RECORD_CONFIG_INVALID');
+        try {
+            const origin = new URL(holding.origin);
+            if (origin.protocol !== 'https:' || holding.origin !== origin.origin || origin.port)
+                return assetFail(503, 'NATIVE_ASSET_SOURCE_RECORD_CONFIG_INVALID');
+        } catch { return assetFail(503, 'NATIVE_ASSET_SOURCE_RECORD_CONFIG_INVALID'); }
+    }
+    return value as AssetNativeSettings;
+}
+/** Digest over the selected source facts. The recheck below reads the owning
+ * row again and refuses a source whose facts changed between the two reads. */
+const assetSourceDigest = (row: SourceRow): string => createHash('sha256')
+    .update(JSON.stringify([row.id, row.company_id, row.branch_id, row.department_id, row.version, row.title, row.status]))
+    .digest('hex');
+async function assetDetailHeaders(actor: WorkContext, target: AssetNativeSettings['holdings'][number], incoming: Headers): Promise<Headers> {
+    const host = incoming.get('host');
+    if (!host || new URL(target.origin).host !== host) return assetFail(409, 'WORK_CONTEXT_CHANGED');
+    if (!actor.authority || !actor.iam) return assetFail(409, 'WORK_CONTEXT_CHANGED');
+    const h = new Headers({ host, accept: 'application/json', 'cache-control': 'no-cache' });
+    const cookie = incoming.get('cookie');
+    if (cookie) {
+        if (new TextEncoder().encode(cookie).length > 8192) return assetFail(503, 'NATIVE_ASSET_SOURCE_RECORD_COOKIE_LIMIT');
+        h.set('cookie', cookie);
+    }
+    h.set('x-erpx-context-company', actor.companyId);
+    h.set('x-erpx-context-assignment', actor.assignmentId);
+    h.set('x-erpx-context-revision', String(actor.authority.revision));
+    h.set('x-erpx-context-assignment-version', String(actor.authority.assignmentVersion));
+    if (actor.scope.kind !== 'holding' && actor.scope.branchSlug) h.set('x-erpx-workspace-branch', actor.scope.branchSlug);
+    if (actor.scope.kind === 'department') h.set('x-erpx-workspace-department', actor.scope.departmentSlug);
+    return h;
+}
+async function readAssetDetail(settings: AssetNativeSettings, actor: WorkContext, incoming: Headers, id: string): Promise<SourceRow | undefined> {
+    const target = settings.holdings.find(h => h.holdingSlug === actor.holdingSlug && h.holdingId === actor.holdingId);
+    if (!target) return undefined;
+    const h = await assetDetailHeaders(actor, target, incoming);
+    const url = new URL(`/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}/assets`, settings.privateBaseUrl);
+    url.searchParams.set('id', id);
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), settings.timeoutMs);
+    let response: Response;
+    try { response = await fetch(url, { method: 'GET', headers: h, signal: controller.signal, redirect: 'error', cache: 'no-store' }); }
+    catch { return assetFail(503, 'NATIVE_ASSET_SOURCE_RECORD_UNAVAILABLE'); }
+    finally { clearTimeout(timer); }
+    if (response.status === 403 || response.status === 404) {
+        void response.body?.cancel().catch(() => undefined);
+        return assetFail(response.status, 'SOURCE_RECORD_NOT_FOUND');
+    }
+    if (!response.ok || response.headers.get('content-type')?.split(';')[0]?.trim() !== 'application/json') {
+        void response.body?.cancel().catch(() => undefined);
+        return assetFail(503, 'NATIVE_ASSET_SOURCE_RECORD_UNAVAILABLE');
+    }
+    let parsed: unknown;
+    try { parsed = await response.json(); } catch { return assetFail(503, 'NATIVE_ASSET_SOURCE_RECORD_RESPONSE_INVALID'); }
+    if (!assetObject(parsed) || !assetObject(parsed.data) || !assetObject(parsed.context))
+        return assetFail(503, 'NATIVE_ASSET_SOURCE_RECORD_RESPONSE_INVALID');
+    const context = parsed.context;
+    if (!actor.iam || context.companyId !== actor.companyId || context.assignmentId !== actor.assignmentId ||
+        context.revision !== actor.authority?.revision || context.assignmentVersion !== actor.authority?.assignmentVersion ||
+        !Array.isArray(context.permissions) ||
+        !actor.iam.permissions.every(permission => (context.permissions as unknown[]).includes(permission)))
+        return assetFail(409, 'WORK_CONTEXT_CHANGED');
+    const row = parsed.data.asset;
+    if (!assetObject(row) || !assetText(row.id) || !assetText(row.company_id) ||
+        typeof row.version !== 'number' || !Number.isSafeInteger(row.version) ||
+        typeof row.name !== 'string' || typeof row.lifecycle_status !== 'string')
+        return assetFail(503, 'NATIVE_ASSET_SOURCE_RECORD_RESPONSE_INVALID');
+    if (row.id !== id || row.company_id !== actor.companyId) return assetFail(404, 'SOURCE_RECORD_NOT_FOUND');
+    const branchId = row.branch_id, departmentId = row.department_id;
+    if (!(branchId === null || typeof branchId === 'string') || !(departmentId === null || typeof departmentId === 'string'))
+        return assetFail(503, 'NATIVE_ASSET_SOURCE_RECORD_RESPONSE_INVALID');
+    return { id: row.id, company_id: row.company_id, branch_id: branchId, department_id: departmentId,
+        version: row.version, title: row.name, status: row.lifecycle_status };
+}
+export async function nativeAssetSourceRecord(actor: WorkContext, id: string, version?: number): Promise<SourceRow | undefined> {
+    const raw = process.env.ERPX_NATIVE_ASSETS_CONFIG;
+    if (raw === undefined) return undefined;
+    const settings = assetConfig(raw);
+    const incoming = await headers();
+    const first = await readAssetDetail(settings, actor, incoming, id);
+    if (first === undefined) return undefined;
+    // Recheck the source facts through a second native read: a changed digest
+    // fails closed rather than handing a stale source to a downstream command.
+    const recheck = await readAssetDetail(settings, actor, incoming, id);
+    if (recheck === undefined || assetSourceDigest(recheck) !== assetSourceDigest(first))
+        return assetFail(409, 'SOURCE_RECORD_CHANGED');
+    if (version !== undefined && recheck.version !== version) return assetFail(409, 'SOURCE_RECORD_CHANGED');
+    return recheck;
+}
 function application(provided?: SqlDatabase, requestedVersion?: number): ReturnType<typeof createSourceRecordApplication<SqlStatement>> {
     let database = provided!;
     return createSourceRecordApplication<SqlStatement>({ clock: { now: Date.now }, prepare: async (holding) => { database = provided ?? (await holdingResources(holding)).write; }, authorize: (a, permission) => fromNativeSync(() => requirePermission(a, permission)), taskGrant: async (a, now) => !!await database.prepare(`SELECT 1 FROM (${identity_accessProjectionSources.assignments}) assignments WHERE id=? AND company_id=? AND user_id=? AND role=? AND iam_assignment_active(id,?) AND iam_principal_active(user_id,company_id,?) AND iam_role_allows(role,company_id,'records.read')`).bind(a.assignmentId, a.companyId, a.userId, a.role, now, now).first(), task: (a, id) => fromNative(() => getTask(database, a, id)), pms: (a, id) => fromNative(() => readablePmsSource(database, a, id)), pmsLink: pmsSourceLink, support: (a, id) => fromNative(() => getSupportTicket(a, id, database)), source: (a, kind, id) => {
@@ -136,7 +256,12 @@ function application(provided?: SqlDatabase, requestedVersion?: number): ReturnT
                     return record;
                 });
                 case 'pos_sale': return posSource(database).read(a, kind, id);
-                case 'asset': return assetsSource(database).read(a, kind, id);
+                case 'asset': return fromNative(async () => {
+                    if (provided) throw new BusinessRuleError(503, 'ASSET_RECORD_SOURCE_NATIVE_UNIT_REQUIRED', 'This Asset-linked operation requires the native Records transaction.');
+                    const record = await nativeAssetSourceRecord(a, id, requestedVersion);
+                    if (record === undefined) throw new BusinessRuleError(503, 'ASSET_RECORD_SOURCE_NATIVE_UNAVAILABLE', 'The native Asset source is unavailable.');
+                    return record;
+                });
                 case 'maintenance_plan':
                 case 'maintenance_work': return fromNative(async () => {
                     if (provided) throw new BusinessRuleError(503, 'MAINTENANCE_RECORD_SOURCE_NATIVE_UNIT_REQUIRED', 'This Maintenance-linked operation requires the native Records transaction.');
@@ -150,7 +275,7 @@ function application(provided?: SqlDatabase, requestedVersion?: number): ReturnT
                 case 'commerce_order': return commerceSource(database).guards(a, key, { ...source, kind: source.kind }, step);
                 case 'field_service_order': throw new BusinessRuleError(503, 'FIELD_RECORD_SOURCE_NATIVE_UNIT_REQUIRED', 'This Field-linked operation requires the native Records transaction.');
                 case 'pos_sale': return posSource(database).guards(a, key, { ...source, kind: source.kind }, step);
-                case 'asset': return assetsSource(database).guards(a, key, { ...source, kind: source.kind }, step);
+                case 'asset': throw new BusinessRuleError(503, 'ASSET_RECORD_SOURCE_NATIVE_UNIT_REQUIRED', 'This Asset-linked operation requires the native Records transaction.');
                 case 'maintenance_plan':
                 case 'maintenance_work': throw new BusinessRuleError(503, 'MAINTENANCE_RECORD_SOURCE_NATIVE_UNIT_REQUIRED', 'This Maintenance-linked operation requires the native Records transaction.');
                 default: throw new ApiError(422, 'SOURCE_RECORD_INVALID', 'Unsupported source record.');
