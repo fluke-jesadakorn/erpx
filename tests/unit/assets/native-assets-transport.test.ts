@@ -364,3 +364,23 @@ it('shares one fixed owner predicate for attachment owner version guards (46->45
   expect(service).toContain('attachmentOwnerVersionGuardSql(item.table, item.extra)');
   expect(operational).toContain('attachmentOwnerVersionGuardSql(table)');
 });
+it('shares one canonical source-existence probe across the Assets package-settlement read (11->9)',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const adapter=await readFile(new URL('../../../packages/server-assets/src/adapters/package-obligations.ts',import.meta.url),'utf8');
+  const count=(text:string,needle:string)=>text.split(needle).length-1;
+  // The canonical helper owns the single existence-probe statement; its comment
+  // must not smuggle another "SELECT" token into the retirement KPI.
+  expect(adapter.match(/SELECT/g)).toHaveLength(9);
+  expect(adapter).toContain('const assetSourceExistsSql = (source:string,alias:string,where:string) =>');
+  expect(count(adapter,'EXISTS(SELECT 1 FROM (${source}) ${alias} WHERE ${where})')).toBe(1);
+  // No duplicate raw probe literal remains at any of the three owner call sites.
+  expect(count(adapter,'SELECT 1 FROM (${placements})')).toBe(0);
+  expect(count(adapter,'SELECT 1 FROM (${refs})')).toBe(0);
+  expect(count(adapter,'assetSourceExistsSql(')).toBe(3);
+  expect(adapter).toContain('assetSourceExistsSql(placements,"branch"');
+  expect(adapter).toContain('assetSourceExistsSql(placements,"department"');
+  expect(adapter).toContain('assetSourceExistsSql(refs,"source"');
+  // The exported source object used by the Maintenance consumer is unchanged in shape.
+  expect(adapter).toContain('export const assetPackageSettlementSources={assets:');
+  expect(adapter).toContain('links:"SELECT * FROM operational_asset_finance_links"} as const;');
+});
