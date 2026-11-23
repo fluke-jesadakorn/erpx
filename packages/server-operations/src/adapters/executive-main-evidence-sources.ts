@@ -5,6 +5,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { operationsTaskCohort, operationsTaskVisibility } from "@erpx/server-runtime/public/executive/operations-access";
 import { OperationsEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
+const overdueAlert = `(SELECT min(n.created_at) FROM (${collaborationProjectionSources.staff_notifications}) n WHERE n.company_id=t.company_id AND n.user_id=? AND n.record_type='staff_task_alert' AND n.record_id=t.id AND n.record_version=t.version AND n.id LIKE 'staff-task-alert-overdue-%')`;
 export function executiveMainEvidenceSources(db: SqlDatabase) {
     return { async factsSearchOperationsEvidence(actor: WorkContext, referenceAt: number, metric: "open-operations-exceptions" | "exception-resolution-time" | "operations-escalations", input: {
             filters: {
@@ -36,7 +37,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 values.push(cursor.sortAt, cursor.id);
             }
             const alertSelect = metric === "operations-escalations"
-                ? `(SELECT min(n.created_at) FROM (${collaborationProjectionSources.staff_notifications}) n WHERE n.company_id=t.company_id AND n.user_id=? AND n.record_type='staff_task_alert' AND n.record_id=t.id AND n.record_version=t.version AND n.id LIKE 'staff-task-alert-overdue-%')`
+                ? overdueAlert
                 : "NULL::bigint";
             const queryValues = metric === "operations-escalations" ? [actor.userId, ...values] : values;
             const rows = (await db.prepare(`SELECT t.id,t.title,t.state,t.due_at,t.created_at,t.updated_at,t.version,t.branch_id,t.department_id,
@@ -55,7 +56,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
             const visibility = operationsTaskVisibility(actor, referenceAt),purchase=await workTaskProjectionReadScope(db,actor);
             const cohort = operationsTaskCohort(metric, "t", actor, filters, referenceAt);
             const alertSelect = metric === "operations-escalations"
-                ? `(SELECT min(n.created_at) FROM (${collaborationProjectionSources.staff_notifications}) n WHERE n.company_id=t.company_id AND n.user_id=? AND n.record_type='staff_task_alert' AND n.record_id=t.id AND n.record_version=t.version AND n.id LIKE 'staff-task-alert-overdue-%')`
+                ? overdueAlert
                 : "NULL::bigint";
             const queryValues = metric === "operations-escalations" ? [actor.userId, ...visibility.values, ...cohort.values,...purchase.args, taskId] : [...visibility.values, ...cohort.values,...purchase.args, taskId];
             const row = await db.prepare(`SELECT t.id,t.title,t.state,t.due_at,t.created_at,t.updated_at,t.version,t.branch_id,t.department_id,
