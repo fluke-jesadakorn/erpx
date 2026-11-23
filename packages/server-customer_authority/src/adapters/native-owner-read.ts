@@ -17,6 +17,8 @@ type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: 
 export const CA_RD_SALES_REVIEW_COUNTS = 'customer_authority_rd_sales_review_counts';
 export const CA_RD_IDENTITY_CHANGE_HISTORY = 'customer_authority_rd_identity_change_history';
 export const CA_RD_DUPLICATE_REVIEW_HISTORY = 'customer_authority_rd_duplicate_review_history';
+export const CA_RD_ACCESS_EVENTS = 'customer_authority_rd_access_events';
+export const CA_RD_ACCESS_READS = 'customer_authority_rd_access_reads';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'CUSTOMER_AUTHORITY_NATIVE_READ_UNAVAILABLE', 'The native Customer Authority read service is unavailable.');

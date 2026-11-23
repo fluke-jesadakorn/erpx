@@ -11,6 +11,7 @@ import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {salesRecipientEligibility} from "@erpx/server-sales/public/sales-recipient";
 import {createCustomerAccessApplication,type AccessRepository} from "@erpx/server-customer_authority/application/access";
+import {CA_RD_ACCESS_EVENTS,CA_RD_ACCESS_READS,nativeOwnerReadAll} from './native-owner-read';
 import {portalSupportThreadsForStaff} from '@erpx/server-customer_authority/adapters/portal-support';
 import {requireCustomerAccessPurchasedRead,customerAccessPurchaseControls} from '@erpx/server-customer_authority/adapters/portal-purchases';
 /**
@@ -28,8 +29,8 @@ function repository(a:WorkContext,write:SqlDatabase):AccessRepository { return {
  binding:id=>write.prepare(`SELECT b.*,o.number,o.state order_state,o.branch_id,o.department_id,CASE WHEN EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) m WHERE ${reviewers} AND m.user_id=?) THEN 1 ELSE 0 END actor_eligible FROM customer_access_bindings b JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=b.order_id AND o.company_id=b.company_id WHERE b.id=? AND ${scope}`).bind(a.userId,id,...args(a)).first<Row>(),
  rows:async()=> (await write.prepare(`SELECT b.*,o.number,o.state order_state,CASE WHEN EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) m WHERE ${reviewers} AND m.user_id=?) THEN 1 ELSE 0 END actor_eligible,(SELECT COUNT(DISTINCT m.user_id) FROM (${identity_accessProjectionSources.assignments}) m WHERE ${reviewers}) reviewers FROM customer_access_bindings b JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=b.order_id AND o.company_id=b.company_id WHERE ${scope} ORDER BY b.updated_at DESC,b.id`).bind(a.userId,...args(a)).all<Row>()).results,
  sources:async()=> (await write.prepare(`SELECT o.id,o.number,o.version,p.name FROM (${commerceProjectionSources.commerce_orders}) o JOIN (${financeProjectionSources.finance_parties}) p ON p.id=o.party_id AND p.company_id=o.company_id WHERE ${scope} AND o.kind IN ('sales','quote') AND o.state IN ('confirmed','converted','partially_fulfilled','fulfilled') ORDER BY o.updated_at DESC LIMIT 250`).bind(...args(a)).all<Row>()).results,
- events:async id=>(await write.prepare('SELECT version,action,actor_id,reason,created_at FROM customer_access_events WHERE binding_id=? ORDER BY version').bind(id).all<Row>()).results,
- reads:async id=>(await write.prepare('SELECT binding_version,user_id,read_at,projection_version FROM customer_access_reads WHERE binding_id=? ORDER BY read_at DESC LIMIT 100').bind(id).all<Row>()).results,
+ events:async id=>(await nativeOwnerReadAll<Row>(CA_RD_ACCESS_EVENTS,[id],write,a.holdingSlug)).results,
+ reads:async id=>(await nativeOwnerReadAll<Row>(CA_RD_ACCESS_READS,[id],write,a.holdingSlug)).results,
  }; }
 function application(a:WorkContext,write?:SqlDatabase) { return createCustomerAccessApplication({...ports(a),repository:async()=>repository(a,write??(await holdingResources(a.holdingId)).write)}); }
 export async function customerAccessBinding(a:WorkContext,id:string){requirePermission(a,'commerce.read');requirePermission(a,'commerce.sales');const write=(await holdingResources(a.holdingId)).write;await requireCustomerAccessPurchasedRead(write,a,id);const [row,identity]=await Promise.all([application(a,write).customerAccessBinding(id),write.prepare('SELECT 1 FROM customer_access_identities WHERE binding_id=?').bind(id).first()]),purchase=await customerAccessPurchaseControls(write,a);return {...row,canInvite:row.canInvite&&!identity,...(purchase?{canReview:row.canReview&&purchase.newWork,canReject:row.canReview&&purchase.settleExisting,canRevoke:row.canRevoke&&purchase.settleExisting}: {})};}

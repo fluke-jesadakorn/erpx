@@ -70,10 +70,35 @@ const READ_DUPLICATE_REVIEW_HISTORY: NativeReadStatement = NativeReadStatement {
     bind_count: 1,
 };
 
+/// Native successors of the TypeScript customer-access history reads. The
+/// owner plans the literal; the caller binds `[bindingId]` on its open unit.
+pub const RD_ACCESS_EVENTS: &str = "customer_authority_rd_access_events";
+pub const RD_ACCESS_READS: &str = "customer_authority_rd_access_reads";
+
+const SQL_RD_ACCESS_EVENTS: &str =
+    "SELECT version,action,actor_id,reason,created_at FROM customer_access_events WHERE binding_id=? ORDER BY version";
+
+const SQL_RD_ACCESS_READS: &str =
+    "SELECT binding_version,user_id,read_at,projection_version FROM customer_access_reads WHERE binding_id=? ORDER BY read_at DESC LIMIT 100";
+
+const READ_ACCESS_EVENTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_ACCESS_EVENTS,
+    sql: SQL_RD_ACCESS_EVENTS,
+    bind_count: 1,
+};
+
+const READ_ACCESS_READS: NativeReadStatement = NativeReadStatement {
+    kind: RD_ACCESS_READS,
+    sql: SQL_RD_ACCESS_READS,
+    bind_count: 1,
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_SALES_REVIEW_COUNTS,
     READ_IDENTITY_CHANGE_HISTORY,
     READ_DUPLICATE_REVIEW_HISTORY,
+    READ_ACCESS_EVENTS,
+    READ_ACCESS_READS,
 ];
 
 /// Resolve an owner read kind. `None` for every unregistered discriminator.
@@ -118,6 +143,25 @@ mod tests {
             assert!(read.sql.starts_with("SELECT *"));
             assert!(read.sql.contains(table));
             assert!(read.sql.contains("ORDER BY version"));
+            assert!(!read.sql.to_uppercase().contains("INSERT INTO"));
+            assert!(!read.sql.to_uppercase().contains("DELETE FROM"));
+            assert!(!read.sql.to_uppercase().contains("UPDATE "));
+        }
+    }
+
+    #[test]
+    fn access_history_reads_are_fixed_selects_with_exact_binds() {
+        for (kind, table) in [
+            (RD_ACCESS_EVENTS, "customer_access_events"),
+            (RD_ACCESS_READS, "customer_access_reads"),
+        ] {
+            let read = read_statement(kind).expect("read kind");
+            assert!(is_read(kind));
+            assert_eq!(read.bind_count, 1);
+            assert_eq!(read.sql.matches('?').count(), 1);
+            assert!(read.sql.starts_with("SELECT"));
+            assert!(read.sql.contains(table));
+            assert!(read.sql.contains("binding_id=?"));
             assert!(!read.sql.to_uppercase().contains("INSERT INTO"));
             assert!(!read.sql.to_uppercase().contains("DELETE FROM"));
             assert!(!read.sql.to_uppercase().contains("UPDATE "));
