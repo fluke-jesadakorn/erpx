@@ -251,3 +251,21 @@ describe('Asset source-record policy is native-only',()=>{
   }finally{spy.mockRestore();vi.unstubAllEnvs();}
  });
 });
+it('retires the TS Service asset picker read now served by the mounted native workspace port',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const adapter=await readFile(new URL('../../../packages/server-assets/src/adapters/field-service-references.ts',import.meta.url),'utf8');
+ const barrel=await readFile(new URL('../../../packages/server-assets/src/public/field-service-references.ts',import.meta.url),'utf8');
+ const native=await readFile(new URL('../../../packages/server-assets/src/adapters/field_service_workspace.rs',import.meta.url),'utf8');
+ for(const retired of ['fieldServiceAssets','fieldServiceAssetReferencePredicate','fieldServiceAssetSourceReadLocks','ServiceAssetReference']){
+  expect(adapter).not.toContain(retired);
+  expect(barrel).not.toContain(retired);
+ }
+ for(const live of ['fieldServiceAssetSourceRows','fieldServiceAssetAttachmentSourceLocks','fieldServiceAssetAttachmentSourceImage']){
+  expect(adapter).toContain(live);
+  expect(barrel).toContain(live);
+ }
+ expect(adapter).not.toContain("lifecycle_status NOT IN ('retired','retirement_pending')");
+ expect(native).toContain('pub struct ServiceAssetReference');
+ expect(native).toContain('picker: Vec<ServiceAssetReference>');
+ expect(native).toContain('read_service_workspace_assets');
+});
