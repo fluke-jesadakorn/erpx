@@ -2,10 +2,12 @@ import type{SqlDatabase}from '@erpx/server-runtime/public/runtime/types';
 import type{WorkContext}from '@erpx/server-identity_access/public/authorization';
 import type{EmployeeRequest}from '@erpx/server-records/domain/employee-requests';
 import{createRequestOverrideRead}from '@erpx/server-records/application/employee-requests';
+import{nativeEmployeeRequestReadRepository}from './employee-requests-read';
 import{canOverrideStaffStep}from '@erpx/server-workflow/public/approval-planning';
 import{BusinessRuleError}from '@erpx/server-shared/index';
 import{ApiError as NativeApiError}from '@erpx/server-runtime/public/http';
-function application(database:SqlDatabase){return createRequestOverrideRead({repository:{readReadRequestForOverrideRow(id:string,companyId:string){return database.prepare("SELECT * FROM employee_requests WHERE id=? AND company_id=?").bind(id,companyId).first<EmployeeRequest>();}},canOverrideStaffStep:(...args)=>fromNative(()=>canOverrideStaffStep(database,...args))});}
+/** Switch the override read to the owner's canonical native read repository; no local TS SQL. */
+function application(database:SqlDatabase){const repository=nativeEmployeeRequestReadRepository(database);return createRequestOverrideRead({repository:{readReadRequestForOverrideRow:(...args)=>repository.readReadRequestForOverrideRow(...args)},canOverrideStaffStep:(...args)=>fromNative(()=>canOverrideStaffStep(database,...args))});}
 async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> {
     try {
         return await run();
