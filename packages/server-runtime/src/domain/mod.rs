@@ -1,4 +1,5 @@
 pub(crate) mod jobs;
+pub(crate) mod outbox_families;
 pub(crate) mod migration;
 pub(crate) mod native_command;
 

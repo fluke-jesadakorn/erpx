@@ -33,6 +33,9 @@ pub use crate::domain::jobs::{
     MAX_ATTEMPTS, MAX_EVENTS_PER_PASS_LIMIT, OutboxJob, OutboxRetrySchedule, retry_delay_millis,
     retry_schedule, truncate_error_code,
 };
+pub use crate::domain::outbox_families::{
+    FamilyClass, FamilyPredicateError, NativeFamily, classify, owned_predicate,
+};
 
 pub use crate::adapters::postgres::development_lease::LeasedDevelopmentDatabase;
 

@@ -89,6 +89,10 @@ name = "outbox_supervisor"
 path = "../../tests/unit/shared.runtime/rust-outbox-supervisor.test.rs"
 
 [[test]]
+name = "outbox_families"
+path = "../../tests/unit/shared.runtime/rust-outbox-families.test.rs"
+
+[[test]]
 name = "outbox_supervisor_postgres"
 path = "../../tests/integration/shared.runtime/rust-outbox-supervisor-postgres.test.rs"
 
