@@ -48,3 +48,4 @@ pub(crate) mod destruction_queued_authority;
 pub(crate) mod legal_wave3_http;
 pub(crate) mod legal_wave3_postgres;
 pub(crate) mod postgres_destruction;
+pub(crate) mod retention_execution;

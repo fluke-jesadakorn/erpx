@@ -901,15 +901,16 @@ mod destruction {
     use erpx_server_legal::public::{
         CurrentDestructionSource, DestructionLedgerEntry, LegalDestructionJournal,
         LegalDestructionManifest, LockedDestructionSource, PgLegalDestructionBridge,
-        PgLegalDestructionManifestBridge, LegalQueuedIdentity, read_legal_queued_authority, execute_legal_destruction,
-        journal_legal_destruction, prepare_legal_destruction_manifest,
+        PgLegalDestructionManifestBridge, LegalQueuedIdentity, LegalDestructionExecution,
+        LegalRetentionUnit, read_legal_queued_authority, execute_legal_destruction,
+        execute_with_sources, journal_legal_destruction, prepare_legal_destruction_manifest,
     };
     use erpx_server_legal::public::auxiliary::{LegalRetentionPorts, PgLegalRetention};
     use erpx_server_runtime::public::postgres::{
         DatabasePool, MigrationTrack, PersistenceError, PgTransactionError, PgUnitOfWork,
         TransactionOptions, load_migrations, migrate_database,
     };
-    use erpx_server_shared::public::BusinessError;
+    use erpx_server_shared::public::{BusinessError, IdentifierSource, RecordId};
     use sqlx::PgConnection;
     use std::sync::{
         Arc,
@@ -1128,4 +1129,51 @@ mod destruction {
         }).await;
     }
 
+
+    struct Ids(u64);
+    impl IdentifierSource for Ids {
+        fn next(&mut self) -> RecordId {
+            self.0 += 1;
+            RecordId::new(format!("native-destruction-{}", self.0)).unwrap()
+        }
+    }
+
+    #[tokio::test]
+    async fn native_execute_with_sources_requires_independent_reviewer_and_same_unit() {
+        use serde_json::json;
+        use sha2::{Digest, Sha256};
+        fixture::with_database(2, |pool| async move {
+            setup(&pool).await;
+            let image: String = sqlx::query_scalar("SELECT jsonb_build_object('request',x.id,'item',i.id,'company',i.company_id,'branch',i.branch_id,'department',i.department_id,'kind',i.kind,'classification',i.classification,'state',i.state,'version',i.version,'requester',x.requested_by,'approver',x.approved_by,'manifest',x.manifest,'policyId',x.policy_id,'policyVersion',x.policy_version,'policy',to_jsonb(p))::text FROM legal_destructions x JOIN legal_items i ON i.id=x.item_id JOIN legal_retention_policies p ON p.id=x.policy_id AND p.company_id=i.company_id WHERE x.id='destruction-a'")
+                .fetch_one(pool.raw()).await.unwrap();
+            let hash = format!("{:x}", Sha256::digest(image.as_bytes()));
+            // A queued reviewer who is the original requester is refused by the
+            // native iam_same_person parity gate before any owner phase starts.
+            let same = json!({"holdingId":"holding-a","companyId":"company-a","userId":"requester","assignmentId":"assignment-a","role":"manager","scope":{"kind":"holding"}}).to_string();
+            sqlx::query("INSERT INTO legal_retention_execution_authorizations(command_id,destruction_id,item_id,company_id,kind,actor_id,assignment_id,authority_json,source_hash,item_version,created_at) VALUES('same-person','destruction-a','item-a','company-a','approve','requester','assignment-a',$1,$2,1,10)")
+                .bind(same).bind(&hash).execute(pool.raw()).await.unwrap();
+            let mut control = pool.raw().begin().await.unwrap();
+            sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *control).await.unwrap();
+            let denied = match LegalRetentionUnit::read(&mut control, "company-a", "destruction-a").await {
+                Ok(_) => panic!("a reviewer who is the requester must be refused"),
+                Err(error) => error,
+            };
+            assert!(matches!(denied, PgTransactionError::Business(ref error) if error.code == "LEGAL_INDEPENDENT_REVIEW"));
+            control.rollback().await.unwrap();
+
+            // A later, distinct queued reviewer is the current authority. The
+            // native two-phase path journals, then deletes only after the unit
+            // revalidates both authority and independent review at the byte gate.
+            let reviewer = json!({"holdingId":"holding-a","companyId":"company-a","userId":"reviewer","assignmentId":"assignment-a","role":"manager","scope":{"kind":"holding"}}).to_string();
+            sqlx::query("INSERT INTO legal_retention_execution_authorizations(command_id,destruction_id,item_id,company_id,kind,actor_id,assignment_id,authority_json,source_hash,item_version,created_at) VALUES('independent','destruction-a','item-a','company-a','approve','reviewer','assignment-a',$1,$2,1,20)")
+                .bind(reviewer).bind(&hash).execute(pool.raw()).await.unwrap();
+            let deletes = Arc::new(AtomicUsize::new(0));
+            let bridge = Bridge { deletes: deletes.clone(), fail_seal: Arc::new(AtomicBool::new(false)) };
+            let outcome = execute_with_sources(&pool, bridge, "company-a", "destruction-a", 10, &mut Ids(0)).await.unwrap();
+            assert_eq!(outcome, LegalDestructionExecution::Completed);
+            assert_eq!(deletes.load(Ordering::SeqCst), 1);
+            let state: String = sqlx::query_scalar("SELECT state FROM legal_destructions WHERE id='destruction-a'").fetch_one(pool.raw()).await.unwrap();
+            assert_eq!(state, "completed");
+        }).await;
+    }
 }

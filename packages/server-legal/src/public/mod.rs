@@ -124,3 +124,11 @@ pub use crate::adapters::postgres_destruction::{
 pub use crate::adapters::destruction_queued_authority::{
     CurrentLegalQueuedAuthority, LegalQueuedIdentity, read_legal_queued_authority,
 };
+
+/// Native same-unit retained-destruction authority for the composition
+/// `execute_with_sources` mount. The caller supplies the real IAM/Commercial/Files
+/// bridge; the unit and independent-review gates are owned here.
+pub use crate::adapters::retention_execution::{
+    AuthorizedLegalDestructionBridge, IndependentReviewFacts, LegalDestructionExecution,
+    LegalRetentionUnit, PgIndependentReview, execute_with_sources, require_independent_review,
+};
