@@ -728,3 +728,46 @@ describe('workflow finance AI source revision read tail (native read plan)', () 
     }
   });
 });
+
+describe('workflow project worker command evidence image read tail (native read plan)', () => {
+  it('retains the cross-owner assertion fragment but carries no retired owner read SQL', async () => {
+    const source = await readFile(
+      new URL(
+        '../../../packages/server-workflow/src/adapters/project-worker-startup-evidence.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    expect(source).toContain(
+      "'SELECT command_id,operation,record_id,actor_id,authority_json,result_json FROM command_receipts'",
+    );
+    expect(source).not.toContain('jsonb_build_object');
+    expect(source).not.toContain('.prepare(');
+  });
+
+  it('plans the evidence image read through the mounted native read with no local SQL', async () => {
+    const first = vi.fn(async () => ({ image: 'image-1' }));
+    vi.resetModules();
+    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+      nativeWorkflowReadFirst: first,
+    }));
+    try {
+      const { projectWorkerCommandEvidenceImage } = await import(
+        '../../../packages/server-workflow/src/adapters/project-worker-startup-evidence'
+      );
+      const prepare = vi.fn();
+      const db = { prepare } as never;
+      expect(await projectWorkerCommandEvidenceImage(db, 'company', 'record-1')).toBe('image-1');
+      expect(first).toHaveBeenCalledWith(
+        'wf_native_project_worker_command_evidence',
+        ['record-1', 'company', 'record-1', 'company', 'record-1', 'company'],
+        'company',
+        db,
+      );
+      expect(prepare).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.resetModules();
+    }
+  });
+});

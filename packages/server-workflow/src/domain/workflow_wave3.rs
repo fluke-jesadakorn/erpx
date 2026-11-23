@@ -149,6 +149,12 @@ pub const WF_NATIVE_FINANCE_SALES_COMPLETION: &str = "wf_native_finance_sales_co
 /// Workflow-owned command ledger; the TypeScript bridge executes it on the
 /// caller's open company unit and carries no receipt/assertion semantics.
 pub const WF_NATIVE_FINANCE_SOURCE_REVISION: &str = "wf_native_finance_source_revision";
+/// Owner-authored caller-unit read for the project worker startup command
+/// evidence image family. The mounted wave3-command planner resolves it to one
+/// fixed SELECT on the Workflow-owned command ledger; the TypeScript bridge
+/// executes it on the caller's open company unit and carries no receipt or
+/// assertion semantics. Cross-owner assertion fragments remain in the caller.
+pub const WF_NATIVE_PROJECT_WORKER_COMMAND_EVIDENCE: &str = "wf_native_project_worker_command_evidence";
 pub const KINDS: &[&str] = &[
     WF_OPENAPPROVAL,
     WF_OPENAPPROVAL2,
@@ -189,6 +195,7 @@ pub const KINDS: &[&str] = &[
     WF_NATIVE_FLOW_DEFINITIONS_INSTANCE,
     WF_NATIVE_FINANCE_SALES_COMPLETION,
     WF_NATIVE_FINANCE_SOURCE_REVISION,
+    WF_NATIVE_PROJECT_WORKER_COMMAND_EVIDENCE,
 ];
 
 fn statement(kind: &str) -> Option<(&'static str, usize)> {
@@ -450,6 +457,10 @@ fn statement(kind: &str) -> Option<(&'static str, usize)> {
         WF_NATIVE_FINANCE_SOURCE_REVISION => (
             "SELECT (SELECT count(*) FROM command_receipts WHERE authority_json::jsonb->>'companyId'=? AND (operation LIKE 'finance.%' OR operation LIKE 'commerce.%' OR operation LIKE 'expense.%' OR operation LIKE 'pms.%' OR operation LIKE 'people.payroll.%') AND operation NOT LIKE 'finance.ai.%' AND operation NOT LIKE 'expense.ai.%') AS revision",
             1,
+        ),
+        WF_NATIVE_PROJECT_WORKER_COMMAND_EVIDENCE => (
+            "SELECT jsonb_build_object('receipts',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.command_id) FROM command_receipts r WHERE r.record_id=? AND r.authority_json::jsonb->>'companyId'=?),'audit',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM audit_events a JOIN command_receipts r ON r.command_id=a.command_id WHERE a.record_id=? AND r.authority_json::jsonb->>'companyId'=?),'outbox',(SELECT jsonb_agg(to_jsonb(o) ORDER BY o.id) FROM outbox_events o WHERE o.aggregate_id=? AND o.payload_json::jsonb->>'companyId'=?))::text image",
+            6,
         ),
 _ => return None,
     })
@@ -921,5 +932,52 @@ mod tests {
         assert!(supported(WF_NATIVE_FINANCE_SOURCE_REVISION));
         assert!(plan(WF_NATIVE_FINANCE_SOURCE_REVISION, vec![json!("company")]).is_ok());
         assert!(plan(WF_NATIVE_FINANCE_SOURCE_REVISION, vec![]).is_err());
+    }
+
+    /// The owner-local project worker command evidence image read stays fixed,
+    /// SELECT-only and company-scoped on the Workflow-owned command ledger; the
+    /// bridge carries no receipt or assertion semantics and the planner never
+    /// accepts caller SQL or writes. The exact three-source owner image and six
+    /// positional binds are kept; cross-owner assertion fragments stay in the
+    /// TypeScript public projection.
+    #[test]
+    fn project_worker_command_evidence_read_kind_is_fixed_company_scoped_select() {
+        let (sql, expected) = statement(WF_NATIVE_PROJECT_WORKER_COMMAND_EVIDENCE)
+            .expect("registered owner read kind");
+        assert!(sql.starts_with("SELECT "), "read must be SELECT-only: {sql}");
+        assert_eq!(expected, 6);
+        assert_eq!(sql.matches('?').count(), expected);
+        assert!(sql.contains("jsonb_build_object"), "read must keep the exact owner image: {sql}");
+        for source in ["command_receipts", "audit_events", "outbox_events"] {
+            assert!(sql.contains(source), "read must stay owner-local: {source}");
+        }
+        assert_eq!(
+            sql.matches("authority_json::jsonb->>'companyId'=?").count(),
+            2,
+            "read must stay company-scoped on the receipt/audit ledger: {sql}"
+        );
+        assert_eq!(
+            sql.matches("payload_json::jsonb->>'companyId'=?").count(),
+            1,
+            "read must stay company-scoped on the outbox ledger: {sql}"
+        );
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+            assert!(!sql.contains(forbidden), "read must not mutate: {forbidden}");
+        }
+        assert!(supported(WF_NATIVE_PROJECT_WORKER_COMMAND_EVIDENCE));
+        assert!(
+            plan(
+                WF_NATIVE_PROJECT_WORKER_COMMAND_EVIDENCE,
+                vec![
+                    json!("record-1"), json!("company"),
+                    json!("record-1"), json!("company"),
+                    json!("record-1"), json!("company"),
+                ]
+            )
+            .is_ok()
+        );
+        assert!(
+            plan(WF_NATIVE_PROJECT_WORKER_COMMAND_EVIDENCE, vec![json!("record-1")]).is_err()
+        );
     }
 }
