@@ -3,7 +3,7 @@ import type { nativeBrandIdentityWorkspace, NativeBrandIdentityWorkspace } from 
 import type { agentWorkspace } from "@erpx/server-agent/public/agent-governance";
 import type { productionWorkspace } from "@erpx/server-manufacturing/public/production";
 import type { ecommerceWorkspace } from "@erpx/server-ecommerce/public/ecommerce";
-import type { learningWorkspace } from "@erpx/server-learning/public/learning";
+import type { nativeLearningWorkspacePage as learningWorkspace } from "@erpx/workplace/lib/native-learning";
 import type { benefitsWorkspace } from "@erpx/server-benefits/public/benefits";
 import type { talentWorkspace } from "@erpx/server-talent/public/talent";
 import { type DomainRecordKind, isDomainRecordKind } from '@erpx/server-records/domain/record-domain-details';

@@ -19,17 +19,8 @@ import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/
 import { createChangeLearningCourse, createChangeLearningAssignment, createLearningExecutiveEvidence, createLearningWork, type LearningCommandPorts, type LearningCommand, type LearningMutation, type LearningExecutiveEvidenceMetric } from "@erpx/server-learning/application/learning";
 import type { LearningAssignment as Assignment } from "@erpx/server-learning/domain/learning";
 import {courseActionSchema,learningActionSchema} from "@erpx/server-learning/domain/learning";
-import {withLearningPurchasedCommand,withLearningPurchasedRead,requireLearningPurchasedRead,type LearningCapability,type LearningPurchaseControls} from "@erpx/server-learning/adapters/purchases";
+import {withLearningPurchasedCommand,withLearningPurchasedRead,requireLearningPurchasedRead,type LearningCapability} from "@erpx/server-learning/adapters/purchases";
 export type { LearningExecutiveEvidenceMetric } from "@erpx/server-learning/application/learning";
-const scope =
-    "a.company_id=? AND (?::text IS NULL OR a.branch_id=?) AND (?::text IS NULL OR a.department_id=?)",
-  args = (a: WorkContext) => [
-    a.companyId,
-    a.branchId,
-    a.branchId,
-    a.departmentId,
-    a.departmentId,
-  ];
 const learnerEligible = `EXISTS(SELECT 1 ${identityaccessSources.learning_adapters_learning_assignments_x_from} ${peoplepayrollSources.learning_adapters_learning_hr_people_p_join} ON p.user_id=x.user_id AND p.company_id=x.company_id ${peoplepayrollSources.learning_adapters_learning_hr_engagements_e_join} ON e.person_id=p.id AND e.company_id=p.company_id WHERE x.company_id=a.company_id AND x.user_id=a.learner_id AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(x.user_id,x.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (x.scope_kind='holding' OR (x.scope_kind='branch' AND x.scope_node_id=a.branch_id) OR (x.scope_kind='department' AND x.scope_node_id=a.department_id)) AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active')`;
 function access(a: WorkContext, write = false) {
   requirePermission(a, write ? "records.write" : "records.read");
@@ -111,21 +102,22 @@ export function nativeLearningExecutiveEvidence(db:SqlDatabase){return createLea
     .first<Row>(),
  });}
 export async function learningExecutiveEvidenceRow(db:SqlDatabase,a:WorkContext,metric:LearningExecutiveEvidenceMetric,recordId:string,range?:{from:number;toExclusive:number}){await requireLearningPurchasedRead(db,a,metric==="learning-completions"?"learn.results":"learn.assignments");return nativeLearningExecutiveEvidence(db)(a,metric,recordId,range);}
-export async function learningWork(a:WorkContext):Promise<import("@erpx/feature-work_projection/lib/work-item").WorkItem[]>{
+/* Native learning work read. The mounted axum workspace route owns the scoped
+ * assignments + eligibility SQL and applies results-history redaction before
+ * the rows leave the owner; the TS work projection consumes that payload. The
+ * learnerEligible predicate kept at module scope remains for the transactional
+ * assignmentWitness (R3) and is not part of this read. */
+export async function nativeLearningWork(a:WorkContext):Promise<import("@erpx/feature-work_projection/lib/work-item").WorkItem[]>{
  if(!hasModuleAccess(a.modules,"learning"))return [];
- let assignments:Assignment[]=[],purchases:LearningPurchaseControls|undefined;
+ let page:Awaited<ReturnType<typeof import("@erpx/workplace/lib/native-learning").nativeLearningWorkspacePage>>;
  try{
-  await withLearningPurchasedRead(await lazyDatabase(a)(),a,async write=>{
-   purchases=await requireLearningPurchasedRead(write,a);
-   const redacted=purchases&&!purchases["learn.results"]?.history;
-   const results=await write.prepare(
-    `SELECT ${redacted?"a.id,a.company_id,a.branch_id,a.department_id,a.course_id,a.course_version,a.learner_id,a.due_date,a.status,a.created_by,a.version,a.created_at,a.updated_at,NULL::text attendance,NULL::bigint score_bps,NULL::text result_evidence,NULL::text completion_reason":"a.*"},c.title course_title,c.required_for,(SELECT legal_name ${peoplepayrollSources.learning_adapters_learning_hr_people_from} WHERE company_id=a.company_id AND user_id=a.learner_id AND merged_into_id IS NULL LIMIT 1) learner_name,CASE WHEN ${learnerEligible} THEN 1 ELSE 0 END learner_eligible FROM learning_assignments a JOIN learning_courses c ON c.id=a.course_id WHERE ${scope} ORDER BY a.updated_at DESC`
-   ).bind(...args(a)).all<Assignment>();
-   assignments=results.results;
-  });
+  page=await (await import("@erpx/workplace/lib/native-learning")).nativeLearningWorkspacePage(a);
  }catch(error){if(error instanceof ApiError&&error.code==="PACKAGE_REQUIRED")return [];throw error;}
- const workspace={courses:[],assignments,people:[],canWrite:hasPermission(a,"records.write"),canReview:hasPermission(a,"records.review"),actorId:a.userId,purchases};
- const items=await createLearningWork({workspace:async()=>workspace})(a),itemsById=new Map(assignments.map(row=>[row.id,row]));if(!purchases)return items;
- const p=purchases;
+ const assignments=page.assignments as unknown as Assignment[];
+ const workspace={courses:[],assignments,people:[],canWrite:page.canWrite,canReview:page.canReview,actorId:page.actorId,purchases:page.purchases};
+ const items=await createLearningWork({workspace:async()=>workspace})(a),itemsById=new Map(assignments.map(row=>[row.id,row]));if(!page.purchases)return items;
+ const p=page.purchases;
  return items.map(item=>{const assignment=itemsById.get(item.id),resultAction=assignment?.status==="in_progress",canAct=item.canAct&&hasPermission(a,"records.write")&&!!p["learn.assignments"]?.settleExisting&&(!resultAction||hasPermission(a,"records.review")||!!p["learn.results"]?.settleExisting&&(!assignment?.required_for||!!p["learn.certificates"]?.settleExisting));return {...item,canAct,queue:item.queue==="todo"&&!canAct?"waiting" as const:item.queue};});
 }
+/** Thin native-backed alias retained for record-purchases.filterLearningWork (R1). */
+export const learningWork = nativeLearningWork;

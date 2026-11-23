@@ -1784,3 +1784,84 @@ async fn benefits_learning_port_refuses_without_the_caller_unit() {
         .unwrap_err();
     assert_eq!(error.code, "BENEFITS_LEARNING_UNIT_REQUIRED");
 }
+
+#[tokio::test]
+async fn work_read_inherits_owner_scope_and_redacts_result_history() {
+    use erpx_server_learning::public::learning::{
+        EventRow, LearningFuture, LearningReadRepository, PersonRow,
+    };
+    use erpx_server_learning::public::learning_work::{learning_work, redact_result_history};
+    use erpx_server_shared::public::BusinessError;
+    use serde_json::{Value, json};
+
+    struct EmptyRead;
+    impl LearningReadRepository for EmptyRead {
+        type Error = BusinessError;
+        fn courses<'a>(
+            &'a mut self,
+            _actor: &'a LearningActor,
+        ) -> LearningFuture<'a, Vec<CourseRow>, Self::Error> {
+            Box::pin(async { Ok(vec![]) })
+        }
+        fn assignments<'a>(
+            &'a mut self,
+            _actor: &'a LearningActor,
+            _personal: bool,
+        ) -> LearningFuture<'a, Vec<AssignmentRow>, Self::Error> {
+            Box::pin(async { Ok(vec![]) })
+        }
+        fn people<'a>(
+            &'a mut self,
+            _actor: &'a LearningActor,
+        ) -> LearningFuture<'a, Vec<PersonRow>, Self::Error> {
+            Box::pin(async { Ok(vec![]) })
+        }
+        fn assignment<'a>(
+            &'a mut self,
+            _actor: &'a LearningActor,
+            _id: &'a str,
+        ) -> LearningFuture<'a, Option<AssignmentRow>, Self::Error> {
+            Box::pin(async { Ok(None) })
+        }
+        fn events<'a>(
+            &'a mut self,
+            _id: &'a str,
+        ) -> LearningFuture<'a, Vec<EventRow>, Self::Error> {
+            Box::pin(async { Ok(vec![]) })
+        }
+        fn handoff<'a>(
+            &'a mut self,
+            _id: &'a str,
+        ) -> LearningFuture<'a, Option<HandoffRow>, Self::Error> {
+            Box::pin(async { Ok(None) })
+        }
+        fn certificate<'a>(
+            &'a mut self,
+            _id: &'a str,
+        ) -> LearningFuture<'a, Option<CertificateRow>, Self::Error> {
+            Box::pin(async { Ok(None) })
+        }
+    }
+
+    let mut repository = EmptyRead;
+    let actor = learner();
+    let value = learning_work(&mut repository, &actor, NOW, false)
+        .await
+        .expect("empty owner read succeeds");
+    assert_eq!(value, json!({"assignments": []}));
+
+    let rows = json!([{
+        "id": "assignment-1",
+        "attendance": "attended",
+        "score_bps": 9000,
+        "result_evidence": "evidence",
+        "completion_reason": "done",
+        "learner_eligible": true
+    }]);
+    let redacted = redact_result_history(rows.clone());
+    for field in ["attendance", "score_bps", "result_evidence", "completion_reason"] {
+        assert_eq!(redacted[0][field], Value::Null, "redacted {field}");
+    }
+    assert_eq!(redacted[0]["id"], rows[0]["id"]);
+    assert_eq!(redacted[0]["learner_eligible"], rows[0]["learner_eligible"]);
+}
