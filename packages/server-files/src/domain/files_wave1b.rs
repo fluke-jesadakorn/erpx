@@ -291,6 +291,14 @@ const SQL_RD_WORKFLOW_APPROVAL_EVIDENCE: &str = "SELECT id,revision,checksum_sha
 pub const RD_FRONT_LOGO_PUBLICATION: &str = "RD_FRONT_LOGO_PUBLICATION";
 const SQL_RD_FRONT_LOGO_PUBLICATION: &str = "SELECT p.derivative_object_key object_key,p.derivative_media_type media_type FROM attachment_publications p WHERE p.company_id=$1 AND p.target_type='company_storefront_brand' AND p.target_id=$2 AND p.id=$3 AND p.state='approved'"; // binds=3
 
+/// Owner-owned array read: the PMS published-booking publication ids. Native
+/// successor of the retired TypeScript `pmsBookingPublications.approved` SELECT.
+/// The publication ids arrive as one JSON-array bind so owner arity stays
+/// static for any number of published hotel images; the PMS-owned id selector
+/// stays with the caller. No receipt/audit/outbox write ledger is planned.
+pub const RD_PMS_BOOKING_PUBLICATIONS: &str = "RD_PMS_BOOKING_PUBLICATIONS";
+const SQL_RD_PMS_BOOKING_PUBLICATIONS: &str = "SELECT id FROM attachment_publications WHERE state='approved' AND id = ANY(ARRAY(SELECT jsonb_array_elements_text($1::jsonb)))"; // binds=1
+
 /// Read kinds plan the owner SQL only; no receipt/audit/outbox write ledger.
 pub fn is_read(kind: &str) -> bool {
     kind == RD_PROJECT_ATTACHMENT_TARGET
@@ -303,6 +311,7 @@ pub fn is_read(kind: &str) -> bool {
         || kind == RD_POS_IMAGE_SOURCE
         || kind == RD_WORKFLOW_APPROVAL_EVIDENCE
         || kind == RD_FRONT_LOGO_PUBLICATION
+        || kind == RD_PMS_BOOKING_PUBLICATIONS
 }
 
 /// Every kind this owner module accepts. Anything else is fail-closed.
@@ -422,6 +431,7 @@ const KINDS: &[&str] = &[
     RD_POS_IMAGE_SOURCE,
     RD_WORKFLOW_APPROVAL_EVIDENCE,
     RD_FRONT_LOGO_PUBLICATION,
+    RD_PMS_BOOKING_PUBLICATIONS,
 ];
 pub fn supported(kind: &str) -> bool { KINDS.contains(&kind) }
 pub fn sql(kind: &str) -> Option<&'static str> { Some(match kind {
@@ -540,6 +550,7 @@ pub fn sql(kind: &str) -> Option<&'static str> { Some(match kind {
     RD_POS_IMAGE_SOURCE => SQL_RD_POS_IMAGE_SOURCE,
     RD_WORKFLOW_APPROVAL_EVIDENCE => SQL_RD_WORKFLOW_APPROVAL_EVIDENCE,
     RD_FRONT_LOGO_PUBLICATION => SQL_RD_FRONT_LOGO_PUBLICATION,
+    RD_PMS_BOOKING_PUBLICATIONS => SQL_RD_PMS_BOOKING_PUBLICATIONS,
     _ => return None,
 }) }
 pub fn invalid() -> BusinessError { BusinessError::new(FailureKind::InvalidInput, "FILES_COMMAND_INVALID", "Use one bounded Files command.") }
