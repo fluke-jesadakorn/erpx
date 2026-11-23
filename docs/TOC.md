@@ -70,7 +70,7 @@ ERPX has15 products,21 active application workspaces and33 modules. `apps/compat
 - [Current owner contracts](contracts/next/README.md), [33-module workflow catalogue](contracts/next/catalogue.md), [route reference](contracts/next/route-table.md), [service boundaries](contracts/next/service-boundaries.md)
 - [People relationships and independent account administration](contracts/next/people-external-access.md), [Skills, Performance & Compensation](contracts/next/people-evaluation.md)
 - [Executive MCP and agent connections](contracts/next/executive-mcp.md), [record drawers](contracts/next/record-drawers.md), [generated drawer inventory](contracts/next/record-drawer-inventory.json)
-- [Business glossary](../CONTEXT.md), [architecture decisions](adr/README.md), [contract compatibility policy](../CONTRACT_POLICY.md)
+- [Business glossary](../CONTEXT.md), [context map](../CONTEXT-MAP.md), [architecture decisions](adr/README.md), [contract compatibility policy](../CONTRACT_POLICY.md)
 - [Operations](../ops/README.md), [private production runtime](../ops/macos/README.md), [incident handling](../ops/runbooks/nextjs-incident.md), [recovery](../ops/runbooks/nextjs-recovery.md)
 - [UI components](ux-ui/component-inventory.md), [UI standardization status](ux-ui/ui-standardization.md), [product brand guide](brand/ERPX-brand-guide.md), [runtime brand assets](../public/brand/)
 
