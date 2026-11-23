@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7220,
+    "revision": 7224,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -123321,7 +123321,7 @@
         "owner": "billing",
         "title": "billing TS read tail native cutover (round 7)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -123333,28 +123333,41 @@
         "resources": [
           "owner:billing"
         ],
-        "claim": {
-          "runId": "run-20261123-h",
-          "agentId": "wC09bil",
-          "claimedAt": "2026-11-23T23:00:39.494Z",
-          "heartbeatAt": "2026-11-23T23:00:40.660Z",
-          "expiresAt": "2026-11-23T23:30:40.660Z",
-          "generation": 160
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-billing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "59bc55dcd",
+            "owner": "billing",
+            "before": 110,
+            "after": 108,
+            "note": "Operating-cost and capacity-review owner-authored kinds; commercial paths untouched."
+          },
+          {
+            "command": "cargo check -p erpx-server-billing + lib (37) + 5 unit targets (53)",
+            "result": "passed",
+            "sourceSha": "59bc55dcd"
+          },
+          {
+            "command": "vitest billing read-tail (8) + tsc billing",
+            "result": "passed",
+            "sourceSha": "59bc55dcd"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining parameterized owner-local family on the owner-write registry; record a strictly lower count.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-g",
+          "runId": "run-20261123-h",
           "agentId": "wC09bil",
-          "at": "2026-11-23T23:00:32.496Z",
+          "at": "2026-11-23T23:05:13.243Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
-          "nextAction": "Pick the smallest remaining parameterized owner-local family on the owner-write registry; record a strictly lower count."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -124322,6 +124335,42 @@
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family (package-obligations/record-purchases); record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.billing.read-tail-r8",
+        "goalId": "G4",
+        "owner": "billing",
+        "title": "billing TS read tail native cutover (round 8)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-billing/src/**",
+          "tests/unit/billing/**",
+          "tests/integration/billing/**"
+        ],
+        "resources": [
+          "owner:billing"
+        ],
+        "claim": {
+          "runId": "run-20261123-h",
+          "agentId": "wCW1bil",
+          "claimedAt": "2026-11-23T23:05:13.422Z",
+          "heartbeatAt": "2026-11-23T23:05:13.422Z",
+          "expiresAt": "2026-11-23T23:35:13.422Z",
+          "generation": 160
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Migrate the identical SELECT 1 available-witness family in billing.ts via one native kind; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -124330,7 +124379,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 642,
+      "totalPackets": 643,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -124338,13 +124387,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 278,
+        "blocked": 279,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 160,
-    "updatedAt": "2026-11-23T23:04:19.736Z",
+    "updatedAt": "2026-11-23T23:05:13.424Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
