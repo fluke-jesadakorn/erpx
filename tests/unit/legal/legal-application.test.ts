@@ -512,3 +512,57 @@ it("native Legal reports adapter keeps the exact native response, auth, errors a
     else process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG = prior;
   }
 });
+
+it("native Legal retention adapter keeps the exact native projection, auth, errors and fails closed", async () => {
+  const { retentionView } = await import("@erpx/server-legal/public/legal/retention");
+  const { nativeLegalAuxiliaryRead } = await import("../../../packages/server-legal/src/adapters/native-legal-auxiliary");
+  // Exact authoritative projection of the native `retention` read: no SQL text
+  // remains in TypeScript and every authoritative field reaches the caller.
+  const native = {
+    policies: [{id:"policy-one",company_id:"company-a",state:"approved",days:30,version:2}],
+    assignment: null,
+    requests: [],
+  };
+  const config = {privateBaseUrl:"http://127.0.0.1:44999",timeoutMs:2000,holdings:[{origin:"http://acme.example.test:3443",holdingSlug:"acme",holdingId:"holding-a"}]};
+  const prior = process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG, originalFetch = globalThis.fetch;
+  const actor = {
+    userId:"user-one", holdingSlug:"acme", holdingId:"holding-a", companyId:"company-a",
+    assignmentId:"assignment-user-one", branchId:undefined, departmentId:undefined,
+    role:"legal_manager", permissions:["legal.read"], authority:{revision:4,assignmentVersion:2},
+  } as unknown as WorkContext;
+  try {
+    process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG = JSON.stringify(config);
+    const calls: {url:string;init?:RequestInit}[] = [];
+    globalThis.fetch = (async (url:RequestInfo|URL,init?:RequestInit) => {
+      calls.push({url:String(url),init});
+      return Response.json(native);
+    }) as typeof fetch;
+
+    // List view: exact response, bounded path and private Company header.
+    expect(await retentionView({} as never, actor)).toEqual(native);
+    expect(calls).toHaveLength(1);
+    expect(new URL(calls[0]!.url).pathname).toBe("/api/v1/holdings/acme/legal/retention");
+    expect(new Headers(calls[0]!.init?.headers).get("x-erpx-context-company")).toBe("company-a");
+
+    // Item view: the bridge appends one encoded opaque id segment.
+    calls.length = 0;
+    await nativeLegalAuxiliaryRead(actor, 'retention', 'item/one');
+    expect(new URL(calls[0]!.url).pathname).toBe("/api/v1/holdings/acme/legal/retention/item%2Fone");
+
+    // Authorization still fails before transport configuration is consulted.
+    process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG = "";
+    const deniedActor = {...actor, permissions:[]} as unknown as WorkContext;
+    await expect(retentionView({} as never, deniedActor)).rejects.toMatchObject({status:403,code:"PERMISSION_REQUIRED"});
+    // No private configuration: fail closed with no SQL fallback.
+    await expect(retentionView({} as never, actor)).rejects.toMatchObject({status:503,code:"NATIVE_LEGAL_UNAVAILABLE"});
+
+    // Native authority denial is passed through unchanged.
+    process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG = JSON.stringify(config);
+    globalThis.fetch = (async () => Response.json({error:{code:"NOT_FOUND",message:"Denied"}},{status:404})) as unknown as typeof fetch;
+    await expect(retentionView({} as never, actor)).rejects.toMatchObject({status:404,code:"NOT_FOUND",message:"Denied"});
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (prior===undefined) delete process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG;
+    else process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG = prior;
+  }
+});

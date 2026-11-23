@@ -470,7 +470,20 @@ async fn auxiliary_reads_keep_company_membership_and_requester_scope() {
         )
         .await
         .unwrap();
+        // The native `retention` read is the authoritative projection for the
+        // TypeScript `retentionView` adapter. Pin its exact top-level field set
+        // so the three view TS SELECTs can be deleted byte-identically.
+        assert_eq!(retention.as_object().unwrap().len(), 3);
+        assert!(retention["policies"].is_array());
+        assert!(retention["requests"].is_array());
         assert!(retention["assignment"].is_null());
+        let retention_list = read(&pool, manager(), LegalAuxiliaryRead::Retention { id: None })
+            .await
+            .unwrap();
+        assert_eq!(retention_list.as_object().unwrap().len(), 3);
+        assert!(retention_list["policies"].is_array());
+        assert!(retention_list["requests"].as_array().unwrap().is_empty());
+        assert!(retention_list["assignment"].is_null());
         let outsider = read(
             &pool,
             actor("user-three", "legal_manager", &["legal.read"]),

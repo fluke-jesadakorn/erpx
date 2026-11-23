@@ -47,12 +47,14 @@ function configuration(): Settings {
 /**
  * Owner-issued Legal auxiliary read. The native owner owns the SQL, the
  * Company/branch/department visibility and the role permission; this bridge
- * carries only a bounded resource name and the signed-in session context. No
- * SQL text remains in the caller, and there is no TypeScript fallback.
+ * carries only a bounded resource name, an optional opaque item id and the
+ * signed-in session context. No SQL text remains in the caller, and there is
+ * no TypeScript fallback.
  */
 export async function nativeLegalAuxiliaryRead<T>(
   actor: WorkContext,
   resource: LegalAuxiliaryResource,
+  id?: string,
   query?: URLSearchParams,
 ): Promise<T> {
   const config = configuration();
@@ -66,8 +68,9 @@ export async function nativeLegalAuxiliaryRead<T>(
       'The native Legal authority is unavailable.',
     );
   const suffix = query?.size ? `?${query.toString()}` : '';
+  const path = id ? `${resource}/${encodeURIComponent(id)}` : resource;
   const url = new URL(
-    `/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}/legal/${resource}${suffix}`,
+    `/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}/legal/${path}${suffix}`,
     config.privateBaseUrl,
   );
   const headers = new Headers({
