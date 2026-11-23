@@ -232,6 +232,42 @@ describe('support service-team coverage native read', () => {
     expect(attachment).toContain('SUPPORT_RD_TICKET_ATTACHMENT_SOURCE_IMAGE');
   });
 
+  it('carries no retired attachment-migration scope SQL in the switched adapter', async () => {
+    const adapter = await source('packages/server-support/src/adapters/attachment-migration-owner.ts');
+    expect(adapter).not.toContain('SELECT');
+    expect(adapter).toContain('SUPPORT_RD_ATTACHMENT_MIGRATION_SCOPE');
+  });
+
+  it('plans the attachment-migration scope read in Rust with the owner bind', async () => {
+    const batch = vi.fn(async () => [{ results: [{
+      company_id: 'company', branch_id: 'branch-1', department_id: 'dept-1', version: 7,
+    }], success: true, meta: { changes: 0, duration: 0 } }]);
+    const db = { prepare: vi.fn(() => ({ bind: vi.fn() })), batch } as unknown as SqlDatabase;
+    process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      ok('SELECT company_id,branch_id branch_id,department_id department_id,version FROM support_tickets WHERE id=?', ['ticket-1']),
+    );
+    try {
+      const { legacyAttachmentScopesupport } = await import('@erpx/server-support/public/attachment-migration-owner');
+      await expect(legacyAttachmentScopesupport(db, 'support_ticket', 'ticket-1')).resolves.toEqual({
+        company_id: 'company', branch_id: 'branch-1', department_id: 'dept-1', version: 7,
+      });
+      const call = fetchMock.mock.calls[0]!;
+      expect(String(call[0])).toContain('/support/command-plan');
+      expect(JSON.parse(String(call[1]!.body))).toMatchObject({
+        kind: 'support_rd_attachment_migration_scope',
+        values: ['ticket-1'],
+      });
+
+      fetchMock.mockClear();
+      await expect(legacyAttachmentScopesupport(db, 'unknown', 'ticket-1')).resolves.toBeNull();
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      fetchMock.mockRestore();
+      delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
+    }
+  });
+
   it('plans ticket source images in Rust with owner-scoped binds', async () => {
     const batch = vi.fn(async () => [{ results: [{ image: '{"id":"ticket-1"}', source_record_json: null, order_id: null, customer_id: null }], success: true, meta: { changes: 0, duration: 0 } }]);
     const db = { prepare: vi.fn(() => ({ bind: vi.fn() })), batch } as unknown as SqlDatabase;

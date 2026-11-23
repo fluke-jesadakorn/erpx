@@ -11,7 +11,8 @@
 //! `support_incident_events`, incident-ticket link reads on
 //! `support_incident_tickets`, `support_tickets` and `support_incidents`, and
 //! ticket source-image snapshots on `support_tickets` used by the private-file
-//! and portal-preview consistency witnesses.
+//! and portal-preview consistency witnesses. It also plans the owner-local
+//! attachment-migration scope read on `support_tickets` consumed by Files.
 //! Reads carry no receipt/audit/outbox ledger: the caller executes them on the
 //! same unit as the surrounding command. No SQL is ever accepted from the wire
 //! and no TypeScript SQL remains for these kinds.
@@ -155,6 +156,18 @@ const READ_TICKET_ATTACHMENT_SOURCE_IMAGE: NativeSupportReadStatement = NativeSu
     bind_count: 2,
 };
 
+/// Native successor of the TypeScript `legacyAttachmentScopesupport` read.
+/// The caller binds `[ticket_id]` and receives the Company/branch/department
+/// scope and version used by the Files legacy attachment owner witness.
+pub const RD_ATTACHMENT_MIGRATION_SCOPE: &str = "support_rd_attachment_migration_scope";
+const SQL_ATTACHMENT_MIGRATION_SCOPE: &str =
+    "SELECT company_id,branch_id branch_id,department_id department_id,version FROM support_tickets WHERE id=?";
+const READ_ATTACHMENT_MIGRATION_SCOPE: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_ATTACHMENT_MIGRATION_SCOPE,
+    sql: SQL_ATTACHMENT_MIGRATION_SCOPE,
+    bind_count: 1,
+};
+
 const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SERVICE_COVERAGE_HISTORY,
     READ_SERVICE_TEAM_COVERAGE,
@@ -167,6 +180,7 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_INCIDENT_TICKET_LINKS,
     READ_TICKET_SOURCE_IMAGE,
     READ_TICKET_ATTACHMENT_SOURCE_IMAGE,
+    READ_ATTACHMENT_MIGRATION_SCOPE,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -232,6 +246,11 @@ mod tests {
                 SQL_TICKET_ATTACHMENT_SOURCE_IMAGE,
                 2usize,
             ),
+            (
+                RD_ATTACHMENT_MIGRATION_SCOPE,
+                SQL_ATTACHMENT_MIGRATION_SCOPE,
+                1usize,
+            ),
         ];
         for (kind, sql, binds) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -250,7 +269,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 11);
+        assert_eq!(STATEMENTS.len(), 12);
     }
 
     #[test]
@@ -279,5 +298,7 @@ mod tests {
         assert_eq!(source_image.bind_count, 2);
         let attachment_image = read_statement(RD_TICKET_ATTACHMENT_SOURCE_IMAGE).expect("ticket attachment source image");
         assert_eq!(attachment_image.bind_count, 2);
+        let migration_scope = read_statement(RD_ATTACHMENT_MIGRATION_SCOPE).expect("attachment migration scope");
+        assert_eq!(migration_scope.bind_count, 1);
     }
 }
