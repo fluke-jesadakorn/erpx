@@ -78,7 +78,7 @@ describe('native Assets transport',()=>{
   const work={id:'work-1',title:'Inspect asset',status:'open',priority:'normal',owner_id:'user',scheduled_at:0,version:1};
   const transport=vi.fn().mockResolvedValue(ok({data:{...detail,finance,maintenance:[work]},context}));
   const client=createNativeAssetsClient(JSON.parse(config()),transport);
-  const result=await client.detail(incoming(),actor,{holdingSlug:'acme',id:'asset-1',...readInput});
+  const result=await client.detail(incoming(),actor,{...readInput,id:'asset-1'});
   expect(result.finance).toEqual(finance);
   expect(result.maintenance).toEqual([work]);
   expect(result.items).toEqual(workspace.items);

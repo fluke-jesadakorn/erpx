@@ -504,7 +504,7 @@ it("native Legal reports adapter keeps the exact native response, auth, errors a
 
     // Native authority denial is passed through unchanged.
     process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG = JSON.stringify(config);
-    globalThis.fetch = (async () => Response.json({error:{code:"PERMISSION_REQUIRED",message:"Denied"}},{status:403})) as typeof fetch;
+    globalThis.fetch = (async () => Response.json({error:{code:"PERMISSION_REQUIRED",message:"Denied"}},{status:403})) as unknown as typeof fetch;
     await expect(legalReports({} as never, actor)).rejects.toMatchObject({status:403,code:"PERMISSION_REQUIRED",message:"Denied"});
   } finally {
     globalThis.fetch = originalFetch;
