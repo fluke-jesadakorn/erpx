@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6861,
+    "revision": 6865,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -118852,7 +118852,7 @@
         "owner": "inventory",
         "title": "inventory TS read tail native cutover (round 2)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -118864,22 +118864,42 @@
         "resources": [
           "owner:inventory"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wAHinv",
-          "claimedAt": "2026-11-23T20:56:27.843Z",
-          "heartbeatAt": "2026-11-23T21:04:42.332Z",
-          "expiresAt": "2026-11-23T21:34:42.332Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d8a5cea5f",
+            "owner": "inventory",
+            "before": 558,
+            "after": 555,
+            "note": "inventory_rd_pos_startup_inventory_state kind."
+          },
+          {
+            "command": "cargo check -p erpx-server-inventory + lib (48)",
+            "result": "passed",
+            "sourceSha": "d8a5cea5f"
+          },
+          {
+            "command": "vitest inventory native reads (34+2) + tsc inventory",
+            "result": "passed",
+            "sourceSha": "d8a5cea5f"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wAHinv",
+          "at": "2026-11-23T21:17:07.597Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -119595,6 +119615,42 @@
         "nextAction": "Pick the smallest owner-local read family served by the native POS owner statement registry; switch and delete redundant TS SQL; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.inventory.read-tail-r3",
+        "goalId": "G4",
+        "owner": "inventory",
+        "title": "inventory TS read tail native cutover (round 3)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "tests/unit/inventory/**",
+          "tests/integration/inventory/**"
+        ],
+        "resources": [
+          "owner:inventory"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wAUinv",
+          "claimedAt": "2026-11-23T21:17:07.761Z",
+          "heartbeatAt": "2026-11-23T21:17:07.761Z",
+          "expiresAt": "2026-11-23T21:47:07.761Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family served by the native inventory read registry; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -119603,7 +119659,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 561,
+      "totalPackets": 562,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -119611,13 +119667,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 192,
+        "blocked": 193,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T21:15:51.448Z",
+    "updatedAt": "2026-11-23T21:17:07.765Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
