@@ -295,3 +295,31 @@ describe('native Workflow approval evidence transport', () => {
     ).toMatchObject({ status: 403, code: 'APPROVAL_EVIDENCE_PERMISSION_REQUIRED' });
   });
 });
+
+describe('workflow Work UI staff read tail (native read plan)', () => {
+  it('plans both reads through the mounted native read with no local SQL', async () => {
+    const rows = [{ id: 'a' }];
+    const beta = { '1': 1 };
+    const all = vi.fn(async () => rows);
+    const first = vi.fn(async () => beta);
+    vi.resetModules();
+    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+      nativeWorkflowReadAll: all,
+      nativeWorkflowReadFirst: first,
+    }));
+    try {
+      const { workUiStaffFacts } = await import('../../../packages/server-workflow/src/adapters/work-ui-staff-facts');
+      const prepare = vi.fn();
+      const db = { prepare } as never;
+      const facts = workUiStaffFacts(db);
+      expect(await facts.approvalQueue('company', 0)).toEqual({ results: rows });
+      expect(all).toHaveBeenCalledWith('wf_native_work_ui_approval_queue', ['company', 0], 'company', db);
+      expect(await facts.betaApproval('approval', 'company')).toEqual(beta);
+      expect(first).toHaveBeenCalledWith('wf_native_work_ui_beta_approval', ['approval', 'company'], 'company', db);
+      expect(prepare).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.resetModules();
+    }
+  });
+});

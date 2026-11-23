@@ -1,15 +1,6 @@
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
+import {nativeWorkflowReadAll,nativeWorkflowReadFirst} from "./native-workflow-read";
 export function workUiStaffFacts(db:SqlDatabase){return {
-async approvalQueue(companyId:string,value:0 | 1){return db
-              .prepare(
-                "SELECT a.*,s.approver_user_id FROM approval_instances a LEFT JOIN approval_steps s ON s.instance_id=a.id AND s.ordinal=a.current_step WHERE a.company_id=? AND (?=0 OR a.record_type='expense') AND a.state IN ('pending','blocked') ORDER BY a.created_at LIMIT 250",
-              )
-              .bind(companyId, value)
-              .all();},
-async betaApproval(value:string,companyId:string){return db
-              .prepare(
-                "SELECT 1 FROM approval_instances WHERE id=? AND company_id=? AND record_type='expense'",
-              )
-              .bind(value, companyId)
-              .first();}
+async approvalQueue(companyId:string,value:0 | 1){return {results:await nativeWorkflowReadAll<Record<string,unknown>>('wf_native_work_ui_approval_queue',[companyId,value],companyId,db)};},
+async betaApproval(value:string,companyId:string){return nativeWorkflowReadFirst<Record<string,unknown>>('wf_native_work_ui_beta_approval',[value,companyId],companyId,db);}
 };}

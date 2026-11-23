@@ -91,6 +91,12 @@ pub const WF_NATIVE_FINANCE_BUSINESS_CONTRACT_RESIDUAL: &str =
 pub const WF_NATIVE_TECH_PROVISION_OUTBOX: &str = "wf_native_tech_provision_outbox";
 pub const WF_NATIVE_LIFECYCLE_OUTBOX: &str = "wf_native_lifecycle_outbox";
 pub const WF_NATIVE_LIFECYCLE_WORKER_OUTBOX: &str = "wf_native_lifecycle_worker_outbox";
+/// Owner-authored caller-unit reads for the Work UI staff facts family. The
+/// mounted wave3-command planner resolves these to fixed SELECT statements;
+/// the TypeScript bridge executes them on the caller's open unit. No SQL is
+/// accepted from the wire and no command receipt/assertion kind is changed.
+pub const WF_NATIVE_WORK_UI_APPROVAL_QUEUE: &str = "wf_native_work_ui_approval_queue";
+pub const WF_NATIVE_WORK_UI_BETA_APPROVAL: &str = "wf_native_work_ui_beta_approval";
 pub const KINDS: &[&str] = &[
     WF_OPENAPPROVAL,
     WF_OPENAPPROVAL2,
@@ -118,6 +124,8 @@ pub const KINDS: &[&str] = &[
     OUTBOX_DIRECT,
     ORG_DRAFT_AUDIT,
     ORG_DRAFT_OUTBOX,
+    WF_NATIVE_WORK_UI_APPROVAL_QUEUE,
+    WF_NATIVE_WORK_UI_BETA_APPROVAL,
 ];
 
 fn statement(kind: &str) -> Option<(&'static str, usize)> {
@@ -326,6 +334,16 @@ fn statement(kind: &str) -> Option<(&'static str, usize)> {
         WF_NATIVE_TECH_PROVISION_OUTBOX => ("INSERT INTO outbox_events(id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,payload_json,created_at) VALUES(?,?,'people.provision.applied','people_provision',?,1,?,?) ON CONFLICT DO NOTHING", 7),
         WF_NATIVE_LIFECYCLE_OUTBOX => ("INSERT INTO outbox_events(id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,payload_json,created_at) VALUES(?,?,?,'people_lifecycle',?,?,?,?)", 7),
         WF_NATIVE_LIFECYCLE_WORKER_OUTBOX => ("INSERT INTO outbox_events(id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,payload_json,created_at) VALUES(?,?,'people.lifecycle.applied','people_lifecycle',?,?,?,?)", 6),
+        // Owner-local reads: fixed SELECTs executed by the caller on its own
+        // serializable unit. These carry no receipt/audit/outbox write ledger.
+        WF_NATIVE_WORK_UI_APPROVAL_QUEUE => (
+            "SELECT a.*,s.approver_user_id FROM approval_instances a LEFT JOIN approval_steps s ON s.instance_id=a.id AND s.ordinal=a.current_step WHERE a.company_id=? AND (?=0 OR a.record_type='expense') AND a.state IN ('pending','blocked') ORDER BY a.created_at LIMIT 250",
+            2,
+        ),
+        WF_NATIVE_WORK_UI_BETA_APPROVAL => (
+            "SELECT 1 FROM approval_instances WHERE id=? AND company_id=? AND record_type='expense'",
+            2,
+        ),
 _ => return None,
     })
 }
@@ -451,5 +469,28 @@ mod tests {
             plan(WF_NATIVE_COMMAND_ASSERTIONS_3, inexact).is_err(),
             "placeholder-inexact condition must be rejected"
         );
+    }
+
+    /// Owner-local Work UI read kinds stay fixed, SELECT-only and on the
+    /// Workflow-owned approval tables; no caller SQL or write verb is admitted.
+    #[test]
+    fn work_ui_read_kinds_are_fixed_owner_local_selects() {
+        for kind in [
+            WF_NATIVE_WORK_UI_APPROVAL_QUEUE,
+            WF_NATIVE_WORK_UI_BETA_APPROVAL,
+        ] {
+            let (sql, expected) = statement(kind).expect("registered owner read kind");
+            assert!(sql.starts_with("SELECT "), "read must be SELECT-only: {sql}");
+            assert_eq!(expected, 2);
+            assert_eq!(sql.matches('?').count(), expected);
+            assert!(sql.contains("approval_instances"), "read must stay owner-local: {sql}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+                assert!(!sql.contains(forbidden), "read must not mutate: {forbidden}");
+            }
+            assert!(supported(kind));
+            assert!(plan(kind, vec![json!("company"), json!(0)]).is_ok());
+            assert!(plan(kind, vec![json!("company")]).is_err());
+        }
+        assert!(!supported("wf_native_work_ui_unknown"));
     }
 }
