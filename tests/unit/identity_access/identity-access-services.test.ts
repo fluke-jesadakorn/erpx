@@ -58,3 +58,11 @@ it('keeps one fixed POS Stripe holding-assignment role projection for both facts
     expect(source.split("SELECT role FROM assignments WHERE id=?").length - 1).toBe(1);
     expect(source.split("one(db,holdingAssignmentRoleSql,").length - 1).toBe(2);
 });
+
+it('keeps one fixed Records active-assignment projection for both facts reads', async () => {
+    const { readFile } = await import("node:fs/promises");
+    const source = await readFile(new URL("../../../packages/server-identity_access/src/adapters/records-records-facts.ts", import.meta.url), "utf8");
+    expect(source).toContain("const activeAssignmentSql");
+    expect(source.split("SELECT 1 AS ok FROM assignments WHERE user_id=?").length - 1).toBe(1);
+    expect(source.split("database.prepare(activeAssignmentSql)").length - 1).toBe(2);
+});
