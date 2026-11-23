@@ -2,6 +2,7 @@ import 'server-only';
 import {hasModuleAccess} from '@erpx/catalogue/module-access';
 import { createHash, randomUUID } from 'node:crypto';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeCardHistoryStatement, nativeCollaborationReadStatement } from './native-card-history-statement';
 import { holdingResources } from '../../../../packages/server-runtime/src/public/runtime';
 import { requirePermission } from '@erpx/server-identity_access/public/iam-permissions';
 import { readSourceRecord, sourceRecordGuards } from '@erpx/server-records/public/source-record-policy';
@@ -10,8 +11,6 @@ import type { WorkContext } from '@erpx/server-identity_access/public/authorizat
 import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import type { Row, Card } from '@erpx/server-collaboration/public/collaboration-work';
-import { collaborationCardEligibilitySql as eligible } from '@erpx/server-identity_access/public/collaboration-read-projections';
-import { collaborationReadProjection as peopleRead } from '@erpx/server-people_payroll/public/collaboration-read-projections';
 import { createCollaborationWorkApplication, type CollaborationWorkRepository } from '@erpx/server-collaboration/application/collaboration-work';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { collaborationWorkSources as people } from '@erpx/server-people_payroll/public/collaboration-work-sources';
@@ -36,21 +35,13 @@ async function exposed<T>(action: () => Promise<T>) {
     }
 }
 function application(db: SqlDatabase) {
-    const repository: CollaborationWorkRepository = { async recordRelations(companyId: string) {
-            return db
-                .prepare("SELECT * FROM collaboration_record_relations WHERE company_id=? AND status='active' AND source_type<>'field_service_order' AND target_type<>'field_service_order' ORDER BY updated_at DESC LIMIT 100")
-                .bind(companyId)
-                .all<Row>();
-        }, async actionCards(companyId: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) {
-            return db
-                .prepare(`SELECT c.*,CASE WHEN ${eligible} THEN 1 ELSE 0 END owner_eligible,${peopleRead.cardOwnerName} owner_name FROM collaboration_action_cards c WHERE c.company_id=? AND c.source_type<>'field_service_order' AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?) ORDER BY c.updated_at DESC LIMIT 100`)
-                .bind(companyId, branchId, branchId2, departmentId, departmentId2)
-                .all<Card>();
-        }, async actionHistory(id: string) {
-            return db
-                .prepare("SELECT * FROM collaboration_action_events WHERE card_id=? ORDER BY version")
-                .bind(id)
-                .all<Row>();
+    const repository: CollaborationWorkRepository = { async recordRelations(actor: WorkContext) {
+            return nativeCollaborationReadStatement(db, actor, 'collaboration_record_relations', 'relations', randomUUID(), Date.now());
+        }, async actionCards(actor: WorkContext) {
+            const read = await nativeCollaborationReadStatement(db, actor, 'collaboration_action_cards', 'cards', randomUUID(), Date.now());
+            return { results: read.results as Card[] };
+        }, async actionHistory(actor: WorkContext, id: string) {
+            return nativeCardHistoryStatement(db, actor, id, randomUUID(), Date.now());
         }, ...people(db) };
     return createCollaborationWorkApplication<SqlStatement>({ repository, commands: { replay: (...args) => inward(() => replayCommand(db, ...args)), commit: (...args) => inward(() => executeCommand(db, ...args)) }, clock: { now: () => Date.now() }, identifiers: { next: () => randomUUID() }, sha256: (value) => createHash('sha256').update(value, 'utf8').digest('hex'), requirePermission: (...args) => requirePermission(...args), readSourceRecord: (...args) => inward(() => readSourceRecord(...args)), sourceRecordGuards: (...args) => inward(() => sourceRecordGuards(db, ...args)) });
 }
