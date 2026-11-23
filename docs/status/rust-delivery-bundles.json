@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5570,
+    "revision": 5580,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-d",
       "agentId": "lead",
       "startedAt": "2026-11-23T06:45:08.420Z",
-      "heartbeatAt": "2026-11-23T10:08:17.238Z",
-      "expiresAt": "2026-11-23T10:38:17.238Z",
+      "heartbeatAt": "2026-11-23T10:23:26.899Z",
+      "expiresAt": "2026-11-23T10:53:26.899Z",
       "generation": 154,
       "tokenHash": "01e24ba69c801ba69506f7381436bc3415092da31ab33204c519241e628cd4c9"
     },
@@ -15563,8 +15563,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:46:29.180Z",
-          "heartbeatAt": "2026-11-23T10:08:17.238Z",
-          "expiresAt": "2026-11-23T10:38:17.238Z",
+          "heartbeatAt": "2026-11-23T10:23:26.899Z",
+          "expiresAt": "2026-11-23T10:53:26.899Z",
           "generation": 154
         },
         "baseSha": "473b198f4838943261a63a1ca44b167d347fc4c4",
@@ -17495,8 +17495,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T10:14:07.216Z",
-          "heartbeatAt": "2026-11-23T10:14:07.216Z",
-          "expiresAt": "2026-11-23T10:44:07.216Z",
+          "heartbeatAt": "2026-11-23T10:23:26.899Z",
+          "expiresAt": "2026-11-23T10:53:26.899Z",
           "generation": 154
         },
         "baseSha": "f901987c8bcb88a080e9beb9d2b87892bc462eea",
@@ -27315,8 +27315,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:04:51.894Z",
-          "heartbeatAt": "2026-11-23T10:08:17.238Z",
-          "expiresAt": "2026-11-23T10:38:17.238Z",
+          "heartbeatAt": "2026-11-23T10:23:26.899Z",
+          "expiresAt": "2026-11-23T10:53:26.899Z",
           "generation": 154
         },
         "baseSha": "d0067f253fd960ab6945c5622e360e2cceeaffe7",
@@ -28391,8 +28391,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:19:17.835Z",
-          "heartbeatAt": "2026-11-23T10:08:17.238Z",
-          "expiresAt": "2026-11-23T10:38:17.238Z",
+          "heartbeatAt": "2026-11-23T10:23:26.899Z",
+          "expiresAt": "2026-11-23T10:53:26.899Z",
           "generation": 154
         },
         "baseSha": null,
@@ -39907,8 +39907,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:59:53.885Z",
-          "heartbeatAt": "2026-11-23T10:08:17.238Z",
-          "expiresAt": "2026-11-23T10:38:17.238Z",
+          "heartbeatAt": "2026-11-23T10:23:26.899Z",
+          "expiresAt": "2026-11-23T10:53:26.899Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45276,8 +45276,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:03:09.640Z",
-          "heartbeatAt": "2026-11-23T10:08:17.238Z",
-          "expiresAt": "2026-11-23T10:38:17.238Z",
+          "heartbeatAt": "2026-11-23T10:23:26.899Z",
+          "expiresAt": "2026-11-23T10:53:26.899Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45808,8 +45808,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:55:34.675Z",
-          "heartbeatAt": "2026-11-23T10:08:17.238Z",
-          "expiresAt": "2026-11-23T10:38:17.238Z",
+          "heartbeatAt": "2026-11-23T10:23:26.899Z",
+          "expiresAt": "2026-11-23T10:53:26.899Z",
           "generation": 154
         },
         "baseSha": "57a1fd51ebacf5fa1ff712f6eaa176f390ad64a3",
@@ -49423,8 +49423,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:31:10.408Z",
-          "heartbeatAt": "2026-11-23T10:08:17.238Z",
-          "expiresAt": "2026-11-23T10:38:17.238Z",
+          "heartbeatAt": "2026-11-23T10:23:26.899Z",
+          "expiresAt": "2026-11-23T10:53:26.899Z",
           "generation": 154
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -50633,13 +50633,13 @@
         "resources": [
           "owner:pos"
         ],
-        "status": "integrating",
+        "status": "in_progress",
         "claim": {
           "runId": "run-20261123-d",
           "agentId": "lead",
-          "claimedAt": "2026-11-23T06:47:05.965Z",
-          "heartbeatAt": "2026-11-23T10:08:17.238Z",
-          "expiresAt": "2026-11-23T10:38:17.238Z",
+          "claimedAt": "2026-11-23T10:26:41.738Z",
+          "heartbeatAt": "2026-11-23T10:26:41.738Z",
+          "expiresAt": "2026-11-23T10:56:41.738Z",
           "generation": 154
         },
         "baseSha": null,
@@ -50779,14 +50779,14 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead integrated at 51254cbfc. Residual 395 literal SELECTs mapped: (a) core pos reads pos-core(58)+pos(47)+pos-stripe(33)+pos-daily(18) are workspace queries (registers/sales/catalog/shifts/fulfillments/refunds/cash) with commerce/PMS fragments — native pos ports cover only day-close commands, so (a) needs NEW native workspace-read ports (design+implement epic), not switches. (b) obligations 96 and (c) day-control+snapshots remainder unmapped. Brand publication worker dispatched under retire.brand.attachment-facts.",
+        "nextAction": "Registers family landed via retire.pos.residual-core-reads at d2890da2 (statement + cutover + PG parity, KPI 47->46). Residual queue now tracked in 3 bounded tasks; next: sales-detail family. (Status in_progress after reclaim dance; prior integrating evidence retained in checks.)",
         "handoff": {
-          "runId": "run-20261123-b",
-          "agentId": "worker-pos",
-          "at": "2026-11-23T03:13:36.619Z",
-          "previousStatus": "ready_for_integration",
-          "reason": "handoff",
-          "nextAction": "Frozen for lead integration at fa7851497. posWork reads + tests green (worker-reported, check file recorded). Lead registers catalogue suites, mounts pos owner-write, re-runs gates, records retirement."
+          "runId": "run-20261123-d",
+          "agentId": "lead",
+          "at": "2026-11-23T10:26:37.202Z",
+          "previousStatus": "integrating",
+          "reason": "released with work preserved",
+          "nextAction": "Lead integrated at 51254cbfc. Residual 395 literal SELECTs mapped: (a) core pos reads pos-core(58)+pos(47)+pos-stripe(33)+pos-daily(18) are workspace queries (registers/sales/catalog/shifts/fulfillments/refunds/cash) with commerce/PMS fragments — native pos ports cover only day-close commands, so (a) needs NEW native workspace-read ports (design+implement epic), not switches. (b) obligations 96 and (c) day-control+snapshots remainder unmapped. Brand publication worker dispatched under retire.brand.attachment-facts."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -110116,16 +110116,65 @@
         "resources": [
           "owner:pos"
         ],
-        "status": "pending",
+        "status": "blocked",
         "claim": null,
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
+        "baseSha": "551db86e6da5f01c60cf932d61ef3e250270486b",
+        "implementedCommit": "d2890da235305ed05a8f8363ac266c0b93c19061",
+        "lastPushedSha": "d2890da235305ed05a8f8363ac266c0b93c19061",
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-pos + -p erpx-service",
+            "result": "passed",
+            "sourceSha": "d2890da235305ed05a8f8363ac266c0b93c19061",
+            "note": "lead re-ran worker diff at pushed SHA; 0 errors"
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test collaboration_work_postgres",
+            "result": "passed",
+            "sourceSha": "d2890da235305ed05a8f8363ac266c0b93c19061",
+            "note": "lead re-ran; 8/8 incl new pos_registers parity (row equality, branch/foreign denial)"
+          },
+          {
+            "command": "bunx tsc --noEmit -p packages/server-pos",
+            "result": "passed",
+            "sourceSha": "d2890da235305ed05a8f8363ac266c0b93c19061",
+            "note": "lead; exit 0, zero output"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "d2890da235305ed05a8f8363ac266c0b93c19061",
+            "note": "lead; repository layout passed"
+          },
+          {
+            "command": "git grep SELECT pos.ts HEAD vs worktree",
+            "result": "passed",
+            "sourceSha": "d2890da235305ed05a8f8363ac266c0b93c19061",
+            "note": "lead; 47->46 (registers template retired; worker 44->43 was a flag miscount, direction identical)"
+          },
+          {
+            "command": "native kind probe on rebuilt 3198",
+            "result": "passed",
+            "sourceSha": "d2890da235305ed05a8f8363ac266c0b93c19061",
+            "note": "lead; pos_registers kind UNAUTHENTICATED (route resolved, session gate); harness keep-instance left untouched on its own port"
+          },
+          {
+            "command": "passed",
+            "sourceSha": "d2890da235305ed05a8f8363ac266c0b93c19061",
+            "note": "lead; 3198/3199/3100 health 200; dev fully restarted, 0 boot errors; stray shell typo file removed before commit"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Port the first read family (registers/sales detail) behind a native statement with PG parity, then repeat per family; delete TS literals only after their callers switch.",
-        "handoff": null
+        "blocker": "handoff",
+        "nextAction": "Registers family done. Claim to port the sales-detail family next.",
+        "handoff": {
+          "runId": "run-20261123-d",
+          "agentId": "lead",
+          "at": "2026-11-23T10:26:41.662Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Registers family done. Claim to port the sales-detail family next."
+        }
       },
       {
         "id": "retire.pos.residual-obligations",
@@ -110216,18 +110265,18 @@
       "totalPackets": 444,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 15,
-        "in_progress": 7,
+        "pending": 14,
+        "in_progress": 8,
         "ready_for_integration": 2,
-        "integrating": 1,
+        "integrating": 0,
         "migrated": 329,
-        "blocked": 90,
+        "blocked": 91,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 154,
-    "updatedAt": "2026-11-23T10:14:07.217Z",
+    "updatedAt": "2026-11-23T10:26:49.885Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
