@@ -223,6 +223,20 @@ const READ_LEDGER_MOVEMENT_AFTER: NativeStatement = NativeStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `attachments-operational-facts`
+/// `readInventoryTransfers1` read. Owner-local: the statement touches only
+/// Inventory's own `inventory_transfers` table and the caller executes it on
+/// its already-open unit with the same binds, taking the first row.
+pub const RD_ATTACHMENT_OPERATIONAL_TRANSFER: &str = "inventory_rd_attachment_operational_transfer";
+const SQL_RD_ATTACHMENT_OPERATIONAL_TRANSFER: &str =
+    "SELECT company_id,source_branch_id,target_branch_id,NULL::text department_id,version,status,created_by,prepared_by,delivery_mode FROM inventory_transfers WHERE id=? AND company_id=?";
+const READ_ATTACHMENT_OPERATIONAL_TRANSFER: NativeStatement = NativeStatement {
+    kind: RD_ATTACHMENT_OPERATIONAL_TRANSFER,
+    sql: SQL_RD_ATTACHMENT_OPERATIONAL_TRANSFER,
+    bind_count: 2,
+    scope: "holding",
+};
+
 pub fn is_read(kind: &str) -> bool {
     matches!(
         kind,
@@ -235,6 +249,7 @@ pub fn is_read(kind: &str) -> bool {
             | RD_STOCK_COUNT_DELTAS
             | RD_ACTIVE_RESERVATIONS_TOTAL
             | RD_LEDGER_MOVEMENT_AFTER
+            | RD_ATTACHMENT_OPERATIONAL_TRANSFER
     )
 }
 
@@ -249,6 +264,7 @@ pub fn read_statement(kind: &str) -> Option<&'static NativeStatement> {
         RD_STOCK_COUNT_DELTAS => Some(&READ_STOCK_COUNT_DELTAS),
         RD_ACTIVE_RESERVATIONS_TOTAL => Some(&READ_ACTIVE_RESERVATIONS_TOTAL),
         RD_LEDGER_MOVEMENT_AFTER => Some(&READ_LEDGER_MOVEMENT_AFTER),
+        RD_ATTACHMENT_OPERATIONAL_TRANSFER => Some(&READ_ATTACHMENT_OPERATIONAL_TRANSFER),
         _ => None,
     }
 }
@@ -299,6 +315,7 @@ mod tests {
             RD_STOCK_COUNT_DELTAS,
             RD_ACTIVE_RESERVATIONS_TOTAL,
             RD_LEDGER_MOVEMENT_AFTER,
+            RD_ATTACHMENT_OPERATIONAL_TRANSFER,
         ] {
             assert!(is_read(kind));
             let read = read_statement(kind).expect("read kind");
@@ -371,6 +388,22 @@ mod tests {
             "SELECT id FROM inventory_ledger WHERE warehouse_id=? AND product_id=? AND movement_date>? LIMIT 1"
         );
         assert_eq!(movement.bind_count, 3);
+    }
+
+    /// Parity witness for the owner-local `attachments-operational-facts` read:
+    /// the native plan is the exact statement the retired TypeScript literal
+    /// bound on the inventory owner's `inventory_transfers` table, with the
+    /// caller-unit binds intact and no cross-owner projection.
+    #[test]
+    fn attachment_operational_transfer_read_plan_matches_retired_owner_statement() {
+        let transfer = read_statement(RD_ATTACHMENT_OPERATIONAL_TRANSFER).expect("read kind");
+        assert_eq!(
+            transfer.sql,
+            "SELECT company_id,source_branch_id,target_branch_id,NULL::text department_id,version,status,created_by,prepared_by,delivery_mode FROM inventory_transfers WHERE id=? AND company_id=?"
+        );
+        assert_eq!(transfer.bind_count, 2);
+        assert!(transfer.sql.trim_start().starts_with("SELECT"));
+        assert_eq!(transfer.sql.matches('?').count(), transfer.bind_count);
     }
 
     /// Parity witness: the native plan for the lot-balance supplement is the
