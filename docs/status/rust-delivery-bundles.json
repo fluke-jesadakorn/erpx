@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7270,
+    "revision": 7278,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -124494,7 +124494,7 @@
         "owner": "billing",
         "title": "billing TS read tail native cutover (round 8)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -124506,22 +124506,42 @@
         "resources": [
           "owner:billing"
         ],
-        "claim": {
-          "runId": "run-20261123-h",
-          "agentId": "wCW1bil",
-          "claimedAt": "2026-11-23T23:05:13.422Z",
-          "heartbeatAt": "2026-11-23T23:05:13.422Z",
-          "expiresAt": "2026-11-23T23:35:13.422Z",
-          "generation": 160
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-billing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "543e76da4",
+            "owner": "billing",
+            "before": 108,
+            "after": 103,
+            "note": "Five available-evidence witnesses share one available_evidence kind."
+          },
+          {
+            "command": "cargo check -p erpx-server-billing + lib (37)",
+            "result": "passed",
+            "sourceSha": "543e76da4"
+          },
+          {
+            "command": "vitest billing owner services (90) + tsc billing/feature-billing",
+            "result": "passed",
+            "sourceSha": "543e76da4"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Migrate the identical SELECT 1 available-witness family in billing.ts via one native kind; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-h",
+          "agentId": "wCW1bil",
+          "at": "2026-11-23T23:22:10.046Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -124530,7 +124550,7 @@
         "owner": "pms",
         "title": "pms TS read tail native cutover (round 7)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -124542,22 +124562,42 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261123-h",
-          "agentId": "wCX1pms",
-          "claimedAt": "2026-11-23T23:10:11.094Z",
-          "heartbeatAt": "2026-11-23T23:10:11.094Z",
-          "expiresAt": "2026-11-23T23:40:11.094Z",
-          "generation": 160
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pms/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "543e76da4",
+            "owner": "pms",
+            "before": 526,
+            "after": 524,
+            "note": "PMS document full/snapshot point reads via two read kinds."
+          },
+          {
+            "command": "cargo check -p erpx-server-pms + lib native (7)",
+            "result": "passed",
+            "sourceSha": "543e76da4"
+          },
+          {
+            "command": "vitest native-pms-read-plan (19) + tsc pms",
+            "result": "passed",
+            "sourceSha": "543e76da4"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Hospitality properties cross-owner projection family or the next smallest safe fixed read; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-h",
+          "agentId": "wCX1pms",
+          "at": "2026-11-23T23:22:10.216Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -124979,6 +125019,78 @@
         "nextAction": "Next: three pos_connections reads in pos-stripe.ts; then pos_payments FOR UPDATE copies; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.billing.read-tail-r9",
+        "goalId": "G4",
+        "owner": "billing",
+        "title": "billing TS read tail native cutover (r9)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-billing/src/**",
+          "tests/unit/billing/**",
+          "tests/integration/billing/**"
+        ],
+        "resources": [
+          "owner:billing"
+        ],
+        "claim": {
+          "runId": "run-20261123-h",
+          "agentId": "wD09bil",
+          "claimedAt": "2026-11-23T23:22:17.326Z",
+          "heartbeatAt": "2026-11-23T23:22:17.326Z",
+          "expiresAt": "2026-11-23T23:52:17.326Z",
+          "generation": 160
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to a mounted native read; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pms.read-tail-r8",
+        "goalId": "G4",
+        "owner": "pms",
+        "title": "pms TS read tail native cutover (r8)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pms/src/**",
+          "tests/unit/pms/**",
+          "tests/integration/pms/**"
+        ],
+        "resources": [
+          "owner:pms"
+        ],
+        "claim": {
+          "runId": "run-20261123-h",
+          "agentId": "wD09pms",
+          "claimedAt": "2026-11-23T23:22:17.492Z",
+          "heartbeatAt": "2026-11-23T23:22:17.492Z",
+          "expiresAt": "2026-11-23T23:52:17.492Z",
+          "generation": 160
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to a mounted native read; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -124987,7 +125099,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 654,
+      "totalPackets": 656,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -124995,13 +125107,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 291,
+        "blocked": 293,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 160,
-    "updatedAt": "2026-11-23T23:21:56.962Z",
+    "updatedAt": "2026-11-23T23:22:17.494Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
