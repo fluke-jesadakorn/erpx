@@ -9,7 +9,7 @@ use erpx_server_files::public::files_wave1b::{
     FilesCommandInput, RD_FINANCE_REFUND_PROOF_SETS, RD_LEGAL_DOCUMENT_CLEAN_SOURCE,
     RD_OVERTIME_EVIDENCE_SETS, RD_PMS_ATTACHMENT_LINK_SET, RD_PMS_UPLOAD_FACT,
     RD_POS_IMAGE_SOURCE, RD_PROJECT_ATTACHMENT_TARGET, RD_SUPPORT_ATTACHMENT_TARGET,
-    RD_WORKFLOW_APPROVAL_EVIDENCE, is_read, plan,
+    RD_FRONT_LOGO_PUBLICATION, RD_WORKFLOW_APPROVAL_EVIDENCE, is_read, plan,
 };
 use erpx_server_files::public::files_wave1b_http::{
     FilesCommandBackend, FilesCommandFuture, FilesCommandPlanFuture, FilesCommandRequest,
@@ -512,6 +512,59 @@ fn rd_workflow_approval_evidence_plans_single_read_without_write_ledger() {
         &input(
             RD_WORKFLOW_APPROVAL_EVIDENCE,
             serde_json::json!(["record-1", "company"]),
+            now,
+        ),
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "FILES_COMMAND_INVALID");
+}
+
+#[test]
+fn rd_front_logo_publication_plans_single_read_without_write_ledger() {
+    // Native successor of the retired TypeScript `frontLogoFacts.logoPublication`
+    // SELECT. The three binds are static, the retired column aliases and
+    // approved-state guard are preserved, and the caller's `.first()` row
+    // shape is kept. Owner SQL lives here, not in server-files TS; the caller's
+    // unit holds the read scope, so no write ledger is planned.
+    let now = 1_700_000_000_000i64;
+    assert!(is_read(RD_FRONT_LOGO_PUBLICATION));
+    let statements = plan(
+        &company(),
+        "test-key-front-logo-publication",
+        &input(
+            RD_FRONT_LOGO_PUBLICATION,
+            serde_json::json!(["company", "company", "pub-1"]),
+            now,
+        ),
+    )
+    .unwrap();
+    assert_eq!(statements.len(), 1);
+    assert_eq!(
+        statements[0].sql,
+        "SELECT p.derivative_object_key object_key,p.derivative_media_type media_type FROM attachment_publications p WHERE p.company_id=? AND p.target_type='company_storefront_brand' AND p.target_id=? AND p.id=? AND p.state='approved'"
+    );
+    assert_eq!(statements[0].sql.matches('?').count(), 3);
+    assert!(!statements[0].sql.contains('$'));
+    assert_eq!(
+        statements[0].values,
+        vec![
+            serde_json::json!("company"),
+            serde_json::json!("company"),
+            serde_json::json!("pub-1"),
+        ]
+    );
+    let upper = statements[0].sql.to_ascii_uppercase();
+    assert!(!upper.contains("INSERT"));
+    assert!(!upper.contains("UPDATE"));
+    assert!(!upper.contains("DELETE"));
+
+    // Wrong arity fails closed.
+    let error = plan(
+        &company(),
+        "test-key-front-logo-publication-arity",
+        &input(
+            RD_FRONT_LOGO_PUBLICATION,
+            serde_json::json!(["company", "pub-1"]),
             now,
         ),
     )
