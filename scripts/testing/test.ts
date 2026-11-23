@@ -82,6 +82,24 @@ if (suites.some(suite => suite.framework !== 'cargo')) {
 const attachmentMode = process.env.ERPX_TEST_ATTACHMENTS_V2 ?? "false";
 if (!["false", "true"].includes(attachmentMode)) throw new Error("INVALID_TEST_ATTACHMENT_MODE");
 const env: Record<string, string | undefined> = { ...process.env, ERPX_NODE_BIN: node, ERPX_BUN_BIN:process.execPath, NODE_ENV: "test", ERPX_ATTACHMENTS_V2: attachmentMode, ERPX_ATTACHMENT_UPLOAD_FREEZE: "false" };
+function nativeServiceConfiguration(): void {
+  // Lanes inherit only the shell environment, so native owner transports
+  // would stay unconfigured even when the developer wired them locally.
+  // Backfill missing ERPX_NATIVE_* keys from ignored local env files;
+  // explicit shell exports always win and nothing is written back to disk.
+  for (const file of [".env.test.local", ".env.test", ".env.local"]) {
+    const path = resolve(root, file);
+    if (!existsSync(path)) continue;
+    const text = readFileSync(path, "utf8");
+    const pattern = /^\s*(?:export\s+)?(ERPX_NATIVE_[A-Z0-9_]+)\s*=\s*('(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*"|[^\s#]+)\s*$/gm;
+    for (let match = pattern.exec(text); match; match = pattern.exec(text)) {
+      const [, name, raw] = match;
+      if (env[name] !== undefined) continue;
+      env[name] = raw.replace(/^(["'])(.*)\1$/, "$2");
+    }
+  }
+}
+nativeServiceConfiguration();
 function databaseCredentials(): void {
   if (!env.ERPX_TEST_ADMIN_URL) for (const file of [".env.test.local", ".env.test", ".env.local"]) {
     const path = resolve(root, file);
