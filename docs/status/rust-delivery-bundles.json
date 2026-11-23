@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5520,
+    "revision": 5523,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-d",
       "agentId": "lead",
       "startedAt": "2026-11-23T06:45:08.420Z",
-      "heartbeatAt": "2026-11-23T08:52:19.335Z",
-      "expiresAt": "2026-11-23T09:22:19.335Z",
+      "heartbeatAt": "2026-11-23T09:03:21.171Z",
+      "expiresAt": "2026-11-23T09:33:21.171Z",
       "generation": 154,
       "tokenHash": "01e24ba69c801ba69506f7381436bc3415092da31ab33204c519241e628cd4c9"
     },
@@ -15563,8 +15563,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:46:29.180Z",
-          "heartbeatAt": "2026-11-23T08:52:19.335Z",
-          "expiresAt": "2026-11-23T09:22:19.335Z",
+          "heartbeatAt": "2026-11-23T09:03:21.171Z",
+          "expiresAt": "2026-11-23T09:33:21.171Z",
           "generation": 154
         },
         "baseSha": "473b198f4838943261a63a1ca44b167d347fc4c4",
@@ -17495,8 +17495,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:26:32.057Z",
-          "heartbeatAt": "2026-11-23T08:52:19.335Z",
-          "expiresAt": "2026-11-23T09:22:19.335Z",
+          "heartbeatAt": "2026-11-23T09:03:21.171Z",
+          "expiresAt": "2026-11-23T09:33:21.171Z",
           "generation": 154
         },
         "baseSha": "f901987c8bcb88a080e9beb9d2b87892bc462eea",
@@ -27285,8 +27285,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:04:51.894Z",
-          "heartbeatAt": "2026-11-23T08:52:19.335Z",
-          "expiresAt": "2026-11-23T09:22:19.335Z",
+          "heartbeatAt": "2026-11-23T09:03:21.171Z",
+          "expiresAt": "2026-11-23T09:33:21.171Z",
           "generation": 154
         },
         "baseSha": "d0067f253fd960ab6945c5622e360e2cceeaffe7",
@@ -28361,8 +28361,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:19:17.835Z",
-          "heartbeatAt": "2026-11-23T08:52:19.335Z",
-          "expiresAt": "2026-11-23T09:22:19.335Z",
+          "heartbeatAt": "2026-11-23T09:03:21.171Z",
+          "expiresAt": "2026-11-23T09:33:21.171Z",
           "generation": 154
         },
         "baseSha": null,
@@ -39877,8 +39877,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:59:53.885Z",
-          "heartbeatAt": "2026-11-23T08:52:19.335Z",
-          "expiresAt": "2026-11-23T09:22:19.335Z",
+          "heartbeatAt": "2026-11-23T09:03:21.171Z",
+          "expiresAt": "2026-11-23T09:33:21.171Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45246,8 +45246,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:03:09.640Z",
-          "heartbeatAt": "2026-11-23T08:52:19.335Z",
-          "expiresAt": "2026-11-23T09:22:19.335Z",
+          "heartbeatAt": "2026-11-23T09:03:21.171Z",
+          "expiresAt": "2026-11-23T09:33:21.171Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45778,13 +45778,13 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:55:34.675Z",
-          "heartbeatAt": "2026-11-23T08:52:19.335Z",
-          "expiresAt": "2026-11-23T09:22:19.335Z",
+          "heartbeatAt": "2026-11-23T09:03:21.171Z",
+          "expiresAt": "2026-11-23T09:33:21.171Z",
           "generation": 154
         },
-        "baseSha": "c4b7109bcf5e533dc3a510c45e9f930eba562062",
-        "implementedCommit": "536eca108f28a007f14673093421add03e7de962",
-        "lastPushedSha": "536eca108f28a007f14673093421add03e7de962",
+        "baseSha": "afd03abe757ce8a5defa94c0bc878f4fc44a9c76",
+        "implementedCommit": "28a0ef0b98c8a2ba2314709a90fffce0a1b3ced1",
+        "lastPushedSha": "28a0ef0b98c8a2ba2314709a90fffce0a1b3ced1",
         "checks": [
           {
             "command": "audit:collaboration-native-parity",
@@ -45963,6 +45963,54 @@
             "result": "passed",
             "sourceSha": "536eca108f28a007f14673093421add03e7de962",
             "note": "lead; build 24s; 3198/3199/3100 health 200; ERPX_NATIVE_COLLABORATION_CONFIG wired acme-only; dev fully restarted (new gateway, 0 boot errors)"
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration",
+            "result": "passed",
+            "sourceSha": "28a0ef0b98c8a2ba2314709a90fffce0a1b3ced1",
+            "note": "lead re-ran at pushed SHA; 0 errors"
+          },
+          {
+            "command": "cargo check -p erpx-service",
+            "result": "passed",
+            "sourceSha": "28a0ef0b98c8a2ba2314709a90fffce0a1b3ced1",
+            "note": "lead re-ran at pushed SHA; 0 errors (2 new dispatch arms compile in chain)"
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test collaboration_work_postgres",
+            "result": "passed",
+            "sourceSha": "28a0ef0b98c8a2ba2314709a90fffce0a1b3ced1",
+            "note": "lead; 5/5 incl new workspace parity (statement vs retained literal row-equality, foreign/out-of-scope denial)"
+          },
+          {
+            "command": "bunx tsc --noEmit -p packages/server-collaboration",
+            "result": "passed",
+            "sourceSha": "28a0ef0b98c8a2ba2314709a90fffce0a1b3ced1",
+            "note": "lead; clean after interface threading (actor through recordRelations/actionCards)"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "28a0ef0b98c8a2ba2314709a90fffce0a1b3ced1",
+            "note": "lead; repository layout passed"
+          },
+          {
+            "command": "git grep SELECT packages/server-collaboration HEAD vs worktree",
+            "result": "passed",
+            "sourceSha": "28a0ef0b98c8a2ba2314709a90fffce0a1b3ced1",
+            "note": "lead; collaboration-work.ts 3->0 (recordRelations+actionCards+actionHistory all native; eligiblePeople lives in another module)"
+          },
+          {
+            "command": "native kinds probe on rebuilt 3198",
+            "result": "passed",
+            "sourceSha": "28a0ef0b98c8a2ba2314709a90fffce0a1b3ced1",
+            "note": "lead; action_cards kind UNAUTHENTICATED (resolved, session-gated)"
+          },
+          {
+            "command": "restart v4/v5/dev on fresh build",
+            "result": "passed",
+            "sourceSha": "28a0ef0b98c8a2ba2314709a90fffce0a1b3ced1",
+            "note": "lead; build 21s; 3198/3199/3100 health 200; dev fully restarted (collab config already wired)"
           }
         ],
         "retainedLegacy": [
@@ -45975,7 +46023,7 @@
           }
         ],
         "blocker": null,
-        "nextAction": "History slice landed at 536eca10 (pushed, remote verified): in-transaction statement port + adapter cutover, PG 4/4, tsc/structure clean, KPI 3->2, v4/v5/dev rebuilt+healthy with config wired. Tail: recordRelations/actionCards reads (separate ports + consumer switches).",
+        "nextAction": "Workspace slice landed at 28a0ef0b (pushed, remote verified): relations+cards statements + cutover, PG 5/5, tsc/structure clean, KPI 3->0, stack rebuilt+healthy. Collaboration TS reads fully native; remaining tail is lane verification + eligiblePeople module (separate file).",
         "handoff": {
           "runId": "run-20261123-b",
           "agentId": "worker-col",
@@ -49236,8 +49284,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:31:10.408Z",
-          "heartbeatAt": "2026-11-23T08:52:19.335Z",
-          "expiresAt": "2026-11-23T09:22:19.335Z",
+          "heartbeatAt": "2026-11-23T09:03:21.171Z",
+          "expiresAt": "2026-11-23T09:33:21.171Z",
           "generation": 154
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -50451,8 +50499,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T06:47:05.965Z",
-          "heartbeatAt": "2026-11-23T08:52:19.335Z",
-          "expiresAt": "2026-11-23T09:22:19.335Z",
+          "heartbeatAt": "2026-11-23T09:03:21.171Z",
+          "expiresAt": "2026-11-23T09:33:21.171Z",
           "generation": 154
         },
         "baseSha": null,
@@ -109789,7 +109837,7 @@
       }
     },
     "lastCoordinatorGeneration": 154,
-    "updatedAt": "2026-11-23T09:02:52.479Z",
+    "updatedAt": "2026-11-23T09:09:47.476Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
