@@ -269,16 +269,18 @@ it('retires the TS Service asset picker read now served by the mounted native wo
  expect(native).toContain('picker: Vec<ServiceAssetReference>');
  expect(native).toContain('read_service_workspace_assets');
 });
-it('dedupes the Asset branch display fixed SQL across executive metric projections (53->52)',async()=>{
+it('shares one parameterized org-node label projection across the Assets executive breakdowns (50->49)',async()=>{
  const {readFile}=await import('node:fs/promises');
  const adapter=await readFile(new URL('../../../packages/server-assets/src/adapters/executive-metric-projections.ts',import.meta.url),'utf8');
  const count=(text:string,needle:string)=>text.split(needle).length-1;
- const branchSql="COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=a.branch_id AND n.company_id=a.company_id),'Company-wide')";
- expect(adapter).toContain('export const assetBranchDisplayNameLabel = `');
- expect(count(adapter,branchSql)).toBe(1);
+ expect(adapter).toContain('const assetNodeDisplayNameLabel = (column: "branch_id" | "department_id", fallback: string) =>');
+ expect(count(adapter,'SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes})')).toBe(1);
+ expect(adapter).toContain('assetNodeDisplayNameLabel("branch_id", "Company-wide")');
+ expect(adapter).toContain('assetNodeDisplayNameLabel("department_id", "Unassigned")');
  expect(count(adapter,'? assetBranchDisplayNameLabel')).toBe(2);
  expect(adapter).toContain('breakdown === "branch" ? assetBranchDisplayNameLabel');
- expect(adapter).toContain('n.id=a.department_id AND n.company_id=a.company_id');
+ expect(adapter).toContain('breakdown === "department" ? assetDepartmentDisplayNameLabel');
+ expect(adapter).not.toContain("WHERE n.id=a.department_id AND n.company_id=a.company_id),'Unassigned')");
 });
 it('shares one canonical permission-probe SQL with the purchase and metric callers (52->50)',async()=>{
  const {readFile}=await import('node:fs/promises');
