@@ -91,6 +91,7 @@
     "./lib/destination-links": "./src/lib/destination-links.ts",
     "./lib/calendar-command": "./src/lib/calendar-command.ts",
     "./lib/native-calendar-read": "./src/lib/native-calendar-read.ts",
+    "./lib/native-work-report": "./src/lib/native-work-report.ts",
     "./lib/sidebar-catalog": "./src/lib/sidebar-catalog.ts",
     "./lib/apps-launcher": "./src/lib/apps-launcher.ts",
     "./lib/navigation-presentation": "./src/lib/navigation-presentation.ts",

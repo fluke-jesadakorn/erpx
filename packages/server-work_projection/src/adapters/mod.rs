@@ -15,6 +15,7 @@ pub mod work_card_preferences_http;
 pub mod work_home_unread_http;
 pub mod work_navigation_read;
 pub mod work_report_read;
+pub mod work_report_read_http;
 pub mod work_snapshot_http;
 pub mod work_snapshot_sources;
 

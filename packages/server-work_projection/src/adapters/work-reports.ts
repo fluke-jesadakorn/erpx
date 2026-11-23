@@ -13,10 +13,49 @@ import { workReportWorkflowFacts } from "@erpx/server-workflow/public/work-repor
 import { workReportRecordsFacts } from "@erpx/server-records/public/work-report-facts";
 import { workReportPeoplePayrollCandidates } from "@erpx/server-people_payroll/public/work-report-candidates";
 import { workReportRecordsCandidates } from "@erpx/server-records/public/work-report-candidates";
+import {
+  nativeWorkReportConfigured,
+  readNativeWorkReport,
+  type NativeWorkReportProjection,
+} from "@erpx/feature-work_projection/lib/native-work-report";
 export { reportQuery, workReportCsv } from "@erpx/server-work_projection/application/work-reports";
-function matchingProjection(projection: WorkReportProjection) { const predicate = projection.mode === "open" ? "(row->>'open')::boolean" : projection.mode === "drafts" ? "(row->>'draft')::boolean" : "(row->>'submittedAt')::bigint BETWEEN ? AND ?"; return { cte: `WITH visible AS (SELECT value row FROM jsonb_array_elements(?::jsonb)), matching AS (SELECT row FROM visible WHERE ${predicate}) `, bindings: projection.mode === "period" ? [projection.scoped, projection.start, projection.end] : [projection.scoped] }; }
-export function workReportUnit(db: SqlDatabase): WorkReportUnit {
-    return {
+
+type NativeReport = (
+  projection: WorkReportProjection,
+  exportAll: boolean,
+) => Promise<NativeWorkReportProjection>;
+
+/**
+ * Builds the Work report unit. Owner facts stay with their owners; the
+ * matching/aggregation/pagination projection is the owner-native PostgreSQL
+ * read through the private loopback route. There is no SQL or JSON SQL mirror
+ * here and no fallback: an unconfigured native reader fails closed.
+ */
+export function workReportUnit(db: SqlDatabase, report?: NativeReport): WorkReportUnit {
+  const pending = new Map<string, Promise<NativeWorkReportProjection>>();
+  const native = (projection: WorkReportProjection, exportAll: boolean) => {
+    if (!report)
+      throw new ApiError(
+        503,
+        "NATIVE_WORK_REPORT_UNAVAILABLE",
+        "The native Work report is not configured.",
+      );
+    const key = JSON.stringify([
+      projection.mode,
+      projection.scoped,
+      projection.start,
+      projection.end,
+      projection.page,
+      exportAll,
+    ]);
+    let request = pending.get(key);
+    if (!request) {
+      request = report(projection, exportAll);
+      pending.set(key, request);
+    }
+    return request;
+  };
+  return {
         candidates: async (companyId) => (await Promise.all([workReportPeoplePayrollCandidates(db, companyId), workReportRecordsCandidates(db, companyId)])).flat(),
         access: (actor, kind, id) => requireFlowAccess(actor, kind, id, db), flow: (actor, kind, id) => resolveFlow(db, actor, kind, id),
         people: (companyId: string) => workReportPeoplePayrollFacts(db).people(companyId),
@@ -24,34 +63,54 @@ export function workReportUnit(db: SqlDatabase): WorkReportUnit {
         decisions: (companyId: string, ids: string) => workReportWorkflowFacts(db).decisions(companyId, ids),
         events: (companyId: string, ids: string) => workReportRecordsFacts(db).events(companyId, ids),
         savedRoutes: (companyId: string, ids: string) => workReportWorkflowFacts(db).savedRoutes(companyId, ids),
-        counts: (projection: WorkReportProjection) => { const { cte, bindings } = matchingProjection(projection); return db.prepare(cte + `SELECT (SELECT COUNT(*) FROM matching) total,(SELECT COUNT(*) FROM visible WHERE (row->>'open')::boolean) open,(SELECT COUNT(*) FROM visible WHERE (row->>'draft')::boolean) drafts,(SELECT COUNT(*) FROM visible WHERE NOT (row->>'draft')::boolean AND row->>'submittedAt' IS NULL) unknown,(SELECT COUNT(*) FROM matching WHERE row->>'blocker' IS NOT NULL) blocked,(SELECT COALESCE(SUM((row->>'units')::numeric),0) FROM matching) units`).bind(...bindings).first<{
-            total: number;
-            open: number;
-            drafts: number;
-            unknown: number;
-            blocked: number;
-            units: number;
-        }>(); },
-        money: (projection: WorkReportProjection) => { const { cte, bindings } = matchingProjection(projection); return db.prepare(cte + `SELECT row->>'currency' currency,SUM((row->>'amount')::bigint) amount FROM matching WHERE row->>'currency' IS NOT NULL AND row->>'amount' IS NOT NULL GROUP BY row->>'currency'`).bind(...bindings).all<{
-            currency: string;
-            amount: number;
-        }>(); },
-        estimates: (projection: WorkReportProjection) => { const { cte, bindings } = matchingProjection(projection); return db.prepare(cte + `SELECT row->>'currency' currency,SUM((row->>'estimate')::bigint) amount FROM matching WHERE row->>'currency' IS NOT NULL AND row->>'estimate' IS NOT NULL GROUP BY row->>'currency'`).bind(...bindings).all<{
-            currency: string;
-            amount: number;
-        }>(); },
-        stageCounts: (projection: WorkReportProjection) => { const { cte, bindings } = matchingProjection(projection); return db.prepare(cte + `SELECT row->>'stage' stage,COUNT(*) count,MAX((row->>'stageWaitDays')::int) oldest FROM matching GROUP BY row->>'stage' ORDER BY COUNT(*) DESC`).bind(...bindings).all<{
-            stage: string;
-            count: number;
-            oldest: number | null;
-        }>(); },
-        page: <Row>(projection: WorkReportProjection) => { const { cte, bindings } = matchingProjection(projection); return db.prepare(cte + `SELECT row FROM matching ORDER BY (row->>'updated_at')::bigint DESC,row->>'id' LIMIT ? OFFSET ?`).bind(...bindings, 50, (projection.page - 1) * 50).all<{
-            row: Row;
-        }>(); },
-        allRows: <Row>(projection: WorkReportProjection) => { const { cte, bindings } = matchingProjection(projection); return db.prepare(cte + `SELECT row FROM matching ORDER BY (row->>'updated_at')::bigint DESC,row->>'id'`).bind(...bindings).all<{
-            row: Row;
-        }>(); }
+        counts: async (projection: WorkReportProjection) => (await native(projection, false)).counts,
+        money: async (projection: WorkReportProjection) => ({results: (await native(projection, false)).money}),
+        estimates: async (projection: WorkReportProjection) => ({results: (await native(projection, false)).estimates}),
+        stageCounts: async (projection: WorkReportProjection) => ({results: (await native(projection, false)).stageCounts}),
+        page: async <Row>(projection: WorkReportProjection) => ({results: (await native(projection, false)).rows.map(row => ({row} as {row: Row}))}),
+        allRows: async <Row>(projection: WorkReportProjection) => ({results: (await native(projection, true)).allRows.map(row => ({row} as {row: Row}))}),
     };
 }
-const service = createWorkReports({ resource: async (holdingId) => workReportUnit((await holdingResources(holdingId)).write), now: Date.now, error: (...args) => new ApiError(...args), errorStatus: error => error instanceof ApiError ? error.status : undefined });
-export function workReports(actor: WorkContext, raw: Record<string, unknown>, exportAll = false) { return withPolicyReadSnapshot(() => service.workReports(actor, raw, exportAll)); }
+
+export function workReports(actor: WorkContext, raw: Record<string, unknown>, exportAll = false) {
+  return withPolicyReadSnapshot(async () => {
+    if (!nativeWorkReportConfigured())
+      throw new ApiError(
+        503,
+        "NATIVE_WORK_REPORT_CONFIGURATION_REQUIRED",
+        "The native Work report is not configured.",
+      );
+    const authority = actor.authority;
+    if (!authority)
+      throw new ApiError(409, "WORK_CONTEXT_CHANGED", "The current work context changed.");
+    const scope = actor.scope;
+    const branchSlug = scope.kind === "branch" || scope.kind === "department" ? scope.branchSlug : undefined;
+    const departmentSlug = scope.kind === "department" ? scope.departmentSlug : undefined;
+    const report: NativeReport = (projection, exportAll) =>
+      readNativeWorkReport(
+        {
+          mode: projection.mode,
+          scoped: projection.scoped,
+          start: projection.start,
+          end: projection.end,
+          page: projection.page,
+          exportAll,
+        },
+        {
+          companyId: actor.companyId,
+          assignmentId: actor.assignmentId,
+          revision: authority.revision,
+          assignmentVersion: authority.assignmentVersion,
+          branchSlug,
+          departmentSlug,
+        },
+      );
+    const service = createWorkReports({
+      resource: async (holdingId) => workReportUnit((await holdingResources(holdingId)).write, report),
+      now: Date.now,
+      error: (...args) => new ApiError(...args),
+      errorStatus: error => error instanceof ApiError ? error.status : undefined,
+    });
+    return service.workReports(actor, raw, exportAll);
+  });
+}
