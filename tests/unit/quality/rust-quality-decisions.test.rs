@@ -2,7 +2,8 @@
 use erpx_server_quality::public::quality_read::{
     CancellationAction, HoldStatus, InspectionResult, MeasurementInput, QualityActor,
     QualityCancellationCommand, QualityCancellationReceipt, QualityCancellationRepository,
-    QualityDetailData, QualityFuture, QualityHoldFacts, QualityMetric, QualityReadRepository,
+    QualityDetailCoreData, QualityDetailData, QualityFuture, QualityHoldFacts, QualityMetric,
+    QualityReadRepository,
     QualityWorkspaceData, cancel_quality_hold, evaluate_measurements, plan_cancellation,
     quality_decision, quality_detail, quality_workspace,
 };
@@ -359,6 +360,15 @@ impl QualityReadRepository for EmptyRead {
         _branch: Option<&'a RecordId>,
         _id: &'a str,
     ) -> QualityFuture<'a, Option<QualityDetailData>> {
+        self.0.fetch_add(1, Ordering::SeqCst);
+        Box::pin(async { Ok(None) })
+    }
+    fn detail_core<'a>(
+        &'a mut self,
+        _company: &'a CompanyId,
+        _branch: Option<&'a RecordId>,
+        _id: &'a str,
+    ) -> QualityFuture<'a, Option<QualityDetailCoreData>> {
         self.0.fetch_add(1, Ordering::SeqCst);
         Box::pin(async { Ok(None) })
     }

@@ -428,6 +428,16 @@ pub trait QualityReadRepository: Send + Sync {
         branch: Option<&'a RecordId>,
         id: &'a str,
     ) -> QualityFuture<'a, Option<QualityDetailData>>;
+
+    /// Scoped detail source facts without cancellation history. The caller
+    /// keeps the unit and applies the current same-person facts in
+    /// `quality_detail_core_from_source`.
+    fn detail_core<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        branch: Option<&'a RecordId>,
+        id: &'a str,
+    ) -> QualityFuture<'a, Option<QualityDetailCoreData>>;
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -538,6 +548,232 @@ pub fn quality_workspace_with_same_person<'a, R: QualityReadRepository, P: Fn(&s
             can_hold,
             can_manage_specs,
         })
+    })
+}
+
+/// Per-hold source facts injected by the caller's unit. This mirrors the
+/// retained `QualityPurchaseControls` decision: `None` means the package gate
+/// is disabled and `settle_existing == false` downgrades a work item.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualitySourceAccess {
+    pub new_work: bool,
+    pub settle_existing: bool,
+    pub history: bool,
+    pub revision: String,
+}
+
+/// Source gate injected into the Quality work projection. Production callers
+/// bind it to their held purchase/source unit; no SQL or purchase authority is
+/// derived inside this owner.
+pub trait SourceAccess: Send + Sync {
+    fn source_access(&self, hold_id: &str) -> Result<Option<QualitySourceAccess>, BusinessError>;
+}
+
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
+pub struct QualityWorkSource {
+    pub kind: &'static str,
+    pub id: String,
+    pub href: String,
+    pub label: &'static str,
+    pub version: i64,
+}
+
+/// Owner-side Work projection of one Quality hold. Field names and values
+/// mirror the retained `qualityWork` WorkItem so the client can accept the
+/// native payload without a second policy source.
+#[derive(Clone, Debug, Eq, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct QualityWorkItem {
+    pub id: String,
+    #[serde(rename = "type")]
+    pub kind: &'static str,
+    pub source: QualityWorkSource,
+    pub action_kind: &'static str,
+    pub title: String,
+    pub detail: String,
+    pub href: String,
+    pub status: &'static str,
+    pub updated_at: i64,
+    pub queue: &'static str,
+    pub can_act: bool,
+    pub due_at: Option<i64>,
+    pub responsible_queue: &'static str,
+    pub next_action: &'static str,
+    pub blocker: Option<&'static str>,
+    pub relationships: Vec<String>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct QualityWork {
+    pub items: Vec<QualityWorkItem>,
+}
+
+fn due_at(value: &str) -> Option<i64> {
+    const DATE: &[time::format_description::FormatItem<'static>] =
+        time::macros::format_description!("[year]-[month]-[day]");
+    let date = time::Date::parse(value, DATE).ok()?;
+    Some(date.midnight().assume_utc().unix_timestamp() * 1000)
+}
+
+/// Pure owner projection over an already-read workspace hold set. Both the
+/// Identity same-person predicate and the source gate are injected; neither
+/// can be reconstructed from the projected payload.
+pub fn quality_work_from_workspace(
+    actor: &QualityActor,
+    data: &QualityWorkspaceData,
+    source_access: &dyn SourceAccess,
+    same_person: &dyn Fn(&str) -> bool,
+) -> Result<QualityWork, BusinessError> {
+    if !actor.can("quality.read") || actor.department_id.is_some() {
+        return Ok(QualityWork { items: Vec::new() });
+    }
+    let mut items = Vec::with_capacity(data.holds.len());
+    for hold in &data.holds {
+        let status = hold.status;
+        let completed = status.is_terminal();
+        let quality_review = matches!(
+            status,
+            HoldStatus::AwaitingRelease | HoldStatus::CancelPending
+        );
+        let creator = same_person(&hold.created_by);
+        let inspector = hold.last_inspector.as_deref().is_some_and(same_person);
+        let cancel_requester = hold.cancel_requested_by.as_deref().is_some_and(same_person);
+        let can_disposition = status == HoldStatus::Held
+            && hold.last_result == Some(InspectionResult::Fail)
+            && actor.can("quality.release")
+            && !creator
+            && !inspector;
+        let can_act = !completed
+            && status != HoldStatus::DispositionPending
+            && !creator
+            && (if quality_review {
+                actor.can("quality.release")
+                    && !inspector
+                    && (status != HoldStatus::CancelPending || !cancel_requester)
+            } else {
+                can_disposition || actor.can("quality.inspect")
+            });
+        let product = data
+            .hold_products
+            .get(&hold.id)
+            .cloned()
+            .unwrap_or_else(QualityHoldProduct::empty);
+        let mut item = QualityWorkItem {
+            id: hold.id.clone(),
+            kind: "quality_hold",
+            source: QualityWorkSource {
+                kind: "quality_hold",
+                id: hold.id.clone(),
+                href: format!("/quality/{}", hold.id),
+                label: "Quality hold",
+                version: hold.version,
+            },
+            action_kind: if quality_review && can_act {
+                "approval"
+            } else {
+                "work"
+            },
+            title: format!("Quality hold · {}", product.product_name),
+            detail: product.warehouse_name,
+            href: format!("/quality/{}", hold.id),
+            status: status.as_str(),
+            updated_at: hold.updated_at,
+            queue: if completed {
+                "completed"
+            } else if can_act {
+                "todo"
+            } else {
+                "waiting"
+            },
+            can_act,
+            due_at: due_at(&hold.due_date),
+            responsible_queue: if status == HoldStatus::DispositionPending {
+                "Company Finance inventory approval"
+            } else if quality_review || can_disposition {
+                "Independent Quality manager"
+            } else {
+                "Quality inspection team"
+            },
+            next_action: if status == HoldStatus::DispositionPending {
+                "Finance must review and post the controlled scrap adjustment"
+            } else if status == HoldStatus::Disposed {
+                "Scrapped with inventory and accounting evidence"
+            } else if status == HoldStatus::CancelPending {
+                "Review cancellation of uninspected hold"
+            } else if status == HoldStatus::Cancelled {
+                "Cancelled with independent evidence"
+            } else if status == HoldStatus::AwaitingRelease {
+                "Review passing inspection and release"
+            } else if can_disposition {
+                "Request controlled scrap disposal"
+            } else {
+                "Inspect stock and record evidence"
+            },
+            blocker: if !completed
+                && status != HoldStatus::DispositionPending
+                && eligible_count(&data.hold_products, &hold.id) == 0
+            {
+                Some(
+                    "No eligible independent recipient; Company administrator must assign quality authority",
+                )
+            } else {
+                None
+            },
+            relationships: if creator {
+                vec!["requested".to_owned()]
+            } else if can_act {
+                vec!["approval".to_owned()]
+            } else {
+                vec!["team".to_owned()]
+            },
+        };
+        let access = source_access.source_access(&hold.id)?;
+        if access.is_some_and(|access| !access.settle_existing) {
+            item.can_act = false;
+            item.action_kind = "work";
+            if item.queue == "todo" {
+                item.queue = "waiting";
+            }
+            item.relationships
+                .retain(|value| value != "assigned" && value != "approval");
+        }
+        items.push(item);
+    }
+    Ok(QualityWork { items })
+}
+
+fn eligible_count(products: &BTreeMap<String, QualityHoldProduct>, id: &str) -> i64 {
+    products.get(id).map_or(0, |product| product.eligible_count)
+}
+
+pub fn quality_work<'a, R: QualityReadRepository>(
+    actor: &'a QualityActor,
+    repository: &'a mut R,
+    source_access: &'a dyn SourceAccess,
+) -> QualityFuture<'a, QualityWork> {
+    quality_work_with_same_person(actor, repository, source_access, move |user: &str| {
+        actor.user_id.as_str() == user
+    })
+}
+
+/// The same-person and source predicates must be bound to retained facts in
+/// the caller's unit. This owner never derives either from a client input.
+pub fn quality_work_with_same_person<
+    'a,
+    R: QualityReadRepository,
+    P: Fn(&str) -> bool + Send + Sync + 'a,
+>(
+    actor: &'a QualityActor,
+    repository: &'a mut R,
+    source_access: &'a dyn SourceAccess,
+    same_person: P,
+) -> QualityFuture<'a, QualityWork> {
+    Box::pin(async move {
+        require_read(actor)?;
+        let data = repository
+            .workspace(&actor.company_id, actor.branch_id.as_ref())
+            .await?;
+        quality_work_from_workspace(actor, &data, source_access, &same_person)
     })
 }
 

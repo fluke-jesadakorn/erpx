@@ -69,3 +69,11 @@ path = "../../tests/unit/quality/rust-quality-alert-sweep.test.rs"
 [[test]]
 name = "quality_alert_sweep_postgres"
 path = "../../tests/integration/quality/rust-quality-alert-sweep-postgres.test.rs"
+
+[[test]]
+name = "quality_work_projection"
+path = "../../tests/unit/quality/rust-quality-work-projection.test.rs"
+
+[[test]]
+name = "quality_work_detail_core_postgres"
+path = "../../tests/integration/quality/rust-quality-work-detail-core-postgres.test.rs"

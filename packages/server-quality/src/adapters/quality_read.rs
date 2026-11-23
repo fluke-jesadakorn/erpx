@@ -1164,6 +1164,20 @@ impl QualityReadRepository for PgQualityRead<'_> {
                 .map_err(business)
         })
     }
+
+    fn detail_core<'a>(
+        &'a mut self,
+        company: &'a CompanyId,
+        branch: Option<&'a RecordId>,
+        id: &'a str,
+    ) -> QualityFuture<'a, Option<QualityDetailCoreData>> {
+        Box::pin(async move {
+            read_quality_detail_core(&mut *self.connection, company, branch, id)
+                .await
+                .map(|current| current.map(|current| current.data))
+                .map_err(business)
+        })
+    }
 }
 
 pub struct PgQualityCancellation<'a> {

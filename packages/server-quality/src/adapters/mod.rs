@@ -10,6 +10,7 @@ pub(crate) mod initial_count_history;
 pub mod quality_http;
 
 pub mod quality_read;
+pub mod quality_work;
 pub mod quality_alerts;
 pub mod quality_commands;
 pub(crate) mod purchase_lineage;
