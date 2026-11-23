@@ -1,0 +1,114 @@
+{
+  "id": "retire.planning.write-path-locks",
+  "goalId": "G3",
+  "planRef": "docs/production-plan.md#rust-migration-current",
+  "owner": "planning",
+  "workstream": "S08",
+  "kind": "migration",
+  "title": "Retire Planning TS write-path lock statements (native-seeded)",
+  "scope": "Bounded, owner-local retirement of the four TypeScript SELECT ... FOR UPDATE statements that duplicate native Planning command locks. The native owner already executes the exact locks inside its serializable units: packages/server-planning/src/adapters/resources.rs:492 locks production_resources, packages/server-planning/src/adapters/scenario.rs:770 locks planning_recommendations by scenario, and scenario.rs commit_review uses an advisory lock plus version guard. Replace the four TS repository lock methods with the established fail-closed NATIVE_PLANNING_REQUIRED pattern already used by their prepare* siblings. No feature route, presenter, composition mount or catalogue change is needed for this slice: the write paths are already native-authoritative and the TS repository is a retained read/guard surface. Keep acceptance deferred.",
+  "dependsOn": [
+    "migrate.planning"
+  ],
+  "requiredPorts": [],
+  "allowedPaths": [
+    "packages/server-planning/src/adapters/resources-read.ts",
+    "packages/server-planning/src/adapters/production-command-sources-read.ts",
+    "packages/feature-manufacturing/src/routes/holdings/[holdingSlug]/production/planning/**",
+    "packages/feature-manufacturing/src/adapters/server/next-native-planning-workspace.ts",
+    "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/planning/**",
+    "src/composition/src/private_development_api.rs",
+    "tests/unit/planning/**",
+    "tests/integration/planning/**"
+  ],
+  "nativeSeed": {
+    "ownerCrate": "packages/server-planning",
+    "lockOwners": [
+      {
+        "path": "packages/server-planning/src/adapters/resources.rs",
+        "line": 492,
+        "sql": "SELECT id FROM production_resources WHERE id=$1 FOR UPDATE",
+        "retiresTs": [
+          "resources-read.ts:lockResource",
+          "resources-read.ts:lockAllocatedResource"
+        ]
+      },
+      {
+        "path": "packages/server-planning/src/adapters/scenario.rs",
+        "line": 770,
+        "sql": "SELECT id FROM planning_recommendations WHERE scenario_id=$1 FOR UPDATE",
+        "retiresTs": [
+          "production-command-sources-read.ts:lockScenarioRecommendations"
+        ]
+      },
+      {
+        "path": "packages/server-planning/src/adapters/scenario.rs",
+        "method": "commit_review",
+        "sql": "advisory lock plus version/status guard on planning_recommendations",
+        "retiresTs": [
+          "production-command-sources-read.ts:lockRecommendation"
+        ]
+      }
+    ],
+    "testOracle": [
+      "tests/unit/planning/rust-planning-capacity-resources.test.rs",
+      "tests/unit/planning/rust-planning-scenario-commands.test.rs",
+      "tests/integration/planning/rust-planning-command-postgres.test.rs"
+    ]
+  },
+  "resources": [
+    "owner:planning"
+  ],
+  "status": "pending",
+  "claim": null,
+  "baseSha": "f0f2eb8b8d07c0a2235d584b386fd00c5df3b54a",
+  "implementedCommit": null,
+  "lastPushedSha": null,
+  "checks": [
+    {
+      "command": "git grep -I -o -E 'INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT ' HEAD -- ':(glob)packages/server-planning/src/**/*.ts' | wc -l",
+      "result": "passed",
+      "before": 55,
+      "after": 51,
+      "note": "Native-seeded KPI delta: four TS write-path SELECT ... FOR UPDATE statements replaced by the NATIVE_PLANNING_REQUIRED fail-closed pattern; the identical locks are owned by native Planning Rust adapters."
+    },
+    {
+      "command": "git grep -I -o -E 'INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET' HEAD -- ':(glob)packages/server-*/src/**/*.ts' | wc -l",
+      "result": "passed",
+      "before": 0,
+      "after": 0,
+      "note": "Global TS write KPI is already at the retirementKpi.targetValue of 0; this slice decreases only the Planning ts-statements read tail."
+    },
+    {
+      "command": "cargo check -p erpx-server-planning",
+      "result": "passed",
+      "note": "Native Planning crate compiles with the owner-owned lock statements."
+    }
+  ],
+  "retainedLegacy": [
+    {
+      "path": "packages/server-planning/src/adapters/resources-read.ts",
+      "removalTaskId": "retire.planning.read-sources",
+      "removalCondition": "Switch planningContextGuards and resource read consumers to native owner read ports, then delete the module and its package.json export."
+    },
+    {
+      "path": "packages/server-planning/src/adapters/production-command-sources-read.ts",
+      "removalTaskId": "retire.planning.read-sources",
+      "removalCondition": "Switch productionWorkspace and planningExecutiveEvidenceRow consumers to native owner read ports, then delete the module and its package.json export."
+    }
+  ],
+  "blocker": null,
+  "handoff": null,
+  "nextAction": "Lead: add or refine this spec via the coordinator CLI, attach the actual implementation SHA and passing check records, and record the 55 -> 51 Planning ts-statements delta. The four TS lock statements are already replaced with NATIVE_PLANNING_REQUIRED throws in the worker's frozen diff; no ledger/push mutation was performed by the worker.",
+  "procedureRef": "executionPlan.sliceProcedure",
+  "scopeRefinementRequired": false,
+  "closureEvidence": {
+    "sourceShaBefore": "f0f2eb8b8d07c0a2235d584b386fd00c5df3b54a",
+    "changedPaths": [
+      "packages/server-planning/src/adapters/resources-read.ts",
+      "packages/server-planning/src/adapters/production-command-sources-read.ts",
+      "tests/unit/planning/retirement/retire.planning.write-path-locks.task.json"
+    ],
+    "acceptance": false
+  }
+}

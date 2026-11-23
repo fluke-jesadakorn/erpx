@@ -91,7 +91,7 @@ prepareRecommendation(recommendationId:string,id:string,value:1,demand:number,re
 prepareCalculateEvent(value:string,id:string,userId:string,value2:"Calculated from confirmed Sales demand and captured supply/capacity" | "Calculated from declared manual demand and captured supply/capacity",now:number){throw new Error("NATIVE_PLANNING_REQUIRED");},
 async scenario(id:string,companyId:string,branchId:string | null,branchId2:string | null){return db.prepare("SELECT * FROM planning_scenarios WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)")
     .bind(id, companyId, branchId, branchId2).first<Row>();},
-lockScenarioRecommendations(id:string){return db.prepare("SELECT id FROM planning_recommendations WHERE scenario_id=? FOR UPDATE").bind(id);},
+lockScenarioRecommendations(id:string){throw new Error("NATIVE_PLANNING_REQUIRED");},
 guardUnreleasedScenario(key:string,value:"scenario",id:string,companyId:string,expectedVersion:number){return assertion(db, key, value, "EXISTS(SELECT 1 FROM planning_scenarios WHERE id=? AND company_id=? AND version=? AND status='calculated')", [id, companyId, expectedVersion]);},
 prepareScenarioCancellation(now:number,id:string){throw new Error("NATIVE_PLANNING_REQUIRED");},
 prepareRecommendationCancellation(userId:string,now:number,id:string){throw new Error("NATIVE_PLANNING_REQUIRED");},
@@ -102,7 +102,7 @@ async scopedRecommendation(id:string,companyId:string,branchId:string | null,bra
       )
       .bind(id, companyId, branchId, branchId2)
       .first<Row>();},
-lockRecommendation(id:string){return db.prepare("SELECT id FROM planning_recommendations WHERE id=? FOR UPDATE").bind(id);},
+lockRecommendation(id:string){throw new Error("NATIVE_PLANNING_REQUIRED");},
 guardIndependentRecommendation(key:string,value:"recommendation",id:string,expectedVersion:number,userId:string){return assertion(
         db,
         key,
