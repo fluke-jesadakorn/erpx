@@ -105576,7 +105576,6 @@
       "lane": "unit",
       "owner": "commerce",
       "modules": [
-        "commerce",
         "ecommerce"
       ],
       "fixture": "none",
