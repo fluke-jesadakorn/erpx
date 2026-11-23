@@ -47,7 +47,7 @@ describe('native POS obligation read bridge', () => {
   ] as const)('requests owner kind %s with scoped values only', async (kind, values, bridge) => {
     process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
     const sql = 'WITH scope AS (SELECT ?::text company_id) SELECT 1';
-    const fetch = stubFetch(sql, values as unknown[]);
+    const fetch = stubFetch(sql, [...values]);
     const seen: { sql?: string; values?: unknown[] } = {};
     const rows = [{ id: 'row' }];
     const result = await bridge(mockDb(seen, rows) as never);
@@ -58,9 +58,9 @@ describe('native POS obligation read bridge', () => {
     expect(init.method).toBe('POST');
     expect(init.headers['x-erpx-context-company']).toBe('company');
     expect(init.headers['idempotency-key']).toMatch(/^[0-9a-f-]{36}$/);
-    expect(JSON.parse(init.body)).toEqual({ company: 'company', kind, values: values as unknown[] });
+    expect(JSON.parse(init.body)).toEqual({ company: 'company', kind, values: [...values] });
     expect(seen.sql).toBe(sql);
-    expect(seen.values).toEqual(values as unknown[]);
+    expect(seen.values).toEqual([...values]);
   });
 
   it('fails closed on an unregistered addon package without contacting the owner', async () => {
