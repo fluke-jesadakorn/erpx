@@ -4322,6 +4322,14 @@ async fn assemble_checked(
                         )
                         .map_err(|_| "PRIVATE_API_COMMERCIAL_OWNER_WRITE_CONFIGURATION_INVALID")?,
                     );
+                    commercial_native_routers.push(
+                        crate::commercial_owner_read::commercial_owner_read_composed_router(
+                            holding.host.clone(),
+                            holding.registration.slug.clone(),
+                            format!("https://{}", holding.host),
+                        )
+                        .map_err(|_| "PRIVATE_API_COMMERCIAL_OWNER_READ_CONFIGURATION_INVALID")?,
+                    );
                     pos_native_routers.push(
                         crate::pos_owner_writes::pos_owner_write_browser_router(
                             Arc::new(crate::pos_owner_writes::PosOwnerWriteCompanyExecutor::new(
@@ -9441,6 +9449,8 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 && path.ends_with("/workflow/wave3-execute")
             || path.starts_with("/api/v1/holdings/")
                 && path.ends_with("/commercial/owner-write")
+            || path.starts_with("/api/v1/holdings/")
+                && path.ends_with("/commercial/owner-read")
             || path.ends_with("/pos/owner-write")
             || path.ends_with("/organization/owner-write"));
     if state.policy.audience(host).is_none()
@@ -12040,6 +12050,24 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .is_some_and(|_| !slug.is_empty()),
         _ => false,
     };
+    let commercial_owner_read = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "commercial", "owner-read"],
+        ) => state
+            .policy
+            .audience(host)
+            .is_some_and(|_| !slug.is_empty()),
+        _ => false,
+    };
     let talent = match (
         request.method(),
         request
@@ -12371,6 +12399,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || account_security
         || commerce
         || commercial_owner_write
+        || commercial_owner_read
         || organization_owner_write
         || pos_owner_write
         || customer_access

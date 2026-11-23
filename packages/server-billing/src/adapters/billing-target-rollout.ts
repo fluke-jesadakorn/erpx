@@ -1,4 +1,4 @@
-import { lastAuditOwnerProjectionSources as commercialLastAuditProjectionSources } from "@erpx/server-commercial/public/last-audit-owner-projection-sources";
+import {nativeCommercialOwnerRead,COMMERCIAL_RD_USAGE_SNAPSHOT} from '@erpx/server-commercial/adapters/native-owner-read';
 import 'server-only';
 import type {PoolClient} from 'pg';
 import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgres';
@@ -9,7 +9,7 @@ export function nativeTargetRolloutRepository(c:PoolClient):TargetRolloutReposit
       FROM billing_target_prices WHERE effective_month<=$1
       ORDER BY effective_month DESC,id DESC LIMIT 1`,[value0]),
 ratedShadowPeriod:(value0,value1)=>c.query<D.RatedShadowPeriodRow>("SELECT state,mode,total_satang,price_id,meter_snapshot_id,lines_json FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2",[value0,value1]),
-usageSnapshot:(value0,value1)=>c.query<D.UsageSnapshotRow>(`SELECT snapshot_id FROM (${commercialLastAuditProjectionSources.billing_usage_snapshots}) billing_usage_snapshots WHERE holding_id=$1 AND month=$2`,[value0,value1]),
+usageSnapshot:async(value0,value1)=>c.query<D.UsageSnapshotRow>(`SELECT snapshot_id FROM (${await nativeCommercialOwnerRead(COMMERCIAL_RD_USAGE_SNAPSHOT)}) billing_usage_snapshots WHERE holding_id=$1 AND month=$2`,[value0,value1]),
 availableOperatingCosts:(value0,value1)=>c.query<D.AvailableOperatingCostsRow>(`SELECT o.category,o.amount_satang,e.source_state
        FROM billing_target_operating_costs o
        JOIN billing_evidence e ON e.id=o.evidence_id

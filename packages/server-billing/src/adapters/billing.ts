@@ -1,4 +1,4 @@
-import { lastAuditOwnerProjectionSources as commercialLastAuditProjectionSources } from "@erpx/server-commercial/public/last-audit-owner-projection-sources";
+import {nativeCommercialOwnerRead,COMMERCIAL_RD_USAGE_METER,COMMERCIAL_RD_USAGE_SNAPSHOT} from '@erpx/server-commercial/adapters/native-owner-read';
 import 'server-only';
 import {createHash,randomUUID} from 'node:crypto';
 import {nativeBillingOwnerQuery} from '@erpx/server-billing/adapters/native-billing-owner-write';
@@ -49,7 +49,7 @@ currentTargetPrice:(value0)=>c.query<BillingPriceRow>("SELECT * FROM billing_tar
 sandboxHolding:(value0)=>c.query<Record<string,unknown>>("SELECT 1 FROM billing_target_sandbox_holdings WHERE holding_id=$1",[value0]),
 approvedRollout:(value0,value1)=>c.query<Record<string,unknown>>("SELECT 1 FROM billing_target_rollout_approvals WHERE holding_id=$1 AND effective_month<=$2",[value0,value1]),
 assignTargetPrice:(value0,value1,value2,value3,value4,value5,value6,value7)=>nativeBillingOwnerQuery(c, 'assign_target_price', [value0,value1,value2,value3,value4,value5,value6,value7]),
-successfulPlatformMeter:(value0,value1,value2)=>c.query<BillingMeterRow>(`SELECT * FROM (${commercialLastAuditProjectionSources.billing_usage_meters}) billing_usage_meters WHERE holding_id=$1 AND month=$2 AND source_key=$3
+successfulPlatformMeter:async(value0,value1,value2)=>c.query<BillingMeterRow>(`SELECT * FROM (${await nativeCommercialOwnerRead(COMMERCIAL_RD_USAGE_METER)}) billing_usage_meters WHERE holding_id=$1 AND month=$2 AND source_key=$3
            AND meter_kind='ai' AND funding_source='erpx' AND request_status='succeeded'`,[value0,value1,value2]),
 availableProviderEvidence:(value0,value1)=>c.query<Record<string,unknown>>("SELECT 1 FROM billing_evidence WHERE id=$1 AND holding_id=$2 AND source_state='available'",[value0,value1]),
 approvedProviderPeriod:(value0,value1)=>c.query<Record<string,unknown>>("SELECT 1 FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2 AND state='approved'",[value0,value1]),
@@ -70,7 +70,7 @@ extraTargetAssignment:(value0,value1)=>c.query<Record<string,unknown>>("SELECT 1
 approvedExtraPeriod:(value0,value1)=>c.query<Record<string,unknown>>("SELECT 1 FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2 AND state='approved'",[value0,value1]),
 availableExtraEvidence:(value0,value1)=>c.query<Record<string,unknown>>("SELECT 1 FROM billing_evidence WHERE id=$1 AND holding_id=$2 AND source_state='available'",[value0,value1]),
 recordTargetExtra:(value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11)=>nativeBillingOwnerQuery(c, 'record_target_extra', [value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11]),
-lockTargetSnapshot:(value0,value1)=>c.query<Record<string,unknown>>(`SELECT snapshot_id FROM (${commercialLastAuditProjectionSources.billing_usage_snapshots}) billing_usage_snapshots WHERE holding_id=$1 AND month=$2 FOR UPDATE`,[value0,value1]),
+lockTargetSnapshot:async(value0,value1)=>c.query<Record<string,unknown>>(`SELECT snapshot_id FROM (${await nativeCommercialOwnerRead(COMMERCIAL_RD_USAGE_SNAPSHOT)}) billing_usage_snapshots WHERE holding_id=$1 AND month=$2 FOR UPDATE`,[value0,value1]),
 targetRolloutEligible:(value0,value1)=>c.query<Record<string,unknown>>(`SELECT 1 FROM billing_target_sandbox_holdings WHERE holding_id=$1
            UNION ALL SELECT 1 FROM billing_target_rollout_approvals
            WHERE holding_id=$1 AND effective_month<=$2 LIMIT 1`,[value0,value1]),

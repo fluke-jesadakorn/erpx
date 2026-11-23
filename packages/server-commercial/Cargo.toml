@@ -94,5 +94,13 @@ path = "../../tests/unit/commercial/rust-purchase-shadow-projection.test.rs"
 name = "purchase_command_boundary_postgres"
 path = "../../tests/integration/commercial/rust-purchase-command-boundary-postgres.test.rs"
 
+[[test]]
+name = "owner_read"
+path = "../../tests/unit/commercial/rust-owner-read.test.rs"
+
+[[test]]
+name = "owner_read_postgres"
+path = "../../tests/integration/commercial/rust-owner-read-postgres.test.rs"
+
 [lints]
 workspace = true
