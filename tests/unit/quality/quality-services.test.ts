@@ -84,3 +84,21 @@ describe('existing Quality/Count product source destinations',()=>{
   for(const path of ['inventory-quality/quality','inventory-quality/counts','inventory-quality/counts/new','inventory-quality/quality/..','inventory-quality/quality/id/edit','inventory-quality/quality/id?companyId=other','inventory-quality/quality/id#extra','inventory-quality/quality/id\\escape','inventory-quality/quality/id\u0000','quality/id','inventory-quality/transfers/id'])expect(qualitySourceEntry(path)).toBeNull();
  });
 });
+
+import {existsSync,readFileSync} from 'node:fs';
+import {resolve} from 'node:path';
+describe('retired Quality stock new-work read branch',()=>{
+ const source=(path:string)=>resolve(process.cwd(),path);
+ test('the quality-stock adapter, barrel and Commerce package exports are absent',()=>{
+  expect(existsSync(source('packages/server-commerce/src/adapters/quality-stock.ts'))).toBe(false);
+  expect(existsSync(source('packages/server-commerce/src/public/quality-stock.ts'))).toBe(false);
+  expect(readFileSync(source('packages/server-commerce/package.json'),'utf8')).not.toContain('quality-stock');
+ });
+ test('the unreachable new-work branch and its Commerce read imports are gone from Quality purchases',()=>{
+  const purchases=readFileSync(source('packages/server-quality/src/adapters/purchases.ts'),'utf8');
+  expect(purchases).not.toContain('qualityStockFacts');
+  expect(purchases).not.toContain('qualityProductFacts');
+  expect(purchases).not.toContain('new-work');
+  expect(purchases).not.toContain('current warehouse policy changed');
+ });
+});

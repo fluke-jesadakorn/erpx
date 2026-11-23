@@ -1,6 +1,4 @@
 import "server-only";
-import {qualityStockFacts} from "@erpx/server-commerce/public/quality-stock";
-import {qualityProductFacts} from "@erpx/server-commerce/public/quality-product";
 import {randomUUID} from "node:crypto";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
@@ -64,10 +62,6 @@ export async function withQualityPurchasedCommand<Result>(owner:SqlDatabase,acto
   for(const scope of scopes)await checkPurchasedCapability(database,mode,scope);await current(database,actor,key,command.permissions);await database.batch(boundaries.flatMap(item=>item.boundary.before));
   const result=await run(database);await flushFinanceDeferredEffects(database);const after=await targetSource(database,actor,command.target);
   if(command.expected&&(after.productId!==command.expected.productId||command.expected.warehouseId&&after.owner?.hold.warehouse_id!==command.expected.warehouseId||(command.expected.lotId??null)!==(after.owner?.hold.lot_id??null)))throw new ApiError(409,"QUALITY_SOURCE_CHANGED","The saved Quality product, warehouse or lot differs from the submitted source.");
-  if(purpose==="new-work"){
-   if(after.owner){const stock=await qualityStockFacts(database,actor,{warehouseId:after.owner.hold.warehouse_id,productId:after.productId});if(!stock||stock.branch_id!==after.owner.hold.branch_id)throw new ApiError(409,"QUALITY_SOURCE_CHANGED","The Quality product or current warehouse policy changed.");}
-   else if(!await qualityProductFacts(database,actor,after.productId))throw new ApiError(409,"QUALITY_SOURCE_CHANGED","The original specification product is no longer active.");
-  }
   if(before&&before.witness!==after.witness)throw new ApiError(409,"QUALITY_SOURCE_CHANGED","The original Quality source, product or warehouse changed.");
   await current(database,actor,key,command.permissions);const observed=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));boundaries[0]?.boundary.observe?.(observed);return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
