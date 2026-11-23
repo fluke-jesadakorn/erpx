@@ -5,6 +5,8 @@ import {
   nativeFinanceReadFirst,
   FINANCE_RD_ASSET_POLICY_ROW,
   FINANCE_RD_ASSET_POLICY_RUNS,
+  FINANCE_RD_INSTRUMENT_EDITION,
+  FINANCE_RD_INSTRUMENT_RUNS,
   FINANCE_RD_COLLECTION_CASE_ROW,
   FINANCE_RD_BUSINESS_BILL_ROW,
 } from '../../../packages/server-finance/src/adapters/native-finance-read';
@@ -51,6 +53,8 @@ describe('native Finance caller-unit read plan', () => {
     for (const kind of [
       FINANCE_RD_ASSET_POLICY_ROW,
       FINANCE_RD_ASSET_POLICY_RUNS,
+      FINANCE_RD_INSTRUMENT_EDITION,
+      FINANCE_RD_INSTRUMENT_RUNS,
       FINANCE_RD_COLLECTION_CASE_ROW,
       FINANCE_RD_BUSINESS_BILL_ROW,
     ]) expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
@@ -79,6 +83,32 @@ describe('native Finance caller-unit read plan', () => {
     expect(url.toString()).toBe('http://127.0.0.1:44992/api/v1/holdings/acme/finance/command-plan');
     expect((init.headers as Record<string, string>).origin).toBe('https://acme.example.com');
     expect((init.headers as Record<string, string>)['x-erpx-context-company']).toBe('company');
+  });
+
+  it('plans the instrument fixed reads in Rust and runs them on the caller unit', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push(body);
+      const sql = body.kind === FINANCE_RD_INSTRUMENT_EDITION
+        ? 'SELECT * FROM finance_instrument_editions WHERE company_id=? AND id=?'
+        : 'SELECT * FROM finance_instrument_runs WHERE company_id=? AND instrument_id=? ORDER BY ordinal,id';
+      return new Response(JSON.stringify({ data: { statements: [{ sql, values: body.values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+    const { db, bound, prepared } = fakeDb();
+
+    expect(await nativeFinanceReadFirst(FINANCE_RD_INSTRUMENT_EDITION, ['company', 'edition'], db as never)).toEqual({ id: 'row-1' });
+    expect(await nativeFinanceReadAll(FINANCE_RD_INSTRUMENT_RUNS, ['company', 'edition'], db as never)).toMatchObject({ results: [{ id: 'row-1' }] });
+
+    expect(bodies.map((b) => b.kind)).toEqual([FINANCE_RD_INSTRUMENT_EDITION, FINANCE_RD_INSTRUMENT_RUNS]);
+    expect(bodies.map((b) => b.values)).toEqual([['company', 'edition'], ['company', 'edition']]);
+    expect(bound).toEqual([['company', 'edition'], ['company', 'edition']]);
+    expect(prepared).toEqual([
+      'SELECT * FROM finance_instrument_editions WHERE company_id=? AND id=?',
+      'SELECT * FROM finance_instrument_runs WHERE company_id=? AND instrument_id=? ORDER BY ordinal,id',
+    ]);
   });
 
   it('fails closed when configuration is missing or the plan is malformed', async () => {

@@ -44,6 +44,31 @@ const READ_ASSET_POLICY_RUNS: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `finance-expansion-records` instrument
+/// edition single-row read. The owner plans this literal; the caller executes
+/// it on its open unit with the same `[companyId, id]` binds.
+pub const RD_INSTRUMENT_EDITION: &str = "finance_rd_instrument_edition";
+const SQL_RD_INSTRUMENT_EDITION: &str =
+    "SELECT * FROM finance_instrument_editions WHERE company_id=? AND id=?";
+const READ_INSTRUMENT_EDITION: NativeReadStatement = NativeReadStatement {
+    kind: RD_INSTRUMENT_EDITION,
+    sql: SQL_RD_INSTRUMENT_EDITION,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript `finance-expansion-records` instrument
+/// runs array read. Same owner statement and `[companyId, id]` binds.
+pub const RD_INSTRUMENT_RUNS: &str = "finance_rd_instrument_runs";
+const SQL_RD_INSTRUMENT_RUNS: &str =
+    "SELECT * FROM finance_instrument_runs WHERE company_id=? AND instrument_id=? ORDER BY ordinal,id";
+const READ_INSTRUMENT_RUNS: NativeReadStatement = NativeReadStatement {
+    kind: RD_INSTRUMENT_RUNS,
+    sql: SQL_RD_INSTRUMENT_RUNS,
+    bind_count: 2,
+    scope: "holding",
+};
+
 /// Native successor of the TypeScript `finance-record-details` collection-case
 /// row read. The owner plans this joined literal with its `[companyId, id]`
 /// binds; the caller runs it on its open unit and takes the first row.
@@ -212,6 +237,8 @@ const READ_SUPPLIER_BATCH_BANK: NativeReadStatement = NativeReadStatement {
 const READS: &[NativeReadStatement] = &[
     READ_ASSET_POLICY_ROW,
     READ_ASSET_POLICY_RUNS,
+    READ_INSTRUMENT_EDITION,
+    READ_INSTRUMENT_RUNS,
     READ_COLLECTION_CASE_ROW,
     READ_BUSINESS_BILL_ROW,
     READ_PERIOD_END_DATES,
@@ -247,6 +274,8 @@ mod tests {
         for kind in [
             RD_ASSET_POLICY_ROW,
             RD_ASSET_POLICY_RUNS,
+            RD_INSTRUMENT_EDITION,
+            RD_INSTRUMENT_RUNS,
             RD_COLLECTION_CASE_ROW,
             RD_BUSINESS_BILL_ROW,
             RD_PERIOD_END_DATES,
@@ -275,7 +304,7 @@ mod tests {
             assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
             assert_eq!(read.scope, "holding", "{kind}");
         }
-        assert_eq!(READS.len(), 16);
+        assert_eq!(READS.len(), 18);
         assert!(!is_read("finance_stmt_1"));
         assert!(read_statement("finance_stmt_1").is_none());
     }
@@ -293,6 +322,16 @@ mod tests {
         assert_eq!(runs.bind_count, 2);
         assert_eq!(runs.sql, SQL_RD_ASSET_POLICY_RUNS);
         assert!(runs.sql.ends_with("WHERE company_id=? AND policy_id=? ORDER BY ordinal,id"));
+
+        let edition = read_statement(RD_INSTRUMENT_EDITION).expect("read kind");
+        assert_eq!(edition.bind_count, 2);
+        assert_eq!(edition.sql, SQL_RD_INSTRUMENT_EDITION);
+        assert!(edition.sql.ends_with("WHERE company_id=? AND id=?"));
+
+        let instrument_runs = read_statement(RD_INSTRUMENT_RUNS).expect("read kind");
+        assert_eq!(instrument_runs.bind_count, 2);
+        assert_eq!(instrument_runs.sql, SQL_RD_INSTRUMENT_RUNS);
+        assert!(instrument_runs.sql.ends_with("WHERE company_id=? AND instrument_id=? ORDER BY ordinal,id"));
 
         let case = read_statement(RD_COLLECTION_CASE_ROW).expect("read kind");
         assert_eq!(case.bind_count, 2);

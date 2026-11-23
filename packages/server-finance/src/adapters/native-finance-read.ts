@@ -19,6 +19,8 @@ type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: 
 /** Read-kind ids shared with the Rust read registry in `native_finance_read_sql.rs`. */
 export const FINANCE_RD_ASSET_POLICY_ROW = 'finance_rd_asset_policy_row';
 export const FINANCE_RD_ASSET_POLICY_RUNS = 'finance_rd_asset_policy_runs';
+export const FINANCE_RD_INSTRUMENT_EDITION = 'finance_rd_instrument_edition';
+export const FINANCE_RD_INSTRUMENT_RUNS = 'finance_rd_instrument_runs';
 export const FINANCE_RD_COLLECTION_CASE_ROW = 'finance_rd_collection_case_row';
 export const FINANCE_RD_BUSINESS_BILL_ROW = 'finance_rd_business_bill_row';
 export const FINANCE_RD_PERIOD_END_DATES = 'finance_rd_period_end_dates';
