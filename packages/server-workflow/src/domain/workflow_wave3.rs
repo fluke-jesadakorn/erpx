@@ -97,6 +97,11 @@ pub const WF_NATIVE_LIFECYCLE_WORKER_OUTBOX: &str = "wf_native_lifecycle_worker_
 /// accepted from the wire and no command receipt/assertion kind is changed.
 pub const WF_NATIVE_WORK_UI_APPROVAL_QUEUE: &str = "wf_native_work_ui_approval_queue";
 pub const WF_NATIVE_WORK_UI_BETA_APPROVAL: &str = "wf_native_work_ui_beta_approval";
+/// Owner-authored caller-unit read for the leave evidence decision family. The
+/// mounted wave3-command planner resolves it to one fixed SELECT on the
+/// Workflow-owned approval tables; the TypeScript bridge executes it on the
+/// caller's open unit and carries no receipt/assertion semantics.
+pub const WF_NATIVE_LEAVE_EVIDENCE_DECISION: &str = "wf_native_leave_evidence_decision";
 pub const KINDS: &[&str] = &[
     WF_OPENAPPROVAL,
     WF_OPENAPPROVAL2,
@@ -126,6 +131,7 @@ pub const KINDS: &[&str] = &[
     ORG_DRAFT_OUTBOX,
     WF_NATIVE_WORK_UI_APPROVAL_QUEUE,
     WF_NATIVE_WORK_UI_BETA_APPROVAL,
+    WF_NATIVE_LEAVE_EVIDENCE_DECISION,
 ];
 
 fn statement(kind: &str) -> Option<(&'static str, usize)> {
@@ -344,6 +350,10 @@ fn statement(kind: &str) -> Option<(&'static str, usize)> {
             "SELECT 1 FROM approval_instances WHERE id=? AND company_id=? AND record_type='expense'",
             2,
         ),
+        WF_NATIVE_LEAVE_EVIDENCE_DECISION => (
+            "SELECT 1 FROM approval_instances instance JOIN approval_decisions decision ON decision.instance_id=instance.id WHERE instance.company_id=? AND instance.record_type='leave' AND instance.record_id=? AND decision.action IN ('approve','reject','override') AND iam_same_person(decision.actor_user_id,?,instance.company_id) LIMIT 1",
+            3,
+        ),
 _ => return None,
     })
 }
@@ -492,5 +502,33 @@ mod tests {
             assert!(plan(kind, vec![json!("company")]).is_err());
         }
         assert!(!supported("wf_native_work_ui_unknown"));
+    }
+
+    /// The owner-local leave evidence decision read stays fixed, SELECT-only
+    /// and on Workflow-owned approval tables; the bridge carries no receipt or
+    /// assertion semantics and the planner never accepts caller SQL or writes.
+    #[test]
+    fn leave_evidence_read_kind_is_fixed_owner_local_select() {
+        let (sql, expected) = statement(WF_NATIVE_LEAVE_EVIDENCE_DECISION)
+            .expect("registered owner read kind");
+        assert!(sql.starts_with("SELECT "), "read must be SELECT-only: {sql}");
+        assert_eq!(expected, 3);
+        assert_eq!(sql.matches('?').count(), expected);
+        assert!(
+            sql.contains("approval_instances") && sql.contains("approval_decisions"),
+            "read must stay owner-local: {sql}"
+        );
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+            assert!(!sql.contains(forbidden), "read must not mutate: {forbidden}");
+        }
+        assert!(supported(WF_NATIVE_LEAVE_EVIDENCE_DECISION));
+        assert!(
+            plan(
+                WF_NATIVE_LEAVE_EVIDENCE_DECISION,
+                vec![json!("company"), json!("leave-1"), json!("user-1")]
+            )
+            .is_ok()
+        );
+        assert!(plan(WF_NATIVE_LEAVE_EVIDENCE_DECISION, vec![json!("company")]).is_err());
     }
 }
