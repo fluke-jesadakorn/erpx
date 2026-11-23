@@ -4,6 +4,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { hospitalityDayControls as control, type HospitalityDayControlRepository, type Count } from "@erpx/server-pms/application/hospitality-day-controls";
 import { pmsDayControlPosFacts } from "@erpx/server-pos/public/pms-day-control-facts";
 import { pmsDayControlFinanceFacts } from "@erpx/server-finance/public/pms-day-control-facts";
+import { nativePmsReadFirst, PMS_RD_CHARGE_CORRECTION_PENDING_COUNT } from "./native-pms-read";
 function repository(db: SqlDatabase): HospitalityDayControlRepository {
     const pos = pmsDayControlPosFacts(db), finance = pmsDayControlFinanceFacts(db);
     return {
@@ -19,7 +20,7 @@ function repository(db: SqlDatabase): HospitalityDayControlRepository {
         pendingChargeCorrections: (facts: {
             companyId: string;
             propertyId: string;
-        }) => db.prepare("SELECT count(*) n FROM pms_charge_corrections WHERE company_id=? AND property_id=? AND status='pending'").bind(facts.companyId, facts.propertyId).first<Count>().then(async row => Number(row?.n ?? 0) + await pendingHotelRoomChargeReversals(db,facts.companyId,facts.propertyId)),
+        }) => nativePmsReadFirst<Count>(PMS_RD_CHARGE_CORRECTION_PENDING_COUNT, [facts.companyId, facts.propertyId], db).then(async row => Number(row?.n ?? 0) + await pendingHotelRoomChargeReversals(db,facts.companyId,facts.propertyId)),
         property: (facts: {
             propertyId: string;
             companyId: string;

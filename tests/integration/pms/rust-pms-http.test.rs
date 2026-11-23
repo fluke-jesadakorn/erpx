@@ -668,6 +668,50 @@ async fn command_plan_resolves_posting_journal_reads() {
 }
 
 #[tokio::test]
+async fn command_plan_resolves_charge_correction_pending_reads() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    let (status, value, _) = call_post(
+        address,
+        "/api/v1/holdings/acme/pms/command-plan",
+        r#"{"kind":"pms_rd_charge_correction_pending","values":["entry-1"],"sql":"DELETE FROM pms_charge_corrections"}"#,
+    )
+    .await;
+    assert_eq!(status, 200);
+    let statement = &value["data"]["statements"][0];
+    assert_eq!(
+        statement["sql"].as_str().unwrap(),
+        "SELECT 1 FROM pms_charge_corrections WHERE entry_id=? AND status='pending'"
+    );
+    assert!(!statement["sql"].as_str().unwrap().to_ascii_uppercase().contains("DELETE"));
+    assert_eq!(statement["values"], json!(["entry-1"]));
+
+    let (status, value, _) = call_post(
+        address,
+        "/api/v1/holdings/acme/pms/command-plan",
+        r#"{"kind":"pms_rd_charge_correction_pending_count","values":["company-1","property-1"]}"#,
+    )
+    .await;
+    assert_eq!(status, 200);
+    let statement = &value["data"]["statements"][0];
+    assert_eq!(
+        statement["sql"].as_str().unwrap(),
+        "SELECT count(*) n FROM pms_charge_corrections WHERE company_id=? AND property_id=? AND status='pending'"
+    );
+    assert_eq!(statement["values"], json!(["company-1", "property-1"]));
+
+    let (status, _, _) = call_post(
+        address,
+        "/api/v1/holdings/acme/pms/command-plan",
+        r#"{"kind":"pms_rd_charge_correction_pending_count","values":["company-1"]}"#,
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(backend.reads.load(Ordering::SeqCst), 0);
+    task.abort();
+}
+
+#[tokio::test]
 async fn command_plan_rejects_unregistered_kinds_and_wrong_bind_counts() {
     let backend = Arc::new(Backend::new());
     let (address, task) = start(backend.clone()).await;

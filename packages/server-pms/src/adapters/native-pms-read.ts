@@ -23,6 +23,8 @@ export const PMS_RD_BOOKING_CHANGE_PENDING = 'pms_rd_booking_change_pending';
 export const PMS_RD_BOOKING_PAYMENT = 'pms_rd_booking_payment';
 export const PMS_RD_POSTING_CHARGE = 'pms_rd_posting_charge';
 export const PMS_RD_POSTING_BY_RECORD = 'pms_rd_posting_by_record';
+export const PMS_RD_CHARGE_CORRECTION_PENDING = 'pms_rd_charge_correction_pending';
+export const PMS_RD_CHARGE_CORRECTION_PENDING_COUNT = 'pms_rd_charge_correction_pending_count';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');

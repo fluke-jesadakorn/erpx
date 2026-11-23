@@ -10,6 +10,8 @@ import {
   PMS_RD_BOOKING_PAYMENT,
   PMS_RD_POSTING_CHARGE,
   PMS_RD_POSTING_BY_RECORD,
+  PMS_RD_CHARGE_CORRECTION_PENDING,
+  PMS_RD_CHARGE_CORRECTION_PENDING_COUNT,
 } from '../../../packages/server-pms/src/adapters/native-pms-read';
 import { readPmsInventoryCommand } from '../../../packages/server-pms/src/adapters/pms/read-repository';
 
@@ -197,6 +199,57 @@ describe('native PMS posting-journal read retirement', () => {
     expect(bodies.map(b => b.values)).toEqual([['property-1', 'property-1', 'guest-1'], ['property-1', 'entry-1']]);
     expect(bound).toEqual([['property-1', 'property-1', 'guest-1'], ['property-1', 'entry-1']]);
     expect(prepared).toEqual([chargeSql, byRecordSql]);
+    for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
+  });
+});
+
+const ccPendingSql = "SELECT 1 FROM pms_charge_corrections WHERE entry_id=? AND status='pending'";
+const ccPendingCountSql = "SELECT count(*) n FROM pms_charge_corrections WHERE company_id=? AND property_id=? AND status='pending'";
+
+describe('native PMS charge-correction pending read retirement', () => {
+  it('exposes fixed charge-correction pending read kinds with no SQL on the wire', () => {
+    expect(PMS_RD_CHARGE_CORRECTION_PENDING).toBe('pms_rd_charge_correction_pending');
+    expect(PMS_RD_CHARGE_CORRECTION_PENDING_COUNT).toBe('pms_rd_charge_correction_pending_count');
+    for (const kind of [PMS_RD_CHARGE_CORRECTION_PENDING, PMS_RD_CHARGE_CORRECTION_PENDING_COUNT])
+      expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+  });
+
+  it('removes the two TypeScript pending charge-correction SELECT literals but keeps the FOR UPDATE read', async () => {
+    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/pms.ts', import.meta.url), 'utf8');
+    expect(adapter).not.toContain(ccPendingSql);
+    expect(adapter).toContain('FOR UPDATE');
+    expect(adapter).toContain('nativePmsReadFirst');
+    const controls = await readFile(new URL('../../../packages/server-pms/src/adapters/hospitality-day-controls.ts', import.meta.url), 'utf8');
+    expect(controls).not.toContain(ccPendingCountSql);
+    expect(controls).toContain('nativePmsReadFirst');
+    expect(controls).toContain('pendingHotelRoomChargeReversals');
+  });
+
+  it('plans the pending charge-correction reads in Rust and runs them on the caller unit', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push(body);
+      const sql = body.kind === PMS_RD_CHARGE_CORRECTION_PENDING ? ccPendingSql : ccPendingCountSql;
+      return new Response(JSON.stringify({ data: { statements: [{ sql, values: body.values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+    const prepared: string[] = [], bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) { prepared.push(sql); return { bind(...values: unknown[]) { bound.push(values); return this; } }; },
+      async batch<T>() { return [{ results: [{ '1': 1, n: 2 }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+    const pending = await nativePmsReadFirst(PMS_RD_CHARGE_CORRECTION_PENDING, ['entry-1'], db as never);
+    const count = await nativePmsReadFirst<{ n: number }>(PMS_RD_CHARGE_CORRECTION_PENDING_COUNT, ['company-1', 'property-1'], db as never);
+
+    expect(pending).toBeTruthy();
+    expect(count).toMatchObject({ n: 2 });
+    expect(bodies.map(b => b.kind)).toEqual([PMS_RD_CHARGE_CORRECTION_PENDING, PMS_RD_CHARGE_CORRECTION_PENDING_COUNT]);
+    expect(bodies.map(b => b.values)).toEqual([['entry-1'], ['company-1', 'property-1']]);
+    expect(bound).toEqual([['entry-1'], ['company-1', 'property-1']]);
+    expect(prepared).toEqual([ccPendingSql, ccPendingCountSql]);
     for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
   });
 });

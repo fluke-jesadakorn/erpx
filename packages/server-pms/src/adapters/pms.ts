@@ -46,7 +46,7 @@ import { pmsPosFacts } from "@erpx/server-pos/public/pms-command-facts";
 import { pmsWorkflowFacts } from "@erpx/server-workflow/public/pms-command-facts";
 import { pmsFilesFacts } from "@erpx/server-files/public/pms-command-facts";
 import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
-import { nativePmsReadFirst, PMS_RD_POSTING_CHARGE, PMS_RD_POSTING_BY_RECORD } from "./native-pms-read";
+import { nativePmsReadFirst, PMS_RD_POSTING_CHARGE, PMS_RD_POSTING_BY_RECORD, PMS_RD_CHARGE_CORRECTION_PENDING } from "./native-pms-read";
 function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
         const write = (kind: string, values: unknown[]): any => nativePmsOwnerWrite(companyId, kind, values);
     const identity_access = pmsIdentityAccessFacts(db);
@@ -270,7 +270,7 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
         }) => write('pms_w078', [facts.target, facts.companyId, facts.branchId, facts.name, facts.businessDate, facts.fact5, facts.userId, facts.fact7]),
         readPmsChargeCorrections2: (facts: {
             id: string;
-        }) => db.prepare("SELECT 1 FROM pms_charge_corrections WHERE entry_id=? AND status='pending'").bind(facts.id).first(),
+        }) => nativePmsReadFirst(PMS_RD_CHARGE_CORRECTION_PENDING, [facts.id], db),
         insertPmsChargeCorrections: (facts: {
             id: string;
             companyId: string;

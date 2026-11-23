@@ -32,6 +32,11 @@ pub const PMS_RD_BOOKING_PAYMENT: &str = "pms_rd_booking_payment";
 /// the caller runs them on its already-open unit.
 pub const PMS_RD_POSTING_CHARGE: &str = "pms_rd_posting_charge";
 pub const PMS_RD_POSTING_BY_RECORD: &str = "pms_rd_posting_by_record";
+/// Native successors of the owner-local pending charge-correction lookups. Fixed
+/// SQL with positional binds, no ledger/receipt/outbox and no lock/refund path;
+/// the caller runs them on its already-open unit.
+pub const PMS_RD_CHARGE_CORRECTION_PENDING: &str = "pms_rd_charge_correction_pending";
+pub const PMS_RD_CHARGE_CORRECTION_PENDING_COUNT: &str = "pms_rd_charge_correction_pending_count";
 const SQL_INVENTORY_COMMAND: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
 WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
 UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
@@ -80,7 +85,22 @@ const READ_POSTING_BY_RECORD: NativeReadStatement = NativeReadStatement {
     bind_count: 2,
 };
 
-const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD];
+/// `SELECT 1 FROM pms_charge_corrections WHERE entry_id=? AND status='pending'`
+const SQL_CHARGE_CORRECTION_PENDING: &str = "SELECT 1 FROM pms_charge_corrections WHERE entry_id=? AND status='pending'";
+const READ_CHARGE_CORRECTION_PENDING: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_CHARGE_CORRECTION_PENDING,
+    sql: SQL_CHARGE_CORRECTION_PENDING,
+    bind_count: 1,
+};
+/// `SELECT count(*) n FROM pms_charge_corrections WHERE company_id=? AND property_id=? AND status='pending'`
+const SQL_CHARGE_CORRECTION_PENDING_COUNT: &str = "SELECT count(*) n FROM pms_charge_corrections WHERE company_id=? AND property_id=? AND status='pending'";
+const READ_CHARGE_CORRECTION_PENDING_COUNT: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_CHARGE_CORRECTION_PENDING_COUNT,
+    sql: SQL_CHARGE_CORRECTION_PENDING_COUNT,
+    bind_count: 2,
+};
+
+const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -167,5 +187,26 @@ ORDER BY id"
         }
         assert_eq!(charge.bind_count, 3);
         assert_eq!(by_record.bind_count, 2);
+    }
+
+    #[test]
+    fn charge_correction_pending_reads_are_fixed_ledger_free_selects() {
+        let pending = read_statement(PMS_RD_CHARGE_CORRECTION_PENDING).expect("pending charge-correction read");
+        let count = read_statement(PMS_RD_CHARGE_CORRECTION_PENDING_COUNT).expect("pending charge-correction count read");
+        assert_eq!(pending.sql, "SELECT 1 FROM pms_charge_corrections WHERE entry_id=? AND status='pending'");
+        assert_eq!(count.sql, "SELECT count(*) n FROM pms_charge_corrections WHERE company_id=? AND property_id=? AND status='pending'");
+        for read in [pending, count] {
+            let upper = read.sql.to_ascii_uppercase();
+            assert!(upper.starts_with("SELECT"));
+            assert!(!upper.contains("INSERT INTO"));
+            assert!(!upper.contains("UPDATE "));
+            assert!(!upper.contains("DELETE FROM"));
+            assert!(!upper.contains("FOR UPDATE"));
+            assert!(!upper.contains("FOR SHARE"));
+            assert_eq!(read.sql.matches('?').count(), read.bind_count);
+            assert!(is_read(read.kind));
+        }
+        assert_eq!(pending.bind_count, 1);
+        assert_eq!(count.bind_count, 2);
     }
 }
