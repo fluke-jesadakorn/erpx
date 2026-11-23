@@ -58,6 +58,9 @@ use crate::{
 };
 #[cfg(feature = "finance-field-write")]
 use crate::{
+    finance_due_draft_schedule_http::{
+        FinanceDueDraftScheduleTarget, finance_due_draft_schedule_router,
+    },
     finance_journal_create::FinanceJournalCreateConfiguration as InvoicePostConfiguration,
     finance_service_invoice_post_http::{
         FinanceServiceInvoicePostTarget, finance_service_invoice_post_router,
@@ -6291,6 +6294,56 @@ async fn assemble_checked(
                 )
                 .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
             );
+        }
+        #[cfg(feature = "finance-field-write")]
+        {
+            let mut due_draft_targets = Vec::new();
+            for (i, holding) in config.holdings.iter().enumerate() {
+                let Some(companies) = config
+                    .finance_journal_reads
+                    .get(&holding.registration.holding_id)
+                else {
+                    continue;
+                };
+                for company in companies {
+                    let authorizer = Arc::new(
+                        HoldingWorkAuthorizer::new(
+                            pools[0].clone(),
+                            pools[i + 1].clone(),
+                            holding.registration.holding_id.clone(),
+                            (*config.policy).clone(),
+                            clock.clone(),
+                            config.holdings_registry.clone(),
+                        )
+                        .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+                    );
+                    let configuration =
+                        crate::finance_due_draft_schedule_command::FinanceDueDraftConfiguration::new(
+                            holding.registration.holding_id.clone(),
+                            company.clone(),
+                            catalogue.clone(),
+                        )
+                        .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?;
+                    due_draft_targets.push(FinanceDueDraftScheduleTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        authorizer,
+                        configuration,
+                        clock: Arc::new(SharedClock(clock.clone())),
+                    });
+                }
+            }
+            if !due_draft_targets.is_empty() {
+                router = router.merge(
+                    finance_due_draft_schedule_router(
+                        config.policy.clone(),
+                        config.holdings_registry.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        due_draft_targets,
+                    )
+                    .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+                );
+            }
         }
         #[cfg(feature = "finance-field-write")]
         if !receipt_targets.is_empty() {

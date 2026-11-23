@@ -335,6 +335,10 @@ pub mod finance_service_invoice_post;
 #[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
 pub mod finance_service_invoice_post_http;
 #[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
+pub mod finance_due_draft_schedule_command;
+#[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
+pub mod finance_due_draft_schedule_http;
+#[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
 pub mod finance_service_no_charge;
 #[cfg(any(feature = "existing-business", feature = "finance-field-read"))]
 mod finance_service_no_charge_read;
