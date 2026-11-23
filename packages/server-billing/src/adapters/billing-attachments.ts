@@ -31,7 +31,7 @@ storedTotals:async()=>(await db.pool.query(`SELECT COALESCE(sum(bytes),0)::bigin
 pendingScans:async()=>(await db.pool.query(`SELECT count(*) FILTER (WHERE source_state IN ('legacy_unscanned','quarantined','scanning','scan_error'))::bigint pending FROM billing_evidence`)).rows[0],
 recordReconciliation:({id,input,uploadFrozen,ready,report,pending,now})=>nativeBillingOwnerQuery(db.pool, 'reconciliation_run', [id,input.mode,uploadFrozen,input.verifyChecksums,input.scanner.engine,input.scanner.definitionUpdatedAt,ready,JSON.stringify({scanPending:pending,...report}),now]),
 claimScan:async(now,lease)=>(await nativeBillingOwnerQuery(db.pool, 'scan_claim', [now,now+60_000,lease])).rows[0],
-scanSource:async id=>(await db.pool.query<BillingEvidenceSource>('SELECT * FROM billing_evidence WHERE id=$1',[id])).rows[0],
+scanSource:async id=>(await nativeBillingOwnerQuery(db.pool, 'scan_source', [id])).rows[0] as BillingEvidenceSource | undefined,
 markScanning:id=>nativeBillingOwnerQuery(db.pool, 'scan_mark_scanning', [id]),
 completeScan:({job,source,lease,result,detected,completed,eventId})=>db.transaction(async tx=>tx.batch(await Promise.all(result.clean?[
   nativeBillingOwnerBind(tx,'scan_clean_attempt',[result.engine,result.definitionUpdatedAt,completed,job.id,lease]),

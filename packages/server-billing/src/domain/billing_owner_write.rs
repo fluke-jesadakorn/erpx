@@ -17,6 +17,7 @@ pub const EVIDENCE_RETAIN: &str = "evidence_retain";
 pub const EVIDENCE_STORAGE_LEDGER: &str = "evidence_storage_ledger";
 pub const EVIDENCE_SCAN_ATTEMPT: &str = "evidence_scan_attempt";
 pub const EVIDENCE_EVENT_QUARANTINED: &str = "evidence_event_quarantined";
+pub const SCAN_SOURCE: &str = "scan_source";
 pub const RECONCILIATION_RUN: &str = "reconciliation_run";
 pub const SCAN_CLAIM: &str = "scan_claim";
 pub const SCAN_MARK_SCANNING: &str = "scan_mark_scanning";
@@ -90,6 +91,7 @@ pub const OWNER_WRITE_KINDS: &[&str] = &[
     EVIDENCE_STORAGE_LEDGER,
     EVIDENCE_SCAN_ATTEMPT,
     EVIDENCE_EVENT_QUARANTINED,
+    SCAN_SOURCE,
     RECONCILIATION_RUN,
     SCAN_CLAIM,
     SCAN_MARK_SCANNING,

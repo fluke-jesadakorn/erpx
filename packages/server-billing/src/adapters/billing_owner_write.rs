@@ -45,6 +45,7 @@ fn sql(kind: &str) -> Option<&'static str> {
         EVIDENCE_STORAGE_LEDGER => r####"INSERT INTO billing_evidence_storage_ledger(id,evidence_id,holding_id,object_key,bytes,state,created_at,updated_at) SELECT $1,id,holding_id,object_key,size,'stored',$2,$2 FROM billing_evidence WHERE id=$3 ON CONFLICT(object_key) DO NOTHING"####,
         EVIDENCE_SCAN_ATTEMPT => r####"INSERT INTO billing_evidence_scan_attempts(id,evidence_id,attempt,state,created_at) VALUES($1,$2,1,'pending',$3) ON CONFLICT(evidence_id,attempt) DO NOTHING"####,
         EVIDENCE_EVENT_QUARANTINED => r####"INSERT INTO billing_evidence_events(id,evidence_id,holding_id,actor,action,details_json,created_at) VALUES($1,$2,$3,$4,'file.quarantined',$5,$6) ON CONFLICT(id) DO NOTHING"####,
+        SCAN_SOURCE => r####"SELECT * FROM billing_evidence WHERE id=$1"####,
         RECONCILIATION_RUN => r####"INSERT INTO billing_evidence_reconciliation_runs(id,mode,upload_frozen,checksums_verified,scanner_engine,scanner_definition_at,ready,report_json,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)"####,
         SCAN_CLAIM => r####"UPDATE billing_evidence_scan_attempts SET state='running',claimed_at=$1,claim_until=$2,lease_token=$3 WHERE id=(SELECT id FROM billing_evidence_scan_attempts WHERE state IN ('pending','running') AND created_at<=$1 AND (claim_until IS NULL OR claim_until<$1) ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *"####,
         SCAN_MARK_SCANNING => r####"UPDATE billing_evidence SET source_state='scanning' WHERE id=$1 AND source_state IN ('legacy_unscanned','quarantined','scan_error')"####,
@@ -230,5 +231,26 @@ mod tests {
         assert!(billing_owner_statement(&holding, &BillingOwnerWriteInput {
             kind: BETA_PREPARE_BILLING.into(), values: vec![serde_json::json!(1)], now: 1,
         }).is_err());
+    }
+    #[test]
+    fn scan_source_read_is_owner_authored_and_single_bound() {
+        let holding = HoldingId::new("h001").unwrap();
+        let statement = billing_owner_statement(&holding, &BillingOwnerWriteInput {
+            kind: SCAN_SOURCE.into(),
+            values: vec![serde_json::json!("ev-1")],
+            now: 1,
+        })
+        .expect("scan_source is an allow-listed owner read kind");
+        assert_eq!(
+            statement.sql,
+            "SELECT * FROM billing_evidence WHERE id=$1"
+        );
+        assert_eq!(statement.values, vec![serde_json::json!("ev-1")]);
+        assert!(billing_owner_statement(&holding, &BillingOwnerWriteInput {
+            kind: SCAN_SOURCE.into(),
+            values: vec![],
+            now: 1,
+        })
+        .is_err());
     }
 }
