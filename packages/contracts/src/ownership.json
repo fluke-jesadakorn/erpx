@@ -907,7 +907,7 @@
       "source": [
         "packages/server-platform_administration/src/**",
         "packages/server-platform_administration/src/public/engineering-verification.ts",
-        "packages/server-platform_administration/src/public/platform-executive.ts",
+        "packages/server-platform_administration/src/public/platform_executive.rs",
         "packages/server-platform_administration/src/public/platform-operations.ts",
         "packages/server-platform_administration/src/public/release-acceptance.ts",
         "packages/server-platform_administration/src/public/system-evidence.ts"
@@ -933,15 +933,16 @@
           "id": "platform-administration-service",
           "migration": "clean",
           "source": [
-            "packages/server-platform_administration/src/domain/platform-executive.ts",
+            "packages/server-platform_administration/src/domain/platform_executive.rs",
             "packages/server-platform_administration/src/domain/system-evidence.ts",
             "packages/server-platform_administration/src/domain/release-acceptance.ts",
             "packages/server-platform_administration/src/domain/engineering-verification.ts",
-            "packages/server-platform_administration/src/application/platform-executive.ts",
+            "packages/server-platform_administration/src/application/platform_executive.rs",
             "packages/server-platform_administration/src/application/system-evidence.ts",
             "packages/server-platform_administration/src/application/release-acceptance.ts",
             "packages/server-platform_administration/src/application/engineering-verification.ts",
-            "packages/server-platform_administration/src/adapters/platform-executive.ts",
+            "packages/server-platform_administration/src/adapters/platform_executive_postgres.rs",
+            "packages/server-platform_administration/src/adapters/platform_executive_http.rs",
             "packages/server-platform_administration/src/adapters/system-evidence.ts",
             "packages/server-platform_administration/src/adapters/release-acceptance.ts",
             "packages/server-platform_administration/src/adapters/engineering-verification.ts",

@@ -5,7 +5,6 @@ import type { ReleaseRow } from "@erpx/server-platform_administration/domain/rel
 import { createSystemEvidenceApplication, type SystemEvidenceTransaction } from "@erpx/server-platform_administration/application/system-evidence";
 import { createEngineeringVerificationApplication } from "@erpx/server-platform_administration/application/engineering-verification";
 import { isEngineeringVerificationOrigin, type EngineeringAttestationFacts } from "@erpx/server-platform_administration/domain/engineering-verification";
-import { createPlatformExecutiveApplication, type PlatformExecutiveRepository } from "@erpx/server-platform_administration/application/platform-executive";
 
 function repository<T extends object>(operations: Partial<T>): T { return new Proxy(operations as T, { get(target, name) { if (name === "then") return undefined; if (name in target) return Reflect.get(target, name); return () => { throw new Error(`unexpected operation: ${String(name)}`); }; } }); }
 const error = (_status: number, code: string) => new Error(code);
@@ -114,10 +113,3 @@ it("an attested candidate permits only its local HTTP verification origins", () 
   for (const url of ["https://localhost:3104/", "http://localhost:3100/", "http://example.test:3104/"]) expect(isEngineeringVerificationOrigin(new URL(url), context)).toBe(false);
 });
 
-it("Platform insights preserve exact large integer strings and keep private sources behind current permission", async () => {
-  const source = repository<PlatformExecutiveRepository>({ failed: async () => [{ label: "2026-10", value: "9007199254740992" }], abnormal: async () => [] });
-  const application = createPlatformExecutiveApplication({ canRead: () => true, clock: { now: () => 100 }, hash: async () => "digest", repository: source, error });
-  expect((await application.platformExecutiveSnapshot({ from: "2026-01-01", to: "2026-10-01" })).metrics[0].total).toBe("9007199254740992");
-  const denied = createPlatformExecutiveApplication({ canRead: () => false, clock: { now: () => { throw new Error("unexpected clock"); } }, hash: async () => "digest", repository: repository<PlatformExecutiveRepository>({}), error });
-  await expect(denied.platformExecutiveSnapshot()).rejects.toThrow("PLATFORM_EXECUTIVE_FORBIDDEN");
-});

@@ -1,4 +1,6 @@
-import { platformExecutiveForPresentation } from "@erpx/server-platform_administration/public/presentation-queries";
+import { nativePlatformAdminFailure, nativePlatformExecutiveForPresentation } from "@erpx/feature-platform_administration/lib/native-platform-administration";
+import { headers } from "next/headers";
+import { ApiError } from "@erpx/server-runtime/public/http";
 import {PlatformExecutiveSources} from "@erpx/feature-records/components/platform-executive-sources";
 import {CollectionRecordLink} from "@erpx/feature-records/components/record-collection";
 import { PageContent } from "@erpx/ui/components/patterns";
@@ -8,14 +10,17 @@ import { FeaturePage, FeatureWidget, WidgetGrid } from "@erpx/feature-shared/com
 import { LiveBanner, Metric, PageHeader, StatusBadge } from "@erpx/ui/components/primitives";
 import { requireManageErpxContext } from "@erpx/server-identity_access/public/authorization";
 
-import { requirePlatformExecutive } from "@erpx/server-platform_administration/public/platform-executive";
 import { TableFrame } from "@erpx/ui/components/foundation";
 
 export const dynamic = "force-dynamic";
 
 export default async function PlatformExecutivePage() {
-  const actor = requirePlatformExecutive((await requireManageErpxContext()).platform);
-  const snapshot = await platformExecutiveForPresentation(actor);
+  const { work, platform } = await requireManageErpxContext();
+  const snapshot = await nativePlatformExecutiveForPresentation(work, platform, await headers()).catch((error) => {
+    const failure = nativePlatformAdminFailure(error);
+    if (failure) throw new ApiError(failure.status, failure.code, failure.message);
+    throw error;
+  });
   return (
     <PageContent as={FeaturePage} data-source="live">
       <PageHeader appearance="standard"

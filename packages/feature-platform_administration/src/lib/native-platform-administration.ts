@@ -107,10 +107,8 @@ export async function nativePlatformExecutiveForPresentation(
   platform: PlatformAdminPlatformInput,
   incoming: Pick<Headers, 'get'>,
   query?: NativePlatformExecutiveQuery,
-): Promise<NativePlatformExecutiveSnapshot | undefined> {
-  const native = nativeClient();
-  if (!native) return undefined;
-  return native.executive(incoming, platformAdminActor(work, platform), query);
+): Promise<NativePlatformExecutiveSnapshot> {
+  return requiredNativeClient().executive(incoming, platformAdminActor(work, platform), query);
 }
 
 export async function nativePlatformExecutiveSourcesForPresentation(
@@ -119,10 +117,8 @@ export async function nativePlatformExecutiveSourcesForPresentation(
   incoming: Pick<Headers, 'get'>,
   query: Required<Pick<NativePlatformExecutiveQuery, 'metric' | 'group' | 'from' | 'to'>> &
     Pick<NativePlatformExecutiveQuery, 'page'>,
-): Promise<NativePlatformExecutiveSources | undefined> {
-  const native = nativeClient();
-  if (!native) return undefined;
-  return native.executiveSources(incoming, platformAdminActor(work, platform), query);
+): Promise<NativePlatformExecutiveSources> {
+  return requiredNativeClient().executiveSources(incoming, platformAdminActor(work, platform), query);
 }
 
 export async function nativePlatformProvision(

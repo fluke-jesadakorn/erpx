@@ -9,7 +9,7 @@ import {
   NativePlatformAdminError,
   type NativePlatformAdminActor,
 } from '../../../packages/feature-platform_administration/src/adapters/server/native-platform-administration';
-import { platformAdminActor, nativePlatformAdminAvailable, nativePlatformMigrate, nativePlatformOperationsForPresentation } from '../../../packages/feature-platform_administration/src/lib/native-platform-administration';
+import { platformAdminActor, nativePlatformAdminAvailable, nativePlatformMigrate, nativePlatformOperationsForPresentation, nativePlatformExecutiveForPresentation, nativePlatformExecutiveSourcesForPresentation } from '../../../packages/feature-platform_administration/src/lib/native-platform-administration';
 import {
   createNativePlatformExecutiveClient,
   nativePlatformExecutiveConfiguration,
@@ -433,6 +433,44 @@ describe('native Platform Administration transport', () => {
       expect(nativePlatformAdminAvailable()).toBe(true);
       await expect(
         nativePlatformOperationsForPresentation(work, platform, incoming()),
+      ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_CONFIGURATION_INVALID' });
+    } finally {
+      if (short === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = short;
+      if (long === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+      else process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG = long;
+    }
+  });
+
+  it('fails closed for executive presentation reads when the native configuration is absent or invalid', async () => {
+    const short = process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+    const long = process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+    try {
+      delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;
+      delete process.env.ERPX_NATIVE_PLATFORM_ADMINISTRATION_CONFIG;
+      await expect(
+        nativePlatformExecutiveForPresentation(work, platform, incoming()),
+      ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_CONFIGURATION_INVALID' });
+      await expect(
+        nativePlatformExecutiveSourcesForPresentation(work, platform, incoming(), {
+          metric: 'failed-provisioning',
+          group: '2026-06',
+          from: '2026-06-01',
+          to: '2026-06-30',
+        }),
+      ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_CONFIGURATION_INVALID' });
+
+      process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG = '{}';
+      await expect(
+        nativePlatformExecutiveForPresentation(work, platform, incoming()),
+      ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_CONFIGURATION_INVALID' });
+      await expect(
+        nativePlatformExecutiveSourcesForPresentation(work, platform, incoming(), {
+          metric: 'failed-provisioning',
+          group: '2026-06',
+          from: '2026-06-01',
+          to: '2026-06-30',
+        }),
       ).rejects.toMatchObject({ code: 'NATIVE_PLATFORM_ADMIN_CONFIGURATION_INVALID' });
     } finally {
       if (short === undefined) delete process.env.ERPX_NATIVE_PLATFORM_ADMIN_CONFIG;

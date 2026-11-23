@@ -1110,7 +1110,7 @@ const delivery: Record<string, ModuleDelivery> = {
       "executive": {
         "ui": "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/manage-erpx/executive/screen.tsx",
         "api": "packages/feature-admin/src/routes/api/v1/platform/executive/route.ts",
-        "service": "packages/server-platform_administration/src/public/platform-executive.ts",
+        "service": "packages/server-platform_administration/src/public/platform_executive.rs",
         "gap": "Recorded 2026-10-03 engineering acceptance covers: Read executive operational aggregates from control-plane projections. External provider and production operation require separately scoped evidence. Independent Company business/release acceptance remains separate; this result belongs to the recorded candidate, not every later source revision."
       }
     }
