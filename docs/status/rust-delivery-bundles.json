@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7123,
+    "revision": 7125,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -122624,7 +122624,7 @@
         "owner": "customer_authority",
         "title": "customer_authority TS read tail native cutover (r7)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -122636,22 +122636,42 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wBYcus",
-          "claimedAt": "2026-11-23T22:28:59.408Z",
-          "heartbeatAt": "2026-11-23T22:29:18.693Z",
-          "expiresAt": "2026-11-23T22:59:18.693Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-customer_authority/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "42ad03fad",
+            "owner": "customer_authority",
+            "before": 101,
+            "after": 100,
+            "note": "Identity-change-events executive metric via month/action read kinds."
+          },
+          {
+            "command": "cargo check -p erpx-server-customer-authority + lib (10) + http (8)",
+            "result": "passed",
+            "sourceSha": "42ad03fad"
+          },
+          {
+            "command": "vitest customer authority units (33) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "42ad03fad"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to a mounted native read; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released; no safe r8 within current scope",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wBYcus",
+          "at": "2026-11-23T22:45:52.471Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released; no safe r8 within current scope"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -123173,17 +123193,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 17,
+        "in_progress": 16,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 258,
+        "blocked": 259,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T22:43:56.312Z",
+    "updatedAt": "2026-11-23T22:45:52.474Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
