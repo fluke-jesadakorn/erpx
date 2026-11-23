@@ -1,5 +1,24 @@
 import "server-only";
-import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
-export function legalCorpusSourceFacts(db:SqlDatabase){return {
-cleanSourceLink:(facts:{attachment_link_id:string | null | undefined;companyId:string;checksum:string;})=>db.prepare("SELECT 1 FROM attachment_links l JOIN attachments f ON f.id=l.attachment_id WHERE l.id=? AND l.state='bound' AND f.company_id=? AND f.source_state='available' AND f.revoked_at IS NULL AND f.checksum_sha256=?").bind(facts.attachment_link_id,facts.companyId,facts.checksum).first()
-};}
+import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import { nativeFilesRead } from "./native-files-command";
+
+/**
+ * Legal law-corpus clean-source link fact. The read is owned by the native
+ * Files read kind `RD_LEGAL_CORPUS_SOURCE_LINK`; this module emits no SQL and
+ * fails closed without the native transport. The three binds stay static and
+ * the caller's single-row shape is preserved, including a null link id.
+ */
+export function legalCorpusSourceFacts(db: SqlDatabase) {
+    return {
+        cleanSourceLink: (facts: {
+            attachment_link_id: string | null | undefined;
+            companyId: string;
+            checksum: string;
+        }) => nativeFilesRead<Record<string, unknown>>(
+            'RD_LEGAL_CORPUS_SOURCE_LINK',
+            [facts.attachment_link_id ?? null, facts.companyId, facts.checksum],
+            db,
+            facts.companyId,
+        ),
+    };
+}

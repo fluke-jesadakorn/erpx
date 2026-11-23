@@ -307,6 +307,15 @@ const SQL_RD_PMS_BOOKING_PUBLICATIONS: &str = "SELECT id FROM attachment_publica
 pub const RD_RECORDS_EVIDENCE_SETS: &str = "RD_RECORDS_EVIDENCE_SETS";
 const SQL_RD_RECORDS_EVIDENCE_SETS: &str = "SELECT target_type FROM attachment_sets WHERE company_id=$1 AND id = ANY(ARRAY(SELECT jsonb_array_elements_text($2::jsonb)))"; // binds=2
 
+/// Owner-owned read: the Legal law-corpus clean-source link fact. Native
+/// successor of the retired TypeScript `legalCorpusSourceFacts.cleanSourceLink`
+/// SELECT. It carries no write ledger: the caller's unit already holds the
+/// read scope. The statement is byte-identical to the retired SQL with three
+/// static binds; a null link id is bound as SQL NULL and finds no row, as the
+/// retired prepared statement did.
+pub const RD_LEGAL_CORPUS_SOURCE_LINK: &str = "RD_LEGAL_CORPUS_SOURCE_LINK";
+const SQL_RD_LEGAL_CORPUS_SOURCE_LINK: &str = "SELECT 1 FROM attachment_links l JOIN attachments f ON f.id=l.attachment_id WHERE l.id=$1 AND l.state='bound' AND f.company_id=$2 AND f.source_state='available' AND f.revoked_at IS NULL AND f.checksum_sha256=$3"; // binds=3
+
 /// Read kinds plan the owner SQL only; no receipt/audit/outbox write ledger.
 pub fn is_read(kind: &str) -> bool {
     kind == RD_PROJECT_ATTACHMENT_TARGET
@@ -321,6 +330,7 @@ pub fn is_read(kind: &str) -> bool {
         || kind == RD_FRONT_LOGO_PUBLICATION
         || kind == RD_PMS_BOOKING_PUBLICATIONS
         || kind == RD_RECORDS_EVIDENCE_SETS
+        || kind == RD_LEGAL_CORPUS_SOURCE_LINK
 }
 
 /// Every kind this owner module accepts. Anything else is fail-closed.
@@ -442,6 +452,7 @@ const KINDS: &[&str] = &[
     RD_FRONT_LOGO_PUBLICATION,
     RD_PMS_BOOKING_PUBLICATIONS,
     RD_RECORDS_EVIDENCE_SETS,
+    RD_LEGAL_CORPUS_SOURCE_LINK,
 ];
 pub fn supported(kind: &str) -> bool { KINDS.contains(&kind) }
 pub fn sql(kind: &str) -> Option<&'static str> { Some(match kind {
@@ -562,6 +573,7 @@ pub fn sql(kind: &str) -> Option<&'static str> { Some(match kind {
     RD_FRONT_LOGO_PUBLICATION => SQL_RD_FRONT_LOGO_PUBLICATION,
     RD_PMS_BOOKING_PUBLICATIONS => SQL_RD_PMS_BOOKING_PUBLICATIONS,
     RD_RECORDS_EVIDENCE_SETS => SQL_RD_RECORDS_EVIDENCE_SETS,
+    RD_LEGAL_CORPUS_SOURCE_LINK => SQL_RD_LEGAL_CORPUS_SOURCE_LINK,
     _ => return None,
 }) }
 pub fn invalid() -> BusinessError { BusinessError::new(FailureKind::InvalidInput, "FILES_COMMAND_INVALID", "Use one bounded Files command.") }

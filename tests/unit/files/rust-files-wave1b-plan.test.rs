@@ -9,8 +9,8 @@ use erpx_server_files::public::files_wave1b::{
     FilesCommandInput, RD_FINANCE_REFUND_PROOF_SETS, RD_LEGAL_DOCUMENT_CLEAN_SOURCE,
     RD_OVERTIME_EVIDENCE_SETS, RD_PMS_ATTACHMENT_LINK_SET, RD_PMS_UPLOAD_FACT,
     RD_POS_IMAGE_SOURCE, RD_PROJECT_ATTACHMENT_TARGET, RD_SUPPORT_ATTACHMENT_TARGET,
-    RD_FRONT_LOGO_PUBLICATION, RD_PMS_BOOKING_PUBLICATIONS, RD_RECORDS_EVIDENCE_SETS,
-    RD_WORKFLOW_APPROVAL_EVIDENCE, is_read, plan,
+    RD_FRONT_LOGO_PUBLICATION, RD_LEGAL_CORPUS_SOURCE_LINK, RD_PMS_BOOKING_PUBLICATIONS,
+    RD_RECORDS_EVIDENCE_SETS, RD_WORKFLOW_APPROVAL_EVIDENCE, is_read, plan,
 };
 use erpx_server_files::public::files_wave1b_http::{
     FilesCommandBackend, FilesCommandFuture, FilesCommandPlanFuture, FilesCommandRequest,
@@ -680,6 +680,74 @@ fn rd_records_evidence_sets_plans_array_read_without_write_ledger() {
         &company(),
         "test-key-records-evidence-sets-arity",
         &input(RD_RECORDS_EVIDENCE_SETS, serde_json::json!(["company"]), now),
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "FILES_COMMAND_INVALID");
+}
+
+#[test]
+fn rd_legal_corpus_source_link_plans_single_read_without_write_ledger() {
+    // Native successor of the retired TypeScript
+    // `legalCorpusSourceFacts.cleanSourceLink` SELECT. The statement is
+    // byte-identical to the retired SQL with three static binds. Owner SQL
+    // lives here, not in server-files TS; the caller's unit holds the read
+    // scope, so no receipt/audit/outbox write ledger is planned.
+    let now = 1_700_000_000_000i64;
+    assert!(is_read(RD_LEGAL_CORPUS_SOURCE_LINK));
+    let statements = plan(
+        &company(),
+        "test-key-legal-corpus-source-link",
+        &input(
+            RD_LEGAL_CORPUS_SOURCE_LINK,
+            serde_json::json!(["link-1", "company", "sha-1"]),
+            now,
+        ),
+    )
+    .unwrap();
+    assert_eq!(statements.len(), 1);
+    assert_eq!(
+        statements[0].sql,
+        "SELECT 1 FROM attachment_links l JOIN attachments f ON f.id=l.attachment_id WHERE l.id=? AND l.state='bound' AND f.company_id=? AND f.source_state='available' AND f.revoked_at IS NULL AND f.checksum_sha256=?"
+    );
+    assert_eq!(statements[0].sql.matches('?').count(), 3);
+    assert!(!statements[0].sql.contains('$'));
+    assert_eq!(
+        statements[0].values,
+        vec![
+            serde_json::json!("link-1"),
+            serde_json::json!("company"),
+            serde_json::json!("sha-1"),
+        ]
+    );
+    let upper = statements[0].sql.to_ascii_uppercase();
+    assert!(!upper.contains("INSERT"));
+    assert!(!upper.contains("UPDATE"));
+    assert!(!upper.contains("DELETE"));
+
+    // A null link id keeps the three-bind shape and binds SQL NULL, which
+    // finds no row exactly as the retired prepared statement did.
+    let statements = plan(
+        &company(),
+        "test-key-legal-corpus-source-link-null",
+        &input(
+            RD_LEGAL_CORPUS_SOURCE_LINK,
+            serde_json::json!([null, "company", "sha-1"]),
+            now,
+        ),
+    )
+    .unwrap();
+    assert_eq!(statements[0].values.len(), 3);
+    assert_eq!(statements[0].values[0], serde_json::Value::Null);
+
+    // Wrong arity fails closed.
+    let error = plan(
+        &company(),
+        "test-key-legal-corpus-source-link-arity",
+        &input(
+            RD_LEGAL_CORPUS_SOURCE_LINK,
+            serde_json::json!(["link-1", "company"]),
+            now,
+        ),
     )
     .unwrap_err();
     assert_eq!(error.code, "FILES_COMMAND_INVALID");
