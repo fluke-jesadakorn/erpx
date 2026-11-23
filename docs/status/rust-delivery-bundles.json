@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6552,
+    "revision": 6563,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-f",
       "agentId": "lead",
       "startedAt": "2026-11-23T16:54:33.142Z",
-      "heartbeatAt": "2026-11-23T19:13:58.694Z",
-      "expiresAt": "2026-11-23T19:43:58.694Z",
+      "heartbeatAt": "2026-11-23T19:18:44.260Z",
+      "expiresAt": "2026-11-23T19:48:44.260Z",
       "generation": 158,
       "tokenHash": "786b04e6db95d7a97c392a0b212dc2cfdd563bbd8cc6545681f5e6ff248eceaa"
     },
@@ -50671,8 +50671,8 @@
           "runId": "run-20261123-f",
           "agentId": "wN01",
           "claimedAt": "2026-11-23T18:15:53.634Z",
-          "heartbeatAt": "2026-11-23T19:13:58.694Z",
-          "expiresAt": "2026-11-23T19:43:58.694Z",
+          "heartbeatAt": "2026-11-23T19:18:44.260Z",
+          "expiresAt": "2026-11-23T19:48:44.260Z",
           "generation": 158
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -50862,11 +50862,35 @@
             "command": "vitest inventory attachments-policy-facts (4)",
             "result": "passed",
             "sourceSha": "899fe3831"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "97ba350e7",
+            "owner": "inventory",
+            "before": 571,
+            "after": 560,
+            "note": "wN01: RD_COMMERCE_ATTACHMENT_STOCK_IMAGE (CTE, 11 SELECT tokens) + nativeInventoryReadFirst."
+          },
+          {
+            "command": "cargo check -p erpx-server-inventory",
+            "result": "passed",
+            "sourceSha": "97ba350e7"
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --lib (45)",
+            "result": "passed",
+            "sourceSha": "97ba350e7"
+          },
+          {
+            "command": "vitest inventory commerce attachment source (3)",
+            "result": "passed",
+            "sourceSha": "97ba350e7"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "571 recorded; next single-consumer inventory read",
+        "nextAction": "560 recorded; next inventory read family",
         "handoff": {
           "runId": "run-20261123-f",
           "agentId": "wL05",
@@ -110026,8 +110050,15 @@
         "resources": [
           "owner:commerce"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wX05",
+          "claimedAt": "2026-11-23T19:14:25.430Z",
+          "heartbeatAt": "2026-11-23T19:18:44.260Z",
+          "expiresAt": "2026-11-23T19:48:44.260Z",
+          "generation": 158
+        },
         "baseSha": "89cf1fc2547a1bad396f281fe620266bf9914034",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -110089,7 +110120,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261123-f",
           "agentId": "wE03",
@@ -110129,8 +110160,8 @@
           "runId": "run-20261123-f",
           "agentId": "wP01",
           "claimedAt": "2026-11-23T18:17:54.008Z",
-          "heartbeatAt": "2026-11-23T19:13:58.694Z",
-          "expiresAt": "2026-11-23T19:43:58.694Z",
+          "heartbeatAt": "2026-11-23T19:18:44.260Z",
+          "expiresAt": "2026-11-23T19:48:44.260Z",
           "generation": 158
         },
         "baseSha": "d15bbdf7095f86bedb5c69bd0f4b297c357f0061",
@@ -112501,8 +112532,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU02",
           "claimedAt": "2026-11-23T18:38:16.118Z",
-          "heartbeatAt": "2026-11-23T19:13:58.694Z",
-          "expiresAt": "2026-11-23T19:43:58.694Z",
+          "heartbeatAt": "2026-11-23T19:18:44.260Z",
+          "expiresAt": "2026-11-23T19:48:44.260Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114097,8 +114128,8 @@
           "runId": "run-20261123-f",
           "agentId": "wW02",
           "claimedAt": "2026-11-23T19:05:51.389Z",
-          "heartbeatAt": "2026-11-23T19:13:58.694Z",
-          "expiresAt": "2026-11-23T19:43:58.694Z",
+          "heartbeatAt": "2026-11-23T19:18:44.260Z",
+          "expiresAt": "2026-11-23T19:48:44.260Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114711,8 +114742,8 @@
           "runId": "run-20261123-f",
           "agentId": "wX01",
           "claimedAt": "2026-11-23T19:09:59.338Z",
-          "heartbeatAt": "2026-11-23T19:13:58.694Z",
-          "expiresAt": "2026-11-23T19:43:58.694Z",
+          "heartbeatAt": "2026-11-23T19:18:44.260Z",
+          "expiresAt": "2026-11-23T19:48:44.260Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114997,8 +115028,8 @@
           "runId": "run-20261123-f",
           "agentId": "wR02",
           "claimedAt": "2026-11-23T18:21:47.727Z",
-          "heartbeatAt": "2026-11-23T19:13:58.694Z",
-          "expiresAt": "2026-11-23T19:43:58.694Z",
+          "heartbeatAt": "2026-11-23T19:18:44.260Z",
+          "expiresAt": "2026-11-23T19:48:44.260Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115274,8 +115305,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU01",
           "claimedAt": "2026-11-23T18:38:16.034Z",
-          "heartbeatAt": "2026-11-23T19:13:58.694Z",
-          "expiresAt": "2026-11-23T19:43:58.694Z",
+          "heartbeatAt": "2026-11-23T19:18:44.260Z",
+          "expiresAt": "2026-11-23T19:48:44.260Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115313,8 +115344,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU03",
           "claimedAt": "2026-11-23T18:42:45.943Z",
-          "heartbeatAt": "2026-11-23T19:13:58.694Z",
-          "expiresAt": "2026-11-23T19:43:58.694Z",
+          "heartbeatAt": "2026-11-23T19:18:44.260Z",
+          "expiresAt": "2026-11-23T19:48:44.260Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115353,8 +115384,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU05",
           "claimedAt": "2026-11-23T18:47:54.577Z",
-          "heartbeatAt": "2026-11-23T19:13:58.694Z",
-          "expiresAt": "2026-11-23T19:43:58.694Z",
+          "heartbeatAt": "2026-11-23T19:18:44.260Z",
+          "expiresAt": "2026-11-23T19:48:44.260Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115405,8 +115436,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU06",
           "claimedAt": "2026-11-23T18:48:10.751Z",
-          "heartbeatAt": "2026-11-23T19:13:58.694Z",
-          "expiresAt": "2026-11-23T19:43:58.694Z",
+          "heartbeatAt": "2026-11-23T19:18:44.260Z",
+          "expiresAt": "2026-11-23T19:48:44.260Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115519,8 +115550,8 @@
           "runId": "run-20261123-f",
           "agentId": "wX02",
           "claimedAt": "2026-11-23T19:13:39.854Z",
-          "heartbeatAt": "2026-11-23T19:13:58.694Z",
-          "expiresAt": "2026-11-23T19:43:58.694Z",
+          "heartbeatAt": "2026-11-23T19:18:44.260Z",
+          "expiresAt": "2026-11-23T19:48:44.260Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115568,6 +115599,220 @@
         "nextAction": "Repoint work-items, record-purchases, records domain-details, and staff-notifications to public/benefits-native-read; delete the compatibility public/benefits.ts re-export; no KPI delta (0 SQL).",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.brand.record-branch",
+        "goalId": "G4",
+        "owner": "brand",
+        "title": "Native brand record-branch resolution (11 SELECTs)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-brand/src/adapters/branding.ts",
+          "packages/server-brand/src/adapters/native-brand-presentation.ts",
+          "packages/server-brand/src/adapters/branding_use_cases.rs",
+          "packages/server-brand/src/adapters/branding.rs",
+          "packages/server-brand/src/adapters/branding_http.rs",
+          "packages/server-brand/src/adapters/business-document.ts",
+          "packages/server-brand/src/public/branding.ts",
+          "tests/unit/brand/**",
+          "tests/integration/brand/**"
+        ],
+        "resources": [
+          "owner:brand"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wX03",
+          "claimedAt": "2026-11-23T19:14:25.266Z",
+          "heartbeatAt": "2026-11-23T19:18:44.260Z",
+          "expiresAt": "2026-11-23T19:48:44.260Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Add native record-branch resolution kind (order/expense/invoice/payment/journal CASE paths) + HTTP/client parity; rebind business-document to it; delete the 11 TS SELECTs; record 18->7. Composition arm is lead follow-up.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.platform.feature-admin-duplicate",
+        "goalId": "G4",
+        "owner": "platform_administration",
+        "title": "Delete duplicate feature-admin native platform executive client",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/feature-admin/src/public/native-platform-executive.ts",
+          "tests/unit/platform_administration/native-platform-administration-transport.test.ts"
+        ],
+        "resources": [
+          "owner:platform_administration"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wX04",
+          "claimedAt": "2026-11-23T19:14:25.346Z",
+          "heartbeatAt": "2026-11-23T19:18:44.260Z",
+          "expiresAt": "2026-11-23T19:48:44.260Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Move the two oracle imports from nativePlatformExecutiveOrRetained to the canonical feature-platform_administration helper, delete the duplicate client, confirm no importers.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "integrate.field.final-root-timeline",
+        "goalId": "G4",
+        "owner": "field_service",
+        "title": "Wire Field final-root lock/witness into Customer 360 timeline",
+        "kind": "integration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "src/composition/src/customer_360.rs",
+          "packages/server-customer_360/src/adapters/timeline.rs",
+          "packages/server-customer_360/src/adapters/executive_timeline.rs",
+          "packages/server-customer_360/src/application/timeline.rs",
+          "packages/server-field_service/src/adapters/final_root_consumer.rs",
+          "tests/unit/field_service/**",
+          "tests/integration/customer_360/**"
+        ],
+        "resources": [
+          "owner:field_service",
+          "owner:customer_360",
+          "resource:composition"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Lock final-root sources in Customer360Sources::prepare, inspect witness before and require_current after timeline reads, inject agreement/order event SQL, delete the 3 Field TS source entries and consumer import; record field_service 19->16.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "integrate.ecommerce.listing",
+        "goalId": "G3",
+        "owner": "ecommerce",
+        "title": "Mount ecommerce listing commands + TS client + route switch",
+        "kind": "integration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "src/composition/src/ecommerce_listing.rs",
+          "src/composition/src/ecommerce.rs",
+          "src/composition/src/lib.rs",
+          "src/composition/src/private_development_api.rs",
+          "packages/feature-sales/src/public/native-ecommerce-listing.ts",
+          "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/ecommerce/route.ts",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/ecommerce/screen.tsx",
+          "packages/server-ecommerce/src/**",
+          "tests/unit/ecommerce/**",
+          "tests/integration/ecommerce/**",
+          "tests/catalogue/suite-manifest.json"
+        ],
+        "resources": [
+          "owner:ecommerce",
+          "resource:composition"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Compose EcommerceListingHttpBackend with Commerce product/currency + Finance money ports, mount POST listings/changes, add strict TS command client, switch route, then retire TS createListing/changeEcommerce and overlay fields.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "integrate.commerce.quality-receipt-origin",
+        "goalId": "G3",
+        "owner": "commerce",
+        "title": "Mount Commerce quality receipt-origin read router",
+        "kind": "integration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "src/composition/src/private_development_api.rs"
+        ],
+        "resources": [
+          "resource:composition"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Mounted; owner router tests verify the read envelope.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.manufacturing.read-plan",
+        "goalId": "G4",
+        "owner": "manufacturing",
+        "title": "Manufacturing caller-unit read-plan registry + TS bridge",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-manufacturing/src/adapters/native_command_sql.rs",
+          "packages/server-manufacturing/src/adapters/native_command_http.rs",
+          "packages/server-manufacturing/src/adapters/native-manufacturing-read.ts",
+          "packages/server-manufacturing/src/public/native_command.rs",
+          "packages/server-manufacturing/src/public/native_command_http.rs",
+          "packages/server-manufacturing/src/lib.rs",
+          "packages/server-manufacturing/src/adapters/mod.rs",
+          "packages/server-manufacturing/src/public/mod.rs",
+          "packages/server-manufacturing/package.json",
+          "tests/unit/manufacturing/**",
+          "tests/integration/manufacturing/**"
+        ],
+        "resources": [
+          "owner:manufacturing"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Add RD_* registry (spec/spec-version/lines/orders/detail/reservations/events/posting/operations/lot/genealogy/accounting profiles) + /command-plan holding & company routes + strict TS read bridge; byte-parity tests per kind. No composition/consumer switch.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -115576,21 +115821,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 495,
+      "totalPackets": 498,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 20,
-        "in_progress": 11,
+        "pending": 21,
+        "in_progress": 14,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 135,
+        "blocked": 134,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T19:13:58.698Z",
+    "updatedAt": "2026-11-23T19:18:44.264Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
