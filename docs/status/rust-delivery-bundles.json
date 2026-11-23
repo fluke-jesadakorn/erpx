@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6546,
+    "revision": 6552,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-f",
       "agentId": "lead",
       "startedAt": "2026-11-23T16:54:33.142Z",
-      "heartbeatAt": "2026-11-23T19:02:05.064Z",
-      "expiresAt": "2026-11-23T19:32:05.064Z",
+      "heartbeatAt": "2026-11-23T19:13:58.694Z",
+      "expiresAt": "2026-11-23T19:43:58.694Z",
       "generation": 158,
       "tokenHash": "786b04e6db95d7a97c392a0b212dc2cfdd563bbd8cc6545681f5e6ff248eceaa"
     },
@@ -50671,8 +50671,8 @@
           "runId": "run-20261123-f",
           "agentId": "wN01",
           "claimedAt": "2026-11-23T18:15:53.634Z",
-          "heartbeatAt": "2026-11-23T19:02:05.064Z",
-          "expiresAt": "2026-11-23T19:32:05.064Z",
+          "heartbeatAt": "2026-11-23T19:13:58.694Z",
+          "expiresAt": "2026-11-23T19:43:58.694Z",
           "generation": 158
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -51292,15 +51292,8 @@
           "owner:organization",
           "owner:people_payroll"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wM02",
-          "claimedAt": "2026-11-23T18:11:26.006Z",
-          "heartbeatAt": "2026-11-23T19:02:05.064Z",
-          "expiresAt": "2026-11-23T19:32:05.064Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": "544eca24cec60cd947cb6904e01a54ada0184861",
         "lastPushedSha": null,
@@ -51562,15 +51555,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "408 recorded; next single-Company-keyed owner fact",
+        "blocker": "handoff",
+        "nextAction": "Paused at 408; workspace-route + remaining nodes reads need future claim",
         "handoff": {
           "runId": "run-20261123-f",
-          "agentId": "wK01",
-          "at": "2026-11-23T18:11:25.929Z",
+          "agentId": "wM02",
+          "at": "2026-11-23T19:13:39.751Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Integrated; claim released"
+          "nextAction": "Paused at 408; workspace-route + remaining nodes reads need future claim"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -110136,8 +110129,8 @@
           "runId": "run-20261123-f",
           "agentId": "wP01",
           "claimedAt": "2026-11-23T18:17:54.008Z",
-          "heartbeatAt": "2026-11-23T19:02:05.064Z",
-          "expiresAt": "2026-11-23T19:32:05.064Z",
+          "heartbeatAt": "2026-11-23T19:13:58.694Z",
+          "expiresAt": "2026-11-23T19:43:58.694Z",
           "generation": 158
         },
         "baseSha": "d15bbdf7095f86bedb5c69bd0f4b297c357f0061",
@@ -112508,8 +112501,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU02",
           "claimedAt": "2026-11-23T18:38:16.118Z",
-          "heartbeatAt": "2026-11-23T19:02:05.064Z",
-          "expiresAt": "2026-11-23T19:32:05.064Z",
+          "heartbeatAt": "2026-11-23T19:13:58.694Z",
+          "expiresAt": "2026-11-23T19:43:58.694Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114104,8 +114097,8 @@
           "runId": "run-20261123-f",
           "agentId": "wW02",
           "claimedAt": "2026-11-23T19:05:51.389Z",
-          "heartbeatAt": "2026-11-23T19:05:51.389Z",
-          "expiresAt": "2026-11-23T19:35:51.389Z",
+          "heartbeatAt": "2026-11-23T19:13:58.694Z",
+          "expiresAt": "2026-11-23T19:43:58.694Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114718,8 +114711,8 @@
           "runId": "run-20261123-f",
           "agentId": "wX01",
           "claimedAt": "2026-11-23T19:09:59.338Z",
-          "heartbeatAt": "2026-11-23T19:09:59.338Z",
-          "expiresAt": "2026-11-23T19:39:59.338Z",
+          "heartbeatAt": "2026-11-23T19:13:58.694Z",
+          "expiresAt": "2026-11-23T19:43:58.694Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115004,8 +114997,8 @@
           "runId": "run-20261123-f",
           "agentId": "wR02",
           "claimedAt": "2026-11-23T18:21:47.727Z",
-          "heartbeatAt": "2026-11-23T19:02:05.064Z",
-          "expiresAt": "2026-11-23T19:32:05.064Z",
+          "heartbeatAt": "2026-11-23T19:13:58.694Z",
+          "expiresAt": "2026-11-23T19:43:58.694Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115281,8 +115274,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU01",
           "claimedAt": "2026-11-23T18:38:16.034Z",
-          "heartbeatAt": "2026-11-23T19:02:05.064Z",
-          "expiresAt": "2026-11-23T19:32:05.064Z",
+          "heartbeatAt": "2026-11-23T19:13:58.694Z",
+          "expiresAt": "2026-11-23T19:43:58.694Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115320,8 +115313,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU03",
           "claimedAt": "2026-11-23T18:42:45.943Z",
-          "heartbeatAt": "2026-11-23T19:02:05.064Z",
-          "expiresAt": "2026-11-23T19:32:05.064Z",
+          "heartbeatAt": "2026-11-23T19:13:58.694Z",
+          "expiresAt": "2026-11-23T19:43:58.694Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115360,8 +115353,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU05",
           "claimedAt": "2026-11-23T18:47:54.577Z",
-          "heartbeatAt": "2026-11-23T19:02:05.064Z",
-          "expiresAt": "2026-11-23T19:32:05.064Z",
+          "heartbeatAt": "2026-11-23T19:13:58.694Z",
+          "expiresAt": "2026-11-23T19:43:58.694Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115412,8 +115405,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU06",
           "claimedAt": "2026-11-23T18:48:10.751Z",
-          "heartbeatAt": "2026-11-23T19:02:05.064Z",
-          "expiresAt": "2026-11-23T19:32:05.064Z",
+          "heartbeatAt": "2026-11-23T19:13:58.694Z",
+          "expiresAt": "2026-11-23T19:43:58.694Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115432,7 +115425,7 @@
         "owner": "benefits",
         "title": "Benefits workspace native read port with compatibility barrel (87->80)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -115448,22 +115441,47 @@
         "resources": [
           "owner:benefits"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wV01",
-          "claimedAt": "2026-11-23T19:01:51.970Z",
-          "heartbeatAt": "2026-11-23T19:02:05.064Z",
-          "expiresAt": "2026-11-23T19:32:05.064Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-benefits/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "9cd2a74ff",
+            "owner": "benefits",
+            "before": 87,
+            "after": 80,
+            "note": "wV01: native workspace/detail/work port; public barrel compatibility re-export."
+          },
+          {
+            "command": "cargo check -p erpx-server-benefits",
+            "result": "passed",
+            "sourceSha": "9cd2a74ff"
+          },
+          {
+            "command": "tsc server-benefits/work_projection/collaboration/feature-benefits",
+            "result": "passed",
+            "sourceSha": "9cd2a74ff"
+          },
+          {
+            "command": "vitest benefits native read + transport (48)",
+            "result": "passed",
+            "sourceSha": "9cd2a74ff"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement benefits-native-read (workspace/detail/work) over the mounted native client; delete SQL adapter; keep public/benefits.ts as a re-export compatibility barrel so work-items/records/collab keep compiling until a follow-up switch. Record 87->80.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; consumers switch next",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wV01",
+          "at": "2026-11-23T19:13:27.385Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; consumers switch next"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -115472,7 +115490,7 @@
         "owner": "identity_access",
         "title": "GPO rules native consumer cutover (identity 607->593)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -115497,7 +115515,14 @@
           "owner:organization",
           "owner:people_payroll"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wX02",
+          "claimedAt": "2026-11-23T19:13:39.854Z",
+          "heartbeatAt": "2026-11-23T19:13:58.694Z",
+          "expiresAt": "2026-11-23T19:43:58.694Z",
+          "generation": 158
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -115505,6 +115530,42 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Switch feature-admin technology route, workplace presenter query, organization drafts, and people-lifecycle to native GPO overview; add not-required to native command set; delete gpo-rules.ts/application/public (14 SELECTs), record 607->593, move position-gpo oracle.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.benefits.workspace-consumer-switch",
+        "goalId": "G4",
+        "owner": "benefits",
+        "title": "Switch benefits consumers to native read port and drop compatibility barrel",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-benefits/src/public/benefits.ts",
+          "packages/server-benefits/src/adapters/record-purchases.ts",
+          "packages/server-work_projection/src/adapters/work-items.ts",
+          "packages/server-records/src/adapters/record-domain-details.ts",
+          "packages/server-records/src/application/record-domain-details.ts",
+          "packages/server-collaboration/src/adapters/staff-notifications.ts",
+          "packages/server-collaboration/src/application/staff-notifications.ts",
+          "packages/server-benefits/package.json",
+          "tests/unit/benefits/**",
+          "tests/unit/shared.records/**"
+        ],
+        "resources": [
+          "owner:benefits"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Repoint work-items, record-purchases, records domain-details, and staff-notifications to public/benefits-native-read; delete the compatibility public/benefits.ts re-export; no KPI delta (0 SQL).",
         "handoff": null,
         "scopeRefinementRequired": false
       }
@@ -115515,21 +115576,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 494,
+      "totalPackets": 495,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 12,
+        "in_progress": 11,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 133,
+        "blocked": 135,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T19:13:05.635Z",
+    "updatedAt": "2026-11-23T19:13:58.698Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
