@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6244,
+    "revision": 6297,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-f",
       "agentId": "lead",
       "startedAt": "2026-11-23T16:54:33.142Z",
-      "heartbeatAt": "2026-11-23T16:54:33.142Z",
-      "expiresAt": "2026-11-23T17:24:33.142Z",
+      "heartbeatAt": "2026-11-23T17:14:11.855Z",
+      "expiresAt": "2026-11-23T17:44:11.855Z",
       "generation": 158,
       "tokenHash": "786b04e6db95d7a97c392a0b212dc2cfdd563bbd8cc6545681f5e6ff248eceaa"
     },
@@ -9764,8 +9764,15 @@
         "resources": [
           "owner:brand"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wA02",
+          "claimedAt": "2026-11-23T16:59:08.086Z",
+          "heartbeatAt": "2026-11-23T17:14:11.855Z",
+          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "generation": 158
+        },
         "baseSha": "f205ed3aac2d99e7cbef528a6426aeca2931161d",
         "implementedCommit": "e86bde6c6253fabee7f0982932389323c380f13b",
         "lastPushedSha": "e86bde6c6253fabee7f0982932389323c380f13b",
@@ -9991,7 +9998,7 @@
             "removalCondition": "Orchestration stays TS (locks, source-image stability recheck, denial flow); only the Brand image SQL moved native. No further removal in this packet."
           }
         ],
-        "blocker": "handoff",
+        "blocker": null,
         "retireTaskId": "retire.brand.attachment-facts",
         "nextAction": "Read-only worker review at be30e2e27; no runtime test rerun. Verify Brand identity Axum workspace and published mounts and fail-closed context headers; rerun branding_http and native identity parity.",
         "handoff": {
@@ -10582,8 +10589,15 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wC01",
+          "claimedAt": "2026-11-23T17:08:19.667Z",
+          "heartbeatAt": "2026-11-23T17:14:11.855Z",
+          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "generation": 158
+        },
         "baseSha": "0807b7d6ff9921cac319f5bc37fb02233edcbb52",
         "implementedCommit": "44ab017744a96545f6a230bb551d0f3b32365133",
         "lastPushedSha": "44ab017744a96545f6a230bb551d0f3b32365133",
@@ -10652,7 +10666,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Operator authorized takeover. Prior OpenCode session ended idle/interrupted; reviewed checkout and preserved all WIP for task-by-task reconciliation.",
+        "blocker": null,
         "retireTaskId": "retire.platform_administration.operations-writers",
         "nextAction": "Blocked on consumer switches, claim released",
         "handoff": {
@@ -11228,14 +11242,14 @@
             "removalCondition": "After same-source purchase decision/telemetry differential, migrate assertions to native-seeded fixed fixtures and delete this temporary TS helper before task closure."
           }
         ],
-        "blocker": "handoff",
+        "blocker": "released with work preserved",
         "nextAction": "HEAD and verified pushed SHA 77b57db71c7d58608a71d7155a21a0dcc32c30b5; preserve all uncommitted Portal WIP. Portal global lock chain, token-authenticated Control lease, native owner interactions, mode resolver and Commercial pre/before/after same-source tests pass; temporary TS oracles retained under migrate.customer_360 removal condition. BLOCKER production NODE_ENV release predicate requires actual sealed engineering attestation including native-service-child descriptor/hash/nonce/argv/resource roots; existing Platform bounded attestation/identity does not prove child branch, so no positive release authority can be claimed. Nonproduction release and disabled/shadow/enforced modes differ; Next/native launcher mode propagation also unproved. Implement source-bound Platform child verifier and fresh release decisions on isolated dev fixtures, prove mode/global lock/telemetry/Control/Files/Workflow/input and route/client parity then migrate oracles and delete TS writers. Owner KPI Customer 360 2, Collaboration 169, Workflow 95, total 1961. No staging/production access.",
         "handoff": {
-          "runId": "run-20261115-quality-n",
-          "agentId": "worker-customer",
-          "at": "2026-11-15T11:04:24.049Z",
+          "runId": "run-20261123-f",
+          "agentId": "wA03",
+          "at": "2026-11-23T17:09:43.267Z",
           "previousStatus": "in_progress",
-          "reason": "handoff",
+          "reason": "released with work preserved",
           "nextAction": "HEAD and verified pushed SHA 77b57db71c7d58608a71d7155a21a0dcc32c30b5; preserve all uncommitted Portal WIP. Portal global lock chain, token-authenticated Control lease, native owner interactions, mode resolver and Commercial pre/before/after same-source tests pass; temporary TS oracles retained under migrate.customer_360 removal condition. BLOCKER production NODE_ENV release predicate requires actual sealed engineering attestation including native-service-child descriptor/hash/nonce/argv/resource roots; existing Platform bounded attestation/identity does not prove child branch, so no positive release authority can be claimed. Nonproduction release and disabled/shadow/enforced modes differ; Next/native launcher mode propagation also unproved. Implement source-bound Platform child verifier and fresh release decisions on isolated dev fixtures, prove mode/global lock/telemetry/Control/Files/Workflow/input and route/client parity then migrate oracles and delete TS writers. Owner KPI Customer 360 2, Collaboration 169, Workflow 95, total 1961. No staging/production access."
         },
         "procedureRef": "executionPlan.sliceProcedure",
@@ -11811,18 +11825,38 @@
             "command": "cargo test pos_daycontrol 8/8",
             "result": "passed",
             "sourceSha": "9f6ab705dad60d644683a2026374c717a65c016d"
+          },
+          {
+            "command": "cargo check -p erpx-server-pos --locked",
+            "result": "passed",
+            "sourceSha": "f48e2c363037444936676a4117f4a9dd6a911935"
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "f48e2c363037444936676a4117f4a9dd6a911935"
+          },
+          {
+            "command": "test:unit pos.native-pos-cash-transport.unit",
+            "result": "passed",
+            "sourceSha": "f48e2c363037444936676a4117f4a9dd6a911935"
+          },
+          {
+            "command": "test:integration pos.rust-pos-workspace-postgres.integration",
+            "result": "passed",
+            "sourceSha": "f48e2c363037444936676a4117f4a9dd6a911935"
           }
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Worker ledger/source review at a741f2319; tests not rerun. Verify native workspace mount and rerun owner workspace HTTP and Postgres checks.",
+        "nextAction": "Query boundary fix integrated; payload parity decision is lead",
         "handoff": {
-          "runId": "run-20261123-codex",
-          "agentId": "hy4-heartbeat-2",
-          "at": "2026-11-23T15:59:05.044Z",
-          "previousStatus": "integrating",
+          "runId": "run-20261123-f",
+          "agentId": "wA05",
+          "at": "2026-11-23T17:13:50.564Z",
+          "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Worker ledger/source review at a741f2319; tests not rerun. Verify native workspace mount and rerun owner workspace HTTP and Postgres checks."
+          "nextAction": "Query boundary fix integrated; payload parity decision is lead"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-pos",
@@ -12081,18 +12115,33 @@
             "command": "vitest native-assets-transport 10/10",
             "result": "passed",
             "sourceSha": "ef6d5c7a3b1021ab332603cfce1dbb7396a611f7"
+          },
+          {
+            "command": "cargo check -p erpx-server-assets --offline",
+            "result": "passed",
+            "sourceSha": "9e64cfec077852474e7730abd654eca4509efa1b"
+          },
+          {
+            "command": "tsc server-assets",
+            "result": "passed",
+            "sourceSha": "9e64cfec077852474e7730abd654eca4509efa1b"
+          },
+          {
+            "command": "tsc feature-assets",
+            "result": "passed",
+            "sourceSha": "9e64cfec077852474e7730abd654eca4509efa1b"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Operator authorized takeover. Prior OpenCode session ended idle/interrupted; reviewed checkout and preserved all WIP for task-by-task reconciliation.",
-        "nextAction": "Lead integrated, worker claim released",
+        "blocker": "handoff",
+        "nextAction": "Owner complete; lead binds descriptor in Files policy unit",
         "handoff": {
-          "runId": "run-20261123-e",
-          "agentId": "lead",
-          "at": "2026-11-23T15:20:03.262Z",
-          "previousStatus": "integrating",
-          "reason": "Recovery: Operator authorized takeover. Prior OpenCode session ended idle/interrupted; reviewed checkout and preserved all WIP for task-by-task reconciliation.",
-          "nextAction": "Lead integrated, worker claim released"
+          "runId": "run-20261123-f",
+          "agentId": "wA19",
+          "at": "2026-11-23T17:05:46.183Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Owner complete; lead binds descriptor in Files policy unit"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-assets",
@@ -13731,19 +13780,29 @@
             "sourceSha": "10cd323cecfa218b20cdd2a78cc2fb1acb459e4d",
             "before": 55,
             "after": 51
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "9e64cfec077852474e7730abd654eca4509efa1b"
+          },
+          {
+            "command": "tsc server-planning",
+            "result": "passed",
+            "sourceSha": "9e64cfec077852474e7730abd654eca4509efa1b"
           }
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
         "retireTaskId": "retire.planning.production-command-sources",
-        "nextAction": "Worker ledger/source review at a741f2319; tests not rerun. Verify private Axum mount with service compile and owner statements count.",
+        "nextAction": "Checks recorded; command transport fixed; rerun command suites when WIP settles",
         "handoff": {
-          "runId": "run-20261123-codex",
-          "agentId": "hy4-heartbeat-3",
-          "at": "2026-11-23T15:59:05.117Z",
-          "previousStatus": "integrating",
+          "runId": "run-20261123-f",
+          "agentId": "wA06",
+          "at": "2026-11-23T17:07:46.771Z",
+          "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Worker ledger/source review at a741f2319; tests not rerun. Verify private Axum mount with service compile and owner statements count."
+          "nextAction": "Checks recorded; command transport fixed; rerun command suites when WIP settles"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-manufacturing",
@@ -14038,8 +14097,15 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wB09",
+          "claimedAt": "2026-11-23T17:00:00.290Z",
+          "heartbeatAt": "2026-11-23T17:14:11.855Z",
+          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "generation": 158
+        },
         "baseSha": "ec09d655f70a7ad6deb6342c2ad7be02ae6651af",
         "implementedCommit": "dd392c70c19e127c2c1fe61a1e6514f8364b7523",
         "lastPushedSha": null,
@@ -14120,7 +14186,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Blocked on L1, claim released",
         "handoff": {
           "runId": "run-20261123-e",
@@ -14515,8 +14581,15 @@
         "resources": [
           "owner:talent"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wB11",
+          "claimedAt": "2026-11-23T17:00:00.408Z",
+          "heartbeatAt": "2026-11-23T17:14:11.855Z",
+          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "generation": 158
+        },
         "baseSha": "ec09d655f70a7ad6deb6342c2ad7be02ae6651af",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -14563,7 +14636,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Operator authorized takeover. Prior OpenCode session ended idle/interrupted; reviewed checkout and preserved all WIP for task-by-task reconciliation.",
+        "blocker": null,
         "nextAction": "Blocked on seams, claim released",
         "handoff": {
           "runId": "run-20261123-e",
@@ -15558,18 +15631,33 @@
             "command": "tsc server-pms clean",
             "result": "passed",
             "sourceSha": "8785f0f3f801919cbad372acdc6145b1f487184a"
+          },
+          {
+            "command": "cargo check -p erpx-server-pms",
+            "result": "passed",
+            "sourceSha": "f48e2c363037444936676a4117f4a9dd6a911935"
+          },
+          {
+            "command": "tsc feature-pms",
+            "result": "passed",
+            "sourceSha": "f48e2c363037444936676a4117f4a9dd6a911935"
+          },
+          {
+            "command": "test:unit pms.native-pms-transport.unit",
+            "result": "passed",
+            "sourceSha": "f48e2c363037444936676a4117f4a9dd6a911935"
           }
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Env blocked, claim released",
+        "nextAction": "Entries cut integrated; env/config is lead-ops",
         "handoff": {
-          "runId": "run-20261123-e",
-          "agentId": "worker-pms6",
-          "at": "2026-11-23T14:17:32.995Z",
+          "runId": "run-20261123-f",
+          "agentId": "wA20",
+          "at": "2026-11-23T17:13:29.717Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Env blocked, claim released"
+          "nextAction": "Entries cut integrated; env/config is lead-ops"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-pms",
@@ -15646,8 +15734,15 @@
         "resources": [
           "owner:manage_erpx"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wC02",
+          "claimedAt": "2026-11-23T17:08:19.750Z",
+          "heartbeatAt": "2026-11-23T17:14:11.855Z",
+          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "generation": 158
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -15674,7 +15769,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "At be30e2e27, compare existing onboarding packet 54e8ffa2 with current source and confirm the seven reported residual writes before adding bounded retire.manage_erpx.residual-writers with the CLI. Read-only ledger and source review complete. No new runtime tests or cutover.",
         "handoff": {
           "runId": "run-20261123-codex",
@@ -18657,18 +18752,23 @@
             "command": "cargo test position_moves 6/6",
             "result": "passed",
             "sourceSha": "3d7fa5a4ba5bb940bfe3cd3a8a828458f849784c"
+          },
+          {
+            "command": "cargo check -p erpx-server-organization -p erpx-server-people-payroll --offline --locked",
+            "result": "passed",
+            "sourceSha": "2373c3c4b591238a614d3041ac1dbb9da9e3afde"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Operator authorized takeover. Prior OpenCode session ended idle/interrupted; reviewed checkout and preserved all WIP for task-by-task reconciliation.",
-        "nextAction": "Env not ready, claim released",
+        "blocker": "handoff",
+        "nextAction": "Spec recorded for ops worker registration",
         "handoff": {
-          "runId": "run-20261123-e",
-          "agentId": "worker-orgM3",
-          "at": "2026-11-23T15:20:03.262Z",
+          "runId": "run-20261123-f",
+          "agentId": "wA07",
+          "at": "2026-11-23T17:07:46.937Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Operator authorized takeover. Prior OpenCode session ended idle/interrupted; reviewed checkout and preserved all WIP for task-by-task reconciliation.",
-          "nextAction": "Env not ready, claim released"
+          "reason": "handoff",
+          "nextAction": "Spec recorded for ops worker registration"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-organization",
@@ -29036,18 +29136,33 @@
             "sourceSha": "ec09d655f70a7ad6deb6342c2ad7be02ae6651af",
             "before": 9,
             "after": 0
+          },
+          {
+            "command": "cargo check -p erpx-server-operations --offline",
+            "result": "passed",
+            "sourceSha": "9e64cfec077852474e7730abd654eca4509efa1b"
+          },
+          {
+            "command": "tsc server-operations",
+            "result": "passed",
+            "sourceSha": "9e64cfec077852474e7730abd654eca4509efa1b"
+          },
+          {
+            "command": "validate",
+            "result": "passed",
+            "sourceSha": "9e64cfec077852474e7730abd654eca4509efa1b"
           }
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Read-only worker review at be30e2e27; no runtime test rerun. Review source-bound zero-writer evidence before closing; track native routine read port and Work projection consumers separately.",
+        "nextAction": "Write retirement complete; read port is a follow-on bounded task",
         "handoff": {
-          "runId": "run-20261123-codex",
-          "agentId": "hy4-operations",
-          "at": "2026-11-23T15:27:50.143Z",
-          "previousStatus": "integrating",
+          "runId": "run-20261123-f",
+          "agentId": "wA16",
+          "at": "2026-11-23T17:05:45.992Z",
+          "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Read-only worker review at be30e2e27; no runtime test rerun. Review source-bound zero-writer evidence before closing; track native routine read port and Work projection consumers separately."
+          "nextAction": "Write retirement complete; read port is a follow-on bounded task"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -30409,18 +30524,33 @@
             "sourceSha": "1cfea241a4100be2e02346621f01d17558fae717",
             "before": 12,
             "after": 0
+          },
+          {
+            "command": "cargo check -p erpx-server-work-projection --offline",
+            "result": "passed",
+            "sourceSha": "2373c3c4b591238a614d3041ac1dbb9da9e3afde"
+          },
+          {
+            "command": "cargo test work_projection_calendar_spec work_projection_calendar_read_spec work_report_read_http",
+            "result": "passed",
+            "sourceSha": "2373c3c4b591238a614d3041ac1dbb9da9e3afde"
+          },
+          {
+            "command": "structure:check",
+            "result": "passed",
+            "sourceSha": "2373c3c4b591238a614d3041ac1dbb9da9e3afde"
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease run-d expired at 13:35Z during worker integration; WIP reconciled, no live coordinator process, tree preserved",
-        "nextAction": "Lead integrated, worker claim released",
+        "blocker": "handoff",
+        "nextAction": "Spec recorded; claim released",
         "handoff": {
-          "runId": "run-20261123-d",
-          "agentId": "lead",
-          "at": "2026-11-23T13:55:48.687Z",
-          "previousStatus": "integrating",
-          "reason": "Recovery: Lease run-d expired at 13:35Z during worker integration; WIP reconciled, no live coordinator process, tree preserved",
-          "nextAction": "Lead integrated, worker claim released"
+          "runId": "run-20261123-f",
+          "agentId": "wA18",
+          "at": "2026-11-23T17:08:58.546Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Spec recorded; claim released"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -31807,8 +31937,15 @@
         "resources": [
           "owner:agent"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wC03",
+          "claimedAt": "2026-11-23T17:08:19.842Z",
+          "heartbeatAt": "2026-11-23T17:14:11.855Z",
+          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "generation": 158
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -31837,7 +31974,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Blocked on the gateway native-port authorization decision; audit recorded. Released.",
         "handoff": {
           "runId": "run-20261113-f",
@@ -36156,18 +36293,33 @@
             "sourceSha": "43c8fd81b92b82678f376b5d7d156d0fd42b5c48",
             "before": 36,
             "after": 0
+          },
+          {
+            "command": "cargo check -p erpx-server-runtime --locked",
+            "result": "passed",
+            "sourceSha": "44c987072138b8275fa84f84ca934535ae896347"
+          },
+          {
+            "command": "tsc server-runtime",
+            "result": "passed",
+            "sourceSha": "44c987072138b8275fa84f84ca934535ae896347"
+          },
+          {
+            "command": "tsc feature-runtime",
+            "result": "passed",
+            "sourceSha": "44c987072138b8275fa84f84ca934535ae896347"
           }
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Read-only worker review at be30e2e27; no runtime test rerun. Trace executive MCP stmt_16/17 callers, then refine a packet limited to that writer group and rerun runtime compile and owner KPI.",
+        "nextAction": "Spec recorded; claim released",
         "handoff": {
-          "runId": "run-20261123-codex",
-          "agentId": "hy4-wave-8",
-          "at": "2026-11-23T15:27:50.488Z",
-          "previousStatus": "integrating",
+          "runId": "run-20261123-f",
+          "agentId": "wA13",
+          "at": "2026-11-23T17:10:30.371Z",
+          "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Read-only worker review at be30e2e27; no runtime test rerun. Trace executive MCP stmt_16/17 callers, then refine a packet limited to that writer group and rerun runtime compile and owner KPI."
+          "nextAction": "Spec recorded; claim released"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false,
@@ -40838,8 +40990,15 @@
         "resources": [
           "owner:records"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wC13",
+          "claimedAt": "2026-11-23T17:09:52.500Z",
+          "heartbeatAt": "2026-11-23T17:14:11.855Z",
+          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "generation": 158
+        },
         "baseSha": null,
         "implementedCommit": "abce68358b25ebef5007cb5deeb65b227d78d9fc",
         "lastPushedSha": null,
@@ -40898,7 +41057,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Operator authorized takeover. Prior OpenCode session ended idle/interrupted; reviewed checkout and preserved all WIP for task-by-task reconciliation.",
+        "blocker": null,
         "nextAction": "Lead landed port at abce6835 (pushed, remote verified): compiles, PG 1/1, catalogue registered. TS drain retained (native jobs runtime missing); mount + deletion when the native worker exists.",
         "handoff": {
           "runId": "run-20261123-e",
@@ -45386,8 +45545,15 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wC04",
+          "claimedAt": "2026-11-23T17:08:19.933Z",
+          "heartbeatAt": "2026-11-23T17:14:11.855Z",
+          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "generation": 158
+        },
         "baseSha": null,
         "implementedCommit": "151c7daa379ae71ea9dbd5816717f4e5f4ada32b",
         "lastPushedSha": "151c7daa379ae71ea9dbd5816717f4e5f4ada32b",
@@ -45439,7 +45605,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Lead ran cargo test --locked -p erpx-server-manufacturing --test manufacturing_lots at a741f2319 working tree: 13 passed; git diff --check passed. Verify actual Axum command authority and source-bound owner retirement delta before integrating.",
         "handoff": {
           "runId": "run-20261123-codex",
@@ -50899,8 +51065,15 @@
           "owner:organization",
           "owner:people_payroll"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wC10",
+          "claimedAt": "2026-11-23T17:09:52.294Z",
+          "heartbeatAt": "2026-11-23T17:14:11.855Z",
+          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "generation": 158
+        },
         "baseSha": null,
         "implementedCommit": "544eca24cec60cd947cb6904e01a54ada0184861",
         "lastPushedSha": null,
@@ -51024,7 +51197,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "At a741f2319 trace live callers of the position-move TS application before removing graph and leave-impact ports. People route reportedly selects native. Verify no legacy oracle still requires the TS application; worker source review only.",
         "handoff": {
           "runId": "run-20261123-codex",
@@ -52997,8 +53170,15 @@
           "owner:commercial",
           "resource:composition"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wC09",
+          "claimedAt": "2026-11-23T17:09:43.405Z",
+          "heartbeatAt": "2026-11-23T17:14:11.855Z",
+          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "generation": 158
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -53241,7 +53421,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Previous run lease expired; WIP reviewed",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261116-retirement-b",
           "agentId": "lead",
@@ -109556,8 +109736,15 @@
         "resources": [
           "owner:files"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wC12",
+          "claimedAt": "2026-11-23T17:09:52.403Z",
+          "heartbeatAt": "2026-11-23T17:14:11.855Z",
+          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "generation": 158
+        },
         "baseSha": "d15bbdf7095f86bedb5c69bd0f4b297c357f0061",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -109587,7 +109774,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261123-codex",
           "agentId": "codex-lead",
@@ -109770,8 +109957,15 @@
         "resources": [
           "owner:legal"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wB05",
+          "claimedAt": "2026-11-23T16:59:59.566Z",
+          "heartbeatAt": "2026-11-23T17:14:11.855Z",
+          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "generation": 158
+        },
         "baseSha": "dbb5267714fb222c1665428fc0b7c9aec613e926",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -109812,7 +110006,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "handoff": {
           "runId": "run-codex-inventory-parity",
           "agentId": "hy4-legal-next",
@@ -109847,8 +110041,15 @@
         "resources": [
           "owner:pms"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wC14",
+          "claimedAt": "2026-11-23T17:13:29.800Z",
+          "heartbeatAt": "2026-11-23T17:14:11.855Z",
+          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "generation": 158
+        },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -109884,7 +110085,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261123-codex",
           "agentId": "hy4-pms",
@@ -111368,8 +111569,15 @@
         "resources": [
           "owner:pos"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wC15",
+          "claimedAt": "2026-11-23T17:13:50.646Z",
+          "heartbeatAt": "2026-11-23T17:14:11.855Z",
+          "expiresAt": "2026-11-23T17:44:11.855Z",
+          "generation": 158
+        },
         "baseSha": "b43f5c44303dce8d26635e05538a1877c2fac494",
         "implementedCommit": "80f0c1f7866d983981ecff82112a6e5587c982fb",
         "lastPushedSha": "80f0c1f7866d983981ecff82112a6e5587c982fb",
@@ -111543,7 +111751,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Registers-front done. Claim to port catalog/shifts family next.",
         "handoff": {
           "runId": "run-20261123-d",
@@ -112341,6 +112549,172 @@
           "nextAction": "Lead recorded, worker claim released"
         },
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.benefits.workspace-read",
+        "owner": "benefits",
+        "title": "Native benefits workspace/detail reads (7 SELECT -> 0)",
+        "allowedPaths": [
+          "packages/server-benefits/src/adapters/benefits.ts",
+          "packages/server-benefits/src/public/benefits.ts",
+          "packages/feature-benefits/src/public/**",
+          "packages/feature-benefits/src/components/**",
+          "packages/feature-people/src/routes/api/v1/holdings/[holdingSlug]/benefits/route.ts",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/benefits",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/people-organization/benefits",
+          "tests/unit/benefits/**",
+          "tests/integration/benefits/**"
+        ],
+        "resources": [
+          "owner:benefits"
+        ],
+        "nextAction": "Remove native-first fallbacks and detail presenter TS path; delete 7 SELECT adapter; record strictly lower statements",
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wD03",
+          "claimedAt": "2026-11-23T17:15:22.471Z",
+          "heartbeatAt": "2026-11-23T17:15:22.471Z",
+          "expiresAt": "2026-11-23T17:45:22.471Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false,
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": []
+      },
+      {
+        "id": "retire.learning.workspace-read",
+        "owner": "learning",
+        "title": "Native learning workspace/detail reads (7 SELECT -> 0)",
+        "allowedPaths": [
+          "packages/server-learning/src/adapters/learning.ts",
+          "packages/server-learning/src/public/learning.ts",
+          "packages/feature-learn/src/routes/api/v1/holdings/[holdingSlug]/learning/route.ts",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/knowledge",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/knowledge",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/learning",
+          "tests/unit/learning/**",
+          "tests/integration/learning/**"
+        ],
+        "resources": [
+          "owner:learning"
+        ],
+        "nextAction": "Switch feature-learn/workplace consumers to nativeLearningPage only; delete learningWorkspace/learningAssignmentDetail SQL + exports; record 100->93 statements",
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wD01",
+          "claimedAt": "2026-11-23T17:15:22.271Z",
+          "heartbeatAt": "2026-11-23T17:15:22.271Z",
+          "expiresAt": "2026-11-23T17:45:22.271Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false,
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": []
+      },
+      {
+        "id": "retire.reads.projects.milestones",
+        "owner": "projects",
+        "title": "Native project milestones read (2 SELECT -> 0)",
+        "allowedPaths": [
+          "packages/server-projects/src/adapters/milestones.ts",
+          "packages/server-projects/src/adapters/project_wbs_read.rs",
+          "packages/server-projects/src/adapters/project_wbs_http.rs",
+          "packages/server-projects/src/adapters/structure.ts",
+          "packages/server-projects/src/public/project-milestones.ts",
+          "packages/server-work_projection/src/adapters/staff-api.ts",
+          "packages/server-work_projection/src/adapters/presentation-context-queries.ts",
+          "tests/unit/projects/**",
+          "tests/integration/projects/**"
+        ],
+        "resources": [
+          "owner:projects"
+        ],
+        "nextAction": "Switch staff-api/presentation/structure to native WBS milestones; add owner_name/is_overdue parity if needed; delete 2 SELECTs",
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wD04",
+          "claimedAt": "2026-11-23T17:15:22.573Z",
+          "heartbeatAt": "2026-11-23T17:15:22.573Z",
+          "expiresAt": "2026-11-23T17:45:22.573Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false,
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": []
+      },
+      {
+        "id": "retire.support.sales-customer-support",
+        "owner": "support",
+        "title": "Native support workspace/recipients for Sales customer view (4 SELECT -> 0)",
+        "allowedPaths": [
+          "packages/server-support/src/adapters/support.ts",
+          "packages/server-support/src/public/support.ts",
+          "packages/feature-support/src/adapters/server/native-support-read.ts",
+          "packages/feature-support/src/lib/native-support-read.ts",
+          "packages/feature-sales/src/components/customers/customer-views.tsx",
+          "packages/feature-sales/src/adapters/server/next-native-support-read.ts",
+          "tests/unit/support/**",
+          "tests/integration/support/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "nextAction": "Bind CustomerSupportView to native support reader via WorkContext adapter; delete TS supportWorkspace/supportRecipients; record 169->165",
+        "goalId": "G4",
+        "kind": "migration",
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wD02",
+          "claimedAt": "2026-11-23T17:15:22.369Z",
+          "heartbeatAt": "2026-11-23T17:15:22.369Z",
+          "expiresAt": "2026-11-23T17:45:22.369Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "handoff": null,
+        "scopeRefinementRequired": false,
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": []
       }
     ],
     "migrationProgress": {
@@ -112349,21 +112723,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 457,
+      "totalPackets": 461,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 0,
+        "in_progress": 18,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 113,
+        "blocked": 99,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T16:54:33.145Z",
+    "updatedAt": "2026-11-23T17:15:22.578Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
