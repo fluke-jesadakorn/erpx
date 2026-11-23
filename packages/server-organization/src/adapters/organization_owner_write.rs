@@ -61,6 +61,18 @@ pub const DRAFT_POSITION_APPLY: &str = "draft_position_apply";
 pub const DRAFT_RESERVATION_DELETE: &str = "draft_reservation_delete";
 pub const DRAFT_REQUEST_NEEDS_REVIEW: &str = "draft_request_needs_review";
 
+// -- organization-drafts: orchestration reads ---------------------------------
+/// Native-owned, Company-keyed draft reads. SELECT-only and executed on the
+/// caller's unit; every permission check stays in the TypeScript application
+/// and the transport never substitutes for that check.
+pub const DRAFT_READ_ACTIVE: &str = "draft_read_active";
+pub const DRAFT_READ_BY_ID: &str = "draft_read_by_id";
+pub const DRAFT_READ_RECENT: &str = "draft_read_recent";
+pub const DRAFT_READ_PENDING_POSITIONS: &str = "draft_read_pending_positions";
+pub const DRAFT_READ_RESERVATIONS: &str = "draft_read_reservations";
+pub const DRAFT_READ_LEVEL_LEAVE_DEFAULT: &str = "draft_read_level_leave_default";
+pub const DRAFT_READ_NODE_CHANGE_STATE: &str = "draft_read_node_change_state";
+
 // -- organization.ts ----------------------------------------------------------
 pub const NODE_CREATE: &str = "node_create";
 pub const NODE_RELOCATE_COPY: &str = "node_relocate_copy";
@@ -148,6 +160,13 @@ pub const KINDS: &[&str] = &[
     DRAFT_POSITION_APPLY,
     DRAFT_RESERVATION_DELETE,
     DRAFT_REQUEST_NEEDS_REVIEW,
+    DRAFT_READ_ACTIVE,
+    DRAFT_READ_BY_ID,
+    DRAFT_READ_RECENT,
+    DRAFT_READ_PENDING_POSITIONS,
+    DRAFT_READ_RESERVATIONS,
+    DRAFT_READ_LEVEL_LEAVE_DEFAULT,
+    DRAFT_READ_NODE_CHANGE_STATE,
     NODE_CREATE,
     NODE_RELOCATE_COPY,
     NODE_ARCHIVE,
@@ -296,6 +315,27 @@ fn sql(kind: &str) -> Option<&'static str> {
         DRAFT_RESERVATION_DELETE => "DELETE FROM organization_draft_reservations WHERE request_id=?",
         DRAFT_REQUEST_NEEDS_REVIEW => {
             "UPDATE organization_draft_requests SET state='needs_review',last_error=?,updated_at=? WHERE id=? AND state!='applied'"
+        }
+        DRAFT_READ_ACTIVE => {
+            "SELECT * FROM organization_drafts WHERE company_id=? AND owner_id=? AND state='draft'"
+        }
+        DRAFT_READ_BY_ID => {
+            "SELECT * FROM organization_drafts WHERE company_id=? AND owner_id=? AND id=?"
+        }
+        DRAFT_READ_RECENT => {
+            "SELECT id,updated_at,jsonb_array_length(definition->'items') count FROM organization_drafts WHERE company_id=? AND owner_id=? AND state='submitted' ORDER BY updated_at DESC LIMIT 20"
+        }
+        DRAFT_READ_PENDING_POSITIONS => {
+            "SELECT position_id FROM organization_position_moves WHERE company_id=? AND status='scheduled'"
+        }
+        DRAFT_READ_RESERVATIONS => {
+            "SELECT kind,entity_id FROM organization_draft_reservations WHERE company_id=?"
+        }
+        DRAFT_READ_LEVEL_LEAVE_DEFAULT => {
+            "SELECT 1 FROM level_leave_defaults WHERE company_id=? AND level_id=?"
+        }
+        DRAFT_READ_NODE_CHANGE_STATE => {
+            "SELECT state FROM organization_node_changes WHERE id=? AND company_id=?"
         }
         NODE_CREATE => {
             "INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status,hierarchy_revision) VALUES(?,?,?,?,?,?,?,'active',1)"
@@ -734,5 +774,52 @@ mod tests {
                 "roster read binds exactly the Company: {kind}"
             );
         }
+    }
+
+    /// Draft orchestration reads are native-owned, SELECT-only and Company
+    /// keyed. The TypeScript application keeps every permission check; the
+    /// transport only selects the statement text and binds caller values.
+    #[test]
+    fn draft_orchestration_read_kinds_are_select_only_and_company_scoped() {
+        let kinds = [
+            (DRAFT_READ_ACTIVE, 2usize),
+            (DRAFT_READ_BY_ID, 3),
+            (DRAFT_READ_RECENT, 2),
+            (DRAFT_READ_PENDING_POSITIONS, 1),
+            (DRAFT_READ_RESERVATIONS, 1),
+            (DRAFT_READ_LEVEL_LEAVE_DEFAULT, 2),
+            (DRAFT_READ_NODE_CHANGE_STATE, 2),
+        ];
+        for (kind, expected) in kinds {
+            assert!(supported(kind), "draft read kind must be allow listed: {kind}");
+            let statement = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
+            assert!(
+                statement.starts_with("SELECT "),
+                "draft read must be SELECT-only: {kind}"
+            );
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+                assert!(
+                    !statement.contains(forbidden),
+                    "draft read must not mutate or lock: {kind} contains {forbidden}"
+                );
+            }
+            assert!(
+                statement.contains("company_id=?"),
+                "draft read must be Company scoped: {kind}"
+            );
+            assert_eq!(
+                statement.matches('?').count(),
+                expected,
+                "draft read parameter count: {kind}"
+            );
+        }
+        let (statement, values) = owner_statement(
+            DRAFT_READ_BY_ID,
+            &[Value::from("company"), Value::from("owner"), Value::from("draft")],
+        )
+        .expect("draft read by id statement");
+        assert_eq!(values.len(), 3);
+        assert!(statement.contains("company_id=?"));
+        assert!(owner_statement(DRAFT_READ_ACTIVE, &[Value::from("company")]).is_err());
     }
 }
