@@ -910,3 +910,110 @@ fn presentation_media_urls_escape_identifiers_and_the_context_fails_closed() {
         Some("/api/v1/holdings/acme/branches/branch-1/attachments/attach-1/content")
     );
 }
+
+async fn record_branch(
+    pool: &DatabasePool,
+    actor: &BrandActor,
+    kind: &str,
+    id: &str,
+) -> Result<Option<String>, Error> {
+    let actor = actor.clone();
+    let kind = kind.to_owned();
+    let id = id.to_owned();
+    PgUnitOfWork::new(pool.clone())
+        .run::<_, BusinessError, _>(TransactionOptions::default(), move |c| {
+            let actor = actor.clone();
+            let kind = kind.clone();
+            let id = id.clone();
+            Box::pin(async move {
+                let mut ports = PgBranding::new(c, &actor, NOW);
+                ports.record_branch(&kind, &id).await
+            })
+        })
+        .await
+}
+
+async fn seed_record_branch(pool: &DatabasePool) {
+    sqlx::raw_sql(
+        "INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,status) VALUES\
+          ('other-company','company','other-company','Other Company',NULL,'other-company','active'),\
+          ('branch-2','branch','branch-2','Branch Two','company','company','active'),\
+          ('branch-foreign','branch','branch-foreign','Foreign Branch','other-company','other-company','active');\
+         INSERT INTO finance_charts(id,company_id,name,base_currency,created_by,created_at,updated_at)\
+          VALUES('chart','company','Chart','USD','owner',1,1);\
+         INSERT INTO finance_periods(id,company_id,name,start_date,end_date,created_at)\
+          VALUES('period','company','2026','2026-01-01','2026-12-31',1);\
+         INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,created_at,updated_at) VALUES\
+          ('acct-debit','chart','company','1000','Debit','asset',1,1),\
+          ('acct-credit','chart','company','4000','Credit','revenue',1,1);\
+         INSERT INTO finance_parties(id,company_id,kind,code,name,currency,created_at,updated_at)\
+          VALUES('party','company','supplier','SUP','Supplier','USD',1,1);\
+         INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name)\
+          VALUES('warehouse','company','branch-1','WH','Warehouse');\
+         INSERT INTO commerce_orders(id,company_id,branch_id,kind,number,party_id,warehouse_id,currency,order_date,due_date,subtotal_minor,tax_minor,created_by,created_at,updated_at) VALUES\
+          ('order-1','company','branch-1','purchase','order-1','party','warehouse','USD','2026-01-01','2026-01-02',100,0,'owner',1,1),\
+          ('order-2','company','branch-2','purchase','order-2','party','warehouse','USD','2026-01-01','2026-01-02',100,0,'owner',1,1),\
+          ('order-foreign','other-company','branch-foreign','purchase','order-foreign','party','warehouse','USD','2026-01-01','2026-01-02',100,0,'owner',1,1);\
+         INSERT INTO finance_expenses(id,company_id,branch_id,created_by,created_at,updated_at) VALUES\
+          ('expense-1','company','branch-1','owner',1,1),\
+          ('expense-null','company',NULL,'owner',1,1),\
+          ('expense-foreign','other-company','branch-foreign','owner',1,1);\
+         INSERT INTO commerce_fulfillments(id,order_id,number,fulfillment_date,created_by,created_at) VALUES\
+          ('fulfill-1','order-1','fulfill-1','2026-01-01','owner',1),\
+          ('fulfill-2','order-2','fulfill-2','2026-01-01','owner',1);\
+         INSERT INTO finance_invoices(id,company_id,party_id,kind,invoice_number,invoice_date,due_date,currency,subtotal_minor,total_minor,outstanding_minor,debit_account_id,credit_account_id,source_type,source_id,created_by,created_at,updated_at) VALUES\
+          ('invoice-fulfill','company','party','payable','inv-fulfill','2026-01-01','2026-01-02','USD',100,100,100,'acct-debit','acct-credit','commerce_fulfillment','fulfill-1','owner',1,1),\
+          ('invoice-expense','company','party','payable','inv-expense','2026-01-01','2026-01-02','USD',100,100,100,'acct-debit','acct-credit','expense_claim','expense-1','owner',1,1),\
+          ('invoice-2','company','party','payable','inv-2','2026-01-01','2026-01-02','USD',100,100,100,'acct-debit','acct-credit','commerce_fulfillment','fulfill-2','owner',1,1),\
+          ('invoice-other','company','party','payable','inv-other','2026-01-01','2026-01-02','USD',100,100,100,'acct-debit','acct-credit','manual',NULL,'owner',1,1);\
+         INSERT INTO finance_payments(id,company_id,kind,payment_number,payment_date,currency,amount_minor,outstanding_minor,created_by,created_at,updated_at) VALUES\
+          ('payment-same','company','payment','pay-same','2026-01-01','USD',200,200,'owner',1,1),\
+          ('payment-mixed','company','payment','pay-mixed','2026-01-01','USD',200,200,'owner',1,1);\
+         INSERT INTO finance_allocations(id,company_id,payment_id,invoice_id,amount_minor,created_by,created_at) VALUES\
+          ('alloc-1','company','payment-same','invoice-fulfill',100,'owner',1),\
+          ('alloc-2','company','payment-same','invoice-expense',100,'owner',1),\
+          ('alloc-3','company','payment-mixed','invoice-fulfill',100,'owner',1),\
+          ('alloc-4','company','payment-mixed','invoice-2',100,'owner',1);\
+         INSERT INTO inventory_counts(id,company_id,branch_id,warehouse_id,number,count_date,reason,created_by,prepared_by,created_at,updated_at)\
+          VALUES('count-1','company','branch-1','warehouse','count-1','2026-01-01','Cycle','owner','owner',1,1);\
+         INSERT INTO finance_journals(id,company_id,chart_id,period_id,journal_number,entry_date,currency,source_type,source_id,created_by,created_at,updated_at) VALUES\
+          ('journal-expense','company','chart','period','j-expense','2026-01-01','USD','expense_claim','expense-1','owner',1,1),\
+          ('journal-count','company','chart','period','j-count','2026-01-01','USD','stock_count','count-1','owner',1,1),\
+          ('journal-other','company','chart','period','j-other','2026-01-01','USD','manual',NULL,'owner',1,1);",
+    )
+    .execute(pool.raw())
+    .await
+    .unwrap();
+}
+
+#[tokio::test]
+async fn record_branch_resolves_native_documents_and_keeps_null_semantics() {
+    fixture::with_database(2, |pool| async move {
+        migrate(&pool).await;
+        seed(&pool).await;
+        seed_record_branch(&pool).await;
+        let owner = owner();
+
+        let branch = |kind: &'static str, id: &'static str| async {
+            record_branch(&pool, &owner, kind, id).await.unwrap()
+        };
+        assert_eq!(branch("order", "order-1").await.as_deref(), Some("branch-1"));
+        assert_eq!(branch("expense", "expense-1").await.as_deref(), Some("branch-1"));
+        assert_eq!(branch("expense", "expense-null").await, None);
+        assert_eq!(branch("invoice", "invoice-fulfill").await.as_deref(), Some("branch-1"));
+        assert_eq!(branch("invoice", "invoice-expense").await.as_deref(), Some("branch-1"));
+        assert_eq!(branch("invoice", "invoice-other").await, None);
+        assert_eq!(branch("payment", "payment-same").await.as_deref(), Some("branch-1"));
+        assert_eq!(branch("payment", "payment-mixed").await, None);
+        assert_eq!(branch("journal", "journal-expense").await.as_deref(), Some("branch-1"));
+        assert_eq!(branch("journal", "journal-count").await.as_deref(), Some("branch-1"));
+        assert_eq!(branch("journal", "journal-other").await, None);
+
+        // No record, another Company and an unknown kind never resolve a Branch.
+        assert_eq!(branch("order", "missing").await, None);
+        assert_eq!(branch("order", "order-foreign").await, None);
+        assert_eq!(branch("expense", "expense-foreign").await, None);
+        assert_eq!(code(record_branch(&pool, &owner, "unknown", "order-1").await.unwrap_err()), "BRANDING_REQUEST_INVALID");
+    })
+    .await;
+}

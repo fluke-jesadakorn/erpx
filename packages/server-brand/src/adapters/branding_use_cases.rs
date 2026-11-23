@@ -596,6 +596,40 @@ fn selected_branch(actor: &BrandActor) -> Option<&str> {
     }
 }
 
+/// Authoritative business document whose Branch a native presentation read may
+/// resolve. Mirrors the retained `BrandRecordKind` consumer contract.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum BrandRecordKind {
+    Order,
+    Expense,
+    Invoice,
+    Payment,
+    Journal,
+}
+
+impl BrandRecordKind {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            Self::Order => "order",
+            Self::Expense => "expense",
+            Self::Invoice => "invoice",
+            Self::Payment => "payment",
+            Self::Journal => "journal",
+        }
+    }
+
+    pub fn parse(value: &str) -> Option<Self> {
+        match value {
+            "order" => Some(Self::Order),
+            "expense" => Some(Self::Expense),
+            "invoice" => Some(Self::Invoice),
+            "payment" => Some(Self::Payment),
+            "journal" => Some(Self::Journal),
+            _ => None,
+        }
+    }
+}
+
 /// Native presentation reads. The caller retains the current Holding transaction
 /// and WorkContext; every query is Company-scoped inside the adapter.
 pub trait BrandingPresentationPorts {
@@ -627,6 +661,11 @@ pub trait BrandingPresentationPorts {
         &mut self,
         branch_id: &str,
     ) -> impl Future<Output = Result<Option<BrandProfileEvidence>, Self::Error>> + Send;
+    fn record_branch(
+        &mut self,
+        kind: BrandRecordKind,
+        id: &str,
+    ) -> impl Future<Output = Result<Option<String>, Self::Error>> + Send;
 }
 
 /// The workspace brand for the selected scope. A selected Branch that is not an
@@ -803,4 +842,24 @@ pub async fn read_brand_profile_evidence<P: BrandingPresentationPorts>(
 ) -> Result<Option<BrandProfileEvidence>, P::Error> {
     ports.authorize().await?;
     ports.evidence(branch_id).await
+}
+
+/// Native Branch resolution for an authoritative business document. The document
+/// kind and id arrive as bounded presentation strings; an unknown kind is refused
+/// before any read. `None` preserves the retained reader's NULL Branch semantics:
+/// no record, no Branch, mixed-Branch payment or an unsupported source stays NULL.
+pub async fn resolve_record_branch<P: BrandingPresentationPorts>(
+    ports: &mut P,
+    kind: &str,
+    id: &str,
+) -> Result<Option<String>, P::Error> {
+    let kind = BrandRecordKind::parse(kind).ok_or_else(|| {
+        BusinessError::new(
+            FailureKind::InvalidInput,
+            "BRANDING_REQUEST_INVALID",
+            "Use one bounded Branding presentation read.",
+        )
+    })?;
+    ports.authorize().await?;
+    ports.record_branch(kind, id).await
 }

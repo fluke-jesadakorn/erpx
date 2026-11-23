@@ -3,7 +3,8 @@
 //! audit and outbox evidence in that same unit.
 use crate::adapters::identity::{authorize, read_active_brand_identity};
 use crate::adapters::branding_use_cases::{
-    BrandingMutation, BrandingMutationAction, BrandingPorts, BrandingPresentationPorts,
+    BrandRecordKind, BrandingMutation, BrandingMutationAction, BrandingPorts,
+    BrandingPresentationPorts, resolve_record_branch,
 };
 use crate::adapters::identity_use_cases::BrandActor;
 use crate::domain::branding::{
@@ -75,6 +76,17 @@ impl<'c> PgBranding<'c> {
 
     async fn authorize_inner(&mut self, write: bool, owner: bool) -> Result<(), BrandingError> {
         authorize(self.connection, self.actor, self.now, write, owner).await
+    }
+
+    /// Native record-Branch resolution over the caller's Holding transaction.
+    /// Exposed on the re-exported adapter so composition can bind the native
+    /// presentation read without importing an owner-internal use case.
+    pub async fn record_branch(
+        &mut self,
+        kind: &str,
+        id: &str,
+    ) -> Result<Option<String>, BrandingError> {
+        resolve_record_branch(self, kind, id).await
     }
 
     async fn replay_inner(
@@ -248,6 +260,59 @@ impl<'c> PgBranding<'c> {
             primary_attachment_id: row.get("primary_attachment_id"),
             inverse_attachment_id: row.get("inverse_attachment_id"),
         }))
+    }
+
+    /// Resolve the authoritative Branch of a business document on the caller's
+    /// Holding transaction. Every statement is Company-scoped, including the
+    /// cross-owner source joins, and every CASE returns NULL when its source
+    /// Branch is absent — exactly the retained reader's contract.
+    async fn record_branch_inner(
+        &mut self,
+        kind: BrandRecordKind,
+        id: &str,
+    ) -> Result<Option<String>, BrandingError> {
+        let sql = match kind {
+            BrandRecordKind::Order =>
+                "SELECT branch_id FROM commerce_orders WHERE id=$1 AND company_id=$2",
+            BrandRecordKind::Expense =>
+                "SELECT branch_id FROM finance_expenses WHERE id=$1 AND company_id=$2",
+            BrandRecordKind::Invoice =>
+                "SELECT CASE \
+                   WHEN i.source_type='commerce_fulfillment' THEN (SELECT o.branch_id \
+                     FROM commerce_fulfillments f JOIN commerce_orders o ON o.id=f.order_id \
+                     WHERE f.id=i.source_id AND o.company_id=i.company_id) \
+                   WHEN i.source_type='expense_claim' THEN (SELECT e.branch_id \
+                     FROM finance_expenses e WHERE e.id=i.source_id AND e.company_id=i.company_id) \
+                   ELSE NULL END branch_id \
+                 FROM finance_invoices i WHERE i.id=$1 AND i.company_id=$2",
+            BrandRecordKind::Payment =>
+                "SELECT CASE WHEN COUNT(DISTINCT branch_id)=1 THEN MIN(branch_id) \
+                   ELSE NULL END branch_id FROM ( \
+                   SELECT CASE \
+                     WHEN i.source_type='commerce_fulfillment' THEN (SELECT o.branch_id \
+                       FROM commerce_fulfillments f JOIN commerce_orders o ON o.id=f.order_id \
+                       WHERE f.id=i.source_id AND o.company_id=i.company_id) \
+                     WHEN i.source_type='expense_claim' THEN (SELECT e.branch_id \
+                       FROM finance_expenses e WHERE e.id=i.source_id AND e.company_id=i.company_id) \
+                     ELSE NULL END branch_id \
+                   FROM finance_allocations a JOIN finance_invoices i ON i.id=a.invoice_id \
+                   WHERE a.payment_id=$1 AND a.company_id=$2 \
+                 ) branded WHERE branch_id IS NOT NULL",
+            BrandRecordKind::Journal =>
+                "SELECT CASE \
+                   WHEN j.source_type='expense_claim' THEN (SELECT e.branch_id \
+                     FROM finance_expenses e WHERE e.id=j.source_id AND e.company_id=j.company_id) \
+                   WHEN j.source_type='stock_count' THEN (SELECT c.branch_id \
+                     FROM inventory_counts c WHERE c.id=j.source_id AND c.company_id=j.company_id) \
+                   ELSE NULL END branch_id \
+                 FROM finance_journals j WHERE j.id=$1 AND j.company_id=$2",
+        };
+        let row = sqlx::query(sql)
+            .bind(id)
+            .bind(self.actor.company_id())
+            .fetch_optional(&mut *self.connection)
+            .await?;
+        Ok(row.and_then(|row| row.get::<Option<String>, _>("branch_id")))
     }
 
     async fn attachment_inner(
@@ -884,5 +949,13 @@ impl BrandingPresentationPorts for PgBranding<'_> {
         Output = Result<Option<BrandProfileEvidence>, Self::Error>,
     > + Send {
         self.evidence_inner(branch_id)
+    }
+
+    fn record_branch(
+        &mut self,
+        kind: BrandRecordKind,
+        id: &str,
+    ) -> impl std::future::Future<Output = Result<Option<String>, Self::Error>> + Send {
+        self.record_branch_inner(kind, id)
     }
 }

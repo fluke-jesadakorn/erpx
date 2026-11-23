@@ -8,7 +8,8 @@ use crate::business_http::BusinessScopeSlugs;
 use erpx_server_brand::public::branding::{
     BrandPresentationContext, PgBranding, attach_brand_media, list_brand_profiles,
     read_brand_profile_evidence, read_branding_workspace, read_storefront_app_brand,
-    resolve_document_brand, resolve_workspace_brand, update_brand_profile, update_storefront,
+    resolve_document_brand, resolve_record_branch, resolve_workspace_brand, update_brand_profile,
+    update_storefront,
 };
 use erpx_server_brand::public::branding_http::{
     BrandingHttpBackend, BrandingHttpCommandRequest, BrandingHttpFuture, BrandingHttpReadRequest,
@@ -206,6 +207,8 @@ impl<C: Clock + Send + Sync + 'static> BrandingService<C> {
         kind: BrandingPresentationReadKind,
         branch_id: Option<String>,
         requested_mode: Option<String>,
+        record_kind: Option<String>,
+        record_id: Option<String>,
     ) -> Result<Value, Error> {
         let holding = self.configuration.holding.clone();
         let company = self.configuration.company.clone();
@@ -225,6 +228,8 @@ impl<C: Clock + Send + Sync + 'static> BrandingService<C> {
                     let holding_name = holding_name.clone();
                     let branch_id = branch_id.clone();
                     let requested_mode = requested_mode.clone();
+                    let record_kind = record_kind.clone();
+                    let record_id = record_id.clone();
                     Box::pin(async move {
                         if current.holding_id() != &holding
                             || current.selection().workspace().company_id != company
@@ -267,6 +272,14 @@ impl<C: Clock + Send + Sync + 'static> BrandingService<C> {
                                 read_brand_profile_evidence(
                                     &mut ports,
                                     branch_id.as_deref().unwrap_or_default(),
+                                )
+                                .await?,
+                            ),
+                            BrandingPresentationReadKind::RecordBranch => serde_json::to_value(
+                                resolve_record_branch(
+                                    &mut ports,
+                                    record_kind.as_deref().unwrap_or_default(),
+                                    record_id.as_deref().unwrap_or_default(),
                                 )
                                 .await?,
                             ),
@@ -442,6 +455,8 @@ impl<C: Clock + Send + Sync + 'static> BrandingHttpBackend for BrandingBackend<C
                     request.kind,
                     request.branch_id.map(str::to_owned),
                     request.requested_mode.map(str::to_owned),
+                    request.record_kind.map(str::to_owned),
+                    request.record_id.map(str::to_owned),
                 )
                 .await
                 .map_err(business)

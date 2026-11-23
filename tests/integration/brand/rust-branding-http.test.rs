@@ -73,6 +73,8 @@ struct SeenPresentation {
     kind: String,
     branch: Option<String>,
     mode: Option<String>,
+    record: Option<String>,
+    id: Option<String>,
 }
 
 struct Probe {
@@ -138,6 +140,8 @@ impl BrandingHttpBackend for Probe {
                     kind: request.kind.as_str().into(),
                     branch: request.branch_id.map(str::to_owned),
                     mode: request.requested_mode.map(str::to_owned),
+                    record: request.record_kind.map(str::to_owned),
+                    id: request.record_id.map(str::to_owned),
                 });
             if let Some(error) = self.fail.clone() {
                 return Err(error);
@@ -184,6 +188,7 @@ impl BrandingHttpBackend for Probe {
                     "primary_attachment_id": null,
                     "inverse_attachment_id": "attachment-2"
                 }),
+                BrandingPresentationReadKind::RecordBranch => serde_json::Value::Null,
             })
         })
     }
@@ -327,12 +332,13 @@ async fn actual_router_forwards_exact_targets_and_maps_business_errors() {
     assert_eq!(body["error"]["code"], "NOT_FOUND");
 
     let presentation = "/api/v1/holdings/erpx/branding/presentation";
-    for (query, kind, branch, mode) in [
-        ("kind=workspace", "workspace", None, None),
-        ("kind=document&branch=branch-1&mode=both", "document", Some("branch-1"), Some("both")),
-        ("kind=profiles", "profiles", None, None),
-        ("kind=storefront", "storefront", None, None),
-        ("kind=evidence&branch=branch-1", "evidence", Some("branch-1"), None),
+    for (query, kind, branch, mode, record, id) in [
+        ("kind=workspace", "workspace", None, None, None, None),
+        ("kind=document&branch=branch-1&mode=both", "document", Some("branch-1"), Some("both"), None, None),
+        ("kind=profiles", "profiles", None, None, None, None),
+        ("kind=storefront", "storefront", None, None, None, None),
+        ("kind=evidence&branch=branch-1", "evidence", Some("branch-1"), None, None, None),
+        ("kind=record-branch&record=expense&id=expense-1", "record-branch", None, None, Some("expense"), Some("expense-1")),
     ] {
         let (status, body, raw) = http(
             addr,
@@ -355,6 +361,8 @@ async fn actual_router_forwards_exact_targets_and_maps_business_errors() {
                 kind: kind.into(),
                 branch: branch.map(str::to_owned),
                 mode: mode.map(str::to_owned),
+                record: record.map(str::to_owned),
+                id: id.map(str::to_owned),
             })
         );
     }
@@ -387,6 +395,10 @@ async fn actual_router_forwards_exact_targets_and_maps_business_errors() {
         String::new(),
         "kind=evidence".to_owned(),
         "kind=workspace&branch=branch-1".to_owned(),
+        "kind=record-branch".to_owned(),
+        "kind=record-branch&record=expense".to_owned(),
+        "kind=record-branch&record=unknown&id=expense-1".to_owned(),
+        "kind=workspace&record=expense&id=expense-1".to_owned(),
         format!("kind=document&branch={overlong}"),
     ] {
         let (status, body, _) = http(

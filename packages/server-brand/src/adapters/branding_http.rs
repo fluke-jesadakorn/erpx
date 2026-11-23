@@ -4,6 +4,7 @@
 //! and the idempotency/origin contract. Current Account authority, Branding
 //! policy, snapshots, receipts, audit and outbox remain composition
 //! responsibilities behind the backend trait.
+use crate::adapters::branding_use_cases::BrandRecordKind;
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Query, Request, Response, Router,
     State, StatusCode, body::to_bytes, header, routing::get, serde_json,
@@ -44,6 +45,7 @@ pub enum BrandingPresentationReadKind {
     Profiles,
     Storefront,
     Evidence,
+    RecordBranch,
 }
 
 impl BrandingPresentationReadKind {
@@ -54,6 +56,7 @@ impl BrandingPresentationReadKind {
             Self::Profiles => "profiles",
             Self::Storefront => "storefront",
             Self::Evidence => "evidence",
+            Self::RecordBranch => "record-branch",
         }
     }
 
@@ -64,6 +67,7 @@ impl BrandingPresentationReadKind {
             "profiles" => Some(Self::Profiles),
             "storefront" => Some(Self::Storefront),
             "evidence" => Some(Self::Evidence),
+            "record-branch" => Some(Self::RecordBranch),
             _ => None,
         }
     }
@@ -80,6 +84,8 @@ pub struct BrandingPresentationHttpRequest<'a> {
     pub kind: BrandingPresentationReadKind,
     pub branch_id: Option<&'a str>,
     pub requested_mode: Option<&'a str>,
+    pub record_kind: Option<&'a str>,
+    pub record_id: Option<&'a str>,
 }
 
 pub trait BrandingHttpBackend: Send + Sync {
@@ -265,6 +271,10 @@ struct PresentationQuery {
     branch: Option<String>,
     #[serde(default)]
     mode: Option<String>,
+    #[serde(default)]
+    record: Option<String>,
+    #[serde(default)]
+    id: Option<String>,
 }
 
 fn presentation_text(value: &str, max: usize, code: &'static str) -> Result<(), BusinessError> {
@@ -302,9 +312,14 @@ async fn presentation(
         {
             return Err(invalid());
         }
-        for value in [query.branch.as_deref(), query.mode.as_deref()]
-            .into_iter()
-            .flatten()
+        for value in [
+            query.branch.as_deref(),
+            query.mode.as_deref(),
+            query.record.as_deref(),
+            query.id.as_deref(),
+        ]
+        .into_iter()
+        .flatten()
         {
             presentation_text(value, 200, "BRANDING_REQUEST_INVALID")?;
         }
@@ -321,6 +336,27 @@ async fn presentation(
                 }
                 None
             }
+            BrandingPresentationReadKind::RecordBranch => {
+                if query.branch.is_some() || query.mode.is_some() {
+                    return Err(invalid());
+                }
+                None
+            }
+        };
+        let (record_kind, record_id) = match kind {
+            BrandingPresentationReadKind::RecordBranch => {
+                let record = query.record.as_deref().ok_or_else(invalid)?;
+                if BrandRecordKind::parse(record).is_none() {
+                    return Err(invalid());
+                }
+                (Some(record), Some(query.id.as_deref().ok_or_else(invalid)?))
+            }
+            _ => {
+                if query.record.is_some() || query.id.is_some() {
+                    return Err(invalid());
+                }
+                (None, None)
+            }
         };
         target
             .backend
@@ -336,6 +372,8 @@ async fn presentation(
                 } else {
                     None
                 },
+                record_kind,
+                record_id,
             })
             .await
     }
