@@ -267,6 +267,14 @@ describe('native PMS report transport',()=>{
   flow:{arrivals:2,departures:1,inHouse:4},
   balances:{source:'pms_guest_accounts',due:1000,advance:200,deposit:300,totalAccounts:3,openAccounts:2,creditAccounts:0,accountsWithDue:1},
   nightAudit:{businessDate:'2026-11-01',nightState:'completed',jobState:'done',ready:true,blockers:[]},
+  asOf:'2026-11-03T10:00:00Z',
+  pace:{
+   current:{asOf:'2026-11-03T10:00:00Z',coverageSince:'2026-10-01T00:00:00Z',covered:true,reservations:9,roomNights:12,quotedTotal:120000},
+   previous:{asOf:'2026-10-27T10:00:00Z',coverageSince:'2026-10-01T00:00:00Z',covered:true,reservations:7,roomNights:10,quotedTotal:100000},
+   netPickup:{reservations:2,roomNights:2,quotedTotal:20000},
+  },
+  channels:[{source:'direct',reservations:4,roomNights:6,quotedTotal:60000,cancelled:1,noShows:0,recentPickup:2,unknownCreation:0}],
+  financeBalances:{receivable:4000,advance:-3000,deposit:-500,refundPayable:-200,unallocated:0},
  };
  it('forwards the bounded range selection and validates the owner payload',async()=>{
   const transport=vi.fn().mockResolvedValue(ok({data:range,context:reportContext}));
@@ -276,6 +284,9 @@ describe('native PMS report transport',()=>{
    branchSlug:'north',expected:{companyId:'company',assignmentId:'assignment',revision:7,assignmentVersion:3},
   }) as NativePmsReportData;
   expect(result.days).toHaveLength(2);
+  expect(result.pace.netPickup).toEqual({reservations:2,roomNights:2,quotedTotal:20000});
+  expect(result.channels[0].source).toBe('direct');
+  expect(result.financeBalances.receivable).toBe(4000);
   const [method,url,headers]=transport.mock.calls[0];
   expect(method).toBe('GET');
   expect(url.toString()).toBe('http://127.0.0.1:44994/api/v1/holdings/acme/pms/reports/range?property=property-1&from=2026-11-01&to=2026-11-02');
@@ -296,5 +307,27 @@ describe('native PMS report transport',()=>{
   const client=createNativePmsClient(JSON.parse(config()),transport);
   await expect(client.report(incoming(),reportActor,{view:'range',holdingSlug:'acme',property:'property-1',from:'2026-11-01',to:'2026-11-03',branchSlug:'north'})).rejects.toMatchObject({code:'NATIVE_PMS_RESPONSE_INVALID'});
   await expect(client.report(incoming(),reportActor,{view:'entries',holdingSlug:'acme',property:'property-1',date:'2026-11-01',page:1,branchSlug:'north'})).rejects.toMatchObject({code:'NATIVE_PMS_RESPONSE_INVALID'});
+ });
+ it('forwards RFC 3339 observation times and rejects a malformed observation before dispatch',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data:range,context:reportContext}));
+  const client=createNativePmsClient(JSON.parse(config()),transport);
+  await client.report(incoming(),reportActor,{
+   view:'range',holdingSlug:'acme',property:'property-1',from:'2026-11-01',to:'2026-11-02',
+   asOf:'2026-11-03T10:00:00+07:00',compareAsOf:'2026-10-27T10:00:00+07:00',branchSlug:'north',
+  });
+  expect(new URL(transport.mock.calls[0][1]).searchParams.get('asOf')).toBe('2026-11-03T10:00:00+07:00');
+  expect(new URL(transport.mock.calls[0][1]).searchParams.get('compareAsOf')).toBe('2026-10-27T10:00:00+07:00');
+  await expect(client.report(incoming(),reportActor,{
+   view:'range',holdingSlug:'acme',property:'property-1',from:'2026-11-01',to:'2026-11-02',asOf:'not-a-date',branchSlug:'north',
+  })).rejects.toMatchObject({code:'NATIVE_PMS_REPORT_REQUEST_INVALID'});
+  expect(transport).toHaveBeenCalledTimes(1);
+ });
+ it('refuses a range payload without pace, channels, finance balances or the observation clock',async()=>{
+  for(const key of ['asOf','pace','channels','financeBalances'] as const){
+   const payload={...range};delete (payload as unknown as Record<string,unknown>)[key];
+   const transport=vi.fn().mockResolvedValue(ok({data:payload,context:reportContext}));
+   const client=createNativePmsClient(JSON.parse(config()),transport);
+   await expect(client.report(incoming(),reportActor,{view:'range',holdingSlug:'acme',property:'property-1',from:'2026-11-01',to:'2026-11-02',branchSlug:'north'})).rejects.toMatchObject({code:'NATIVE_PMS_RESPONSE_INVALID'});
+  }
  });
 });

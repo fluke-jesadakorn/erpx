@@ -127,7 +127,14 @@ export type NativePmsImportCommandInput = Readonly<{
 
 /** Bounded report views owned by pms_report_router (range summary / entry ledger). */
 export type NativePmsReportSelection =
-  | Readonly<{ view: 'range'; property: string; from: string; to: string }>
+  | Readonly<{
+      view: 'range';
+      property: string;
+      from: string;
+      to: string;
+      asOf?: string;
+      compareAsOf?: string;
+    }>
   | Readonly<{ view: 'entries'; property: string; date: string; page: number }>;
 
 export type NativePmsReportInput = NativePmsReportSelection &
@@ -170,6 +177,48 @@ export type NativePmsReportTotals = {
   revpar: number;
 };
 
+/** One booking-observation point from the retained pace window. */
+export type NativePmsPacePoint = {
+  asOf: string;
+  coverageSince: string | null;
+  covered: boolean;
+  reservations: number;
+  roomNights: number;
+  quotedTotal: number;
+};
+
+export type NativePmsNetPickup = {
+  reservations: number;
+  roomNights: number;
+  quotedTotal: number;
+};
+
+export type NativePmsReportPace = {
+  current: NativePmsPacePoint | null;
+  previous: NativePmsPacePoint | null;
+  netPickup: NativePmsNetPickup | null;
+};
+
+export type NativePmsChannelReport = {
+  source: string;
+  reservations: number;
+  roomNights: number;
+  quotedTotal: number;
+  cancelled: number;
+  noShows: number;
+  recentPickup: number;
+  unknownCreation: number;
+};
+
+/** Finance-backed balances from the `pms_reporting_facts` port. */
+export type NativePmsFinanceBalances = {
+  receivable: number;
+  advance: number;
+  deposit: number;
+  refundPayable: number;
+  unallocated: number;
+};
+
 export type NativePmsReportData = {
   property: { id: string; name: string; branchId: string; state: string; businessDate: string };
   businessDate: string;
@@ -196,6 +245,10 @@ export type NativePmsReportData = {
     ready: boolean;
     blockers: string[];
   };
+  asOf: string;
+  pace: NativePmsReportPace;
+  channels: NativePmsChannelReport[];
+  financeBalances: NativePmsFinanceBalances;
 };
 
 export type NativePmsReportEntriesData = {
@@ -615,6 +668,16 @@ const isoDate = (value: unknown): value is string =>
   /^\d{4}-\d{2}-\d{2}$/.test(value) &&
   !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
 
+/** RFC 3339 with an explicit offset, matching the owner's observation input. */
+const observation = (value: unknown): value is string =>
+  text(value, 64) &&
+  /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})$/.test(value) &&
+  !Number.isNaN(Date.parse(value));
+
+/** Counts and sums are safe integers; net pickup differences may be negative. */
+const signedInteger = (value: unknown): value is number =>
+  typeof value === 'number' && Number.isSafeInteger(value);
+
 const reportDay = (value: unknown): value is NativePmsReportDay =>
   exact(
     value,
@@ -675,6 +738,53 @@ const reportTotals = (value: unknown): value is NativePmsReportTotals =>
   Number.isFinite(value.occupancy) &&
   value.occupancy >= 0;
 
+const pacePoint = (value: unknown): value is NativePmsPacePoint =>
+  exact(value, ['asOf', 'coverageSince', 'covered', 'reservations', 'roomNights', 'quotedTotal']) &&
+  observation(value.asOf) &&
+  (value.coverageSince === null || observation(value.coverageSince)) &&
+  typeof value.covered === 'boolean' &&
+  integer(value.reservations) &&
+  integer(value.roomNights) &&
+  integer(value.quotedTotal);
+
+const netPickup = (value: unknown): value is NativePmsNetPickup =>
+  exact(value, ['reservations', 'roomNights', 'quotedTotal']) &&
+  signedInteger(value.reservations) &&
+  signedInteger(value.roomNights) &&
+  signedInteger(value.quotedTotal);
+
+const pace = (value: unknown): value is NativePmsReportPace =>
+  exact(value, ['current', 'previous', 'netPickup']) &&
+  (value.current === null || pacePoint(value.current)) &&
+  (value.previous === null || pacePoint(value.previous)) &&
+  (value.netPickup === null || netPickup(value.netPickup));
+
+const channel = (value: unknown): value is NativePmsChannelReport =>
+  exact(value, [
+    'source',
+    'reservations',
+    'roomNights',
+    'quotedTotal',
+    'cancelled',
+    'noShows',
+    'recentPickup',
+    'unknownCreation',
+  ]) &&
+  text(value.source, 200) &&
+  integer(value.reservations) &&
+  integer(value.roomNights) &&
+  integer(value.quotedTotal) &&
+  integer(value.cancelled) &&
+  integer(value.noShows) &&
+  integer(value.recentPickup) &&
+  integer(value.unknownCreation);
+
+const financeBalances = (value: unknown): value is NativePmsFinanceBalances =>
+  exact(value, ['receivable', 'advance', 'deposit', 'refundPayable', 'unallocated']) &&
+  ['receivable', 'advance', 'deposit', 'refundPayable', 'unallocated'].every((key) =>
+    signedInteger((value as Row)[key]),
+  );
+
 const reportData = (
   value: unknown,
   input: Extract<NativePmsReportSelection, { view: 'range' }>,
@@ -693,6 +803,10 @@ const reportData = (
         'flow',
         'balances',
         'nightAudit',
+        'asOf',
+        'pace',
+        'channels',
+        'financeBalances',
       ],
     ) ||
     !exact(value.property, ['id', 'name', 'branchId', 'state', 'businessDate']) ||
@@ -730,7 +844,13 @@ const reportData = (
     !(value.nightAudit.nightState === null || text(value.nightAudit.nightState, 40)) ||
     !(value.nightAudit.jobState === null || text(value.nightAudit.jobState, 40)) ||
     typeof value.nightAudit.ready !== 'boolean' ||
-    !texts(value.nightAudit.blockers)
+    !texts(value.nightAudit.blockers) ||
+    !observation(value.asOf) ||
+    !pace(value.pace) ||
+    !Array.isArray(value.channels) ||
+    value.channels.length > 100 ||
+    !value.channels.every(channel) ||
+    !financeBalances(value.financeBalances)
   )
     return failure('NATIVE_PMS_RESPONSE_INVALID');
   return value as unknown as NativePmsReportData;
@@ -1189,6 +1309,14 @@ export function createNativePmsClient(
             throw new NativePmsError('NATIVE_PMS_REPORT_REQUEST_INVALID');
           url.searchParams.set('from', input.from);
           url.searchParams.set('to', input.to);
+          for (const key of ['asOf', 'compareAsOf'] as const) {
+            const value = input[key];
+            if (value !== undefined) {
+              if (!observation(value))
+                throw new NativePmsError('NATIVE_PMS_REPORT_REQUEST_INVALID');
+              url.searchParams.set(key, value);
+            }
+          }
         } else {
           if (!isoDate(input.date) || !integer(input.page, 1) || input.page > 10_000)
             throw new NativePmsError('NATIVE_PMS_REPORT_REQUEST_INVALID');
