@@ -140,6 +140,39 @@ fn code(error: PgTransactionError<BusinessError>) -> String {
     }
 }
 
+/// The native `trust` auxiliary read is the authoritative projection for the
+/// TypeScript `trustView` adapter. The transport accepts every field it emits;
+/// this case pins the exact field set and its Company isolation so the read
+/// family can stay byte-identical after the TS SELECT is deleted.
+#[tokio::test]
+async fn trust_read_returns_full_authoritative_projection_and_isolates_company() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        seed(&pool).await;
+        sqlx::raw_sql(
+            "INSERT INTO legal_trust_material(id,company_id,kind,name,source,content,checksum,state,created_by,approved_by,version,created_at)
+             VALUES('trust-one','company-a','root','Root CA','https://ca.example/root','content','checksum-one','approved','user-one','user-two',3,1000),
+                    ('trust-other','company-b','root','Other CA','https://ca.example/other','content','checksum-other','approved','user-nine',NULL,1,1000)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let actual = read(&pool, manager(), LegalAuxiliaryRead::Trust).await.unwrap();
+        let rows = actual.as_array().unwrap();
+        assert_eq!(rows.len(), 1, "only the authorized Company's trust material is read");
+        let row = &rows[0];
+        assert_eq!(row["id"], "trust-one");
+        assert_eq!(row["kind"], "root");
+        assert_eq!(row["name"], "Root CA");
+        assert_eq!(row["source"], "https://ca.example/root");
+        assert_eq!(row["checksum"], "checksum-one");
+        assert_eq!(row["state"], "approved");
+        assert_eq!(row["created_by"], "user-one");
+        assert_eq!(row["approved_by"], "user-two");
+        assert_eq!(row["version"], 3);
+    }).await;
+}
+
 #[tokio::test]
 async fn document_citation_returns_full_source_and_audits_each_read() {
     fixture::with_database(2, |pool| async move {
