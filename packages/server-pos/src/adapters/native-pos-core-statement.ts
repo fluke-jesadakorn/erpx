@@ -63,3 +63,15 @@ export async function nativePosSalesEvidenceStatement(db: SqlDatabase, facts: Po
 export async function nativePosSaleByIdStatement(db: SqlDatabase, saleId: unknown): Promise<SqlValueRow | null> {
   return nativePosOne(db, '', 'core_readpossalesbyid_521', [saleId]);
 }
+
+/**
+ * Owner-issued settings-currency read. The SQL lives in the native POS owner
+ * registry (`erpx-server-pos::adapters::owner_writes`, kind
+ * `core_readpossettingscurrency_522`); this bridge sends only the typed kind and
+ * the Company value. It replaces the two byte-identical settings-currency
+ * row literals in `pos-daily.ts`, so no local SQL, mirror or fallback reader
+ * remains.
+ */
+export async function nativePosSettingsCurrencyStatement(db: SqlDatabase, company: string): Promise<SqlValueRow | null> {
+  return nativePosOne(db, company, 'core_readpossettingscurrency_522', [company]);
+}

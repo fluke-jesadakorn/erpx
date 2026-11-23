@@ -1,5 +1,5 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
-import { nativePosSaleByIdStatement } from './native-pos-core-statement';
+import { nativePosSaleByIdStatement, nativePosSettingsCurrencyStatement } from './native-pos-core-statement';
 import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as pmsProjectionSources } from "@erpx/server-pms/public/hospitality-owner-projection-sources";
 import 'server-only';
@@ -47,7 +47,7 @@ function unit(db: SqlDatabase): PosDayUnit<SqlStatement> {
         readFinanceParties3: facts => PosDayFinanceFacts(db).readFinanceParties3(facts),
         readPosSettings1: (facts: {
             companyId: string;
-        }) => one(db, 'SELECT currency FROM pos_settings WHERE company_id=?', facts.companyId),
+        }) => nativePosSettingsCurrencyStatement(db, facts.companyId),
         writeFinanceParties1: facts => PosDayFinanceFacts(db).writeFinanceParties1(facts),
         readPosDayCloses1: (facts: {
             company: string;
@@ -91,7 +91,7 @@ function unit(db: SqlDatabase): PosDayUnit<SqlStatement> {
         readFinanceJournalLines2: facts => PosDayFinanceFacts(db).readFinanceJournalLines2(facts),
         readPosSettings2: (facts: {
             company: string;
-        }) => one(db, 'SELECT currency FROM pos_settings WHERE company_id=?', facts.company),
+        }) => nativePosSettingsCurrencyStatement(db, facts.company),
         readPosFulfillments1: (facts: {
             company: string;
             branch: string;
