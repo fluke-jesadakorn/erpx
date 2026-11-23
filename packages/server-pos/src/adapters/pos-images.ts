@@ -1,4 +1,5 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
+import { nativePosRegisterCatalogStatement } from './native-pos-core-statement';
 import {matchesUploadSignature} from "@erpx/server-files/public/rules/upload-validation";
 import 'server-only';
 import sharp from 'sharp';
@@ -32,7 +33,7 @@ function unit(db: SqlDatabase, files: FileStore): PosImagesUnit {
             productId: string;
             branchId: string;
             companyId: string;
-        }) => one(db, 'SELECT rc.product_id FROM pos_register_catalog rc JOIN pos_registers r ON r.id=rc.register_id WHERE rc.product_id=? AND r.branch_id=? AND r.company_id=?', facts.productId, facts.branchId, facts.companyId),
+        }) => nativePosRegisterCatalogStatement(db, facts.productId, facts.branchId, facts.companyId),
         readPosProductImages1: (facts: {
             imageId: string;
             companyId: string;

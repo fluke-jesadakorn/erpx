@@ -88,3 +88,21 @@ export async function nativePosSettingsCurrencyStatement(db: SqlDatabase, compan
 export async function nativePosPostingJournalStatement(db: SqlDatabase, sourceKey: unknown): Promise<SqlValueRow | null> {
   return nativePosOne(db, '', 'core_readpospostingsjournal_523', [sourceKey]);
 }
+
+/**
+ * Owner-issued register-catalog membership read. The SQL lives in the native
+ * POS owner registry (`erpx-server-pos::adapters::owner_writes`, kind
+ * `core_readposregistercatalog_524`); this bridge sends only the typed kind and
+ * the product, branch and Company values. It replaces the two byte-identical
+ * `readPosRegisterCatalog1` SQL literals in `pos-core.ts` and `pos-images.ts`,
+ * so no local SQL, mirror or fallback remains. Caller-transaction read scoped
+ * by product, branch and Company.
+ */
+export async function nativePosRegisterCatalogStatement(
+  db: SqlDatabase,
+  productId: string,
+  branchId: string,
+  company: string,
+): Promise<SqlValueRow | null> {
+  return nativePosOne(db, company, 'core_readposregistercatalog_524', [productId, branchId, company]);
+}

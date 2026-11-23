@@ -1,5 +1,5 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
-import { nativePosPostingJournalStatement, nativePosSaleByIdStatement } from './native-pos-core-statement';
+import { nativePosPostingJournalStatement, nativePosRegisterCatalogStatement, nativePosSaleByIdStatement } from './native-pos-core-statement';
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
 import { hospitalityOwnerProjectionSources as pmsProjectionSources } from "@erpx/server-pms/public/hospitality-owner-projection-sources";
 import 'server-only';
@@ -266,7 +266,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             productId: string;
             branchId: string;
             company: string;
-        }) => one(db, 'SELECT rc.product_id FROM pos_register_catalog rc JOIN pos_registers r ON r.id=rc.register_id WHERE rc.product_id=? AND r.branch_id=? AND r.company_id=?', facts.productId, facts.branchId, facts.company),
+        }) => nativePosRegisterCatalogStatement(db, facts.productId, facts.branchId, facts.company),
         writePosCatalog1: (facts: {
             imageId: string;
             productId: string;
