@@ -274,6 +274,15 @@ const SQL_RD_LEGAL_DOCUMENT_CLEAN_SOURCE: &str = "SELECT object_key,checksum_sha
 pub const RD_POS_IMAGE_SOURCE: &str = "RD_POS_IMAGE_SOURCE";
 const SQL_RD_POS_IMAGE_SOURCE: &str = "SELECT object_key,preview_object_key,preview_checksum_sha256 FROM attachments WHERE id=$1 AND company_id=$2 AND source_state='available'"; // binds=2
 
+/// Owner-owned read: the Workflow expense-decision evidence attachment fact.
+/// Native successor of the retired TypeScript
+/// `createApprovalsSourceRepository.readExpenseDecisionEvidenceAssignmentsreceiptsperson2`
+/// SELECT. It carries no write ledger: the caller's unit already holds the
+/// read scope. The statement is byte-identical to the retired SQL, including
+/// its single `owner_id` bind and lack of a company predicate.
+pub const RD_WORKFLOW_APPROVAL_EVIDENCE: &str = "RD_WORKFLOW_APPROVAL_EVIDENCE";
+const SQL_RD_WORKFLOW_APPROVAL_EVIDENCE: &str = "SELECT id,revision,checksum_sha256,original_name FROM attachments WHERE owner_type='expense_claim' AND owner_id=$1 AND revoked_at IS NULL ORDER BY id"; // binds=1
+
 /// Read kinds plan the owner SQL only; no receipt/audit/outbox write ledger.
 pub fn is_read(kind: &str) -> bool {
     kind == RD_PROJECT_ATTACHMENT_TARGET
@@ -284,6 +293,7 @@ pub fn is_read(kind: &str) -> bool {
         || kind == RD_FINANCE_REFUND_PROOF_SETS
         || kind == RD_LEGAL_DOCUMENT_CLEAN_SOURCE
         || kind == RD_POS_IMAGE_SOURCE
+        || kind == RD_WORKFLOW_APPROVAL_EVIDENCE
 }
 
 /// Every kind this owner module accepts. Anything else is fail-closed.
@@ -401,6 +411,7 @@ const KINDS: &[&str] = &[
     RD_FINANCE_REFUND_PROOF_SETS,
     RD_LEGAL_DOCUMENT_CLEAN_SOURCE,
     RD_POS_IMAGE_SOURCE,
+    RD_WORKFLOW_APPROVAL_EVIDENCE,
 ];
 pub fn supported(kind: &str) -> bool { KINDS.contains(&kind) }
 pub fn sql(kind: &str) -> Option<&'static str> { Some(match kind {
@@ -517,6 +528,7 @@ pub fn sql(kind: &str) -> Option<&'static str> { Some(match kind {
     RD_FINANCE_REFUND_PROOF_SETS => SQL_RD_FINANCE_REFUND_PROOF_SETS,
     RD_LEGAL_DOCUMENT_CLEAN_SOURCE => SQL_RD_LEGAL_DOCUMENT_CLEAN_SOURCE,
     RD_POS_IMAGE_SOURCE => SQL_RD_POS_IMAGE_SOURCE,
+    RD_WORKFLOW_APPROVAL_EVIDENCE => SQL_RD_WORKFLOW_APPROVAL_EVIDENCE,
     _ => return None,
 }) }
 pub fn invalid() -> BusinessError { BusinessError::new(FailureKind::InvalidInput, "FILES_COMMAND_INVALID", "Use one bounded Files command.") }
