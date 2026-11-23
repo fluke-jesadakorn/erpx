@@ -41,3 +41,4 @@ pub mod sales_reservation_source;
 pub mod supplier_promise_version;
 
 pub mod supplier_promise_source;
+pub mod records_request_page_source;

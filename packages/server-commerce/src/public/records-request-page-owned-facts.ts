@@ -1,1 +1,1 @@
-export { RequestPageCommerceOwnedFacts } from '@erpx/server-commerce/adapters/records-request-page-owned-facts';
+export { RequestPageCommerceOwnedFacts } from '@erpx/server-commerce/adapters/native-records-request-page-owned-facts';
