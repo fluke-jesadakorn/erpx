@@ -63,4 +63,19 @@ describe('Marketing owner-local campaign read tail', () => {
     expect(native.bind).toHaveBeenCalledWith('company');
     expect(native.all).toHaveBeenCalledTimes(1);
   });
+
+  it('keeps one fixed owner projection for the campaign and campaign-cost reads', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
+    const hospitality = await readFile(new URL('hospitality-owner-projection-sources.ts', base), 'utf8');
+    const lastAudit = await readFile(new URL('last-audit-owner-projection-sources.ts', base), 'utf8');
+    const commercial = await readFile(new URL('commercial-owner-projection-sources.ts', base), 'utf8');
+
+    expect(hospitality.match(/SELECT \\"id\\",\\"company_id\\",\\"code\\",\\"name\\",\\"created_by\\",\\"created_at\\",\\"version\\" FROM marketing_campaigns/g)).toHaveLength(1);
+    expect(lastAudit.match(/SELECT \\"id\\",\\"company_id\\",\\"campaign_id\\",\\"journal_line_id\\",\\"evidence\\",\\"reviewed_by\\",\\"created_at\\" FROM marketing_campaign_costs/g)).toHaveLength(1);
+    expect(commercial).not.toContain('SELECT \\"id\\",\\"company_id\\",\\"code\\"');
+    expect(commercial).not.toContain('SELECT \\"id\\",\\"company_id\\",\\"campaign_id\\"');
+    expect(commercial).toContain('marketingCampaignProjection');
+    expect(commercial).toContain('marketingCampaignCostProjection');
+  });
 });
