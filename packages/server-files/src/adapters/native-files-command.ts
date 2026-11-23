@@ -158,6 +158,26 @@ async function dispatchPlan(
   };
 }
 
+/**
+ * Execute an owner-owned read plan on the caller's already-open unit.
+ *
+ * No SQL is emitted here: the native Files owner plans the exact statement for
+ * the read kind and this transport only executes it with routing-scoped values.
+ * Read kinds carry no receipt/audit/outbox write ledger. Missing native
+ * configuration or any configured failure fails closed with no TS fallback.
+ */
+export async function nativeFilesRead<T>(
+  kind: string,
+  values: unknown[],
+  db: import('@erpx/server-runtime/public/runtime/types').SqlDatabase,
+  companyId?: string,
+): Promise<T | null> {
+  const { config, holding, companyId: resolved } = effective(kind, values, { companyId, db });
+  const key = `files-read-${createHash('sha256').update(JSON.stringify([kind, values, resolved])).digest('hex').slice(0, 32)}`;
+  const outcome = await dispatchPlan(config, holding, resolved, key, Date.now(), kind, values, db);
+  return (outcome.row as T) ?? null;
+}
+
 async function dispatch(kind: string, values: unknown[], context?: NativeContext): Promise<NativeResult> {
   const { config, holding, companyId, key, now } = effective(kind, values, context);
   if (!/^[a-zA-Z0-9:_-]{1,180}$/.test(key)) throw new ApiError(503, 'NATIVE_FILES_COMMAND_INVALID', 'The native Files command key is invalid.');

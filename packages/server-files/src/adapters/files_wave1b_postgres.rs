@@ -75,6 +75,12 @@ pub fn plan(
     validate(input)?;
     let statement = sql(&input.kind).ok_or_else(invalid)?;
     let (statement, statement_values) = question_placeholders(statement, &input.values)?;
+    // Read kinds carry no write ledger: the statement is executed on the
+    // caller's already-open unit, whose read scope is the authority. Returning
+    // receipt/audit/outbox here would turn a pure read into a write.
+    if crate::domain::files_wave1b::is_read(&input.kind) {
+        return Ok(vec![PlannedStatement { sql: statement, values: statement_values }]);
+    }
     let id = format!("files-{}", key);
     let operation = format!("files.command.{}", input.kind);
     let receipt = format!(

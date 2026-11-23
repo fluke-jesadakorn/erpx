@@ -5,7 +5,9 @@
 //! the receipt/audit/outbox rows with `jsonb_build_object` for execution in
 //! the caller's already-open unit, so the files command never opens a second
 //! transaction while the caller holds attachment row locks.
-use erpx_server_files::public::files_wave1b::{FilesCommandInput, plan};
+use erpx_server_files::public::files_wave1b::{
+    FilesCommandInput, RD_PROJECT_ATTACHMENT_TARGET, is_read, plan,
+};
 use erpx_server_files::public::files_wave1b_http::{
     FilesCommandBackend, FilesCommandFuture, FilesCommandPlanFuture, FilesCommandRequest,
     FilesCommandTarget, files_command_router,
@@ -95,6 +97,39 @@ fn sr058_plan_converts_placeholders_and_keeps_ledger_shape() {
         .contains("jsonb_build_object('kind', 'SR_058', 'rows', 0)"));
     assert!(statements[3].sql.contains("'files-outbox-test-key-0001'"));
     assert!(statements[3].values.is_empty());
+}
+
+#[test]
+fn rd_project_attachment_target_plans_owner_read_without_write_ledger() {
+    // Native successor of the retired TypeScript project-attachment selector.
+    // The owner SQL lives here, not in server-files TS; the caller's unit is
+    // the read authority, so no receipt/audit/outbox statements are planned.
+    let now = 1_700_000_000_000i64;
+    assert!(is_read(RD_PROJECT_ATTACHMENT_TARGET));
+    assert!(!is_read("SR_058"));
+    let statements = plan(
+        &company(),
+        "test-key-project-target",
+        &input(
+            RD_PROJECT_ATTACHMENT_TARGET,
+            serde_json::json!(["set-1", "company"]),
+            now,
+        ),
+    )
+    .unwrap();
+    assert_eq!(statements.len(), 1);
+    assert_eq!(
+        statements[0].sql,
+        "SELECT target_type FROM attachment_sets WHERE id=? AND company_id=?"
+    );
+    assert_eq!(
+        statements[0].values,
+        vec![serde_json::json!("set-1"), serde_json::json!("company")]
+    );
+    let ledger = statements[0].sql.to_ascii_uppercase();
+    assert!(!ledger.contains("INSERT"));
+    assert!(!ledger.contains("UPDATE"));
+    assert!(!ledger.contains("DELETE"));
 }
 
 #[test]

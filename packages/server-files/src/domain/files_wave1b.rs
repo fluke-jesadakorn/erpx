@@ -221,6 +221,15 @@ const SQL_BRAND_PUB_73I: &str = "UPDATE organization_brand_profiles SET inverse_
 pub const BRAND_PUB_74: &str = "BRAND_PUB_74";
 const SQL_BRAND_PUB_74: &str = "UPDATE storefront_app_brands SET logo_publication_id=NULL WHERE company_id=$1 AND logo_publication_id=$2"; // binds=2
 
+/// Owner-owned read: the project attachment-set routing fact. This is the
+/// native successor of the retired TypeScript project-attachment selector. It
+/// carries no write ledger: the caller's unit already holds the read scope.
+pub const RD_PROJECT_ATTACHMENT_TARGET: &str = "RD_PROJECT_ATTACHMENT_TARGET";
+const SQL_RD_PROJECT_ATTACHMENT_TARGET: &str = "SELECT target_type FROM attachment_sets WHERE id=$1 AND company_id=$2"; // binds=2
+
+/// Read kinds plan the owner SQL only; no receipt/audit/outbox write ledger.
+pub fn is_read(kind: &str) -> bool { kind == RD_PROJECT_ATTACHMENT_TARGET }
+
 /// Every kind this owner module accepts. Anything else is fail-closed.
 const KINDS: &[&str] = &[
     SR_001,
@@ -328,6 +337,7 @@ const KINDS: &[&str] = &[
     ORPH_003,
     MIG_023,
     MIG_024,
+    RD_PROJECT_ATTACHMENT_TARGET,
 ];
 pub fn supported(kind: &str) -> bool { KINDS.contains(&kind) }
 pub fn sql(kind: &str) -> Option<&'static str> { Some(match kind {
@@ -436,6 +446,7 @@ pub fn sql(kind: &str) -> Option<&'static str> { Some(match kind {
     BRAND_PUB_74 => SQL_BRAND_PUB_74,
     MIG_023 => SQL_MIG_023,
     MIG_024 => SQL_MIG_024,
+    RD_PROJECT_ATTACHMENT_TARGET => SQL_RD_PROJECT_ATTACHMENT_TARGET,
     _ => return None,
 }) }
 pub fn invalid() -> BusinessError { BusinessError::new(FailureKind::InvalidInput, "FILES_COMMAND_INVALID", "Use one bounded Files command.") }
