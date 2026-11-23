@@ -5,12 +5,13 @@ use erpx_server_operations::public::staff_tasks::{
     DelegationFact, DelegationHistoryRow, PgStaffTaskSources, PostFact, ProjectFact,
     RevokeTaskDelegationCommand, RouteFact, SaveTaskCommand, StaffFact, StaffTaskActor,
     StaffTaskFactDelegates, StaffTaskFuture, StaffTaskRepository, StaffTaskSources,
-    StoredTaskReceipt, TaskAccessFacts, TaskAction, TaskReceipt, TaskRow, TransitionTaskCommand,
-    delegate_task, escalate_staff_tasks, list_tasks, revoke_task_delegation, save_task,
-    task_detail, transition_task,
+    StoredTaskReceipt, TaskAccessFacts, TaskAction, TaskReceipt, TaskRow, TaskSourceWitness,
+    TransitionTaskCommand, delegate_task, escalate_staff_tasks, list_tasks,
+    revoke_task_delegation, save_task, task_detail, transition_task,
 };
 use erpx_server_shared::public::BusinessError;
 use std::collections::{HashMap, HashSet};
+use std::sync::{Arc, Mutex};
 
 #[derive(Default)]
 struct Repo {
@@ -245,7 +246,11 @@ impl StaffTaskRepository for Repo {
     }
 }
 
-struct Sources;
+#[derive(Default)]
+struct Sources {
+    /// (task id, command key, post id, version, same unit as repository)
+    bound: Arc<Mutex<Vec<(String, String, String, i64, bool)>>>,
+}
 impl StaffTaskSources for Sources {
     type Error = BusinessError;
     fn active_staff<'a>(
@@ -296,6 +301,23 @@ impl StaffTaskSources for Sources {
         _id: &'a str,
     ) -> StaffTaskFuture<'a, Option<PostFact>, Self::Error> {
         Box::pin(async move { Ok(None) })
+    }
+    fn bind_task_source<'a>(
+        &'a mut self,
+        unit: Option<&'a mut sqlx::PgConnection>,
+        _actor: &'a StaffTaskActor,
+        task_id: &'a str,
+        key: &'a str,
+        witness: &'a TaskSourceWitness,
+    ) -> StaffTaskFuture<'a, (), Self::Error> {
+        self.bound.lock().unwrap().push((
+            task_id.into(),
+            key.into(),
+            witness.post_id.clone(),
+            witness.source_version,
+            unit.is_none(),
+        ));
+        Box::pin(async move { Ok(()) })
     }
     fn task_route<'a>(
         &'a mut self,
@@ -414,6 +436,7 @@ fn save(title: &str) -> SaveTaskCommand {
         due_at: Some("2026-10-01T02:00:00Z".into()),
         expected_version: 1,
         reason: String::new(),
+        source: None,
     }
 }
 
@@ -421,7 +444,7 @@ fn save(title: &str) -> SaveTaskCommand {
 async fn save_replays_the_same_key_and_conflicts_on_a_different_body() {
     let now = 1_790_000_000_000;
     let mut repo = Repo::default();
-    let mut sources = Sources;
+    let mut sources = Sources::default();
     let created = save_task(
         &actor("creator"),
         &mut repo,
@@ -469,7 +492,7 @@ async fn save_replays_the_same_key_and_conflicts_on_a_different_body() {
 async fn save_requires_a_current_assignee_and_visibility_for_reads() {
     let now = 1_790_000_000_000;
     let mut repo = Repo::default();
-    let mut sources = Sources;
+    let mut sources = Sources::default();
     let mut input = save("Inspect deliveries");
     input.assignee_user_id = "outsider".into();
     let error = save_task(
@@ -525,7 +548,7 @@ async fn save_requires_a_current_assignee_and_visibility_for_reads() {
 async fn transition_enforces_current_version_and_records_the_state() {
     let now = 1_790_000_000_000;
     let mut repo = Repo::default();
-    let mut sources = Sources;
+    let mut sources = Sources::default();
     save_task(
         &actor("creator"),
         &mut repo,
@@ -612,7 +635,7 @@ async fn transition_enforces_current_version_and_records_the_state() {
 async fn delegation_and_revocation_are_owner_commands() {
     let now = 1_790_000_000_000;
     let mut repo = Repo::default();
-    let mut sources = Sources;
+    let mut sources = Sources::default();
     save_task(
         &actor("creator"),
         &mut repo,
@@ -696,7 +719,7 @@ async fn alerts_are_counted_once_per_task_version_and_user() {
         delegate_user_id: None,
         approvers: vec!["head".into()],
     }];
-    let mut sources = Sources;
+    let mut sources = Sources::default();
     let first = escalate_staff_tasks(&mut repo, &mut sources, now, 86_400_000)
         .await
         .unwrap();
@@ -878,4 +901,43 @@ async fn mounted_owner_facts_serve_reads_and_workflow_stays_fail_closed() {
     .await
     .unwrap_err();
     assert_eq!(error.code, "TASK_WORKFLOW_APPROVAL_VIEW_SOURCE_REQUIRED");
+}
+
+#[tokio::test]
+async fn save_binds_the_reviewed_post_source_inside_the_caller_unit() {
+    let now = 1_790_000_000_000;
+    let mut repo = Repo::default();
+    let mut sources = Sources::default();
+    let mut input = save("Inspect deliveries");
+    input.source = Some(TaskSourceWitness {
+        post_id: "post-7".into(),
+        source_version: 3,
+        source_hash: "hash-3".into(),
+        comment_ids: Vec::new(),
+        ai_draft_id: None,
+    });
+    let receipt = save_task(
+        &actor("creator"),
+        &mut repo,
+        &mut sources,
+        None,
+        &input,
+        "key-source",
+        false,
+        now,
+    )
+    .await
+    .unwrap();
+    assert_eq!(
+        receipt,
+        TaskReceipt::new("task-key-source", "ready", 1),
+        "the command id is the idempotency key, never the remote post/work id"
+    );
+    let bound = sources.bound.lock().unwrap();
+    assert_eq!(bound.len(), 1);
+    assert_eq!(bound[0].0, "task-key-source");
+    assert_eq!(bound[0].1, "key-source");
+    assert_eq!(bound[0].2, "post-7");
+    assert_eq!(bound[0].3, 3);
+    assert!(bound[0].4, "the source binding must use the repository's retained unit");
 }

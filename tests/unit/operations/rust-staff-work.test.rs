@@ -114,6 +114,7 @@ fn save_command_validates_due_date_and_approval_route() {
         due_at: None,
         expected_version: 1,
         reason: String::new(),
+        source: None,
     };
     assert!(base.validate().is_ok());
     assert_eq!(

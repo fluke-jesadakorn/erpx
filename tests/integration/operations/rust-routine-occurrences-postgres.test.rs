@@ -194,6 +194,7 @@ impl RoutineOccurrenceUnit for DisabledUnit {
                     ),
                     expected_version: 1,
                     reason: String::new(),
+                    source: None,
                 };
                 let mut repository = PgStaffTasks::new(&mut *connection);
                 let mut sources = PgStaffTaskSources::new(TestSources);

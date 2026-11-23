@@ -7,6 +7,7 @@ use erpx_server_operations::public::staff_tasks::{
     ApprovalView, AttachmentRow, DecisionFact, DelegationFact, DelegationHistoryRow, PostFact,
     ProjectFact, RouteFact, SaveTaskPlan, StaffFact, StaffTaskActor, StaffTaskFuture,
     StaffTaskRepository, StaffTaskSources, StoredTaskReceipt, TaskReceipt, TaskRow, TaskScope,
+    TaskSourceWitness,
 };
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use std::collections::{HashMap, HashSet};
@@ -255,6 +256,16 @@ impl StaffTaskSources for Sources {
         _post_id: &'a str,
     ) -> StaffTaskFuture<'a, Option<PostFact>, Self::Error> {
         Box::pin(async move { Ok(None) })
+    }
+    fn bind_task_source<'a>(
+        &'a mut self,
+        _unit: Option<&'a mut sqlx::PgConnection>,
+        _actor: &'a StaffTaskActor,
+        _task_id: &'a str,
+        _key: &'a str,
+        _witness: &'a TaskSourceWitness,
+    ) -> StaffTaskFuture<'a, (), Self::Error> {
+        Box::pin(async move { Ok(()) })
     }
     fn task_route<'a>(
         &'a mut self,

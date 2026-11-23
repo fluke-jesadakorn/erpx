@@ -59,6 +59,7 @@ fn save_plan(key: &str, now: i64) -> SaveTaskPlan {
         due_at: Some("2026-10-01T02:00:00Z".into()),
         expected_version: 1,
         reason: String::new(),
+        source: None,
     };
     SaveTaskPlan {
         key: CommandKey::new(key).unwrap(),
