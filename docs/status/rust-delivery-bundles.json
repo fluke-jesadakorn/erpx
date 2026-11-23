@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7177,
+    "revision": 7200,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261123-g",
+      "runId": "run-20261123-h",
       "agentId": "lead",
-      "startedAt": "2026-11-23T20:25:05.022Z",
-      "heartbeatAt": "2026-11-23T22:29:18.693Z",
-      "expiresAt": "2026-11-23T22:59:18.693Z",
-      "generation": 159,
-      "tokenHash": "5911c99a623144ad01ff349f0239d96c6699be1bfbd04866f36fdc7f0eed43fd"
+      "startedAt": "2026-11-23T23:00:32.496Z",
+      "heartbeatAt": "2026-11-23T23:00:40.660Z",
+      "expiresAt": "2026-11-23T23:30:40.660Z",
+      "generation": 160,
+      "tokenHash": "700f2ba5305c1898a1f2856e1766eea39d84c23aefe206e1a9da29d5d0cdb71e"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -117175,12 +117175,12 @@
           "resource:composition"
         ],
         "claim": {
-          "runId": "run-20261123-g",
+          "runId": "run-20261123-h",
           "agentId": "wBXqua",
-          "claimedAt": "2026-11-23T22:24:06.440Z",
-          "heartbeatAt": "2026-11-23T22:29:18.693Z",
-          "expiresAt": "2026-11-23T22:59:18.693Z",
-          "generation": 159
+          "claimedAt": "2026-11-23T23:00:39.241Z",
+          "heartbeatAt": "2026-11-23T23:00:40.660Z",
+          "expiresAt": "2026-11-23T23:30:40.660Z",
+          "generation": 160
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -117189,7 +117189,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Add WorkContext-header read router/service, thin TS client, switch executive evidence/staff notifications/product entry/work items, delete rows/getQualityHold/qualityWork and record 123->121.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wBXqua",
+          "at": "2026-11-23T23:00:32.496Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
+          "nextAction": "Add WorkContext-header read router/service, thin TS client, switch executive evidence/staff notifications/product entry/work items, delete rows/getQualityHold/qualityWork and record 123->121."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -120383,12 +120390,12 @@
           "owner:sales"
         ],
         "claim": {
-          "runId": "run-20261123-g",
+          "runId": "run-20261123-h",
           "agentId": "wAZsal",
-          "claimedAt": "2026-11-23T21:30:42.726Z",
-          "heartbeatAt": "2026-11-23T22:29:18.693Z",
-          "expiresAt": "2026-11-23T22:59:18.693Z",
-          "generation": 159
+          "claimedAt": "2026-11-23T23:00:39.317Z",
+          "heartbeatAt": "2026-11-23T23:00:40.660Z",
+          "expiresAt": "2026-11-23T23:30:40.660Z",
+          "generation": 160
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -120397,7 +120404,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Pick the smallest owner-local read family served by the native sales read registry/command-plan; record a strictly lower count.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wAZsal",
+          "at": "2026-11-23T23:00:32.496Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
+          "nextAction": "Pick the smallest owner-local read family served by the native sales read registry/command-plan; record a strictly lower count."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -122941,12 +122955,12 @@
           "owner:projects"
         ],
         "claim": {
-          "runId": "run-20261123-g",
+          "runId": "run-20261123-h",
           "agentId": "wC02pro",
-          "claimedAt": "2026-11-23T22:33:46.236Z",
-          "heartbeatAt": "2026-11-23T22:33:46.236Z",
-          "expiresAt": "2026-11-23T23:03:46.236Z",
-          "generation": 159
+          "claimedAt": "2026-11-23T23:00:39.395Z",
+          "heartbeatAt": "2026-11-23T23:00:40.660Z",
+          "expiresAt": "2026-11-23T23:30:40.660Z",
+          "generation": 160
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -122955,7 +122969,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to a mounted native read; record a strictly lower count.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wC02pro",
+          "at": "2026-11-23T23:00:32.496Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
+          "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to a mounted native read; record a strictly lower count."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -123313,12 +123334,12 @@
           "owner:billing"
         ],
         "claim": {
-          "runId": "run-20261123-g",
+          "runId": "run-20261123-h",
           "agentId": "wC09bil",
-          "claimedAt": "2026-11-23T22:41:06.762Z",
-          "heartbeatAt": "2026-11-23T22:41:06.762Z",
-          "expiresAt": "2026-11-23T23:11:06.762Z",
-          "generation": 159
+          "claimedAt": "2026-11-23T23:00:39.494Z",
+          "heartbeatAt": "2026-11-23T23:00:40.660Z",
+          "expiresAt": "2026-11-23T23:30:40.660Z",
+          "generation": 160
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -123327,7 +123348,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Pick the smallest remaining parameterized owner-local family on the owner-write registry; record a strictly lower count.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wC09bil",
+          "at": "2026-11-23T23:00:32.496Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
+          "nextAction": "Pick the smallest remaining parameterized owner-local family on the owner-write registry; record a strictly lower count."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -123349,12 +123377,12 @@
           "owner:support"
         ],
         "claim": {
-          "runId": "run-20261123-g",
+          "runId": "run-20261123-h",
           "agentId": "wCA1sup",
-          "claimedAt": "2026-11-23T22:42:48.904Z",
-          "heartbeatAt": "2026-11-23T22:42:48.904Z",
-          "expiresAt": "2026-11-23T23:12:48.904Z",
-          "generation": 159
+          "claimedAt": "2026-11-23T23:00:39.575Z",
+          "heartbeatAt": "2026-11-23T23:00:40.660Z",
+          "expiresAt": "2026-11-23T23:30:40.660Z",
+          "generation": 160
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -123363,7 +123391,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family served by the support command-plan; record a strictly lower count.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wCA1sup",
+          "at": "2026-11-23T23:00:32.496Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
+          "nextAction": "Pick the smallest remaining owner-local fixed-SQL family served by the support command-plan; record a strictly lower count."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -123385,12 +123420,12 @@
           "owner:inventory"
         ],
         "claim": {
-          "runId": "run-20261123-g",
+          "runId": "run-20261123-h",
           "agentId": "wCB1inv",
-          "claimedAt": "2026-11-23T22:43:56.309Z",
-          "heartbeatAt": "2026-11-23T22:43:56.309Z",
-          "expiresAt": "2026-11-23T23:13:56.309Z",
-          "generation": 159
+          "claimedAt": "2026-11-23T23:00:39.653Z",
+          "heartbeatAt": "2026-11-23T23:00:40.660Z",
+          "expiresAt": "2026-11-23T23:30:40.660Z",
+          "generation": 160
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -123399,7 +123434,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to the native inventory registry; record a strictly lower count.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wCB1inv",
+          "at": "2026-11-23T23:00:32.496Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
+          "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to the native inventory registry; record a strictly lower count."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -123421,12 +123463,12 @@
           "owner:procurement"
         ],
         "claim": {
-          "runId": "run-20261123-g",
+          "runId": "run-20261123-h",
           "agentId": "wCC1pro",
-          "claimedAt": "2026-11-23T22:46:42.617Z",
-          "heartbeatAt": "2026-11-23T22:46:42.617Z",
-          "expiresAt": "2026-11-23T23:16:42.617Z",
-          "generation": 159
+          "claimedAt": "2026-11-23T23:00:39.730Z",
+          "heartbeatAt": "2026-11-23T23:00:40.660Z",
+          "expiresAt": "2026-11-23T23:30:40.660Z",
+          "generation": 160
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -123435,7 +123477,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family served by the procurement command-plan; record a strictly lower count.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wCC1pro",
+          "at": "2026-11-23T23:00:32.496Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
+          "nextAction": "Pick the smallest remaining owner-local fixed-SQL family served by the procurement command-plan; record a strictly lower count."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -123457,12 +123506,12 @@
           "owner:pos"
         ],
         "claim": {
-          "runId": "run-20261123-g",
+          "runId": "run-20261123-h",
           "agentId": "wCD1pos",
-          "claimedAt": "2026-11-23T22:47:56.618Z",
-          "heartbeatAt": "2026-11-23T22:47:56.618Z",
-          "expiresAt": "2026-11-23T23:17:56.618Z",
-          "generation": 159
+          "claimedAt": "2026-11-23T23:00:39.807Z",
+          "heartbeatAt": "2026-11-23T23:00:40.660Z",
+          "expiresAt": "2026-11-23T23:30:40.660Z",
+          "generation": 160
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -123471,7 +123520,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family served by the native POS registry; record a strictly lower count.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wCD1pos",
+          "at": "2026-11-23T23:00:32.496Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
+          "nextAction": "Pick the smallest remaining owner-local fixed-SQL family served by the native POS registry; record a strictly lower count."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -123480,7 +123536,7 @@
         "owner": "marketing",
         "title": "marketing TS read tail native cutover (round 7)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -123492,22 +123548,42 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wCE1mar",
-          "claimedAt": "2026-11-23T22:48:09.364Z",
-          "heartbeatAt": "2026-11-23T22:48:09.364Z",
-          "expiresAt": "2026-11-23T23:18:09.364Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-marketing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "aedc35500",
+            "owner": "marketing",
+            "before": 122,
+            "after": 120,
+            "note": "Attachment source witness/image reads share one canonical helper."
+          },
+          {
+            "command": "cargo check -p erpx-server-marketing + lib (7)",
+            "result": "passed",
+            "sourceSha": "aedc35500"
+          },
+          {
+            "command": "vitest marketing units (50) + tsc marketing",
+            "result": "passed",
+            "sourceSha": "aedc35500"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family (candidate existence, public-form content, attachment source witness); record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-h",
+          "agentId": "wCE1mar",
+          "at": "2026-11-23T23:00:40.823Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -123585,12 +123661,12 @@
           "owner:talent"
         ],
         "claim": {
-          "runId": "run-20261123-g",
+          "runId": "run-20261123-h",
           "agentId": "wCG1tal",
-          "claimedAt": "2026-11-23T22:51:01.920Z",
-          "heartbeatAt": "2026-11-23T22:51:01.920Z",
-          "expiresAt": "2026-11-23T23:21:01.920Z",
-          "generation": 159
+          "claimedAt": "2026-11-23T23:00:39.965Z",
+          "heartbeatAt": "2026-11-23T23:00:40.660Z",
+          "expiresAt": "2026-11-23T23:30:40.660Z",
+          "generation": 160
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -123599,7 +123675,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL read family served by the command-plan registry; record a strictly lower count.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wCG1tal",
+          "at": "2026-11-23T23:00:32.496Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
+          "nextAction": "Pick the smallest remaining owner-local fixed-SQL read family served by the command-plan registry; record a strictly lower count."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -123677,12 +123760,12 @@
           "owner:workflow"
         ],
         "claim": {
-          "runId": "run-20261123-g",
+          "runId": "run-20261123-h",
           "agentId": "wCI1wor",
-          "claimedAt": "2026-11-23T22:53:15.788Z",
-          "heartbeatAt": "2026-11-23T22:53:15.788Z",
-          "expiresAt": "2026-11-23T23:23:15.788Z",
-          "generation": 159
+          "claimedAt": "2026-11-23T23:00:40.046Z",
+          "heartbeatAt": "2026-11-23T23:00:40.660Z",
+          "expiresAt": "2026-11-23T23:30:40.660Z",
+          "generation": 160
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -123691,7 +123774,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Pick the smallest remaining company-scoped fixed-SQL read family served by the wave3 planner; record a strictly lower count.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wCI1wor",
+          "at": "2026-11-23T23:00:32.496Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
+          "nextAction": "Pick the smallest remaining company-scoped fixed-SQL read family served by the wave3 planner; record a strictly lower count."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -123713,12 +123803,12 @@
           "owner:agent"
         ],
         "claim": {
-          "runId": "run-20261123-g",
+          "runId": "run-20261123-h",
           "agentId": "wCJ1age",
-          "claimedAt": "2026-11-23T22:53:51.231Z",
-          "heartbeatAt": "2026-11-23T22:53:51.231Z",
-          "expiresAt": "2026-11-23T23:23:51.231Z",
-          "generation": 159
+          "claimedAt": "2026-11-23T23:00:40.128Z",
+          "heartbeatAt": "2026-11-23T23:00:40.660Z",
+          "expiresAt": "2026-11-23T23:30:40.660Z",
+          "generation": 160
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -123727,7 +123817,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Dedupe the guided-intake quota template pair (collaboration-guided-intake-quota.ts + workspace-assistant.ts) or the next smallest family; record a strictly lower count.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wCJ1age",
+          "at": "2026-11-23T23:00:32.496Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
+          "nextAction": "Dedupe the guided-intake quota template pair (collaboration-guided-intake-quota.ts + workspace-assistant.ts) or the next smallest family; record a strictly lower count."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -123749,12 +123846,12 @@
           "owner:records"
         ],
         "claim": {
-          "runId": "run-20261123-g",
+          "runId": "run-20261123-h",
           "agentId": "wCK1rec",
-          "claimedAt": "2026-11-23T22:54:46.839Z",
-          "heartbeatAt": "2026-11-23T22:54:46.839Z",
-          "expiresAt": "2026-11-23T23:24:46.839Z",
-          "generation": 159
+          "claimedAt": "2026-11-23T23:00:40.225Z",
+          "heartbeatAt": "2026-11-23T23:00:40.660Z",
+          "expiresAt": "2026-11-23T23:30:40.660Z",
+          "generation": 160
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -123763,7 +123860,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next smallest owner-local single-SELECT facts likely need a mounted native read rather than dedupe (commerce-entrypoint-facts, attachment-migration-owner, attachments-service-facts, department-override-facts); record strictly lower.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wCK1rec",
+          "at": "2026-11-23T23:00:32.496Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
+          "nextAction": "Next smallest owner-local single-SELECT facts likely need a mounted native read rather than dedupe (commerce-entrypoint-facts, attachment-migration-owner, attachments-service-facts, department-override-facts); record strictly lower."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -123785,12 +123889,12 @@
           "owner:people_payroll"
         ],
         "claim": {
-          "runId": "run-20261123-g",
+          "runId": "run-20261123-h",
           "agentId": "wCL1peo",
-          "claimedAt": "2026-11-23T22:54:58.674Z",
-          "heartbeatAt": "2026-11-23T22:54:58.674Z",
-          "expiresAt": "2026-11-23T23:24:58.674Z",
-          "generation": 159
+          "claimedAt": "2026-11-23T23:00:40.308Z",
+          "heartbeatAt": "2026-11-23T23:00:40.660Z",
+          "expiresAt": "2026-11-23T23:30:40.660Z",
+          "generation": 160
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -123799,7 +123903,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL read family; dedupe or use the read-plan port; record a strictly lower count.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wCL1peo",
+          "at": "2026-11-23T23:00:32.496Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
+          "nextAction": "Pick the smallest remaining owner-local fixed-SQL read family; dedupe or use the read-plan port; record a strictly lower count."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -123821,12 +123932,12 @@
           "owner:pms"
         ],
         "claim": {
-          "runId": "run-20261123-g",
+          "runId": "run-20261123-h",
           "agentId": "wCM1pms",
-          "claimedAt": "2026-11-23T22:55:10.140Z",
-          "heartbeatAt": "2026-11-23T22:55:10.140Z",
-          "expiresAt": "2026-11-23T23:25:10.140Z",
-          "generation": 159
+          "claimedAt": "2026-11-23T23:00:40.390Z",
+          "heartbeatAt": "2026-11-23T23:00:40.660Z",
+          "expiresAt": "2026-11-23T23:30:40.660Z",
+          "generation": 160
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -123835,7 +123946,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Pick the smallest remaining fixed-SQL read family served by the pms command-plan; avoid refund retry and FOR UPDATE reads; record a strictly lower count.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wCM1pms",
+          "at": "2026-11-23T23:00:32.496Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
+          "nextAction": "Pick the smallest remaining fixed-SQL read family served by the pms command-plan; avoid refund retry and FOR UPDATE reads; record a strictly lower count."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -123857,12 +123975,12 @@
           "owner:assets"
         ],
         "claim": {
-          "runId": "run-20261123-g",
+          "runId": "run-20261123-h",
           "agentId": "wCN1ass",
-          "claimedAt": "2026-11-23T22:56:02.241Z",
-          "heartbeatAt": "2026-11-23T22:56:02.241Z",
-          "expiresAt": "2026-11-23T23:26:02.241Z",
-          "generation": 159
+          "claimedAt": "2026-11-23T23:00:40.485Z",
+          "heartbeatAt": "2026-11-23T23:00:40.660Z",
+          "expiresAt": "2026-11-23T23:30:40.660Z",
+          "generation": 160
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -123871,7 +123989,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; record a strictly lower count.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wCN1ass",
+          "at": "2026-11-23T23:00:32.496Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
+          "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; record a strictly lower count."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -123893,12 +124018,12 @@
           "owner:operations"
         ],
         "claim": {
-          "runId": "run-20261123-g",
+          "runId": "run-20261123-h",
           "agentId": "wCP1ope",
-          "claimedAt": "2026-11-23T22:57:41.073Z",
-          "heartbeatAt": "2026-11-23T22:57:41.073Z",
-          "expiresAt": "2026-11-23T23:27:41.073Z",
-          "generation": 159
+          "claimedAt": "2026-11-23T23:00:40.579Z",
+          "heartbeatAt": "2026-11-23T23:00:40.660Z",
+          "expiresAt": "2026-11-23T23:30:40.660Z",
+          "generation": 160
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -123907,6 +124032,49 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to the native operations registry; record a strictly lower count.",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wCP1ope",
+          "at": "2026-11-23T23:00:32.496Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
+          "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to the native operations registry; record a strictly lower count."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.marketing.read-tail-r8",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing TS read tail native cutover (round 8)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**",
+          "tests/integration/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": {
+          "runId": "run-20261123-h",
+          "agentId": "wCQ1mar",
+          "claimedAt": "2026-11-23T23:00:40.985Z",
+          "heartbeatAt": "2026-11-23T23:00:40.985Z",
+          "expiresAt": "2026-11-23T23:30:40.985Z",
+          "generation": 160
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family (candidate existence or public-form content); record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
       }
@@ -123917,7 +124085,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 636,
+      "totalPackets": 637,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -123925,13 +124093,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 272,
+        "blocked": 273,
         "deferred": 0,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T22:57:41.075Z",
+    "lastCoordinatorGeneration": 160,
+    "updatedAt": "2026-11-23T23:00:40.988Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -123966,10 +124134,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261123-f",
-      "runId": "run-20261123-g",
-      "at": "2026-11-23T20:25:05.023Z",
-      "reason": "Coordinator lease expired during active read-tail r2 wave; WIP reviewed with 19 workers active",
+      "previousRunId": "run-20261123-g",
+      "runId": "run-20261123-h",
+      "at": "2026-11-23T23:00:32.497Z",
+      "reason": "Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
       "wipReviewed": true,
       "previousRunStopped": true
     },
