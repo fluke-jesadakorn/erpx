@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6487,
+    "revision": 6488,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -110425,6 +110425,27 @@
             "command": "vitest legal-application 60/60",
             "result": "passed",
             "sourceSha": "bf52f3e04"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f5b3b889b",
+            "owner": "legal",
+            "before": 329,
+            "after": 328,
+            "note": "wN02: savedViews via nativeLegalAuxiliaryRead('views')."
+          },
+          {
+            "command": "cargo test -p erpx-server-legal --test auxiliary_postgres",
+            "result": "passed",
+            "sourceSha": "f5b3b889b",
+            "note": "14 passed"
+          },
+          {
+            "command": "tsc server-legal + vitest legal-application",
+            "result": "passed",
+            "sourceSha": "f5b3b889b",
+            "note": "60 passed"
           }
         ],
         "retainedLegacy": [],
@@ -110437,7 +110458,7 @@
           "reason": "handoff",
           "nextAction": "Integrated; claim released"
         },
-        "nextAction": "Integrated; claim released",
+        "nextAction": "328 recorded; next candidate ai history (confirm visibility check)",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -114676,7 +114697,7 @@
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T18:28:15.308Z",
+    "updatedAt": "2026-11-23T18:30:49.755Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
