@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5523,
+    "revision": 5525,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-d",
       "agentId": "lead",
       "startedAt": "2026-11-23T06:45:08.420Z",
-      "heartbeatAt": "2026-11-23T09:03:21.171Z",
-      "expiresAt": "2026-11-23T09:33:21.171Z",
+      "heartbeatAt": "2026-11-23T09:09:55.335Z",
+      "expiresAt": "2026-11-23T09:39:55.335Z",
       "generation": 154,
       "tokenHash": "01e24ba69c801ba69506f7381436bc3415092da31ab33204c519241e628cd4c9"
     },
@@ -15563,8 +15563,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:46:29.180Z",
-          "heartbeatAt": "2026-11-23T09:03:21.171Z",
-          "expiresAt": "2026-11-23T09:33:21.171Z",
+          "heartbeatAt": "2026-11-23T09:09:55.335Z",
+          "expiresAt": "2026-11-23T09:39:55.335Z",
           "generation": 154
         },
         "baseSha": "473b198f4838943261a63a1ca44b167d347fc4c4",
@@ -17495,8 +17495,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:26:32.057Z",
-          "heartbeatAt": "2026-11-23T09:03:21.171Z",
-          "expiresAt": "2026-11-23T09:33:21.171Z",
+          "heartbeatAt": "2026-11-23T09:09:55.335Z",
+          "expiresAt": "2026-11-23T09:39:55.335Z",
           "generation": 154
         },
         "baseSha": "f901987c8bcb88a080e9beb9d2b87892bc462eea",
@@ -27285,8 +27285,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:04:51.894Z",
-          "heartbeatAt": "2026-11-23T09:03:21.171Z",
-          "expiresAt": "2026-11-23T09:33:21.171Z",
+          "heartbeatAt": "2026-11-23T09:09:55.335Z",
+          "expiresAt": "2026-11-23T09:39:55.335Z",
           "generation": 154
         },
         "baseSha": "d0067f253fd960ab6945c5622e360e2cceeaffe7",
@@ -28361,8 +28361,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:19:17.835Z",
-          "heartbeatAt": "2026-11-23T09:03:21.171Z",
-          "expiresAt": "2026-11-23T09:33:21.171Z",
+          "heartbeatAt": "2026-11-23T09:09:55.335Z",
+          "expiresAt": "2026-11-23T09:39:55.335Z",
           "generation": 154
         },
         "baseSha": null,
@@ -39877,8 +39877,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:59:53.885Z",
-          "heartbeatAt": "2026-11-23T09:03:21.171Z",
-          "expiresAt": "2026-11-23T09:33:21.171Z",
+          "heartbeatAt": "2026-11-23T09:09:55.335Z",
+          "expiresAt": "2026-11-23T09:39:55.335Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45246,8 +45246,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:03:09.640Z",
-          "heartbeatAt": "2026-11-23T09:03:21.171Z",
-          "expiresAt": "2026-11-23T09:33:21.171Z",
+          "heartbeatAt": "2026-11-23T09:09:55.335Z",
+          "expiresAt": "2026-11-23T09:39:55.335Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45778,13 +45778,13 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:55:34.675Z",
-          "heartbeatAt": "2026-11-23T09:03:21.171Z",
-          "expiresAt": "2026-11-23T09:33:21.171Z",
+          "heartbeatAt": "2026-11-23T09:09:55.335Z",
+          "expiresAt": "2026-11-23T09:39:55.335Z",
           "generation": 154
         },
         "baseSha": "afd03abe757ce8a5defa94c0bc878f4fc44a9c76",
-        "implementedCommit": "28a0ef0b98c8a2ba2314709a90fffce0a1b3ced1",
-        "lastPushedSha": "28a0ef0b98c8a2ba2314709a90fffce0a1b3ced1",
+        "implementedCommit": "e0270e2cbbdc21b58a3e8beb1e0691003bb99b6d",
+        "lastPushedSha": "e0270e2cbbdc21b58a3e8beb1e0691003bb99b6d",
         "checks": [
           {
             "command": "audit:collaboration-native-parity",
@@ -46011,6 +46011,12 @@
             "result": "passed",
             "sourceSha": "28a0ef0b98c8a2ba2314709a90fffce0a1b3ced1",
             "note": "lead; build 21s; 3198/3199/3100 health 200; dev fully restarted (collab config already wired)"
+          },
+          {
+            "command": "tsc + consistency fixup at pushed SHA",
+            "result": "passed",
+            "sourceSha": "e0270e2cbbdc21b58a3e8beb1e0691003bb99b6d",
+            "note": "lead; 28a0ef0b missed the TS adapter file (pathspec gap) leaving HEAD inconsistent; e0270e2cb adds it. tsc clean on identical worktree content; collaboration paths now clean; dev already serves this content (restart preceded fixup, no env change, HMR-applicable)."
           }
         ],
         "retainedLegacy": [
@@ -46023,7 +46029,7 @@
           }
         ],
         "blocker": null,
-        "nextAction": "Workspace slice landed at 28a0ef0b (pushed, remote verified): relations+cards statements + cutover, PG 5/5, tsc/structure clean, KPI 3->0, stack rebuilt+healthy. Collaboration TS reads fully native; remaining tail is lane verification + eligiblePeople module (separate file).",
+        "nextAction": "Workspace slice complete at e0270e2cb (fixup for 28a0ef0b pathspec gap included, pushed, remote verified). Collaboration-work.ts fully native (3->0). Remaining tail: lane verification + eligiblePeople module.",
         "handoff": {
           "runId": "run-20261123-b",
           "agentId": "worker-col",
@@ -49284,8 +49290,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:31:10.408Z",
-          "heartbeatAt": "2026-11-23T09:03:21.171Z",
-          "expiresAt": "2026-11-23T09:33:21.171Z",
+          "heartbeatAt": "2026-11-23T09:09:55.335Z",
+          "expiresAt": "2026-11-23T09:39:55.335Z",
           "generation": 154
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -50499,8 +50505,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T06:47:05.965Z",
-          "heartbeatAt": "2026-11-23T09:03:21.171Z",
-          "expiresAt": "2026-11-23T09:33:21.171Z",
+          "heartbeatAt": "2026-11-23T09:09:55.335Z",
+          "expiresAt": "2026-11-23T09:39:55.335Z",
           "generation": 154
         },
         "baseSha": null,
@@ -109837,7 +109843,7 @@
       }
     },
     "lastCoordinatorGeneration": 154,
-    "updatedAt": "2026-11-23T09:09:47.476Z",
+    "updatedAt": "2026-11-23T09:10:38.147Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
