@@ -10,6 +10,7 @@ import {
   PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL,
   PROCUREMENT_RD_BILL_MATCH_RECEIPTS,
   PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT,
+  PROCUREMENT_RD_REQUEST_ALLOCATIONS,
 } from '../../../packages/server-procurement/src/adapters/native-procurement-read';
 import { procurementInvoiceMatchForFinance } from '../../../packages/server-procurement/src/adapters/finance-entrypoint-queries';
 import { requestQuotation } from '../../../packages/server-procurement/src/adapters/people-app-entrypoint-facts';
@@ -26,6 +27,7 @@ const planned = {
   [PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL]: "SELECT * FROM procurement_bill_matches WHERE invoice_id=? AND company_id=? AND status='invoiced'",
   [PROCUREMENT_RD_BILL_MATCH_RECEIPTS]: 'SELECT * FROM procurement_bill_match_receipts WHERE match_id=? ORDER BY id',
   [PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT]: "SELECT count(*) n FROM procurement_rfqs WHERE request_id=? AND status<>'cancelled'",
+  [PROCUREMENT_RD_REQUEST_ALLOCATIONS]: "SELECT l.request_item_ordinal ordinal,COALESCE(sum(l.request_quantity_milli),0) allocated_milli FROM procurement_rfq_lines l JOIN procurement_rfqs r ON r.id=l.rfq_id WHERE r.request_id=? AND r.status<>'cancelled' GROUP BY l.request_item_ordinal",
 };
 const stubFetch = (payload: unknown, status = 200) => {
   const fetchMock = vi.fn(async () => ({
@@ -78,7 +80,8 @@ describe('native Procurement caller-unit read plan', () => {
     expect(PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL).toBe('procurement_rd_document_posting_matched_bill');
     expect(PROCUREMENT_RD_BILL_MATCH_RECEIPTS).toBe('procurement_rd_bill_match_receipts');
     expect(PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT).toBe('procurement_rd_active_quotation_count');
-    for (const kind of [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE, PROCUREMENT_RD_REQUEST_QUOTATION, PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH, PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL, PROCUREMENT_RD_BILL_MATCH_RECEIPTS, PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT]) {
+    expect(PROCUREMENT_RD_REQUEST_ALLOCATIONS).toBe('procurement_rd_request_allocations');
+    for (const kind of [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE, PROCUREMENT_RD_REQUEST_QUOTATION, PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH, PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL, PROCUREMENT_RD_BILL_MATCH_RECEIPTS, PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT, PROCUREMENT_RD_REQUEST_ALLOCATIONS]) {
       expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
     }
   });
@@ -190,6 +193,33 @@ describe('native Procurement caller-unit read plan', () => {
     );
     expect(source).not.toContain("SELECT count(*) n FROM procurement_rfqs WHERE request_id=? AND status<>'cancelled'");
     expect(source).toContain('PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT');
+  });
+
+  it('plans the request-allocation read and retires all three TypeScript literals', async () => {
+    const sql = planned[PROCUREMENT_RD_REQUEST_ALLOCATIONS];
+    const allocation = { ordinal: 1, allocated_milli: 5000 };
+    const fetchMock = stubFetch({ data: { statements: [{ sql, values: ['req-1'] }] } });
+    const { db, prepared, bound } = fakeDb([allocation]);
+    const facts = EmployeeRequestsProcurementOwnedFacts(db as never);
+    expect((await facts.readActOnEmployeeRequestAllocations('req-1')).results).toEqual([allocation]);
+    expect((await facts.readRequestQuotationSourceAllocated('req-1')).results).toEqual([allocation]);
+    expect(prepared).toEqual([sql, sql]);
+    expect(bound).toEqual([['req-1'], ['req-1']]);
+    const [, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+    const body = JSON.parse(init.body as string) as { kind: string; values: unknown[] };
+    expect(body.kind).toBe('procurement_rd_request_allocations');
+    expect(body.values).toEqual(['req-1']);
+    expect(JSON.stringify(body)).not.toContain('SELECT');
+
+    const literal = "SELECT l.request_item_ordinal ordinal,COALESCE(sum(l.request_quantity_milli),0) allocated_milli FROM procurement_rfq_lines l JOIN procurement_rfqs r ON r.id=l.rfq_id WHERE r.request_id=? AND r.status<>'cancelled' GROUP BY l.request_item_ordinal";
+    for (const rel of [
+      '../../../packages/server-procurement/src/adapters/records-employee-requests-owned-facts.ts',
+      '../../../packages/server-procurement/src/adapters/purchase-request-progress.ts',
+    ]) {
+      const source = readFileSync(new URL(rel, import.meta.url), 'utf8');
+      expect(source).not.toContain(literal);
+      expect(source).toContain('PROCUREMENT_RD_REQUEST_ALLOCATIONS');
+    }
   });
 
   it('fails closed when the native transport is not configured', async () => {

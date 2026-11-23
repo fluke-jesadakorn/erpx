@@ -8,6 +8,7 @@ import {getEmployeeRequest} from '@erpx/server-records/public/employee-requests-
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {BusinessRuleError} from "@erpx/server-shared/index";
 import {createPurchaseProgressApplication} from "@erpx/server-procurement/application/request-progress";
+import {nativeProcurementReadAll,PROCUREMENT_RD_REQUEST_ALLOCATIONS} from "./native-procurement-read";
 import type {ProgressRow,PurchaseProgressRequest} from "@erpx/server-procurement/domain/request-progress";
 export type {PurchaseProgressState,PurchaseProgressStep,PurchaseRequestProgress} from "@erpx/server-procurement/domain/request-progress";
 async function facts(db:SqlDatabase,actor:WorkContext,request:PurchaseProgressRequest){
@@ -46,7 +47,7 @@ async function facts(db:SqlDatabase,actor:WorkContext,request:PurchaseProgressRe
         )
         .bind(actor.companyId,request.purchase_order_id,request.id)
         .first<ProgressRow>();
-  const allocations=(await db.prepare("SELECT l.request_item_ordinal ordinal,COALESCE(sum(l.request_quantity_milli),0) allocated_milli FROM procurement_rfq_lines l JOIN procurement_rfqs r ON r.id=l.rfq_id WHERE r.request_id=? AND r.status<>'cancelled' GROUP BY l.request_item_ordinal").bind(request.id).all<ProgressRow>()).results;
+  const allocations=(await nativeProcurementReadAll<ProgressRow>(PROCUREMENT_RD_REQUEST_ALLOCATIONS,[request.id],db)).results;
  return {rfqs,orders,quantities,receipts,bills,payments,allocations};
 }
 export async function purchaseRequestProgress(db:SqlDatabase,actor:WorkContext,requestId:string){

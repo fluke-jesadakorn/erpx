@@ -1,6 +1,6 @@
-import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import type { SqlDatabase, SqlResult } from "@erpx/server-runtime/public/runtime/types";
 import { nativeProcurementStatement } from '@erpx/feature-procurement/adapters/server/native-procurement-command';
-import {nativeProcurementReadFirst,PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT} from "./native-procurement-read";
+import {nativeProcurementReadAll,nativeProcurementReadFirst,PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT,PROCUREMENT_RD_REQUEST_ALLOCATIONS} from "./native-procurement-read";
 export function EmployeeRequestsProcurementOwnedFacts(database: SqlDatabase) {
     /** Owner-native active-quotation count. The statement is planned by the
      * Procurement command-plan (`RD_ACTIVE_QUOTATION_COUNT`) and executed on
@@ -10,12 +10,12 @@ export function EmployeeRequestsProcurementOwnedFacts(database: SqlDatabase) {
             // The consumer port declares the scalar `.first('n')` shape as a
             // Record; keep that port type and the original scalar runtime value.
             .then(row => (row?.n ?? null) as unknown as Record<string, unknown> | null);
-    return { readActOnEmployeeRequestAllocations(id: string) {
-            return database.prepare("SELECT l.request_item_ordinal ordinal,COALESCE(sum(l.request_quantity_milli),0) allocated_milli FROM procurement_rfq_lines l JOIN procurement_rfqs r ON r.id=l.rfq_id WHERE r.request_id=? AND r.status<>'cancelled' GROUP BY l.request_item_ordinal").bind(id).all<{
-                ordinal: number;
-                allocated_milli: number;
-            }>();
-        },
+    /** Owner-native request allocations. The statement is planned by the
+     * Procurement command-plan (`RD_REQUEST_ALLOCATIONS`) and executed on the
+     * caller's open unit; this module carries no SQL for these reads. */
+    const requestAllocations = (requestId: string): Promise<SqlResult<{ ordinal: number; allocated_milli: number }>> =>
+        nativeProcurementReadAll<{ ordinal: number; allocated_milli: number }>(PROCUREMENT_RD_REQUEST_ALLOCATIONS, [requestId], database);
+    return { readActOnEmployeeRequestAllocations(id: string) { return requestAllocations(id); },
         readActOnEmployeeRequestQuotationCount(id: string) { return activeQuotationCount(id); },
         readActOnEmployeeRequestQuotation(id: string, purchaseOrderId: string) {
             return database.prepare("SELECT id,order_id FROM procurement_rfqs WHERE request_id=? AND order_id=? AND status='ordered'").bind(id, purchaseOrderId).first<{
@@ -37,10 +37,5 @@ export function EmployeeRequestsProcurementOwnedFacts(database: SqlDatabase) {
             }>();
         },
         stagePrepareRequestOrderHandoffEffect2(id: string, orderId: string, value: string | null, version: number, evidence_version: number, userId: string, now: number) { return nativeProcurementStatement('procurement_stmt_21', { now: Date.now() }).bind(id, orderId, value, version, evidence_version, userId, now); },
-        readRequestQuotationSourceAllocated(id: string) {
-            return database.prepare("SELECT l.request_item_ordinal ordinal,COALESCE(sum(l.request_quantity_milli),0) allocated_milli FROM procurement_rfq_lines l JOIN procurement_rfqs r ON r.id=l.rfq_id WHERE r.request_id=? AND r.status<>'cancelled' GROUP BY l.request_item_ordinal").bind(id).all<{
-                ordinal: number;
-                allocated_milli: number;
-            }>();
-        } };
+        readRequestQuotationSourceAllocated(id: string) { return requestAllocations(id); } };
 }

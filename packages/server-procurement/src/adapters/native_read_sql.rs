@@ -98,6 +98,21 @@ const READ_ACTIVE_QUOTATION_COUNT: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successor of the three identical TypeScript request-allocation
+/// literals (`records-employee-requests-owned-facts` act/handoff paths and
+/// `purchase-request-progress`). The owner plans this literal; the caller
+/// executes it on its open unit with the same `[requestId]` bind and reads all
+/// allocation rows.
+pub const RD_REQUEST_ALLOCATIONS: &str = "procurement_rd_request_allocations";
+const SQL_REQUEST_ALLOCATIONS: &str =
+    "SELECT l.request_item_ordinal ordinal,COALESCE(sum(l.request_quantity_milli),0) allocated_milli FROM procurement_rfq_lines l JOIN procurement_rfqs r ON r.id=l.rfq_id WHERE r.request_id=? AND r.status<>'cancelled' GROUP BY l.request_item_ordinal";
+const READ_REQUEST_ALLOCATIONS: NativeReadStatement = NativeReadStatement {
+    kind: RD_REQUEST_ALLOCATIONS,
+    sql: SQL_REQUEST_ALLOCATIONS,
+    bind_count: 1,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_INVOICE_MATCH_FOR_FINANCE,
     READ_REQUEST_QUOTATION,
@@ -105,6 +120,7 @@ const READS: &[NativeReadStatement] = &[
     READ_DOCUMENT_POSTING_MATCHED_BILL,
     READ_BILL_MATCH_RECEIPTS,
     READ_ACTIVE_QUOTATION_COUNT,
+    READ_REQUEST_ALLOCATIONS,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -129,6 +145,7 @@ mod tests {
         assert!(is_read(RD_DOCUMENT_POSTING_MATCHED_BILL));
         assert!(is_read(RD_BILL_MATCH_RECEIPTS));
         assert!(is_read(RD_ACTIVE_QUOTATION_COUNT));
+        assert!(is_read(RD_REQUEST_ALLOCATIONS));
         assert!(!is_read("procurement_stmt_1"));
         assert!(read_statement("not_a_native_read").is_none());
     }
@@ -161,6 +178,11 @@ mod tests {
                 RD_ACTIVE_QUOTATION_COUNT,
                 1usize,
                 "procurement_rfqs",
+            ),
+            (
+                RD_REQUEST_ALLOCATIONS,
+                1usize,
+                "procurement_rfq_lines",
             ),
         ] {
             let read = read_statement(kind).expect("read kind");
@@ -214,6 +236,20 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 1);
         assert_eq!(read.scope, "holding");
         assert!(is_read(RD_ACTIVE_QUOTATION_COUNT));
+        assert!(!is_read("procurement_stmt_1"));
+    }
+
+    #[test]
+    fn request_allocations_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_REQUEST_ALLOCATIONS).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT l.request_item_ordinal ordinal,COALESCE(sum(l.request_quantity_milli),0) allocated_milli FROM procurement_rfq_lines l JOIN procurement_rfqs r ON r.id=l.rfq_id WHERE r.request_id=? AND r.status<>'cancelled' GROUP BY l.request_item_ordinal"
+        );
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_REQUEST_ALLOCATIONS));
         assert!(!is_read("procurement_stmt_1"));
     }
 
