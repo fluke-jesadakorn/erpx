@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6471,
+    "revision": 6483,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-f",
       "agentId": "lead",
       "startedAt": "2026-11-23T16:54:33.142Z",
-      "heartbeatAt": "2026-11-23T18:21:01.554Z",
-      "expiresAt": "2026-11-23T18:51:01.554Z",
+      "heartbeatAt": "2026-11-23T18:23:08.492Z",
+      "expiresAt": "2026-11-23T18:53:08.492Z",
       "generation": 158,
       "tokenHash": "786b04e6db95d7a97c392a0b212dc2cfdd563bbd8cc6545681f5e6ff248eceaa"
     },
@@ -50671,8 +50671,8 @@
           "runId": "run-20261123-f",
           "agentId": "wN01",
           "claimedAt": "2026-11-23T18:15:53.634Z",
-          "heartbeatAt": "2026-11-23T18:21:01.554Z",
-          "expiresAt": "2026-11-23T18:51:01.554Z",
+          "heartbeatAt": "2026-11-23T18:23:08.492Z",
+          "expiresAt": "2026-11-23T18:53:08.492Z",
           "generation": 158
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -51225,8 +51225,8 @@
           "runId": "run-20261123-f",
           "agentId": "wM02",
           "claimedAt": "2026-11-23T18:11:26.006Z",
-          "heartbeatAt": "2026-11-23T18:21:01.554Z",
-          "expiresAt": "2026-11-23T18:51:01.554Z",
+          "heartbeatAt": "2026-11-23T18:23:08.492Z",
+          "expiresAt": "2026-11-23T18:53:08.492Z",
           "generation": 158
         },
         "baseSha": null,
@@ -109992,8 +109992,8 @@
           "runId": "run-20261123-f",
           "agentId": "wP01",
           "claimedAt": "2026-11-23T18:17:54.008Z",
-          "heartbeatAt": "2026-11-23T18:21:01.554Z",
-          "expiresAt": "2026-11-23T18:51:01.554Z",
+          "heartbeatAt": "2026-11-23T18:23:08.492Z",
+          "expiresAt": "2026-11-23T18:53:08.492Z",
           "generation": 158
         },
         "baseSha": "d15bbdf7095f86bedb5c69bd0f4b297c357f0061",
@@ -110303,8 +110303,8 @@
           "runId": "run-20261123-f",
           "agentId": "wN02",
           "claimedAt": "2026-11-23T18:15:53.708Z",
-          "heartbeatAt": "2026-11-23T18:21:01.554Z",
-          "expiresAt": "2026-11-23T18:51:01.554Z",
+          "heartbeatAt": "2026-11-23T18:23:08.492Z",
+          "expiresAt": "2026-11-23T18:53:08.492Z",
           "generation": 158
         },
         "baseSha": "dbb5267714fb222c1665428fc0b7c9aec613e926",
@@ -113773,8 +113773,8 @@
           "runId": "run-20261123-f",
           "agentId": "wJ01",
           "claimedAt": "2026-11-23T17:50:16.881Z",
-          "heartbeatAt": "2026-11-23T18:21:01.554Z",
-          "expiresAt": "2026-11-23T18:51:01.554Z",
+          "heartbeatAt": "2026-11-23T18:23:08.492Z",
+          "expiresAt": "2026-11-23T18:53:08.492Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113981,8 +113981,8 @@
           "runId": "run-20261123-f",
           "agentId": "wL01",
           "claimedAt": "2026-11-23T17:59:54.357Z",
-          "heartbeatAt": "2026-11-23T18:21:01.554Z",
-          "expiresAt": "2026-11-23T18:51:01.554Z",
+          "heartbeatAt": "2026-11-23T18:23:08.492Z",
+          "expiresAt": "2026-11-23T18:53:08.492Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114245,7 +114245,7 @@
         "owner": "pms",
         "title": "Native PMS home hotel-metrics read port (owner-side foundation)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -114265,22 +114265,40 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wN03",
-          "claimedAt": "2026-11-23T18:15:53.785Z",
-          "heartbeatAt": "2026-11-23T18:21:01.554Z",
-          "expiresAt": "2026-11-23T18:51:01.554Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-pms",
+            "result": "passed",
+            "sourceSha": "ff54215cb"
+          },
+          {
+            "command": "cargo test -p erpx-server-pms --test pms_home_metrics",
+            "result": "passed",
+            "sourceSha": "ff54215cb",
+            "note": "6 passed"
+          },
+          {
+            "command": "cargo test -p erpx-server-pms --test pms_home_metrics_postgres",
+            "result": "passed",
+            "sourceSha": "ff54215cb",
+            "note": "2 passed on real PostgreSQL"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Port hotelMetrics SQL exactly into domain/application/adapter/public with unit + PG parity tests. No HTTP/composition; no KPI delta yet.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Port done; dispatch cutover after composition queue",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wN03",
+          "at": "2026-11-23T18:24:31.694Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Port done; dispatch cutover after composition queue"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -114310,8 +114328,8 @@
           "runId": "run-20261123-f",
           "agentId": "wQ01",
           "claimedAt": "2026-11-23T18:19:54.104Z",
-          "heartbeatAt": "2026-11-23T18:21:01.554Z",
-          "expiresAt": "2026-11-23T18:51:01.554Z",
+          "heartbeatAt": "2026-11-23T18:23:08.492Z",
+          "expiresAt": "2026-11-23T18:53:08.492Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114350,8 +114368,8 @@
           "runId": "run-20261123-f",
           "agentId": "wQ02",
           "claimedAt": "2026-11-23T18:19:54.191Z",
-          "heartbeatAt": "2026-11-23T18:21:01.554Z",
-          "expiresAt": "2026-11-23T18:51:01.554Z",
+          "heartbeatAt": "2026-11-23T18:23:08.492Z",
+          "expiresAt": "2026-11-23T18:53:08.492Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114389,8 +114407,8 @@
           "runId": "run-20261123-f",
           "agentId": "wR01",
           "claimedAt": "2026-11-23T18:20:47.575Z",
-          "heartbeatAt": "2026-11-23T18:21:01.554Z",
-          "expiresAt": "2026-11-23T18:51:01.554Z",
+          "heartbeatAt": "2026-11-23T18:23:08.492Z",
+          "expiresAt": "2026-11-23T18:53:08.492Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114402,6 +114420,202 @@
         "nextAction": "Switch work-summary preferences to readNativeWorkCardPreferences; delete TS reader/application; keep schema export; record 2-statement delta",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.finance.journal-batch-port",
+        "goalId": "G3",
+        "owner": "finance",
+        "title": "Native finance journal batch-post port (owner-side)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/domain/journal_batch.rs",
+          "packages/server-finance/src/application/journal_batch.rs",
+          "packages/server-finance/src/adapters/postgres_journal_batch.rs",
+          "packages/server-finance/src/adapters/journal_batch_wire.rs",
+          "packages/server-finance/src/public/journal_batch.rs",
+          "packages/server-finance/src/public/journal_batch_wire.rs",
+          "packages/server-finance/src/domain/mod.rs",
+          "packages/server-finance/src/application/mod.rs",
+          "packages/server-finance/src/adapters/mod.rs",
+          "packages/server-finance/src/public/mod.rs",
+          "packages/server-finance/Cargo.toml",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wR02",
+          "claimedAt": "2026-11-23T18:21:47.727Z",
+          "heartbeatAt": "2026-11-23T18:23:08.492Z",
+          "expiresAt": "2026-11-23T18:53:08.492Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement native journal batch-post domain/application/adapter/public with wire {journals:[{id,expectedVersion}],reason}, serializable unit, replay, receipt/audit/outbox; unite+PG tests. No composition.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.platform.executive-read-cutover",
+        "goalId": "G4",
+        "owner": "platform_administration",
+        "title": "Platform executive native-only switch + TS read tail (5 SELECT -> 1)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/feature-platform_administration/src/lib/native-platform-administration.ts",
+          "packages/feature-admin/src/routes/api/v1/platform/executive/route.ts",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/manage-erpx/executive/screen.tsx",
+          "packages/server-platform_administration/src/adapters/platform-executive.ts",
+          "packages/server-platform_administration/src/public/platform-executive.ts",
+          "packages/server-platform_administration/src/adapters/presentation-queries.ts",
+          "packages/server-platform_administration/src/public/presentation-queries.ts",
+          "packages/server-platform_administration/src/application/platform-executive.ts",
+          "packages/server-platform_administration/src/domain/platform-executive.ts",
+          "tests/unit/platform_administration/**",
+          "tests/integration/platform_administration/**"
+        ],
+        "resources": [
+          "owner:platform_administration"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wR03",
+          "claimedAt": "2026-11-23T18:22:30.005Z",
+          "heartbeatAt": "2026-11-23T18:23:08.492Z",
+          "expiresAt": "2026-11-23T18:53:08.492Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "retainedLegacy": [],
+        "checks": [],
+        "blocker": null,
+        "nextAction": "Make helpers fail-closed, switch feature-admin route + workplace presenter to native-only, delete TS executive reads/presentation barrels, itemize residual generation lock (1) under expire task",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.platform.executive-read-tail",
+        "goalId": "G4",
+        "owner": "platform_administration",
+        "title": "Expire residual platform executive generation-lock read (1 SELECT)",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-runtime/src/adapters/executive/generation.ts",
+          "packages/server-platform_administration/src/adapters/executive-generation-source-lock.ts",
+          "tests/unit/shared.executive/**"
+        ],
+        "resources": [
+          "owner:platform_administration"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "retainedLegacy": [],
+        "checks": [],
+        "blocker": null,
+        "nextAction": "After runtime generation native statement lands, switch generation lock and delete the last platform executive SELECT",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.quality.dead-read-branch",
+        "goalId": "G4",
+        "owner": "quality",
+        "title": "Retire dead quality read branches (activeSpec/evidenceVersionGuard 125->123)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-quality/src/application/quality.ts",
+          "packages/server-quality/src/adapters/quality.ts",
+          "packages/server-quality/src/public/quality.ts",
+          "tests/unit/quality/**"
+        ],
+        "resources": [
+          "owner:quality"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wS01",
+          "claimedAt": "2026-11-23T18:23:39.206Z",
+          "heartbeatAt": "2026-11-23T18:23:39.206Z",
+          "expiresAt": "2026-11-23T18:53:39.206Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Remove activeSpec + evidenceVersionGuard repository members and SELECTs; receiptHold(input,now); keep rows()/getQualityHold/qualityWork with removal note; move unit assertions to native coverage",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.manufacturing.spec-register-read",
+        "goalId": "G4",
+        "owner": "manufacturing",
+        "title": "Switch BOM-covered specification register reads to mounted native port",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-manufacturing/src/adapters/production-command-sources.ts",
+          "packages/server-manufacturing/src/adapters/production-read-projections.ts",
+          "packages/server-manufacturing/src/adapters/purchases.ts",
+          "packages/server-manufacturing/src/public/production-command-sources.ts",
+          "packages/server-manufacturing/src/public/production-read-projections.ts",
+          "tests/unit/manufacturing/**",
+          "tests/integration/manufacturing/**"
+        ],
+        "resources": [
+          "owner:manufacturing"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wS02",
+          "claimedAt": "2026-11-23T18:23:39.299Z",
+          "heartbeatAt": "2026-11-23T18:23:39.299Z",
+          "expiresAt": "2026-11-23T18:53:39.299Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Cut the BOM-register-covered spec reads to native Manufacturing BOM read; delete redundant TS SQL; retain purchase/witness SQL with removalTaskId; record strictly lower count",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -114410,21 +114624,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 483,
+      "totalPackets": 488,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 24,
-        "in_progress": 9,
+        "pending": 25,
+        "in_progress": 12,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 121,
+        "blocked": 122,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T18:21:01.557Z",
+    "updatedAt": "2026-11-23T18:24:31.697Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
