@@ -1,7 +1,8 @@
 //! Native PMS room-board HTTP transport facts over a real loopback listener.
 use erpx_server_pms::public::pms_http::{
     PmsHttpBackend, PmsHttpFrontDeskRequest, PmsHttpFuture, PmsHttpReadRequest,
-    PmsHttpRefundContextRequest, PmsHttpResponse, PmsHttpTarget, pms_http_router,
+    PmsHttpRefundContextRequest, PmsHttpRefundRequest, PmsHttpResponse, PmsHttpTarget,
+    parse_refund_command, pms_http_router,
 };
 use erpx_server_runtime::public::http_support::{
     Router, serde_json::Value, serde_json::json, serve,
@@ -108,6 +109,22 @@ impl PmsHttpBackend for Backend {
             })
         })
     }
+    fn refund<'a>(&'a self, request: PmsHttpRefundRequest<'a>) -> PmsHttpFuture<'a, PmsHttpResponse> {
+        self.reads.fetch_add(1, Ordering::SeqCst);
+        self.seen.lock().unwrap().push(format!(
+            "refund-cmd:{}:{}:{}:{}",
+            request.host, request.holding_slug, request.action, request.command
+        ));
+        Box::pin(async move {
+            if let Some(error) = self.fail.clone() {
+                return Err(error);
+            }
+            Ok(PmsHttpResponse {
+                data: json!({"ok": true, "action": request.action}),
+                context: json!({"userId": "user"}),
+            })
+        })
+    }
 }
 
 /// A room-board-only backend must not accidentally serve the front desk.
@@ -143,6 +160,29 @@ async fn start(backend: Arc<Backend>) -> (std::net::SocketAddr, tokio::task::Joi
 async fn call(address: std::net::SocketAddr, path: &str) -> (u16, Value, String) {
     let request =
         format!("GET {path} HTTP/1.1\r\nHost: acme.example.test\r\nConnection: close\r\n\r\n");
+    let mut stream = TcpStream::connect(address).await.unwrap();
+    stream.write_all(request.as_bytes()).await.unwrap();
+    let mut bytes = Vec::new();
+    stream.read_to_end(&mut bytes).await.unwrap();
+    let response = String::from_utf8_lossy(&bytes);
+    let (head, body) = response.split_once("\r\n\r\n").unwrap_or((&response, ""));
+    let status = head
+        .lines()
+        .next()
+        .and_then(|line| line.split_whitespace().nth(1))
+        .and_then(|value| value.parse::<u16>().ok())
+        .unwrap();
+    (
+        status,
+        serde_json::from_str(body).unwrap_or(Value::Null),
+        head.to_owned(),
+    )
+}
+async fn call_post(address: std::net::SocketAddr, path: &str, body: &str) -> (u16, Value, String) {
+    let request = format!(
+        "POST {path} HTTP/1.1\r\nHost: acme.example.test\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
     let mut stream = TcpStream::connect(address).await.unwrap();
     stream.write_all(request.as_bytes()).await.unwrap();
     let mut bytes = Vec::new();
@@ -440,4 +480,125 @@ async fn refund_context_route_fails_closed_when_a_backend_does_not_implement_it(
     assert_eq!(status, 503);
     assert_eq!(value["error"]["code"], "PMS_REFUND_CONTEXT_UNAVAILABLE");
     task.abort();
+}
+
+/// The native refund command ingress must accept every one of the six bounded
+/// actions and pass the validated action plus the untouched command to the
+/// composition-owned backend, with the standard private transport headers.
+#[tokio::test]
+async fn refund_command_routes_all_six_actions_to_the_backend() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    let bodies: Vec<(&str, &str)> = vec![
+        ("request", r#"{"action":"request","requestId":"req-1","propertyId":"prop-1","paymentId":"pay-1","wanted":[{"stayId":"stay-1","amount":1000}],"reason":"Guest asked","requestedBy":"user-1","now":1}"#),
+        ("approve", r#"{"action":"approve","id":"req-1"}"#),
+        ("settle", r#"{"action":"settle","id":"req-1","now":1}"#),
+        ("retry", r#"{"action":"retry","id":"req-1","reason":"provider timeout"}"#),
+        ("recover-receipt", r#"{"action":"recover-receipt","id":"req-1","reason":"missing receipt"}"#),
+        ("finance", r#"{"action":"finance"}"#),
+    ];
+    let mut expected = Vec::new();
+    for (action, body) in &bodies {
+        let (status, value, head) = call_post(
+            address,
+            "/api/v1/holdings/acme/pms/booking-refunds",
+            body,
+        )
+        .await;
+        assert_eq!(status, 200, "{action} returned {value}");
+        assert_eq!(value["data"]["ok"], true);
+        assert_eq!(value["data"]["action"], *action);
+        assert_eq!(value["context"]["userId"], "user");
+        assert!(head.contains("cache-control: private, no-store"));
+        assert!(head.contains("referrer-policy: no-referrer"));
+        assert!(head.contains("x-content-type-options: nosniff"));
+        let command = serde_json::from_str::<Value>(body).unwrap().to_string();
+        expected.push(format!(
+            "refund-cmd:acme.example.test:acme:{action}:{command}"
+        ));
+    }
+    assert_eq!(backend.seen.lock().unwrap().as_slice(), expected);
+    assert_eq!(backend.reads.load(Ordering::SeqCst), 6);
+    task.abort();
+}
+
+#[tokio::test]
+async fn refund_command_rejects_unknown_targets_and_unbounded_bodies_before_the_backend() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    let path = "/api/v1/holdings/acme/pms/booking-refunds";
+    let oversized = format!(r#"{{"action":"approve","id":"{}"}}"#, "x".repeat(257 * 1024));
+    for (target, body, expected) in [
+        ("other", r#"{"action":"approve","id":"req-1"}"#, 404),
+        ("acme", "", 422),
+        ("acme", "not json", 422),
+        ("acme", r#"{"id":"req-1"}"#, 422),
+        ("acme", r#"{"action":123}"#, 422),
+        ("acme", r#"{"action":"destroy"}"#, 422),
+        ("acme", oversized.as_str(), 422),
+    ] {
+        let path = path.replace("/holdings/acme/", &format!("/holdings/{target}/"));
+        let (status, value, _) = call_post(address, &path, body).await;
+        assert_eq!(status, expected, "{path} [{body}] returned {value}");
+        if expected == 422 {
+            assert_eq!(value["error"]["code"], "PMS_REFUND_COMMAND_INVALID");
+        }
+    }
+    assert_eq!(backend.reads.load(Ordering::SeqCst), 0);
+    task.abort();
+}
+
+#[tokio::test]
+async fn refund_command_route_fails_closed_when_a_backend_does_not_implement_it() {
+    let listener = TcpListener::bind(("127.0.0.1", 0)).await.unwrap();
+    let address = listener.local_addr().unwrap();
+    let task = tokio::spawn(async move {
+        serve(
+            listener,
+            pms_http_router(vec![PmsHttpTarget {
+                host: "acme.example.test".into(),
+                holding_slug: "acme".into(),
+                origin: "https://acme.example.test".into(),
+                backend: Arc::new(BoardOnlyBackend),
+            }])
+            .unwrap(),
+        )
+        .await
+        .unwrap();
+    });
+    let (status, value, _) = call_post(
+        address,
+        "/api/v1/holdings/acme/pms/booking-refunds",
+        r#"{"action":"approve","id":"req-1"}"#,
+    )
+    .await;
+    assert_eq!(status, 503);
+    assert_eq!(value["error"]["code"], "PMS_REFUND_UNAVAILABLE");
+    task.abort();
+}
+
+#[test]
+fn bounded_refund_command_parser_enforces_allow_list_and_body_limit() {
+    let (action, value) = parse_refund_command(br#"{"action":"finance"}"#).unwrap();
+    assert_eq!(action, "finance");
+    assert_eq!(value["action"], "finance");
+    for bad in [
+        &b""[..],
+        &br#"not json"#[..],
+        &br#"{"id":"req-1"}"#[..],
+        &br#"{"action":123}"#[..],
+        &br#"{"action":"destroy"}"#[..],
+    ] {
+        assert_eq!(
+            parse_refund_command(bad).unwrap_err().code,
+            "PMS_REFUND_COMMAND_INVALID"
+        );
+    }
+    let oversized = format!(r#"{{"action":"approve","reason":"{}"}}"#, "x".repeat(257 * 1024));
+    assert_eq!(
+        parse_refund_command(oversized.as_bytes())
+            .unwrap_err()
+            .code,
+        "PMS_REFUND_COMMAND_INVALID"
+    );
 }

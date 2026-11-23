@@ -369,7 +369,11 @@ fn refund_command_malformed() -> BusinessError {
     )
 }
 
-fn refund_command_body(bytes: &[u8]) -> Result<(String, serde_json::Value), BusinessError> {
+/// Bounded transport parser for the native booking-refund command ingress.
+/// Enforces the body limit, JSON shape and the six-action allow-list before a
+/// [`PmsHttpRefundRequest`] is handed to the composition-owned backend. The
+/// action allow-list is a transport guard, not an authority decision.
+pub fn parse_refund_command(bytes: &[u8]) -> Result<(String, serde_json::Value), BusinessError> {
     if bytes.is_empty() || bytes.len() > BODY_LIMIT {
         return Err(refund_command_malformed());
     }
@@ -561,7 +565,7 @@ async fn refund_command(
         let bytes = to_bytes(request.into_body(), BODY_LIMIT)
             .await
             .map_err(|_| refund_command_malformed())?;
-        let (action, command) = refund_command_body(&bytes)?;
+        let (action, command) = parse_refund_command(&bytes)?;
         target
             .backend
             .refund(PmsHttpRefundRequest {
