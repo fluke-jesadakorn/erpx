@@ -94,6 +94,20 @@ pub const SPENDING_TEMPLATE_PUBLISH: &str = "spending_template_publish";
 pub const POSITION_PAY_DEFAULT_INSERT: &str = "position_pay_default_insert";
 pub const LEVEL_LEAVE_DEFAULT_INSERT: &str = "level_leave_default_insert";
 
+// -- presentation-reads (draft / company identity) ------------------------------
+/// Native-owned draft/presentation company-name read. Read-only and Company
+/// scoped (`id=? AND company_id=?`); permission checks stay in the caller.
+pub const PRESENTATION_DRAFT_COMPANY_NAME: &str = "presentation_draft_company_name";
+/// Native-owned active Holding company identity read. `id` is the Company node
+/// id, so this is Company scoped; read-only.
+pub const PRESENTATION_ACTIVE_COMPANY_IDENTITY: &str = "presentation_active_company_identity";
+pub const PRESENTATION_ACTIVE_COMPANY_SLUG: &str = "presentation_active_company_slug";
+pub const PRESENTATION_ACTIVE_COMPANY_NAME: &str = "presentation_active_company_name";
+/// Native-owned active branch display-name read for the current Company.
+pub const PRESENTATION_SCOPED_BRANCH_NAMES: &str = "presentation_scoped_branch_names";
+/// Native-owned active Level options read for the current Company.
+pub const PRESENTATION_LEAVE_DEFAULT_LEVELS: &str = "presentation_leave_default_levels";
+
 // -- roster-reads ---------------------------------------------------------------
 /// Retired `organizationRoster` people read: non-ended employee people with
 /// their level projection. Read-only; the retained role gate stays in the
@@ -157,6 +171,12 @@ pub const KINDS: &[&str] = &[
     SPENDING_TEMPLATE_PUBLISH,
     POSITION_PAY_DEFAULT_INSERT,
     LEVEL_LEAVE_DEFAULT_INSERT,
+    PRESENTATION_DRAFT_COMPANY_NAME,
+    PRESENTATION_ACTIVE_COMPANY_IDENTITY,
+    PRESENTATION_ACTIVE_COMPANY_SLUG,
+    PRESENTATION_ACTIVE_COMPANY_NAME,
+    PRESENTATION_SCOPED_BRANCH_NAMES,
+    PRESENTATION_LEAVE_DEFAULT_LEVELS,
     ORG_READROSTERPEOPLE,
     ORG_READROSTERPOSITIONS,
 ];
@@ -345,6 +365,24 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         LEVEL_LEAVE_DEFAULT_INSERT => {
             "INSERT INTO level_leave_defaults(id,company_id,level_id,version,policy_version_id,created_by,created_at) VALUES(?,?,?,?,?,?,?)"
+        }
+        PRESENTATION_DRAFT_COMPANY_NAME => {
+            "SELECT display_name FROM organization_nodes WHERE id=? AND company_id=?"
+        }
+        PRESENTATION_ACTIVE_COMPANY_IDENTITY => {
+            "SELECT slug,display_name FROM organization_nodes WHERE id=? AND kind='company' AND status='active'"
+        }
+        PRESENTATION_ACTIVE_COMPANY_SLUG => {
+            "SELECT slug FROM organization_nodes WHERE id=? AND kind='company' AND status='active'"
+        }
+        PRESENTATION_ACTIVE_COMPANY_NAME => {
+            "SELECT display_name FROM organization_nodes WHERE id=? AND kind='company' AND status='active'"
+        }
+        PRESENTATION_SCOPED_BRANCH_NAMES => {
+            "SELECT display_name FROM organization_nodes WHERE company_id=? AND kind='branch' AND status='active' AND (?::text IS NULL OR id=?) ORDER BY display_name"
+        }
+        PRESENTATION_LEAVE_DEFAULT_LEVELS => {
+            "SELECT id,name,level_number FROM staff_levels WHERE company_id=? AND active=1 AND level_number IS NOT NULL ORDER BY level_number"
         }
         ORG_READROSTERPEOPLE => {
             "SELECT p.id person_id,p.user_id,p.legal_name,p.email,p.version person_version,p.status person_status,e.id engagement_id,e.version engagement_version,e.company_id,e.branch_id,e.department_id,e.position_id,e.manager_person_id,e.level_id,l.level_number,l.name level_name,e.status,e.start_date,e.end_date,e.job_title FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id LEFT JOIN (SELECT \"id\",\"company_id\",\"code\",\"name\",\"rank\",\"active\",\"version\",\"created_at\",\"updated_at\",\"level_number\" FROM staff_levels) l ON l.id=e.level_id AND l.company_id=e.company_id AND l.active=1 WHERE p.company_id=? AND p.merged_into_id IS NULL AND p.status!='archived' AND e.worker_type='employee' AND e.status!='ended' ORDER BY p.legal_name,e.id"
@@ -620,6 +658,54 @@ mod tests {
     fn attachment_table_is_allow_listed() {
         assert!(sql_for(ATTACHMENT_OWNER_VERSION_STEP, &[Value::from("organization_node_changes")]).is_some());
         assert!(sql_for(ATTACHMENT_OWNER_VERSION_STEP, &[Value::from("secret_table")]).is_none());
+    }
+
+    /// Draft/presentation company-identity reads are native-owned, read-only
+    /// and Company scoped. Permission checks stay in the caller; transport only
+    /// selects the statement text and binds caller-supplied positional values.
+    #[test]
+    fn presentation_read_kinds_are_select_only_and_company_scoped() {
+        let kinds = [
+            (PRESENTATION_DRAFT_COMPANY_NAME, 2usize),
+            (PRESENTATION_ACTIVE_COMPANY_IDENTITY, 1),
+            (PRESENTATION_ACTIVE_COMPANY_SLUG, 1),
+            (PRESENTATION_ACTIVE_COMPANY_NAME, 1),
+            (PRESENTATION_SCOPED_BRANCH_NAMES, 3),
+            (PRESENTATION_LEAVE_DEFAULT_LEVELS, 1),
+        ];
+        for (kind, expected) in kinds {
+            assert!(supported(kind), "read kind must be allow listed: {kind}");
+            let statement = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
+            assert!(
+                statement.starts_with("SELECT "),
+                "read kind must be SELECT-only: {kind}"
+            );
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+                assert!(
+                    !statement.contains(forbidden),
+                    "read kind must not mutate: {kind} contains {forbidden}"
+                );
+            }
+            assert!(
+                statement.contains("company_id=?") || statement.contains("WHERE id=?"),
+                "read kind must be Company scoped: {kind}"
+            );
+            assert_eq!(
+                statement.matches('?').count(),
+                expected,
+                "read kind parameter count: {kind}"
+            );
+        }
+        // The Company key is always the first bound value, so the statement
+        // remains a Company-keyed native read even when the SQL uses `id`.
+        let (sql, values) = owner_statement(
+            PRESENTATION_DRAFT_COMPANY_NAME,
+            &[Value::from("company-a"), Value::from("company-b")],
+        )
+        .expect("draft company name statement");
+        assert_eq!(values.len(), 2);
+        assert!(sql.contains("company_id=?"));
+        assert!(owner_statement(PRESENTATION_DRAFT_COMPANY_NAME, &[Value::from("company-a")]).is_err());
     }
 
     /// The retired roster read port is read-only: fixed `SELECT` statements
