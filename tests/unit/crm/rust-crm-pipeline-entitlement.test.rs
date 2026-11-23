@@ -190,3 +190,80 @@ fn entitlement_requires_a_revision_even_when_enforcement_is_off() {
         "PACKAGE_REQUIRED"
     );
 }
+
+#[tokio::test]
+async fn enforced_entitlement_with_purchase_revision_exposes_controls() {
+    // Mirrors the composition witness: an explicit enforced policy fact, the
+    // acquisition flags from a real purchase inspection and a non-empty
+    // Commercial entitlement revision.
+    let entitlement = CrmPipelineEntitlement {
+        enforced: true,
+        history_allowed: true,
+        new_work: false,
+        settle_existing: true,
+        revision: "0f4b8a2c6de14170913ba0f6c5d2e8a7".into(),
+    };
+    let mut repo = Repo {
+        page_calls: 0,
+        forecast_calls: 0,
+    };
+    let mut packages = Packages(entitlement.clone());
+    let mut people = EmptyDirectory;
+    let mut customers = EmptyDirectory;
+    let page = crm_pipeline(
+        &actor(),
+        &CrmPipelineQuery::default(),
+        &mut repo,
+        &mut people,
+        &mut customers,
+        &mut packages,
+        NOW,
+    )
+    .await
+    .unwrap();
+    let purchase = page
+        .purchase
+        .expect("an enforced entitlement exposes purchase controls");
+    assert!(!purchase.revision.is_empty());
+    assert_eq!(purchase.revision, entitlement.revision);
+    assert!(!purchase.new_work);
+    assert!(purchase.settle_existing);
+    assert!(purchase.history);
+    assert_eq!(repo.page_calls, 1);
+    assert_eq!(repo.forecast_calls, 1);
+}
+
+#[test]
+fn enforced_facts_require_history_admission_and_a_revision() {
+    let denied_history = CrmPipelineEntitlement {
+        enforced: true,
+        history_allowed: false,
+        new_work: true,
+        settle_existing: true,
+        revision: "rev-1".into(),
+    };
+    // A non-empty revision alone is not enough when enforcement is active and
+    // the purchase did not admit retained history.
+    assert_eq!(
+        denied_history.require_history().unwrap_err().code,
+        "PACKAGE_REQUIRED"
+    );
+    assert!(denied_history.purchase().is_some());
+
+    let admitted = CrmPipelineEntitlement {
+        history_allowed: true,
+        ..denied_history
+    };
+    assert!(admitted.require_history().is_ok());
+    assert_eq!(admitted.purchase().unwrap().revision, "rev-1");
+
+    // A disabled policy with a current revision is a valid Commercial fact but
+    // exposes no enforced purchase controls.
+    let disabled = CrmPipelineEntitlement {
+        enforced: false,
+        revision: "rev-1".into(),
+        ..stub()
+    };
+    assert!(disabled.require_history().is_ok());
+    assert!(disabled.purchase().is_none());
+}

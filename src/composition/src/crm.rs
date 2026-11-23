@@ -13,7 +13,8 @@ use erpx_server_commerce::public::order::{
 };
 use erpx_server_commercial::public::purchases::{
     CapabilityPurpose, CommercialCatalogue, PackageEnforcementMode, PgCompanyPurchaseReader,
-    PurchaseRequest, PurchaseWitness, current_package_catalogue, lock_commercial_authority_sources,
+    PurchaseInspection, PurchaseRequest, PurchaseWitness, current_package_catalogue,
+    lock_commercial_authority_sources,
 };
 use erpx_server_crm::public::activities_http::{
     CrmActivityCommandHttpBackend, CrmActivityCommandHttpRequest, CrmActivityCommandHttpTarget,
@@ -115,12 +116,97 @@ fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
 struct CrmSources;
 
 impl HoldingWorkSourcePreparation for CrmSources {
-    fn prepare<'c>(&'c self, _: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
-        Box::pin(async { Ok(()) })
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            lock_commercial_authority_sources(c)
+                .await
+                .map_err(business)?;
+            sqlx::query("LOCK TABLE public.hr_people,public.finance_parties IN SHARE MODE")
+                .execute(&mut *c)
+                .await?;
+            Ok(())
+        })
     }
 }
 
-struct CrmPeopleDirectoryImpl;
+/// Current Commercial `sales.crm` entitlement from a real purchase inspection.
+/// Enforcement is an explicit composition policy fact; the acquisition flags
+/// and the non-empty revision come from the current Company purchase decision.
+async fn crm_entitlement(
+    connection: &mut PgConnection,
+    holding: &HoldingId,
+    company: &CompanyId,
+    now: TimestampMillis,
+) -> Result<CrmPipelineEntitlement, Error> {
+    let catalogue = current_package_catalogue()?;
+    let mut reader =
+        PgCompanyPurchaseReader::new(holding.clone(), company.clone(), connection, &catalogue);
+    let request = |purpose| PurchaseRequest {
+        capabilities: vec!["sales.crm".into()],
+        purpose,
+        mode: PackageEnforcementMode::Enforced,
+    };
+    let history = reader
+        .inspect(&request(CapabilityPurpose::History), now)
+        .await
+        .map_err(business)?;
+    let new_work = reader
+        .inspect(&request(CapabilityPurpose::NewWork), now)
+        .await
+        .map_err(business)?;
+    let settle = reader
+        .inspect(&request(CapabilityPurpose::SettleExisting), now)
+        .await
+        .map_err(business)?;
+    let allowed = |inspection: &PurchaseInspection| {
+        inspection
+            .access
+            .iter()
+            .find(|access| access.capability == "sales.crm")
+            .is_some_and(|access| access.allowed_by_mode)
+    };
+    Ok(CrmPipelineEntitlement {
+        enforced: true,
+        history_allowed: allowed(&history),
+        new_work: allowed(&new_work),
+        settle_existing: allowed(&settle),
+        revision: history.revision.clone(),
+    })
+}
+
+/// Current People staff labels keyed by user id. Presentation only: a label
+/// grants no assignment or command authority.
+async fn crm_people_directory(
+    connection: &mut PgConnection,
+    company: &str,
+) -> Result<BTreeMap<String, String>, Error> {
+    let rows: Vec<(String, String)> = sqlx::query_as(
+        "SELECT user_id,legal_name FROM public.hr_people WHERE company_id=$1 \
+         AND user_id IS NOT NULL AND legal_name IS NOT NULL AND btrim(legal_name)<>'' \
+         AND status='active' AND merged_into_id IS NULL ORDER BY user_id LIMIT 2000",
+    )
+    .bind(company)
+    .fetch_all(&mut *connection)
+    .await?;
+    Ok(rows.into_iter().collect())
+}
+
+/// Current Finance customer labels keyed by party id. Presentation only.
+async fn crm_customer_directory(
+    connection: &mut PgConnection,
+    company: &str,
+) -> Result<BTreeMap<String, String>, Error> {
+    let rows: Vec<(String, String)> = sqlx::query_as(
+        "SELECT id,name FROM public.finance_parties WHERE company_id=$1 \
+         AND name IS NOT NULL AND btrim(name)<>'' ORDER BY id LIMIT 2000",
+    )
+    .bind(company)
+    .fetch_all(&mut *connection)
+    .await?;
+    Ok(rows.into_iter().collect())
+}
+
+struct CrmPeopleDirectoryImpl(BTreeMap<String, String>);
 
 impl CrmPipelinePeopleDirectory for CrmPeopleDirectoryImpl {
     type Error = BusinessError;
@@ -128,17 +214,23 @@ impl CrmPipelinePeopleDirectory for CrmPeopleDirectoryImpl {
     fn names<'a>(
         &'a mut self,
         _company_id: &'a str,
-        _user_ids: &'a [String],
+        user_ids: &'a [String],
     ) -> erpx_server_crm::public::pipeline::CrmPipelineFuture<
         'a,
         BTreeMap<String, String>,
         Self::Error,
     > {
-        Box::pin(async { Ok(BTreeMap::new()) })
+        let names = self.0.clone();
+        Box::pin(async move {
+            Ok(user_ids
+                .iter()
+                .filter_map(|id| names.get(id).map(|name| (id.clone(), name.clone())))
+                .collect())
+        })
     }
 }
 
-struct CrmCustomerDirectoryImpl;
+struct CrmCustomerDirectoryImpl(BTreeMap<String, String>);
 
 impl CrmPipelineCustomerDirectory for CrmCustomerDirectoryImpl {
     type Error = BusinessError;
@@ -146,17 +238,23 @@ impl CrmPipelineCustomerDirectory for CrmCustomerDirectoryImpl {
     fn names<'a>(
         &'a mut self,
         _company_id: &'a str,
-        _user_ids: &'a [String],
+        customer_ids: &'a [String],
     ) -> erpx_server_crm::public::pipeline::CrmPipelineFuture<
         'a,
         BTreeMap<String, String>,
         Self::Error,
     > {
-        Box::pin(async { Ok(BTreeMap::new()) })
+        let names = self.0.clone();
+        Box::pin(async move {
+            Ok(customer_ids
+                .iter()
+                .filter_map(|id| names.get(id).map(|name| (id.clone(), name.clone())))
+                .collect())
+        })
     }
 }
 
-struct CrmEntitlementImpl;
+struct CrmEntitlementImpl(CrmPipelineEntitlement);
 
 impl CrmPipelineEntitlementPort for CrmEntitlementImpl {
     type Error = BusinessError;
@@ -166,15 +264,8 @@ impl CrmPipelineEntitlementPort for CrmEntitlementImpl {
         _company_id: &'a str,
     ) -> erpx_server_crm::public::pipeline::CrmPipelineFuture<'a, CrmPipelineEntitlement, Self::Error>
     {
-        Box::pin(async {
-            Ok(CrmPipelineEntitlement {
-                enforced: false,
-                history_allowed: false,
-                new_work: false,
-                settle_existing: false,
-                revision: String::new(),
-            })
-        })
+        let entitlement = self.0.clone();
+        Box::pin(async move { Ok(entitlement) })
     }
 }
 
@@ -318,11 +409,17 @@ impl<C: Clock + Send + Sync + 'static> CrmService<C> {
                         }
                         current.require_permission("commerce.read")?;
                         let actor = crm_actor(current)?;
-                        let mut repository = PgCrmPipelineRead::new(connection);
-                        let mut people = CrmPeopleDirectoryImpl;
-                        let mut customers = CrmCustomerDirectoryImpl;
-                        let mut entitlement = CrmEntitlementImpl;
                         let now = clock.now();
+                        let entitlement =
+                            crm_entitlement(&mut *connection, &holding, &company, now).await?;
+                        let people =
+                            crm_people_directory(&mut *connection, company.as_str()).await?;
+                        let customers =
+                            crm_customer_directory(&mut *connection, company.as_str()).await?;
+                        let mut repository = PgCrmPipelineRead::new(connection);
+                        let mut people = CrmPeopleDirectoryImpl(people);
+                        let mut customers = CrmCustomerDirectoryImpl(customers);
+                        let mut entitlement = CrmEntitlementImpl(entitlement);
                         let page: CrmPipelinePage = crm_pipeline(
                             &actor,
                             &query,
