@@ -7,6 +7,8 @@ import {
   nativePmsGuestAccountBody,
   NativePmsError,
   type NativePmsPageContext,
+  type NativePmsReportData,
+  type NativePmsReportEntriesData,
 } from '../../../packages/feature-pms/src/adapters/server/native-pms';
 import {nativePmsAvailable} from '../../../packages/workplace/src/lib/native-pms';
 
@@ -250,5 +252,49 @@ describe('native PMS room-board transport',()=>{
     id:'entry-1',entryId:'entry-1',toGuestAccountId:'account-2',reason:'Moved to the correct bill',
     operation:'guest_account.transfer',propertyId:'property-1',expectedVersion:2,
   });
+ });
+});
+
+describe('native PMS report transport',()=>{
+ const reportActor:NativePmsPageContext={...actor,iam:{permissions:['pms.read','pms.reports','records.read']}};
+ const reportContext={...context,permissions:['pms.read','pms.reports','records.read']};
+ const day={date:'2026-11-01',capacity:10,sold:4,roomRevenue:4000,netRevenue:4500,tax:200,refunds:0,cancellations:1,noShows:0};
+ const range={
+  property:{id:'property-1',name:'Riverside',branchId:'branch',state:'open',businessDate:'2026-11-01'},
+  businessDate:'2026-11-01',currency:'THB',from:'2026-11-01',to:'2026-11-02',
+  days:[day,{...day,date:'2026-11-02'}],
+  totals:{capacity:20,sold:8,roomRevenue:8000,netRevenue:9000,tax:400,refunds:0,cancellations:2,noShows:0,occupancy:0.4,adr:1000,revpar:400},
+  flow:{arrivals:2,departures:1,inHouse:4},
+  balances:{source:'pms_guest_accounts',due:1000,advance:200,deposit:300,totalAccounts:3,openAccounts:2,creditAccounts:0,accountsWithDue:1},
+  nightAudit:{businessDate:'2026-11-01',nightState:'completed',jobState:'done',ready:true,blockers:[]},
+ };
+ it('forwards the bounded range selection and validates the owner payload',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data:range,context:reportContext}));
+  const client=createNativePmsClient(JSON.parse(config()),transport);
+  const result=await client.report(incoming({origin:'https://acme.example.com'}),reportActor,{
+   view:'range',holdingSlug:'acme',property:'property-1',from:'2026-11-01',to:'2026-11-02',
+   branchSlug:'north',expected:{companyId:'company',assignmentId:'assignment',revision:7,assignmentVersion:3},
+  }) as NativePmsReportData;
+  expect(result.days).toHaveLength(2);
+  const [method,url,headers]=transport.mock.calls[0];
+  expect(method).toBe('GET');
+  expect(url.toString()).toBe('http://127.0.0.1:44994/api/v1/holdings/acme/pms/reports/range?property=property-1&from=2026-11-01&to=2026-11-02');
+  expect(headers.get('origin')).toBe('https://acme.example.com');
+  expect(headers.get('x-erpx-workspace-branch')).toBe('north');
+  expect(headers.get('x-erpx-context-revision')).toBe('7');
+ });
+ it('forwards the bounded entry-ledger selection',async()=>{
+  const entries={date:'2026-11-01',page:2,rows:[{id:'entry-1',data:{kind:'charge',total:120}}],hasNext:false};
+  const transport=vi.fn().mockResolvedValue(ok({data:entries,context:reportContext}));
+  const client=createNativePmsClient(JSON.parse(config()),transport);
+  const result=await client.report(incoming(),reportActor,{view:'entries',holdingSlug:'acme',property:'property-1',date:'2026-11-01',page:2,branchSlug:'north'}) as NativePmsReportEntriesData;
+  expect(result.rows[0]).toEqual({id:'entry-1',data:{kind:'charge',total:120}});
+  expect(transport.mock.calls[0][1].toString()).toBe('http://127.0.0.1:44994/api/v1/holdings/acme/pms/reports/entries?property=property-1&date=2026-11-01&page=2');
+ });
+ it('refuses a payload for a different range or view',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data:range,context:reportContext}));
+  const client=createNativePmsClient(JSON.parse(config()),transport);
+  await expect(client.report(incoming(),reportActor,{view:'range',holdingSlug:'acme',property:'property-1',from:'2026-11-01',to:'2026-11-03',branchSlug:'north'})).rejects.toMatchObject({code:'NATIVE_PMS_RESPONSE_INVALID'});
+  await expect(client.report(incoming(),reportActor,{view:'entries',holdingSlug:'acme',property:'property-1',date:'2026-11-01',page:1,branchSlug:'north'})).rejects.toMatchObject({code:'NATIVE_PMS_RESPONSE_INVALID'});
  });
 });

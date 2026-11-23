@@ -6,6 +6,7 @@ import {
   nativePmsGuestAccountBody,
   NativePmsError,
   type NativePmsPageContext,
+  type NativePmsReportSelection,
 } from './native-pms';
 
 /** Native PMS guest-account commands owned by pms_guest_account_router. */
@@ -61,6 +62,40 @@ function scopeInput(actor: NativePmsPageContext) {
 
 export function nativePmsGuestAccountAvailable(): boolean {
   return process.env.ERPX_NATIVE_PMS_CONFIG !== undefined;
+}
+
+export function nativePmsReportsAvailable(): boolean {
+  return process.env.ERPX_NATIVE_PMS_CONFIG !== undefined;
+}
+
+/**
+ * Native PMS report read. Returns undefined only while the shared native owner
+ * is not configured in this environment; once configured the route is native
+ * authoritative and never falls back to the TypeScript report SQL.
+ */
+export async function nativePmsReport(
+  request: Request,
+  actor: WorkContext,
+  holdingSlug: string,
+  selection: NativePmsReportSelection,
+) {
+  const raw = process.env.ERPX_NATIVE_PMS_CONFIG;
+  if (raw === undefined) return undefined;
+  const context = pageContext(actor);
+  if (!context.authority || !context.iam)
+    throw new NativePmsError('NATIVE_PMS_CONTEXT_CHANGED');
+  const client = createNativePmsClient(nativePmsConfiguration(raw));
+  return client.report(request.headers, context, {
+    ...selection,
+    holdingSlug,
+    ...scopeInput(context),
+    expected: {
+      companyId: context.companyId,
+      assignmentId: context.assignmentId,
+      revision: context.authority.revision,
+      assignmentVersion: context.authority.assignmentVersion,
+    },
+  });
 }
 
 /**

@@ -125,6 +125,86 @@ export type NativePmsImportCommandInput = Readonly<{
   }>;
 }>;
 
+/** Bounded report views owned by pms_report_router (range summary / entry ledger). */
+export type NativePmsReportSelection =
+  | Readonly<{ view: 'range'; property: string; from: string; to: string }>
+  | Readonly<{ view: 'entries'; property: string; date: string; page: number }>;
+
+export type NativePmsReportInput = NativePmsReportSelection &
+  Readonly<{
+    holdingSlug: string;
+    branchSlug?: string;
+    departmentSlug?: string;
+    expected?: Readonly<{
+      companyId: string;
+      assignmentId: string;
+      revision: number;
+      assignmentVersion: number;
+    }>;
+  }>;
+
+/** Owner read facts returned by the native report projection (PMS-owned only). */
+export type NativePmsReportDay = {
+  date: string;
+  capacity: number;
+  sold: number;
+  roomRevenue: number;
+  netRevenue: number;
+  tax: number;
+  refunds: number;
+  cancellations: number;
+  noShows: number;
+};
+
+export type NativePmsReportTotals = {
+  capacity: number;
+  sold: number;
+  roomRevenue: number;
+  netRevenue: number;
+  tax: number;
+  refunds: number;
+  cancellations: number;
+  noShows: number;
+  occupancy: number;
+  adr: number;
+  revpar: number;
+};
+
+export type NativePmsReportData = {
+  property: { id: string; name: string; branchId: string; state: string; businessDate: string };
+  businessDate: string;
+  currency: string;
+  from: string;
+  to: string;
+  days: NativePmsReportDay[];
+  totals: NativePmsReportTotals;
+  flow: { arrivals: number; departures: number; inHouse: number };
+  balances: {
+    source: string;
+    due: number;
+    advance: number;
+    deposit: number;
+    totalAccounts: number;
+    openAccounts: number;
+    creditAccounts: number;
+    accountsWithDue: number;
+  };
+  nightAudit: {
+    businessDate: string;
+    nightState: string | null;
+    jobState: string | null;
+    ready: boolean;
+    blockers: string[];
+  };
+};
+
+export type NativePmsReportEntriesData = {
+  date: string;
+  page: number;
+  rows: { id: string; data: Record<string, unknown> }[];
+  hasNext: boolean;
+};
+
 /** Flatten the retained workspace command body ({operation,propertyId,
  * expectedVersion,input}) into the native guest-account body. The guest-save
  * contact command is intentionally not mapped; it is not a guest account. */
@@ -529,6 +609,151 @@ function context(
     return failure('NATIVE_PMS_CONTEXT_CHANGED');
   return parsed;
 }
+
+const isoDate = (value: unknown): value is string =>
+  text(value, 10) &&
+  /^\d{4}-\d{2}-\d{2}$/.test(value) &&
+  !Number.isNaN(Date.parse(`${value}T00:00:00Z`));
+
+const reportDay = (value: unknown): value is NativePmsReportDay =>
+  exact(
+    value,
+    [
+      'date',
+      'capacity',
+      'sold',
+      'roomRevenue',
+      'netRevenue',
+      'tax',
+      'refunds',
+      'cancellations',
+      'noShows',
+    ],
+  ) &&
+  isoDate(value.date) &&
+  [
+    'capacity',
+    'sold',
+    'roomRevenue',
+    'netRevenue',
+    'tax',
+    'refunds',
+    'cancellations',
+    'noShows',
+  ].every((key) => integer(value[key]));
+
+const reportTotals = (value: unknown): value is NativePmsReportTotals =>
+  exact(
+    value,
+    [
+      'capacity',
+      'sold',
+      'roomRevenue',
+      'netRevenue',
+      'tax',
+      'refunds',
+      'cancellations',
+      'noShows',
+      'occupancy',
+      'adr',
+      'revpar',
+    ],
+  ) &&
+  [
+    'capacity',
+    'sold',
+    'roomRevenue',
+    'netRevenue',
+    'tax',
+    'refunds',
+    'cancellations',
+    'noShows',
+    'adr',
+    'revpar',
+  ].every((key) => integer(value[key])) &&
+  typeof value.occupancy === 'number' &&
+  Number.isFinite(value.occupancy) &&
+  value.occupancy >= 0;
+
+const reportData = (
+  value: unknown,
+  input: Extract<NativePmsReportSelection, { view: 'range' }>,
+): NativePmsReportData => {
+  if (
+    !exact(
+      value,
+      [
+        'property',
+        'businessDate',
+        'currency',
+        'from',
+        'to',
+        'days',
+        'totals',
+        'flow',
+        'balances',
+        'nightAudit',
+      ],
+    ) ||
+    !exact(value.property, ['id', 'name', 'branchId', 'state', 'businessDate']) ||
+    !identifier(value.property.id) ||
+    !text(value.property.name, 400) ||
+    !identifier(value.property.branchId) ||
+    !text(value.property.state, 40) ||
+    !isoDate(value.property.businessDate) ||
+    !isoDate(value.businessDate) ||
+    !text(value.currency, 40) ||
+    value.from !== input.from ||
+    value.to !== input.to ||
+    !Array.isArray(value.days) ||
+    value.days.length > 93 ||
+    !value.days.every(reportDay) ||
+    !reportTotals(value.totals) ||
+    !exact(value.flow, ['arrivals', 'departures', 'inHouse']) ||
+    !['arrivals', 'departures', 'inHouse'].every((key) => integer((value.flow as Row)[key])) ||
+    !exact(value.balances, [
+      'source',
+      'due',
+      'advance',
+      'deposit',
+      'totalAccounts',
+      'openAccounts',
+      'creditAccounts',
+      'accountsWithDue',
+    ]) ||
+    !text(value.balances.source, 200) ||
+    !['due', 'advance', 'deposit', 'totalAccounts', 'openAccounts', 'creditAccounts', 'accountsWithDue'].every(
+      (key) => integer((value.balances as Row)[key]),
+    ) ||
+    !exact(value.nightAudit, ['businessDate', 'nightState', 'jobState', 'ready', 'blockers']) ||
+    !isoDate(value.nightAudit.businessDate) ||
+    !(value.nightAudit.nightState === null || text(value.nightAudit.nightState, 40)) ||
+    !(value.nightAudit.jobState === null || text(value.nightAudit.jobState, 40)) ||
+    typeof value.nightAudit.ready !== 'boolean' ||
+    !texts(value.nightAudit.blockers)
+  )
+    return failure('NATIVE_PMS_RESPONSE_INVALID');
+  return value as unknown as NativePmsReportData;
+};
+
+const reportEntriesData = (
+  value: unknown,
+  input: Extract<NativePmsReportSelection, { view: 'entries' }>,
+): NativePmsReportEntriesData => {
+  if (
+    !exact(value, ['date', 'page', 'rows', 'hasNext']) ||
+    value.date !== input.date ||
+    value.page !== input.page ||
+    !Array.isArray(value.rows) ||
+    value.rows.length > 50 ||
+    !value.rows.every(
+      (row) => exact(row, ['id', 'data']) && identifier(row.id) && record(row.data),
+    ) ||
+    typeof value.hasNext !== 'boolean'
+  )
+    return failure('NATIVE_PMS_RESPONSE_INVALID');
+  return value as unknown as NativePmsReportEntriesData;
+};
 
 const reserved = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
 
@@ -935,6 +1160,48 @@ export function createNativePmsClient(
           roomSummary: false,
           requireListMeta: true,
         });
+      } catch (error) {
+        if (error instanceof NativePmsError) throw error;
+        return failure('NATIVE_PMS_UNAVAILABLE');
+      }
+    },
+    report: async (
+      incoming: Pick<Headers, 'get'>,
+      actor: NativePmsPageContext,
+      input: NativePmsReportInput,
+      signal?: AbortSignal,
+    ) => {
+      if (!actor.authority || !actor.iam || actor.holdingSlug !== input.holdingSlug)
+        return Promise.reject(new NativePmsError('NATIVE_PMS_CONTEXT_CHANGED'));
+      try {
+        const headers = authority(config.holdings, incoming, input, 'NATIVE_PMS_REPORT_REQUEST_INVALID');
+        const origin = incoming.get('origin');
+        if (origin) headers.set('origin', origin);
+        if (!identifier(input.property))
+          throw new NativePmsError('NATIVE_PMS_REPORT_REQUEST_INVALID');
+        const url = new URL(
+          `/api/v1/holdings/${encodeURIComponent(input.holdingSlug)}/pms/reports/${input.view}`,
+          config.base,
+        );
+        url.searchParams.set('property', input.property);
+        if (input.view === 'range') {
+          if (!isoDate(input.from) || !isoDate(input.to))
+            throw new NativePmsError('NATIVE_PMS_REPORT_REQUEST_INVALID');
+          url.searchParams.set('from', input.from);
+          url.searchParams.set('to', input.to);
+        } else {
+          if (!isoDate(input.date) || !integer(input.page, 1) || input.page > 10_000)
+            throw new NativePmsError('NATIVE_PMS_REPORT_REQUEST_INVALID');
+          url.searchParams.set('date', input.date);
+          url.searchParams.set('page', String(input.page));
+        }
+        const response = await dispatch(transport, url, headers, signal);
+        const value = await boundedJson(response);
+        if (!exact(value, ['data', 'context'])) return failure('NATIVE_PMS_RESPONSE_INVALID');
+        context(value.context, actor, input);
+        return input.view === 'range'
+          ? reportData(value.data, input)
+          : reportEntriesData(value.data, input);
       } catch (error) {
         if (error instanceof NativePmsError) throw error;
         return failure('NATIVE_PMS_UNAVAILABLE');
