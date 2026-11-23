@@ -251,7 +251,7 @@ async fn plan_read(
             .await
             .map_err(|_| invalid())?;
         let value: serde_json::Value = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
-        let command = NativeCommand::parse(&value)?;
+        let command = NativeCommand::parse_read(&value)?;
         if !crate::adapters::native_read_sql::is_read(&command.kind) {
             return Err(invalid());
         }

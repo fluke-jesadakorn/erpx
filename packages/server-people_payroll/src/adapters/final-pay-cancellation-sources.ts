@@ -1,6 +1,7 @@
 import 'server-only';
 import {recordAttachmentVersionSteps} from '@erpx/server-files/public/record-version-receipts';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import {nativePeoplePayrollReadAll,PEOPLE_PAYROLL_RD_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE} from './native-people-payroll-read';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {payrollFinalPayCancellationMoneyImage} from '@erpx/server-finance/public/payroll-final-pay-cancellation-sources';
 import type {FinalPayCancellationSource} from '@erpx/server-people_payroll/domain/final-pay-cancellation';
@@ -31,4 +32,10 @@ export async function readFinalPayCancellationSource(database:SqlDatabase,actor:
  const noMoneyEffects=!money.hasMoneyEffects&&children.postings.length===0&&children.payslips.length===0&&children.batches.length===0&&children.deductions.length===0&&children.corrections.length===0&&!children.items.some(item=>item.status==='approved'||item.status==='posted');
  return {...result,financeImage:money.image,noMoneyEffects,image:JSON.stringify([result.preparationImage,result.runImage,result.taskImage,result.caseImage,result.engagementImage,result.childrenImage,result.eventsImage,money.image,result.originalPreparation,result.originalParentCancellation])};
 }
-export function finalPayCancellationSchemaAvailable(database:SqlDatabase){return database.prepare("SELECT to_regprocedure('hr_final_pay_cancellation_candidate(hr_payroll_runs)') IS NOT NULL AND to_regprocedure('hr_final_pay_cancellation_valid(text,text)') IS NOT NULL ready").first<boolean>('ready').then(Boolean);}
+/** Owner-native final-pay schema probe. SQL is planned by the People Payroll
+ * native read port (`RD_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE`) and executed
+ * on the caller's open unit; this module carries no SQL for this read. */
+export async function finalPayCancellationSchemaAvailable(database:SqlDatabase){
+  const result=await nativePeoplePayrollReadAll<{ready:boolean}>(PEOPLE_PAYROLL_RD_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE,[],database);
+  return Boolean(result.results[0]?.ready);
+}

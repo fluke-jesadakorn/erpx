@@ -59,11 +59,22 @@ const READ_WORK_REPORT_PEOPLE: NativeReadStatement = NativeReadStatement {
     bind_count: 1,
 };
 
+/// Native successor of the TypeScript `final-pay-cancellation-sources`
+/// schema-availability probe: same literal and no positional binds.
+pub const RD_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE: &str = "people_payroll_rd_final_pay_cancellation_schema_available";
+const SQL_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE: &str = "SELECT to_regprocedure('hr_final_pay_cancellation_candidate(hr_payroll_runs)') IS NOT NULL AND to_regprocedure('hr_final_pay_cancellation_valid(text,text)') IS NOT NULL ready";
+const READ_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE: NativeReadStatement = NativeReadStatement {
+    kind: RD_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE,
+    sql: SQL_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE,
+    bind_count: 0,
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_RECORD_SUPPLEMENT_ROWS,
     READ_ORG_ROSTER_EXIT_ENGAGEMENT_IDS,
     READ_ORG_MONTHLY_PAY_GROUPS,
     READ_WORK_REPORT_PEOPLE,
+    READ_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -119,5 +130,18 @@ mod tests {
         assert_eq!(read.bind_count, 1);
         assert_eq!(read.sql.matches('?').count(), 1);
         assert!(is_read(RD_WORK_REPORT_PEOPLE));
+    }
+
+    #[test]
+    fn final_pay_cancellation_schema_probe_is_ledger_free_and_zero_bound() {
+        let read = read_statement(RD_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE).expect("read kind");
+        assert!(read.sql.to_ascii_uppercase().starts_with("SELECT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("INSERT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("UPDATE"));
+        assert!(!read.sql.to_ascii_uppercase().contains("DELETE"));
+        assert_eq!(read.bind_count, 0);
+        assert_eq!(read.sql.matches('?').count(), 0);
+        assert!(read.sql.contains("to_regprocedure"));
+        assert!(is_read(RD_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE));
     }
 }

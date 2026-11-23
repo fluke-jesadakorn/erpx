@@ -22,10 +22,22 @@ pub struct NativeCommand {
 }
 
 impl NativeCommand {
-    /// Strict parse of the retained command envelope. Unknown fields are
+    /// Strict parse of a retained write command envelope. Unknown fields are
     /// ignored here; the HTTP ingress additionally enforces a bounded body and
-    /// a single Idempotency-Key before decoding.
+    /// a single Idempotency-Key before decoding. Write commands always bind at
+    /// least one positional value.
     pub fn parse(raw: &Value) -> Result<Self, BusinessError> {
+        Self::parse_inner(raw, false)
+    }
+
+    /// Strict parse of an allow-listed owner read envelope. Owner reads include
+    /// schema probes that bind no positional values; bind arity is still
+    /// checked by the read-plan ingress against the registered statement.
+    pub fn parse_read(raw: &Value) -> Result<Self, BusinessError> {
+        Self::parse_inner(raw, true)
+    }
+
+    fn parse_inner(raw: &Value, allow_empty: bool) -> Result<Self, BusinessError> {
         let Some(kind) = raw.get("kind").and_then(Value::as_str) else {
             return Err(invalid());
         };
@@ -40,7 +52,7 @@ impl NativeCommand {
         let Some(values) = raw.get("values").and_then(Value::as_array) else {
             return Err(invalid());
         };
-        if values.is_empty() || values.len() > MAX_VALUES {
+        if (values.is_empty() && !allow_empty) || values.len() > MAX_VALUES {
             return Err(invalid());
         }
         for value in values {
@@ -145,5 +157,18 @@ mod tests {
         assert!(NativeCommand::parse(&json!({"kind":"x","values":values})).is_err());
         assert!(NativeCommand::parse(&json!({"kind":"bad kind","values":[1]})).is_err());
         assert!(NativeCommand::parse(&json!({"kind":"x","values":[1],"now":-1})).is_err());
+    }
+
+    #[test]
+    fn parse_read_admits_zero_bind_schema_probes_only() {
+        let cmd = NativeCommand::parse_read(
+            &json!({"kind":"people_payroll_rd_final_pay_cancellation_schema_available","values":[]}),
+        )
+        .unwrap();
+        assert!(cmd.values.is_empty());
+        assert!(NativeCommand::parse_read(&json!({"kind":"bad kind","values":[]})).is_err());
+        let oversized: Vec<Value> = (0..super::MAX_VALUES + 1).map(|_| json!(1)).collect();
+        assert!(NativeCommand::parse_read(&json!({"kind":"x","values":oversized})).is_err());
+        assert!(NativeCommand::parse_read(&json!({"kind":"x","values":[1],"now":-1})).is_err());
     }
 }
