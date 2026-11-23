@@ -4,5 +4,6 @@
 //! without importing adapter internals.
 pub use crate::adapters::native_operations_read_sql::{
     is_read, read_statement, NativeReadStatement, RD_APP_UPLOAD_TASK_STATE,
+    RD_BETA_MANAGEMENT_TASK_COMPANY, RD_BETA_MANAGEMENT_TASK_FILE_OWNER,
     RD_FLOW_DEFINITIONS_DELEGATION, RD_TASK_PROJECTION_SOURCE,
 };

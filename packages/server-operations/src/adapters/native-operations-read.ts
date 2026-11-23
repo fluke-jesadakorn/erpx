@@ -20,6 +20,8 @@ type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: 
 export const OPERATIONS_RD_TASK_PROJECTION_SOURCE = 'operations_rd_task_projection_source';
 export const OPERATIONS_RD_APP_UPLOAD_TASK_STATE = 'operations_rd_app_upload_task_state';
 export const OPERATIONS_RD_FLOW_DEFINITIONS_DELEGATION = 'operations_rd_flow_definitions_delegation';
+export const OPERATIONS_RD_BETA_MANAGEMENT_TASK_COMPANY = 'operations_rd_beta_management_task_company';
+export const OPERATIONS_RD_BETA_MANAGEMENT_TASK_FILE_OWNER = 'operations_rd_beta_management_task_file_owner';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'OPERATIONS_NATIVE_READ_UNAVAILABLE', 'The native Operations read service is unavailable.');
@@ -56,13 +58,11 @@ function configuration(): Settings {
   return { privateBaseUrl: base.origin, timeoutMs: value.timeoutMs, holdings };
 }
 
-/** Plan an owner read in Rust and run it on the caller's open unit. Pure read:
- * the kind selects the SQL; only routing-scoped values cross the wire. */
-export async function nativeOperationsReadAll<T>(
-  kind: string,
-  values: readonly unknown[],
-  db: SqlDatabase,
-): Promise<SqlResult<T>> {
+type Planned = { sql: string; values: unknown[] };
+
+/** Ask the owner to plan one read; only the typed kind and routing values cross
+ * the wire. The reply is validated to carry exactly one owner statement. */
+async function plan(kind: string, values: readonly unknown[]): Promise<Planned> {
   const config = configuration();
   const holding = config.holdings[0]!;
   const key = 'ops-read-' + createHash('sha256').update(kind).update('\u0000').update(JSON.stringify(values)).digest('hex').slice(0, 32);
@@ -98,12 +98,31 @@ export async function nativeOperationsReadAll<T>(
   const payload = await response.json().catch((): unknown => null);
   const statements = record(payload) ? (payload as { data?: { statements?: unknown } }).data?.statements : undefined;
   if (!Array.isArray(statements) || statements.length !== 1) return unavailable();
-  const planned = statements.map((statement: unknown) => {
-    if (!record(statement) || typeof statement.sql !== 'string' || !Array.isArray(statement.values)) return unavailable();
-    return db.prepare(statement.sql).bind(...statement.values);
-  });
-  const results = await db.batch<T>(planned);
+  const statement = statements[0];
+  if (!record(statement) || typeof statement.sql !== 'string' || !Array.isArray(statement.values)) return unavailable();
+  return { sql: statement.sql, values: statement.values };
+}
+
+/** Plan an owner read in Rust and run it on the caller's open unit. Pure read:
+ * the kind selects the SQL; only routing-scoped values cross the wire. */
+export async function nativeOperationsReadAll<T>(
+  kind: string,
+  values: readonly unknown[],
+  db: SqlDatabase,
+): Promise<SqlResult<T>> {
+  const planned = await plan(kind, values);
+  const results = await db.batch<T>([db.prepare(planned.sql).bind(...planned.values)]);
   return results[0] ?? { results: [], success: true, meta: { changes: 0, duration: 0 } };
+}
+
+/** Return the owner-planned SQL text for a trusted server caller to compose into
+ * its own statement. Used only for correlated fragments that cannot execute
+ * standalone; the SQL is selected by the Rust allow-list, never by the caller. */
+export async function nativeOperationsReadSql(
+  kind: string,
+  values: readonly unknown[] = [],
+): Promise<Planned> {
+  return plan(kind, values);
 }
 
 /** Run a single-row owner read and return its first row (or null). The retired

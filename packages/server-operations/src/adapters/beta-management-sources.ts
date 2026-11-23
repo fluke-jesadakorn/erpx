@@ -1,5 +1,10 @@
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import {nativeOperationsReadFirst,nativeOperationsReadSql,OPERATIONS_RD_BETA_MANAGEMENT_TASK_COMPANY,OPERATIONS_RD_BETA_MANAGEMENT_TASK_FILE_OWNER} from './native-operations-read';
+/** Owner-native reads: both statements are planned by the Operations native read
+ * port, so this module carries no SQL. `taskCompany` runs the planned read on the
+ * caller's open unit; `taskFileOwner` returns the planned correlated fragment for
+ * the trusted caller to embed in its own attachment query (its `?` is bound there). */
 export function betaManagementTaskSources(db:SqlDatabase){return {
- taskFileOwner:'EXISTS(SELECT 1 FROM staff_tasks t WHERE t.id=a.owner_id AND t.company_id=?)',
- async taskCompany(id:string){return db.prepare('SELECT company_id FROM staff_tasks WHERE id=?').bind(id).first<{company_id:string}>();},
+ async taskFileOwner(){return (await nativeOperationsReadSql(OPERATIONS_RD_BETA_MANAGEMENT_TASK_FILE_OWNER)).sql;},
+ async taskCompany(id:string){return nativeOperationsReadFirst<{company_id:string}>(OPERATIONS_RD_BETA_MANAGEMENT_TASK_COMPANY,[id],db);},
 };}

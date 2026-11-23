@@ -94,6 +94,63 @@ describe('Flow routing delegation native read',()=>{
    }
   });
  });
+describe('Beta management task owner native reads',()=>{
+ const nativeConfig=JSON.stringify({privateBaseUrl:'http://127.0.0.1:3999',timeoutMs:1000,holdings:[{origin:'https://acme.jesadakorn.com',holdingSlug:'acme',holdingId:'h1',companyId:'company'}]});
+ const fragment='EXISTS(SELECT 1 FROM staff_tasks t WHERE t.id=a.owner_id AND t.company_id=?)';
+ const plan=(sql:string,values:unknown[])=>new Response(JSON.stringify({data:{statements:[{sql,values}]}}),{status:200,headers:{'content-type':'application/json'}});
+ test('task company delegates to the native owner plan and keeps no local SQL',async()=>{
+  const prepare=vi.fn(()=>({bind:vi.fn()}));
+  const batch=vi.fn(async()=>[{results:[{company_id:'company'}],success:true,meta:{changes:0,duration:0}}]);
+  const db={prepare,batch} as unknown as SqlDatabase;
+  process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG=nativeConfig;
+  const plannedSql='SELECT company_id FROM staff_tasks WHERE id=?';
+  const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(plan(plannedSql,['task']));
+  try{
+   const {betaManagementTaskSources}=await import('@erpx/server-operations/adapters/beta-management-sources');
+   await expect(betaManagementTaskSources(db).taskCompany('task')).resolves.toMatchObject({company_id:'company'});
+   const call=fetchMock.mock.calls[0]!;
+   expect(String(call[0])).toContain('/operations/command-plan');
+   expect(JSON.parse(String(call[1]!.body))).toMatchObject({kind:'operations_rd_beta_management_task_company',values:['task']});
+   expect(prepare).toHaveBeenCalledWith(plannedSql);
+  }finally{
+   fetchMock.mockRestore();
+   delete process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG;
+  }
+ });
+ test('task file owner returns the owner-planned correlated fragment',async()=>{
+  const db={} as SqlDatabase;
+  process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG=nativeConfig;
+  const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(plan(fragment,[]));
+  try{
+   const {betaManagementTaskSources}=await import('@erpx/server-operations/adapters/beta-management-sources');
+   await expect(betaManagementTaskSources(db).taskFileOwner()).resolves.toBe(fragment);
+   expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({kind:'operations_rd_beta_management_task_file_owner',values:[]});
+  }finally{
+   fetchMock.mockRestore();
+   delete process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG;
+  }
+ });
+ test('the server-files consumer composes the planned fragment and keeps every bind',async()=>{
+  const first=vi.fn(async()=>({bytes:42}));
+  const bind=vi.fn(()=>({first}));
+  const prepare=vi.fn(()=>({bind}));
+  const db={prepare} as unknown as SqlDatabase;
+  process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG=nativeConfig;
+  const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(plan(fragment,[]));
+  try{
+   const {betaManagementFacts}=await import('@erpx/server-files/adapters/beta-management-facts');
+   await expect(betaManagementFacts(db).files('c1','c2','c3','c4','c5','c6')).resolves.toEqual({bytes:42});
+   expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({kind:'operations_rd_beta_management_task_file_owner',values:[]});
+   const sql=String((prepare.mock.calls[0] as unknown as [string])[0]);
+   expect(sql).toContain("a.owner_type='staff_task'");
+   expect(sql).toContain(fragment);
+   expect(bind).toHaveBeenCalledWith('c1','c2','c3','c4','c5','c6');
+  }finally{
+   fetchMock.mockRestore();
+   delete process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG;
+  }
+ });
+});
 describe('Handover source and colleague constraints',()=>{
  test('Bangkok day derives entirely from the supplied instant',()=>{expect(bangkokToday(Date.UTC(2026,0,1,20))).toBe('2026-01-02');});
  test('duplicate recipients and source references fail validation',()=>{const source={id:'task',sourceVersion:1,kind:'staff_task' as const},base={date:'2026-01-02',body:'Shift report',sources:[source],recipientIds:['colleague']};expect(handoverPublishSchema.safeParse({...base,sources:[source,source]}).success).toBe(false);expect(handoverPublishSchema.safeParse({...base,recipientIds:['colleague','colleague']}).success).toBe(false);});

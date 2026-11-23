@@ -58,10 +58,41 @@ const READ_FLOW_DEFINITIONS_DELEGATION: NativeReadStatement = NativeReadStatemen
     scope: "holding",
 };
 
+/// Native successor of the TypeScript beta-management `taskCompany` read. The
+/// owner plans this literal; the caller executes it on its open unit with the
+/// same `[id]` bind.
+pub const RD_BETA_MANAGEMENT_TASK_COMPANY: &str = "operations_rd_beta_management_task_company";
+const SQL_BETA_MANAGEMENT_TASK_COMPANY: &str =
+    "SELECT company_id FROM staff_tasks WHERE id=?";
+const READ_BETA_MANAGEMENT_TASK_COMPANY: NativeReadStatement = NativeReadStatement {
+    kind: RD_BETA_MANAGEMENT_TASK_COMPANY,
+    sql: SQL_BETA_MANAGEMENT_TASK_COMPANY,
+    bind_count: 1,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript beta-management `taskFileOwner` fragment.
+/// Unlike the other owner reads this statement is a correlated `EXISTS(...)`
+/// predicate, not a standalone query: the owner plans the exact fragment and
+/// the trusted caller embeds the returned SQL text in its own attachment query.
+/// The `?` is bound by that caller, so the plan route carries no values for
+/// this kind (`bind_count: 0`).
+pub const RD_BETA_MANAGEMENT_TASK_FILE_OWNER: &str = "operations_rd_beta_management_task_file_owner";
+const SQL_BETA_MANAGEMENT_TASK_FILE_OWNER: &str =
+    "EXISTS(SELECT 1 FROM staff_tasks t WHERE t.id=a.owner_id AND t.company_id=?)";
+const READ_BETA_MANAGEMENT_TASK_FILE_OWNER: NativeReadStatement = NativeReadStatement {
+    kind: RD_BETA_MANAGEMENT_TASK_FILE_OWNER,
+    sql: SQL_BETA_MANAGEMENT_TASK_FILE_OWNER,
+    bind_count: 0,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_TASK_PROJECTION_SOURCE,
     READ_APP_UPLOAD_TASK_STATE,
     READ_FLOW_DEFINITIONS_DELEGATION,
+    READ_BETA_MANAGEMENT_TASK_COMPANY,
+    READ_BETA_MANAGEMENT_TASK_FILE_OWNER,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -145,6 +176,51 @@ mod tests {
         assert_eq!(
             read.sql,
             "SELECT delegate_user_id FROM staff_task_delegations WHERE company_id=? AND task_id=? AND status='active' AND starts_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint ORDER BY created_at DESC,id DESC LIMIT 1"
+        );
+    }
+
+    #[test]
+    fn beta_management_task_company_plan_is_holding_scoped_and_ledger_free() {
+        let read = read_statement(RD_BETA_MANAGEMENT_TASK_COMPANY).expect("read kind");
+        let upper = read.sql.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT"), "{}", read.kind);
+        assert!(!upper.contains("INSERT"));
+        assert!(!upper.contains("UPDATE"));
+        assert!(!upper.contains("DELETE"));
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_BETA_MANAGEMENT_TASK_COMPANY));
+    }
+
+    #[test]
+    fn beta_management_task_company_sql_matches_retired_typescript_literal() {
+        let read = read_statement(RD_BETA_MANAGEMENT_TASK_COMPANY).expect("read kind");
+        assert_eq!(read.sql, "SELECT company_id FROM staff_tasks WHERE id=?");
+    }
+
+    #[test]
+    fn beta_management_task_file_owner_is_an_owner_planned_correlated_fragment() {
+        let read = read_statement(RD_BETA_MANAGEMENT_TASK_FILE_OWNER).expect("read kind");
+        let upper = read.sql.to_ascii_uppercase();
+        assert!(upper.starts_with("EXISTS("), "{}", read.kind);
+        assert!(!upper.contains("INSERT"));
+        assert!(!upper.contains("UPDATE"));
+        assert!(!upper.contains("DELETE"));
+        assert!(upper.contains("STAFF_TASKS"));
+        assert!(upper.contains("A.OWNER_ID"));
+        assert_eq!(read.bind_count, 0);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_BETA_MANAGEMENT_TASK_FILE_OWNER));
+    }
+
+    #[test]
+    fn beta_management_task_file_owner_sql_matches_retired_typescript_literal() {
+        let read = read_statement(RD_BETA_MANAGEMENT_TASK_FILE_OWNER).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "EXISTS(SELECT 1 FROM staff_tasks t WHERE t.id=a.owner_id AND t.company_id=?)"
         );
     }
 }
