@@ -66,6 +66,9 @@ pub enum LegalAuxiliaryRead {
     Knowledge {
         query: String,
         as_of: Option<String>,
+        /// Bounded item id for the authored-text presenter read. No SQL text
+        /// crosses this boundary; the owner applies the same visibility.
+        item_id: Option<String>,
     },
     LawCitation {
         id: String,

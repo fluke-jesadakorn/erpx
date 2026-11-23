@@ -49,6 +49,8 @@ pub struct LegalAuxiliaryQueryWire {
     pub source_id: Option<String>,
     #[serde(rename = "ruleId")]
     pub rule_id: Option<String>,
+    #[serde(rename = "itemId")]
+    pub item_id: Option<String>,
     #[serde(rename = "asOf")]
     pub as_of: Option<String>,
     pub q: Option<String>,
@@ -69,6 +71,7 @@ impl LegalAuxiliaryQueryWire {
         for (key, value) in [
             ("sourceId", &self.source_id),
             ("ruleId", &self.rule_id),
+            ("itemId", &self.item_id),
             ("asOf", &self.as_of),
             ("q", &self.q),
             ("page", &self.page),

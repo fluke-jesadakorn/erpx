@@ -689,6 +689,7 @@ impl LegalAuxiliaryReadPorts for PgLegalAuxiliaryReads<'_> {
         actor: &'a LegalAuxiliaryActor,
         query: &'a str,
         as_of: &'a str,
+        item_id: Option<&'a str>,
     ) -> LegalAuxiliaryFuture<'a, Value> {
         Box::pin(async move {
             self.ready().await?;
@@ -794,6 +795,34 @@ impl LegalAuxiliaryReadPorts for PgLegalAuxiliaryReads<'_> {
                 .into_iter()
                 .map(|row| row.try_get::<Value, _>("x"))
                 .collect::<Result<Vec<_>, _>>()?;
+            // Bounded authored-text presenter read. The same visibility and
+            // clean-source predicate as the former TS `authoredItem` projection;
+            // only an owner-issued, parsed item id can select rows.
+            let authored_items = match item_id {
+                None => Vec::new(),
+                Some(item) => {
+                    let authored_item_sql = format!(
+                        "SELECT to_jsonb(x) x FROM (SELECT d.id,d.id \"sourceId\",'document' kind,\
+                         i.id item_id,i.title,d.id document_id,d.name,d.version::bigint version,\
+                         d.checksum,d.body text,d.body excerpt,NULL::int page,'' section \
+                         FROM legal_documents d JOIN legal_items i ON i.id=d.item_id \
+                         WHERE i.id=$5 AND {visibility} AND i.kind<>'rule' AND d.object_key IS NULL \
+                         AND d.media_type='text/plain' AND length(d.body)>0 AND {CLEAN_DOCUMENT} \
+                         ORDER BY d.version DESC LIMIT 5) x"
+                    );
+                    sqlx::query(AssertSqlSafe(authored_item_sql.as_str()))
+                        .bind(&company)
+                        .bind(branch)
+                        .bind(department)
+                        .bind(&user)
+                        .bind(item)
+                        .fetch_all(&mut *self.connection)
+                        .await?
+                        .into_iter()
+                        .map(|row| row.try_get::<Value, _>("x"))
+                        .collect::<Result<Vec<_>, _>>()?
+                }
+            };
             let mut documents = reviewed;
             documents.extend(authored);
             let mut sources = documents.clone();
@@ -816,6 +845,7 @@ impl LegalAuxiliaryReadPorts for PgLegalAuxiliaryReads<'_> {
                 "sources": sources,
                 "conflicts": conflicts,
                 "notice": notice,
+                "authoredItems": authored_items,
             }))
         })
     }

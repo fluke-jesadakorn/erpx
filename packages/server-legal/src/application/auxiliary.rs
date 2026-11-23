@@ -50,6 +50,7 @@ pub trait LegalAuxiliaryReadPorts {
         actor: &'a LegalAuxiliaryActor,
         query: &'a str,
         as_of: &'a str,
+        item_id: Option<&'a str>,
     ) -> LegalAuxiliaryFuture<'a, Value>;
     fn law_citation<'a>(
         &'a mut self,
@@ -104,11 +105,21 @@ pub async fn read_auxiliary<P: LegalAuxiliaryReadPorts>(
             let rule_id = rule_id.as_deref().map(parse_identifier).transpose()?;
             ports.law_corpus(actor, rule_id.as_deref()).await
         }
-        LegalAuxiliaryRead::Knowledge { query, as_of } => {
+        LegalAuxiliaryRead::Knowledge {
+            query,
+            as_of,
+            item_id,
+        } => {
             let query = crate::domain::auxiliary::parse_search(&query)?;
             let as_of =
                 parse_as_of(as_of.as_deref())?.unwrap_or_else(|| bangkok_date(clock.now().get()));
-            ports.knowledge(actor, &query, &as_of).await
+            let item_id = item_id
+                .as_deref()
+                .map(parse_identifier)
+                .transpose()?;
+            ports
+                .knowledge(actor, &query, &as_of, item_id.as_deref())
+                .await
         }
         LegalAuxiliaryRead::LawCitation { id, as_of } => {
             let id = parse_identifier(id.strip_prefix("law:").unwrap_or(&id))?;
@@ -223,6 +234,7 @@ pub fn parse_auxiliary_path(
         [one] if one == "knowledge" => LegalAuxiliaryRead::Knowledge {
             query: get("q").unwrap_or_default(),
             as_of: get("asOf"),
+            item_id: get("itemId"),
         },
         [one] if one == "citations" => LegalAuxiliaryRead::Citation {
             id: get("sourceId")?,
@@ -316,9 +328,10 @@ mod tests {
             _: &'a LegalAuxiliaryActor,
             query: &'a str,
             as_of: &'a str,
+            item_id: Option<&'a str>,
         ) -> LegalAuxiliaryFuture<'a, Value> {
             self.calls.push("knowledge");
-            self.seen.push(format!("{query}|{as_of}"));
+            self.seen.push(format!("{query}|{as_of}|{}", item_id.unwrap_or("")));
             Box::pin(async move { Ok(serde_json::json!({"query": query})) })
         }
         fn law_citation<'a>(
@@ -420,12 +433,57 @@ mod tests {
             LegalAuxiliaryRead::Knowledge {
                 query: "  contract  ".into(),
                 as_of: None,
+                item_id: None,
             },
             &Fixed(1_794_330_000_000),
         )
         .await
         .unwrap();
-        assert_eq!(ports.seen, vec!["contract|2026-11-11".to_owned()]);
+        assert_eq!(ports.seen, vec!["contract|2026-11-11|".to_owned()]);
+    }
+
+    #[tokio::test]
+    async fn knowledge_item_id_is_bounded_and_reaches_the_owner_port() {
+        let mut ports = ports();
+        let actor = actor(&["legal.read"]);
+        let path = parse_auxiliary_path(
+            &["knowledge".into()],
+            &[
+                ("q".to_owned(), "contract".to_owned()),
+                ("itemId".to_owned(), "matter-one".to_owned()),
+            ],
+        )
+        .unwrap();
+        assert_eq!(
+            path,
+            LegalAuxiliaryRead::Knowledge {
+                query: "contract".into(),
+                as_of: None,
+                item_id: Some("matter-one".into()),
+            }
+        );
+        read_auxiliary(&mut ports, &actor, path, &Fixed(1_794_330_000_000))
+            .await
+            .unwrap();
+        assert_eq!(ports.seen, vec!["contract|2026-11-11|matter-one".to_owned()]);
+        assert!(matches!(
+            parse_auxiliary_path(
+                &["knowledge".into()],
+                &[
+                    ("q".to_owned(), "contract".to_owned()),
+                    ("itemId".to_owned(), " ".to_owned()),
+                ],
+            ),
+            Some(LegalAuxiliaryRead::Knowledge { .. })
+        ));
+        let invalid = LegalAuxiliaryRead::Knowledge {
+            query: "contract".into(),
+            as_of: None,
+            item_id: Some(" ".to_owned()),
+        };
+        assert!(read_auxiliary(&mut ports, &actor, invalid, &Fixed(1_794_330_000_000))
+            .await
+            .is_err());
     }
 
     #[tokio::test]

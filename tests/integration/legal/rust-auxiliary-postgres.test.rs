@@ -612,6 +612,7 @@ async fn law_corpus_reads_require_approved_applicability_and_audit_the_access() 
             LegalAuxiliaryRead::Knowledge {
                 query: "contract clause".into(),
                 as_of: Some("2026-01-01".into()),
+                item_id: None,
             },
         )
         .await
@@ -622,11 +623,64 @@ async fn law_corpus_reads_require_approved_applicability_and_audit_the_access() 
         assert_eq!(knowledge["asOf"], "2026-01-01");
         // The native `knowledge` read is the authoritative projection for the
         // TypeScript lawKnowledge/legalKnowledge adapters. Pin its exact
-        // top-level field set so the seven view TS SELECTs can be deleted.
-        assert_eq!(knowledge.as_object().unwrap().len(), 5);
-        for field in ["query", "asOf", "sources", "conflicts", "notice"] {
+        // top-level field set, including the authored-item presenter read.
+        assert_eq!(knowledge.as_object().unwrap().len(), 6);
+        for field in [
+            "query",
+            "asOf",
+            "sources",
+            "conflicts",
+            "notice",
+            "authoredItems",
+        ] {
             assert!(knowledge.get(field).is_some(), "missing {field}");
         }
+        assert!(knowledge["authoredItems"].as_array().unwrap().is_empty());
+
+        // Pin the exact authored-item projection consumed by the TypeScript
+        // `retrieveLegalAiEvidence` presenter, so its view SELECT can be deleted.
+        sqlx::raw_sql(
+            "INSERT INTO legal_documents(id,item_id,version,name,media_type,checksum,bytes,body,created_by,created_at)
+             VALUES('doc-authored','matter-open',5,'notes.txt','text/plain','bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',10,'native authored clause','user-one',1000)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let authored_item = read(
+            &pool,
+            manager(),
+            LegalAuxiliaryRead::Knowledge {
+                query: "draft".into(),
+                as_of: None,
+                item_id: Some("matter-open".into()),
+            },
+        )
+        .await
+        .unwrap();
+        let authored_items = authored_item["authoredItems"].as_array().unwrap();
+        assert_eq!(authored_items.len(), 1);
+        assert_eq!(authored_items[0].as_object().unwrap().len(), 13);
+        assert_eq!(authored_items[0]["id"], "doc-authored");
+        assert_eq!(authored_items[0]["sourceId"], "doc-authored");
+        assert_eq!(authored_items[0]["kind"], "document");
+        assert_eq!(authored_items[0]["item_id"], "matter-open");
+        assert_eq!(authored_items[0]["document_id"], "doc-authored");
+        assert_eq!(authored_items[0]["version"], 5);
+        assert_eq!(authored_items[0]["excerpt"], "native authored clause");
+
+        // An item outside the selected Company never resolves to a row.
+        let hidden = read(
+            &pool,
+            manager(),
+            LegalAuxiliaryRead::Knowledge {
+                query: "draft".into(),
+                as_of: None,
+                item_id: Some("matter-other".into()),
+            },
+        )
+        .await
+        .unwrap();
+        assert!(hidden["authoredItems"].as_array().unwrap().is_empty());
 
         let reviewed = read(
             &pool,
@@ -634,6 +688,7 @@ async fn law_corpus_reads_require_approved_applicability_and_audit_the_access() 
             LegalAuxiliaryRead::Knowledge {
                 query: "written evidence".into(),
                 as_of: Some("2026-01-01".into()),
+                item_id: None,
             },
         )
         .await
@@ -650,6 +705,7 @@ async fn law_corpus_reads_require_approved_applicability_and_audit_the_access() 
             LegalAuxiliaryRead::Knowledge {
                 query: "evidence".into(),
                 as_of: Some("2026-01-01".into()),
+                item_id: None,
             },
         )
         .await
@@ -693,6 +749,7 @@ async fn law_corpus_reads_require_approved_applicability_and_audit_the_access() 
             LegalAuxiliaryRead::Knowledge {
                 query: "contract clause".into(),
                 as_of: Some("2026-01-01".into()),
+                item_id: None,
             },
         )
         .await
