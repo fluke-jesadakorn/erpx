@@ -1,4 +1,17 @@
 import "server-only";
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import { nativeWorkflowReadAll } from "./native-workflow-read";
+
 export async function departmentOverrideReceiptOperation(db:SqlDatabase,key:string){return (await db.prepare('SELECT operation FROM command_receipts WHERE command_id=?').bind(key).first<{operation:string}>())?.operation??null;}
-export async function departmentOverridePendingApprovals(db:SqlDatabase,companyId:string){return (await db.prepare("SELECT i.record_type kind,i.record_id id,i.updated_at FROM approval_instances i JOIN approval_steps s ON s.instance_id=i.id AND s.ordinal=i.current_step WHERE i.company_id=? AND i.state='pending' AND s.state='pending' AND s.stage='department_approval' AND i.record_type IN ('expense','leave','overtime') ORDER BY i.updated_at DESC LIMIT 150").bind(companyId).all<{kind:'expense'|'leave'|'overtime';id:string;updated_at:number}>()).results;}
+
+/** Owner-native read: the department approval queue statement is planned by the
+ * mounted Workflow wave3 command planner (WF_NATIVE_DEPARTMENT_APPROVAL_QUEUE)
+ * and executed on the caller's open unit. This read carries no SQL. */
+export async function departmentOverridePendingApprovals(db:SqlDatabase,companyId:string){
+  return nativeWorkflowReadAll<{kind:'expense'|'leave'|'overtime';id:string;updated_at:number}>(
+    'wf_native_department_approval_queue',
+    [companyId],
+    companyId,
+    db,
+  );
+}

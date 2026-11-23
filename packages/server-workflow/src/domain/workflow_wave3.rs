@@ -112,6 +112,11 @@ pub const WF_NATIVE_SPENDING_SETTINGS_HISTORY: &str = "wf_native_spending_settin
 /// SELECT on the Workflow-owned approval tables; the TypeScript bridge executes
 /// it on the caller's open unit and carries no receipt/assertion semantics.
 pub const WF_NATIVE_STAFF_TASK_ALERT_APPROVERS: &str = "wf_native_staff_task_alert_approvers";
+/// Owner-authored caller-unit read for the department approval queue family.
+/// The mounted wave3-command planner resolves it to one fixed SELECT on the
+/// Workflow-owned approval tables; the TypeScript bridge executes it on the
+/// caller's open unit and carries no receipt/assertion semantics.
+pub const WF_NATIVE_DEPARTMENT_APPROVAL_QUEUE: &str = "wf_native_department_approval_queue";
 pub const KINDS: &[&str] = &[
     WF_OPENAPPROVAL,
     WF_OPENAPPROVAL2,
@@ -144,6 +149,7 @@ pub const KINDS: &[&str] = &[
     WF_NATIVE_LEAVE_EVIDENCE_DECISION,
     WF_NATIVE_SPENDING_SETTINGS_HISTORY,
     WF_NATIVE_STAFF_TASK_ALERT_APPROVERS,
+    WF_NATIVE_DEPARTMENT_APPROVAL_QUEUE,
 ];
 
 fn statement(kind: &str) -> Option<(&'static str, usize)> {
@@ -373,6 +379,10 @@ fn statement(kind: &str) -> Option<(&'static str, usize)> {
         WF_NATIVE_STAFF_TASK_ALERT_APPROVERS => (
             "SELECT s.approver_user_id FROM approval_instances i JOIN approval_steps s ON s.instance_id=i.id AND s.state='pending' WHERE i.company_id=? AND i.record_type='task' AND i.record_id=? AND i.state='pending'",
             2,
+        ),
+        WF_NATIVE_DEPARTMENT_APPROVAL_QUEUE => (
+            "SELECT i.record_type kind,i.record_id id,i.updated_at FROM approval_instances i JOIN approval_steps s ON s.instance_id=i.id AND s.ordinal=i.current_step WHERE i.company_id=? AND i.state='pending' AND s.state='pending' AND s.stage='department_approval' AND i.record_type IN ('expense','leave','overtime') ORDER BY i.updated_at DESC LIMIT 150",
+            1,
         ),
 _ => return None,
     })
@@ -607,5 +617,33 @@ mod tests {
             .is_ok()
         );
         assert!(plan(WF_NATIVE_STAFF_TASK_ALERT_APPROVERS, vec![json!("company")]).is_err());
+    }
+
+    /// The owner-local department approval queue read stays fixed, SELECT-only
+    /// and on the Workflow-owned approval tables; the bridge carries no receipt
+    /// or assertion semantics and the planner never accepts caller SQL or writes.
+    #[test]
+    fn department_approval_queue_read_kind_is_fixed_owner_local_select() {
+        let (sql, expected) = statement(WF_NATIVE_DEPARTMENT_APPROVAL_QUEUE)
+            .expect("registered owner read kind");
+        assert!(sql.starts_with("SELECT "), "read must be SELECT-only: {sql}");
+        assert_eq!(expected, 1);
+        assert_eq!(sql.matches('?').count(), expected);
+        assert!(
+            sql.contains("approval_instances") && sql.contains("approval_steps"),
+            "read must stay owner-local: {sql}"
+        );
+        assert!(
+            sql.contains("stage='department_approval'"),
+            "read must keep the exact owner predicate: {sql}"
+        );
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+            assert!(!sql.contains(forbidden), "read must not mutate: {forbidden}");
+        }
+        assert!(supported(WF_NATIVE_DEPARTMENT_APPROVAL_QUEUE));
+        assert!(
+            plan(WF_NATIVE_DEPARTMENT_APPROVAL_QUEUE, vec![json!("company")]).is_ok()
+        );
+        assert!(plan(WF_NATIVE_DEPARTMENT_APPROVAL_QUEUE, vec![]).is_err());
     }
 }

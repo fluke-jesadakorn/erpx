@@ -403,3 +403,41 @@ describe('workflow staff task alert approvers read tail (native read plan)', () 
     }
   });
 });
+
+describe('workflow department approval queue read tail (native read plan)', () => {
+  it('carries no retired owner SQL for the switched read', async () => {
+    const source = await readFile(
+      new URL('../../../packages/server-workflow/src/adapters/department-override-facts.ts', import.meta.url),
+      'utf8',
+    );
+    expect(source).not.toContain('SELECT i.record_type kind,i.record_id id,i.updated_at');
+    expect(source).not.toContain('ORDER BY i.updated_at DESC LIMIT 150');
+  });
+
+  it('plans the read through the mounted native read with no local SQL', async () => {
+    const rows = [{ kind: 'expense', id: 'request-1', updated_at: 100 }];
+    const all = vi.fn(async () => rows);
+    vi.resetModules();
+    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+      nativeWorkflowReadAll: all,
+    }));
+    try {
+      const { departmentOverridePendingApprovals } = await import(
+        '../../../packages/server-workflow/src/adapters/department-override-facts'
+      );
+      const prepare = vi.fn();
+      const db = { prepare } as never;
+      expect(await departmentOverridePendingApprovals(db, 'company')).toEqual(rows);
+      expect(all).toHaveBeenCalledWith(
+        'wf_native_department_approval_queue',
+        ['company'],
+        'company',
+        db,
+      );
+      expect(prepare).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.resetModules();
+    }
+  });
+});
