@@ -158,6 +158,75 @@ fn plan_rejects_unknown_kind_and_arity() {
     assert_eq!(error.code, "FILES_COMMAND_INVALID");
 }
 
+#[test]
+fn brand_publication_kinds_plan_byte_identical_sql() {
+    let now = 1_700_000_000_000i64;
+    // 71publish: profile upsert for the primary publication column.
+    let statements = plan(
+        &company(),
+        "test-key-brand-71p",
+        &input(
+            "BRAND_PUB_71P",
+            serde_json::json!(["holding", "scope-1", "company", "holding", "user-1", now, "pub-1"]),
+            now,
+        ),
+    )
+    .unwrap();
+    assert_eq!(statements.len(), 4);
+    assert_eq!(
+        statements[0].sql,
+        "INSERT INTO organization_brand_profiles(scope_kind,scope_id,company_id,document_mode,updated_by,updated_at,primary_publication_id) VALUES(?,?,?,?,?,?,?) ON CONFLICT(scope_kind,scope_id) DO UPDATE SET primary_publication_id=excluded.primary_publication_id,updated_by=excluded.updated_by,updated_at=excluded.updated_at"
+    );
+    assert_eq!(statements[0].values.len(), 7);
+    // 71 inverse writes the inverse column instead.
+    let statements = plan(
+        &company(),
+        "test-key-brand-71i",
+        &input(
+            "BRAND_PUB_71I",
+            serde_json::json!(["branch", "scope-2", "company", "branch", "user-1", now, "pub-2"]),
+            now,
+        ),
+    )
+    .unwrap();
+    assert!(statements[0]
+        .sql
+        .contains("inverse_publication_id=excluded.inverse_publication_id"));
+    // 72 publishes the storefront logo from the company row.
+    let statements = plan(
+        &company(),
+        "test-key-brand-72",
+        &input("BRAND_PUB_72", serde_json::json!(["user-1", now, "pub-3", "company"]), now),
+    )
+    .unwrap();
+    assert!(statements[0].sql.contains("logo_publication_id"));
+    assert_eq!(statements[0].values.len(), 4);
+    // 73 revokes by exact publication match; 74 clears the storefront logo.
+    let statements = plan(
+        &company(),
+        "test-key-brand-73p",
+        &input("BRAND_PUB_73P", serde_json::json!(["holding", "scope-1", "pub-1"]), now),
+    )
+    .unwrap();
+    assert!(statements[0].sql.contains("primary_publication_id=NULL"));
+    let statements = plan(
+        &company(),
+        "test-key-brand-74",
+        &input("BRAND_PUB_74", serde_json::json!(["company", "pub-3"]), now),
+    )
+    .unwrap();
+    assert!(statements[0].sql.contains("logo_publication_id=NULL"));
+    assert_eq!(statements[0].values.len(), 2);
+    // Wrong arity fails closed per kind.
+    let error = plan(
+        &company(),
+        "test-key-brand-arity",
+        &input("BRAND_PUB_74", serde_json::json!(["company"]), now),
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "FILES_COMMAND_INVALID");
+}
+
 // ---------------------------------------------------------------------------
 // Transport entrypoint: the plan route proves Host/Holding/Origin/key, then
 // serves the owner plan for execution in the caller's unit.

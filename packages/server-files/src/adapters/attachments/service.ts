@@ -82,7 +82,7 @@ import type { AttachmentComponentKind } from "@erpx/server-files/public/attachme
 import { createAttachmentService, type AttachmentServiceUnit } from "@erpx/server-files/application/attachments/service";
 import type { AttachmentByteStore } from "@erpx/server-files/domain/file-object";
 import { repository } from "@erpx/server-files/adapters/attachments/service-repository";
-import { resolveNativeEffects, type NativeContext } from "../native-files-command";
+import { nativeWrite, resolveNativeEffects, type NativeContext } from "../native-files-command";
 let nativeContext: NativeContext = { companyId: '', key: 'files-native', now: Date.now() };
 function setNativeContext(actor: WorkContext, key: string) {
   nativeContext = { companyId: actor.companyId, key, now: Date.now(), holdingId: actor.holdingId, holdingSlug: actor.holdingSlug };
@@ -107,7 +107,6 @@ import { attachmentServiceAssetsFacts } from "@erpx/server-assets/public/attachm
 import { attachmentServiceManufacturingFacts } from "@erpx/server-manufacturing/public/attachments-service-facts";
 import { attachmentServiceIdentityAccessFacts } from "@erpx/server-identity_access/public/attachments-service-facts";
 import { attachmentServiceManageErpxFacts } from "@erpx/server-manage_erpx/public/attachments-service-facts";
-import { attachmentServiceBrandFacts } from "@erpx/server-brand/public/attachments-service-facts";
 function fieldNativeFailure(error:unknown) { return error && typeof error==='object' && 'constraint' in error && error.constraint==='field_file_native_writer' ? new ApiError(503,'FIELD_FILES_NATIVE_REQUIRED','The native Field file service is required.') : undefined; }
 const nativeDatabases = new WeakMap<AttachmentServiceUnit<SqlStatement>, SqlDatabase>();
 const expenseScopesByUnit = new WeakMap<AttachmentServiceUnit<SqlStatement>, readonly PayrollAttachmentPurchase[]>();
@@ -209,10 +208,10 @@ function unit(db: SqlDatabase, inheritedHospitality: readonly HospitalityAttachm
         stepAttachmentLinks66: facts => repository(db).stepAttachmentLinks66(facts),
         stepAttachmentSets67: facts => repository(db).stepAttachmentSets67(facts),
         stepAttachmentEvents68: facts => repository(db).stepAttachmentEvents68(facts),
-        stepOrganizationBrandProfiles71: facts => attachmentServiceBrandFacts(db).stepOrganizationBrandProfiles71(facts),
-        stepStorefrontAppBrands72: facts => attachmentServiceBrandFacts(db).stepStorefrontAppBrands72(facts),
-        stepOrganizationBrandProfiles73: facts => attachmentServiceBrandFacts(db).stepOrganizationBrandProfiles73(facts),
-        stepStorefrontAppBrands74: facts => attachmentServiceBrandFacts(db).stepStorefrontAppBrands74(facts),
+        stepOrganizationBrandProfiles71: facts => nativeWrite(facts.purposeKey==='primary'?'BRAND_PUB_71P':'BRAND_PUB_71I',[facts.kind,facts.targetId,facts.arg3,facts.arg4,facts.userId,facts.now,facts.publicationId]),
+        stepStorefrontAppBrands72: facts => nativeWrite('BRAND_PUB_72',[facts.userId,facts.now,facts.publicationId,facts.targetId]),
+        stepOrganizationBrandProfiles73: facts => nativeWrite(facts.purposeKey==='primary'?'BRAND_PUB_73P':'BRAND_PUB_73I',[facts.arg1,facts.targetId,facts.publicationId]),
+        stepStorefrontAppBrands74: facts => nativeWrite('BRAND_PUB_74',[facts.targetId,facts.publicationId]),
         readAttachmentLinks75: facts => repository(db).readAttachmentLinks75(facts),
         readAttachmentPublications76: facts => repository(db).readAttachmentPublications76(facts),
         lock77: facts => repository(db).lock77(facts),

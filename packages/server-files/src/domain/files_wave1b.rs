@@ -204,6 +204,23 @@ const SQL_SF_REVOKE_POST: &str = "UPDATE attachments SET revoked_at=$1 WHERE own
 pub const SF_REVOKE_COMMENT: &str = "SF_REVOKE_COMMENT";
 const SQL_SF_REVOKE_COMMENT: &str = "UPDATE attachments SET revoked_at=$1 WHERE owner_type='social_draft' AND owner_id=$2 AND revoked_at IS NULL AND NOT (id = ANY(ARRAY(SELECT jsonb_array_elements_text($3::jsonb))))";
 
+/// Brand publication writers (were the last 4 brand TS writers, retired as
+/// 503 stubs). Byte-identical to the retired TypeScript facts writers, with
+/// the purpose-key column choice frozen per kind: primary vs inverse
+/// publication columns are separate kinds so owner SQL stays static.
+pub const BRAND_PUB_71P: &str = "BRAND_PUB_71P";
+const SQL_BRAND_PUB_71P: &str = "INSERT INTO organization_brand_profiles(scope_kind,scope_id,company_id,document_mode,updated_by,updated_at,primary_publication_id) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(scope_kind,scope_id) DO UPDATE SET primary_publication_id=excluded.primary_publication_id,updated_by=excluded.updated_by,updated_at=excluded.updated_at"; // binds=7
+pub const BRAND_PUB_71I: &str = "BRAND_PUB_71I";
+const SQL_BRAND_PUB_71I: &str = "INSERT INTO organization_brand_profiles(scope_kind,scope_id,company_id,document_mode,updated_by,updated_at,inverse_publication_id) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT(scope_kind,scope_id) DO UPDATE SET inverse_publication_id=excluded.inverse_publication_id,updated_by=excluded.updated_by,updated_at=excluded.updated_at"; // binds=7
+pub const BRAND_PUB_72: &str = "BRAND_PUB_72";
+const SQL_BRAND_PUB_72: &str = "INSERT INTO storefront_app_brands(company_id,short_name,accent_color,updated_by,updated_at,logo_publication_id) SELECT id,left(display_name,40),'#3659c9',$1,$2,$3 FROM organization_nodes WHERE id=$4 AND kind='company' AND status='active' ON CONFLICT(company_id) DO UPDATE SET logo_publication_id=excluded.logo_publication_id,updated_by=excluded.updated_by,updated_at=excluded.updated_at"; // binds=4
+pub const BRAND_PUB_73P: &str = "BRAND_PUB_73P";
+const SQL_BRAND_PUB_73P: &str = "UPDATE organization_brand_profiles SET primary_publication_id=NULL WHERE scope_kind=$1 AND scope_id=$2 AND primary_publication_id=$3"; // binds=3
+pub const BRAND_PUB_73I: &str = "BRAND_PUB_73I";
+const SQL_BRAND_PUB_73I: &str = "UPDATE organization_brand_profiles SET inverse_publication_id=NULL WHERE scope_kind=$1 AND scope_id=$2 AND inverse_publication_id=$3"; // binds=3
+pub const BRAND_PUB_74: &str = "BRAND_PUB_74";
+const SQL_BRAND_PUB_74: &str = "UPDATE storefront_app_brands SET logo_publication_id=NULL WHERE company_id=$1 AND logo_publication_id=$2"; // binds=2
+
 /// Every kind this owner module accepts. Anything else is fail-closed.
 const KINDS: &[&str] = &[
     SR_001,
@@ -278,6 +295,12 @@ const KINDS: &[&str] = &[
     SR_065,
     SR_067,
     SR_068,
+    BRAND_PUB_71P,
+    BRAND_PUB_71I,
+    BRAND_PUB_72,
+    BRAND_PUB_73P,
+    BRAND_PUB_73I,
+    BRAND_PUB_74,
     MIG_001,
     MIG_002,
     MIG_003,
@@ -405,6 +428,12 @@ pub fn sql(kind: &str) -> Option<&'static str> { Some(match kind {
     SF_EXPIRE_POST_UPLOADS => SQL_SF_EXPIRE_POST_UPLOADS,
     SF_REVOKE_POST => SQL_SF_REVOKE_POST,
     SF_REVOKE_COMMENT => SQL_SF_REVOKE_COMMENT,
+    BRAND_PUB_71P => SQL_BRAND_PUB_71P,
+    BRAND_PUB_71I => SQL_BRAND_PUB_71I,
+    BRAND_PUB_72 => SQL_BRAND_PUB_72,
+    BRAND_PUB_73P => SQL_BRAND_PUB_73P,
+    BRAND_PUB_73I => SQL_BRAND_PUB_73I,
+    BRAND_PUB_74 => SQL_BRAND_PUB_74,
     MIG_023 => SQL_MIG_023,
     MIG_024 => SQL_MIG_024,
     _ => return None,
