@@ -5,6 +5,8 @@ pub mod owner_write_wave3_http;
 pub mod bom;
 pub mod bom_http;
 pub mod lots;
+pub mod native_command;
+pub use crate::adapters::native_command_sql::{bind, BoundPlan, ReadScope};
 pub mod planning;
 pub mod planning_http;
 pub mod specification;

@@ -5,6 +5,7 @@ pub mod owner_write_wave3_postgres;
 pub mod bom_http;
 pub(crate) mod bom_read;
 pub mod lots;
+pub mod native_command_sql;
 pub mod planning_http;
 pub(crate) mod planning_read;
 pub mod specification;
