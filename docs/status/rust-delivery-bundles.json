@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7238,
+    "revision": 7242,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -124208,7 +124208,7 @@
         "owner": "pos",
         "title": "pos TS read tail native cutover (round 9)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -124220,22 +124220,42 @@
         "resources": [
           "owner:pos"
         ],
-        "claim": {
-          "runId": "run-20261123-h",
-          "agentId": "wCR1pos",
-          "claimedAt": "2026-11-23T23:01:06.534Z",
-          "heartbeatAt": "2026-11-23T23:01:06.534Z",
-          "expiresAt": "2026-11-23T23:31:06.534Z",
-          "generation": 160
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "732e743a0",
+            "owner": "pos",
+            "before": 279,
+            "after": 276,
+            "note": "core_readpossettingsaccounts_525 for three PMS fact adapters."
+          },
+          {
+            "command": "cargo check -p erpx-server-pos + lib (22)",
+            "result": "passed",
+            "sourceSha": "732e743a0"
+          },
+          {
+            "command": "vitest pos core (20) + POS units (231) + tsc pos",
+            "result": "passed",
+            "sourceSha": "732e743a0"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next candidates: accounts_json pos_settings (3 copies in pms-*facts.ts) or pos_stripe_routes (3 copies in pos-stripe.ts); record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-h",
+          "agentId": "wCR1pos",
+          "at": "2026-11-23T23:14:18.266Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -124545,6 +124565,42 @@
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to the native operations registry; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pos.read-tail-r10",
+        "goalId": "G4",
+        "owner": "pos",
+        "title": "pos TS read tail native cutover (round 10)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pos/src/**",
+          "tests/unit/pos/**",
+          "tests/integration/pos/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "claim": {
+          "runId": "run-20261123-h",
+          "agentId": "wD01pos",
+          "claimedAt": "2026-11-23T23:14:18.446Z",
+          "heartbeatAt": "2026-11-23T23:14:18.446Z",
+          "expiresAt": "2026-11-23T23:44:18.446Z",
+          "generation": 160
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: pos_stripe_routes (3 copies in pos-stripe.ts) or another smallest owner-local family; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -124553,7 +124609,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 646,
+      "totalPackets": 647,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -124561,13 +124617,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 283,
+        "blocked": 284,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 160,
-    "updatedAt": "2026-11-23T23:12:42.053Z",
+    "updatedAt": "2026-11-23T23:14:18.448Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
