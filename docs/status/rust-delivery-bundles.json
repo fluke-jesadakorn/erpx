@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6448,
+    "revision": 6459,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-f",
       "agentId": "lead",
       "startedAt": "2026-11-23T16:54:33.142Z",
-      "heartbeatAt": "2026-11-23T18:10:15.948Z",
-      "expiresAt": "2026-11-23T18:40:15.948Z",
+      "heartbeatAt": "2026-11-23T18:16:13.937Z",
+      "expiresAt": "2026-11-23T18:46:13.937Z",
       "generation": 158,
       "tokenHash": "786b04e6db95d7a97c392a0b212dc2cfdd563bbd8cc6545681f5e6ff248eceaa"
     },
@@ -9764,15 +9764,8 @@
         "resources": [
           "owner:brand"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wK06",
-          "claimedAt": "2026-11-23T17:56:37.384Z",
-          "heartbeatAt": "2026-11-23T18:10:15.948Z",
-          "expiresAt": "2026-11-23T18:40:15.948Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "f205ed3aac2d99e7cbef528a6426aeca2931161d",
         "implementedCommit": "e86bde6c6253fabee7f0982932389323c380f13b",
         "lastPushedSha": "e86bde6c6253fabee7f0982932389323c380f13b",
@@ -9967,6 +9960,25 @@
             "command": "tsc feature-brand",
             "result": "passed",
             "sourceSha": "1dea2dc464236e3c34ede85e22a6e547c8a79cd8"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-brand/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "bf52f3e04",
+            "owner": "brand",
+            "before": 21,
+            "after": 18,
+            "note": "wK06: profile/storefront SQL reads deleted; guards retained (recordBranchId/management)."
+          },
+          {
+            "command": "cargo test -p erpx-server-brand branding_http/branding_postgres/brand_identity_postgres/brand_identity_policy",
+            "result": "passed",
+            "sourceSha": "bf52f3e04"
+          },
+          {
+            "command": "vitest brand integration 23 + unit 10",
+            "result": "passed",
+            "sourceSha": "bf52f3e04"
           }
         ],
         "retainedLegacy": [
@@ -10013,16 +10025,16 @@
             "removalCondition": "Orchestration stays TS (locks, source-image stability recheck, denial flow); only the Brand image SQL moved native. No further removal in this packet."
           }
         ],
-        "blocker": null,
+        "blocker": "handoff",
         "retireTaskId": "retire.brand.attachment-facts",
-        "nextAction": "Checks recorded; claim released",
+        "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261123-f",
-          "agentId": "wA02",
-          "at": "2026-11-23T17:17:35.863Z",
+          "agentId": "wK06",
+          "at": "2026-11-23T18:12:35.620Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Checks recorded; claim released"
+          "nextAction": "Integrated; claim released"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-brand",
@@ -50657,10 +50669,10 @@
         "status": "in_progress",
         "claim": {
           "runId": "run-20261123-f",
-          "agentId": "wL05",
-          "claimedAt": "2026-11-23T18:01:28.161Z",
-          "heartbeatAt": "2026-11-23T18:10:15.948Z",
-          "expiresAt": "2026-11-23T18:40:15.948Z",
+          "agentId": "wN01",
+          "claimedAt": "2026-11-23T18:15:53.634Z",
+          "heartbeatAt": "2026-11-23T18:16:13.937Z",
+          "expiresAt": "2026-11-23T18:46:13.937Z",
           "generation": 158
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -50759,18 +50771,37 @@
             "command": "tsc server-inventory + vitest 7/7",
             "result": "passed",
             "sourceSha": "5e0c13317"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "91d4dc5ce",
+            "owner": "inventory",
+            "before": 576,
+            "after": 574,
+            "note": "wL05: RD_ACTIVE_RESERVATIONS_TOTAL/RD_LEDGER_MOVEMENT_AFTER; pos-core-facts 0 SQL."
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --lib (41)",
+            "result": "passed",
+            "sourceSha": "91d4dc5ce"
+          },
+          {
+            "command": "tsc server-inventory + vitest 2/2",
+            "result": "passed",
+            "sourceSha": "91d4dc5ce"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Integrated 578; claim released",
+        "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261123-f",
-          "agentId": "wH11",
-          "at": "2026-11-23T18:01:28.051Z",
+          "agentId": "wL05",
+          "at": "2026-11-23T18:14:50.236Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Integrated 578; claim released"
+          "nextAction": "Integrated; claim released"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -51194,8 +51225,8 @@
           "runId": "run-20261123-f",
           "agentId": "wM02",
           "claimedAt": "2026-11-23T18:11:26.006Z",
-          "heartbeatAt": "2026-11-23T18:11:26.006Z",
-          "expiresAt": "2026-11-23T18:41:26.006Z",
+          "heartbeatAt": "2026-11-23T18:16:13.937Z",
+          "expiresAt": "2026-11-23T18:46:13.937Z",
           "generation": 158
         },
         "baseSha": null,
@@ -109961,8 +109992,8 @@
           "runId": "run-20261123-f",
           "agentId": "wM01",
           "claimedAt": "2026-11-23T18:09:58.416Z",
-          "heartbeatAt": "2026-11-23T18:10:15.948Z",
-          "expiresAt": "2026-11-23T18:40:15.948Z",
+          "heartbeatAt": "2026-11-23T18:16:13.937Z",
+          "expiresAt": "2026-11-23T18:46:13.937Z",
           "generation": 158
         },
         "baseSha": "d15bbdf7095f86bedb5c69bd0f4b297c357f0061",
@@ -110248,8 +110279,15 @@
         "resources": [
           "owner:legal"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wN02",
+          "claimedAt": "2026-11-23T18:15:53.708Z",
+          "heartbeatAt": "2026-11-23T18:16:13.937Z",
+          "expiresAt": "2026-11-23T18:46:13.937Z",
+          "generation": 158
+        },
         "baseSha": "dbb5267714fb222c1665428fc0b7c9aec613e926",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -110352,7 +110390,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261123-f",
           "agentId": "wK04",
@@ -113716,8 +113754,8 @@
           "runId": "run-20261123-f",
           "agentId": "wJ01",
           "claimedAt": "2026-11-23T17:50:16.881Z",
-          "heartbeatAt": "2026-11-23T18:10:15.948Z",
-          "expiresAt": "2026-11-23T18:40:15.948Z",
+          "heartbeatAt": "2026-11-23T18:16:13.937Z",
+          "expiresAt": "2026-11-23T18:46:13.937Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113805,7 +113843,7 @@
         "owner": "assets",
         "title": "Native assets record-source facts (5 SELECT -> 0)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -113822,22 +113860,42 @@
         "resources": [
           "owner:assets"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wJ03",
-          "claimedAt": "2026-11-23T17:50:26.640Z",
-          "heartbeatAt": "2026-11-23T18:10:15.948Z",
-          "expiresAt": "2026-11-23T18:40:15.948Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-assets/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d737008b4",
+            "owner": "assets",
+            "before": 59,
+            "after": 54,
+            "note": "wJ03: 5 record-source SELECTs deleted; records/support consumers native with digest recheck."
+          },
+          {
+            "command": "cargo check -p erpx-server-assets -p erpx-server-records -p erpx-server-support",
+            "result": "passed",
+            "sourceSha": "d737008b4"
+          },
+          {
+            "command": "tsc root + vitest assets 13/13, combined 103/103",
+            "result": "passed",
+            "sourceSha": "d737008b4"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Switch records/support consumers to mounted native asset record_source contract; delete 5 SELECTs + barrel; record assets 39->34",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wJ03",
+          "at": "2026-11-23T18:15:40.943Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -113904,8 +113962,8 @@
           "runId": "run-20261123-f",
           "agentId": "wL01",
           "claimedAt": "2026-11-23T17:59:54.357Z",
-          "heartbeatAt": "2026-11-23T18:10:15.948Z",
-          "expiresAt": "2026-11-23T18:40:15.948Z",
+          "heartbeatAt": "2026-11-23T18:16:13.937Z",
+          "expiresAt": "2026-11-23T18:46:13.937Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114161,6 +114219,50 @@
         "nextAction": "Plumb statement RETURNING rows through NativeCommandOutcome/HTTP {kind,rows}/TS client; marketing_stmt_1 count reaches rate limiter; add 7th-submission 429 integration case",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.pms.home-metrics-port",
+        "goalId": "G3",
+        "owner": "pms",
+        "title": "Native PMS home hotel-metrics read port (owner-side foundation)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pms/src/domain/home_metrics.rs",
+          "packages/server-pms/src/application/home_metrics.rs",
+          "packages/server-pms/src/adapters/home_metrics_postgres.rs",
+          "packages/server-pms/src/public/home_metrics.rs",
+          "packages/server-pms/src/domain/mod.rs",
+          "packages/server-pms/src/application/mod.rs",
+          "packages/server-pms/src/adapters/mod.rs",
+          "packages/server-pms/src/public/mod.rs",
+          "packages/server-pms/Cargo.toml",
+          "tests/unit/pms/**",
+          "tests/integration/pms/**"
+        ],
+        "resources": [
+          "owner:pms"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wN03",
+          "claimedAt": "2026-11-23T18:15:53.785Z",
+          "heartbeatAt": "2026-11-23T18:16:13.937Z",
+          "expiresAt": "2026-11-23T18:46:13.937Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Port hotelMetrics SQL exactly into domain/application/adapter/public with unit + PG parity tests. No HTTP/composition; no KPI delta yet.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -114169,7 +114271,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 479,
+      "totalPackets": 480,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 24,
@@ -114177,13 +114279,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 120,
+        "blocked": 121,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T18:12:00.285Z",
+    "updatedAt": "2026-11-23T18:16:13.938Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
