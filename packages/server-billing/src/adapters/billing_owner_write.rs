@@ -72,6 +72,7 @@ fn sql(kind: &str) -> Option<&'static str> {
         EVIDENCE_EVENT_QUARANTINED => r####"INSERT INTO billing_evidence_events(id,evidence_id,holding_id,actor,action,details_json,created_at) VALUES($1,$2,$3,$4,'file.quarantined',$5,$6) ON CONFLICT(id) DO NOTHING"####,
         EVIDENCE_SCOPED_READ => r####"SELECT * FROM billing_evidence WHERE id=$1 AND holding_id=$2"####,
         EVIDENCE_EXISTING_READ => r####"SELECT * FROM billing_evidence WHERE id=$1"####,
+        AVAILABLE_EVIDENCE => r####"SELECT 1 FROM billing_evidence WHERE id=$1 AND holding_id=$2 AND source_state='available'"####,
         BILLING_ACCOUNT_EXISTS => r####"SELECT 1 FROM billing_accounts WHERE holding_id=$1"####,
         SCAN_SOURCE => r####"SELECT * FROM billing_evidence WHERE id=$1"####,
         APP_FINANCE_PROJECTION => r####"SELECT invoice_satang,receivable_satang,received_satang,reversed_satang,credited_satang,stripe_status,synced_at FROM billing_test_finance_projection WHERE billing_invoice_id=$1 AND customer_holding_id=$2"####,

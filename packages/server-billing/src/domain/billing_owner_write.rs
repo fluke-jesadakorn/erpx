@@ -29,6 +29,7 @@ pub const EVIDENCE_SCAN_ATTEMPT: &str = "evidence_scan_attempt";
 pub const EVIDENCE_EVENT_QUARANTINED: &str = "evidence_event_quarantined";
 pub const EVIDENCE_SCOPED_READ: &str = "evidence_scoped_read";
 pub const EVIDENCE_EXISTING_READ: &str = "evidence_existing_read";
+pub const AVAILABLE_EVIDENCE: &str = "available_evidence";
 pub const BILLING_ACCOUNT_EXISTS: &str = "billing_account_exists";
 pub const SCAN_SOURCE: &str = "scan_source";
 pub const RECONCILIATION_RUN: &str = "reconciliation_run";
@@ -117,6 +118,7 @@ pub const OWNER_WRITE_KINDS: &[&str] = &[
     EVIDENCE_EVENT_QUARANTINED,
     EVIDENCE_SCOPED_READ,
     EVIDENCE_EXISTING_READ,
+    AVAILABLE_EVIDENCE,
     BILLING_ACCOUNT_EXISTS,
     SCAN_SOURCE,
     RECONCILIATION_RUN,
