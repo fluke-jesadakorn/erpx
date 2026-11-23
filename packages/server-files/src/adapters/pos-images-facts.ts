@@ -1,11 +1,28 @@
 import "server-only";
-import {one,run} from '@erpx/server-runtime/public/runtime/sql';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-export function posImagesFilesFacts(db: SqlDatabase) {
+import { nativeFilesRead } from "./native-files-command";
+
+type ImageSourceRow = {
+    object_key: string;
+    preview_object_key: string;
+    preview_checksum_sha256: string;
+};
+
+/**
+ * POS product-image source fact. The read is owned by the native Files read
+ * kind `RD_POS_IMAGE_SOURCE`; this module emits no SQL and fails closed without
+ * the native transport. The caller's single-row shape is preserved.
+ */
+export function posImageSourceFacts(db: SqlDatabase) {
     return {
         readAttachments1: (facts: {
             sourceId: string;
             companyId: string;
-        }) => one(db, "SELECT object_key,preview_object_key,preview_checksum_sha256 FROM attachments WHERE id=? AND company_id=? AND source_state='available'", facts.sourceId, facts.companyId),
+        }) => nativeFilesRead<ImageSourceRow>(
+            'RD_POS_IMAGE_SOURCE',
+            [facts.sourceId, facts.companyId],
+            db,
+            facts.companyId,
+        ),
     };
 }

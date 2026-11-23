@@ -268,6 +268,12 @@ const SQL_RD_FINANCE_REFUND_PROOF_SETS: &str = "SELECT id,purpose_key,component_
 pub const RD_LEGAL_DOCUMENT_CLEAN_SOURCE: &str = "RD_LEGAL_DOCUMENT_CLEAN_SOURCE";
 const SQL_RD_LEGAL_DOCUMENT_CLEAN_SOURCE: &str = "SELECT object_key,checksum_sha256,media_type,bytes FROM attachments WHERE id=$1 AND company_id=$2 AND source_state='available'"; // binds=2
 
+/// Owner-owned read: the POS product-image source fact. Native successor of
+/// the retired TypeScript `posImagesFilesFacts.readAttachments1` SELECT. It
+/// carries no write ledger: the caller's unit already holds the read scope.
+pub const RD_POS_IMAGE_SOURCE: &str = "RD_POS_IMAGE_SOURCE";
+const SQL_RD_POS_IMAGE_SOURCE: &str = "SELECT object_key,preview_object_key,preview_checksum_sha256 FROM attachments WHERE id=$1 AND company_id=$2 AND source_state='available'"; // binds=2
+
 /// Read kinds plan the owner SQL only; no receipt/audit/outbox write ledger.
 pub fn is_read(kind: &str) -> bool {
     kind == RD_PROJECT_ATTACHMENT_TARGET
@@ -277,6 +283,7 @@ pub fn is_read(kind: &str) -> bool {
         || kind == RD_OVERTIME_EVIDENCE_SETS
         || kind == RD_FINANCE_REFUND_PROOF_SETS
         || kind == RD_LEGAL_DOCUMENT_CLEAN_SOURCE
+        || kind == RD_POS_IMAGE_SOURCE
 }
 
 /// Every kind this owner module accepts. Anything else is fail-closed.
@@ -393,6 +400,7 @@ const KINDS: &[&str] = &[
     RD_OVERTIME_EVIDENCE_SETS,
     RD_FINANCE_REFUND_PROOF_SETS,
     RD_LEGAL_DOCUMENT_CLEAN_SOURCE,
+    RD_POS_IMAGE_SOURCE,
 ];
 pub fn supported(kind: &str) -> bool { KINDS.contains(&kind) }
 pub fn sql(kind: &str) -> Option<&'static str> { Some(match kind {
@@ -508,6 +516,7 @@ pub fn sql(kind: &str) -> Option<&'static str> { Some(match kind {
     RD_OVERTIME_EVIDENCE_SETS => SQL_RD_OVERTIME_EVIDENCE_SETS,
     RD_FINANCE_REFUND_PROOF_SETS => SQL_RD_FINANCE_REFUND_PROOF_SETS,
     RD_LEGAL_DOCUMENT_CLEAN_SOURCE => SQL_RD_LEGAL_DOCUMENT_CLEAN_SOURCE,
+    RD_POS_IMAGE_SOURCE => SQL_RD_POS_IMAGE_SOURCE,
     _ => return None,
 }) }
 pub fn invalid() -> BusinessError { BusinessError::new(FailureKind::InvalidInput, "FILES_COMMAND_INVALID", "Use one bounded Files command.") }

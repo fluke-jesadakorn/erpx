@@ -19,7 +19,7 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import { requirePosPurchased } from "@erpx/server-pos/adapters/purchase-boundary";
 import { randomUUID } from "node:crypto";
 import { posImagesCommerceFacts } from "@erpx/server-commerce/public/pos-images-facts";
-import { posImagesFilesFacts } from "@erpx/server-files/public/pos-images-facts";
+import { posImageSourceFacts } from "@erpx/server-files/public/pos-images-facts";
 import {withPosProductImageRead} from '@erpx/server-pos/adapters/product-image-read';
 import { writeAttachmentEvents1 as nativeWriteAttachmentEvents1 } from '@erpx/server-collaboration/adapters/native-attachment-access-event';
 function unit(db: SqlDatabase, files: FileStore): PosImagesUnit {
@@ -39,7 +39,7 @@ function unit(db: SqlDatabase, files: FileStore): PosImagesUnit {
             productId: string;
         }) => one(db, 'SELECT attachment_source_id FROM pos_product_images WHERE id=? AND company_id=? AND product_id=?', facts.imageId, facts.companyId, facts.productId),
         readCommerceProducts1: facts => posImagesCommerceFacts(db).readCommerceProducts1(facts),
-        readAttachments1: facts => posImagesFilesFacts(db).readAttachments1(facts),
+        readAttachments1: facts => posImageSourceFacts(db).readAttachments1(facts),
         writePosProductImages1: (facts: {
             imageId: string;
             companyId: string;
