@@ -41,3 +41,5 @@ pub mod ticket_portal_http;
 pub mod service_teams_http;
 
 pub mod support_auxiliary_http;
+
+pub mod native_support_read_sql;

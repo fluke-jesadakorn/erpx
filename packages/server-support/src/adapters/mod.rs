@@ -41,3 +41,5 @@ pub(crate) mod ticket_portal_http;
 pub(crate) mod service_teams_http;
 
 pub(crate) mod support_auxiliary_http;
+
+pub(crate) mod native_support_read_sql;

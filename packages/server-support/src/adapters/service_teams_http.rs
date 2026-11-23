@@ -7,13 +7,16 @@
 //! router performs no SQL and imports no composition module.
 use crate::adapters::support_http::{
     OriginPolicy, SupportHttpFuture, SupportHttpTargetSpec, configure_targets, error_response,
-    ok, parse_command, parse_json_body, selected_target, validation_failed,
+    no_query, ok, parse_command, parse_json_body, selected_target, unique_header,
+    validation_failed,
 };
 use crate::application::service_teams::{ServiceTeamPreview, ServiceTeamResult};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, Path, Request, Response, Router, State,
+    body::to_bytes,
+    header,
     routing::{get, post},
-    serde_json::Value,
+    serde_json::{self, Value, json},
 };
 use erpx_server_shared::public::{BusinessError, CommandKey};
 use std::{collections::BTreeMap, sync::Arc};
@@ -119,9 +122,69 @@ pub fn service_teams_http_router(
             "/api/v1/holdings/{holding_slug}/service-teams/{id}/preview",
             post(preview_update),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/support/command-plan",
+            post(plan_read),
+        )
         .with_state(Arc::new(ServiceTeamHttpState {
             targets: configured,
         })))
+}
+
+/// Plan an owner-owned caller-unit read. No SQL is accepted from the wire: the
+/// allow-listed read `kind` resolves to the exact statement in the native read
+/// registry, which the TypeScript caller prepares and executes on its own open
+/// unit. Reads carry no write ledger and never execute here.
+async fn plan_read(
+    State(state): State<Arc<ServiceTeamHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let _target = selected_target(&state.targets, request.headers(), &slug)?;
+        no_query(request.uri().query())?;
+        let headers = request.headers().clone();
+        if !unique_header(&headers, header::CONTENT_TYPE)?
+            .is_some_and(|value| {
+                value
+                    .split(';')
+                    .next()
+                    .is_some_and(|value| value.trim().eq_ignore_ascii_case("application/json"))
+            })
+        {
+            return Err(validation_failed());
+        }
+        let bytes = to_bytes(request.into_body(), SERVICE_TEAM_BODY_LIMIT)
+            .await
+            .map_err(|_| validation_failed())?;
+        let value: Value = serde_json::from_slice(&bytes).map_err(|_| validation_failed())?;
+        let object = value.as_object().ok_or_else(validation_failed)?;
+        let kind = object
+            .get("kind")
+            .and_then(Value::as_str)
+            .ok_or_else(validation_failed)?;
+        let values = object
+            .get("values")
+            .and_then(Value::as_array)
+            .cloned()
+            .ok_or_else(validation_failed)?;
+        if values.len() > 64 {
+            return Err(validation_failed());
+        }
+        let statement = crate::adapters::native_support_read_sql::read_statement(kind)
+            .ok_or_else(validation_failed)?;
+        if values.len() != statement.bind_count {
+            return Err(validation_failed());
+        }
+        Ok(json!({
+            "statements": [{ "sql": statement.sql, "values": values }]
+        }))
+    }
+    .await;
+    match result {
+        Ok(data) => ok(data),
+        Err(error) => error_response(error),
+    }
 }
 
 fn response_value<T: serde::Serialize>(value: T) -> Result<Value, BusinessError> {
@@ -516,6 +579,49 @@ mod tests {
             Some("team-command-0001")
         );
         assert_eq!(backend.previews.load(Ordering::SeqCst), 2);
+    }
+
+    fn plan_post(uri: &str, body: Value) -> Request {
+        Request::builder()
+            .method("POST")
+            .uri(uri)
+            .header("host", "acme.example.test")
+            .header("content-type", "application/json")
+            .body(Body::from(body.to_string()))
+            .unwrap()
+    }
+
+    #[test]
+    fn command_plan_resolves_only_registered_owner_reads() {
+        let state = state(Arc::new(Backend::default()));
+        for (kind, values, expected) in [
+            (
+                "support_rd_service_coverage_history",
+                json!(["company"]),
+                200,
+            ),
+            (
+                "support_rd_service_team_coverage",
+                json!(["company", "it", "company", null, null]),
+                200,
+            ),
+            (
+                "support_rd_service_coverage_history",
+                json!(["company", "extra"]),
+                422,
+            ),
+            ("SELECT 1 FROM service_teams", json!([]), 422),
+        ] {
+            let response = block_on(plan_read(
+                State(state.clone()),
+                Path("acme".into()),
+                plan_post(
+                    "/support/command-plan",
+                    json!({"kind": kind, "values": values}),
+                ),
+            ));
+            assert_eq!(response.status(), expected, "kind={kind}");
+        }
     }
 
     #[test]
