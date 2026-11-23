@@ -3,6 +3,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { PmsReadSelection } from "@erpx/feature-pms/lib/pms-read-selection";
 import type { PmsSetupFacts } from "@erpx/feature-pms/lib/pms-read";
 import { decodePmsRecord, type PmsStoredRecord } from "@erpx/server-pms/domain/stored-record";
+import { nativePmsReadAll, PMS_RD_INVENTORY_COMMAND } from "../native-pms-read";
 import * as application from "@erpx/server-pms/application/read-repository";
 const stayPredicate = `(data_json::jsonb->>'state' IN ('reserved','in_house') OR
     data_json::jsonb->>'arrival'=? OR data_json::jsonb->>'departure'=?)`;
@@ -264,11 +265,9 @@ export function readPmsDashboard(db: SqlDatabase, propertyId: string, date: stri
 export function readPmsCalendar(db: SqlDatabase, propertyId: string, from: string, to: string) { return application.readPmsCalendar(repository(db), propertyId, from, to); }
 export function readPmsDetail(db: SqlDatabase, propertyId: string, id: string) { return application.readPmsDetail(repository(db), propertyId, id); }
 
-/** Authoritative configuration command facts; the caller owns Property scope/version/lock. */
+/** Authoritative configuration command facts; the caller owns Property scope/version/lock.
+ * The owner plans this exact statement in Rust; no TypeScript SQL remains. */
 export function readPmsInventoryCommand(db: SqlDatabase, propertyId: string) {
-    return db.prepare(`SELECT id,kind,data_json,version,updated_at FROM pms_records
-        WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit')
-        UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records
-        WHERE property_id=? AND kind='stay' AND data_json::jsonb->>'state' IN ('reserved','in_house')
-        ORDER BY id`).bind(propertyId,propertyId).all<PmsStoredRecord>().then(rows=>rows.results.map(decodePmsRecord));
+    return nativePmsReadAll<PmsStoredRecord>(PMS_RD_INVENTORY_COMMAND, [propertyId, propertyId], db)
+        .then(rows=>rows.results.map(decodePmsRecord));
 }

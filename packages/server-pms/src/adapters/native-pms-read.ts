@@ -1,0 +1,117 @@
+import 'server-only';
+import { createHash } from 'node:crypto';
+import { ApiError } from '@erpx/server-runtime/public/http';
+import type { SqlDatabase, SqlResult } from '@erpx/server-runtime/public/runtime/types';
+
+/**
+ * Strict owner transport for the mounted PMS `command-plan` read route.
+ *
+ * The axum owner plans the exact statement for a registered read kind; this
+ * bridge emits no SQL, accepts no SQL from a caller, and executes the returned
+ * statement on the caller's already-open unit so the read observes uncommitted
+ * effects in the caller's serializable transaction. Read kinds carry no
+ * receipt/audit/outbox ledger. Missing configuration or any configured failure
+ * fails closed with no TypeScript fallback.
+ */
+type Holding = Readonly<{ origin: string; holdingSlug: string; holdingId: string }>;
+type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: readonly Holding[] }>;
+
+/** Read-kind ids shared with the Rust read registry in `native_read_sql.rs`. */
+export const PMS_RD_INVENTORY_COMMAND = 'pms_rd_inventory_command';
+
+const unavailable = (): never => {
+  throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');
+};
+const record = (v: unknown): v is Record<string, unknown> => v !== null && typeof v === 'object' && !Array.isArray(v);
+const identifier = (v: unknown): v is string =>
+  typeof v === 'string' && v.length > 0 && v.length <= 200 &&
+  // eslint-disable-next-line no-control-regex
+  !/[\u0000-\u001f/?#\\]/.test(v);
+const reservedPorts = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
+
+function configuration(): Settings {
+  const raw = process.env.ERPX_NATIVE_PMS_CONFIG;
+  if (!raw) return unavailable();
+  let value: unknown;
+  try { value = JSON.parse(raw); } catch { return unavailable(); }
+  if (!record(value) || typeof value.privateBaseUrl !== 'string' || !Array.isArray(value.holdings)) return unavailable();
+  if (typeof value.timeoutMs !== 'number' || !Number.isSafeInteger(value.timeoutMs) || value.timeoutMs < 250 || value.timeoutMs > 30_000) return unavailable();
+  let base: URL;
+  try { base = new URL(value.privateBaseUrl); } catch { return unavailable(); }
+  const port = Number(base.port);
+  if (
+    base.protocol !== 'http:' || !['127.0.0.1', '[::1]'].includes(base.hostname) || !base.port ||
+    reservedPorts.has(port) || (port >= 3200 && port <= 3299) || base.username || base.password ||
+    value.privateBaseUrl !== base.origin
+  ) return unavailable();
+  const holdings = value.holdings.map((item: unknown) => {
+    if (!record(item) || typeof item.origin !== 'string' || typeof item.holdingSlug !== 'string' ||
+        typeof item.holdingId !== 'string' || !identifier(item.holdingId) ||
+        !/^[a-z0-9_-]+$/.test(item.holdingSlug)) return unavailable();
+    let origin: URL;
+    try { origin = new URL(item.origin); } catch { return unavailable(); }
+    if (origin.protocol !== 'https:' || item.origin !== origin.origin || origin.username || origin.password) return unavailable();
+    return { origin: item.origin, holdingSlug: item.holdingSlug, holdingId: item.holdingId };
+  });
+  if (holdings.length < 1 || holdings.length > 64) return unavailable();
+  return { privateBaseUrl: base.origin, timeoutMs: value.timeoutMs, holdings };
+}
+
+/** Plan an owner read in Rust and run it on the caller's open unit. Pure read:
+ * the kind selects the SQL; only routing-scoped values cross the wire. */
+export async function nativePmsReadAll<T>(
+  kind: string,
+  values: readonly unknown[],
+  db: SqlDatabase,
+): Promise<SqlResult<T>> {
+  const config = configuration();
+  const holding = config.holdings[0]!;
+  const key = 'pms-read-' + createHash('sha256').update(kind).update('\u0000').update(JSON.stringify(values)).digest('hex').slice(0, 32);
+  const url = new URL(`/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/pms/command-plan`, config.privateBaseUrl);
+  let response: Response;
+  try {
+    response = await fetch(url, {
+      method: 'POST',
+      headers: {
+        host: new URL(holding.origin).host,
+        origin: holding.origin,
+        'content-type': 'application/json',
+        accept: 'application/json',
+        'cache-control': 'no-cache',
+        'idempotency-key': key,
+      },
+      body: JSON.stringify({ kind, values }),
+      cache: 'no-store',
+      redirect: 'error',
+      signal: AbortSignal.timeout(config.timeoutMs),
+    });
+  } catch { return unavailable(); }
+  if (response.status !== 200) {
+    void response.body?.cancel().catch(() => undefined);
+    const payload = await response.json().catch((): unknown => null);
+    const err = record(payload) ? (payload as { error?: { code?: string; message?: string } }).error : undefined;
+    if (response.status >= 400 && response.status < 500) {
+      throw new ApiError(response.status, err?.code ?? 'PMS_NATIVE_READ_FAILED', err?.message ?? 'The native PMS read was rejected.');
+    }
+    return unavailable();
+  }
+  const payload = await response.json().catch((): unknown => null);
+  const statements = record(payload) ? (payload as { data?: { statements?: unknown } }).data?.statements : undefined;
+  if (!Array.isArray(statements) || statements.length !== 1) return unavailable();
+  const planned = statements.map((statement: unknown) => {
+    if (!record(statement) || typeof statement.sql !== 'string' || !Array.isArray(statement.values)) return unavailable();
+    return db.prepare(statement.sql).bind(...statement.values);
+  });
+  const results = await db.batch<T>(planned);
+  return results[0] ?? { results: [], success: true, meta: { changes: 0, duration: 0 } };
+}
+
+/** Run a single-row owner read and return its first row (or null). */
+export async function nativePmsReadFirst<T>(
+  kind: string,
+  values: readonly unknown[],
+  db: SqlDatabase,
+): Promise<T | null> {
+  const result = await nativePmsReadAll<T>(kind, values, db);
+  return result.results[0] ?? null;
+}

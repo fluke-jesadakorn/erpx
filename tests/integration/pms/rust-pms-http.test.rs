@@ -602,3 +602,39 @@ fn bounded_refund_command_parser_enforces_allow_list_and_body_limit() {
         "PMS_REFUND_COMMAND_INVALID"
     );
 }
+
+#[tokio::test]
+async fn command_plan_resolves_owner_read_without_accepting_sql_from_the_wire() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    let (status, value, _) = call_post(
+        address,
+        "/api/v1/holdings/acme/pms/command-plan",
+        r#"{"kind":"pms_rd_inventory_command","values":["property-1","property-1"],"sql":"DELETE FROM pms_records"}"#,
+    )
+    .await;
+    assert_eq!(status, 200);
+    let statement = &value["data"]["statements"][0];
+    let sql = statement["sql"].as_str().unwrap();
+    assert!(sql.starts_with("SELECT id,kind,data_json,version,updated_at FROM pms_records"));
+    assert!(!sql.to_ascii_uppercase().contains("DELETE"));
+    assert_eq!(statement["values"], json!(["property-1", "property-1"]));
+    // The read plan never reaches the command backend.
+    assert_eq!(backend.reads.load(Ordering::SeqCst), 0);
+    task.abort();
+}
+
+#[tokio::test]
+async fn command_plan_rejects_unregistered_kinds_and_wrong_bind_counts() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    for body in [
+        r#"{"kind":"not_a_native_read","values":["property-1","property-1"]}"#,
+        r#"{"kind":"pms_rd_inventory_command","values":["property-1"]}"#,
+        r#"{"kind":"pms_w001","values":["property-1","property-1"]}"#,
+    ] {
+        let (status, _, _) = call_post(address, "/api/v1/holdings/acme/pms/command-plan", body).await;
+        assert_eq!(status, 422, "{body}");
+    }
+    task.abort();
+}

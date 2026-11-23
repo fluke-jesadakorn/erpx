@@ -7,6 +7,7 @@ pub mod front_desk;
 pub mod guest_account_http;
 pub mod guest_account_postgres;
 pub mod home_metrics_postgres;
+pub mod native_read_sql;
 pub mod night_audit_postgres;
 pub mod night_audit_worker;
 pub mod pms_http;

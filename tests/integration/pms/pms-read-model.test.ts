@@ -337,6 +337,23 @@ it('uses authoritative room occupancy and all room tasks for housekeeping comman
 
 
 it("keeps complete inventory and overdue occupancy for configuration commands without reading closed hotel history", async () => {
+  // readPmsInventoryCommand is native-planned: the owner returns the exact SQL
+  // and the caller runs it on this already-open unit.
+  const previousConfig = process.env.ERPX_NATIVE_PMS_CONFIG;
+  const plannedSql = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
+WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
+UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
+WHERE property_id=? AND kind='stay' AND data_json::jsonb->>'state' IN ('reserved','in_house') \
+ORDER BY id";
+  process.env.ERPX_NATIVE_PMS_CONFIG = JSON.stringify({
+    privateBaseUrl: 'http://127.0.0.1:44995', timeoutMs: 1000,
+    holdings: [{ origin: 'https://acme.example.com', holdingSlug: 'acme', holdingId: 'h001' }],
+  });
+  const fetchMock = vi.fn(async (_url: unknown, init: { body?: string }) => {
+    const body = JSON.parse(init.body ?? '{}') as { values: unknown[] };
+    return { status: 200, json: async () => ({ data: { statements: [{ sql: plannedSql, values: body.values }] } }), body: { cancel: vi.fn(async () => undefined) } };
+  });
+  vi.stubGlobal('fetch', fetchMock);
   const room=await seedRooms();
   const rooms=[];for(let n=0;n<55;n++)rooms.push(await insert('room',{number:`2${String(n).padStart(2,'0')}`,typeId:room.typeId,active:true,cleanliness:'inspected'}));
   const overdue=await insert('stay',{typeId:room.typeId,state:'in_house',arrival:'2020-01-01',departure:'2020-01-02',adults:2,childAges:[],roomId:rooms[54],segments:[{roomId:rooms[54],from:'2020-01-01',to:'2020-01-02'}]});
@@ -356,6 +373,9 @@ it("keeps complete inventory and overdue occupancy for configuration commands wi
   expect(facts.find(x=>x.id===overdue)?.data).toMatchObject({segments:[{roomId:rooms[54],from:'2020-01-01',to:'2020-01-02'}]});
   expect(ids.filter(id=>historical.includes(id)||id===foreign)).toEqual([]);
   expect(await db.prepare("SELECT count(*)::int n FROM pms_records WHERE property_id=? AND kind='stay' AND data_json::jsonb->>'state'='checked_out' AND version=1 AND updated_at=1").bind(propertyId).first('n')).toBe(60);
+  if (previousConfig === undefined) delete process.env.ERPX_NATIVE_PMS_CONFIG;
+  else process.env.ERPX_NATIVE_PMS_CONFIG = previousConfig;
+  vi.unstubAllGlobals();
 });
 
 

@@ -432,6 +432,67 @@ fn front_desk_selection(request: &Request) -> Result<PmsFrontDeskSelection, Busi
     Ok(parsed)
 }
 
+/// Bounded transport parser for a caller-unit read plan request. The kind is
+/// resolved against the owner read registry; no SQL is accepted from the wire.
+#[derive(serde::Deserialize)]
+struct NativeReadCommand {
+    kind: String,
+    values: Vec<serde_json::Value>,
+}
+
+fn plan_read_command(bytes: &[u8]) -> Result<NativeReadCommand, BusinessError> {
+    if bytes.is_empty() || bytes.len() > BODY_LIMIT {
+        return Err(malformed());
+    }
+    let command: NativeReadCommand = serde_json::from_slice(bytes).map_err(|_| malformed())?;
+    if command.kind.is_empty()
+        || command.kind.len() > 120
+        || command.values.is_empty()
+        || command.values.len() > 64
+    {
+        return Err(malformed());
+    }
+    Ok(command)
+}
+
+/// Browser-facing caller-unit read plan. The kind is resolved against the
+/// owner's native read registry; the exact SQL is returned for the caller to
+/// prepare and run on its own already-open unit. No SQL is accepted from the
+/// wire, no write ledger is touched and nothing is executed here.
+async fn plan_read(
+    State(state): State<Arc<PmsHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async {
+        let _target = target(&state, &headers, &slug)?;
+        if request.uri().query().is_some() {
+            return Err(malformed());
+        }
+        let bytes = to_bytes(request.into_body(), BODY_LIMIT)
+            .await
+            .map_err(|_| malformed())?;
+        let command = plan_read_command(&bytes)?;
+        if !crate::adapters::native_read_sql::is_read(&command.kind) {
+            return Err(malformed());
+        }
+        let statement = crate::adapters::native_read_sql::read_statement(&command.kind)
+            .ok_or_else(malformed)?;
+        if command.values.len() != statement.bind_count {
+            return Err(malformed());
+        }
+        Ok(serde_json::json!({
+            "statements": [{ "sql": statement.sql, "values": command.values }]
+        }))
+    }
+    .await;
+    match result {
+        Ok(data) => bounded(serde_json::json!({ "data": data })),
+        Err(error) => error_response(error),
+    }
+}
+
 pub fn pms_http_router(targets: Vec<PmsHttpTarget>) -> Result<Router, BusinessError> {
     let mut configured = BTreeMap::new();
     for target in targets {
@@ -461,6 +522,10 @@ pub fn pms_http_router(targets: Vec<PmsHttpTarget>) -> Result<Router, BusinessEr
         .route(
             "/api/v1/holdings/{holding_slug}/pms/booking-refunds",
             post(refund_command),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/pms/command-plan",
+            post(plan_read),
         )
         .with_state(Arc::new(PmsHttpState {
             targets: configured,
