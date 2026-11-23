@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6334,
+    "revision": 6350,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-f",
       "agentId": "lead",
       "startedAt": "2026-11-23T16:54:33.142Z",
-      "heartbeatAt": "2026-11-23T17:24:27.642Z",
-      "expiresAt": "2026-11-23T17:54:27.642Z",
+      "heartbeatAt": "2026-11-23T17:31:43.518Z",
+      "expiresAt": "2026-11-23T18:01:43.518Z",
       "generation": 158,
       "tokenHash": "786b04e6db95d7a97c392a0b212dc2cfdd563bbd8cc6545681f5e6ff248eceaa"
     },
@@ -10238,8 +10238,8 @@
           "runId": "run-20261123-f",
           "agentId": "wG02",
           "claimedAt": "2026-11-23T17:22:26.858Z",
-          "heartbeatAt": "2026-11-23T17:24:27.642Z",
-          "expiresAt": "2026-11-23T17:54:27.642Z",
+          "heartbeatAt": "2026-11-23T17:31:43.518Z",
+          "expiresAt": "2026-11-23T18:01:43.518Z",
           "generation": 158
         },
         "baseSha": "a0e90c6c9c6fec55b9aafd0a17de807f2f007008",
@@ -12111,8 +12111,8 @@
           "runId": "run-20261123-f",
           "agentId": "wG03",
           "claimedAt": "2026-11-23T17:22:26.940Z",
-          "heartbeatAt": "2026-11-23T17:24:27.642Z",
-          "expiresAt": "2026-11-23T17:54:27.642Z",
+          "heartbeatAt": "2026-11-23T17:31:43.518Z",
+          "expiresAt": "2026-11-23T18:01:43.518Z",
           "generation": 158
         },
         "baseSha": "213fccf859788ae3c32a44bb4068c5501a8aea9a",
@@ -14127,15 +14127,8 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wB09",
-          "claimedAt": "2026-11-23T17:00:00.290Z",
-          "heartbeatAt": "2026-11-23T17:24:27.642Z",
-          "expiresAt": "2026-11-23T17:54:27.642Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "ec09d655f70a7ad6deb6342c2ad7be02ae6651af",
         "implementedCommit": "dd392c70c19e127c2c1fe61a1e6514f8364b7523",
         "lastPushedSha": null,
@@ -14213,18 +14206,33 @@
             "command": "tsc server-ecommerce + feature",
             "result": "passed",
             "sourceSha": "8785f0f3f801919cbad372acdc6145b1f487184a"
+          },
+          {
+            "command": "cargo check -p erpx-server-commerce -p erpx-server-ecommerce --locked",
+            "result": "passed",
+            "sourceSha": "c70fb61284c849acd628928de60ca2173e60129a"
+          },
+          {
+            "command": "cargo test -p erpx-server-commerce --test ecommerce_listing_source_postgres",
+            "result": "passed",
+            "sourceSha": "c70fb61284c849acd628928de60ca2173e60129a"
+          },
+          {
+            "command": "cargo test -p erpx-server-ecommerce --tests",
+            "result": "passed",
+            "sourceSha": "c70fb61284c849acd628928de60ca2173e60129a"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Blocked on L1, claim released",
+        "blocker": "handoff",
+        "nextAction": "Owner port verified; integration waits for commerce WIP reconciliation",
         "handoff": {
-          "runId": "run-20261123-e",
-          "agentId": "worker-ecom6",
-          "at": "2026-11-23T14:17:33.702Z",
+          "runId": "run-20261123-f",
+          "agentId": "wB09",
+          "at": "2026-11-23T17:26:07.505Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Blocked on L1, claim released"
+          "nextAction": "Owner port verified; integration waits for commerce WIP reconciliation"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-ecommerce",
@@ -36408,8 +36416,15 @@
         "resources": [
           "owner:billing"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wH04",
+          "claimedAt": "2026-11-23T17:26:14.469Z",
+          "heartbeatAt": "2026-11-23T17:31:43.518Z",
+          "expiresAt": "2026-11-23T18:01:43.518Z",
+          "generation": 158
+        },
         "baseSha": "ec09d655f70a7ad6deb6342c2ad7be02ae6651af",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -36436,7 +36451,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Env not ready, claim released",
         "handoff": {
           "runId": "run-20261123-e",
@@ -50629,8 +50644,8 @@
           "runId": "run-20261123-f",
           "agentId": "wE01",
           "claimedAt": "2026-11-23T17:16:56.748Z",
-          "heartbeatAt": "2026-11-23T17:24:27.642Z",
-          "expiresAt": "2026-11-23T17:54:27.642Z",
+          "heartbeatAt": "2026-11-23T17:31:43.518Z",
+          "expiresAt": "2026-11-23T18:01:43.518Z",
           "generation": 158
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -51145,8 +51160,8 @@
           "runId": "run-20261123-f",
           "agentId": "wG09",
           "claimedAt": "2026-11-23T17:24:39.027Z",
-          "heartbeatAt": "2026-11-23T17:24:39.027Z",
-          "expiresAt": "2026-11-23T17:54:39.027Z",
+          "heartbeatAt": "2026-11-23T17:31:43.518Z",
+          "expiresAt": "2026-11-23T18:01:43.518Z",
           "generation": 158
         },
         "baseSha": null,
@@ -53266,15 +53281,8 @@
           "owner:commercial",
           "resource:composition"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wG07",
-          "claimedAt": "2026-11-23T17:23:31.858Z",
-          "heartbeatAt": "2026-11-23T17:24:27.642Z",
-          "expiresAt": "2026-11-23T17:54:27.642Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -53524,14 +53532,24 @@
             "command": "tsc server-marketing + feature-marketing",
             "result": "passed",
             "sourceSha": "18f6d16081546dd378d4ae9be0c0d0b18d9e3add"
+          },
+          {
+            "command": "cargo test -p erpx-server-marketing --lib native_command_sql",
+            "result": "passed",
+            "sourceSha": "5a1ae32a5"
+          },
+          {
+            "command": "tsc server-marketing + server-crm",
+            "result": "passed",
+            "sourceSha": "5a1ae32a5"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "handoff",
         "handoff": {
           "runId": "run-20261123-f",
-          "agentId": "wC09",
-          "at": "2026-11-23T17:23:25.580Z",
+          "agentId": "wG07",
+          "at": "2026-11-23T17:31:25.198Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
           "nextAction": "Integrated; claim released"
@@ -109759,15 +109777,8 @@
         "resources": [
           "owner:commerce"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wE03",
-          "claimedAt": "2026-11-23T17:16:56.864Z",
-          "heartbeatAt": "2026-11-23T17:24:27.642Z",
-          "expiresAt": "2026-11-23T17:54:27.642Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "89cf1fc2547a1bad396f281fe620266bf9914034",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -109811,19 +109822,34 @@
             "sourceSha": "3eddd324a0d7c79cf3a384d46a5816396cb079e1",
             "before": 567,
             "after": 566
+          },
+          {
+            "command": "cargo check -p erpx-server-commerce",
+            "result": "passed",
+            "sourceSha": "5a1ae32a5"
+          },
+          {
+            "command": "cargo test -p erpx-server-commerce --test quality_receipt_origin_read",
+            "result": "passed",
+            "sourceSha": "5a1ae32a5"
+          },
+          {
+            "command": "cargo test -p erpx-server-commerce --test ecommerce_listing_source_postgres",
+            "result": "passed",
+            "sourceSha": "5a1ae32a5"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261123-e",
-          "agentId": "lead",
-          "at": "2026-11-23T15:20:03.262Z",
-          "previousStatus": "integrating",
-          "reason": "Recovery: Operator authorized takeover. Prior OpenCode session ended idle/interrupted; reviewed checkout and preserved all WIP for task-by-task reconciliation.",
-          "nextAction": "Lead integrated, worker claim released"
+          "runId": "run-20261123-f",
+          "agentId": "wE03",
+          "at": "2026-11-23T17:31:25.036Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; mount is lead item"
         },
-        "nextAction": "Lead integrated, worker claim released",
+        "nextAction": "Integrated; mount is lead item",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -110188,8 +110214,8 @@
           "runId": "run-20261123-f",
           "agentId": "wC14",
           "claimedAt": "2026-11-23T17:13:29.800Z",
-          "heartbeatAt": "2026-11-23T17:24:27.642Z",
-          "expiresAt": "2026-11-23T17:54:27.642Z",
+          "heartbeatAt": "2026-11-23T17:31:43.518Z",
+          "expiresAt": "2026-11-23T18:01:43.518Z",
           "generation": 158
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -111711,15 +111737,8 @@
         "resources": [
           "owner:pos"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wC15",
-          "claimedAt": "2026-11-23T17:13:50.646Z",
-          "heartbeatAt": "2026-11-23T17:24:27.642Z",
-          "expiresAt": "2026-11-23T17:54:27.642Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "b43f5c44303dce8d26635e05538a1877c2fac494",
         "implementedCommit": "80f0c1f7866d983981ecff82112a6e5587c982fb",
         "lastPushedSha": "80f0c1f7866d983981ecff82112a6e5587c982fb",
@@ -111890,18 +111909,32 @@
             "result": "passed",
             "sourceSha": "80f0c1f7866d983981ecff82112a6e5587c982fb",
             "note": "lead; 3198/3199/3100 health 200; dev fully restarted, 0 boot errors"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "5a1ae32a5",
+            "owner": "pos",
+            "before": 359,
+            "after": 353,
+            "note": "wC15: 3 shifts core reads -> pos_core_shifts/tables/cash_movements kinds; PG parity 2/2, lib 11/11."
+          },
+          {
+            "command": "cargo test -p erpx-server-pos --test pos_core_reads_postgres",
+            "result": "passed",
+            "sourceSha": "5a1ae32a5"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Registers-front done. Claim to port catalog/shifts family next.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-d",
-          "agentId": "lead",
-          "at": "2026-11-23T10:48:28.481Z",
+          "runId": "run-20261123-f",
+          "agentId": "wC15",
+          "at": "2026-11-23T17:31:24.874Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Registers-front done. Claim to port catalog/shifts family next."
+          "nextAction": "Integrated; claim released"
         }
       },
       {
@@ -112718,8 +112751,8 @@
           "runId": "run-20261123-f",
           "agentId": "wD03",
           "claimedAt": "2026-11-23T17:15:22.471Z",
-          "heartbeatAt": "2026-11-23T17:24:27.642Z",
-          "expiresAt": "2026-11-23T17:54:27.642Z",
+          "heartbeatAt": "2026-11-23T17:31:43.518Z",
+          "expiresAt": "2026-11-23T18:01:43.518Z",
           "generation": 158
         },
         "baseSha": null,
@@ -112759,8 +112792,8 @@
           "runId": "run-20261123-f",
           "agentId": "wD01",
           "claimedAt": "2026-11-23T17:15:22.271Z",
-          "heartbeatAt": "2026-11-23T17:24:27.642Z",
-          "expiresAt": "2026-11-23T17:54:27.642Z",
+          "heartbeatAt": "2026-11-23T17:31:43.518Z",
+          "expiresAt": "2026-11-23T18:01:43.518Z",
           "generation": 158
         },
         "baseSha": null,
@@ -112801,8 +112834,8 @@
           "runId": "run-20261123-f",
           "agentId": "wD04",
           "claimedAt": "2026-11-23T17:15:22.573Z",
-          "heartbeatAt": "2026-11-23T17:24:27.642Z",
-          "expiresAt": "2026-11-23T17:54:27.642Z",
+          "heartbeatAt": "2026-11-23T17:31:43.518Z",
+          "expiresAt": "2026-11-23T18:01:43.518Z",
           "generation": 158
         },
         "baseSha": null,
@@ -112842,8 +112875,8 @@
           "runId": "run-20261123-f",
           "agentId": "wD02",
           "claimedAt": "2026-11-23T17:15:22.369Z",
-          "heartbeatAt": "2026-11-23T17:24:27.642Z",
-          "expiresAt": "2026-11-23T17:54:27.642Z",
+          "heartbeatAt": "2026-11-23T17:31:43.518Z",
+          "expiresAt": "2026-11-23T18:01:43.518Z",
           "generation": 158
         },
         "baseSha": null,
@@ -112920,8 +112953,8 @@
           "runId": "run-20261123-f",
           "agentId": "wF01",
           "claimedAt": "2026-11-23T17:22:09.705Z",
-          "heartbeatAt": "2026-11-23T17:24:27.642Z",
-          "expiresAt": "2026-11-23T17:54:27.642Z",
+          "heartbeatAt": "2026-11-23T17:31:43.518Z",
+          "expiresAt": "2026-11-23T18:01:43.518Z",
           "generation": 158
         },
         "baseSha": null,
@@ -112959,8 +112992,8 @@
           "runId": "run-20261123-f",
           "agentId": "wF02",
           "claimedAt": "2026-11-23T17:22:09.787Z",
-          "heartbeatAt": "2026-11-23T17:24:27.642Z",
-          "expiresAt": "2026-11-23T17:54:27.642Z",
+          "heartbeatAt": "2026-11-23T17:31:43.518Z",
+          "expiresAt": "2026-11-23T18:01:43.518Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113012,6 +113045,94 @@
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": []
+      },
+      {
+        "id": "retire.brand.identity-read-port",
+        "goalId": "G4",
+        "owner": "brand",
+        "title": "Native brand identity reads for front-app and record detail (8 SELECT -> 0)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-brand/src/adapters/identity.ts",
+          "packages/server-brand/src/index.ts",
+          "packages/server-brand/src/public/brand-identity.ts",
+          "packages/server-work_projection/src/adapters/front-app.ts",
+          "packages/server-work_projection/src/application/front-app.ts",
+          "packages/server-records/src/adapters/record-domain-details.ts",
+          "packages/server-records/src/application/record-domain-details.ts",
+          "tests/integration/brand/brand-identity.test.ts",
+          "tests/unit/brand/brand-application.test.ts"
+        ],
+        "resources": [
+          "owner:brand"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wH05",
+          "claimedAt": "2026-11-23T17:26:53.756Z",
+          "heartbeatAt": "2026-11-23T17:31:43.518Z",
+          "expiresAt": "2026-11-23T18:01:43.518Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Switch front-app publishedBrand and records brandIdentityWorkspace to nativeBrandIdentityWorkspace; delete identity.ts SELECTs; record 29->21",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.reads.collaboration.handbook",
+        "goalId": "G4",
+        "owner": "collaboration",
+        "title": "Native handbook reads for all consumers (16 SELECT -> 0)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/adapters/handbook.ts",
+          "packages/server-collaboration/src/adapters/handbook-purchases.ts",
+          "packages/server-collaboration/src/public/handbook.ts",
+          "packages/server-collaboration/src/public/handbook-purchases.ts",
+          "packages/server-runtime/src/public/handbook.ts",
+          "packages/feature-collaboration/src/adapters/server/native-handbook-page.ts",
+          "packages/server-operations/src/adapters/record-purchases.ts",
+          "packages/server-agent/src/adapters/workspace-assistant.ts",
+          "packages/server-agent/src/application/assistant.ts",
+          "packages/server-collaboration/src/adapters/staff-notifications.ts",
+          "tests/unit/collaboration/**",
+          "tests/integration/collaboration/**",
+          "tests/integration/operations/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wH06",
+          "claimedAt": "2026-11-23T17:31:32.492Z",
+          "heartbeatAt": "2026-11-23T17:31:43.518Z",
+          "expiresAt": "2026-11-23T18:01:43.518Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Make handbook client fail closed, switch operations/agent/notification consumers, delete handbook.ts + handbook-purchases.ts SELECTs and barrels, record 16->0",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -113020,21 +113141,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 464,
+      "totalPackets": 466,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
-        "in_progress": 15,
+        "in_progress": 14,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 104,
+        "blocked": 107,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T17:24:39.030Z",
+    "updatedAt": "2026-11-23T17:31:43.529Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
