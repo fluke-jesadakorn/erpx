@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6434,
+    "revision": 6438,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-f",
       "agentId": "lead",
       "startedAt": "2026-11-23T16:54:33.142Z",
-      "heartbeatAt": "2026-11-23T18:03:43.827Z",
-      "expiresAt": "2026-11-23T18:33:43.827Z",
+      "heartbeatAt": "2026-11-23T18:10:15.948Z",
+      "expiresAt": "2026-11-23T18:40:15.948Z",
       "generation": 158,
       "tokenHash": "786b04e6db95d7a97c392a0b212dc2cfdd563bbd8cc6545681f5e6ff248eceaa"
     },
@@ -9769,8 +9769,8 @@
           "runId": "run-20261123-f",
           "agentId": "wK06",
           "claimedAt": "2026-11-23T17:56:37.384Z",
-          "heartbeatAt": "2026-11-23T18:03:43.827Z",
-          "expiresAt": "2026-11-23T18:33:43.827Z",
+          "heartbeatAt": "2026-11-23T18:10:15.948Z",
+          "expiresAt": "2026-11-23T18:40:15.948Z",
           "generation": 158
         },
         "baseSha": "f205ed3aac2d99e7cbef528a6426aeca2931161d",
@@ -50659,8 +50659,8 @@
           "runId": "run-20261123-f",
           "agentId": "wL05",
           "claimedAt": "2026-11-23T18:01:28.161Z",
-          "heartbeatAt": "2026-11-23T18:03:43.827Z",
-          "expiresAt": "2026-11-23T18:33:43.827Z",
+          "heartbeatAt": "2026-11-23T18:10:15.948Z",
+          "expiresAt": "2026-11-23T18:40:15.948Z",
           "generation": 158
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -51194,8 +51194,8 @@
           "runId": "run-20261123-f",
           "agentId": "wK01",
           "claimedAt": "2026-11-23T17:56:37.088Z",
-          "heartbeatAt": "2026-11-23T18:03:43.827Z",
-          "expiresAt": "2026-11-23T18:33:43.827Z",
+          "heartbeatAt": "2026-11-23T18:10:15.948Z",
+          "expiresAt": "2026-11-23T18:40:15.948Z",
           "generation": 158
         },
         "baseSha": null,
@@ -109940,10 +109940,10 @@
         "status": "in_progress",
         "claim": {
           "runId": "run-20261123-f",
-          "agentId": "wK05",
-          "claimedAt": "2026-11-23T17:56:37.304Z",
-          "heartbeatAt": "2026-11-23T18:03:43.827Z",
-          "expiresAt": "2026-11-23T18:33:43.827Z",
+          "agentId": "wM01",
+          "claimedAt": "2026-11-23T18:09:58.416Z",
+          "heartbeatAt": "2026-11-23T18:10:15.948Z",
+          "expiresAt": "2026-11-23T18:40:15.948Z",
           "generation": 158
         },
         "baseSha": "d15bbdf7095f86bedb5c69bd0f4b297c357f0061",
@@ -110024,14 +110024,33 @@
             "command": "tsc server-files + server-finance",
             "result": "passed",
             "sourceSha": "32197e551"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d7a70e200",
+            "owner": "files",
+            "before": 300,
+            "after": 299,
+            "note": "wK05: RD_LEGAL_DOCUMENT_CLEAN_SOURCE + nativeFilesRead; facade shape preserved."
+          },
+          {
+            "command": "cargo test -p erpx-server-files --test files_wave1b_plan",
+            "result": "passed",
+            "sourceSha": "d7a70e200"
+          },
+          {
+            "command": "tsc server-files + server-legal",
+            "result": "passed",
+            "sourceSha": "d7a70e200"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
         "handoff": {
           "runId": "run-20261123-f",
-          "agentId": "wI03",
-          "at": "2026-11-23T17:56:22.769Z",
+          "agentId": "wK05",
+          "at": "2026-11-23T18:09:58.337Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
           "nextAction": "Integrated; claim released"
@@ -110215,8 +110234,8 @@
           "runId": "run-20261123-f",
           "agentId": "wK04",
           "claimedAt": "2026-11-23T17:56:37.219Z",
-          "heartbeatAt": "2026-11-23T18:03:43.827Z",
-          "expiresAt": "2026-11-23T18:33:43.827Z",
+          "heartbeatAt": "2026-11-23T18:10:15.948Z",
+          "expiresAt": "2026-11-23T18:40:15.948Z",
           "generation": 158
         },
         "baseSha": "dbb5267714fb222c1665428fc0b7c9aec613e926",
@@ -113546,8 +113565,8 @@
           "runId": "run-20261123-f",
           "agentId": "wH17",
           "claimedAt": "2026-11-23T17:43:16.667Z",
-          "heartbeatAt": "2026-11-23T18:03:43.827Z",
-          "expiresAt": "2026-11-23T18:33:43.827Z",
+          "heartbeatAt": "2026-11-23T18:10:15.948Z",
+          "expiresAt": "2026-11-23T18:40:15.948Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113650,8 +113669,8 @@
           "runId": "run-20261123-f",
           "agentId": "wJ01",
           "claimedAt": "2026-11-23T17:50:16.881Z",
-          "heartbeatAt": "2026-11-23T18:03:43.827Z",
-          "expiresAt": "2026-11-23T18:33:43.827Z",
+          "heartbeatAt": "2026-11-23T18:10:15.948Z",
+          "expiresAt": "2026-11-23T18:40:15.948Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113760,8 +113779,8 @@
           "runId": "run-20261123-f",
           "agentId": "wJ03",
           "claimedAt": "2026-11-23T17:50:26.640Z",
-          "heartbeatAt": "2026-11-23T18:03:43.827Z",
-          "expiresAt": "2026-11-23T18:33:43.827Z",
+          "heartbeatAt": "2026-11-23T18:10:15.948Z",
+          "expiresAt": "2026-11-23T18:40:15.948Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113838,8 +113857,8 @@
           "runId": "run-20261123-f",
           "agentId": "wL01",
           "claimedAt": "2026-11-23T17:59:54.357Z",
-          "heartbeatAt": "2026-11-23T18:03:43.827Z",
-          "expiresAt": "2026-11-23T18:33:43.827Z",
+          "heartbeatAt": "2026-11-23T18:10:15.948Z",
+          "expiresAt": "2026-11-23T18:40:15.948Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114036,8 +114055,8 @@
           "runId": "run-20261123-f",
           "agentId": "wL07",
           "claimedAt": "2026-11-23T18:03:22.343Z",
-          "heartbeatAt": "2026-11-23T18:03:43.827Z",
-          "expiresAt": "2026-11-23T18:33:43.827Z",
+          "heartbeatAt": "2026-11-23T18:10:15.948Z",
+          "expiresAt": "2026-11-23T18:40:15.948Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114071,7 +114090,7 @@
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T18:03:43.830Z",
+    "updatedAt": "2026-11-23T18:10:15.951Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
