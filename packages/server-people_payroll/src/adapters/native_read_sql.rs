@@ -79,6 +79,18 @@ const READ_PAYROLL_OTHER_SCHEMA_AVAILABLE: NativeReadStatement = NativeReadState
     bind_count: 0,
 };
 
+/// Native successor of the two identical TypeScript `workflow-flow-routing-facts`
+/// legal-name reads (prepare-flow-command person and assign-flow-primary
+/// administrator). Canonical owner read deduped into one kind: same literal and
+/// two positional binds, executed on the caller's open unit.
+pub const RD_FLOW_ROUTING_PERSON_LEGAL_NAME: &str = "people_payroll_rd_flow_routing_person_legal_name";
+const SQL_FLOW_ROUTING_PERSON_LEGAL_NAME: &str = "SELECT legal_name FROM hr_people WHERE company_id=? AND user_id=? AND merged_into_id IS NULL";
+const READ_FLOW_ROUTING_PERSON_LEGAL_NAME: NativeReadStatement = NativeReadStatement {
+    kind: RD_FLOW_ROUTING_PERSON_LEGAL_NAME,
+    sql: SQL_FLOW_ROUTING_PERSON_LEGAL_NAME,
+    bind_count: 2,
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_RECORD_SUPPLEMENT_ROWS,
     READ_ORG_ROSTER_EXIT_ENGAGEMENT_IDS,
@@ -86,6 +98,7 @@ const READS: &[NativeReadStatement] = &[
     READ_WORK_REPORT_PEOPLE,
     READ_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE,
     READ_PAYROLL_OTHER_SCHEMA_AVAILABLE,
+    READ_FLOW_ROUTING_PERSON_LEGAL_NAME,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -168,5 +181,17 @@ mod tests {
         assert!(read.sql.contains("erpx_migration_receipts"));
         assert!(read.sql.contains("1066_payroll_other_liability_remittances.sql"));
         assert!(is_read(RD_PAYROLL_OTHER_SCHEMA_AVAILABLE));
+    }
+
+    #[test]
+    fn flow_routing_person_legal_name_read_plan_is_ledger_free_and_bounded() {
+        let read = read_statement(RD_FLOW_ROUTING_PERSON_LEGAL_NAME).expect("read kind");
+        assert!(read.sql.to_ascii_uppercase().starts_with("SELECT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("INSERT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("UPDATE"));
+        assert!(!read.sql.to_ascii_uppercase().contains("DELETE"));
+        assert_eq!(read.bind_count, 2);
+        assert_eq!(read.sql.matches('?').count(), 2);
+        assert!(is_read(RD_FLOW_ROUTING_PERSON_LEGAL_NAME));
     }
 }

@@ -8,7 +8,9 @@ import {
   PEOPLE_PAYROLL_RD_WORK_REPORT_PEOPLE,
   PEOPLE_PAYROLL_RD_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE,
   PEOPLE_PAYROLL_RD_PAYROLL_OTHER_SCHEMA_AVAILABLE,
+  PEOPLE_PAYROLL_RD_FLOW_ROUTING_PERSON_LEGAL_NAME,
 } from '../../../packages/server-people_payroll/src/adapters/native-people-payroll-read';
+import { createFlowRoutingSourceRepository } from '../../../packages/server-people_payroll/src/adapters/workflow-flow-routing-facts';
 import { RecordDetailsPeoplePayrollOwnedFacts } from '../../../packages/server-people_payroll/src/adapters/records-record-details-owned-facts';
 import {
   organizationRosterExitEngagementIds,
@@ -219,6 +221,47 @@ describe('native People Payroll caller-unit read plan', () => {
       { kind: PEOPLE_PAYROLL_RD_PAYROLL_OTHER_SCHEMA_AVAILABLE, values: [] },
     ]);
     expect(prepared).toEqual(['SELECT 1', 'SELECT 1']);
+  });
+
+  it('exposes the flow-routing legal-name read kind with no SQL on the wire', () => {
+    expect(PEOPLE_PAYROLL_RD_FLOW_ROUTING_PERSON_LEGAL_NAME).toBe('people_payroll_rd_flow_routing_person_legal_name');
+    expect(PEOPLE_PAYROLL_RD_FLOW_ROUTING_PERSON_LEGAL_NAME).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+  });
+
+  it('plans the deduped flow-routing legal-name reads on the caller unit with their binds', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push({ kind: body.kind, values: body.values });
+      return new Response(JSON.stringify({
+        data: { statements: [{ sql: 'SELECT 1 AS row', values: body.values }] },
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+    const prepared: string[] = [];
+    const bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) {
+        prepared.push(sql);
+        return {
+          bind(...values: unknown[]) { bound.push(values); return this; },
+          async all() { return { results: [], success: true, meta: { changes: 0, duration: 0 } }; },
+          async first() { return null; },
+        };
+      },
+      async batch() { return [{ results: [{ legal_name: 'Alice' }], success: true, meta: { changes: 0, duration: 0 } }]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+
+    const repo = createFlowRoutingSourceRepository(db as never);
+    expect(await repo.readPrepareFlowCommandPerson('company', 'user-1')).toEqual({ legal_name: 'Alice' });
+    expect(await repo.readAssignFlowPrimaryAdministrator('company', 'user-2')).toEqual({ legal_name: 'Alice' });
+
+    expect(bodies).toEqual([
+      { kind: PEOPLE_PAYROLL_RD_FLOW_ROUTING_PERSON_LEGAL_NAME, values: ['company', 'user-1'] },
+      { kind: PEOPLE_PAYROLL_RD_FLOW_ROUTING_PERSON_LEGAL_NAME, values: ['company', 'user-2'] },
+    ]);
+    expect(bound).toEqual([['company', 'user-1'], ['company', 'user-2']]);
+    expect(prepared).toEqual(['SELECT 1 AS row', 'SELECT 1 AS row']);
   });
 
   it('fails closed when configuration is missing or the plan is malformed', async () => {

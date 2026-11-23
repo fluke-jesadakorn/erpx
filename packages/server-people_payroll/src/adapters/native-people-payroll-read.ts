@@ -23,6 +23,7 @@ export const PEOPLE_PAYROLL_RD_ORG_MONTHLY_PAY_GROUPS = 'people_payroll_rd_org_m
 export const PEOPLE_PAYROLL_RD_WORK_REPORT_PEOPLE = 'people_payroll_rd_work_report_people';
 export const PEOPLE_PAYROLL_RD_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE = 'people_payroll_rd_final_pay_cancellation_schema_available';
 export const PEOPLE_PAYROLL_RD_PAYROLL_OTHER_SCHEMA_AVAILABLE = 'people_payroll_rd_payroll_other_schema_available';
+export const PEOPLE_PAYROLL_RD_FLOW_ROUTING_PERSON_LEGAL_NAME = 'people_payroll_rd_flow_routing_person_legal_name';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PEOPLE_PAYROLL_NATIVE_READ_UNAVAILABLE', 'The native People Payroll read service is unavailable.');
