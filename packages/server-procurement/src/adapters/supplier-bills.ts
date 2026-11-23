@@ -15,6 +15,7 @@ import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {stageSupplierBillReceiptVersion,stageSupplierBillReceiptLinks} from "@erpx/server-commerce/public/supplier-bill-receipts";
 import {stageSupplierBillDraftVoid} from "@erpx/server-finance/public/supplier-bill-draft-void";
 import {nativeSupplierBillNotification} from "./native-supplier-bill-notification";
+import {nativeProcurementReadAll,PROCUREMENT_RD_BILL_MATCH_RECEIPTS} from "./native-procurement-read";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {samePerson} from "@erpx/feature-identity_access/lib/iam";
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
@@ -129,7 +130,7 @@ return {lines:lines.results,receipts:receipts.results,events:events.results,acco
  commit:async(m,result)=>commit(await database(),actor,m,result),
  receiptHistory:async(id)=>(await database()).prepare('SELECT br.match_id id FROM procurement_bill_match_receipts br WHERE br.fulfillment_id=? LIMIT 1').bind(id).first<Row>(),
  matchingRequired:async()=>!!await (await database()).prepare("SELECT 1 FROM procurement_invoice_policies WHERE company_id=? AND matching_mode='required'").bind(actor.companyId).first(),
- billReceipts:async(id)=>(await (await database()).prepare('SELECT * FROM procurement_bill_match_receipts WHERE match_id=? ORDER BY id').bind(id).all<Row>()).results,
+ billReceipts:async(id)=>(await nativeProcurementReadAll<Row>(PROCUREMENT_RD_BILL_MATCH_RECEIPTS,[id],await database())).results,
  stageInvoice:async(h)=>{const db=await database(),bill=h.bill,nextVersion=Number(bill.version)+1;
  const steps:SqlStatement[]=[assertion(db,h.key,'supplier-bill-handoff',"EXISTS(SELECT 1 FROM procurement_bill_matches WHERE id=? AND company_id=? AND fulfillment_id=? AND status='approved' AND version=? AND invoice_id IS NULL)",[bill.id,actor.companyId,h.fulfillment.id,h.matchVersion])];
  for(const [index,receipt]of h.receipts.entries())steps.push(assertion(db,h.key,`supplier-bill-receipt-${index}`,`EXISTS(SELECT 1 FROM procurement_bill_match_receipts br JOIN (${commercePlatformSources.commerce_fulfillments}) f ON f.id=br.fulfillment_id WHERE br.id=? AND br.match_id=? AND br.active=TRUE AND f.version=br.captured_version AND f.invoice_id IS NULL)`,[receipt.id,bill.id]));

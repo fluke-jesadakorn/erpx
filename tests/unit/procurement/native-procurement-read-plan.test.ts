@@ -1,4 +1,5 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
 vi.mock('server-only', () => ({}));
 import {
   nativeProcurementReadAll,
@@ -7,6 +8,7 @@ import {
   PROCUREMENT_RD_REQUEST_QUOTATION,
   PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH,
   PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL,
+  PROCUREMENT_RD_BILL_MATCH_RECEIPTS,
 } from '../../../packages/server-procurement/src/adapters/native-procurement-read';
 import { procurementInvoiceMatchForFinance } from '../../../packages/server-procurement/src/adapters/finance-entrypoint-queries';
 import { requestQuotation } from '../../../packages/server-procurement/src/adapters/people-app-entrypoint-facts';
@@ -20,6 +22,7 @@ const planned = {
   [PROCUREMENT_RD_REQUEST_QUOTATION]: "SELECT id FROM procurement_rfqs WHERE request_id=? AND company_id=? AND status<>'cancelled'",
   [PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH]: 'SELECT company_id,branch_id,department_id,version FROM procurement_bill_matches WHERE id=? AND company_id=?',
   [PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL]: "SELECT * FROM procurement_bill_matches WHERE invoice_id=? AND company_id=? AND status='invoiced'",
+  [PROCUREMENT_RD_BILL_MATCH_RECEIPTS]: 'SELECT * FROM procurement_bill_match_receipts WHERE match_id=? ORDER BY id',
 };
 const stubFetch = (payload: unknown, status = 200) => {
   const fetchMock = vi.fn(async () => ({
@@ -70,7 +73,8 @@ describe('native Procurement caller-unit read plan', () => {
     expect(PROCUREMENT_RD_REQUEST_QUOTATION).toBe('procurement_rd_request_quotation');
     expect(PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH).toBe('procurement_rd_operational_attachment_bill_match');
     expect(PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL).toBe('procurement_rd_document_posting_matched_bill');
-    for (const kind of [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE, PROCUREMENT_RD_REQUEST_QUOTATION, PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH, PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL]) {
+    expect(PROCUREMENT_RD_BILL_MATCH_RECEIPTS).toBe('procurement_rd_bill_match_receipts');
+    for (const kind of [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE, PROCUREMENT_RD_REQUEST_QUOTATION, PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH, PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL, PROCUREMENT_RD_BILL_MATCH_RECEIPTS]) {
       expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
     }
   });
@@ -135,6 +139,30 @@ describe('native Procurement caller-unit read plan', () => {
     ]);
     expect(prepared).toEqual([planned[PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL]]);
     expect(bound).toEqual([['bill-1', 'company']]);
+  });
+
+  it('plans the bill-match receipts read and retires the supplier-bills SELECT', async () => {
+    const sql = planned[PROCUREMENT_RD_BILL_MATCH_RECEIPTS];
+    const fetchMock = stubFetch({ data: { statements: [{ sql, values: ['bill-1'] }] } });
+    const { db, prepared, bound } = fakeDb([{ id: 'receipt-1', match_id: 'bill-1' }]);
+    const rows = await nativeProcurementReadAll<Record<string, unknown>>(
+      PROCUREMENT_RD_BILL_MATCH_RECEIPTS, ['bill-1'], db as never,
+    );
+    expect(rows.results).toEqual([{ id: 'receipt-1', match_id: 'bill-1' }]);
+    expect(prepared).toEqual([sql]);
+    expect(bound).toEqual([['bill-1']]);
+    const [, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+    const body = JSON.parse(init.body as string) as { kind: string; values: unknown[] };
+    expect(body.kind).toBe('procurement_rd_bill_match_receipts');
+    expect(body.values).toEqual(['bill-1']);
+    expect(JSON.stringify(body)).not.toContain('SELECT');
+
+    const source = readFileSync(
+      new URL('../../../packages/server-procurement/src/adapters/supplier-bills.ts', import.meta.url),
+      'utf8',
+    );
+    expect(source).not.toContain('SELECT * FROM procurement_bill_match_receipts WHERE match_id=? ORDER BY id');
+    expect(source).toContain('PROCUREMENT_RD_BILL_MATCH_RECEIPTS');
   });
 
   it('fails closed when the native transport is not configured', async () => {
