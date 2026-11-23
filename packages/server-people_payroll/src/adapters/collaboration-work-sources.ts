@@ -1,11 +1,15 @@
-import { collaborationReadProjection as identity } from '@erpx/server-identity_access/public/collaboration-read-projections';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import type { Row } from '@erpx/server-collaboration/public/collaboration-work';
+import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+import { randomUUID } from 'node:crypto';
+import { nativeCollaborationReadStatement } from '@erpx/server-collaboration/adapters/native-card-history-statement';
+
+/** Native-owned eligible-people read for the Collaboration workspace. The
+ * SQL text is issued by the owner against the authorized Company selection;
+ * the caller executes it inside its own serializable unit. */
 export function collaborationWorkSources(db: SqlDatabase) {
-    return { async eligiblePeople(companyId: string) {
-            return db
-                .prepare(`SELECT DISTINCT p.user_id id,p.legal_name name FROM hr_people p ${identity.workspaceAssignment} WHERE p.company_id=? AND p.status='active' AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(x.role,x.company_id,'records.write') ORDER BY p.legal_name`)
-                .bind(companyId)
-                .all<Row>();
+    return { async eligiblePeople(actor: WorkContext) {
+            const read = await nativeCollaborationReadStatement(db, actor, 'collaboration_eligible_people', 'people', randomUUID(), Date.now());
+            return { results: read.results as Row[] };
         } };
 }

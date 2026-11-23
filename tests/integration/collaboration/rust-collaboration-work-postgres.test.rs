@@ -250,6 +250,37 @@ async fn run_statement(
 }
 
 #[tokio::test]
+async fn eligible_people_statement_matches_retained_read() {
+    fixture::with_database(2, |pool| async move {
+        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
+        migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
+        PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
+            // One records.write-capable employee: custom published revision on
+            // the seeded employee role (later migrations already publish rev
+            // 2+, so take max+1; revision inserts stay allowed, only
+            // updates/deletes are immutable).
+            sqlx::query("INSERT INTO iam_role_revisions SELECT '*','employee',COALESCE(MAX(revision),0)+1,'[\"iam.self\",\"records.write\",\"module.collaboration.read\",\"module.people_payroll.read\",\"workflow.employee\",\"self.requests\",\"self.tasks\"]','[]','[\"holding\",\"branch\",\"department\"]','test',0 FROM iam_role_revisions WHERE company_id='*' AND role_id='employee'").execute(&mut *c).await?;
+            sqlx::query("UPDATE iam_roles SET published_revision=(SELECT MAX(revision) FROM iam_role_revisions WHERE company_id='*' AND role_id='employee') WHERE id='employee' AND company_id='*'").execute(&mut *c).await?;
+            sqlx::query("INSERT INTO assignments(id,user_id,role,modules_json,company_id,branch_id,valid_from,valid_until,version,scope_kind,scope_node_id) VALUES('pp-elig','elig-user','employee','[\"collaboration\"]','company',NULL,0,9999999999999,1,'holding',NULL)").execute(&mut *c).await?;
+            sqlx::query("INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,status,created_by,created_at,updated_at) VALUES('person-elig','elig-user','company','Eligible Eva','TH','active','fixture',0,0)").execute(&mut *c).await?;
+            sqlx::query("INSERT INTO hr_engagements(id,person_id,company_id,branch_id,worker_type,employment_type,status,start_date,job_title,currency,created_by,created_at,updated_at) VALUES('eng-elig','person-elig','company',NULL,'employee','salaried','active','2025-01-01','Member','THB','fixture',0,0)").execute(&mut *c).await?;
+            // A person without an assignment is never eligible.
+            sqlx::query("INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,status,created_by,created_at,updated_at) VALUES('person-lonely',NULL,'company','Lonely','TH','active','fixture',0,0)").execute(&mut *c).await?;
+            let retained = "SELECT DISTINCT p.user_id id,p.legal_name name FROM hr_people p JOIN assignments x ON x.user_id=p.user_id AND x.company_id=p.company_id WHERE p.company_id=? AND p.status='active' AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(x.role,x.company_id,'records.write') ORDER BY p.legal_name";
+            let via_statement = run_rows_statement(c, &eligible_people_statement("company")?).await?;
+            let via_retained = run_rows_raw(c, retained, &[Some("company".to_owned())]).await?;
+            assert_eq!(via_statement.len(), 1);
+            assert_eq!(via_statement, via_retained);
+            assert_eq!(via_statement[0].get("id").and_then(|v| v.as_str()), Some("elig-user"));
+            // Foreign company sees nobody; empty company is rejected.
+            assert!(run_rows_statement(c, &eligible_people_statement("other")?).await?.is_empty());
+            assert!(eligible_people_statement("").is_err());
+            Ok(())
+        })).await.unwrap();
+    }).await;
+}
+
+#[tokio::test]
 async fn workspace_statements_match_retained_reads_with_scope_guard() {
     fixture::with_database(2, |pool| async move {
         let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();

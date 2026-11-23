@@ -4,8 +4,8 @@ pub use crate::adapters::collaboration_work::apply_plan;
 pub use crate::adapters::collaboration_work::{CurrentCollaborationEffects, retain_effects};
 pub use crate::adapters::collaboration_work::{
     CurrentCollaborationRow, StoredCard, action_cards_statement, card_history_statement,
-    lock_collaboration_work_sources, read_card, read_card_history, read_relation,
-    record_relations_statement,
+    eligible_people_statement, lock_collaboration_work_sources, read_card, read_card_history,
+    read_relation, record_relations_statement,
 };
 pub use crate::adapters::collaboration_work_pg::{
     CollaborationScope, CollaborationWorkspace, PgCollaborationUnit, ResolvedSource, VisibleSource,

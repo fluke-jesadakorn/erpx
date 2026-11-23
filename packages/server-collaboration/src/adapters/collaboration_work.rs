@@ -237,6 +237,29 @@ pub async fn read_card_history(
         .collect()
 }
 
+/// Owner-issued eligible-people read statement for caller-owned transactions.
+///
+/// Pure constructor: the retained `eligiblePeople` read byte-identically,
+/// including the workspace-assignment join (mirrors `workspaceAssignment` in
+/// the identity-access collaboration-read-projections). Scope comes from the
+/// authorized selection, never caller input.
+pub fn eligible_people_statement(
+    company: &str,
+) -> Result<crate::adapters::notification_statement::NotificationStatement, BusinessError> {
+    use crate::adapters::notification_statement::NotificationStatement;
+    if company.is_empty() {
+        return Err(BusinessError::new(
+            FailureKind::InvalidInput,
+            "COLLABORATION_ELIGIBLE_PEOPLE_INVALID",
+            "A Company scope is required.",
+        ));
+    }
+    Ok(NotificationStatement {
+        sql: "SELECT DISTINCT p.user_id id,p.legal_name name FROM hr_people p JOIN assignments x ON x.user_id=p.user_id AND x.company_id=p.company_id WHERE p.company_id=? AND p.status='active' AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(x.role,x.company_id,'records.write') ORDER BY p.legal_name".to_owned(),
+        values: vec![Value::String(company.to_owned())],
+    })
+}
+
 /// Owner-issued record-relations read statement for caller-owned transactions.
 ///
 /// Pure constructor: the retained `recordRelations` read with a company bind

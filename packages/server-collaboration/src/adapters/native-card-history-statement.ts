@@ -12,7 +12,7 @@ import { nativeNotificationStatement } from './native-notification-statement';
 export async function nativeCollaborationReadStatement(
   db: SqlDatabase,
   actor: WorkContext,
-  kind: 'collaboration_card_history' | 'collaboration_record_relations' | 'collaboration_action_cards',
+  kind: 'collaboration_card_history' | 'collaboration_record_relations' | 'collaboration_action_cards' | 'collaboration_eligible_people',
   recordId: string,
   key: string,
   now: number,

@@ -12,7 +12,7 @@ export interface CollaborationWorkRepository {
     actionCards(actor: WorkContext): Promise<{
         results: Card[];
     }>;
-    eligiblePeople(companyId: string): Promise<{
+    eligiblePeople(actor: WorkContext): Promise<{
         results: Row[];
     }>;
     actionHistory(actor: WorkContext, id: string): Promise<{
@@ -59,7 +59,7 @@ export function createCollaborationWorkApplication<Effect>(ports: CollaborationW
     }
     async function collaborationWorkspace(a: WorkContext) {
         access(a);
-        const relations = (await r.recordRelations(a)).results, cards = (await r.actionCards(a)).results, people = (await r.eligiblePeople(a.companyId)).results;
+        const relations = (await r.recordRelations(a)).results, cards = (await r.actionCards(a)).results, people = (await r.eligiblePeople(a)).results;
         const visible = [];
         for (const r of relations) {
             const left = await visibleSource(a, sourceType.parse(r.source_type), String(r.source_id)), right = await visibleSource(a, sourceType.parse(r.target_type), String(r.target_id));

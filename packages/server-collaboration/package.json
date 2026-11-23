@@ -231,6 +231,7 @@
     "./public/native-inbox-page": "./src/public/native-inbox-page.ts",
     "./public/native-collaboration-page": "./src/public/native-collaboration-page.ts",
     "./adapters/native-notification-statement": "./src/adapters/native-notification-statement.ts",
+    "./adapters/native-card-history-statement": "./src/adapters/native-card-history-statement.ts",
     "./adapters/native-owner-write": "./src/adapters/native-owner-write.ts",
     "./adapters/native-legal-approval-notification": "./src/adapters/native-legal-approval-notification.ts",
     "./adapters/native-payroll-notification": "./src/adapters/native-payroll-notification.ts",
