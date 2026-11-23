@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6563,
+    "revision": 6574,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-f",
       "agentId": "lead",
       "startedAt": "2026-11-23T16:54:33.142Z",
-      "heartbeatAt": "2026-11-23T19:18:44.260Z",
-      "expiresAt": "2026-11-23T19:48:44.260Z",
+      "heartbeatAt": "2026-11-23T19:24:31.574Z",
+      "expiresAt": "2026-11-23T19:54:31.574Z",
       "generation": 158,
       "tokenHash": "786b04e6db95d7a97c392a0b212dc2cfdd563bbd8cc6545681f5e6ff248eceaa"
     },
@@ -50671,8 +50671,8 @@
           "runId": "run-20261123-f",
           "agentId": "wN01",
           "claimedAt": "2026-11-23T18:15:53.634Z",
-          "heartbeatAt": "2026-11-23T19:18:44.260Z",
-          "expiresAt": "2026-11-23T19:48:44.260Z",
+          "heartbeatAt": "2026-11-23T19:24:31.574Z",
+          "expiresAt": "2026-11-23T19:54:31.574Z",
           "generation": 158
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -110055,8 +110055,8 @@
           "runId": "run-20261123-f",
           "agentId": "wX05",
           "claimedAt": "2026-11-23T19:14:25.430Z",
-          "heartbeatAt": "2026-11-23T19:18:44.260Z",
-          "expiresAt": "2026-11-23T19:48:44.260Z",
+          "heartbeatAt": "2026-11-23T19:24:31.574Z",
+          "expiresAt": "2026-11-23T19:54:31.574Z",
           "generation": 158
         },
         "baseSha": "89cf1fc2547a1bad396f281fe620266bf9914034",
@@ -110160,8 +110160,8 @@
           "runId": "run-20261123-f",
           "agentId": "wP01",
           "claimedAt": "2026-11-23T18:17:54.008Z",
-          "heartbeatAt": "2026-11-23T19:18:44.260Z",
-          "expiresAt": "2026-11-23T19:48:44.260Z",
+          "heartbeatAt": "2026-11-23T19:24:31.574Z",
+          "expiresAt": "2026-11-23T19:54:31.574Z",
           "generation": 158
         },
         "baseSha": "d15bbdf7095f86bedb5c69bd0f4b297c357f0061",
@@ -112532,8 +112532,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU02",
           "claimedAt": "2026-11-23T18:38:16.118Z",
-          "heartbeatAt": "2026-11-23T19:18:44.260Z",
-          "expiresAt": "2026-11-23T19:48:44.260Z",
+          "heartbeatAt": "2026-11-23T19:24:31.574Z",
+          "expiresAt": "2026-11-23T19:54:31.574Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114128,8 +114128,8 @@
           "runId": "run-20261123-f",
           "agentId": "wW02",
           "claimedAt": "2026-11-23T19:05:51.389Z",
-          "heartbeatAt": "2026-11-23T19:18:44.260Z",
-          "expiresAt": "2026-11-23T19:48:44.260Z",
+          "heartbeatAt": "2026-11-23T19:24:31.574Z",
+          "expiresAt": "2026-11-23T19:54:31.574Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114742,8 +114742,8 @@
           "runId": "run-20261123-f",
           "agentId": "wX01",
           "claimedAt": "2026-11-23T19:09:59.338Z",
-          "heartbeatAt": "2026-11-23T19:18:44.260Z",
-          "expiresAt": "2026-11-23T19:48:44.260Z",
+          "heartbeatAt": "2026-11-23T19:24:31.574Z",
+          "expiresAt": "2026-11-23T19:54:31.574Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115002,7 +115002,7 @@
         "owner": "finance",
         "title": "Native finance journal batch-post port (owner-side)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -115024,22 +115024,43 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wR02",
-          "claimedAt": "2026-11-23T18:21:47.727Z",
-          "heartbeatAt": "2026-11-23T19:18:44.260Z",
-          "expiresAt": "2026-11-23T19:48:44.260Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-finance",
+            "result": "passed",
+            "sourceSha": "97ba350e7"
+          },
+          {
+            "command": "cargo test -p erpx-server-finance --test journal_batch (7)",
+            "result": "passed",
+            "sourceSha": "97ba350e7"
+          },
+          {
+            "command": "cargo test -p erpx-server-finance --test journal_batch_postgres (3)",
+            "result": "passed",
+            "sourceSha": "97ba350e7"
+          },
+          {
+            "command": "cargo test -p erpx-server-finance --no-run",
+            "result": "passed",
+            "sourceSha": "97ba350e7"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement native journal batch-post domain/application/adapter/public with wire {journals:[{id,expectedVersion}],reason}, serializable unit, replay, receipt/audit/outbox; unite+PG tests. No composition.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; dispatch composition mount",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wR02",
+          "at": "2026-11-23T19:19:15.167Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; dispatch composition mount"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -115305,8 +115326,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU01",
           "claimedAt": "2026-11-23T18:38:16.034Z",
-          "heartbeatAt": "2026-11-23T19:18:44.260Z",
-          "expiresAt": "2026-11-23T19:48:44.260Z",
+          "heartbeatAt": "2026-11-23T19:24:31.574Z",
+          "expiresAt": "2026-11-23T19:54:31.574Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115344,8 +115365,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU03",
           "claimedAt": "2026-11-23T18:42:45.943Z",
-          "heartbeatAt": "2026-11-23T19:18:44.260Z",
-          "expiresAt": "2026-11-23T19:48:44.260Z",
+          "heartbeatAt": "2026-11-23T19:24:31.574Z",
+          "expiresAt": "2026-11-23T19:54:31.574Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115384,8 +115405,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU05",
           "claimedAt": "2026-11-23T18:47:54.577Z",
-          "heartbeatAt": "2026-11-23T19:18:44.260Z",
-          "expiresAt": "2026-11-23T19:48:44.260Z",
+          "heartbeatAt": "2026-11-23T19:24:31.574Z",
+          "expiresAt": "2026-11-23T19:54:31.574Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115436,8 +115457,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU06",
           "claimedAt": "2026-11-23T18:48:10.751Z",
-          "heartbeatAt": "2026-11-23T19:18:44.260Z",
-          "expiresAt": "2026-11-23T19:48:44.260Z",
+          "heartbeatAt": "2026-11-23T19:24:31.574Z",
+          "expiresAt": "2026-11-23T19:54:31.574Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115550,8 +115571,8 @@
           "runId": "run-20261123-f",
           "agentId": "wX02",
           "claimedAt": "2026-11-23T19:13:39.854Z",
-          "heartbeatAt": "2026-11-23T19:18:44.260Z",
-          "expiresAt": "2026-11-23T19:48:44.260Z",
+          "heartbeatAt": "2026-11-23T19:24:31.574Z",
+          "expiresAt": "2026-11-23T19:54:31.574Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115628,8 +115649,8 @@
           "runId": "run-20261123-f",
           "agentId": "wX03",
           "claimedAt": "2026-11-23T19:14:25.266Z",
-          "heartbeatAt": "2026-11-23T19:18:44.260Z",
-          "expiresAt": "2026-11-23T19:48:44.260Z",
+          "heartbeatAt": "2026-11-23T19:24:31.574Z",
+          "expiresAt": "2026-11-23T19:54:31.574Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115648,7 +115669,7 @@
         "owner": "platform_administration",
         "title": "Delete duplicate feature-admin native platform executive client",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -115659,22 +115680,33 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wX04",
-          "claimedAt": "2026-11-23T19:14:25.346Z",
-          "heartbeatAt": "2026-11-23T19:18:44.260Z",
-          "expiresAt": "2026-11-23T19:48:44.260Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "vitest platform administration transport (15)",
+            "result": "passed",
+            "sourceSha": "13de291b7"
+          },
+          {
+            "command": "repo-wide import check for native-platform-executive duplicate",
+            "result": "passed",
+            "sourceSha": "13de291b7"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Move the two oracle imports from nativePlatformExecutiveOrRetained to the canonical feature-platform_administration helper, delete the duplicate client, confirm no importers.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wX04",
+          "at": "2026-11-23T19:23:09.926Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -115813,6 +115845,167 @@
         "nextAction": "Add RD_* registry (spec/spec-version/lines/orders/detail/reservations/events/posting/operations/lot/genealogy/accounting profiles) + /command-plan holding & company routes + strict TS read bridge; byte-parity tests per kind. No composition/consumer switch.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "integrate.finance.journal-batch",
+        "goalId": "G3",
+        "owner": "finance",
+        "title": "Mount finance journal batch-post + route/client cutover",
+        "kind": "integration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "src/composition/src/business_http.rs",
+          "src/composition/src/finance_journal_batch.rs",
+          "src/composition/src/lib.rs",
+          "src/composition/src/private_development_api.rs",
+          "packages/feature-finance/src/adapters/server/native-journal-batch.ts",
+          "packages/feature-finance/src/public/server.ts",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance",
+          "resource:composition"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Compose batch administration/target, mount POST /finance/journals/batch-post, add strict native-journal-batch client, switch workplace route native-only, delete postJournalBatch TS fallback.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.quality.workcontext-read-port",
+        "goalId": "G4",
+        "owner": "quality",
+        "title": "Quality WorkContext work/detail-core read port (owner-side)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-quality/src/adapters/quality_work.rs",
+          "packages/server-quality/src/public/quality_work.rs",
+          "packages/server-quality/src/application/quality.rs",
+          "packages/server-quality/src/adapters/quality_read.rs",
+          "packages/server-quality/src/public/quality_read.rs",
+          "packages/server-quality/src/adapters/mod.rs",
+          "packages/server-quality/src/application/mod.rs",
+          "packages/server-quality/src/public/mod.rs",
+          "packages/server-quality/Cargo.toml",
+          "tests/unit/quality/**",
+          "tests/integration/quality/**"
+        ],
+        "resources": [
+          "owner:quality"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wY01",
+          "claimedAt": "2026-11-23T19:23:02.111Z",
+          "heartbeatAt": "2026-11-23T19:24:31.574Z",
+          "expiresAt": "2026-11-23T19:54:31.574Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Add quality_work projection over workspace holds with injected SourceAccess/same-person, detail_core repository method, public exports and parity tests. No composition/TS switch.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "integrate.crm.activity-workspace",
+        "goalId": "G3",
+        "owner": "crm",
+        "title": "Mount CRM activity workspace + TS client/consumer cutover",
+        "kind": "integration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-crm/src/adapters/activity_workspace_http.rs",
+          "packages/server-crm/src/public/activity_workspace_http.rs",
+          "packages/server-crm/src/adapters/mod.rs",
+          "packages/server-crm/src/public/mod.rs",
+          "packages/server-crm/src/adapters/native-activity-workspace.ts",
+          "packages/server-crm/src/public/native-activity-workspace.ts",
+          "packages/server-crm/package.json",
+          "packages/server-crm/src/adapters/activities.ts",
+          "packages/server-crm/src/adapters/leads.ts",
+          "packages/feature-sales/src/routes/api/v1/holdings/[holdingSlug]/crm/activities/route.ts",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/crm/[id]/screen.tsx",
+          "packages/feature-crm/src/components/crm-activity-console.tsx",
+          "src/composition/src/crm_activity_workspace.rs",
+          "src/composition/src/lib.rs",
+          "src/composition/src/private_development_api.rs",
+          "tests/unit/crm/**",
+          "tests/integration/crm/**",
+          "tests/catalogue/suite-manifest.json"
+        ],
+        "resources": [
+          "owner:crm",
+          "resource:composition"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Add owner GET router/backend, composition mount with purchase/IAM in-unit, strict TS client, switch activities route/presenter/work-items port, delete 5 TS SELECTs (5->0).",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.billing.read-tail-followup",
+        "goalId": "G4",
+        "owner": "billing",
+        "title": "Billing TS read tail native cutover",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-billing/src/**",
+          "tests/unit/billing/**",
+          "tests/integration/billing/**"
+        ],
+        "resources": [
+          "owner:billing"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wY02",
+          "claimedAt": "2026-11-23T19:23:26.256Z",
+          "heartbeatAt": "2026-11-23T19:24:31.574Z",
+          "expiresAt": "2026-11-23T19:54:31.574Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local billing read family with a mounted native port or fixed SQL; switch it and delete the redundant TS SELECT; record strictly lower from 123.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -115821,7 +116014,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 498,
+      "totalPackets": 500,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 21,
@@ -115829,13 +116022,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 134,
+        "blocked": 136,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T19:18:44.264Z",
+    "updatedAt": "2026-11-23T19:24:31.578Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
