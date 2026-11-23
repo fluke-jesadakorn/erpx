@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5267,
+    "revision": 5274,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-b",
       "agentId": "lead",
       "startedAt": "2026-11-23T02:13:49.719Z",
-      "heartbeatAt": "2026-11-23T02:13:49.788Z",
-      "expiresAt": "2026-11-23T02:43:49.788Z",
+      "heartbeatAt": "2026-11-23T02:15:11.625Z",
+      "expiresAt": "2026-11-23T02:45:11.625Z",
       "generation": 152,
       "tokenHash": "4ed58bb3f259f219159157fea6323002b2fd9a85500f384f067a474e862ae5a7"
     },
@@ -17230,12 +17230,12 @@
         "claim": {
           "runId": "run-20261123-b",
           "agentId": "lead",
-          "claimedAt": "2026-11-23T02:14:41.095Z",
-          "heartbeatAt": "2026-11-23T02:14:41.095Z",
-          "expiresAt": "2026-11-23T02:44:41.095Z",
+          "claimedAt": "2026-11-23T02:20:52.458Z",
+          "heartbeatAt": "2026-11-23T02:20:52.458Z",
+          "expiresAt": "2026-11-23T02:50:52.458Z",
           "generation": 152
         },
-        "baseSha": "ff52734b53252545461d2875db3e0f2f2c31c786",
+        "baseSha": "f901987c8bcb88a080e9beb9d2b87892bc462eea",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17346,14 +17346,14 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "TURN ff52734b5 (run-20261123-b gen 152; run-20261123-a lease expired). Mounted the dead native routers the suite needed: finance company-money reads, finance owner-write (company + single-target fallback), commerce owner-write, manufacturing owner-write, commercial grant-save; fixed the private boundary so GET/HEAD (not just POST) can reach owner reads; gave Files commands a single-target pool fallback; added suite transport configs for commerce/commercial/inventory/files; rewrote Finance owner-write execution to escaped literals + explicit jsonb ledger casts to stop text/bigint/date/jsonb mismatches; moved workflow assertions onto the caller unit; interleaved native Manufacturing markers by contiguous run so receipts/idempotency stay ordered. The originally blocked manufacturing posts-material case is GREEN (1 passed/39 skipped) at ff52734b5. Full manufacturing.production.integration is still 6 passed / 34 failed: next is Files SR_058 persistence detail, then purchases.ts current() batching native guard markers (CROSS_DATABASE_TRANSACTION), then iterate remaining per-case native configs/routes. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready 1. Decisions still open: PG 18.6-vs-18.x; retire.workflow jobs.ts scope; landed-cost receipt-key; two stale zero-SQL retire tasks.",
+        "nextAction": "TURN f901987c8. Fixed the two ledger jsonb bind failures by binding sqlx Json instead of TEXT for Files command receipts/outbox and Commercial grant receipts/audit/outbox/before/after (the previous ::jsonb casts made the server expect binary jsonb and raised XX000 unsupported jsonb version 123). The original manufacturing posts-material case remains GREEN. Full manufacturing.production.integration is still 6 passed / 34 failed. Precise next blockers: (1) Files SR_058 now reaches the native route but times out after 10s because the files command runs in its own native transaction while the caller transaction holds attachment row locks; files commands need a caller-unit statement plan (or the caller must stop wrapping them), not a separate pool unit; (2) enforced purchase path packages/server-manufacturing/src/adapters/purchases.ts current() still batches raw WorkContext guard markers -> CROSS_DATABASE_TRANSACTION. Decisions still open: PG 18.6-vs-18.x, retire.workflow jobs.ts scope, landed-cost receipt-key, two stale zero-SQL tasks.",
         "handoff": {
           "runId": "run-20261123-b",
           "agentId": "lead",
-          "at": "2026-11-23T02:14:40.825Z",
+          "at": "2026-11-23T02:20:52.178Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
-          "nextAction": "TURN AT 1f4db9da0 (new coordinator run-20261123-a gen 151; run-20261122-d lease expired). Workflow assertion path is green after casting every IAM assertion parameter to its column type and binding nulls as bigint; the execute route is live with the sqlx 0.9 audited wrapper. The suite now fails at GET /api/v1/companies/{fixture}/finance/company-money/rates -> 404 because the finance company-money read router is not mounted in composition; the client config and loopback allowance are in place. Next: mount that router with the holding pool and rerun. Dev binary rebuilt; :3100 health 200. Decisions still needed: PG 18.6 vs 18.x; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1."
+          "nextAction": "TURN f901987c8. Fixed the two ledger jsonb bind failures by binding sqlx Json instead of TEXT for Files command receipts/outbox and Commercial grant receipts/audit/outbox/before/after (the previous ::jsonb casts made the server expect binary jsonb and raised XX000 unsupported jsonb version 123). The original manufacturing posts-material case remains GREEN. Full manufacturing.production.integration is still 6 passed / 34 failed. Precise next blockers: (1) Files SR_058 now reaches the native route but times out after 10s because the files command runs in its own native transaction while the caller transaction holds attachment row locks; files commands need a caller-unit statement plan (or the caller must stop wrapping them), not a separate pool unit; (2) enforced purchase path packages/server-manufacturing/src/adapters/purchases.ts current() still batches raw WorkContext guard markers -> CROSS_DATABASE_TRANSACTION. Decisions still open: PG 18.6-vs-18.x, retire.workflow jobs.ts scope, landed-cost receipt-key, two stale zero-SQL tasks."
         },
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -52003,7 +52003,7 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": "ff52734b53252545461d2875db3e0f2f2c31c786",
+        "baseSha": "f901987c8bcb88a080e9beb9d2b87892bc462eea",
         "implementedCommit": "918c15726d473545dbfcd2946ff50a2844db7039",
         "lastPushedSha": "918c15726d473545dbfcd2946ff50a2844db7039",
         "checks": [
@@ -52086,14 +52086,14 @@
           }
         ],
         "blocker": "released with work preserved",
-        "nextAction": "TARGET CASE GREEN at ff52734b5: the previously failing posts-material/conversion/output test now passes (1 passed, 39 skipped) after mounting finance company-money + finance owner-write + commerce/manufacturing owner-write + commercial grant-save routers, fixing the boundary GET/HEAD allowlist, executing workflow assertions on the caller unit, interleaving native Manufacturing markers by contiguous run, and casting jsonb ledger binds. FULL SUITE STILL RED: 6 passed / 34 failed. Remaining blockers in order: (1) files kind SR_058 returns FILES_COMMAND_PERSISTENCE after jsonb casts (need underlying sqlx error); (2) enforced purchase path batches raw WorkContext guard markers in packages/server-manufacturing/src/adapters/purchases.ts current() -> CROSS_DATABASE_TRANSACTION; (3) more native configs/routers may be missing per case. Do not close until all 40 pass.",
+        "nextAction": "TARGET CASE GREEN at f901987c8. Files SR_058 jsonb ledger failure fixed (sqlx Json binds), but the command now times out because the native files route executes in a separate unit while the caller transaction holds attachment locks. Next: make Files commands caller-unit (statement plan) or adjust the caller, then fix purchases.ts current() guard-marker batch, then rerun all 40 cases. Suite 6 passed / 34 failed. Do not close.",
         "handoff": {
           "runId": "run-20261123-b",
           "agentId": "lead",
-          "at": "2026-11-23T02:14:41.029Z",
+          "at": "2026-11-23T02:20:52.385Z",
           "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "TARGET CASE GREEN at ff52734b5: the previously failing posts-material/conversion/output test now passes (1 passed, 39 skipped) after mounting finance company-money + finance owner-write + commerce/manufacturing owner-write + commercial grant-save routers, fixing the boundary GET/HEAD allowlist, executing workflow assertions on the caller unit, interleaving native Manufacturing markers by contiguous run, and casting jsonb ledger binds. FULL SUITE STILL RED: 6 passed / 34 failed. Remaining blockers in order: (1) files kind SR_058 returns FILES_COMMAND_PERSISTENCE after jsonb casts (need underlying sqlx error); (2) enforced purchase path batches raw WorkContext guard markers in packages/server-manufacturing/src/adapters/purchases.ts current() -> CROSS_DATABASE_TRANSACTION; (3) more native configs/routers may be missing per case. Do not close until all 40 pass."
+          "nextAction": "TARGET CASE GREEN at f901987c8. Files SR_058 jsonb ledger failure fixed (sqlx Json binds), but the command now times out because the native files route executes in a separate unit while the caller transaction holds attachment locks. Next: make Files commands caller-unit (statement plan) or adjust the caller, then fix purchases.ts current() guard-marker batch, then rerun all 40 cases. Suite 6 passed / 34 failed. Do not close."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -107949,7 +107949,7 @@
       }
     },
     "lastCoordinatorGeneration": 152,
-    "updatedAt": "2026-11-23T02:14:49.747Z",
+    "updatedAt": "2026-11-23T02:20:52.459Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
