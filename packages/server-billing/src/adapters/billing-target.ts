@@ -3,6 +3,7 @@ import 'server-only';
 import type {PoolClient} from 'pg';
 import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgres';
 import {calculateTargetBillingPeriod as calculate,type TargetBillingRepository} from '@erpx/server-billing/application/target';
+import {nativeBillingOwnerQuery} from '@erpx/server-billing/adapters/native-billing-owner-write';
 import type * as D from '@erpx/server-billing/domain/target';
 export type {TargetMeasuredEvidence,TargetRatedLine,TargetBillingPeriodView} from '@erpx/server-billing/domain/target';
 export function nativeTargetBillingRepository(c:PoolClient):TargetBillingRepository{return {operatingCosts:(value0,value1)=>c.query<D.OperatingCostsRow>(`SELECT o.category,o.amount_satang,e.source_state
@@ -27,7 +28,7 @@ assignment:(value0,value1)=>c.query<D.AssignedOfferingRow>(`SELECT * FROM billin
 assignedPrice:(value0,value1)=>c.query<D.AssignedPriceRow>("SELECT * FROM billing_target_prices WHERE id=$1 AND effective_month<=$2",[value0,value1]),
 approvedRating:(value0,value1)=>c.query<D.ApprovedRatingRow>("SELECT * FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2 AND state='approved'",[value0,value1]),
 approvedInvoice:(value0)=>c.query<D.ApprovedInvoiceRow>("SELECT id,total_satang,status,stripe_id FROM billing_invoices WHERE id=$1",[value0]),
-approvedStatements:(value0,value1)=>c.query<D.ApprovedStatementsRow>("SELECT * FROM billing_target_statements WHERE holding_id=$1 AND month=$2",[value0,value1]),
+approvedStatements:async(value0,value1)=>(await nativeBillingOwnerQuery(c,'target_statements',[value0,value1])) as {rows:D.ApprovedStatementsRow[];rowCount:number|null},
 rolloutEligibility:(value0,value1)=>c.query<D.RolloutEligibilityRow>(`SELECT 1 FROM billing_target_sandbox_holdings WHERE holding_id=$1
      UNION ALL SELECT 1 FROM billing_target_rollout_approvals
      WHERE holding_id=$1 AND effective_month<=$2 LIMIT 1`,[value0,value1]),
@@ -43,7 +44,7 @@ ratingMeters:async(value0,value1)=>c.query<D.RatingMetersRow>(`SELECT source_key
       active_from,active_until
      FROM (${await nativeCommercialOwnerRead(COMMERCIAL_RD_USAGE_METER)}) billing_usage_meters WHERE holding_id=$1 AND month=$2 ORDER BY source_key`,[value0,value1]),
 providerCosts:(value0,value1)=>c.query<D.ProviderCostsRow>("SELECT * FROM billing_target_provider_costs WHERE holding_id=$1 AND month=$2",[value0,value1]),
-providerStatements:(value0,value1)=>c.query<D.ProviderStatementsRow>("SELECT * FROM billing_target_statements WHERE holding_id=$1 AND month=$2",[value0,value1]),
+providerStatements:async(value0,value1)=>(await nativeBillingOwnerQuery(c,'target_statements',[value0,value1])) as {rows:D.ProviderStatementsRow[];rowCount:number|null},
 approvedExtras:(value0,value1)=>c.query<D.ApprovedExtrasRow>("SELECT id,kind,description,amount_satang,evidence_id FROM billing_target_extras WHERE holding_id=$1 AND month=$2 ORDER BY approved_at,id",[value0,value1]),
 ratingSeatIntervals:async(value0,value1)=>c.query<D.RatingSeatIntervalsRow>(`SELECT user_key,intervals_json,snapshot_id FROM (${await nativeCommercialOwnerRead(COMMERCIAL_RD_USAGE_SEAT)}) billing_seat_usage WHERE holding_id=$1 AND month=$2 ORDER BY user_key`,[value0,value1])}}
 export const calculateTargetBillingPeriod=(c:PoolClient,holdingId:string,month:string,now:number)=>calculate(nativeTargetBillingRepository(c),holdingId,month,now);

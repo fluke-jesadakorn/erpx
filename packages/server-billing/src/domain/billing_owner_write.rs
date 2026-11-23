@@ -23,6 +23,7 @@ pub const TARGET_ROLLOUT_EFFECTIVE_PRICE: &str = "target_rollout_effective_price
 pub const TARGET_ROLLOUT_RATED_SHADOW_PERIOD: &str = "target_rollout_rated_shadow_period";
 pub const TARGET_ROLLOUT_AVAILABLE_OPERATING_COSTS: &str = "target_rollout_available_operating_costs";
 pub const TARGET_ROLLOUT_CAPACITY_REVIEW: &str = "target_rollout_capacity_review";
+pub const TARGET_STATEMENTS: &str = "target_statements";
 pub const EVIDENCE_RETAIN: &str = "evidence_retain";
 pub const EVIDENCE_STORAGE_LEDGER: &str = "evidence_storage_ledger";
 pub const EVIDENCE_SCAN_ATTEMPT: &str = "evidence_scan_attempt";
@@ -112,6 +113,7 @@ pub const OWNER_WRITE_KINDS: &[&str] = &[
     TARGET_ROLLOUT_RATED_SHADOW_PERIOD,
     TARGET_ROLLOUT_AVAILABLE_OPERATING_COSTS,
     TARGET_ROLLOUT_CAPACITY_REVIEW,
+    TARGET_STATEMENTS,
     EVIDENCE_RETAIN,
     EVIDENCE_STORAGE_LEDGER,
     EVIDENCE_SCAN_ATTEMPT,

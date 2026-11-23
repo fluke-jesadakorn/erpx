@@ -20,6 +20,7 @@ const { billingApiRepository } = await import('@erpx/server-billing/adapters/bil
 const { billingLink, applyLegacyStripeEvent } = await import('@erpx/server-billing/adapters/beta-billing');
 const { nativeSeatForecastRepository } = await import('@erpx/server-billing/adapters/billing-forecast');
 const { nativeTargetRolloutRepository } = await import('@erpx/server-billing/adapters/billing-target-rollout');
+const { nativeTargetBillingRepository } = await import('@erpx/server-billing/adapters/billing-target');
 
 function env() {
   const query = vi.fn(async () => ({ rows: [] }));
@@ -174,5 +175,21 @@ describe('Billing target-rollout owner-local price read tail', () => {
 
     expect(ownerQuery).not.toHaveBeenCalled();
     expect(query).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe('Billing target statements owner-local read tail', () => {
+  it('reads approved and provider statements by one typed owner kind with only positional binds', async () => {
+    ownerQuery.mockReset();
+    const query = vi.fn(async (_sql: string, _values: unknown[]) => ({ rows: [], rowCount: 0 }));
+    const repository = nativeTargetBillingRepository({ query } as never);
+
+    await repository.approvedStatements('h001', '2027-02');
+    expect(ownerQuery).toHaveBeenCalledWith(expect.anything(), 'target_statements', ['h001', '2027-02']);
+    await repository.providerStatements('h001', '2027-02');
+    expect(ownerQuery).toHaveBeenCalledWith(expect.anything(), 'target_statements', ['h001', '2027-02']);
+
+    expect(ownerQuery).toHaveBeenCalledTimes(2);
+    expect(query).not.toHaveBeenCalled();
   });
 });
