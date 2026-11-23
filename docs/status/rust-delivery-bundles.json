@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6626,
+    "revision": 6636,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -51631,11 +51631,30 @@
             "command": "tsc server-organization + vitest native-read-tail (4)",
             "result": "passed",
             "sourceSha": "109612544"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-organization/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "06fa74f5d",
+            "owner": "organization",
+            "before": 408,
+            "after": 407,
+            "note": "activeSpendingPosition native kind."
+          },
+          {
+            "command": "cargo check -p erpx-server-organization + lib (32)",
+            "result": "passed",
+            "sourceSha": "06fa74f5d"
+          },
+          {
+            "command": "tsc server-organization + vitest native-read-tail (5)",
+            "result": "passed",
+            "sourceSha": "06fa74f5d"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Paused at 408; workspace-route + remaining nodes reads need future claim",
+        "nextAction": "407 recorded; calendar/pms rollout facts remain",
         "handoff": {
           "runId": "run-20261123-f",
           "agentId": "wM02",
@@ -110817,8 +110836,15 @@
         "resources": [
           "owner:pms"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wZ12",
+          "claimedAt": "2026-11-23T19:47:40.555Z",
+          "heartbeatAt": "2026-11-23T19:47:40.555Z",
+          "expiresAt": "2026-11-23T20:17:40.555Z",
+          "generation": 158
+        },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -110883,7 +110909,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "handoff": {
           "runId": "run-20261123-f",
           "agentId": "wH15",
@@ -116246,7 +116272,7 @@
         "owner": "quality",
         "title": "Quality WorkContext work/detail-core read port (owner-side)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116266,22 +116292,38 @@
         "resources": [
           "owner:quality"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wY01",
-          "claimedAt": "2026-11-23T19:23:02.111Z",
-          "heartbeatAt": "2026-11-23T19:45:10.073Z",
-          "expiresAt": "2026-11-23T20:15:10.073Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-quality",
+            "result": "passed",
+            "sourceSha": "06fa74f5d"
+          },
+          {
+            "command": "cargo test -p erpx-server-quality --test quality_work_projection (7)",
+            "result": "passed",
+            "sourceSha": "06fa74f5d"
+          },
+          {
+            "command": "cargo test -p erpx-server-quality --test quality_work_detail_core_postgres (1)",
+            "result": "passed",
+            "sourceSha": "06fa74f5d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Add quality_work projection over workspace holds with injected SourceAccess/same-person, detail_core repository method, public exports and parity tests. No composition/TS switch.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; dispatch composition mount",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wY01",
+          "at": "2026-11-23T19:53:25.868Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; dispatch composition mount"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -116335,7 +116377,7 @@
         "owner": "billing",
         "title": "Billing TS read tail native cutover",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116347,22 +116389,42 @@
         "resources": [
           "owner:billing"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wY02",
-          "claimedAt": "2026-11-23T19:23:26.256Z",
-          "heartbeatAt": "2026-11-23T19:45:10.073Z",
-          "expiresAt": "2026-11-23T20:15:10.073Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-billing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1efef7342",
+            "owner": "billing",
+            "before": 123,
+            "after": 122,
+            "note": "scan_source native owner query."
+          },
+          {
+            "command": "cargo check -p erpx-server-billing + cargo test --lib (30) + billing_commands (12)",
+            "result": "passed",
+            "sourceSha": "1efef7342"
+          },
+          {
+            "command": "vitest tests/unit/billing (91) + tsc root",
+            "result": "passed",
+            "sourceSha": "1efef7342"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest owner-local billing read family with a mounted native port or fixed SQL; switch it and delete the redundant TS SELECT; record strictly lower from 123.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wY02",
+          "at": "2026-11-23T19:48:10.077Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -116702,6 +116764,117 @@
         "nextAction": "Make native ai_history read enforce legal.ai permission + enabled Company + purchased item scope, switch jobs.ts history, delete the TS SELECT, add PG parity/denial tests; record 327->326. No composition.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.projects.read-tail-followup",
+        "goalId": "G4",
+        "owner": "projects",
+        "title": "Projects TS read tail native cutover",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-projects/src/**",
+          "tests/unit/projects/**",
+          "tests/integration/projects/**"
+        ],
+        "resources": [
+          "owner:projects"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wZ13",
+          "claimedAt": "2026-11-23T19:47:40.640Z",
+          "heartbeatAt": "2026-11-23T19:47:40.640Z",
+          "expiresAt": "2026-11-23T20:17:40.640Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.procurement.read-tail-followup",
+        "goalId": "G4",
+        "owner": "procurement",
+        "title": "Procurement TS read tail native cutover",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-procurement/src/**",
+          "tests/unit/procurement/**",
+          "tests/integration/procurement/**"
+        ],
+        "resources": [
+          "owner:procurement"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "integrate.quality.workcontext-read",
+        "goalId": "G4",
+        "owner": "quality",
+        "title": "Mount Quality WorkContext read + switch 4 internal consumers (123->121)",
+        "kind": "integration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "src/composition/src/quality_work_context_read.rs",
+          "src/composition/src/lib.rs",
+          "src/composition/src/private_development_api.rs",
+          "packages/feature-quality/src/adapters/server/native-quality-context-read.ts",
+          "packages/feature-quality/src/public/server.ts",
+          "packages/server-quality/src/adapters/quality.ts",
+          "packages/server-quality/src/application/quality.ts",
+          "packages/server-quality/src/public/quality.ts",
+          "packages/server-runtime/src/adapters/executive/evidence.ts",
+          "packages/server-runtime/src/application/executive/evidence.ts",
+          "packages/server-collaboration/src/adapters/staff-notifications.ts",
+          "packages/server-collaboration/src/application/staff-notifications.ts",
+          "packages/server-quality/src/adapters/product-entry.ts",
+          "packages/server-work_projection/src/adapters/work-items.ts",
+          "tests/unit/quality/**",
+          "tests/integration/quality/**"
+        ],
+        "resources": [
+          "owner:quality",
+          "owner:runtime",
+          "owner:collaboration",
+          "owner:work_projection",
+          "resource:composition"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Add WorkContext-header read router/service, thin TS client, switch executive evidence/staff notifications/product entry/work items, delete rows/getQualityHold/qualityWork and record 123->121.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -116710,21 +116883,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 508,
+      "totalPackets": 510,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 21,
+        "pending": 22,
         "in_progress": 14,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 144,
+        "blocked": 145,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T19:46:39.128Z",
+    "updatedAt": "2026-11-23T19:53:35.227Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
