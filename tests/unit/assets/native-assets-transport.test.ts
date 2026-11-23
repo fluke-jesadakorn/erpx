@@ -328,3 +328,22 @@ it('shares two canonical source-probe projections across the Assets record-purch
  expect(adapter).toContain('database.prepare(assetSourceReadSql(definition.table,"id"))');
  expect(adapter).toContain('database.prepare(assetSourceReadSql(`${definition.table} asset_record_source`,"id",` AND ${scope.where}`))');
 });
+it('shares one fixed owner predicate for attachment owner version guards (46->45)',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+  const guard=await readFile(new URL('attachment-owner-version-guard.ts',base),'utf8');
+  const service=await readFile(new URL('attachments-service-facts.ts',base),'utf8');
+  const operational=await readFile(new URL('attachments-operational-facts.ts',base),'utf8');
+  const predicate='EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=?';
+  // The canonical helper owns the single guard predicate; its comment must
+  // not smuggle a second "SELECT" token into the retirement KPI.
+  expect(guard.match(/SELECT/g)).toHaveLength(1);
+  expect(guard).toContain('export const attachmentOwnerVersionGuardSql');
+  expect(guard).toContain(predicate);
+  for(const consumer of [service,operational]){
+   expect(consumer).toContain('import {attachmentOwnerVersionGuardSql} from "./attachment-owner-version-guard"');
+   expect(consumer).not.toContain('EXISTS(SELECT 1 FROM ${');
+  }
+  expect(service).toContain('attachmentOwnerVersionGuardSql(item.table, item.extra)');
+  expect(operational).toContain('attachmentOwnerVersionGuardSql(table)');
+});
