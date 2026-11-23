@@ -124,15 +124,10 @@ export function holdingPurchaseReadLocks(database: SqlDatabase) {
     database.prepare("SELECT company_id,package_id FROM company_package_grants ORDER BY company_id,package_id FOR SHARE")];
 }
 
-/** Select-list fragment for an owner's actual shadow batch. Company/time are
- * code-owned identifiers; all private grant facts stay on the server. */
-export function purchaseObservationProjection(company: string, capability: string, purpose: CapabilityPurpose, now: string) {
-  const predicate = purchasedCapabilityPredicate(company, capability, purpose, now), literal = (value: string) => `'${value.replaceAll("'", "''")}'`;
-  return `true commercial_purchase_observation,${company} company_id,${literal(capability)}::text capability,${literal(purpose)}::text purpose,${predicate} allowed,${now} observed_at,
-    COALESCE((SELECT jsonb_agg(jsonb_build_object('companyId',g.company_id,'packageId',g.package_id,'packageVersion',g.package_version,'state',g.state,'startsAt',g.starts_at,'endsAt',g.ends_at,'version',g.version)) FROM company_package_grants g WHERE g.company_id=${company}),'[]'::jsonb) grants,
-    ${historyObservationSql(company)} history`;
-}
-
+/** The retired TypeScript `purchaseObservationProjection` SQL builder is gone:
+ * native `PURCHASE_SHADOW_OBSERVATION_FIELDS` owns the checked-phase shadow
+ * projection contract; this module keeps only the live caller-transaction
+ * observation path used by shadow-mode owners until their route cutover. */
 function historyObservationSql(company: string) {
   return `COALESCE((SELECT jsonb_agg(jsonb_build_object('companyId',h.company_id,'packageId',h.package_id,'packageVersion',h.package_version,'sourceGrantVersion',h.source_grant_version,'sourceEventId',h.source_event_id,'retainedAt',h.retained_at)) FROM company_package_history_rights h WHERE h.company_id=${company}),'[]'::jsonb)`;
 }

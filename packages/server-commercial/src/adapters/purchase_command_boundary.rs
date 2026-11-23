@@ -29,6 +29,19 @@ type Error = PgTransactionError<BusinessError>;
 /// check-constraint detail, so owners can keep one mapping helper.
 pub const PURCHASE_BEFORE_STEP: &str = "commercial-purchase-before";
 pub const PURCHASE_AFTER_STEP: &str = "commercial-purchase-after";
+/// Authoritative camelCase field set of the native checked-phase shadow
+/// telemetry. This is the native projection that replaces the retired
+/// TypeScript `purchaseObservationProjection` SQL builder: private grant/history
+/// facts never leave the owner, only this fixed non-personal contract does.
+pub const PURCHASE_SHADOW_OBSERVATION_FIELDS: &[&str] = &[
+    "event",
+    "phase",
+    "companyId",
+    "capability",
+    "purpose",
+    "code",
+    "purchaseRevision",
+];
 const MAX_COMMAND_KEY: usize = 200;
 const MAX_CAPABILITY: usize = 128;
 

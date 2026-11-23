@@ -101130,6 +101130,47 @@
       ]
     },
     {
+      "id": "commercial.rust-purchase-shadow-projection.unit",
+      "lane": "unit",
+      "owner": "commercial",
+      "modules": [
+        "commercial"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native checked-phase shadow projection must be the authoritative non-personal telemetry contract after the TS purchaseObservationProjection SQL builder retirement."
+      },
+      "files": [
+        "tests/unit/commercial/rust-purchase-shadow-projection.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-commercial",
+        "targets": [
+          "purchase_shadow_projection"
+        ]
+      },
+      "verificationInputs": [
+        "packages/server-commercial/Cargo.toml",
+        "packages/server-commercial/src/adapters/purchase_command_boundary.rs",
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml"
+      ],
+      "apps": [
+        "admin",
+        "account"
+      ],
+      "packages": [
+        "@erpx/server-commercial"
+      ]
+    },
+    {
       "id": "commercial.rust-purchase-command-boundary-postgres.integration",
       "lane": "integration",
       "owner": "commercial",
