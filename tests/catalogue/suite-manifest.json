@@ -104718,8 +104718,7 @@
       "lane": "unit",
       "owner": "commercial",
       "modules": [
-        "commercial",
-        "billing"
+        "commercial"
       ],
       "fixture": "none",
       "requires": {
@@ -104762,8 +104761,7 @@
       "lane": "unit",
       "owner": "commercial",
       "modules": [
-        "commercial",
-        "billing"
+        "commercial"
       ],
       "fixture": "none",
       "requires": {
@@ -104792,8 +104790,7 @@
       "lane": "integration",
       "owner": "commercial",
       "modules": [
-        "commercial",
-        "billing"
+        "commercial"
       ],
       "fixture": "postgres",
       "requires": {
