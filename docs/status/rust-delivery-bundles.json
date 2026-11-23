@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6484,
+    "revision": 6487,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -113846,7 +113846,7 @@
         "owner": "field_service",
         "title": "Native field executive report reads + record purchase tail",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -113864,7 +113864,14 @@
         "resources": [
           "owner:field_service"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wS03",
+          "claimedAt": "2026-11-23T18:25:28.719Z",
+          "heartbeatAt": "2026-11-23T18:25:28.719Z",
+          "expiresAt": "2026-11-23T18:55:28.719Z",
+          "generation": 158
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -113978,7 +113985,7 @@
         "owner": "crm",
         "title": "Replace CRM pipeline directory/entitlement stubs with real native witnesses",
         "kind": "integration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -113996,22 +114003,34 @@
           "owner:crm",
           "resource:composition"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wL01",
-          "claimedAt": "2026-11-23T17:59:54.357Z",
-          "heartbeatAt": "2026-11-23T18:23:08.492Z",
-          "expiresAt": "2026-11-23T18:53:08.492Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "59f51e22b"
+          },
+          {
+            "command": "cargo test -p erpx-server-crm (14 targets, single-thread)",
+            "result": "passed",
+            "sourceSha": "59f51e22b",
+            "note": "110 passed"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement real CrmPeopleDirectory (hr_people), CrmCustomerDirectory (finance_parties) and Commercial entitlement port in composition/crm.rs; add tests proving non-empty revision/enforced facts",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated at 59f51e22b; optional composition PG grant test remains",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wL01",
+          "at": "2026-11-23T18:28:15.305Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated at 59f51e22b; optional composition PG grant test remains"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -114646,8 +114665,8 @@
       "totalPackets": 488,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 25,
-        "in_progress": 12,
+        "pending": 24,
+        "in_progress": 13,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -114657,7 +114676,7 @@
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T18:25:09.854Z",
+    "updatedAt": "2026-11-23T18:28:15.308Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
