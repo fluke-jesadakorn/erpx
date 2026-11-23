@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7389,
+    "revision": 7391,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -125903,7 +125903,7 @@
         "owner": "workflow",
         "title": "workflow TS read tail native cutover (round 13)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -125915,22 +125915,42 @@
         "resources": [
           "owner:workflow"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wDJ1wor",
-          "claimedAt": "2026-11-23T23:34:23.126Z",
-          "heartbeatAt": "2026-11-23T23:34:23.126Z",
-          "expiresAt": "2026-11-24T00:04:23.126Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-workflow/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b7ad1a316",
+            "owner": "workflow",
+            "before": 91,
+            "after": 87,
+            "note": "Project worker command evidence image kind; cross-owner assertion fragment retained."
+          },
+          {
+            "command": "cargo check -p erpx-server-workflow + lib (43)",
+            "result": "passed",
+            "sourceSha": "b7ad1a316"
+          },
+          {
+            "command": "vitest workflow transport (26) + tsc workflow/tests-config",
+            "result": "passed",
+            "sourceSha": "b7ad1a316"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining company-scoped fixed-SQL read family served by the wave3 planner; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wDJ1wor",
+          "at": "2026-11-23T23:52:43.486Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -126380,17 +126400,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 14,
+        "in_progress": 13,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 316,
+        "blocked": 317,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-23T23:51:38.601Z",
+    "updatedAt": "2026-11-23T23:52:43.488Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
