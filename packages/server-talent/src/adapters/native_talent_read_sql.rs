@@ -153,6 +153,18 @@ const READ_SENSITIVE_OFFER: NativeTalentReadStatement = NativeTalentReadStatemen
     bind_count: 2,
 };
 
+/// Native successor of the TypeScript `SensitiveAttachmentTalentFacts`
+/// application row read. The caller binds `[user_id, user_id, user_id,
+/// target_id, company_id]` on its unit.
+pub const RD_SENSITIVE_APPLICATIONS: &str = "talent_rd_sensitive_applications";
+const SQL_RD_SENSITIVE_APPLICATIONS: &str =
+    "SELECT c.company_id,c.version,min(r.branch_id) FILTER (WHERE a.owner_id=?) owner_branch_id,min(r.department_id) FILTER (WHERE a.owner_id=?) owner_department_id,CASE WHEN EXISTS(SELECT 1 FROM talent_applications owned WHERE owned.candidate_id=c.id AND owned.company_id=c.company_id AND owned.owner_id=?) THEN 1 ELSE 0 END is_owner FROM talent_candidates c LEFT JOIN talent_applications a ON a.candidate_id=c.id AND a.company_id=c.company_id LEFT JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id WHERE c.id=? AND c.company_id=? GROUP BY c.id,c.company_id,c.version";
+const READ_SENSITIVE_APPLICATIONS: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_SENSITIVE_APPLICATIONS,
+    sql: SQL_RD_SENSITIVE_APPLICATIONS,
+    bind_count: 5,
+};
+
 /// Native successor of the TypeScript `peopleHireHandoffFacts` accepted hire
 /// source row read. The caller binds `[handoff_id, company_id]` on its unit.
 pub const RD_HIRE_SOURCE_ROW: &str = "talent_rd_hire_source_row";
@@ -188,6 +200,7 @@ const STATEMENTS: &[NativeTalentReadStatement] = &[
     READ_WORKSPACE_REQUISITIONS,
     READ_WORKSPACE_CANDIDATES,
     READ_SENSITIVE_OFFER,
+    READ_SENSITIVE_APPLICATIONS,
     READ_HIRE_SOURCE_ROW,
     READ_HIRE_HANDOFF_QUEUE,
 ];
@@ -224,7 +237,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), 1);
         }
-        assert_eq!(STATEMENTS.len(), 14);
+        assert_eq!(STATEMENTS.len(), 15);
     }
 
     #[test]
@@ -273,6 +286,29 @@ mod tests {
             );
         }
         assert_eq!(statement.sql.matches('?').count(), 2);
+    }
+
+    #[test]
+    fn sensitive_application_read_is_owner_authored_select_only() {
+        let statement = read_statement(RD_SENSITIVE_APPLICATIONS).expect("registered owner read kind");
+        assert_eq!(statement.kind, RD_SENSITIVE_APPLICATIONS);
+        assert_eq!(statement.sql, SQL_RD_SENSITIVE_APPLICATIONS);
+        assert_eq!(statement.bind_count, 5);
+        assert!(statement.sql.starts_with("SELECT "), "owner read must be SELECT-only: {sql}", sql = statement.sql);
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+            assert!(!statement.sql.contains(forbidden), "owner read must not mutate: {forbidden}");
+        }
+        for table in [
+            "talent_candidates",
+            "talent_applications",
+            "talent_requisitions",
+        ] {
+            assert!(
+                statement.sql.contains(table),
+                "sensitive application read must stay on owner-local Talent tables: {table}"
+            );
+        }
+        assert_eq!(statement.sql.matches('?').count(), 5);
     }
 
     #[test]

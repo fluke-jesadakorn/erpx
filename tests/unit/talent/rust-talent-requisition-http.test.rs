@@ -664,6 +664,58 @@ async fn command_plan_returns_owner_authored_sensitive_offer_read() {
 }
 
 #[tokio::test]
+async fn command_plan_returns_owner_authored_sensitive_application_read() {
+    let router = talent_requisition_http_router(vec![TalentRequisitionHttpTarget {
+        host: "acme.example.test".into(),
+        holding_slug: "acme".into(),
+        origin: "https://acme.example.test".into(),
+        backend: Arc::new(Noop),
+    }])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+
+    let sql = "SELECT c.company_id,c.version,min(r.branch_id) FILTER (WHERE a.owner_id=?) owner_branch_id,min(r.department_id) FILTER (WHERE a.owner_id=?) owner_department_id,CASE WHEN EXISTS(SELECT 1 FROM talent_applications owned WHERE owned.candidate_id=c.id AND owned.company_id=c.company_id AND owned.owner_id=?) THEN 1 ELSE 0 END is_owner FROM talent_candidates c LEFT JOIN talent_applications a ON a.candidate_id=c.id AND a.company_id=c.company_id LEFT JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id WHERE c.id=? AND c.company_id=? GROUP BY c.id,c.company_id,c.version";
+    let values = serde_json::json!(["user", "user", "user", "cand-1", "company"]);
+    let payload = r#"{"kind":"talent_rd_sensitive_applications","values":["user","user","user","cand-1","company"]}"#;
+    let (status, body, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/talent/command-plan",
+            "acme.example.test",
+            None,
+            payload,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["data"]["statements"][0]["sql"], serde_json::json!(sql));
+    assert_eq!(body["data"]["statements"][0]["values"], values);
+
+    for bad in [
+        r#"{"kind":"talent_rd_sensitive_applications","values":["user"]}"#,
+        r#"{"kind":"talent_rd_sensitive_applications","values":[]}"#,
+    ] {
+        let (status, _, _) = http(
+            addr,
+            post(
+                "/api/v1/holdings/acme/talent/command-plan",
+                "acme.example.test",
+                None,
+                bad,
+            ),
+        )
+        .await;
+        assert_eq!(status, 422);
+    }
+
+    server.abort();
+}
+
+#[tokio::test]
 async fn command_plan_returns_owner_authored_hire_handoff_fact_reads() {
     let router = talent_requisition_http_router(vec![TalentRequisitionHttpTarget {
         host: "acme.example.test".into(),

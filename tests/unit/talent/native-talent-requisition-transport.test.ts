@@ -441,6 +441,44 @@ describe('native Talent detail read tail', () => {
     }
   });
 
+  it('plans the sensitive application read through the mounted command-plan route', async () => {
+    const previous = process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+    process.env.ERPX_NATIVE_TALENT_READ_CONFIG = readConfig;
+    const plannedSql = 'SELECT c.company_id,c.version,min(r.branch_id) FILTER (WHERE a.owner_id=?) owner_branch_id,min(r.department_id) FILTER (WHERE a.owner_id=?) owner_department_id,CASE WHEN EXISTS(SELECT 1 FROM talent_applications owned WHERE owned.candidate_id=c.id AND owned.company_id=c.company_id AND owned.owner_id=?) THEN 1 ELSE 0 END is_owner FROM talent_candidates c LEFT JOIN talent_applications a ON a.candidate_id=c.id AND a.company_id=c.company_id LEFT JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id WHERE c.id=? AND c.company_id=? GROUP BY c.id,c.company_id,c.version';
+    const values = ['user', 'user', 'user', 'cand-1', 'company'];
+    const fetchMock = vi.fn(async (_url: unknown, init: { body?: string }) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      expect(body.kind).toBe('talent_rd_sensitive_applications');
+      expect(body.values).toEqual(values);
+      return ok({ data: { statements: [{ sql: plannedSql, values: body.values }] } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const seen: string[] = [];
+    const db = {
+      prepare(sql: string) {
+        seen.push(sql);
+        return {
+          bind(...bound: unknown[]) {
+            expect(bound).toEqual(values);
+            return { first: async () => ({ company_id: 'company', owner_branch_id: 'branch', is_owner: 1 }) };
+          },
+        };
+      },
+    } as never;
+    try {
+      await expect(SensitiveAttachmentTalentFacts(db).readTalentApplications1({
+        userId: 'user', userId2: 'user', userId3: 'user', targetId: 'cand-1', companyId: 'company',
+      })).resolves.toMatchObject({ company_id: 'company', owner_branch_id: 'branch', is_owner: 1 });
+      expect(seen).toEqual([plannedSql]);
+      expect(String(fetchMock.mock.calls[0][0])).toContain('/api/v1/holdings/acme/talent/command-plan');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+      if (previous === undefined) delete process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+      else process.env.ERPX_NATIVE_TALENT_READ_CONFIG = previous;
+    }
+  });
+
   it('plans the hire handoff fact reads through the mounted command-plan route', async () => {
     const previous = process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
     process.env.ERPX_NATIVE_TALENT_READ_CONFIG = readConfig;

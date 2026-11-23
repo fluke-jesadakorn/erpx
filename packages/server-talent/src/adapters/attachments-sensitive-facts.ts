@@ -55,21 +55,13 @@ function sensitiveAttachmentRecordVersionStep(
     .bind(now, targetId, expectedVersion);
 }
 export function SensitiveAttachmentTalentFacts(db:SqlDatabase){return {
-readTalentApplications1:(facts:{userId:string;userId2:string;userId3:string;targetId:string;companyId:string;})=>db.prepare(`SELECT c.company_id,c.version,
-        min(r.branch_id) FILTER (WHERE a.owner_id=?) owner_branch_id,
-        min(r.department_id) FILTER (WHERE a.owner_id=?) owner_department_id,
-        CASE WHEN EXISTS(SELECT 1 FROM talent_applications owned WHERE owned.candidate_id=c.id AND owned.company_id=c.company_id AND owned.owner_id=?) THEN 1 ELSE 0 END is_owner
-      FROM talent_candidates c
-      LEFT JOIN talent_applications a ON a.candidate_id=c.id AND a.company_id=c.company_id
-      LEFT JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id
-      WHERE c.id=? AND c.company_id=?
-      GROUP BY c.id,c.company_id,c.version`).bind(facts.userId,facts.userId2,facts.userId3,facts.targetId,facts.companyId).first<{
+readTalentApplications1:(facts:{userId:string;userId2:string;userId3:string;targetId:string;companyId:string;})=>nativeTalentReadFirst<{
       company_id: string;
       version: number;
       owner_branch_id: string | null;
       owner_department_id: string | null;
       is_owner: number;
-    }>(),
+    }>('talent_rd_sensitive_applications',[facts.userId,facts.userId2,facts.userId3,facts.targetId,facts.companyId],db),
 readTalentOffers1:(facts:{targetId:string;companyId:string;})=>nativeTalentReadFirst<{
       company_id: string;
       version: number;
