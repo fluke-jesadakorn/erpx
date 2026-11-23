@@ -14,6 +14,7 @@ const {activeDepartmentFact} = await import('@erpx/server-organization/adapters/
 const {publicMarketingReceivingBranch} = await import('@erpx/server-organization/adapters/public-marketing-receiving-branch');
 const {workReportOrganizationFacts} = await import('@erpx/server-organization/public/work-report-facts');
 const {activeSpendingPosition} = await import('@erpx/server-organization/adapters/spending-position');
+const {pmsRolloutOrganizationFacts} = await import('@erpx/server-organization/adapters/pms-rollout-facts');
 
 function db(): SqlDatabase {
   return {prepare: vi.fn(() => {throw new Error('owner-local reader must not build local SQL');})} as unknown as SqlDatabase;
@@ -64,6 +65,17 @@ describe('Organization owner-local read tail', () => {
     one.mockResolvedValueOnce(null as never);
     await expect(activeSpendingPosition(handle, 'company', 'position')).resolves.toBe(false);
     expect(one).toHaveBeenCalledWith(handle, 'company', 'spending_active_position', ['position', 'company']);
+  });
+
+  it('reduces the PMS rollout active-branch fact from a typed single-row owner read', async () => {
+    one.mockClear();
+    const handle = db();
+    const row = {'1': 1} as never;
+    one.mockResolvedValueOnce(row);
+    await expect(pmsRolloutOrganizationFacts(handle).organization('company')).resolves.toBe(row);
+    one.mockResolvedValueOnce(null as never);
+    await expect(pmsRolloutOrganizationFacts(handle).organization('company')).resolves.toBeNull();
+    expect(one).toHaveBeenCalledWith(handle, 'company', 'pms_rollout_active_branch', ['company']);
   });
 
 });

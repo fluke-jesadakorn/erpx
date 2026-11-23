@@ -220,6 +220,12 @@ pub const WORK_REPORT_ORGANIZATION_NODES: &str = "work_report_organization_nodes
 /// the boolean reduction stays in the TypeScript caller.
 pub const SPENDING_ACTIVE_POSITION: &str = "spending_active_position";
 
+// -- pms-rollout-facts ---------------------------------------------------------
+/// Native-owned PMS rollout active-branch fact. SELECT-only and Company keyed
+/// over the org-owned `organization_nodes` table; the boolean reduction stays
+/// in the TypeScript consumer.
+pub const PMS_ROLLOUT_ACTIVE_BRANCH: &str = "pms_rollout_active_branch";
+
 /// Every kind this owner module accepts. Anything else is fail-closed.
 pub const KINDS: &[&str] = &[
     ORG_ATTACHMENT_NODE_VERSION_STEP,
@@ -317,6 +323,7 @@ pub const KINDS: &[&str] = &[
     PUBLIC_MARKETING_RECEIVING_BRANCH,
     WORK_REPORT_ORGANIZATION_NODES,
     SPENDING_ACTIVE_POSITION,
+    PMS_ROLLOUT_ACTIVE_BRANCH,
 ];
 
 /// Tables admitted for the generic attachment owner version step. Column is
@@ -632,6 +639,9 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         SPENDING_ACTIVE_POSITION => {
             "SELECT 1 FROM organization_positions WHERE id=? AND company_id=? AND active=1"
+        }
+        PMS_ROLLOUT_ACTIVE_BRANCH => {
+            "SELECT 1 FROM organization_nodes WHERE company_id=? AND kind='branch' AND status='active' LIMIT 1"
         }
         _ => return None,
     })
@@ -1308,6 +1318,35 @@ mod tests {
         assert_eq!(positional(expected), "SELECT 1 FROM organization_positions WHERE id=$1 AND company_id=$2 AND active=1");
         assert!(owner_statement(SPENDING_ACTIVE_POSITION, &[Value::from("position")]).is_err());
         assert!(owner_statement(SPENDING_ACTIVE_POSITION, &[]).is_err());
+    }
+
+    /// The PMS rollout active-branch fact retired from `pms-rollout-facts.ts`
+    /// is native-owned, SELECT-only and Company keyed over the org-owned
+    /// `organization_nodes` table. The boolean reduction stays in the
+    /// TypeScript consumer, which sends only the typed kind and Company value.
+    #[test]
+    fn pms_rollout_active_branch_kind_is_select_only_and_company_scoped() {
+        let expected = "SELECT 1 FROM organization_nodes WHERE company_id=? AND kind='branch' AND status='active' LIMIT 1";
+        assert!(supported(PMS_ROLLOUT_ACTIVE_BRANCH));
+        assert_eq!(
+            sql(PMS_ROLLOUT_ACTIVE_BRANCH).unwrap(),
+            expected,
+            "PMS rollout SQL must match the retired literal"
+        );
+        assert!(expected.starts_with("SELECT "));
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+            assert!(!expected.contains(forbidden), "PMS rollout read must not mutate: {forbidden}");
+        }
+        assert!(expected.contains("company_id=?"), "PMS rollout read must be Company scoped");
+        assert!(expected.contains("organization_nodes"), "PMS rollout read must stay owner-local");
+        assert_eq!(expected.matches('?').count(), 1);
+        let (statement, values) =
+            owner_statement(PMS_ROLLOUT_ACTIVE_BRANCH, &[Value::from("company")])
+                .expect("PMS rollout statement");
+        assert_eq!(statement, expected);
+        assert_eq!(values.len(), 1);
+        assert_eq!(positional(expected), "SELECT 1 FROM organization_nodes WHERE company_id=$1 AND kind='branch' AND status='active' LIMIT 1");
+        assert!(owner_statement(PMS_ROLLOUT_ACTIVE_BRANCH, &[]).is_err());
     }
 
     /// Owner-local reads retired from `department-authority-reads.ts`: ten
