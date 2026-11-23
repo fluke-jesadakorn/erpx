@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6529,
+    "revision": 6539,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -114040,7 +114040,7 @@
         "owner": "support",
         "title": "Native support session reads (12 SELECT -> 0)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -114057,7 +114057,14 @@
         "resources": [
           "owner:support"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wW02",
+          "claimedAt": "2026-11-23T19:05:51.389Z",
+          "heartbeatAt": "2026-11-23T19:05:51.389Z",
+          "expiresAt": "2026-11-23T19:35:51.389Z",
+          "generation": 158
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -114326,7 +114333,7 @@
         "owner": "learning",
         "title": "Native learning work port + alias consumer cleanup (3 SELECT -> 0)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -114346,22 +114353,54 @@
         "resources": [
           "owner:learning"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wT03",
-          "claimedAt": "2026-11-23T18:35:05.893Z",
-          "heartbeatAt": "2026-11-23T19:02:05.064Z",
-          "expiresAt": "2026-11-23T19:32:05.064Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Add native learningWork read (assignments + eligibility) mirrored from work-items use, switch work-items/records/collab alias consumers, delete 3 SELECTs and aliases; record 96->93",
-        "handoff": null,
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-learning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "483c0f7af",
+            "owner": "learning",
+            "before": 96,
+            "after": 94,
+            "note": "wT03: learningWork native; alias consumers switched. Eligibility predicate retained as synchronous witness (R3)."
+          },
+          {
+            "command": "cargo check -p erpx-server-learning",
+            "result": "passed",
+            "sourceSha": "483c0f7af"
+          },
+          {
+            "command": "cargo test learning (26) + learning_http (3) + learning_postgres (14)",
+            "result": "passed",
+            "sourceSha": "483c0f7af"
+          },
+          {
+            "command": "tsc server-learning/work_projection/collaboration",
+            "result": "passed",
+            "sourceSha": "483c0f7af"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-learning/src/adapters/learning.ts",
+            "statements": 1,
+            "removalTaskId": "retire.learning.work-port",
+            "removalCondition": "After a native transactional eligibility witness replaces the assignmentWitness predicate."
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Integrated; shared consumer paths released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wT03",
+          "at": "2026-11-23T19:05:29.976Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; shared consumer paths released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -114425,7 +114464,7 @@
         "owner": "crm",
         "title": "Native CRM activity workspace read port (owner-side prep)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [
@@ -114447,22 +114486,43 @@
         "resources": [
           "owner:crm"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wT02",
-          "claimedAt": "2026-11-23T18:35:05.813Z",
-          "heartbeatAt": "2026-11-23T19:02:05.064Z",
-          "expiresAt": "2026-11-23T19:32:05.064Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-crm",
+            "result": "passed",
+            "sourceSha": "ec0ba6fa7"
+          },
+          {
+            "command": "cargo test -p erpx-server-crm --test crm_activity_workspace (6)",
+            "result": "passed",
+            "sourceSha": "ec0ba6fa7"
+          },
+          {
+            "command": "cargo test -p erpx-server-crm --test crm_activity_workspace_postgres (2)",
+            "result": "passed",
+            "sourceSha": "ec0ba6fa7"
+          },
+          {
+            "command": "cargo test -p erpx-server-crm --lib --test crm_activities (15)",
+            "result": "passed",
+            "sourceSha": "ec0ba6fa7"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement ActivityWorkspaceRead port per spec: domain view/work rules, repository+directory traits, PG adapter with exact SQL, unit + PG parity tests. No composition.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; mount/consumer task follow-up",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wT02",
+          "at": "2026-11-23T19:06:15.424Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; mount/consumer task follow-up"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -114619,7 +114679,7 @@
         "owner": "identity_access",
         "title": "Extend native GPO overview + not-required command (owner-side)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -114636,22 +114696,38 @@
         "resources": [
           "owner:identity_access"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wQ01",
-          "claimedAt": "2026-11-23T18:19:54.104Z",
-          "heartbeatAt": "2026-11-23T19:02:05.064Z",
-          "expiresAt": "2026-11-23T19:32:05.064Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-identity-access --features position-gpo-connector --all-targets",
+            "result": "passed",
+            "sourceSha": "483c0f7af"
+          },
+          {
+            "command": "cargo check -p erpx-service --features private-development-api",
+            "result": "passed",
+            "sourceSha": "483c0f7af"
+          },
+          {
+            "command": "cargo test position_gpo (13) + position_gpo_directory (9) + position_gpo_http (4) + position_gpo_postgres (9)",
+            "result": "passed",
+            "sourceSha": "483c0f7af"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Extend overview to rules/effectiveByPosition/tasks/canManage with branch/department scope and read authority parity; add not-required command kind + guards; tests",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; dispatch GPO consumer cutover next",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wQ01",
+          "at": "2026-11-23T19:05:11.788Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; dispatch GPO consumer cutover next"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -114660,7 +114736,7 @@
         "owner": "support",
         "title": "Native support incident detail/read port for TS consumers",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -114676,22 +114752,38 @@
         "resources": [
           "owner:support"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wQ02",
-          "claimedAt": "2026-11-23T18:19:54.191Z",
-          "heartbeatAt": "2026-11-23T19:02:05.064Z",
-          "expiresAt": "2026-11-23T19:32:05.064Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-support",
+            "result": "passed",
+            "sourceSha": "483c0f7af"
+          },
+          {
+            "command": "cargo test -p erpx-server-support (7 binaries)",
+            "result": "passed",
+            "sourceSha": "483c0f7af"
+          },
+          {
+            "command": "tsc server-support + vitest incident client (4)",
+            "result": "passed",
+            "sourceSha": "483c0f7af"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Expose native get_incident by-id read (hold fields for notifications/executive/work items) and a bounded TS client; tests. Consumer switches follow.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; next mount route + switch staff-notifications/work-items",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wQ02",
+          "at": "2026-11-23T19:05:22.482Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; next mount route + switch staff-notifications/work-items"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -115252,6 +115344,48 @@
         "nextAction": "Implement benefits-native-read (workspace/detail/work) over the mounted native client; delete SQL adapter; keep public/benefits.ts as a re-export compatibility barrel so work-items/records/collab keep compiling until a follow-up switch. Record 87->80.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.identity_access.gpo-consumer-cutover",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "title": "GPO rules native consumer cutover (identity 607->593)",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/feature-admin/src/routes/api/v1/holdings/[holdingSlug]/technology/[[...path]]/route.ts",
+          "packages/server-identity_access/src/adapters/presentation-context-queries.ts",
+          "packages/server-identity_access/src/adapters/native-position-gpo.ts",
+          "packages/server-identity_access/src/adapters/gpo-rules.ts",
+          "packages/server-identity_access/src/application/gpo-rules.ts",
+          "packages/server-identity_access/src/public/gpo-rules.ts",
+          "packages/server-organization/src/adapters/organization-drafts.ts",
+          "packages/server-organization/src/application/organization-drafts.ts",
+          "packages/server-organization/src/application/position-moves.ts",
+          "packages/server-people_payroll/src/adapters/people-lifecycle.ts",
+          "packages/server-people_payroll/src/application/people-lifecycle.ts",
+          "tests/integration/organization/**",
+          "tests/unit/identity_access/**",
+          "tests/e2e/organization/position-gpo-ui.spec.ts"
+        ],
+        "resources": [
+          "owner:identity_access",
+          "owner:organization",
+          "owner:people_payroll"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Switch feature-admin technology route, workplace presenter query, organization drafts, and people-lifecycle to native GPO overview; add not-required to native command set; delete gpo-rules.ts/application/public (14 SELECTs), record 607->593, move position-gpo oracle.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -115260,21 +115394,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 493,
+      "totalPackets": 494,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 21,
-        "in_progress": 14,
+        "in_progress": 11,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 129,
+        "blocked": 133,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T19:02:05.069Z",
+    "updatedAt": "2026-11-23T19:06:15.427Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
