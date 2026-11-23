@@ -299,3 +299,16 @@ it('shares one canonical permission-probe SQL with the purchase and metric calle
  expect(metrics).toContain('assetPermissionProbeSql("asset_metric_scope","records.read")');
  expect(metrics).toContain('assignmentReadSql("asset_metric_owned","records.read")');
 });
+it('shares one parameterized asset descriptor SQL across the policy and remaining-operational reads (49->48)',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const policy=await readFile(new URL('../../../packages/server-assets/src/adapters/attachments-policy-facts.ts',import.meta.url),'utf8');
+ const operational=await readFile(new URL('../../../packages/server-assets/src/adapters/attachments-operational-facts.ts',import.meta.url),'utf8');
+ const count=(text:string,needle:string)=>text.split(needle).length-1;
+ const literal='SELECT company_id,${branch} AS branch_id,${department} AS department_id,${version} AS version FROM ${table}';
+ expect(policy).toContain('export const assetAttachmentDescriptorSql = (table:string,branch:string,department:string,version:string,extra="") =>');
+ expect(count(policy,literal)).toBe(1);
+ expect(count(operational,literal)).toBe(0);
+ expect(policy).toContain('assetAttachmentDescriptorSql(descriptor.table,branch,department,version,extra)');
+ expect(operational).toContain('assetAttachmentDescriptorSql(moduleTarget.table,moduleTarget.branch,moduleTarget.department ?? "NULL::text","version")');
+ expect(operational).toContain('import {assetAttachmentDescriptorSql} from "./attachments-policy-facts"');
+});
