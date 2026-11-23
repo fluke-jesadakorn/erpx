@@ -331,6 +331,41 @@ async fn command_plan_route_returns_access_history_read_statements() {
 }
 
 #[tokio::test]
+async fn command_plan_route_returns_access_identity_read_statement() {
+    let router = customer_access_http_router(vec![CustomerAccessHttpTarget {
+        host: "acme.example.test".into(),
+        holding_slug: "acme".into(),
+        origin: "https://acme.example.test".into(),
+        backend: Arc::new(Noop),
+    }])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+
+    let (status, body, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/customer-access/command-plan",
+            "acme.example.test",
+            Some("ca-identity-plan-1"),
+            r#"{"kind":"customer_authority_rd_access_identities","values":["binding-id"]}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    let statement = &body["data"]["statements"][0];
+    let sql = statement["sql"].as_str().expect("planned sql");
+    assert!(sql.starts_with("SELECT 1 FROM customer_access_identities"));
+    assert!(sql.contains("binding_id=?"));
+    assert_eq!(statement["values"].as_array().unwrap().len(), 1);
+
+    server.abort();
+}
+
+#[tokio::test]
 async fn actual_router_forwards_access_reads_and_commands() {
     let seen = Arc::new(Mutex::new(Vec::new()));
     let router = customer_access_http_router(vec![

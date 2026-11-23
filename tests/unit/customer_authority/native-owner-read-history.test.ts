@@ -2,6 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 import {
   CA_RD_ACCESS_EVENTS,
+  CA_RD_ACCESS_IDENTITIES,
   CA_RD_ACCESS_READS,
   CA_RD_DUPLICATE_REVIEW_HISTORY,
   CA_RD_IDENTITY_CHANGE_HISTORY,
@@ -85,5 +86,29 @@ describe('native Customer Authority change-history owner reads', () => {
   it('carries the exact customer-access history discriminators', () => {
     expect(CA_RD_ACCESS_EVENTS).toBe('customer_authority_rd_access_events');
     expect(CA_RD_ACCESS_READS).toBe('customer_authority_rd_access_reads');
+  });
+
+  it('plans the bound-identity existence read on the caller unit', async () => {
+    process.env[key] = config();
+    const sql = 'SELECT 1 FROM customer_access_identities WHERE binding_id=?';
+    vi.stubGlobal('fetch', fetchPlan(sql, ['binding']));
+    const seen: { sql: string; values: unknown[] }[] = [];
+    const db = {
+      prepare: (statement: string) => ({
+        bind: (...values: unknown[]) => {
+          seen.push({ sql: statement, values });
+          return { all: async () => ({ results: [{ '1': 1 }] }) };
+        },
+      }),
+    };
+    const result = await nativeOwnerReadAll(CA_RD_ACCESS_IDENTITIES, ['binding'], db as never, 'acme');
+    expect(result.results).toEqual([{ '1': 1 }]);
+    expect(seen).toEqual([{ sql, values: ['binding'] }]);
+    vi.unstubAllGlobals();
+    delete process.env[key];
+  });
+
+  it('carries the exact bound-identity discriminator', () => {
+    expect(CA_RD_ACCESS_IDENTITIES).toBe('customer_authority_rd_access_identities');
   });
 });

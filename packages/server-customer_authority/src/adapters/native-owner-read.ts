@@ -19,6 +19,7 @@ export const CA_RD_IDENTITY_CHANGE_HISTORY = 'customer_authority_rd_identity_cha
 export const CA_RD_DUPLICATE_REVIEW_HISTORY = 'customer_authority_rd_duplicate_review_history';
 export const CA_RD_ACCESS_EVENTS = 'customer_authority_rd_access_events';
 export const CA_RD_ACCESS_READS = 'customer_authority_rd_access_reads';
+export const CA_RD_ACCESS_IDENTITIES = 'customer_authority_rd_access_identities';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'CUSTOMER_AUTHORITY_NATIVE_READ_UNAVAILABLE', 'The native Customer Authority read service is unavailable.');

@@ -93,12 +93,27 @@ const READ_ACCESS_READS: NativeReadStatement = NativeReadStatement {
     bind_count: 1,
 };
 
+/// Native successor of the TypeScript `access.ts` bound-identity existence
+/// read. The owner plans the literal; the caller binds `[bindingId]` on its
+/// open unit and treats any row as "an identity is already bound".
+pub const RD_ACCESS_IDENTITIES: &str = "customer_authority_rd_access_identities";
+
+const SQL_RD_ACCESS_IDENTITIES: &str =
+    "SELECT 1 FROM customer_access_identities WHERE binding_id=?";
+
+const READ_ACCESS_IDENTITIES: NativeReadStatement = NativeReadStatement {
+    kind: RD_ACCESS_IDENTITIES,
+    sql: SQL_RD_ACCESS_IDENTITIES,
+    bind_count: 1,
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_SALES_REVIEW_COUNTS,
     READ_IDENTITY_CHANGE_HISTORY,
     READ_DUPLICATE_REVIEW_HISTORY,
     READ_ACCESS_EVENTS,
     READ_ACCESS_READS,
+    READ_ACCESS_IDENTITIES,
 ];
 
 /// Resolve an owner read kind. `None` for every unregistered discriminator.
@@ -166,6 +181,19 @@ mod tests {
             assert!(!read.sql.to_uppercase().contains("DELETE FROM"));
             assert!(!read.sql.to_uppercase().contains("UPDATE "));
         }
+    }
+
+    #[test]
+    fn access_identity_read_is_a_fixed_select_with_exact_binds() {
+        let read = read_statement(RD_ACCESS_IDENTITIES).expect("read kind");
+        assert!(is_read(RD_ACCESS_IDENTITIES));
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert!(read.sql.starts_with("SELECT 1 FROM customer_access_identities"));
+        assert!(read.sql.contains("binding_id=?"));
+        assert!(!read.sql.to_uppercase().contains("INSERT INTO"));
+        assert!(!read.sql.to_uppercase().contains("DELETE FROM"));
+        assert!(!read.sql.to_uppercase().contains("UPDATE "));
     }
 
     #[test]
