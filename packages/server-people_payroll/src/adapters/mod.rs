@@ -16,6 +16,7 @@ pub(crate) mod field_service_worker;
 pub(crate) mod payroll_accounting_input;
 pub(crate) mod payroll_run;
 pub(crate) mod payroll_run_http;
+pub(crate) mod payroll_schedule;
 pub(crate) mod payroll_summary_http;
 pub(crate) mod payroll_summary_read;
 pub(crate) mod workforce_http;

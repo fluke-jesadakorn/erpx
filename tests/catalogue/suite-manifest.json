@@ -104430,6 +104430,64 @@
         ],
         "migratedSlots": []
       }
+    },
+    {
+      "id": "people_payroll.rust-payroll-schedule-postgres.integration",
+      "lane": "integration",
+      "owner": "people_payroll",
+      "modules": [
+        "people_payroll"
+      ],
+      "files": [
+        "tests/integration/people_payroll/rust-payroll-schedule-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native payroll schedule save retains holding scope, version gate, anchor-date requirement, idempotent replay and receipt/audit/outbox effects in the caller transaction."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-people-payroll",
+        "targets": [
+          "payroll_schedule_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-people_payroll/Cargo.toml",
+        "tests/support/rust-postgres.rs",
+        "packages/server-people_payroll/src/public/payroll_schedule.rs",
+        "packages/server-people_payroll/src/adapters/payroll_schedule.rs",
+        "packages/server-people_payroll/src/domain/payroll_schedule.rs"
+      ],
+      "apps": [
+        "people"
+      ],
+      "packages": [
+        "@erpx/server-people_payroll",
+        "@erpx/server-collaboration"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
     }
   ]
 }

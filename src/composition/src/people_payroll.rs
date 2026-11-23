@@ -29,6 +29,9 @@ use erpx_server_people_payroll::public::payroll_run::{
     PayrollJournalRequest, PayrollPreparedJournal, calculate_payroll_run, cancel_payroll_run,
     create_payroll_run, post_payroll,
 };
+use erpx_server_people_payroll::public::payroll_schedule::{
+    PayrollScheduleCommandActor, SCHEDULE_OPERATION, save_payroll_schedule,
+};
 use erpx_server_people_payroll::public::payroll_run_http::{
     PayrollCommandHttpBackend, PayrollCommandHttpFuture, PayrollCommandHttpKind,
     PayrollCommandHttpRequest, PayrollCommandHttpResponse, PayrollCommandHttpTarget,
@@ -970,6 +973,54 @@ impl<C: Clock + Send + Sync + 'static> PeoplePayrollService<C> {
                                 .await?;
                                 data
                             }
+                            PayrollCommandHttpKind::SaveSchedule { group_id } => {
+                                let key = command_key(key)?;
+                                let input = schedule_input(&body)?;
+                                let boundary = begin_payroll_purchase(
+                                    connection,
+                                    &holding,
+                                    &company,
+                                    actor.user_id.as_str(),
+                                    &key,
+                                    SCHEDULE_OPERATION,
+                                    &group_id,
+                                    if input.enabled {
+                                        CapabilityPurpose::NewWork
+                                    } else {
+                                        CapabilityPurpose::SettleExisting
+                                    },
+                                )
+                                .await?;
+                                let selected = current.selection();
+                                let assignment = selected.assignment();
+                                let schedule_actor = PayrollScheduleCommandActor {
+                                    user_id: actor.user_id.clone(),
+                                    assignment_id: assignment.id.as_str().to_owned(),
+                                    role: assignment.role.clone(),
+                                    company_id: company.as_str().to_owned(),
+                                    holding_id: holding.as_str().to_owned(),
+                                    scope_kind: match assignment.scope_kind {
+                                        WorkScopeKind::Holding => "holding",
+                                        WorkScopeKind::Branch => "branch",
+                                        WorkScopeKind::Department => "department",
+                                    }
+                                    .to_owned(),
+                                };
+                                let data = save_payroll_schedule(
+                                    &mut *connection,
+                                    &schedule_actor,
+                                    &key,
+                                    &group_id,
+                                    input.enabled,
+                                    input.pay_delay_days,
+                                    input.anchor_date.as_deref(),
+                                    input.expected_version,
+                                    now.get(),
+                                )
+                                .await?;
+                                complete_payroll_purchase(boundary, connection, &holding).await?;
+                                serde_json::to_value(data).map_err(|_| scope())?
+                            }
                         };
                         Ok(PayrollCommandHttpResponse {
                             data,
@@ -987,6 +1038,42 @@ fn command_key(
 ) -> Result<erpx_server_shared::public::CommandKey, BusinessError> {
     key.ok_or_else(|| {
         BusinessError::invalid("COMMAND_KEY_REQUIRED", "Idempotency-Key is required.")
+    })
+}
+
+struct ScheduleInput {
+    enabled: bool,
+    pay_delay_days: i64,
+    anchor_date: Option<String>,
+    expected_version: i64,
+}
+
+fn schedule_input(body: &Value) -> Result<ScheduleInput, BusinessError> {
+    let invalid = || {
+        BusinessError::invalid(
+            "PAYROLL_SCHEDULE_REQUEST_INVALID",
+            "The payroll schedule request is invalid.",
+        )
+    };
+    let enabled = body.get("enabled").and_then(Value::as_bool).ok_or_else(invalid)?;
+    let pay_delay_days = body
+        .get("payDelayDays")
+        .and_then(Value::as_i64)
+        .ok_or_else(invalid)?;
+    let anchor_date = match body.get("anchorDate") {
+        None | Some(Value::Null) => None,
+        Some(Value::String(date)) => Some(date.clone()),
+        _ => return Err(invalid()),
+    };
+    let expected_version = body
+        .get("expectedVersion")
+        .and_then(Value::as_i64)
+        .ok_or_else(invalid)?;
+    Ok(ScheduleInput {
+        enabled,
+        pay_delay_days,
+        anchor_date,
+        expected_version,
     })
 }
 

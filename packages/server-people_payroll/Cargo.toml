@@ -120,5 +120,9 @@ name = "expense_postgres"
 path = "../../tests/integration/people_payroll/rust-expense-postgres.test.rs"
 
 [[test]]
+name = "payroll_schedule_postgres"
+path = "../../tests/integration/people_payroll/rust-payroll-schedule-postgres.test.rs"
+
+[[test]]
 name = "rfq_request_people_postgres"
 path = "../../tests/integration/people_payroll/rust-rfq-request-people-postgres.test.rs"

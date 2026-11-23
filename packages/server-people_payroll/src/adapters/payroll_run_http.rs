@@ -27,6 +27,7 @@ pub enum PayrollCommandHttpKind {
     Cancel { run_id: String },
     Post { run_id: String },
     Detail { run_id: String },
+    SaveSchedule { group_id: String },
 }
 
 impl PayrollCommandHttpKind {
@@ -37,6 +38,7 @@ impl PayrollCommandHttpKind {
             | Self::Cancel { run_id }
             | Self::Post { run_id }
             | Self::Detail { run_id } => Some(run_id),
+            Self::SaveSchedule { .. } => None,
         }
     }
 
@@ -241,6 +243,10 @@ pub fn people_payroll_command_router(
             "/api/v1/holdings/{holding_slug}/people/payroll/runs/{run_id}/post",
             post(post_run),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/people/payroll/groups/{group_id}/schedule",
+            post(save_schedule),
+        )
         .with_state(Arc::new(PayrollCommandHttpState {
             targets: configured,
         })))
@@ -347,6 +353,24 @@ async fn detail_run(
         request,
         PayrollCommandHttpKind::Detail { run_id },
         false,
+    )
+    .await
+}
+
+async fn save_schedule(
+    State(state): State<Arc<PayrollCommandHttpState>>,
+    Path((slug, group_id)): Path<(String, String)>,
+    request: Request,
+) -> Response {
+    if !valid_run_id(&group_id) {
+        return error_response(missing());
+    }
+    dispatch(
+        state,
+        slug,
+        request,
+        PayrollCommandHttpKind::SaveSchedule { group_id },
+        true,
     )
     .await
 }

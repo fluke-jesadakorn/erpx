@@ -41,9 +41,6 @@ readSubmitPayrollReviewRun(runId:string,companyId:string):Promise<{id:string;sta
 guard41(key:string,value:"preview",runId:string,companyId:string,expectedVersion:number,inputDigest:string):Effect;
 stageSubmitPayrollReviewEffect(userId:string,inputDigest:string,now:number,now2:number,runId:string,companyId:string,expectedVersion:number):Effect;
 readGetPayrollScheduleGroup(groupId:string,companyId:string):Promise<Schedule|null>;
-readSavePayrollScheduleGroup(groupId:string,companyId:string):Promise<{id:string;frequency:string;schedule_version:number}|null>;
-guard45(key:string,value:"pay-group",groupId:string,companyId:string,expectedVersion:number):Effect;
-stageSavePayrollScheduleEffect(enabled:boolean,payDelayDays:number,value:string | null,now:number,groupId:string,companyId:string,expectedVersion:number):Effect;
 readDrainPayrollSchedulesGroups():Promise<{results:(Schedule)[]}>;
 readDrainPayrollSchedulesExisting(company_id:string,id:string,periodStart:string,periodEnd:string):Promise<Record<string,unknown>|null>;
 stageDrainPayrollSchedulesResult(id:string,company_id:string,id2:string,periodStart:string,periodEnd:string,payDate:string,currency:string,timestamp:number,timestamp2:number,company_id2:string,id3:string,periodStart2:string,periodEnd2:string,scheduleVersion:number):Promise<{success:boolean;meta:{changes:number;duration?:number;last_row_id?:number|string}}>;
@@ -227,19 +224,6 @@ async function getPayrollSchedule(actor:WorkContext,groupId:string){
   if(!group)throw new BusinessRuleError(404,"PAY_GROUP_NOT_FOUND","Pay group not found.");
   return {id:group.id,frequency:group.frequency,timezone:group.timezone,currency:group.currency,enabled:group.schedule_enabled,payDelayDays:group.pay_delay_days,anchorDate:group.schedule_anchor_date,version:group.schedule_version};
 }
-async function savePayrollSchedule(actor:WorkContext,groupId:string,input:z.infer<typeof payrollScheduleSchema>,key:string){
-  actor=ports.authorize(actor,"payroll.prepare");if(actor.branchId||actor.departmentId)throw new BusinessRuleError(403,"COMPANY_PAYROLL_SCOPE_REQUIRED","Company-wide payroll requires a holding-level assignment.");
-  await ports.prepare(actor.holdingId);const prior=await ports.commands.replay(actor,key,"people.payroll.schedule",groupId,input);if(prior)return prior;
-  const group=await repository.readSavePayrollScheduleGroup(groupId,actor.companyId);
-  if(!group)throw new BusinessRuleError(404,"PAY_GROUP_NOT_FOUND","Active pay group not found.");
-  if(group.schedule_version!==input.expectedVersion)throw new BusinessRuleError(409,"VERSION_CONFLICT","Pay group schedule changed. Refresh before saving.");
-  if(input.enabled&&["weekly","fortnightly"].includes(group.frequency)&&!input.anchorDate)throw new BusinessRuleError(422,"PAYROLL_ANCHOR_REQUIRED","Set an anchor date for weekly or fortnightly payroll.");
-  const result={id:groupId,enabled:input.enabled,payDelayDays:input.payDelayDays,anchorDate:input.anchorDate??null,version:group.schedule_version+1};
-  return ports.commands.commit(actor,key,"people.payroll.schedule",input,groupId,result.version,result,[
-    repository.guard45(key,"pay-group",groupId,actor.companyId,input.expectedVersion),
-    repository.stageSavePayrollScheduleEffect(input.enabled,input.payDelayDays,input.anchorDate??null,ports.clock.now(),groupId,actor.companyId,input.expectedVersion),
-  ]);
-}
 async function drainPayrollSchedules(now:Date):Promise<number>{
   const groups=(await repository.readDrainPayrollSchedulesGroups()).results;
   let created=0;
@@ -298,4 +282,4 @@ async function previewCandidate(candidate:{id:string;timezone:string},now:Date){
         await repository.stageDrainPayrollScheduledPreviewsCompleted3(ports.identifiers.next(),commandId,run.id,run.version+1,timestamp);
         await repository.stageDrainPayrollScheduledPreviewsCompleted4(ports.identifiers.next(),commandId,run.id,run.version+1,JSON.stringify({id:run.id,companyId:run.company_id,status:"preview",system:true}),timestamp);
         return true;
-      }return {assertPayrollSourceFresh,payrollSourceGuards,payrollReadiness,submitPayrollReview,getPayrollSchedule,savePayrollSchedule,drainPayrollSchedules,drainPayrollScheduledPreviews,previewCandidate};}
+      }return {assertPayrollSourceFresh,payrollSourceGuards,payrollReadiness,submitPayrollReview,getPayrollSchedule,drainPayrollSchedules,drainPayrollScheduledPreviews,previewCandidate};}

@@ -19,6 +19,8 @@ pub mod payroll_run;
 
 pub mod payroll_run_http;
 
+pub mod payroll_schedule;
+
 pub mod payroll_summary;
 
 pub mod payroll_summary_http;

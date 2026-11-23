@@ -30,7 +30,7 @@ import {requestPayrollRecovery,consentPayrollRecovery,reviewPayrollRecovery,reco
 import { thaiPayrollConfiguration,createThaiPayrollProfile,decideThaiPayrollProfile,thaiPayrollProfileSchema,thaiPayrollProfileDecisionSchema } from "@erpx/server-people_payroll/public/payroll-statutory";
 import { consumeHireHandoff,hireConsumptionSchema,hireHandoffQueue } from "@erpx/server-people_payroll/public/people-handoffs";
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
-import { getPayrollSchedule, savePayrollSchedule, payrollScheduleSchema, payrollReadiness, submitPayrollReview, payrollSubmitReviewSchema } from "@erpx/server-people_payroll/public/payroll-readiness";
+import { getPayrollSchedule, payrollScheduleSchema, payrollReadiness, submitPayrollReview, payrollSubmitReviewSchema } from "@erpx/server-people_payroll/public/payroll-readiness";
 import { getPayrollLiabilities, remitPayrollLiability, payrollRemittanceSchema } from "@erpx/server-people_payroll/public/payroll-remittance";
 import { positionPayInput, levelLeaveInput, savePositionPayDefault, saveLevelLeaveDefault } from "@erpx/server-organization/public/staff-defaults";
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -259,7 +259,7 @@ export async function POST(request: Request, context: Context) {
     if (p[0] === "compensation" && p.length === 1) { const data=parsed(compensationSchema.safeParse(input)); return Response.json(canonicalDestinationLinks({data:await createCompensation(actor,data,id)}),{status:201}); }
     if (p[0] === "compensation" && p[2] === "transition") { const data=parsed(compensationTransitionSchema.safeParse(input)); return Response.json(canonicalDestinationLinks({data:await transitionCompensation(actor,p[1],data,id)})); }
     if (p[0] === "pay-groups" && p.length === 1) { const data=parsed(payGroupSchema.safeParse(input)); return Response.json(canonicalDestinationLinks({data:await createPayGroup(actor,data,id)}),{status:201}); }
-    if (p[0] === "pay-groups" && p[1] && p[2] === "schedule") return Response.json(canonicalDestinationLinks({data:await savePayrollSchedule(actor,p[1],parsed(payrollScheduleSchema.safeParse(input)),id)}));
+    if (p[0] === "pay-groups" && p[1] && p[2] === "schedule") { const data=parsed(payrollScheduleSchema.safeParse(input)); const native=await payrollCommand(request.headers,peoplePayrollPageContext(actor),holdingSlug,`groups/${p[1]}/schedule`,data,id,origin??undefined); if(native===undefined)throw new ApiError(503,"NATIVE_PEOPLE_PAYROLL_UNAVAILABLE","The native People Payroll command service is unavailable."); return Response.json(canonicalDestinationLinks({data:native})); }
     if (p[0] === "payroll" && p[1] === "thai-profiles" && p.length === 2) return Response.json(canonicalDestinationLinks({data:await createThaiPayrollProfile(actor,parsed(thaiPayrollProfileSchema.safeParse(input)),id)}),{status:201});
     if (p[0] === "payroll" && p[1] === "thai-profiles" && p[3] === "decision") return Response.json(canonicalDestinationLinks({data:await decideThaiPayrollProfile(actor,p[2],parsed(thaiPayrollProfileDecisionSchema.safeParse(input)),id)}));
     if (p[0] === "country-packs" && p.length === 1) { const data=parsed(countryPackSchema.safeParse(input)); return Response.json(canonicalDestinationLinks({data:await createCountryPack(actor,data,id)}),{status:201}); }

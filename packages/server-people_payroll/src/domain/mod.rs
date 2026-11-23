@@ -11,4 +11,5 @@ pub(crate) mod payroll_accounting_collation;
 pub(crate) mod payroll_accounting_date;
 pub(crate) mod payroll_accounting_operand;
 pub(crate) mod payroll_run;
+pub(crate) mod payroll_schedule;
 pub(crate) mod payroll_summary;
