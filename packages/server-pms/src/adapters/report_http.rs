@@ -15,9 +15,10 @@ use crate::application::report_projection::{
 };
 use crate::domain::night_audit::{MAX_SHIFTS, MAX_STAYS, PmsNightAuditFacts};
 use crate::domain::report_projection::{
-    PmsReportBalances, PmsReportDay, PmsReportEntries, PmsReportEntry, PmsReportFlow,
-    PmsReportKind, PmsReportRange, invalid as report_invalid, read_invalid as report_read_invalid,
-    read_limit as report_read_limit,
+    PmsChannelReport, PmsFinanceBalanceRow, PmsPacePoint, PmsReportBalances, PmsReportDay,
+    PmsReportEntries, PmsReportEntry, PmsReportFlow, PmsReportKind, PmsReportRange,
+    invalid as report_invalid, read_invalid as report_read_invalid,
+    read_limit as report_read_limit, valid_observation,
 };
 use crate::domain::room_board::{PmsPropertyRow, cp_len};
 use erpx_server_runtime::public::http_support::{
@@ -262,11 +263,25 @@ fn read_origin(target: &PmsReportHttpTarget, headers: &HeaderMap) -> Result<(), 
 }
 
 fn range_selection(values: &BTreeMap<String, String>) -> Result<PmsReportRange, BusinessError> {
-    only(values, &["property", "from", "to"])?;
+    only(values, &["property", "from", "to", "asOf", "compareAsOf"])?;
+    let observation = |name: &str| -> Result<Option<String>, BusinessError> {
+        values
+            .get(name)
+            .map(|value| {
+                if valid_observation(value) {
+                    Ok(value.clone())
+                } else {
+                    Err(malformed())
+                }
+            })
+            .transpose()
+    };
     let selection = PmsReportRange {
         property_id: bounded_id(&required(values, "property")?)?,
         from: required(values, "from")?,
         to: required(values, "to")?,
+        as_of: observation("asOf")?,
+        compare_as_of: observation("compareAsOf")?,
     };
     selection.validate()?;
     Ok(selection)
@@ -575,6 +590,164 @@ async fn read_balances(
     })
 }
 
+/// Retained booking-observation pace query, ported from the PMS reporting
+/// repository. A missing observation argument falls back to the transaction
+/// clock (and, for the comparison window, seven days earlier) in SQL exactly
+/// as the retained `COALESCE` does. Two ordered rows: current then comparison.
+async fn read_pace(
+    c: &mut PgConnection,
+    property_id: &str,
+    from: &str,
+    to: &str,
+    as_of: Option<&str>,
+    compare_as_of: Option<&str>,
+) -> Result<Vec<PmsPacePoint>, Error> {
+    let rows = sqlx::query(
+        "WITH observations AS (
+  SELECT 0 position,COALESCE($1::timestamptz,transaction_timestamp()) as_of
+  UNION ALL SELECT 1,COALESCE($2::timestamptz,COALESCE($3::timestamptz,transaction_timestamp())-interval '7 days')
+), covered AS (
+  SELECT o.*,c.started_at coverage_since,COALESCE(o.as_of>=c.started_at,false) covered
+  FROM observations o LEFT JOIN pms_booking_history_coverage c ON c.property_id=$4
+), latest AS (
+  SELECT DISTINCT ON (o.position,h.record_id) o.position,h.record_id,h.kind,h.facts
+  FROM covered o JOIN pms_booking_observations h ON h.property_id=$5 AND h.observed_at<=o.as_of
+  WHERE o.covered AND h.kind='stay' ORDER BY o.position,h.record_id,h.observed_at DESC,h.observation_id DESC
+), active_stays AS (
+  SELECT s.position,s.record_id,r.record_id reservation_id,
+  GREATEST(0,LEAST((s.facts->>'departure')::date,$6::date+1)-GREATEST((s.facts->>'arrival')::date,$7::date)) nights,
+  COALESCE((SELECT SUM((price->>'total')::bigint) FROM jsonb_array_elements(COALESCE(NULLIF(s.facts->'prices','null'::jsonb),'[]'::jsonb)) price WHERE price->>'date'>=$8 AND price->>'date'<=$9),0) quoted
+  FROM latest s JOIN covered observation ON observation.position=s.position
+  JOIN LATERAL (
+    SELECT h.record_id,h.facts FROM pms_booking_observations h
+    WHERE h.property_id=$10 AND h.kind='reservation' AND h.record_id=s.facts->>'reservationId'
+      AND h.observed_at<=observation.as_of
+    ORDER BY h.observed_at DESC,h.observation_id DESC LIMIT 1
+  ) r ON true
+  WHERE s.kind='stay' AND s.facts->>'state' IN ('reserved','in_house','checked_out') AND r.facts->>'state' IN ('confirmed','completed')
+  AND s.facts->>'arrival'<=$11 AND s.facts->>'departure'>$12
+) SELECT o.as_of::text,o.coverage_since::text,o.covered,count(DISTINCT s.reservation_id)::bigint reservations,
+  COALESCE(sum(s.nights),0)::bigint room_nights,COALESCE(sum(s.quoted),0)::bigint quoted_total
+  FROM covered o LEFT JOIN active_stays s ON s.position=o.position
+  GROUP BY o.position,o.as_of,o.coverage_since,o.covered ORDER BY o.position",
+    )
+    .bind(as_of)
+    .bind(compare_as_of)
+    .bind(as_of)
+    .bind(property_id)
+    .bind(property_id)
+    .bind(to)
+    .bind(from)
+    .bind(from)
+    .bind(to)
+    .bind(property_id)
+    .bind(to)
+    .bind(from)
+    .fetch_all(&mut *c)
+    .await?;
+    if rows.len() > 2 {
+        return Err(Error::from(report_read_invalid()));
+    }
+    rows.iter()
+        .map(|row| {
+            Ok(PmsPacePoint {
+                as_of: row.try_get("as_of")?,
+                coverage_since: row.try_get("coverage_since")?,
+                covered: row.try_get("covered")?,
+                reservations: row.try_get("reservations")?,
+                room_nights: row.try_get("room_nights")?,
+                quoted_total: row.try_get("quoted_total")?,
+            })
+        })
+        .collect()
+}
+
+/// Retained per-source channel projection over PMS-owned reservation/stay
+/// rows, bounded by the report range and the resolved observation clock.
+async fn read_channels(
+    c: &mut PgConnection,
+    property_id: &str,
+    from: &str,
+    to: &str,
+    as_of: &str,
+) -> Result<Vec<PmsChannelReport>, Error> {
+    let rows = sqlx::query(
+        "WITH reservation_facts AS (
+  SELECT r.id,COALESCE(NULLIF(r.data_json::jsonb->>'source',''),'unknown') source,r.data_json::jsonb->>'state' state,
+    CASE WHEN jsonb_typeof(r.data_json::jsonb->'history'->0->'at')='number' THEN to_timestamp((r.data_json::jsonb->'history'->0->>'at')::numeric/1000.0) END created
+  FROM pms_records r WHERE r.property_id=$1 AND r.kind='reservation'
+), stay_facts AS (
+  SELECT s.data_json::jsonb->>'reservationId' reservation_id,
+    GREATEST(0,LEAST((s.data_json::jsonb->>'departure')::date,$2::date+1)-GREATEST((s.data_json::jsonb->>'arrival')::date,$3::date)) nights,
+    COALESCE((SELECT SUM((price->>'total')::bigint) FROM jsonb_array_elements(COALESCE(s.data_json::jsonb->'prices','[]'::jsonb)) price WHERE price->>'date'>=$4 AND price->>'date'<=$5),0) quoted,
+    s.data_json::jsonb->>'state' state
+  FROM pms_records s WHERE s.property_id=$6 AND s.kind='stay' AND s.data_json::jsonb->>'arrival'<=$7 AND s.data_json::jsonb->>'departure'>$8
+) SELECT r.source,count(DISTINCT r.id)::bigint reservations,
+  COALESCE(sum(s.nights) FILTER(WHERE s.state IN ('reserved','in_house','checked_out') AND r.state<>'payment_pending'),0)::bigint room_nights,
+  COALESCE(sum(s.quoted) FILTER(WHERE s.state IN ('reserved','in_house','checked_out') AND r.state<>'payment_pending'),0)::bigint quoted_total,
+  count(*) FILTER(WHERE s.state='cancelled')::bigint cancelled,
+  count(*) FILTER(WHERE s.state='no_show')::bigint no_shows,
+  count(DISTINCT r.id) FILTER(WHERE r.created>=$9::timestamptz-interval '7 days' AND r.created<=$10::timestamptz)::bigint recent_pickup,
+  count(DISTINCT r.id) FILTER(WHERE r.created IS NULL)::bigint unknown_creation
+  FROM reservation_facts r JOIN stay_facts s ON s.reservation_id=r.id GROUP BY r.source ORDER BY r.source",
+    )
+    .bind(property_id)
+    .bind(to)
+    .bind(from)
+    .bind(from)
+    .bind(to)
+    .bind(property_id)
+    .bind(to)
+    .bind(from)
+    .bind(as_of)
+    .bind(as_of)
+    .fetch_all(&mut *c)
+    .await?;
+    rows.iter()
+        .map(|row| {
+            Ok(PmsChannelReport {
+                source: row.try_get("source")?,
+                reservations: row.try_get("reservations")?,
+                room_nights: row.try_get("room_nights")?,
+                quoted_total: row.try_get("quoted_total")?,
+                cancelled: row.try_get("cancelled")?,
+                no_shows: row.try_get("no_shows")?,
+                recent_pickup: row.try_get("recent_pickup")?,
+                unknown_creation: row.try_get("unknown_creation")?,
+            })
+        })
+        .collect()
+}
+
+/// Existing `pms_reporting_facts` journal-line port. The PMS-owned postings
+/// and import-batch column projections are inlined so no caller supplies SQL
+/// or a table name; only posted journals up to the closing date contribute.
+async fn read_finance_balance_rows(
+    c: &mut PgConnection,
+    property_id: &str,
+    to: &str,
+) -> Result<Vec<PmsFinanceBalanceRow>, Error> {
+    let rows = sqlx::query(
+        "SELECT l.account_id,SUM(l.debit_minor-l.credit_minor)::bigint balance \
+         FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id \
+         JOIN (SELECT property_id,journal_id FROM (SELECT \"id\",\"property_id\",\"source_key\",\"record_id\",\"journal_id\",\"business_date\" FROM pms_postings) pms_postings \
+         UNION SELECT property_id,opening_journal_id journal_id FROM (SELECT \"id\",\"company_id\",\"property_id\",\"cutover_date\",\"property_version\",\"definition_json\",\"report_json\",\"state\",\"created_by\",\"approved_by\",\"opening_journal_id\",\"version\",\"created_at\",\"updated_at\" FROM pms_import_batches) pms_import_batches WHERE state='applied' AND opening_journal_id IS NOT NULL) p ON p.journal_id=j.id \
+         WHERE p.property_id=$1 AND j.status='posted' AND j.entry_date<=$2 GROUP BY l.account_id",
+    )
+    .bind(property_id)
+    .bind(to)
+    .fetch_all(&mut *c)
+    .await?;
+    rows.iter()
+        .map(|row| {
+            Ok(PmsFinanceBalanceRow {
+                account_id: row.try_get("account_id")?,
+                balance: row.try_get("balance")?,
+            })
+        })
+        .collect()
+}
+
 async fn kind_records(
     c: &mut PgConnection,
     property_id: &str,
@@ -740,6 +913,39 @@ impl PmsReportRepository for PgPmsReportRead<'_> {
         property_id: &'a str,
     ) -> PmsReportFuture<'a, PmsReportBalances, Self::Error> {
         Box::pin(async move { read_balances(self.connection, property_id).await })
+    }
+
+    fn pace<'a>(
+        &'a mut self,
+        property_id: &'a str,
+        from: &'a str,
+        to: &'a str,
+        as_of: Option<&'a str>,
+        compare_as_of: Option<&'a str>,
+    ) -> PmsReportFuture<'a, Vec<PmsPacePoint>, Self::Error> {
+        Box::pin(async move {
+            read_pace(self.connection, property_id, from, to, as_of, compare_as_of).await
+        })
+    }
+
+    fn channels<'a>(
+        &'a mut self,
+        property_id: &'a str,
+        from: &'a str,
+        to: &'a str,
+        as_of: &'a str,
+    ) -> PmsReportFuture<'a, Vec<PmsChannelReport>, Self::Error> {
+        Box::pin(async move {
+            read_channels(self.connection, property_id, from, to, as_of).await
+        })
+    }
+
+    fn finance_balance_rows<'a>(
+        &'a mut self,
+        property_id: &'a str,
+        to: &'a str,
+    ) -> PmsReportFuture<'a, Vec<PmsFinanceBalanceRow>, Self::Error> {
+        Box::pin(async move { read_finance_balance_rows(self.connection, property_id, to).await })
     }
 
     fn night_read<'a>(

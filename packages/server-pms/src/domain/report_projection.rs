@@ -9,18 +9,21 @@
 //! divisor guards, so a day without capacity or sold rooms contributes zero
 //! instead of `NaN`.
 //!
-//! Only PMS-owned facts cross this boundary: `pms_properties`, `pms_records`
+//! Core day/flow/night facts stay PMS-owned: `pms_properties`, `pms_records`
 //! (`stay`, `entry`, `night`, `room`, `room_type`, `rate`, `block`,
-//! `guest_account`, `shift`) and `pms_jobs`. Finance journal balances, the
-//! booking-observation pace/channel windows and Inventory arithmetic are other
-//! owners' ports and are deliberately absent; [`PmsReportBalances::source`]
-//! names the retained PMS-owned guest-account projection so a caller can never
-//! mistake it for the Finance ledger.
+//! `guest_account`, `shift`) and `pms_jobs`. The booking-observation `pace` and
+//! `channels` windows read `pms_booking_observations` and
+//! `pms_booking_history_coverage`; `finance_balances` reads the existing
+//! `pms_reporting_facts` journal-line port. [`PmsReportBalances::source`] still
+//! names the PMS-owned guest-account projection so a caller can never mistake
+//! it for the Finance ledger.
 use crate::domain::room_board::{
     PmsBoardActor, PmsPropertyRow, PmsPropertySummary, cp_len, parse_date,
 };
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use serde::{Deserialize, Serialize};
+use time::format_description::well_known::Rfc3339;
+use time::{Duration, OffsetDateTime};
 
 /// Retained `pmsReportRange` refine: `to - from < 93 * 86400000`, so a report
 /// spans at most 93 calendar days including both ends.
@@ -124,6 +127,20 @@ pub fn date_invalid() -> BusinessError {
     BusinessError::invalid("PMS_REPORT_DATE", "Choose a valid report date.")
 }
 
+/// Retained booking-observation refusal (`PMS_PACE_RANGE`).
+pub fn pace_range_invalid() -> BusinessError {
+    BusinessError::invalid(
+        "PMS_PACE_RANGE",
+        "Choose a past observation and an earlier comparison time",
+    )
+}
+
+/// An observation carried by the retained range input must be RFC 3339 with an
+/// explicit offset, exactly as `z.iso.datetime({ offset: true })` requires.
+pub fn valid_observation(value: &str) -> bool {
+    OffsetDateTime::parse(value, &Rfc3339).is_ok()
+}
+
 pub fn read_limit(message: &'static str) -> BusinessError {
     BusinessError::new(FailureKind::Unavailable, "PMS_REPORT_READ_LIMIT", message)
 }
@@ -148,23 +165,58 @@ fn bounded_id(value: &str) -> bool {
     !value.is_empty() && cp_len(value) <= MAX_ID && !value.chars().any(char::is_control)
 }
 
-/// Retained `pmsReportRange` input: one hotel and one inclusive business-date
-/// range. `asOf`/`compareAsOf` are not part of this slice because the pace and
-/// channel observation windows that consume them are not projected here.
+/// Retained `pmsReportRange` input: one hotel, one inclusive business-date
+/// range and the optional booking-observation times consumed by the pace
+/// windows. Both observation fields are RFC 3339 with an explicit offset.
 #[derive(Clone, Debug)]
 pub struct PmsReportRange {
     pub property_id: String,
     pub from: String,
     pub to: String,
+    pub as_of: Option<String>,
+    pub compare_as_of: Option<String>,
 }
 
 impl PmsReportRange {
     /// Returns the inclusive day distance (`to - from`) after validation.
     pub fn validate(&self) -> Result<i64, BusinessError> {
-        if !bounded_id(&self.property_id) {
+        if !bounded_id(&self.property_id)
+            || self
+                .as_of
+                .as_deref()
+                .is_some_and(|value| !valid_observation(value))
+            || self
+                .compare_as_of
+                .as_deref()
+                .is_some_and(|value| !valid_observation(value))
+        {
             return Err(invalid());
         }
         validate_range(&self.from, &self.to)
+    }
+
+    /// Resolves the retained observation window. The reported `as_of` is the
+    /// current clock; an unsupplied comparison is seven days earlier. A future
+    /// or mis-ordered observation is refused exactly as the retained
+    /// application refuses it.
+    pub fn observation(&self, now_ms: i64) -> Result<(String, String), BusinessError> {
+        let parse = |value: &str| OffsetDateTime::parse(value, &Rfc3339).ok();
+        let now = OffsetDateTime::from_unix_timestamp_nanos(i128::from(now_ms) * 1_000_000)
+            .map_err(|_| pace_range_invalid())?;
+        let as_of = self.as_of.as_deref().and_then(parse).unwrap_or(now);
+        let compare_as_of = match self.compare_as_of.as_deref().and_then(parse) {
+            Some(value) => value,
+            None => as_of - Duration::days(7),
+        };
+        if as_of > now || compare_as_of >= as_of {
+            return Err(pace_range_invalid());
+        }
+        Ok((
+            as_of.format(&Rfc3339).map_err(|_| pace_range_invalid())?,
+            compare_as_of
+                .format(&Rfc3339)
+                .map_err(|_| pace_range_invalid())?,
+        ))
     }
 }
 
@@ -269,6 +321,73 @@ pub struct PmsReportBalances {
     pub accounts_with_due: i64,
 }
 
+/// One booking-observation pace point from `pms_booking_observations`, anchored
+/// on the resolved `as_of` / `compare_as_of` window and its coverage start.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PmsPacePoint {
+    pub as_of: String,
+    pub coverage_since: Option<String>,
+    pub covered: bool,
+    pub reservations: i64,
+    pub room_nights: i64,
+    pub quoted_total: i64,
+}
+
+/// Retained net pickup between two covered observation windows. It is null
+/// unless both windows are covered, never a partial difference.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PmsNetPickup {
+    pub reservations: i64,
+    pub room_nights: i64,
+    pub quoted_total: i64,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PmsReportPace {
+    pub current: Option<PmsPacePoint>,
+    pub previous: Option<PmsPacePoint>,
+    pub net_pickup: Option<PmsNetPickup>,
+}
+
+/// One retained per-source channel row from the PMS-owned reservation/stay
+/// projections, bounded by the report range and observation clock.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PmsChannelReport {
+    pub source: String,
+    pub reservations: i64,
+    pub room_nights: i64,
+    pub quoted_total: i64,
+    pub cancelled: i64,
+    pub no_shows: i64,
+    pub recent_pickup: i64,
+    pub unknown_creation: i64,
+}
+
+/// One signed account balance from the existing `pms_reporting_facts`
+/// journal-line port. The SQL and provenance stay with that owner port; this
+/// owner only consumes the bounded account/minor-unit projection.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct PmsFinanceBalanceRow {
+    pub account_id: String,
+    pub balance: i64,
+}
+
+/// Retained Finance-backed dashboard balances, signed by the property's own
+/// chart configuration exactly as `pmsRangeReport` signs them.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PmsFinanceBalances {
+    pub receivable: i64,
+    pub advance: i64,
+    pub deposit: i64,
+    pub refund_payable: i64,
+    pub unallocated: i64,
+}
+
 /// The retained night-audit blocker summary that PMS-owned facts can answer.
 /// Day-control counts (open bills, pending payments, unposted receipts,
 /// unbalanced journals, ...) belong to Finance/POS/Workflow ports and are not
@@ -301,6 +420,14 @@ pub struct PmsReportData {
     pub flow: PmsReportFlow,
     pub balances: PmsReportBalances,
     pub night_audit: PmsReportNightAudit,
+    /// Observation clock the retained range response reports.
+    pub as_of: String,
+    /// Booking-observation pickup windows.
+    pub pace: PmsReportPace,
+    /// Per-source channel projection.
+    pub channels: Vec<PmsChannelReport>,
+    /// Finance-backed balances from the `pms_reporting_facts` port.
+    pub finance_balances: PmsFinanceBalances,
 }
 
 /// One retained entry-ledger row. `data` is the stored `entry` document.
@@ -381,6 +508,61 @@ pub fn summarize(days: &[PmsReportDay]) -> PmsReportTotals {
         0
     };
     totals
+}
+
+/// Retained pace window assembly: the first two SQL rows are current and
+/// previous, and `netPickup` exists only when both windows are covered.
+pub fn assemble_pace(points: Vec<PmsPacePoint>) -> PmsReportPace {
+    let mut rows = points.into_iter();
+    let current = rows.next();
+    let previous = rows.next();
+    let net_pickup = match (&current, &previous) {
+        (Some(current), Some(previous)) if current.covered && previous.covered => {
+            Some(PmsNetPickup {
+                reservations: current.reservations - previous.reservations,
+                room_nights: current.room_nights - previous.room_nights,
+                quoted_total: current.quoted_total - previous.quoted_total,
+            })
+        }
+        _ => None,
+    };
+    PmsReportPace {
+        current,
+        previous,
+        net_pickup,
+    }
+}
+
+/// Signs the reporting-facts account balances with the property's own chart
+/// configuration. Assets stay positive; advances, deposits and the online
+/// accounting liabilities are inverted exactly as the retained reducer does.
+pub fn finance_balances(
+    rows: &[PmsFinanceBalanceRow],
+    config: &serde_json::Value,
+) -> PmsFinanceBalances {
+    fn account<'a>(parent: Option<&'a serde_json::Value>, key: &str) -> Option<&'a str> {
+        parent
+            .and_then(|value| value.get(key))
+            .and_then(serde_json::Value::as_str)
+            .filter(|value| !value.is_empty())
+    }
+    let signed = |name: Option<&str>, sign: i64| {
+        name.map_or(0, |name| {
+            rows.iter()
+                .filter(|row| row.account_id == name)
+                .map(|row| row.balance.saturating_mul(sign))
+                .sum()
+        })
+    };
+    let accounts = config.get("accounts");
+    let online = config.get("onlineAccounting");
+    PmsFinanceBalances {
+        receivable: signed(account(accounts, "receivable"), 1),
+        advance: signed(account(accounts, "advance"), -1),
+        deposit: signed(account(accounts, "deposit"), -1),
+        refund_payable: signed(account(online, "refundPayable"), -1),
+        unallocated: signed(account(online, "unallocated"), -1),
+    }
 }
 
 /// Fail closed when a read does not describe exactly the requested range in
@@ -507,10 +689,107 @@ mod tests {
             property_id: String::new(),
             from: "2026-11-01".into(),
             to: "2026-11-01".into(),
+            as_of: None,
+            compare_as_of: None,
         };
         assert_eq!(
             range.validate().unwrap_err().code,
             "PMS_REPORT_REQUEST_INVALID"
+        );
+        let bad_observation = PmsReportRange {
+            property_id: "property".into(),
+            from: "2026-11-01".into(),
+            to: "2026-11-01".into(),
+            as_of: Some("not-a-date".into()),
+            compare_as_of: None,
+        };
+        assert_eq!(
+            bad_observation.validate().unwrap_err().code,
+            "PMS_REPORT_REQUEST_INVALID"
+        );
+    }
+
+    #[test]
+    fn observations_are_past_ordered_and_default_to_a_seven_day_window() {
+        let now = 1_700_000_000_000_i64;
+        let range = PmsReportRange {
+            property_id: "property".into(),
+            from: "2026-11-01".into(),
+            to: "2026-11-01".into(),
+            as_of: None,
+            compare_as_of: None,
+        };
+        let (as_of, compare_as_of) = range.observation(now).unwrap();
+        assert_eq!(as_of, "2023-11-14T22:13:20Z");
+        assert_eq!(compare_as_of, "2023-11-07T22:13:20Z");
+
+        let future = PmsReportRange {
+            as_of: Some("2099-01-01T00:00:00Z".into()),
+            ..range.clone()
+        };
+        assert_eq!(
+            future.observation(now).unwrap_err().code,
+            "PMS_PACE_RANGE"
+        );
+        let misordered = PmsReportRange {
+            as_of: Some("2023-11-14T00:00:00Z".into()),
+            compare_as_of: Some("2023-11-14T00:00:00Z".into()),
+            ..range.clone()
+        };
+        assert_eq!(
+            misordered.observation(now).unwrap_err().code,
+            "PMS_PACE_RANGE"
+        );
+        let requested = PmsReportRange {
+            as_of: Some("2023-11-10T00:00:00+07:00".into()),
+            compare_as_of: Some("2023-11-01T00:00:00+07:00".into()),
+            ..range
+        };
+        let (as_of, compare_as_of) = requested.observation(now).unwrap();
+        assert_eq!(as_of, "2023-11-10T00:00:00+07:00");
+        assert_eq!(compare_as_of, "2023-11-01T00:00:00+07:00");
+    }
+
+    #[test]
+    fn pace_and_finance_balances_follow_the_retained_reducers() {
+        let point = |as_of: &str, covered: bool, reservations: i64| PmsPacePoint {
+            as_of: as_of.into(),
+            coverage_since: None,
+            covered,
+            reservations,
+            room_nights: reservations * 2,
+            quoted_total: reservations * 100,
+        };
+        let pace = assemble_pace(vec![
+            point("now", true, 10),
+            point("before", true, 7),
+        ]);
+        assert_eq!(pace.net_pickup.unwrap().reservations, 3);
+        assert_eq!(assemble_pace(vec![point("now", false, 10)]).net_pickup, None);
+
+        let config = serde_json::json!({
+            "accounts": {"receivable": "rec", "advance": "adv", "deposit": "dep"},
+            "onlineAccounting": {"refundPayable": "refund", "unallocated": "unalloc"}
+        });
+        let balances = finance_balances(
+            &[
+                PmsFinanceBalanceRow { account_id: "rec".into(), balance: 1_000 },
+                PmsFinanceBalanceRow { account_id: "adv".into(), balance: 200 },
+                PmsFinanceBalanceRow { account_id: "dep".into(), balance: 300 },
+                PmsFinanceBalanceRow { account_id: "refund".into(), balance: 40 },
+                PmsFinanceBalanceRow { account_id: "unalloc".into(), balance: 50 },
+            ],
+            &config,
+        );
+        assert_eq!(
+            balances,
+            PmsFinanceBalances {
+                receivable: 1_000,
+                advance: -200,
+                deposit: -300,
+                refund_payable: -40,
+                unallocated: -50,
+            }
         );
     }
 }

@@ -6,16 +6,17 @@
 //! scoped to the actor's Company and (when selected) branch exactly as the
 //! retained `pmsRangeReport` scope guard does.
 //!
-//! Omitted by design, never invented: the Finance-backed `balances` block
-//! (`receivable`/`advance`/`deposit`/`refundPayable`/`unallocated` journal
-//! lines, required port `pms_reporting_facts` from `server-finance`), the
-//! booking-observation `pace`/`channels` windows, and the Finance/POS/Workflow
-//! day-control counts behind the night-audit blocker list.
+//! The Finance-backed `finance_balances` block (`receivable`/`advance`/
+//! `deposit`/`refundPayable`/`unallocated`) is read through the existing
+//! `pms_reporting_facts` journal-line port; the booking-observation `pace` and
+//! `channels` windows read the PMS-owned observation tables. Day-control
+//! counts behind the night-audit blocker list stay with Finance/POS/Workflow.
 use crate::domain::night_audit::{PmsNightAuditFacts, night_blockers};
 use crate::domain::report_projection::{
-    PAGE_SIZE, PmsReportBalances, PmsReportData, PmsReportDay, PmsReportEntries,
-    PmsReportEntriesData, PmsReportEntry, PmsReportFlow, PmsReportNightAudit, PmsReportRange,
-    in_scope, not_found, read_invalid, read_limit, require_report, summarize, validate_days,
+    PAGE_SIZE, PmsChannelReport, PmsFinanceBalanceRow, PmsPacePoint, PmsReportBalances,
+    PmsReportData, PmsReportDay, PmsReportEntries, PmsReportEntriesData, PmsReportEntry,
+    PmsReportFlow, PmsReportNightAudit, PmsReportRange, assemble_pace, finance_balances, in_scope,
+    not_found, read_invalid, read_limit, require_report, summarize, validate_days,
 };
 use crate::domain::room_board::{PmsBoardActor, PmsPropertyRow};
 use erpx_server_shared::public::BusinessError;
@@ -57,6 +58,30 @@ pub trait PmsReportRepository: Send {
         &'a mut self,
         property_id: &'a str,
     ) -> PmsReportFuture<'a, PmsReportBalances, Self::Error>;
+    /// Booking-observation windows: ordered current then comparison points.
+    fn pace<'a>(
+        &'a mut self,
+        property_id: &'a str,
+        from: &'a str,
+        to: &'a str,
+        as_of: Option<&'a str>,
+        compare_as_of: Option<&'a str>,
+    ) -> PmsReportFuture<'a, Vec<PmsPacePoint>, Self::Error>;
+    /// Per-source channel rows bounded by the range and observation clock.
+    fn channels<'a>(
+        &'a mut self,
+        property_id: &'a str,
+        from: &'a str,
+        to: &'a str,
+        as_of: &'a str,
+    ) -> PmsReportFuture<'a, Vec<PmsChannelReport>, Self::Error>;
+    /// Existing `pms_reporting_facts` port: one signed minor balance per
+    /// account, joined through posted PMS journals up to the closing date.
+    fn finance_balance_rows<'a>(
+        &'a mut self,
+        property_id: &'a str,
+        to: &'a str,
+    ) -> PmsReportFuture<'a, Vec<PmsFinanceBalanceRow>, Self::Error>;
     fn night_read<'a>(
         &'a mut self,
         property: &'a PmsPropertyRow,
@@ -88,7 +113,8 @@ async fn scoped_property<R: PmsReportRepository>(
     Ok(row)
 }
 
-/// Retained `pmsRangeReport` without the cross-owner blocks.
+/// Retained `pmsRangeReport` with its observation, channel and Finance-backed
+/// balance blocks. Every cross-owner value crosses through a named port.
 pub async fn pms_range_report<R: PmsReportRepository>(
     actor: &PmsBoardActor,
     selection: &PmsReportRange,
@@ -97,6 +123,7 @@ pub async fn pms_range_report<R: PmsReportRepository>(
 ) -> Result<PmsReportData, R::Error> {
     require_report(actor, now)?;
     selection.validate()?;
+    let (as_of, _compare_as_of) = selection.observation(now).map_err(R::Error::from)?;
     let property = scoped_property(actor, &selection.property_id, repository).await?;
     let view = property.view().map_err(|_| read_invalid())?;
     let currency = view
@@ -113,6 +140,23 @@ pub async fn pms_range_report<R: PmsReportRepository>(
     let totals = summarize(&days);
     let flow = repository.flow(&property.id, &selection.to).await?;
     let balances = repository.balances(&property.id).await?;
+    let pace_points = repository
+        .pace(
+            &property.id,
+            &selection.from,
+            &selection.to,
+            selection.as_of.as_deref(),
+            selection.compare_as_of.as_deref(),
+        )
+        .await?;
+    let pace = assemble_pace(pace_points);
+    let channels = repository
+        .channels(&property.id, &selection.from, &selection.to, &as_of)
+        .await?;
+    let finance_rows = repository
+        .finance_balance_rows(&property.id, &selection.to)
+        .await?;
+    let finance_block = finance_balances(&finance_rows, &view.config);
     let night = repository.night_read(&property).await?;
     if night.facts.property.id != property.id {
         return Err(read_invalid().into());
@@ -135,6 +179,10 @@ pub async fn pms_range_report<R: PmsReportRepository>(
             ready: blockers.is_empty(),
             blockers,
         },
+        as_of,
+        pace,
+        channels,
+        finance_balances: finance_block,
     })
 }
 

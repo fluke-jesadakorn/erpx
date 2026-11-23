@@ -18,8 +18,9 @@ use application::report_projection::{
 };
 use domain::night_audit::PmsNightAuditFacts;
 use domain::report_projection::{
-    PAGE_SIZE, PmsReportBalances, PmsReportDay, PmsReportEntries, PmsReportEntry, PmsReportFlow,
-    PmsReportRange, js_round, summarize,
+    PAGE_SIZE, PmsChannelReport, PmsFinanceBalanceRow, PmsPacePoint, PmsReportBalances,
+    PmsReportDay, PmsReportEntries, PmsReportEntry, PmsReportFlow, PmsReportRange, js_round,
+    summarize,
 };
 use domain::room_board::{PmsBoardActor, PmsPropertyRow};
 use serde_json::json;
@@ -112,6 +113,9 @@ struct Fixture {
     days: Vec<PmsReportDay>,
     flow: PmsReportFlow,
     balances: PmsReportBalances,
+    pace: Vec<PmsPacePoint>,
+    channels: Vec<PmsChannelReport>,
+    finance_rows: Vec<PmsFinanceBalanceRow>,
     stays: Vec<domain::room_board::PmsRecord>,
     shifts: Vec<domain::room_board::PmsRecord>,
     night_state: Option<String>,
@@ -131,6 +135,39 @@ impl Fixture {
                 in_house: 4,
             },
             balances: balances(),
+            pace: vec![
+                PmsPacePoint {
+                    as_of: "2026-11-02T00:00:00Z".into(),
+                    coverage_since: Some("2026-10-01T00:00:00Z".into()),
+                    covered: true,
+                    reservations: 12,
+                    room_nights: 24,
+                    quoted_total: 1_200,
+                },
+                PmsPacePoint {
+                    as_of: "2026-10-26T00:00:00Z".into(),
+                    coverage_since: Some("2026-10-01T00:00:00Z".into()),
+                    covered: true,
+                    reservations: 9,
+                    room_nights: 18,
+                    quoted_total: 900,
+                },
+            ],
+            channels: vec![PmsChannelReport {
+                source: "direct".into(),
+                reservations: 5,
+                room_nights: 10,
+                quoted_total: 500,
+                cancelled: 1,
+                no_shows: 0,
+                recent_pickup: 2,
+                unknown_creation: 0,
+            }],
+            finance_rows: vec![
+                PmsFinanceBalanceRow { account_id: "receivable".into(), balance: 4_000 },
+                PmsFinanceBalanceRow { account_id: "advance".into(), balance: 1_000 },
+                PmsFinanceBalanceRow { account_id: "deposit".into(), balance: 500 },
+            ],
             stays: Vec::new(),
             shifts: Vec::new(),
             night_state: Some("pending".into()),
@@ -193,6 +230,41 @@ impl PmsReportRepository for Fixture {
         Box::pin(async move { Ok(balances) })
     }
 
+    fn pace<'a>(
+        &'a mut self,
+        _property_id: &'a str,
+        _from: &'a str,
+        _to: &'a str,
+        _as_of: Option<&'a str>,
+        _compare_as_of: Option<&'a str>,
+    ) -> application::report_projection::PmsReportFuture<'a, Vec<PmsPacePoint>, Error> {
+        self.calls += 1;
+        let points = self.pace.clone();
+        Box::pin(async move { Ok(points) })
+    }
+
+    fn channels<'a>(
+        &'a mut self,
+        _property_id: &'a str,
+        _from: &'a str,
+        _to: &'a str,
+        _as_of: &'a str,
+    ) -> application::report_projection::PmsReportFuture<'a, Vec<PmsChannelReport>, Error> {
+        self.calls += 1;
+        let channels = self.channels.clone();
+        Box::pin(async move { Ok(channels) })
+    }
+
+    fn finance_balance_rows<'a>(
+        &'a mut self,
+        _property_id: &'a str,
+        _to: &'a str,
+    ) -> application::report_projection::PmsReportFuture<'a, Vec<PmsFinanceBalanceRow>, Error> {
+        self.calls += 1;
+        let rows = self.finance_rows.clone();
+        Box::pin(async move { Ok(rows) })
+    }
+
     fn night_read<'a>(
         &'a mut self,
         property: &'a PmsPropertyRow,
@@ -239,6 +311,8 @@ fn range() -> PmsReportRange {
         property_id: "property".into(),
         from: "2026-11-01".into(),
         to: "2026-11-02".into(),
+        as_of: None,
+        compare_as_of: None,
     }
 }
 
@@ -279,6 +353,14 @@ async fn range_report_retains_formulas_flow_balances_and_context() {
     assert_eq!(report.balances.due, 4_000);
     assert_eq!(report.balances.advance, 3_000);
     assert_eq!(report.balances.deposit, 500);
+    assert_eq!(report.as_of, "2023-11-14T22:13:20Z");
+    assert_eq!(report.pace.current.as_ref().unwrap().reservations, 12);
+    assert_eq!(report.pace.net_pickup.unwrap().reservations, 3);
+    assert_eq!(report.channels[0].source, "direct");
+    assert_eq!(report.finance_balances.receivable, 4_000);
+    assert_eq!(report.finance_balances.advance, -1_000);
+    assert_eq!(report.finance_balances.deposit, -500);
+    assert_eq!(report.finance_balances.refund_payable, 0);
     assert_eq!(report.night_audit.night_state.as_deref(), Some("pending"));
     assert_eq!(report.night_audit.job_state.as_deref(), Some("pending"));
     assert!(!report.night_audit.ready);
@@ -412,6 +494,8 @@ async fn unbounded_ranges_and_dates_are_rejected_before_any_read() {
         property_id: "property".into(),
         from: "2026-01-01".into(),
         to: "2026-11-01".into(),
+        as_of: None,
+        compare_as_of: None,
     };
     assert_eq!(
         pms_range_report(&actor(), &wide, &mut fixture, NOW)
@@ -424,6 +508,8 @@ async fn unbounded_ranges_and_dates_are_rejected_before_any_read() {
         property_id: "property".into(),
         from: "2026-11-02".into(),
         to: "2026-11-01".into(),
+        as_of: None,
+        compare_as_of: None,
     };
     assert_eq!(
         pms_range_report(&actor(), &reversed, &mut fixture, NOW)
@@ -436,6 +522,8 @@ async fn unbounded_ranges_and_dates_are_rejected_before_any_read() {
         property_id: "property".into(),
         from: "2026-11-01".into(),
         to: "2026-11-31".into(),
+        as_of: None,
+        compare_as_of: None,
     };
     assert_eq!(
         pms_range_report(&actor(), &invalid_date, &mut fixture, NOW)

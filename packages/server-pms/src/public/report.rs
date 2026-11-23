@@ -10,9 +10,11 @@ pub use crate::application::report_projection::{
     PmsReportFuture, PmsReportNightRead, PmsReportRepository, pms_range_report, pms_report_entries,
 };
 pub use crate::domain::report_projection::{
-    MAX_DAYS, MAX_ID, MAX_PAGE, MAX_RANGE_DAYS, PAGE_SIZE, PmsReportBalances, PmsReportData,
-    PmsReportDay, PmsReportEntries, PmsReportEntriesData, PmsReportEntry, PmsReportFlow,
-    PmsReportKind, PmsReportNightAudit, PmsReportRange, PmsReportTotals, date_invalid, in_scope,
-    invalid as report_invalid, js_round, not_found, range_invalid, read_invalid, read_limit,
-    require_report, summarize, validate_days, validate_range,
+    MAX_DAYS, MAX_ID, MAX_PAGE, MAX_RANGE_DAYS, PAGE_SIZE, PmsChannelReport, PmsFinanceBalanceRow,
+    PmsFinanceBalances, PmsNetPickup, PmsPacePoint, PmsReportBalances, PmsReportData, PmsReportDay,
+    PmsReportEntries, PmsReportEntriesData, PmsReportEntry, PmsReportFlow, PmsReportKind,
+    PmsReportNightAudit, PmsReportPace, PmsReportRange, PmsReportTotals, assemble_pace,
+    date_invalid, finance_balances, in_scope, invalid as report_invalid, js_round, not_found,
+    pace_range_invalid, range_invalid, read_invalid, read_limit, require_report, summarize,
+    valid_observation, validate_days, validate_range,
 };

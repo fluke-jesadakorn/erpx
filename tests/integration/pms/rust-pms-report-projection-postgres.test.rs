@@ -111,6 +111,8 @@ fn range(from: &str, to: &str) -> PmsReportRange {
         property_id: "property-1".into(),
         from: from.into(),
         to: to.into(),
+        as_of: None,
+        compare_as_of: None,
     }
 }
 
@@ -687,6 +689,8 @@ async fn foreign_company_branch_and_missing_property_are_concealed() {
             property_id: "property-missing".into(),
             from: "2026-11-01".into(),
             to: "2026-11-02".into(),
+            as_of: None,
+            compare_as_of: None,
         };
         let mut repository = PgPmsReportRead::new(&mut connection);
         let error = pms_range_report(&actor(), &missing, &mut repository, 1_000)
@@ -703,6 +707,8 @@ async fn foreign_company_branch_and_missing_property_are_concealed() {
                 property_id: "property-2".into(),
                 from: "2026-11-01".into(),
                 to: "2026-11-01".into(),
+                as_of: None,
+                compare_as_of: None,
             },
             &mut PgPmsReportRead::new(&mut connection),
             1_000,
@@ -966,7 +972,7 @@ mod transport {
                 422,
             ),
             (
-                "/api/v1/holdings/acme/pms/reports/range?property=property-1&from=2026-11-01&to=2026-11-02&asOf=2026-11-02T00:00:00Z",
+                "/api/v1/holdings/acme/pms/reports/range?property=property-1&from=2026-11-01&to=2026-11-02&asOf=not-a-date",
                 422,
             ),
             (
