@@ -4,15 +4,16 @@ import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import type { Row } from '@erpx/server-collaboration/public/collaboration-work';
 import { nativeNotificationStatement } from './native-notification-statement';
 
-/** Native-owned card-history read statement. The SQL text and scope binds are
- * issued by the Collaboration owner against the authorized session selection;
- * the caller only supplies the card id and executes the statement inside its
- * own serializable unit, so uncommitted notification work stays observable and
- * out-of-scope cards yield no rows instead of leaking foreign events. */
-export async function nativeCardHistoryStatement(
+/** Owner-issued Collaboration read statements for caller-owned transactions.
+ * The SQL text and scope binds are issued by the native owner against the
+ * authorized session selection; the caller only supplies the read key and
+ * executes the statement inside its own serializable unit, so uncommitted
+ * work stays observable and out-of-scope rows never leak. */
+export async function nativeCollaborationReadStatement(
   db: SqlDatabase,
   actor: WorkContext,
-  cardId: string,
+  kind: 'collaboration_card_history' | 'collaboration_record_relations' | 'collaboration_action_cards',
+  recordId: string,
   key: string,
   now: number,
 ): Promise<{ results: Row[] }> {
@@ -23,13 +24,24 @@ export async function nativeCardHistoryStatement(
       companyId: actor.companyId,
       userId: actor.userId,
       recordType: 'collaboration_action_card',
-      recordId: cardId,
+      recordId,
       recordVersion: 1,
-      message: 'card history read',
-      kind: 'collaboration_card_history',
+      message: 'collaboration read',
+      kind,
     },
     key,
     now,
   );
   return statement.all<Row>();
+}
+
+/** Native-owned card-history read statement (see above). */
+export async function nativeCardHistoryStatement(
+  db: SqlDatabase,
+  actor: WorkContext,
+  cardId: string,
+  key: string,
+  now: number,
+): Promise<{ results: Row[] }> {
+  return nativeCollaborationReadStatement(db, actor, 'collaboration_card_history', cardId, key, now);
 }

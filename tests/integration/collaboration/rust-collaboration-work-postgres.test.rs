@@ -248,3 +248,132 @@ async fn run_statement(
         .map(|raw| serde_json::from_str(&raw).map_err(|_| PgTransactionError::Business(BusinessError::new(erpx_server_shared::public::FailureKind::InvalidInput, "COLLABORATION_CARD_HISTORY_INVALID", "The card history could not be read."))))
         .collect()
 }
+
+#[tokio::test]
+async fn workspace_statements_match_retained_reads_with_scope_guard() {
+    fixture::with_database(2, |pool| async move {
+        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
+        migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
+        PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
+            lock_collaboration_work_sources(c).await?;
+            let key = CommandKey::new("collaboration-workspace-card")?;
+            // Workspace-visible source kind: the retained reads exclude
+            // field-service orders (served natively), so parity uses a ticket.
+            let ticket = SourceRecord {
+                kind: SourceKind::SupportTicket,
+                id: "synthetic-ticket-source".into(),
+                company_id: "company".into(),
+                branch_id: None,
+                department_id: None,
+                version: 2,
+                title: "Source".into(),
+                status: "open".into(),
+            };
+            let receipt = apply_plan(c, &actor(), &key, &OwnerPlan::CreateCard {
+                source: ticket,
+                title: "Review visit".into(),
+                owner_id: "synthetic-owner".into(),
+                due_at: 2000000000000,
+                reason: "Review evidence".into(),
+            }, 100).await?;
+            // Retained `recordRelations` literal (retired TypeScript read).
+            let retained_relations = "SELECT * FROM collaboration_record_relations WHERE company_id=? AND status='active' AND source_type<>'field_service_order' AND target_type<>'field_service_order' ORDER BY updated_at DESC LIMIT 100";
+            sqlx::query("INSERT INTO collaboration_record_relations(id,company_id,branch_id,department_id,source_type,source_id,source_version,target_type,target_id,target_version,relation,reason,created_by,created_at,updated_at) VALUES('rel-1','company',NULL,NULL,'support_ticket','s1',1,'support_ticket','s2',1,'related','synthetic', 'synthetic',100,100)").execute(&mut *c).await?;
+            let via_statement = run_rows_statement(c, &record_relations_statement("company")?).await?;
+            let via_retained = run_rows_raw(c, retained_relations, &[Some("company".to_owned())]).await?;
+            assert_eq!(via_statement.len(), 1);
+            assert_eq!(via_statement, via_retained);
+            // Retained `actionCards` literal with its composed fragments.
+            let retained_cards = "SELECT c.*,CASE WHEN EXISTS(SELECT 1 FROM assignments x JOIN hr_people p ON p.user_id=x.user_id AND p.company_id=x.company_id JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id WHERE x.company_id=c.company_id AND x.user_id=c.owner_id AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(x.user_id,x.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(x.role,x.company_id,'records.write') AND (x.scope_kind='holding' OR (x.scope_kind='branch' AND x.scope_node_id=c.branch_id) OR (x.scope_kind='department' AND x.scope_node_id=c.department_id)) AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active') THEN 1 ELSE 0 END owner_eligible,(SELECT legal_name FROM hr_people WHERE company_id=c.company_id AND user_id=c.owner_id AND merged_into_id IS NULL LIMIT 1) owner_name FROM collaboration_action_cards c WHERE c.company_id=? AND c.source_type<>'field_service_order' AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?) ORDER BY c.updated_at DESC LIMIT 100";
+            let via_statement = run_rows_statement(c, &action_cards_statement("company", None, None)?).await?;
+            let via_retained = run_rows_raw(
+                c,
+                retained_cards,
+                &[
+                    Some("company".to_owned()),
+                    None,
+                    None,
+                    None,
+                    None,
+                ],
+            )
+            .await?;
+            assert_eq!(via_statement.len(), 1);
+            assert_eq!(via_statement, via_retained);
+            assert_eq!(via_statement[0].get("id").and_then(|v| v.as_str()), Some(receipt.id.as_str()));
+            // Scope guard: foreign company and out-of-scope branch yield nothing.
+            let foreign = action_cards_statement("other", None, None)?;
+            assert!(run_rows_statement(c, &foreign).await?.is_empty());
+            let scoped = action_cards_statement("company", Some("other-branch"), None)?;
+            assert!(run_rows_statement(c, &scoped).await?.is_empty());
+            let foreign_relations = record_relations_statement("other")?;
+            assert!(run_rows_statement(c, &foreign_relations).await?.is_empty());
+            Ok(())
+        })).await.unwrap();
+    }).await;
+}
+
+async fn run_rows_statement(
+    c: &mut sqlx::PgConnection,
+    statement: &erpx_server_collaboration::public::notification_statement::NotificationStatement,
+) -> Result<Vec<serde_json::Value>, PgTransactionError<BusinessError>> {
+    let values: Vec<Option<String>> = statement
+        .values
+        .iter()
+        .map(|value| match value {
+            serde_json::Value::String(text) => Some(text.clone()),
+            serde_json::Value::Null => None,
+            other => Some(other.to_string()),
+        })
+        .collect();
+    run_rows_raw(c, &statement.sql, &values).await
+}
+
+async fn run_rows_raw(
+    c: &mut sqlx::PgConnection,
+    sql: &str,
+    values: &[Option<String>],
+) -> Result<Vec<serde_json::Value>, PgTransactionError<BusinessError>> {
+    // Row-returning statements are compared through their JSON image so the
+    // native text and the retained literal are judged on identical row sets.
+    let wrapped = format!("SELECT to_jsonb(s)::text FROM ({sql}) s");
+    let mut numbered = String::with_capacity(wrapped.len() + 16);
+    let parts: Vec<&str> = wrapped.split('?').collect();
+    for (index, part) in parts.iter().enumerate() {
+        numbered.push_str(part);
+        if index < values.len() {
+            numbered.push_str(&format!("${}", index + 1));
+        }
+    }
+    let mut query = sqlx::query_scalar::<_, String>(sqlx::AssertSqlSafe(numbered));
+    for value in values {
+        query = query.bind(value.clone());
+    }
+    let raws: Vec<String> = query.fetch_all(&mut *c).await?;
+    raws.into_iter()
+        .map(|raw| serde_json::from_str(&raw).map_err(|_| PgTransactionError::Business(BusinessError::new(erpx_server_shared::public::FailureKind::InvalidInput, "COLLABORATION_WORKSPACE_INVALID", "The workspace could not be read."))))
+        .collect()
+}
+
+async fn run_raw(
+    c: &mut sqlx::PgConnection,
+    sql: &str,
+    binds: &[&str],
+) -> Result<Vec<serde_json::Value>, PgTransactionError<BusinessError>> {
+    let mut numbered = String::with_capacity(sql.len() + 8);
+    let parts: Vec<&str> = sql.split('?').collect();
+    for (index, part) in parts.iter().enumerate() {
+        numbered.push_str(part);
+        if index < binds.len() {
+            numbered.push_str(&format!("${}", index + 1));
+        }
+    }
+    let mut query = sqlx::query_scalar::<_, String>(sqlx::AssertSqlSafe(numbered));
+    for bind in binds {
+        query = query.bind((*bind).to_owned());
+    }
+    let raws: Vec<String> = query.fetch_all(&mut *c).await?;
+    raws.into_iter()
+        .map(|raw| serde_json::from_str(&raw).map_err(|_| PgTransactionError::Business(BusinessError::new(erpx_server_shared::public::FailureKind::InvalidInput, "COLLABORATION_WORKSPACE_INVALID", "The workspace could not be read."))))
+        .collect()
+}

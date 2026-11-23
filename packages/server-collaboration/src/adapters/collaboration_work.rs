@@ -237,6 +237,66 @@ pub async fn read_card_history(
         .collect()
 }
 
+/// Owner-issued record-relations read statement for caller-owned transactions.
+///
+/// Pure constructor: the retained `recordRelations` read with a company bind
+/// supplied by the authorized selection, never caller input.
+pub fn record_relations_statement(
+    company: &str,
+) -> Result<crate::adapters::notification_statement::NotificationStatement, BusinessError> {
+    use crate::adapters::notification_statement::NotificationStatement;
+    if company.is_empty() {
+        return Err(BusinessError::new(
+            FailureKind::InvalidInput,
+            "COLLABORATION_RECORD_RELATIONS_INVALID",
+            "A Company scope is required.",
+        ));
+    }
+    Ok(NotificationStatement {
+        sql: "SELECT * FROM collaboration_record_relations WHERE company_id=? AND status='active' AND source_type<>'field_service_order' AND target_type<>'field_service_order' ORDER BY updated_at DESC LIMIT 100".to_owned(),
+        values: vec![Value::String(company.to_owned())],
+    })
+}
+
+/// Owner-issued action-cards read statement for caller-owned transactions.
+///
+/// Pure constructor: the retained `actionCards` read byte-identically,
+/// including the owner-eligibility predicate (mirrors
+/// `collaborationCardEligibilitySql` in the identity-access
+/// collaboration-read-projections) and the owner-name projection (mirrors
+/// `cardOwnerName` in the people-payroll collaboration-read-projections).
+/// Any change to those TS constants must be mirrored here; the parity suite
+/// compares both paths row-for-row. Scope binds come from the authorized
+/// selection, never caller input.
+pub fn action_cards_statement(
+    company: &str,
+    branch: Option<&str>,
+    department: Option<&str>,
+) -> Result<crate::adapters::notification_statement::NotificationStatement, BusinessError> {
+    use crate::adapters::notification_statement::NotificationStatement;
+    if company.is_empty() {
+        return Err(BusinessError::new(
+            FailureKind::InvalidInput,
+            "COLLABORATION_ACTION_CARDS_INVALID",
+            "A Company scope is required.",
+        ));
+    }
+    let value = |slot: Option<&str>| match slot {
+        Some(text) => Value::String(text.to_owned()),
+        None => Value::Null,
+    };
+    Ok(NotificationStatement {
+        sql: "SELECT c.*,CASE WHEN EXISTS(SELECT 1 FROM assignments x JOIN hr_people p ON p.user_id=x.user_id AND p.company_id=x.company_id JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id WHERE x.company_id=c.company_id AND x.user_id=c.owner_id AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(x.user_id,x.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(x.role,x.company_id,'records.write') AND (x.scope_kind='holding' OR (x.scope_kind='branch' AND x.scope_node_id=c.branch_id) OR (x.scope_kind='department' AND x.scope_node_id=c.department_id)) AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active') THEN 1 ELSE 0 END owner_eligible,(SELECT legal_name FROM hr_people WHERE company_id=c.company_id AND user_id=c.owner_id AND merged_into_id IS NULL LIMIT 1) owner_name FROM collaboration_action_cards c WHERE c.company_id=? AND c.source_type<>'field_service_order' AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?) ORDER BY c.updated_at DESC LIMIT 100".to_owned(),
+        values: vec![
+            Value::String(company.to_owned()),
+            value(branch),
+            value(branch),
+            value(department),
+            value(department),
+        ],
+    })
+}
+
 /// Owner-issued card-history read statement for caller-owned transactions.
 ///
 /// Pure constructor: no connection is needed. The SQL is the retained

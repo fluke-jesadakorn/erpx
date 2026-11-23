@@ -4352,6 +4352,19 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
                                 input.record_id.as_str(),
                             )
                             .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("collaboration_record_relations") {
+                            erpx_server_collaboration::public::collaboration_work::record_relations_statement(
+                                company_id.as_str(),
+                            )
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("collaboration_action_cards") {
+                            let workspace = current.selection().workspace();
+                            erpx_server_collaboration::public::collaboration_work::action_cards_statement(
+                                company_id.as_str(),
+                                workspace.branch_id.as_ref().map(|id| id.as_str()),
+                                workspace.department_id.as_ref().map(|id| id.as_str()),
+                            )
+                            .map_err(Into::into)
                         } else {
                             notification_statement(connection, &company_id, &input)
                                 .await

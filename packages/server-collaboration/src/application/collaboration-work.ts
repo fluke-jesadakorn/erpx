@@ -6,10 +6,10 @@ import { hasModuleAccess } from '@erpx/catalogue/module-access';
 import { BusinessRuleError, type Clock, type IdentifierSource } from '@erpx/server-shared/index';
 import { sourceType, csvCell, type Row, type Source, type Card } from '@erpx/server-collaboration/domain/collaboration-work';
 export interface CollaborationWorkRepository {
-    recordRelations(companyId: string): Promise<{
+    recordRelations(actor: WorkContext): Promise<{
         results: Row[];
     }>;
-    actionCards(companyId: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null): Promise<{
+    actionCards(actor: WorkContext): Promise<{
         results: Card[];
     }>;
     eligiblePeople(companyId: string): Promise<{
@@ -59,7 +59,7 @@ export function createCollaborationWorkApplication<Effect>(ports: CollaborationW
     }
     async function collaborationWorkspace(a: WorkContext) {
         access(a);
-        const relations = (await r.recordRelations(a.companyId)).results, cards = (await r.actionCards(a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId)).results, people = (await r.eligiblePeople(a.companyId)).results;
+        const relations = (await r.recordRelations(a)).results, cards = (await r.actionCards(a)).results, people = (await r.eligiblePeople(a.companyId)).results;
         const visible = [];
         for (const r of relations) {
             const left = await visibleSource(a, sourceType.parse(r.source_type), String(r.source_id)), right = await visibleSource(a, sourceType.parse(r.target_type), String(r.target_id));
