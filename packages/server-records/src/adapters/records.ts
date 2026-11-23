@@ -1,5 +1,8 @@
 import {withExpenseWorkspaceRecordRead} from '@erpx/server-people_payroll/public/record-purchases';
 import {workSourceReadScope,requireWorkWorkspaceRecordRead} from "@erpx/server-operations/public/record-purchases";
+// Removal task for the retained Field partition below: retire.records.registry-fallback.
+// The generic engine still routes field_service reads; migration 1095 preserved legacy
+// Field preview rows in workspace_records. Do not drop these guards before that task.
 import {serviceSourceReadScope,requireServiceWorkspaceRecordRead} from "@erpx/server-field_service/public/record-purchases";
 import {benefitSourceReadScope,requireBenefitWorkspaceRecordRead} from "@erpx/server-benefits/public/record-purchases";
 import {workforceSourceReadScope,requireWorkforceWorkspaceRecordRead} from "@erpx/server-people_payroll/public/workforce-record-purchases";

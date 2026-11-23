@@ -6,6 +6,11 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 // Partition identity only. The retained generic Records engine cannot evaluate
 // Field authorization or execute Field mutations. Actual Field Records source
 // reads and guards belong to the native same-transaction composition.
+// removalTaskId=retire.records.registry-fallback: retained. The generic Records
+// engine still routes field_service through listRecords/getRecord/searchReferences;
+// migration 1095 preserved legacy workspace_records images for Field previews.
+// Removing this partition before that engine is retired would re-expose those
+// rows. The four SQL reads here are not counted as retired TS statements.
 const nativeIds="SELECT id FROM field_service_agreements UNION SELECT id FROM field_service_orders";
 export async function serviceSourceReadScope(_database:SqlDatabase,_actor:WorkContext,_surface:"records"){
  void _database;void _actor;void _surface;

@@ -5,12 +5,11 @@
   "type": "module",
   "exports": {
     "./adapters/final-root-owner-projection-sources": "./src/adapters/final-root-owner-projection-sources.ts",
-    "./adapters/executive-metric-projections": "./src/adapters/executive-metric-projections.ts",
     "./adapters/finance-record-sources": "./src/adapters/finance-record-sources.ts",
     "./adapters/record-purchases": "./src/adapters/record-purchases.ts",
     "./public/native-work": "./src/public/native-work.ts",
     "./public/final-root-owner-projection-sources": "./src/public/final-root-owner-projection-sources.ts",
-    "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
+    "./public/native-executive": "./src/public/native-executive.ts",
     "./public/finance-record-sources": "./src/public/finance-record-sources.ts",
     "./public/record-purchases": "./src/public/record-purchases.ts",
     "./public/rules/parts-entry": "./src/public/rules/parts-entry.ts",
