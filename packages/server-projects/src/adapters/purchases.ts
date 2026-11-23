@@ -89,13 +89,16 @@ async function workerReferences(database:SqlDatabase,companyId:string,users:read
  return JSON.stringify({people:await projectWorkerReferenceWitness(database,companyId,users),staff});
 }
 async function memberUsers(database:SqlDatabase,id:string){return (await projectMemberRows(database,id)).results.map(row=>row.user_id);}
+export function readReceiptOperation(database:SqlDatabase,actor:StaffActor,key:string){
+ return database.prepare(`SELECT operation FROM command_receipts WHERE command_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?`)
+  .bind(key,actor.userId,actor.companyId).first<{operation:string}>();
+}
 export async function withProjectPurchasedCommand<Result>(owner:SqlDatabase,actor:StaffActor,
  command:{key:string;operations:readonly string[];projectId:string;purpose:CapabilityPurpose;capability?:ProjectCapability;permission?:string;existing?:boolean;member?:boolean;target?:ProjectPurchaseTarget;memberUserIds?:readonly string[]},run:(database:SqlDatabase)=>Promise<Result>){
  const mode=await projectsPackageEnforcementMode();if(mode==="disabled")return run(owner);
  const members=command.memberUserIds?[...new Set(command.memberUserIds)].sort():null,workers=members?[...new Set([actor.userId,...members])].sort():null,context=JSON.stringify(actor);
  const execute=async(database:SqlDatabase)=>{
-  const prior=await database.prepare(`SELECT operation FROM command_receipts WHERE command_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?`)
-   .bind(command.key,actor.userId,actor.companyId).first<{operation:string}>();
+  const prior=await readReceiptOperation(database,actor,command.key);
   const replay=!!prior&&command.operations.includes(prior.operation),purpose=replay?"history" as const:command.purpose;
   const before=command.existing||replay?await source(database,actor,command.projectId,command.member!==false):undefined;
   const childBefore=command.target?await targetImage(database,actor,command.projectId,command.target):null;

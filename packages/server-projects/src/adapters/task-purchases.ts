@@ -9,7 +9,7 @@ import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commerc
 import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
-import {deferProjectOwnerCheck,inProjectOwnerUnit,projectPurchaseControls,requireProjectPurchasedRead,withProjectPurchasedCommand} from "@erpx/server-projects/adapters/purchases";
+import {deferProjectOwnerCheck,inProjectOwnerUnit,projectPurchaseControls,readReceiptOperation,requireProjectPurchasedRead,withProjectPurchasedCommand} from "@erpx/server-projects/adapters/purchases";
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 
 type TaskSource={id:string;company_id:string;branch_id:string|null;department_id:string|null;creator_user_id:string;assignee_user_id:string;project_id:string|null;template_id:string|null;schedule_id:string|null;state:string;version:number};
@@ -46,8 +46,7 @@ export async function withProjectTaskPurchasedCommand<Result>(owner:SqlDatabase,
  command:{key:string;operations:readonly string[];id:string;purpose:CapabilityPurpose;configure?:boolean;projectId?:string|null;assigneeUserId?:string},run:(database:SqlDatabase)=>Promise<Result>){
  if(await projectsPackageEnforcementMode()==='disabled')return run(owner);
  return inProjectOwnerUnit(owner,actor.companyId,async database=>{
-  const before=await taskSource(database,actor,command.id,true),receipt=await database.prepare("SELECT operation FROM command_receipts WHERE command_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?")
-   .bind(command.key,actor.userId,actor.companyId).first<{operation:string}>(),replay=!!receipt&&command.operations.includes(receipt.operation);
+  const before=await taskSource(database,actor,command.id,true),receipt=await readReceiptOperation(database,actor,command.key),replay=!!receipt&&command.operations.includes(receipt.operation);
   const expectedProject=replay?before?.project_id??null:command.configure?command.projectId??null:before?.project_id??null;
   const expectedAssignee=replay||!command.configure?before?.assignee_user_id:command.assigneeUserId;
   const projects=[...new Set([before?.project_id,expectedProject].filter((id):id is string=>!!id))];
