@@ -357,6 +357,48 @@ impl CommerceOrderHttpState {
         CommandKey::new(key)
     }
 
+    /// Exact handler used by both the Router and owner tests. Resolves an
+    /// allow-listed owner read kind to its fixed SQL; no SQL is accepted from
+    /// the wire and the statement is executed by the caller on its own unit.
+    pub fn plan_read(
+        &self,
+        headers: &HeaderMap,
+        holding_slug: &str,
+        query: Option<&str>,
+        body: &[u8],
+    ) -> Response {
+        let result = (|| {
+            if query.is_some_and(|value| !value.is_empty()) {
+                return Err(request_invalid());
+            }
+            let _target = self.target(headers, holding_slug)?;
+            let value: Value = serde_json::from_slice(body).map_err(|_| request_invalid())?;
+            let kind = value
+                .get("kind")
+                .and_then(Value::as_str)
+                .ok_or_else(request_invalid)?;
+            let values = value
+                .get("values")
+                .and_then(Value::as_array)
+                .ok_or_else(request_invalid)?;
+            if values.len() > 64 {
+                return Err(request_invalid());
+            }
+            let statement = crate::adapters::native_commerce_read_sql::read_statement(kind)
+                .ok_or_else(request_invalid)?;
+            if values.len() != statement.bind_count {
+                return Err(request_invalid());
+            }
+            Ok(serde_json::json!({
+                "statements": [{ "sql": statement.sql, "values": values }]
+            }))
+        })();
+        match result {
+            Ok(data) => bounded(serde_json::json!({ "data": data })),
+            Err(error) => error_response(error),
+        }
+    }
+
     fn order_id(value: &str) -> Result<String, BusinessError> {
         RecordId::new(value)
             .map(|id| id.as_str().to_owned())
@@ -1188,6 +1230,10 @@ pub fn commerce_order_http_router_with_origin_policy_and_sales_delivery(
             "/api/v1/holdings/{holding_slug}/commerce/orders/{order_id}/fulfill",
             post(fulfill_handler),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/commerce/command-plan",
+            post(command_plan_handler),
+        )
         .with_state(Arc::new(state)))
 }
 
@@ -1200,6 +1246,19 @@ async fn detail_handler(
     state
         .detail(&parts.headers, &slug, &order_id, parts.uri.query())
         .await
+}
+
+async fn command_plan_handler(
+    State(state): State<Arc<CommerceOrderHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let (parts, body) = request.into_parts();
+    let bytes = match to_bytes(body, BODY_LIMIT).await {
+        Ok(bytes) => bytes,
+        Err(_) => return error_response(request_invalid()),
+    };
+    state.plan_read(&parts.headers, &slug, parts.uri.query(), &bytes)
 }
 
 async fn save_create_handler(

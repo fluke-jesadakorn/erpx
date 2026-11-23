@@ -817,3 +817,66 @@ fn trusted_origin_policy_matches_real_typescript_url_validation() {
         "legacy constructor remains production strict"
     );
 }
+
+#[tokio::test]
+async fn command_plan_route_returns_owner_fixed_sql_and_fails_closed() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let router = commerce_order_http_router(vec![target(
+        "acme.example.test",
+        "acme",
+        seen.clone(),
+        None,
+        false,
+    )])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let _server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+    let path = "/api/v1/holdings/acme/commerce/command-plan";
+
+    let (status, body, headers) = http(
+        addr,
+        post(
+            path,
+            "acme.example.test",
+            None,
+            r#"{"kind":"commerce_rd_pms_warehouse_active","values":["company-1"]}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(
+        body["data"]["statements"][0]["sql"],
+        "SELECT 1 FROM commerce_warehouses WHERE company_id=? AND status='active' LIMIT 1"
+    );
+    assert_eq!(body["data"]["statements"][0]["values"][0], "company-1");
+    assert!(headers.contains("cache-control: private, no-store"));
+    // The command-plan route must not reach the order backend.
+    assert!(seen.lock().unwrap().is_empty());
+
+    let (status, _, _) = http(
+        addr,
+        post(
+            path,
+            "acme.example.test",
+            None,
+            r#"{"kind":"SELECT 1 FROM commerce_settings","values":[]}"#,
+        ),
+    )
+    .await;
+    assert_ne!(status, 200, "unregistered kind must fail closed");
+
+    let (status, _, _) = http(
+        addr,
+        post(
+            path,
+            "acme.example.test",
+            None,
+            r#"{"kind":"commerce_rd_pms_settings_exists","values":["c1","c2"]}"#,
+        ),
+    )
+    .await;
+    assert_ne!(status, 200, "wrong bind count must fail closed");
+}

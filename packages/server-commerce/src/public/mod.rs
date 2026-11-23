@@ -1,3 +1,4 @@
+pub mod native_commerce_read_sql;
 pub mod order;
 pub mod order_http;
 pub mod quality_masters;
