@@ -1,21 +1,36 @@
 //! Native final-root projection source port: closed SQL set and TS-authority parity.
 use erpx_server_field_service::public::final_root_projection::FinalRootProjectionSource;
 
-/// The TS authority that still serves Customer 360 timeline. Its statements are
-/// the oracle until the consumer imports are cut over by lead integration.
+/// The retained TS authority. Customer 360 timeline now reads the agreement,
+/// agreement-event, order-event and order sources through the final-root
+/// witness in composition, so only the still-shared fragments are pinned.
 const TS_AUTHORITY: &str = include_str!(
     "../../../packages/server-field_service/src/adapters/final-root-owner-projection-sources.ts"
 );
 
 #[test]
-fn native_sql_matches_the_ts_authority_statement_for_statement() {
-    for source in FinalRootProjectionSource::ALL {
+fn native_sql_matches_the_retained_ts_authority_statements() {
+    for source in [
+        FinalRootProjectionSource::Agreements,
+        FinalRootProjectionSource::BillingReleases,
+    ] {
         // TS source escapes embedded double quotes as \".
         let escaped = source.sql().replace('"', "\\\"");
         assert!(
             TS_AUTHORITY.contains(&escaped),
             "native SQL for {source:?} is absent from the TS authority: {}",
             source.sql()
+        );
+    }
+    for source in [
+        FinalRootProjectionSource::AgreementEvents,
+        FinalRootProjectionSource::OrderEvents,
+        FinalRootProjectionSource::Orders,
+    ] {
+        let escaped = source.sql().replace('"', "\\\"");
+        assert!(
+            !TS_AUTHORITY.contains(&escaped),
+            "retired TS authority for {source:?} must not be restored"
         );
     }
 }

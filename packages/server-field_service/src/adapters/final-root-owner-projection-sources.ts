@@ -1,15 +1,11 @@
 import "server-only";
 /** Closed native projections for Legal, Asset, Maintenance and Customer joins. Callers retain their original scope/authority filters and execute the composed statement in their supplied transaction. No SQL or relation name is accepted from a caller.
  *
- * Retained shared consumer: Customer 360 timeline and Customer Authority
- * duplicate review still compose their joins from these owner-owned Field
- * source statements. Removal condition: move both consumer owners to their
- * own owner public interfaces or native composition; do not delete these
- * statements while a persisted/history read still references them. */
+ * Customer 360 now consumes the fenced native sources through the final-root
+ * witness in composition; the agreement-event, order-event and order fragments
+ * were retired from this TS authority. The remaining two statements are kept
+ * for their native projection parity pins and the shared-projection follow-up. */
 export const finalRootOwnerProjectionSources = {
-  field_service_agreement_events: "SELECT \"id\",\"agreement_id\",\"version\",\"action\",\"actor_id\",\"reason\",\"status\",\"created_at\" FROM field_service_agreement_events",
   field_service_agreements: "SELECT \"id\",\"company_id\",\"branch_id\",\"department_id\",\"customer_id\",\"asset_id\",\"title\",\"start_date\",\"end_date\",\"currency\",\"visit_rate_minor\",\"status\",\"created_by\",\"reviewed_by\",\"reviewed_at\",\"version\",\"created_at\",\"updated_at\",\"warranty_discount_bps\" FROM field_service_agreements",
   field_service_billing_releases: "SELECT \"id\",\"order_id\",\"agreement_id\",\"customer_id\",\"currency\",\"amount_minor\",\"source_order_version\",\"status\",\"released_by\",\"reason\",\"created_at\",\"warranty_applied\",\"warranty_discount_bps\",\"warranty_end_snapshot\",\"pricing_date\" FROM field_service_billing_releases",
-  field_service_order_events: "SELECT \"id\",\"order_id\",\"version\",\"action\",\"actor_id\",\"reason\",\"status\",\"technician_id\",\"scheduled_at\",\"details_json\",\"created_at\" FROM field_service_order_events",
-  field_service_orders: "SELECT \"id\",\"company_id\",\"branch_id\",\"department_id\",\"ticket_id\",\"ticket_version\",\"agreement_id\",\"agreement_version\",\"asset_id\",\"issue\",\"site\",\"technician_id\",\"scheduled_at\",\"status\",\"exception_reason\",\"visit_started_at\",\"visit_completed_at\",\"labor_minutes\",\"completion_evidence\",\"customer_confirmation\",\"version\",\"created_by\",\"created_at\",\"updated_at\" FROM field_service_orders",
 } as const;
