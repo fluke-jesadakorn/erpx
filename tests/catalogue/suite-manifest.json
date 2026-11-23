@@ -105936,6 +105936,33 @@
         "tests/unit/sales/native-sales-read.test.ts"
       ],
       "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Inventory workflow document reads must use native read-plan kinds and fail closed without native transport."
+      },
+      "apps": [
+        "supply"
+      ],
+      "packages": [
+        "@erpx/server-inventory"
+      ],
+      "id": "inventory.native-inventory-workflow-document-sources.unit",
+      "files": [
+        "tests/unit/inventory/native-inventory-workflow-document-sources.test.ts"
+      ],
+      "framework": "vitest"
     }
   ]
 }

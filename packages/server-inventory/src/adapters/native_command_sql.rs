@@ -364,10 +364,59 @@ const READ_POS_STARTUP_INVENTORY_STATE: NativeStatement = NativeStatement {
     scope: "holding",
 };
 
+/// Native successors of the TypeScript `workflow-document-sources` read family.
+/// Owner-local: each plan touches only Inventory's own `inventory_counts` or
+/// `inventory_transfers` table and the caller executes it on its already-open
+/// unit with the same binds (single-row `.first()` or full `.all()` result),
+/// exactly as the retired TypeScript literals did.
+pub const RD_WORKFLOW_DOCUMENT_STOCK_COUNT: &str = "inventory_rd_workflow_document_stock_count";
+const SQL_RD_WORKFLOW_DOCUMENT_STOCK_COUNT: &str =
+    "SELECT * FROM inventory_counts WHERE company_id=? AND id=?";
+const READ_WORKFLOW_DOCUMENT_STOCK_COUNT: NativeStatement = NativeStatement {
+    kind: RD_WORKFLOW_DOCUMENT_STOCK_COUNT,
+    sql: SQL_RD_WORKFLOW_DOCUMENT_STOCK_COUNT,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_WORKFLOW_DOCUMENT_TRANSFER: &str = "inventory_rd_workflow_document_transfer";
+const SQL_RD_WORKFLOW_DOCUMENT_TRANSFER: &str =
+    "SELECT * FROM inventory_transfers WHERE company_id=? AND id=?";
+const READ_WORKFLOW_DOCUMENT_TRANSFER: NativeStatement = NativeStatement {
+    kind: RD_WORKFLOW_DOCUMENT_TRANSFER,
+    sql: SQL_RD_WORKFLOW_DOCUMENT_TRANSFER,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_WORKFLOW_DOCUMENT_PAGE_STOCK_COUNT: &str = "inventory_rd_workflow_document_page_stock_count";
+const SQL_RD_WORKFLOW_DOCUMENT_PAGE_STOCK_COUNT: &str =
+    "SELECT * FROM inventory_counts WHERE company_id=? AND id>? ORDER BY id LIMIT 100";
+const READ_WORKFLOW_DOCUMENT_PAGE_STOCK_COUNT: NativeStatement = NativeStatement {
+    kind: RD_WORKFLOW_DOCUMENT_PAGE_STOCK_COUNT,
+    sql: SQL_RD_WORKFLOW_DOCUMENT_PAGE_STOCK_COUNT,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_WORKFLOW_DOCUMENT_PAGE_TRANSFER: &str = "inventory_rd_workflow_document_page_transfer";
+const SQL_RD_WORKFLOW_DOCUMENT_PAGE_TRANSFER: &str =
+    "SELECT * FROM inventory_transfers WHERE company_id=? AND id>? ORDER BY id LIMIT 100";
+const READ_WORKFLOW_DOCUMENT_PAGE_TRANSFER: NativeStatement = NativeStatement {
+    kind: RD_WORKFLOW_DOCUMENT_PAGE_TRANSFER,
+    sql: SQL_RD_WORKFLOW_DOCUMENT_PAGE_TRANSFER,
+    bind_count: 2,
+    scope: "holding",
+};
+
 pub fn is_read(kind: &str) -> bool {
     matches!(
         kind,
         RD_POS_STARTUP_INVENTORY_STATE
+            | RD_WORKFLOW_DOCUMENT_STOCK_COUNT
+            | RD_WORKFLOW_DOCUMENT_TRANSFER
+            | RD_WORKFLOW_DOCUMENT_PAGE_STOCK_COUNT
+            | RD_WORKFLOW_DOCUMENT_PAGE_TRANSFER
             | RD_LEDGER_SUPPLEMENT_ROWS
             | RD_LOT_BALANCE_SUPPLEMENT_ROWS
             | RD_LEDGER_SUPPLEMENT_ROW
@@ -393,6 +442,10 @@ pub fn is_read(kind: &str) -> bool {
 pub fn read_statement(kind: &str) -> Option<&'static NativeStatement> {
     match kind {
         RD_POS_STARTUP_INVENTORY_STATE => Some(&READ_POS_STARTUP_INVENTORY_STATE),
+        RD_WORKFLOW_DOCUMENT_STOCK_COUNT => Some(&READ_WORKFLOW_DOCUMENT_STOCK_COUNT),
+        RD_WORKFLOW_DOCUMENT_TRANSFER => Some(&READ_WORKFLOW_DOCUMENT_TRANSFER),
+        RD_WORKFLOW_DOCUMENT_PAGE_STOCK_COUNT => Some(&READ_WORKFLOW_DOCUMENT_PAGE_STOCK_COUNT),
+        RD_WORKFLOW_DOCUMENT_PAGE_TRANSFER => Some(&READ_WORKFLOW_DOCUMENT_PAGE_TRANSFER),
         RD_LEDGER_SUPPLEMENT_ROWS => Some(&READ_LEDGER_SUPPLEMENT),
         RD_LOT_BALANCE_SUPPLEMENT_ROWS => Some(&READ_LOT_BALANCE_SUPPLEMENT),
         RD_LEDGER_SUPPLEMENT_ROW => Some(&READ_LEDGER_SUPPLEMENT_ROW),
@@ -454,6 +507,10 @@ mod tests {
     fn read_plan_is_call_unit_and_ledger_free() {
         for kind in [
             RD_POS_STARTUP_INVENTORY_STATE,
+            RD_WORKFLOW_DOCUMENT_STOCK_COUNT,
+            RD_WORKFLOW_DOCUMENT_TRANSFER,
+            RD_WORKFLOW_DOCUMENT_PAGE_STOCK_COUNT,
+            RD_WORKFLOW_DOCUMENT_PAGE_TRANSFER,
             RD_LEDGER_SUPPLEMENT_ROWS,
             RD_LOT_BALANCE_SUPPLEMENT_ROWS,
             RD_LEDGER_SUPPLEMENT_ROW,
@@ -563,6 +620,40 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), read.bind_count);
         assert_eq!(read.scope, "holding");
         assert!(!read.sql.contains("commerce_"));
+    }
+
+    /// Parity witness for the owner-local `workflow-document-sources` read
+    /// family: each native plan is the exact statement the retired TypeScript
+    /// adapter bound on Inventory's own counts/transfers tables, with the
+    /// caller-unit binds intact and no cross-owner projection.
+    #[test]
+    fn workflow_document_read_plans_match_retired_owner_statements() {
+        let cases = [
+            (
+                RD_WORKFLOW_DOCUMENT_STOCK_COUNT,
+                "SELECT * FROM inventory_counts WHERE company_id=? AND id=?",
+            ),
+            (
+                RD_WORKFLOW_DOCUMENT_TRANSFER,
+                "SELECT * FROM inventory_transfers WHERE company_id=? AND id=?",
+            ),
+            (
+                RD_WORKFLOW_DOCUMENT_PAGE_STOCK_COUNT,
+                "SELECT * FROM inventory_counts WHERE company_id=? AND id>? ORDER BY id LIMIT 100",
+            ),
+            (
+                RD_WORKFLOW_DOCUMENT_PAGE_TRANSFER,
+                "SELECT * FROM inventory_transfers WHERE company_id=? AND id>? ORDER BY id LIMIT 100",
+            ),
+        ];
+        for (kind, expected) in cases {
+            let read = read_statement(kind).expect("read kind");
+            assert_eq!(read.sql, expected, "{kind}");
+            assert_eq!(read.bind_count, 2, "{kind}");
+            assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
+            assert_eq!(read.scope, "holding", "{kind}");
+            assert!(!read.sql.contains("commerce_"), "{kind}");
+        }
     }
 
     /// Parity witness for the owner-local `attachments-operational-facts` read:
