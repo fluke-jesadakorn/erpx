@@ -29,6 +29,10 @@ export const SUPPORT_RD_INCIDENT_TICKET_LINKS = 'support_rd_incident_ticket_link
 export const SUPPORT_RD_TICKET_SOURCE_IMAGE = 'support_rd_ticket_source_image';
 export const SUPPORT_RD_TICKET_ATTACHMENT_SOURCE_IMAGE = 'support_rd_ticket_attachment_source_image';
 export const SUPPORT_RD_ATTACHMENT_MIGRATION_SCOPE = 'support_rd_attachment_migration_scope';
+export const SUPPORT_RD_SERVICE_TEAM_OPTIONS = 'support_rd_service_team_options';
+export const SUPPORT_RD_SERVICE_TEAM_OPTION_HISTORY = 'support_rd_service_team_option_history';
+export const SUPPORT_RD_SERVICE_TEAM_OPTION_HANDLERS = 'support_rd_service_team_option_handlers';
+export const SUPPORT_RD_SERVICE_TEAM_OPTION_COVERAGE = 'support_rd_service_team_option_coverage';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'SUPPORT_NATIVE_READ_UNAVAILABLE', 'The native Support read service is unavailable.');

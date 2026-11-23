@@ -12,7 +12,9 @@
 //! `support_incident_tickets`, `support_tickets` and `support_incidents`, and
 //! ticket source-image snapshots on `support_tickets` used by the private-file
 //! and portal-preview consistency witnesses. It also plans the owner-local
-//! attachment-migration scope read on `support_tickets` consumed by Files.
+//! attachment-migration scope read on `support_tickets` consumed by Files and
+//! the service-team option reads on `service_teams`, `service_team_revisions`,
+//! `service_team_members` and `service_team_coverage`.
 //! Reads carry no receipt/audit/outbox ledger: the caller executes them on the
 //! same unit as the surrounding command. No SQL is ever accepted from the wire
 //! and no TypeScript SQL remains for these kinds.
@@ -168,6 +170,45 @@ const READ_ATTACHMENT_MIGRATION_SCOPE: NativeSupportReadStatement = NativeSuppor
     bind_count: 1,
 };
 
+/// Native successors of the TypeScript service-team option reads. The caller
+/// binds `[company_id]` for the team list and `[team_id, company_id]` (or
+/// `[company_id, team_id]` for history) for the per-team projections.
+pub const RD_SERVICE_TEAM_OPTIONS: &str = "support_rd_service_team_options";
+const SQL_SERVICE_TEAM_OPTIONS: &str =
+    "SELECT * FROM service_teams WHERE company_id=? ORDER BY name,id";
+const READ_SERVICE_TEAM_OPTIONS: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_SERVICE_TEAM_OPTIONS,
+    sql: SQL_SERVICE_TEAM_OPTIONS,
+    bind_count: 1,
+};
+
+pub const RD_SERVICE_TEAM_OPTION_HISTORY: &str = "support_rd_service_team_option_history";
+const SQL_SERVICE_TEAM_OPTION_HISTORY: &str =
+    "SELECT version,configuration_json,actor_id,created_at FROM service_team_revisions WHERE company_id=? AND team_id=? ORDER BY version DESC LIMIT 100";
+const READ_SERVICE_TEAM_OPTION_HISTORY: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_SERVICE_TEAM_OPTION_HISTORY,
+    sql: SQL_SERVICE_TEAM_OPTION_HISTORY,
+    bind_count: 2,
+};
+
+pub const RD_SERVICE_TEAM_OPTION_HANDLERS: &str = "support_rd_service_team_option_handlers";
+const SQL_SERVICE_TEAM_OPTION_HANDLERS: &str =
+    "SELECT user_id,responsibility FROM service_team_members WHERE team_id=? AND company_id=? ORDER BY user_id";
+const READ_SERVICE_TEAM_OPTION_HANDLERS: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_SERVICE_TEAM_OPTION_HANDLERS,
+    sql: SQL_SERVICE_TEAM_OPTION_HANDLERS,
+    bind_count: 2,
+};
+
+pub const RD_SERVICE_TEAM_OPTION_COVERAGE: &str = "support_rd_service_team_option_coverage";
+const SQL_SERVICE_TEAM_OPTION_COVERAGE: &str =
+    "SELECT category,scope_kind,scope_node_id FROM service_team_coverage WHERE team_id=? AND company_id=? ORDER BY category,scope_node_id";
+const READ_SERVICE_TEAM_OPTION_COVERAGE: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_SERVICE_TEAM_OPTION_COVERAGE,
+    sql: SQL_SERVICE_TEAM_OPTION_COVERAGE,
+    bind_count: 2,
+};
+
 const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SERVICE_COVERAGE_HISTORY,
     READ_SERVICE_TEAM_COVERAGE,
@@ -181,6 +222,10 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_TICKET_SOURCE_IMAGE,
     READ_TICKET_ATTACHMENT_SOURCE_IMAGE,
     READ_ATTACHMENT_MIGRATION_SCOPE,
+    READ_SERVICE_TEAM_OPTIONS,
+    READ_SERVICE_TEAM_OPTION_HISTORY,
+    READ_SERVICE_TEAM_OPTION_HANDLERS,
+    READ_SERVICE_TEAM_OPTION_COVERAGE,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -251,6 +296,26 @@ mod tests {
                 SQL_ATTACHMENT_MIGRATION_SCOPE,
                 1usize,
             ),
+            (
+                RD_SERVICE_TEAM_OPTIONS,
+                SQL_SERVICE_TEAM_OPTIONS,
+                1usize,
+            ),
+            (
+                RD_SERVICE_TEAM_OPTION_HISTORY,
+                SQL_SERVICE_TEAM_OPTION_HISTORY,
+                2usize,
+            ),
+            (
+                RD_SERVICE_TEAM_OPTION_HANDLERS,
+                SQL_SERVICE_TEAM_OPTION_HANDLERS,
+                2usize,
+            ),
+            (
+                RD_SERVICE_TEAM_OPTION_COVERAGE,
+                SQL_SERVICE_TEAM_OPTION_COVERAGE,
+                2usize,
+            ),
         ];
         for (kind, sql, binds) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -269,7 +334,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 12);
+        assert_eq!(STATEMENTS.len(), 16);
     }
 
     #[test]
@@ -300,5 +365,13 @@ mod tests {
         assert_eq!(attachment_image.bind_count, 2);
         let migration_scope = read_statement(RD_ATTACHMENT_MIGRATION_SCOPE).expect("attachment migration scope");
         assert_eq!(migration_scope.bind_count, 1);
+        let options = read_statement(RD_SERVICE_TEAM_OPTIONS).expect("service team options");
+        assert_eq!(options.bind_count, 1);
+        let option_history = read_statement(RD_SERVICE_TEAM_OPTION_HISTORY).expect("service team option history");
+        assert_eq!(option_history.bind_count, 2);
+        let option_handlers = read_statement(RD_SERVICE_TEAM_OPTION_HANDLERS).expect("service team option handlers");
+        assert_eq!(option_handlers.bind_count, 2);
+        let option_coverage = read_statement(RD_SERVICE_TEAM_OPTION_COVERAGE).expect("service team option coverage");
+        assert_eq!(option_coverage.bind_count, 2);
     }
 }

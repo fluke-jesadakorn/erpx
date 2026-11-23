@@ -6,6 +6,18 @@ import type { ServiceTeam } from "@erpx/server-support/domain/service-teams";
 import { serviceOwner } from "@erpx/server-support/adapters/service-access";
 import { companyMembers } from "@erpx/server-organization/public/member-directory";
 import { createServiceTeamOptions } from "@erpx/server-support/application/service-team-options";
+import {
+  nativeSupportReadAll,
+  SUPPORT_RD_SERVICE_TEAM_OPTIONS,
+  SUPPORT_RD_SERVICE_TEAM_OPTION_HISTORY,
+  SUPPORT_RD_SERVICE_TEAM_OPTION_HANDLERS,
+  SUPPORT_RD_SERVICE_TEAM_OPTION_COVERAGE,
+} from "@erpx/server-support/adapters/native-support-read";
+
+/** Owner-native service-team option reads. The owner-local statements are
+ * planned by the Support `command-plan` (`service_team*` tables) and executed on
+ * the caller's open unit; this module carries no SQL for these four reads. The
+ * organization node list stays here because Organization owns that projection. */
 export async function serviceTeamOptions(db: SqlDatabase, actor: WorkContext) {
     return createServiceTeamOptions({ owner: actor => serviceOwner(db, actor), nodes: async (actor) => (await db
             .prepare(`SELECT id,kind,display_name,branch_id FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE company_id=? AND status='active' AND kind IN ('company','branch','department') AND (?::text IS NULL OR id=? OR branch_id=?) AND (?::text IS NULL OR id=? OR kind='branch') ORDER BY display_name`)
@@ -15,28 +27,23 @@ export async function serviceTeamOptions(db: SqlDatabase, actor: WorkContext) {
             kind: string;
             display_name: string;
             branch_id: string | null;
-        }>()).results, teams: async (actor) => (await db
-            .prepare("SELECT * FROM service_teams WHERE company_id=? ORDER BY name,id")
-            .bind(actor.companyId)
-            .all<ServiceTeam>()).results, members: companyMembers,
-        history: async (actor, team) => (await db
-            .prepare("SELECT version,configuration_json,actor_id,created_at FROM service_team_revisions WHERE company_id=? AND team_id=? ORDER BY version DESC LIMIT 100")
-            .bind(actor.companyId, team.id)
-            .all<{
+        }>()).results, teams: async (actor) => (await nativeSupportReadAll<ServiceTeam>(
+            SUPPORT_RD_SERVICE_TEAM_OPTIONS, [actor.companyId], db,
+        )).results, members: companyMembers,
+        history: async (actor, team) => (await nativeSupportReadAll<{
             version: number;
             configuration_json: string;
             actor_id: string;
             created_at: number;
-        }>()).results, handlers: async (actor, team) => (await db.prepare("SELECT user_id,responsibility FROM service_team_members WHERE team_id=? AND company_id=? ORDER BY user_id").bind(team.id, actor.companyId).all<{
+        }>(SUPPORT_RD_SERVICE_TEAM_OPTION_HISTORY, [actor.companyId, team.id], db)).results,
+        handlers: async (actor, team) => (await nativeSupportReadAll<{
             user_id: string;
             responsibility: "lead" | "member";
-        }>()).results, coverage: async (actor, team) => (await db
-            .prepare("SELECT category,scope_kind,scope_node_id FROM service_team_coverage WHERE team_id=? AND company_id=? ORDER BY category,scope_node_id")
-            .bind(team.id, actor.companyId)
-            .all<{
+        }>(SUPPORT_RD_SERVICE_TEAM_OPTION_HANDLERS, [team.id, actor.companyId], db)).results,
+        coverage: async (actor, team) => (await nativeSupportReadAll<{
             category: string;
             scope_kind: "holding" | "branch" | "department";
             scope_node_id: string;
-        }>()).results,
+        }>(SUPPORT_RD_SERVICE_TEAM_OPTION_COVERAGE, [team.id, actor.companyId], db)).results,
     })(actor);
 }

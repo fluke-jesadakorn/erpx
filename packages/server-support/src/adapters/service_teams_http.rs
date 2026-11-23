@@ -623,6 +623,22 @@ mod tests {
                 200,
             ),
             ("support_rd_attachment_migration_scope", json!(["ticket-1"]), 200),
+            ("support_rd_service_team_options", json!(["company"]), 200),
+            (
+                "support_rd_service_team_option_history",
+                json!(["company", "team-1"]),
+                200,
+            ),
+            (
+                "support_rd_service_team_option_handlers",
+                json!(["team-1", "company"]),
+                200,
+            ),
+            (
+                "support_rd_service_team_option_coverage",
+                json!(["team-1", "company"]),
+                200,
+            ),
             (
                 "support_rd_service_coverage_history",
                 json!(["company", "extra"]),
@@ -642,6 +658,10 @@ mod tests {
             ("support_rd_ticket_source_image", json!(["ticket-1"]), 422),
             ("support_rd_ticket_attachment_source_image", json!(["ticket-1"]), 422),
             ("support_rd_attachment_migration_scope", json!([]), 422),
+            ("support_rd_service_team_options", json!([]), 422),
+            ("support_rd_service_team_option_history", json!(["company"]), 422),
+            ("support_rd_service_team_option_handlers", json!(["team-1"]), 422),
+            ("support_rd_service_team_option_coverage", json!(["team-1"]), 422),
             ("SELECT 1 FROM service_teams", json!([]), 422),
         ] {
             let response = block_on(plan_read(

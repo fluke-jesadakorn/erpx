@@ -297,4 +297,53 @@ describe('support service-team coverage native read', () => {
       delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
     }
   });
+
+  it('carries no retired service-team option SQL in the switched adapter', async () => {
+    const adapter = await source('packages/server-support/src/adapters/service-team-options.ts');
+    for (const fragment of [
+      'SELECT * FROM service_teams',
+      'FROM service_team_revisions',
+      'FROM service_team_members',
+      'FROM service_team_coverage',
+    ]) expect(adapter).not.toContain(fragment);
+    expect(adapter).toContain('SUPPORT_RD_SERVICE_TEAM_OPTIONS');
+    expect(adapter).toContain('SUPPORT_RD_SERVICE_TEAM_OPTION_HISTORY');
+    expect(adapter).toContain('SUPPORT_RD_SERVICE_TEAM_OPTION_HANDLERS');
+    expect(adapter).toContain('SUPPORT_RD_SERVICE_TEAM_OPTION_COVERAGE');
+    // Organization still owns the node projection list kept in TypeScript.
+    expect(adapter).toContain('organization_nodes');
+  });
+
+  it('plans the four service-team option reads in Rust with owner-scoped binds', async () => {
+    const batch = vi.fn(async () => [{ results: [{ id: 'team-1' }], success: true, meta: { changes: 0, duration: 0 } }]);
+    const db = { prepare: vi.fn(() => ({ bind: vi.fn() })), batch } as unknown as SqlDatabase;
+    process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      ok('SELECT * FROM service_teams WHERE company_id=? ORDER BY name,id', ['company']),
+    );
+    try {
+      const {
+        nativeSupportReadAll,
+        SUPPORT_RD_SERVICE_TEAM_OPTIONS,
+        SUPPORT_RD_SERVICE_TEAM_OPTION_HISTORY,
+        SUPPORT_RD_SERVICE_TEAM_OPTION_HANDLERS,
+        SUPPORT_RD_SERVICE_TEAM_OPTION_COVERAGE,
+      } = await import('@erpx/server-support/adapters/native-support-read');
+      const cases: [string, string[]][] = [
+        [SUPPORT_RD_SERVICE_TEAM_OPTIONS, ['company']],
+        [SUPPORT_RD_SERVICE_TEAM_OPTION_HISTORY, ['company', 'team-1']],
+        [SUPPORT_RD_SERVICE_TEAM_OPTION_HANDLERS, ['team-1', 'company']],
+        [SUPPORT_RD_SERVICE_TEAM_OPTION_COVERAGE, ['team-1', 'company']],
+      ];
+      for (const [kind, values] of cases) {
+        fetchMock.mockClear();
+        await nativeSupportReadAll(kind, values, db);
+        expect(String(fetchMock.mock.calls[0]![0])).toContain('/support/command-plan');
+        expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({ kind, values });
+      }
+    } finally {
+      fetchMock.mockRestore();
+      delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
+    }
+  });
 });
