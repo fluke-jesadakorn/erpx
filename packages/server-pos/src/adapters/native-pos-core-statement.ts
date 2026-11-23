@@ -122,3 +122,20 @@ export async function nativePosSettingsAccountsStatement<T = SqlValueRow>(
 ): Promise<T | null> {
   return nativePosOne<T>(db, company, 'core_readpossettingsaccounts_525', [company]);
 }
+
+/**
+ * Owner-issued Stripe control-route read. The SQL lives in the native POS
+ * owner registry (`erpx-server-pos::adapters::owner_writes`, kind
+ * `stripe_readposstriperoutes_355`); this bridge sends only the typed kind and
+ * positional values. It replaces the three byte-identical
+ * `pos_stripe_routes` account/livemode row literals in `pos-stripe.ts`, so no
+ * local SQL, mirror or fallback reader remains.
+ * Caller-transaction read scoped by account id and livemode.
+ */
+export async function nativePosStripeRoutesStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  accountId: string,
+  livemode: boolean,
+): Promise<T | null> {
+  return nativePosOne<T>(db, '', 'stripe_readposstriperoutes_355', [accountId, livemode]);
+}

@@ -128,6 +128,11 @@ pub const STRIPE_WRITEPOSJOBS2_312: &str = "stripe_writeposjobs2_312";
 pub const STRIPE_WRITEPOSJOBS3_318: &str = "stripe_writeposjobs3_318";
 pub const STRIPE_WRITEPOSJOBS4_325: &str = "stripe_writeposjobs4_325";
 pub const STRIPE_CONTROLRUN1_364: &str = "stripe_controlrun1_364";
+/// Stripe control-route read retired from the three byte-identical
+/// `SELECT * FROM pos_stripe_routes WHERE account_id=? AND livemode=?` literals
+/// in `pos-stripe.ts`. Read-only caller-transaction `SELECT` scoped by account
+/// id and livemode; no actor/Company threading is required.
+pub const STRIPE_READPOSSTRIPEROUTES_355: &str = "stripe_readposstriperoutes_355";
 pub const DAILY_WRITEPOSSALEDOCUMENTS1_43: &str = "daily_writepossaledocuments1_43";
 pub const IMAGES_WRITEPOSPRODUCTIMAGES1_60: &str = "images_writeposproductimages1_60";
 /// POS approval-queue (`posWork`) read literals retired from
@@ -225,6 +230,7 @@ pub const KINDS: &[&str] = &[
     STRIPE_WRITEPOSJOBS3_318,
     STRIPE_WRITEPOSJOBS4_325,
     STRIPE_CONTROLRUN1_364,
+    STRIPE_READPOSSTRIPEROUTES_355,
     DAILY_WRITEPOSSALEDOCUMENTS1_43,
     IMAGES_WRITEPOSPRODUCTIMAGES1_60,
     POS_READPOSREFUNDS3_230,
@@ -369,6 +375,7 @@ fn sql(kind: &str) -> Option<&'static str> {
         STRIPE_WRITEPOSJOBS3_318 => r#"UPDATE pos_jobs SET state=?,next_attempt_at=?,attempts=0,lease_until=NULL,lease_token=NULL,last_error=NULL WHERE id=? AND lease_token=?"#,
         STRIPE_WRITEPOSJOBS4_325 => r#"UPDATE pos_jobs SET state=?,next_attempt_at=?,last_error=?,lease_until=NULL,lease_token=NULL WHERE id=? AND lease_token=?"#,
         STRIPE_CONTROLRUN1_364 => r#"INSERT INTO pos_stripe_routes VALUES(?,?,?,?,?) ON CONFLICT(account_id,livemode) DO NOTHING"#,
+        STRIPE_READPOSSTRIPEROUTES_355 => r#"SELECT * FROM pos_stripe_routes WHERE account_id=? AND livemode=?"#,
         DAILY_WRITEPOSSALEDOCUMENTS1_43 => r#"INSERT INTO pos_sale_documents(sale_id,company_id,branch_id,snapshot_json,created_at) VALUES(?,?,?,?::jsonb,?) ON CONFLICT(sale_id) DO NOTHING"#,
         IMAGES_WRITEPOSPRODUCTIMAGES1_60 => r#"INSERT INTO pos_product_images(id,company_id,product_id,object_key,thumbnail_key,sha256,width,height,mime_type,source,metadata_json,created_by,created_at,
    attachment_source_id,attachment_link_id,attachment_set_id,thumbnail_checksum_sha256) VALUES(?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING"#,
@@ -441,7 +448,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 118);
+        assert_eq!(KINDS.len(), 119);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -529,6 +536,23 @@ mod tests {
         }
         assert_eq!(stmt.matches('?').count(), 1, "by-id sale read carries only the sale id");
         assert_eq!(stmt, "SELECT * FROM pos_sales WHERE id=?");
+    }
+
+    /// The retired Stripe control-route read is a SELECT-only owner statement.
+    /// Its SQL is byte-identical to the three deleted
+    /// `SELECT * FROM pos_stripe_routes WHERE account_id=? AND livemode=?`
+    /// literals in `pos-stripe.ts`; this kind is the sole authority and every
+    /// TypeScript copy was removed.
+    #[test]
+    fn stripe_route_read_kind_is_select_only() {
+        assert!(supported(STRIPE_READPOSSTRIPEROUTES_355));
+        let stmt = sql(STRIPE_READPOSSTRIPEROUTES_355).unwrap();
+        assert!(stmt.starts_with("SELECT "), "stripe-route read kind must be SELECT-only");
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+            assert!(!stmt.contains(forbidden), "stripe-route read kind must not mutate: {forbidden}");
+        }
+        assert_eq!(stmt.matches('?').count(), 2, "stripe-route read carries account id and livemode");
+        assert_eq!(stmt, "SELECT * FROM pos_stripe_routes WHERE account_id=? AND livemode=?");
     }
 
     /// The retired settings-currency read is a SELECT-only owner statement. Its

@@ -1,5 +1,5 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
-import { nativePosPostingJournalStatement, nativePosSaleByIdStatement } from './native-pos-core-statement';
+import { nativePosPostingJournalStatement, nativePosSaleByIdStatement, nativePosStripeRoutesStatement } from './native-pos-core-statement';
 import{secret,stripeRequest}from '@erpx/server-pos/adapters/stripe-provider';
 import {posStripeBindingFacts} from "@erpx/server-runtime/public/pos-stripe-binding-facts";
 import 'server-only';
@@ -352,11 +352,11 @@ function unit(db: SqlDatabase): PosStripeUnit {
         controlOne1: (facts: {
             arg0: string;
             arg1: boolean;
-        }) => one(db, 'SELECT * FROM pos_stripe_routes WHERE account_id=? AND livemode=?', facts.arg0, facts.arg1),
+        }) => nativePosStripeRoutesStatement(db, facts.arg0, facts.arg1),
         controlOne2: (facts: {
             arg0: string;
             arg1: boolean;
-        }) => one(db, 'SELECT * FROM pos_stripe_routes WHERE account_id=? AND livemode=?', facts.arg0, facts.arg1),
+        }) => nativePosStripeRoutesStatement(db, facts.arg0, facts.arg1),
         controlRun1: (facts: {
             arg0: string;
             arg1: boolean;
@@ -367,7 +367,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
         controlOne3: (facts: {
             arg0: string;
             arg1: boolean;
-        }) => one(db, 'SELECT * FROM pos_stripe_routes WHERE account_id=? AND livemode=?', facts.arg0, facts.arg1),
+        }) => nativePosStripeRoutesStatement(db, facts.arg0, facts.arg1),
         controlOne4: (facts: {
             arg0: string;
         }) => posStripeBindingFacts(db).slug(facts.arg0),
