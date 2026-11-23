@@ -13,6 +13,7 @@ import {bangkokToday} from "@erpx/server-operations/domain/handover-time";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {WorkSnapshot} from "@erpx/server-work_projection/public/work-items";
 import type {OperationsCommands} from "@erpx/server-operations/domain/commands";
+import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 const actor:WorkContext={userId:'owner',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['operations'],assignments:[],workspaces:[],authority:{sessionId:'session',revision:1,assignmentVersion:1}};
 function strict<Ports extends object>(facts:Partial<Ports>):Ports{return new Proxy(facts,{get(target,name){if(name in target)return target[name as keyof Ports];return ()=>{throw Error('Unexpected port: '+String(name));};}}) as Ports;}
 const commands:OperationsCommands<string>={replay:async()=>null,commit:async(_a,_key,_operation,_input,_id,_version,result)=>result};
@@ -28,6 +29,27 @@ const task=(patch:Partial<TaskRow>={}):TaskRow=>({id:'task',company_id:'company'
 function tasks(row:TaskRow|null,overrides:Partial<StaffTasksPorts<string>>={}){return createStaffTasksApplication(strict<StaffTasksPorts<string>>({repository:strict<StaffTasksRepository<string>>({readGetTaskRow:async()=>row}),commands,clock:{now:()=>42},...overrides}));}
 describe('Task reads keep source visibility checks',()=>{
  test('private conversation task visibility is checked even after a repository returned a row',async()=>{const read=vi.fn(async()=>{throw Error('private source denied');});await expect(tasks(task({source_post_id:'private-post'}),{readablePost:read}).getTask(actor,'task')).rejects.toThrow('private source denied');expect(read).toHaveBeenCalledWith(actor,'private-post');});
+});
+describe('Workflow projection source native read',()=>{
+ test('task projection source delegates to the native owner plan and keeps no local SQL',async()=>{
+  const prepare=vi.fn(()=>({bind:vi.fn()}));
+  const batch=vi.fn(async()=>[{results:[{state:'ready',version:3,company_id:'company',branch_id:null,department_id:null}],success:true,meta:{changes:0,duration:0}}]);
+  const db={prepare,batch} as unknown as SqlDatabase;
+  process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG=JSON.stringify({privateBaseUrl:'http://127.0.0.1:3999',timeoutMs:1000,holdings:[{origin:'https://acme.jesadakorn.com',holdingSlug:'acme',holdingId:'h1',companyId:'company'}]});
+  const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({data:{statements:[{sql:'SELECT state,version FROM staff_tasks WHERE id=?',values:['task']}]}}),{status:200,headers:{'content-type':'application/json'}}));
+  try{
+   const {taskProjectionSource}=await import('@erpx/server-operations/adapters/workflow-projection-source');
+   await expect(taskProjectionSource(db,'task')).resolves.toMatchObject({state:'ready',version:3});
+   const call=fetchMock.mock.calls[0]!;
+   expect(String(call[0])).toContain('/operations/command-plan');
+   expect(JSON.parse(String(call[1]!.body))).toMatchObject({kind:'operations_rd_task_projection_source',values:['task']});
+   expect(prepare).toHaveBeenCalledWith('SELECT state,version FROM staff_tasks WHERE id=?');
+   expect(String((prepare.mock.calls[0] as unknown as [string])[0])).not.toContain('department_id');
+  }finally{
+   fetchMock.mockRestore();
+   delete process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG;
+  }
+ });
 });
 describe('Handover source and colleague constraints',()=>{
  test('Bangkok day derives entirely from the supplied instant',()=>{expect(bangkokToday(Date.UTC(2026,0,1,20))).toBe('2026-01-02');});

@@ -10,7 +10,7 @@ use crate::domain::operations_commands::{
 };
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
-    StatusCode, body::to_bytes, header, routing::get, serde_json,
+    StatusCode, body::to_bytes, header, routing::{get, post}, serde_json,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind, RecordId};
 use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
@@ -235,6 +235,10 @@ pub fn operations_router(targets: Vec<OperationsHttpTarget>) -> Result<Router, B
             "/api/v1/holdings/{holding_slug}/operations",
             get(read_operations).post(command_operations),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/operations/command-plan",
+            post(plan_read),
+        )
         .with_state(Arc::new(OperationsHttpState {
             targets: configured,
         })))
@@ -390,6 +394,61 @@ async fn command_operations(
     .await;
     match result {
         Ok(reply) => bounded(reply.value()),
+        Err(error) => error_response(error),
+    }
+}
+
+/// Plan an owner-owned caller-unit read. No SQL is accepted from the wire: the
+/// allow-listed read `kind` resolves to the exact statement in the native read
+/// registry, which the TypeScript caller prepares and executes on its own open
+/// unit. Reads carry no write ledger and never execute here.
+async fn plan_read(
+    State(state): State<Arc<OperationsHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let _target = target(&state, request.headers(), &slug)?;
+        if request.uri().query().is_some() {
+            return Err(malformed());
+        }
+        let headers = request.headers().clone();
+        if !unique_header(&headers, header::CONTENT_TYPE)?
+            .is_some_and(|value| {
+                value
+                    .split(';')
+                    .next()
+                    .is_some_and(|value| value.trim().eq_ignore_ascii_case("application/json"))
+            })
+        {
+            return Err(malformed());
+        }
+        let bytes = to_bytes(request.into_body(), BODY_LIMIT)
+            .await
+            .map_err(|_| malformed())?;
+        let value: serde_json::Value = serde_json::from_slice(&bytes).map_err(|_| malformed())?;
+        let object = value.as_object().ok_or_else(malformed)?;
+        let kind = object
+            .get("kind")
+            .and_then(|value| value.as_str())
+            .ok_or_else(malformed)?;
+        let values = object
+            .get("values")
+            .and_then(|value| value.as_array())
+            .cloned()
+            .ok_or_else(malformed)?;
+        let statement = crate::adapters::native_operations_read_sql::read_statement(kind)
+            .ok_or_else(malformed)?;
+        if values.len() != statement.bind_count {
+            return Err(malformed());
+        }
+        Ok(serde_json::json!({
+            "statements": [{ "sql": statement.sql, "values": values }]
+        }))
+    }
+    .await;
+    match result {
+        Ok(data) => bounded(serde_json::json!({"data": data})),
         Err(error) => error_response(error),
     }
 }
