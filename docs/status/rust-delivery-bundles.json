@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6725,
+    "revision": 6737,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-g",
       "agentId": "lead",
       "startedAt": "2026-11-23T20:25:05.022Z",
-      "heartbeatAt": "2026-11-23T20:25:12.091Z",
-      "expiresAt": "2026-11-23T20:55:12.091Z",
+      "heartbeatAt": "2026-11-23T20:39:09.884Z",
+      "expiresAt": "2026-11-23T21:09:09.884Z",
       "generation": 159,
       "tokenHash": "5911c99a623144ad01ff349f0239d96c6699be1bfbd04866f36fdc7f0eed43fd"
     },
@@ -50671,8 +50671,8 @@
           "runId": "run-20261123-g",
           "agentId": "wN01",
           "claimedAt": "2026-11-23T20:25:10.521Z",
-          "heartbeatAt": "2026-11-23T20:25:12.091Z",
-          "expiresAt": "2026-11-23T20:55:12.091Z",
+          "heartbeatAt": "2026-11-23T20:39:09.884Z",
+          "expiresAt": "2026-11-23T21:09:09.884Z",
           "generation": 159
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -110843,8 +110843,8 @@
           "runId": "run-20261123-g",
           "agentId": "wZ12",
           "claimedAt": "2026-11-23T20:25:10.610Z",
-          "heartbeatAt": "2026-11-23T20:25:12.091Z",
-          "expiresAt": "2026-11-23T20:55:12.091Z",
+          "heartbeatAt": "2026-11-23T20:39:09.884Z",
+          "expiresAt": "2026-11-23T21:09:09.884Z",
           "generation": 159
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -115547,7 +115547,7 @@
         "owner": "collaboration",
         "title": "Native social handover authority port (owner-side)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -115562,28 +115562,37 @@
         "resources": [
           "owner:collaboration"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wU01",
-          "claimedAt": "2026-11-23T20:25:10.684Z",
-          "heartbeatAt": "2026-11-23T20:25:12.091Z",
-          "expiresAt": "2026-11-23T20:55:12.091Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-collaboration",
+            "result": "passed",
+            "sourceSha": "c8d13328d"
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test social_postgres (18) + social (19) + social_http (5)",
+            "result": "passed",
+            "sourceSha": "c8d13328d"
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --lib social (8)",
+            "result": "passed",
+            "sourceSha": "c8d13328d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Remove HANDOVER_AUTHORITY_PORT_UNAVAILABLE; add SocialUnit handover authority witness (Bangkok date, per-source current versions, recipient eligibility/access, deferred recheck) and real PublishHandoverPost planning; PG impl + drift-rollback tests. No composition.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-f",
+          "runId": "run-20261123-g",
           "agentId": "wU01",
-          "at": "2026-11-23T20:25:05.022Z",
+          "at": "2026-11-23T20:25:22.183Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during active read-tail r2 wave; WIP reviewed with 19 workers active",
-          "nextAction": "Remove HANDOVER_AUTHORITY_PORT_UNAVAILABLE; add SocialUnit handover authority witness (Bangkok date, per-source current versions, recipient eligibility/access, deferred recheck) and real PublishHandoverPost planning; PG impl + drift-rollback tests. No composition."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -116164,7 +116173,7 @@
         "owner": "field_service",
         "title": "Wire Field final-root lock/witness into Customer 360 timeline",
         "kind": "integration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116182,28 +116191,41 @@
           "owner:customer_360",
           "resource:composition"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wZ01",
-          "claimedAt": "2026-11-23T20:25:10.760Z",
-          "heartbeatAt": "2026-11-23T20:25:12.091Z",
-          "expiresAt": "2026-11-23T20:55:12.091Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-field_service/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "10392da33",
+            "owner": "field_service",
+            "before": 19,
+            "after": 16,
+            "note": "Three Field final-root projection source entries retired; customer timeline uses native lock/witness injection."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "10392da33"
+          },
+          {
+            "command": "cargo test -p erpx-service --features existing-business,private-development-api --test customer_360_final_root_timeline_postgres (1)",
+            "result": "passed",
+            "sourceSha": "10392da33"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Lock final-root sources in Customer360Sources::prepare, inspect witness before and require_current after timeline reads, inject agreement/order event SQL, delete the 3 Field TS source entries and consumer import; record field_service 19->16.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim/composition released",
         "handoff": {
-          "runId": "run-20261123-f",
+          "runId": "run-20261123-g",
           "agentId": "wZ01",
-          "at": "2026-11-23T20:25:05.022Z",
+          "at": "2026-11-23T20:38:49.581Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during active read-tail r2 wave; WIP reviewed with 19 workers active",
-          "nextAction": "Lock final-root sources in Customer360Sources::prepare, inspect witness before and require_current after timeline reads, inject agreement/order event SQL, delete the 3 Field TS source entries and consumer import; record field_service 19->16."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim/composition released"
         },
         "scopeRefinementRequired": false
       },
@@ -116411,7 +116433,7 @@
         "owner": "crm",
         "title": "Mount CRM activity workspace + TS client/consumer cutover",
         "kind": "integration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116439,7 +116461,14 @@
           "owner:crm",
           "resource:composition"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wAB01",
+          "claimedAt": "2026-11-23T20:39:04.527Z",
+          "heartbeatAt": "2026-11-23T20:39:09.884Z",
+          "expiresAt": "2026-11-23T21:09:09.884Z",
+          "generation": 159
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -117277,8 +117306,8 @@
           "runId": "run-20261123-g",
           "agentId": "wAAfin",
           "claimedAt": "2026-11-23T20:25:10.834Z",
-          "heartbeatAt": "2026-11-23T20:25:12.091Z",
-          "expiresAt": "2026-11-23T20:55:12.091Z",
+          "heartbeatAt": "2026-11-23T20:39:09.884Z",
+          "expiresAt": "2026-11-23T21:09:09.884Z",
           "generation": 159
         },
         "baseSha": null,
@@ -117320,8 +117349,8 @@
           "runId": "run-20261123-g",
           "agentId": "wAAide",
           "claimedAt": "2026-11-23T20:25:10.932Z",
-          "heartbeatAt": "2026-11-23T20:25:12.091Z",
-          "expiresAt": "2026-11-23T20:55:12.091Z",
+          "heartbeatAt": "2026-11-23T20:39:09.884Z",
+          "expiresAt": "2026-11-23T21:09:09.884Z",
           "generation": 159
         },
         "baseSha": null,
@@ -117363,8 +117392,8 @@
           "runId": "run-20261123-g",
           "agentId": "wAAcom",
           "claimedAt": "2026-11-23T20:25:11.009Z",
-          "heartbeatAt": "2026-11-23T20:25:12.091Z",
-          "expiresAt": "2026-11-23T20:55:12.091Z",
+          "heartbeatAt": "2026-11-23T20:39:09.884Z",
+          "expiresAt": "2026-11-23T21:09:09.884Z",
           "generation": 159
         },
         "baseSha": null,
@@ -117406,8 +117435,8 @@
           "runId": "run-20261123-g",
           "agentId": "wAAsup",
           "claimedAt": "2026-11-23T20:25:11.083Z",
-          "heartbeatAt": "2026-11-23T20:25:12.091Z",
-          "expiresAt": "2026-11-23T20:55:12.091Z",
+          "heartbeatAt": "2026-11-23T20:39:09.884Z",
+          "expiresAt": "2026-11-23T21:09:09.884Z",
           "generation": 159
         },
         "baseSha": null,
@@ -117449,8 +117478,8 @@
           "runId": "run-20261123-g",
           "agentId": "wAAmar",
           "claimedAt": "2026-11-23T20:25:11.160Z",
-          "heartbeatAt": "2026-11-23T20:25:12.091Z",
-          "expiresAt": "2026-11-23T20:55:12.091Z",
+          "heartbeatAt": "2026-11-23T20:39:09.884Z",
+          "expiresAt": "2026-11-23T21:09:09.884Z",
           "generation": 159
         },
         "baseSha": null,
@@ -117476,7 +117505,7 @@
         "owner": "organization",
         "title": "organization TS read tail native cutover (round 2)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -117488,28 +117517,41 @@
         "resources": [
           "owner:organization"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wAAorg",
-          "claimedAt": "2026-11-23T20:25:11.232Z",
-          "heartbeatAt": "2026-11-23T20:25:12.091Z",
-          "expiresAt": "2026-11-23T20:55:12.091Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-organization/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "338d8eca6",
+            "owner": "organization",
+            "before": 407,
+            "after": 406,
+            "note": "pms_rollout_active_branch native kind."
+          },
+          {
+            "command": "cargo check -p erpx-server-organization + lib (33)",
+            "result": "passed",
+            "sourceSha": "338d8eca6"
+          },
+          {
+            "command": "tsc scoped + vitest native-read-tail (6)",
+            "result": "passed",
+            "sourceSha": "338d8eca6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-f",
+          "runId": "run-20261123-g",
           "agentId": "wAAorg",
-          "at": "2026-11-23T20:25:05.022Z",
+          "at": "2026-11-23T20:30:21.524Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during active read-tail r2 wave; WIP reviewed with 19 workers active",
-          "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -117535,8 +117577,8 @@
           "runId": "run-20261123-g",
           "agentId": "wAAbil",
           "claimedAt": "2026-11-23T20:25:11.329Z",
-          "heartbeatAt": "2026-11-23T20:25:12.091Z",
-          "expiresAt": "2026-11-23T20:55:12.091Z",
+          "heartbeatAt": "2026-11-23T20:39:09.884Z",
+          "expiresAt": "2026-11-23T21:09:09.884Z",
           "generation": 159
         },
         "baseSha": null,
@@ -117578,8 +117620,8 @@
           "runId": "run-20261123-g",
           "agentId": "wAApeo",
           "claimedAt": "2026-11-23T20:25:11.411Z",
-          "heartbeatAt": "2026-11-23T20:25:12.091Z",
-          "expiresAt": "2026-11-23T20:55:12.091Z",
+          "heartbeatAt": "2026-11-23T20:39:09.884Z",
+          "expiresAt": "2026-11-23T21:09:09.884Z",
           "generation": 159
         },
         "baseSha": null,
@@ -117621,8 +117663,8 @@
           "runId": "run-20261123-g",
           "agentId": "wAApro",
           "claimedAt": "2026-11-23T20:25:11.490Z",
-          "heartbeatAt": "2026-11-23T20:25:12.091Z",
-          "expiresAt": "2026-11-23T20:55:12.091Z",
+          "heartbeatAt": "2026-11-23T20:39:09.884Z",
+          "expiresAt": "2026-11-23T21:09:09.884Z",
           "generation": 159
         },
         "baseSha": null,
@@ -117664,8 +117706,8 @@
           "runId": "run-20261123-g",
           "agentId": "wAAope",
           "claimedAt": "2026-11-23T20:25:11.582Z",
-          "heartbeatAt": "2026-11-23T20:25:12.091Z",
-          "expiresAt": "2026-11-23T20:55:12.091Z",
+          "heartbeatAt": "2026-11-23T20:39:09.884Z",
+          "expiresAt": "2026-11-23T21:09:09.884Z",
           "generation": 159
         },
         "baseSha": null,
@@ -117691,7 +117733,7 @@
         "owner": "crm",
         "title": "crm TS read tail native cutover (round 2)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -117703,28 +117745,41 @@
         "resources": [
           "owner:crm"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wAAcrm",
-          "claimedAt": "2026-11-23T20:25:11.659Z",
-          "heartbeatAt": "2026-11-23T20:25:12.091Z",
-          "expiresAt": "2026-11-23T20:55:12.091Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-crm/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "10392da33",
+            "owner": "crm",
+            "before": 202,
+            "after": 201,
+            "note": "crm_rd_collab_notification_lead native read-plan kind."
+          },
+          {
+            "command": "cargo check -p erpx-server-crm + lib (21) + crm_command_http (2)",
+            "result": "passed",
+            "sourceSha": "10392da33"
+          },
+          {
+            "command": "tsc server-crm + vitest native-crm-read-plan (4)",
+            "result": "passed",
+            "sourceSha": "10392da33"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-f",
+          "runId": "run-20261123-g",
           "agentId": "wAAcrm",
-          "at": "2026-11-23T20:25:05.022Z",
+          "at": "2026-11-23T20:38:58.482Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during active read-tail r2 wave; WIP reviewed with 19 workers active",
-          "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -117750,8 +117805,8 @@
           "runId": "run-20261123-g",
           "agentId": "wAApos",
           "claimedAt": "2026-11-23T20:25:11.748Z",
-          "heartbeatAt": "2026-11-23T20:25:12.091Z",
-          "expiresAt": "2026-11-23T20:55:12.091Z",
+          "heartbeatAt": "2026-11-23T20:39:09.884Z",
+          "expiresAt": "2026-11-23T21:09:09.884Z",
           "generation": 159
         },
         "baseSha": null,
@@ -117777,7 +117832,7 @@
         "owner": "records",
         "title": "records TS read tail native cutover (round 2)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -117789,28 +117844,41 @@
         "resources": [
           "owner:records"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wAArec",
-          "claimedAt": "2026-11-23T20:25:11.848Z",
-          "heartbeatAt": "2026-11-23T20:25:12.091Z",
-          "expiresAt": "2026-11-23T20:55:12.091Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-records/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "10392da33",
+            "owner": "records",
+            "before": 55,
+            "after": 54,
+            "note": "Duplicate employee-request read uses the canonical native repository method."
+          },
+          {
+            "command": "cargo check -p erpx-server-records + lib (33)",
+            "result": "passed",
+            "sourceSha": "10392da33"
+          },
+          {
+            "command": "tsc server-records + vitest native-read-tail (6)",
+            "result": "passed",
+            "sourceSha": "10392da33"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-f",
+          "runId": "run-20261123-g",
           "agentId": "wAArec",
-          "at": "2026-11-23T20:25:05.022Z",
+          "at": "2026-11-23T20:38:58.153Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during active read-tail r2 wave; WIP reviewed with 19 workers active",
-          "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -117836,8 +117904,8 @@
           "runId": "run-20261123-g",
           "agentId": "wAAsal",
           "claimedAt": "2026-11-23T20:25:11.934Z",
-          "heartbeatAt": "2026-11-23T20:25:12.091Z",
-          "expiresAt": "2026-11-23T20:55:12.091Z",
+          "heartbeatAt": "2026-11-23T20:39:09.884Z",
+          "expiresAt": "2026-11-23T21:09:09.884Z",
           "generation": 159
         },
         "baseSha": null,
@@ -117879,8 +117947,8 @@
           "runId": "run-20261123-g",
           "agentId": "wAAwor",
           "claimedAt": "2026-11-23T20:25:12.012Z",
-          "heartbeatAt": "2026-11-23T20:25:12.091Z",
-          "expiresAt": "2026-11-23T20:55:12.091Z",
+          "heartbeatAt": "2026-11-23T20:39:09.884Z",
+          "expiresAt": "2026-11-23T21:09:09.884Z",
           "generation": 159
         },
         "baseSha": null,
@@ -117911,17 +117979,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 21,
-        "in_progress": 18,
+        "in_progress": 14,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 160,
+        "blocked": 164,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T20:25:12.094Z",
+    "updatedAt": "2026-11-23T20:39:09.886Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
