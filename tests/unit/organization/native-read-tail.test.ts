@@ -13,6 +13,7 @@ const {companyAcceptanceResultProjection} = await import('@erpx/server-organizat
 const {activeDepartmentFact} = await import('@erpx/server-organization/adapters/profile-facts');
 const {publicMarketingReceivingBranch} = await import('@erpx/server-organization/adapters/public-marketing-receiving-branch');
 const {workReportOrganizationFacts} = await import('@erpx/server-organization/public/work-report-facts');
+const {activeSpendingPosition} = await import('@erpx/server-organization/adapters/spending-position');
 
 function db(): SqlDatabase {
   return {prepare: vi.fn(() => {throw new Error('owner-local reader must not build local SQL');})} as unknown as SqlDatabase;
@@ -53,6 +54,16 @@ describe('Organization owner-local read tail', () => {
     all.mockResolvedValueOnce(rows);
     await expect(workReportOrganizationFacts(handle).nodes('company')).resolves.toEqual({results: rows});
     expect(all).toHaveBeenCalledWith(handle, 'company', 'work_report_organization_nodes', ['company']);
+  });
+
+  it('reduces the active-spending-position fact from a typed single-row owner read', async () => {
+    one.mockClear();
+    const handle = db();
+    one.mockResolvedValueOnce({one: 1} as never);
+    await expect(activeSpendingPosition(handle, 'company', 'position')).resolves.toBe(true);
+    one.mockResolvedValueOnce(null as never);
+    await expect(activeSpendingPosition(handle, 'company', 'position')).resolves.toBe(false);
+    expect(one).toHaveBeenCalledWith(handle, 'company', 'spending_active_position', ['position', 'company']);
   });
 
 });

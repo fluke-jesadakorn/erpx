@@ -215,6 +215,11 @@ pub const PUBLIC_MARKETING_RECEIVING_BRANCH: &str = "public_marketing_receiving_
 /// single work_projection consumer keeps its own report authority checks.
 pub const WORK_REPORT_ORGANIZATION_NODES: &str = "work_report_organization_nodes";
 
+// -- spending-position ---------------------------------------------------------
+/// Native-owned active-spending-position fact. SELECT-only and Company keyed;
+/// the boolean reduction stays in the TypeScript caller.
+pub const SPENDING_ACTIVE_POSITION: &str = "spending_active_position";
+
 /// Every kind this owner module accepts. Anything else is fail-closed.
 pub const KINDS: &[&str] = &[
     ORG_ATTACHMENT_NODE_VERSION_STEP,
@@ -311,6 +316,7 @@ pub const KINDS: &[&str] = &[
     WORKSPACE_ROUTE_COMPANY,
     PUBLIC_MARKETING_RECEIVING_BRANCH,
     WORK_REPORT_ORGANIZATION_NODES,
+    SPENDING_ACTIVE_POSITION,
 ];
 
 /// Tables admitted for the generic attachment owner version step. Column is
@@ -623,6 +629,9 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         WORK_REPORT_ORGANIZATION_NODES => {
             "SELECT id,display_name FROM organization_nodes WHERE company_id=?"
+        }
+        SPENDING_ACTIVE_POSITION => {
+            "SELECT 1 FROM organization_positions WHERE id=? AND company_id=? AND active=1"
         }
         _ => return None,
     })
@@ -1266,6 +1275,39 @@ mod tests {
         assert_eq!(values.len(), 1);
         assert_eq!(positional(expected), "SELECT id,display_name FROM organization_nodes WHERE company_id=$1");
         assert!(owner_statement(WORK_REPORT_ORGANIZATION_NODES, &[]).is_err());
+    }
+
+    /// The active-spending-position fact retired from `spending-position.ts`
+    /// is native-owned, SELECT-only and Company keyed over the org-owned
+    /// `organization_positions` table. The boolean reduction stays in the
+    /// TypeScript caller, which sends only the typed kind and positional values.
+    #[test]
+    fn spending_active_position_kind_is_select_only_and_company_scoped() {
+        let expected = "SELECT 1 FROM organization_positions WHERE id=? AND company_id=? AND active=1";
+        assert!(supported(SPENDING_ACTIVE_POSITION));
+        assert_eq!(
+            sql(SPENDING_ACTIVE_POSITION).unwrap(),
+            expected,
+            "spending position SQL must match the retired literal"
+        );
+        assert!(expected.starts_with("SELECT "));
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+            assert!(!expected.contains(forbidden), "spending position read must not mutate: {forbidden}");
+        }
+        assert!(expected.contains("company_id=?"), "spending position read must be Company scoped");
+        assert!(expected.contains("organization_positions"), "spending position read must stay owner-local");
+        assert!(!expected.contains("hr_people") && !expected.contains("hr_engagements"));
+        assert_eq!(expected.matches('?').count(), 2);
+        let (statement, values) = owner_statement(
+            SPENDING_ACTIVE_POSITION,
+            &[Value::from("position"), Value::from("company")],
+        )
+        .expect("spending position statement");
+        assert_eq!(statement, expected);
+        assert_eq!(values.len(), 2);
+        assert_eq!(positional(expected), "SELECT 1 FROM organization_positions WHERE id=$1 AND company_id=$2 AND active=1");
+        assert!(owner_statement(SPENDING_ACTIVE_POSITION, &[Value::from("position")]).is_err());
+        assert!(owner_statement(SPENDING_ACTIVE_POSITION, &[]).is_err());
     }
 
     /// Owner-local reads retired from `department-authority-reads.ts`: ten
