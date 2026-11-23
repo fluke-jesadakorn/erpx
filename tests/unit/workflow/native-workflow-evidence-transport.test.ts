@@ -1,3 +1,4 @@
+import { readFile } from 'node:fs/promises';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 import {
@@ -316,6 +317,45 @@ describe('workflow Work UI staff read tail (native read plan)', () => {
       expect(all).toHaveBeenCalledWith('wf_native_work_ui_approval_queue', ['company', 0], 'company', db);
       expect(await facts.betaApproval('approval', 'company')).toEqual(beta);
       expect(first).toHaveBeenCalledWith('wf_native_work_ui_beta_approval', ['approval', 'company'], 'company', db);
+      expect(prepare).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.resetModules();
+    }
+  });
+});
+
+describe('workflow spending settings history read tail (native read plan)', () => {
+  it('carries no retired owner SQL in the switched adapter', async () => {
+    const source = await readFile(
+      new URL('../../../packages/server-workflow/src/adapters/flow-settings-facts.ts', import.meta.url),
+      'utf8',
+    );
+    expect(source).not.toContain('SELECT');
+    expect(source).not.toContain('audit_events');
+    expect(source).not.toContain('.prepare(');
+  });
+
+  it('plans the read through the mounted native read with no local SQL', async () => {
+    const rows = [{ title: 'Company spending rules', version: 2, actor: 'actor', at: 100, kind: 'Spending rules revision' }];
+    const all = vi.fn(async () => rows);
+    vi.resetModules();
+    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+      nativeWorkflowReadAll: all,
+    }));
+    try {
+      const { spendingSettingsHistory } = await import(
+        '../../../packages/server-workflow/src/adapters/flow-settings-facts'
+      );
+      const prepare = vi.fn();
+      const db = { prepare } as never;
+      expect(await spendingSettingsHistory(db, 'company')).toEqual(rows);
+      expect(all).toHaveBeenCalledWith(
+        'wf_native_spending_settings_history',
+        ['company', 'company'],
+        'company',
+        db,
+      );
       expect(prepare).not.toHaveBeenCalled();
     } finally {
       vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');

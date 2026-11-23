@@ -102,6 +102,11 @@ pub const WF_NATIVE_WORK_UI_BETA_APPROVAL: &str = "wf_native_work_ui_beta_approv
 /// Workflow-owned approval tables; the TypeScript bridge executes it on the
 /// caller's open unit and carries no receipt/assertion semantics.
 pub const WF_NATIVE_LEAVE_EVIDENCE_DECISION: &str = "wf_native_leave_evidence_decision";
+/// Owner-authored caller-unit read for the spending settings history family.
+/// The mounted wave3-command planner resolves it to one fixed SELECT on the
+/// Workflow-owned audit ledger; the TypeScript bridge executes it on the
+/// caller's open unit and carries no receipt/assertion semantics.
+pub const WF_NATIVE_SPENDING_SETTINGS_HISTORY: &str = "wf_native_spending_settings_history";
 pub const KINDS: &[&str] = &[
     WF_OPENAPPROVAL,
     WF_OPENAPPROVAL2,
@@ -132,6 +137,7 @@ pub const KINDS: &[&str] = &[
     WF_NATIVE_WORK_UI_APPROVAL_QUEUE,
     WF_NATIVE_WORK_UI_BETA_APPROVAL,
     WF_NATIVE_LEAVE_EVIDENCE_DECISION,
+    WF_NATIVE_SPENDING_SETTINGS_HISTORY,
 ];
 
 fn statement(kind: &str) -> Option<(&'static str, usize)> {
@@ -354,6 +360,10 @@ fn statement(kind: &str) -> Option<(&'static str, usize)> {
             "SELECT 1 FROM approval_instances instance JOIN approval_decisions decision ON decision.instance_id=instance.id WHERE instance.company_id=? AND instance.record_type='leave' AND instance.record_id=? AND decision.action IN ('approve','reject','override') AND iam_same_person(decision.actor_user_id,?,instance.company_id) LIMIT 1",
             3,
         ),
+        WF_NATIVE_SPENDING_SETTINGS_HISTORY => (
+            "SELECT 'Company spending rules' title,record_version version,actor_id actor,created_at at,'Spending rules revision' kind FROM audit_events WHERE action='spending.template.save' AND record_id=? AND authority_json::jsonb->>'companyId'=? ORDER BY created_at DESC",
+            2,
+        ),
 _ => return None,
     })
 }
@@ -530,5 +540,34 @@ mod tests {
             .is_ok()
         );
         assert!(plan(WF_NATIVE_LEAVE_EVIDENCE_DECISION, vec![json!("company")]).is_err());
+    }
+
+    /// The owner-local spending settings history read stays fixed, SELECT-only
+    /// and on the Workflow-owned audit ledger; the bridge carries no receipt or
+    /// assertion semantics and the planner never accepts caller SQL or writes.
+    #[test]
+    fn spending_settings_history_read_kind_is_fixed_owner_local_select() {
+        let (sql, expected) = statement(WF_NATIVE_SPENDING_SETTINGS_HISTORY)
+            .expect("registered owner read kind");
+        assert!(sql.starts_with("SELECT "), "read must be SELECT-only: {sql}");
+        assert_eq!(expected, 2);
+        assert_eq!(sql.matches('?').count(), expected);
+        assert!(sql.contains("audit_events"), "read must stay owner-local: {sql}");
+        assert!(
+            sql.contains("spending.template.save") && sql.contains("authority_json"),
+            "read must keep the exact owner predicate: {sql}"
+        );
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+            assert!(!sql.contains(forbidden), "read must not mutate: {forbidden}");
+        }
+        assert!(supported(WF_NATIVE_SPENDING_SETTINGS_HISTORY));
+        assert!(
+            plan(
+                WF_NATIVE_SPENDING_SETTINGS_HISTORY,
+                vec![json!("company"), json!("company")]
+            )
+            .is_ok()
+        );
+        assert!(plan(WF_NATIVE_SPENDING_SETTINGS_HISTORY, vec![json!("company")]).is_err());
     }
 }
