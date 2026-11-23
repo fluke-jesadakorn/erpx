@@ -3481,6 +3481,8 @@ async fn assemble_checked(
         let mut bom_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut planning_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
+        let mut planning_evidence_targets = Vec::new();
         let mut planning_command_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut specification_targets = Vec::new();
@@ -5424,6 +5426,38 @@ async fn assemble_checked(
                     },
                 );
             }
+        }
+        #[cfg(feature = "existing-business")]
+        for (i, holding) in config.holdings.iter().enumerate() {
+            let authorizer = Arc::new(
+                HoldingWorkAuthorizer::new(
+                    pools[0].clone(),
+                    pools[i + 1].clone(),
+                    holding.registration.holding_id.clone(),
+                    (*config.policy).clone(),
+                    clock.clone(),
+                    config.holdings_registry.clone(),
+                )
+                .map_err(|_| "PRIVATE_API_PLANNING_EVIDENCE_CONFIGURATION_INVALID")?,
+            );
+            planning_evidence_targets.push(
+                erpx_server_planning::public::evidence::EvidenceHttpTarget {
+                    host: holding.host.clone(),
+                    holding_slug: holding.registration.slug.clone(),
+                    origin: format!("https://{}", holding.host),
+                    backend: Arc::new(crate::planning_evidence::PlanningEvidenceBackend::new(
+                        config.policy.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        Arc::new(crate::planning_evidence::PlanningEvidenceService::new(
+                            authorizer,
+                            crate::planning_evidence::PlanningEvidenceConfiguration {
+                                holding: holding.registration.holding_id.clone(),
+                            },
+                            Arc::new(SharedClock(clock.clone())),
+                        )),
+                    )),
+                },
+            );
         }
         for (i, holding) in config.holdings.iter().enumerate() {
             let Some(companies) = config
@@ -7558,6 +7592,15 @@ async fn assemble_checked(
             router = router.merge(
                 erpx_server_maintenance::public::http::maintenance_router(maintenance_targets)
                     .map_err(|_| "PRIVATE_API_MAINTENANCE_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !planning_evidence_targets.is_empty() {
+            router = router.merge(
+                erpx_server_planning::public::evidence::planning_evidence_router(
+                    planning_evidence_targets,
+                )
+                .map_err(|_| "PRIVATE_API_PLANNING_EVIDENCE_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]
@@ -11907,6 +11950,9 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         .as_slice()
     {
         ["", "api", "v1", "holdings", _, "planning", "workspace"] => {
+            state.policy.audience(host).is_some()
+        }
+        ["", "api", "v1", "holdings", _, "planning", "evidence", "search"] => {
             state.policy.audience(host).is_some()
         }
         _ => false,

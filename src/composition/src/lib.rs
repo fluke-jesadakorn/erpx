@@ -95,6 +95,7 @@ pub mod commercial_owner_read;
 pub mod commercial_owner_write;
 #[cfg(feature = "existing-business")]
 pub mod crm;
+pub mod planning_evidence;
 #[cfg(feature = "existing-business")]
 pub mod crm_reassign_wire;
 #[cfg(feature = "existing-business")]
