@@ -464,3 +464,84 @@ async fn command_plan_returns_owner_authored_privacy_history_read() {
 
     server.abort();
 }
+
+#[tokio::test]
+async fn command_plan_returns_owner_authored_hire_handoff_reads() {
+    let router = talent_requisition_http_router(vec![TalentRequisitionHttpTarget {
+        host: "acme.example.test".into(),
+        holding_slug: "acme".into(),
+        origin: "https://acme.example.test".into(),
+        backend: Arc::new(Noop),
+    }])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+
+    let (status, body, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/talent/command-plan",
+            "acme.example.test",
+            None,
+            r#"{"kind":"talent_rd_consume_hire_handoff_receipt","values":["handoff-1","company"]}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(
+        body["data"]["statements"][0]["sql"],
+        serde_json::json!(
+            "SELECT id FROM talent_hire_consumption_receipts WHERE handoff_id=? AND company_id=?"
+        )
+    );
+    assert_eq!(
+        body["data"]["statements"][0]["values"],
+        serde_json::json!(["handoff-1", "company"])
+    );
+
+    let (status, body, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/talent/command-plan",
+            "acme.example.test",
+            None,
+            r#"{"kind":"talent_rd_change_candidate_privacy_row","values":["cand-1","company"]}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(
+        body["data"]["statements"][0]["sql"],
+        serde_json::json!(
+            "SELECT id,status,privacy_hold,privacy_requested_by,version,retention_until FROM talent_candidates WHERE id=? AND company_id=?"
+        )
+    );
+    assert_eq!(
+        body["data"]["statements"][0]["values"],
+        serde_json::json!(["cand-1", "company"])
+    );
+
+    // Wrong bind arity fails closed for both registered kinds.
+    for kind in [
+        "talent_rd_consume_hire_handoff_receipt",
+        "talent_rd_change_candidate_privacy_row",
+    ] {
+        let payload = format!(r#"{{"kind":"{kind}","values":["cand-1"]}}"#);
+        let (status, _, _) = http(
+            addr,
+            post(
+                "/api/v1/holdings/acme/talent/command-plan",
+                "acme.example.test",
+                None,
+                &payload,
+            ),
+        )
+        .await;
+        assert_eq!(status, 422);
+    }
+
+    server.abort();
+}

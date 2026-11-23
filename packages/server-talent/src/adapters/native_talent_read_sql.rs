@@ -98,6 +98,29 @@ const READ_PRIVACY_HISTORY: NativeTalentReadStatement = NativeTalentReadStatemen
     bind_count: 2,
 };
 
+/// Native successor of the TypeScript `peopleHireHandoffFacts`
+/// hire-consumption receipt read. The caller binds `[handoff_id, company_id]`
+/// on its open unit.
+pub const RD_CONSUME_HIRE_HANDOFF_RECEIPT: &str = "talent_rd_consume_hire_handoff_receipt";
+const SQL_RD_CONSUME_HIRE_HANDOFF_RECEIPT: &str =
+    "SELECT id FROM talent_hire_consumption_receipts WHERE handoff_id=? AND company_id=?";
+const READ_CONSUME_HIRE_HANDOFF_RECEIPT: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_CONSUME_HIRE_HANDOFF_RECEIPT,
+    sql: SQL_RD_CONSUME_HIRE_HANDOFF_RECEIPT,
+    bind_count: 2,
+};
+
+/// Native successor of the TypeScript `peopleHireHandoffFacts` candidate
+/// privacy row read. The caller binds `[candidate_id, company_id]` on its unit.
+pub const RD_CHANGE_CANDIDATE_PRIVACY_ROW: &str = "talent_rd_change_candidate_privacy_row";
+const SQL_RD_CHANGE_CANDIDATE_PRIVACY_ROW: &str =
+    "SELECT id,status,privacy_hold,privacy_requested_by,version,retention_until FROM talent_candidates WHERE id=? AND company_id=?";
+const READ_CHANGE_CANDIDATE_PRIVACY_ROW: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_CHANGE_CANDIDATE_PRIVACY_ROW,
+    sql: SQL_RD_CHANGE_CANDIDATE_PRIVACY_ROW,
+    bind_count: 2,
+};
+
 const STATEMENTS: &[NativeTalentReadStatement] = &[
     READ_APPLICATION_EVENTS,
     READ_PROPOSALS,
@@ -106,6 +129,8 @@ const STATEMENTS: &[NativeTalentReadStatement] = &[
     READ_EXEC_REQUISITION,
     READ_EXEC_APPLICATION,
     READ_PRIVACY_HISTORY,
+    READ_CONSUME_HIRE_HANDOFF_RECEIPT,
+    READ_CHANGE_CANDIDATE_PRIVACY_ROW,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -140,7 +165,38 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), 1);
         }
-        assert_eq!(STATEMENTS.len(), 7);
+        assert_eq!(STATEMENTS.len(), 9);
+    }
+
+    #[test]
+    fn hire_handoff_reads_are_owner_authored_select_only() {
+        let expected = [
+            (
+                RD_CONSUME_HIRE_HANDOFF_RECEIPT,
+                SQL_RD_CONSUME_HIRE_HANDOFF_RECEIPT,
+            ),
+            (
+                RD_CHANGE_CANDIDATE_PRIVACY_ROW,
+                SQL_RD_CHANGE_CANDIDATE_PRIVACY_ROW,
+            ),
+        ];
+        for (kind, sql) in expected {
+            let statement = read_statement(kind).expect("registered owner read kind");
+            assert_eq!(statement.kind, kind);
+            assert_eq!(statement.sql, sql);
+            assert_eq!(statement.bind_count, 2);
+            assert!(sql.starts_with("SELECT "), "owner read must be SELECT-only: {sql}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+                assert!(!sql.contains(forbidden), "owner read must not mutate: {forbidden}");
+            }
+            assert!(
+                sql.contains("talent_"),
+                "owner read must stay on owner-local Talent tables: {sql}"
+            );
+            assert_eq!(sql.matches('?').count(), 2);
+        }
+        assert!(read_statement("talent_rd_consume_hire_handoff_receipt").is_some());
+        assert!(read_statement("talent_rd_change_candidate_privacy_row").is_some());
     }
 
     #[test]
