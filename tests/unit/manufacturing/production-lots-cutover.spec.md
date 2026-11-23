@@ -39,8 +39,8 @@ writers could be deleted. That consumer exists and is `migrated` at
 `3627d7986a` recorded `retirement:ts-writes` inventory **54 → 48** and
 manufacturing **26 → 23** (nine writers removed). The later owner-wave cutover
 `43ffc6a62c43bf89428606c6cb880370b17e0646` took the global TS write KPI to 0;
-at current HEAD `f0f2eb8b8d07c0a2235d584b386fd00c5df3b54a` both owner counts
-are 0.
+at the verified source `f48e2c363037444936676a4117f4a9dd6a911935` both owner
+counts remain 0.
 
 ## Retained legacy
 
@@ -53,21 +53,24 @@ are 0.
 
 ## Verification
 
-At `f0f2eb8b8d07c0a2235d584b386fd00c5df3b54a` and again at the concurrent HEAD
-`7431f1b388a0c0a46702f2e018498c950dcaad2f`:
+At verified source `f48e2c363037444936676a4117f4a9dd6a911935` (captured before
+the checks; the concurrent coordinator advanced HEAD to `b0a7e1ea` during the
+run):
 
-- `cargo check -p erpx-server-manufacturing --offline` — passed.
-- `bunx tsc --noEmit -p tsconfig.json` — passed.
+- `cargo check -p erpx-server-manufacturing --offline` — passed (2 pre-existing
+  unused-import warnings in wave-3 modules, no errors).
 - `cargo test -p erpx-server-manufacturing --test manufacturing_lots --offline` —
   passed, 13/13.
+- `bunx tsc --noEmit -p tsconfig.json` — passed, 0 errors.
+- `bunx tsc -p tests/config/tsconfig.json --noEmit` — passed, 0 errors.
 
-`bunx tsc -p tests/config/tsconfig.json --noEmit` passed at `f0f2eb8b8` but at
-`7431f1b3` reports one unrelated error in
-`tests/unit/assets/native-assets-transport.test.ts:81` (`TS2783`, concurrent
-Assets WIP); removing this spec file does not change that result.
-`bun run structure:check` likewise fails at both SHAs on a pre-existing
-`TEST_INVENTORY_MISMATCH` from other workers' unregistered test files (Finance,
-POS, Work Projection); this spec's path is not in that list.
+Scope-limited `bunx tsc -p packages/feature-manufacturing/tsconfig.json --noEmit`
+reports two errors in `packages/feature-records/src/components/record-supplement.tsx:51`
+(`TS2345`/`TS2322`, `RecordTarget` union). That file is committed at HEAD outside
+this task's allowedPaths, and no error is in a manufacturing path, so it does not
+block this slice. `bun run structure:check` was not re-run here; the previously
+recorded `TEST_INVENTORY_MISMATCH` from other workers' unregistered test files is
+unchanged and does not list this spec's path.
 
 Producer parity suite `manufacturing.rust-manufacturing-lots.unit`
 (`tests/unit/manufacturing/rust-manufacturing-lots.test.rs`, 13 cases) is registered
