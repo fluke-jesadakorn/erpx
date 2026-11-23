@@ -2631,7 +2631,7 @@ async fn native_no_charge_case(p:&Parts,runtime:&erpx_service::private_developme
 
 
 }
-/// Compare the assembled, no-TEMP classifier with the actual retained TS SQL
+/// Compare the assembled, no-TEMP classifier with the owner's fixed Rust SQL
 /// over the committed native invoice and payment lifecycle. These witnesses
 /// prove source predicates only, not current IAM or purchase admission.
 async fn assert_committed_field_finance_history_oracle(db:&sqlx::PgPool,receipt_id:&str,secondary_book:bool){
@@ -2642,12 +2642,9 @@ async fn assert_committed_field_finance_history_oracle(db:&sqlx::PgPool,receipt_
     use erpx_server_inventory::public::field_history_consumption::*;
     use erpx_server_workflow::public::record_origin::*;
     use erpx_service::field_finance_history::{inspect_field_finance_history,FieldFinanceHistoryPhase};
-    let node=std::env::var("ERPX_NODE_BIN").unwrap_or_else(|_|"node".into());
-    let source=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/server-field_service/src/adapters/finance-record-sources.ts");
-    let output=std::process::Command::new(node).arg("--conditions=react-server").arg("--input-type=module").arg("-e").arg("if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const m=await import(process.argv[1]);process.stdout.write(JSON.stringify(m.fieldServiceFinanceRecordSources))").arg(source).output().expect("pinned Node legacy source");
-    assert!(output.status.success(),"actual TS Finance sources: {}",String::from_utf8_lossy(&output.stderr));
-    let sources:serde_json::Value=serde_json::from_slice(&output.stdout).unwrap();
-    let payment_source=sources["payment"].as_str().unwrap();let journal_source=sources["journal"].as_str().unwrap();let parts_source=sources["partsJournal"].as_str().unwrap();
+    // Oracles are the owner's fixed Rust SQL contract; no TypeScript source
+    // import and no Node runtime are needed for the retired literals.
+    let payment_source=field_finance_source("payment");let journal_source=field_finance_source("journal");let parts_source=field_finance_source("partsJournal");
     let payment_sql=format!("SELECT EXISTS(SELECT 1 FROM public.finance_payments d JOIN ({payment_source}) owner_source ON owner_source.id=d.id AND owner_source.company_id=d.company_id WHERE d.id=$1 AND d.company_id=$2)");
     let roots="SELECT d.id,d.company_id UNION SELECT p.id,p.company_id FROM public.finance_book_postings b JOIN public.finance_journals p ON p.id=b.primary_journal_id AND p.company_id=d.company_id WHERE b.secondary_journal_id=d.id";
     let journal_sql=format!("SELECT EXISTS(SELECT 1 FROM public.finance_journals d WHERE d.id=$1 AND d.company_id=$2 AND EXISTS(SELECT 1 FROM ({roots}) root JOIN ({journal_source}) owner_source ON owner_source.id=root.id AND owner_source.company_id=root.company_id))");

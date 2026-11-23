@@ -4,14 +4,14 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {holdingResources} from "@erpx/server-runtime/public/runtime";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {financePackageEnforcementMode,readPurchasedAccesses} from "@erpx/server-commercial/public/purchase-command-boundary";
-import {fieldServiceFinanceRecordSources} from "@erpx/server-field_service/public/finance-record-sources";
+import {nativeFieldFinanceLineage} from "@erpx/server-field_service/public/finance-record-sources";
 import {requireFinanceCurrentAuthority,withFinancePurchasedCommand} from "@erpx/server-finance/adapters/purchase-boundary";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
 
 type Target={kind:"invoice"|"payment";id:string};
 type Command={key:string;operation:string;purpose:CapabilityPurpose};
 async function serviceSource(database:SqlDatabase,actor:WorkContext,target:Target){
- return database.prepare(`SELECT id,${target.kind==="payment"?"invoice_id":"id invoice_id"} FROM (${fieldServiceFinanceRecordSources[target.kind]}) actual WHERE actual.id=? AND actual.company_id=?`).bind(target.id,actor.companyId).first<{id:string;invoice_id:string}>();
+ return database.prepare(`SELECT id,${target.kind==="payment"?"invoice_id":"id invoice_id"} FROM (${nativeFieldFinanceLineage[target.kind]}) actual WHERE actual.id=? AND actual.company_id=?`).bind(target.id,actor.companyId).first<{id:string;invoice_id:string}>();
 }
 /** Remaining consumer: non-Field Finance banking commands. Field targets are
  * unavailable here; their complete command goes through native ports. Remove

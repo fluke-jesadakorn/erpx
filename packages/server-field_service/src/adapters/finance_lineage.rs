@@ -344,3 +344,68 @@ impl CurrentFieldHistoryJoin{
     pub async fn require_current(&self,c:&mut PgConnection)->Result<(),Error>{if field_history_join_unit(c).await?!=self.unit{return Err(BusinessError::new(FailureKind::Conflict,"FIELD_HISTORY_JOIN_UNIT_CHANGED","The Field History join source changed.").into());}Ok(())}
 }
 pub async fn inspect_field_history_join(c:&mut PgConnection)->Result<CurrentFieldHistoryJoin,Error>{Ok(CurrentFieldHistoryJoin{unit:field_history_join_unit(c).await?})}
+
+/// Native-owned fixed SQL for the retired TypeScript Field finance record
+/// sources. The exact literal text lives in this owner's JSON contract, which
+/// `include_str!` binds into the Rust crate; the TypeScript finance consumers
+/// read the same contract through the native finance-lineage port. No SQL is
+/// interpolated and no TypeScript SQL fragment remains for these sources.
+pub const FIELD_FINANCE_SOURCES_JSON: &str = include_str!("finance-lineage-sources.json");
+
+#[derive(serde::Deserialize)]
+struct FieldFinanceSources {
+    invoice: String,
+    #[serde(rename = "partsJournal")]
+    parts_journal: String,
+    payment: String,
+    journal: String,
+    #[serde(rename = "sourceReadLocks")]
+    source_read_locks: Vec<String>,
+}
+
+static FIELD_FINANCE_SOURCES: std::sync::OnceLock<FieldFinanceSources> = std::sync::OnceLock::new();
+
+fn field_finance_sources() -> &'static FieldFinanceSources {
+    FIELD_FINANCE_SOURCES.get_or_init(|| {
+        serde_json::from_str(FIELD_FINANCE_SOURCES_JSON)
+            .expect("field finance lineage SQL contract must be valid JSON")
+    })
+}
+
+/// Exact fixed SQL of one retired Field finance record source. The kind is a
+/// closed discriminator, never caller-supplied SQL.
+pub fn field_finance_source(kind: &str) -> &'static str {
+    let sources = field_finance_sources();
+    match kind {
+        "invoice" => &sources.invoice,
+        "partsJournal" => &sources.parts_journal,
+        "payment" => &sources.payment,
+        "journal" => &sources.journal,
+        _ => panic!("unknown Field finance lineage source kind"),
+    }
+}
+
+/// Exact fixed Field source lock statements used by the Finance purchase
+/// adapters before their first source snapshot.
+pub fn field_finance_source_read_locks() -> &'static [String] {
+    &field_finance_sources().source_read_locks
+}
+
+#[cfg(test)]
+mod finance_source_contract_tests {
+    use super::*;
+
+    #[test]
+    fn field_finance_sources_are_owner_fixed_selects() {
+        for kind in ["invoice", "partsJournal", "payment", "journal"] {
+            let sql = field_finance_source(kind);
+            assert!(sql.trim_start().starts_with("SELECT "), "{kind}");
+            assert!(!sql.contains(';'), "{kind}");
+            assert!(sql.contains("field_service_orders"), "{kind}");
+        }
+        assert_eq!(field_finance_source_read_locks().len(), 2);
+        assert!(field_finance_source_read_locks()
+            .iter()
+            .all(|sql| sql.starts_with("LOCK TABLE ")));
+    }
+}

@@ -78,11 +78,9 @@ async fn field_invoice_history_candidate_matches_legacy_field_predicate() {
         // the legacy unqualified SQL sees the actual public sources. Rollback
         // restores these TEMP tables, which are then dropped below.
         sqlx::raw_sql("DROP TABLE pg_temp.field_service_agreements;DROP TABLE pg_temp.field_service_orders;DROP TABLE pg_temp.field_service_order_events;DROP TABLE pg_temp.field_service_billing_releases").execute(&mut *tx).await.unwrap();
-        let node=std::env::var("ERPX_NODE_BIN").unwrap_or_else(|_|"node".into());
-        let source=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/adapters/finance-record-sources.ts");
-        let output=std::process::Command::new(&node).arg("--conditions=react-server").arg("--input-type=module").arg("-e").arg("if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const m=await import(process.argv[1]);process.stdout.write(m.fieldServiceFinanceRecordSources.invoice)").arg(source).output().expect("pinned Node legacy source");
-        assert!(output.status.success(),"actual TS source: {}",String::from_utf8_lossy(&output.stderr));
-        let actual_ts=String::from_utf8(output.stdout).unwrap();
+        // Oracle is the owner's fixed Rust SQL contract; no TypeScript source
+        // import and no Node runtime are needed for the retired literal.
+        let actual_ts=field_finance_source("invoice").to_owned();
         let legacy_invoice=format!("SELECT EXISTS(SELECT 1 FROM ({actual_ts}) original WHERE original.company_id=$1 AND original.id=$2)");
         let projected_ts=actual_ts.replace("field_service_billing_releases","field_history_billing_releases").replace("field_service_order_events","field_history_order_events").replace("field_service_part_reservations","field_history_part_reservations").replace("field_service_agreements","field_history_agreements").replace("field_service_orders","field_history_orders");
         let projected_invoice=format!("WITH {} SELECT EXISTS(SELECT 1 FROM ({projected_ts}) original WHERE original.company_id=$1 AND original.id=$2)",field_join.cte_sql());
@@ -133,9 +131,9 @@ async fn field_parts_journal_candidate_matches_actual_typescript_history() {
         // Remove only TEMP shadows within the rollback-only transaction so the
         // exact legacy source's unqualified joins resolve public relations.
         sqlx::raw_sql("DROP TABLE pg_temp.field_service_orders;DROP TABLE pg_temp.field_service_order_events;DROP TABLE pg_temp.field_service_part_reservations").execute(&mut *tx).await.unwrap();
-        let node=std::env::var("ERPX_NODE_BIN").unwrap_or_else(|_|"node".into());let source=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("src/adapters/finance-record-sources.ts");
-        let output=std::process::Command::new(node).arg("--conditions=react-server").arg("--input-type=module").arg("-e").arg("if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const m=await import(process.argv[1]);process.stdout.write(m.fieldServiceFinanceRecordSources.partsJournal)").arg(source).output().expect("pinned Node legacy source");assert!(output.status.success(),"actual TS source: {}",String::from_utf8_lossy(&output.stderr));
-        let actual_ts=String::from_utf8(output.stdout).unwrap();
+        // Oracle is the owner's fixed Rust SQL contract; no TypeScript source
+        // import and no Node runtime are needed for the retired literal.
+        let actual_ts=field_finance_source("partsJournal").to_owned();
         let projected_ts=actual_ts.replace("field_service_billing_releases","field_history_billing_releases").replace("field_service_order_events","field_history_order_events").replace("field_service_part_reservations","field_history_part_reservations").replace("field_service_agreements","field_history_agreements").replace("field_service_orders","field_history_orders");
         let sql=format!("SELECT EXISTS(SELECT 1 FROM ({actual_ts}) original WHERE original.company_id=$1 AND original.id=$2)");
         let projected_sql=format!("WITH {} SELECT EXISTS(SELECT 1 FROM ({projected_ts}) original WHERE original.company_id=$1 AND original.id=$2)",field_join.cte_sql());

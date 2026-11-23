@@ -7,3 +7,4 @@ pub use crate::adapters::finance_lineage::{
 pub use crate::adapters::finance_lineage::{CurrentFieldInvoiceHistoryCandidate, FieldInvoiceHistoryCandidate, lock_field_invoice_history_candidate_sources, observe_field_invoice_history_candidate};
 pub use crate::adapters::finance_lineage::{CurrentFieldPartsJournalHistoryCandidate, FieldPartsJournalHistoryCandidate, lock_field_parts_journal_history_candidate_sources, observe_field_parts_journal_history_candidate};
 pub use crate::adapters::finance_lineage::{CurrentFieldHistoryJoin, inspect_field_history_join, lock_field_history_join_sources};
+pub use crate::adapters::finance_lineage::{FIELD_FINANCE_SOURCES_JSON, field_finance_source, field_finance_source_read_locks};

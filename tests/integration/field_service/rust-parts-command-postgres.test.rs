@@ -11,20 +11,17 @@ use facts::*;
 /// owner rows in an isolated test Holding. It grants no IAM or purchase right.
 async fn assert_actual_field_journal_history(db:&sqlx::PgPool,id:&str,company:&str,expected:bool,stale_order:Option<&str>) {
     use erpx_server_shared::public::CompanyId;
-    use erpx_server_field_service::public::finance_lineage::{inspect_field_history_join,lock_field_history_join_sources};
+    use erpx_server_field_service::public::finance_lineage::{field_finance_source,inspect_field_history_join,lock_field_history_join_sources};
     use erpx_server_finance::public::attachment_target_source::{FinanceAttachmentTargetKind,inspect_canonical_finance_history_journal_roots,lock_canonical_finance_attachment_targets,lock_canonical_finance_history_book_roots,observe_canonical_finance_attachment_target};
     use erpx_server_finance::public::field_history_candidates::{inspect_field_history_finance_candidates,lock_field_history_finance_candidate_sources};
     use erpx_server_finance::public::field_history_money_lines::{inspect_field_history_money_lines,lock_field_history_money_line_sources};
     use erpx_server_inventory::public::field_history_consumption::{inspect_field_history_consumption_join,lock_field_history_consumption_join_sources};
     use erpx_server_workflow::public::record_origin::{inspect_field_history_receipt_join,lock_field_history_receipt_join_sources};
     use erpx_service::field_finance_history::{FieldFinanceHistoryPhase,inspect_field_finance_history};
-    let node=std::env::var("ERPX_NODE_BIN").unwrap_or_else(|_|"node".into());
-    let ts=std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../packages/server-field_service/src/adapters/finance-record-sources.ts");
-    let output=std::process::Command::new(node).arg("--conditions=react-server").arg("--input-type=module").arg("-e").arg("if(process.version!=='v26.11.1')throw Error('PINNED_NODE_REQUIRED');const m=await import(process.argv[1]);process.stdout.write(JSON.stringify({journal:m.fieldServiceFinanceRecordSources.journal,parts:m.fieldServiceFinanceRecordSources.partsJournal}))").arg(ts).output().expect("pinned Node Field source oracle");
-    assert!(output.status.success(),"actual Field TS source: {}",String::from_utf8_lossy(&output.stderr));
-    let legacy:serde_json::Value=serde_json::from_slice(&output.stdout).unwrap();
+    // Oracles are the owner's fixed Rust SQL contract; no TypeScript source
+    // import and no Node runtime are needed for the retired literals.
     let original=|source:&str|format!("SELECT EXISTS(SELECT 1 FROM public.finance_journals d WHERE d.id=$1 AND d.company_id=$2 AND EXISTS(SELECT 1 FROM (SELECT d.id,d.company_id UNION SELECT p.id,p.company_id FROM public.finance_book_postings b JOIN public.finance_journals p ON p.id=b.primary_journal_id AND p.company_id=d.company_id WHERE b.secondary_journal_id=d.id) root JOIN ({source}) owner_source ON owner_source.id=root.id AND owner_source.company_id=root.company_id))");
-    let journal_sql=original(legacy["journal"].as_str().unwrap());let parts_sql=original(legacy["parts"].as_str().unwrap());
+    let journal_sql=original(field_finance_source("journal"));let parts_sql=original(field_finance_source("partsJournal"));
     let mut tx=db.begin().await.unwrap();sqlx::query("SET TRANSACTION ISOLATION LEVEL SERIALIZABLE").execute(&mut *tx).await.unwrap();
     // Utility locks precede the first protected snapshot. This isolated test
     // demonstrates one coordinator order, not a proof of global lock ordering.
@@ -48,7 +45,7 @@ async fn assert_actual_field_journal_history(db:&sqlx::PgPool,id:&str,company:&s
 /// command effects after rollback. This is a read-only classifier, not a writer.
 #[tokio::test]
 async fn field_parts_consumption_source_matches_actual_typescript_parts_journal_and_rolls_back_without_effects() {
-    use erpx_server_field_service::public::finance_lineage::{inspect_field_history_join,lock_field_history_join_sources};
+    use erpx_server_field_service::public::finance_lineage::{field_finance_source,inspect_field_history_join,lock_field_history_join_sources};
     use erpx_server_inventory::public::field_history_consumption::{inspect_field_history_consumption_join,lock_field_history_consumption_join_sources};
     account::with_system(|system| async move {
         let p=setup(system).await;

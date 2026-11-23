@@ -1,5 +1,5 @@
 import "server-only";
-import {fieldServiceFinanceSourceReadLocks} from "@erpx/server-field_service/public/finance-record-sources";
+import {nativeFieldFinanceSourceReadLocks} from "@erpx/server-field_service/public/finance-record-sources";
 import {serviceNoChargeTerminalPredicate} from "@erpx/server-finance/adapters/service-no-charge-sources";
 import {controlledPaymentStatementSettled} from "@erpx/server-finance/adapters/bank-statement-settlement";
 import {failedSupplierInstructionSettlements} from "@erpx/server-finance/adapters/supplier-instruction-settlement";
@@ -74,7 +74,7 @@ export async function lockFinancePackageObligationSources(owner: PostgresDatabas
   const { database, companyId } = packageSettlementSource(owner, lock);
   const tables = [...new Set([...core, ...advanced].map(([table]) => table).concat(joinedTables))].sort();
   await database.prepare("LOCK TABLE command_receipts IN SHARE MODE").run();
-  await database.batch(fieldServiceFinanceSourceReadLocks(database));
+  await database.batch(nativeFieldFinanceSourceReadLocks(database));
   await database.prepare("LOCK TABLE money_transaction_snapshots IN SHARE MODE").run();
   await database.prepare(`LOCK TABLE ${tables.join(",")} IN SHARE MODE`).run();
   
