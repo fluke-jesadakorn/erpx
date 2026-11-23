@@ -1,30 +1,15 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import type { SeriesRow } from "@erpx/server-work_projection/public/calendar/commands";
-import type { AppointmentRow } from "@erpx/server-work_projection/public/calendar/appointments";
-import type { AnnouncementRow } from "@erpx/server-work_projection/public/calendar/announcements";
 import {nativeOwnerWrite,nativeOwnerWriteRow} from "./native-owner-write";
-/** Calendar owner facts. Every write is dispatched to the native Work
- * kind-registry axum router, which executes the owner SQL and its
- * receipt/audit/outbox in one Rust transaction. No SQL, mirror or fallback
- * remains in this file; returned statements are inert placeholders that keep
- * existing caller batches structurally identical. */
+/** Calendar owner facts. Every write is dispatched to the native Work kind
+ * registry axum router, which executes the owner SQL and its receipt/audit/
+ * outbox in one Rust transaction. Every read goes through the native owner-read
+ * port. No SQL, mirror or fallback remains in this file; returned write
+ * statements are inert placeholders that keep caller batches structurally
+ * identical. */
 export function calendarCommandsWorkProjectionFacts(db: SqlDatabase) {
     const noop = () => db.prepare("SELECT 1");
-    return { read1: (facts: {
-            value1: string;
-            value2: string;
-            value3: string;
-        }) => db.prepare(`SELECT (extract(epoch FROM (?::timestamp AT TIME ZONE ?))*1000)::bigint starts_at,(extract(epoch FROM (?::timestamp AT TIME ZONE ?))*1000)::bigint ends_at,to_char((?::timestamp AT TIME ZONE ?) AT TIME ZONE ?,'YYYY-MM-DD"T"HH24:MI') start_local,to_char((?::timestamp AT TIME ZONE ?) AT TIME ZONE ?,'YYYY-MM-DD"T"HH24:MI') end_local`).bind(facts.value1, facts.value2, facts.value3, facts.value2, facts.value1, facts.value2, facts.value2, facts.value3, facts.value2, facts.value2).first<{
-            starts_at: number;
-            ends_at: number;
-            start_local: string;
-            end_local: string;
-        }>(),
-        read3: (facts: { value1: string; }) => db.prepare("SELECT frequency,interval_count,weekdays,end_kind,occurrence_count,until_date FROM calendar_series WHERE appointment_id=?").bind(facts.value1).first<SeriesRow>(),
-        read4: (facts: { value1: string; value2: string; }) => db.prepare("SELECT user_id FROM calendar_attendees WHERE appointment_id=? AND company_id=?").bind(facts.value1, facts.value2).all<{ user_id: string; }>(),
-        read12: (facts: { value1: string; value2: string; }) => db.prepare("SELECT * FROM calendar_appointments WHERE id=? AND company_id=?").bind(facts.value1, facts.value2).first<AppointmentRow>(),
-        read13: (facts: { value1: string; value2: string; }) => db.prepare("SELECT person_id FROM calendar_appointment_participants WHERE appointment_id=? AND company_id=?").bind(facts.value1, facts.value2).all<{ person_id: string; }>().then(result => result.results),
+    return {
         write14: async (facts: { value1: string; value2: string; value3: string; value4: string; value5: string; }) => nativeOwnerWrite('wp_cal_occurrence_exception_upsert',[facts.value1,facts.value2,facts.value3,facts.value4,facts.value5],`wp-cal-14:${facts.value2}:${facts.value3}`,{companyId:facts.value1},noop),
         write15: async (facts: { value1: number; value2: string; value3: string; }) => nativeOwnerWrite('wp_cal_appointment_version_bump',[facts.value1,facts.value2,facts.value3],`wp-cal-15:${facts.value2}:${facts.value1}`,{companyId:facts.value3},noop),
         write16: async (facts: { value1: string; value2: string; }) => nativeOwnerWrite('wp_cal_series_until',[facts.value1,facts.value2],`wp-cal-16:${facts.value2}:${facts.value1}`,{},noop),
@@ -33,28 +18,21 @@ export function calendarCommandsWorkProjectionFacts(db: SqlDatabase) {
         write20: async (facts: { value1: string; value2: string; value3: string; }) => nativeOwnerWrite('wp_cal_attendee_clone',[facts.value1,facts.value2,facts.value3],`wp-cal-20:${facts.value2}:${facts.value1}`,{companyId:facts.value3},noop),
         write21: async (facts: { value1: string; value2: string; value3: string; }) => nativeOwnerWrite('wp_cal_participant_clone',[facts.value1,facts.value2,facts.value3],`wp-cal-21:${facts.value2}:${facts.value1}`,{companyId:facts.value3},noop),
         write22: async (facts: { value1: number; value2: number; value3: string; value4: string | null; value5: string | null; value6: number; value7: string; value8: string; }) => nativeOwnerWrite('wp_cal_appointment_update',[facts.value1,facts.value2,facts.value3,facts.value4,facts.value5,facts.value6,facts.value7,facts.value8],`wp-cal-22:${facts.value7}:${facts.value6}`,{companyId:facts.value8},noop),
-        read23: (facts: { value1: string; value2: string; }) => db.prepare("SELECT * FROM calendar_announcements WHERE id=? AND company_id=?").bind(facts.value1, facts.value2).first<AnnouncementRow>(),
         write24: async (facts: { value1: string; value2: string; value3: number; value4: string; value5: string; }) => nativeOwnerWrite('wp_cal_announcement_dates',[facts.value1,facts.value2,facts.value3,facts.value4,facts.value5],`wp-cal-24:${facts.value4}:${facts.value3}`,{companyId:facts.value5},noop),
-        read26: (facts: { value1: string; value2: string; }) => db.prepare("SELECT * FROM calendar_appointments WHERE id=? AND company_id=?").bind(facts.value1, facts.value2).first<AppointmentRow>(),
         write29: async (facts: { value1: string; value2: string; value3: string | null; value4: string | null; value5: string | null; value6: string; value7: string; value8: number; value9: number; value10: string; value11: string; value12: string; value13: boolean; value14: string; value15: number; value16: string; value17: number; value18: number; value19: boolean; value20: string | null; value21: string | null; }) => nativeOwnerWrite('wp_cal_appointment_upsert',[facts.value1,facts.value2,facts.value3,facts.value4,facts.value5,facts.value6,facts.value7,facts.value8,facts.value9,facts.value10,facts.value11,facts.value12,facts.value13,facts.value14,facts.value15,facts.value16,facts.value17,facts.value18,facts.value19,facts.value20,facts.value21],`wp-cal-29:${facts.value1}`,{companyId:facts.value2},noop),
-        read30: (facts: { value1: string; value2: string; }) => db.prepare("SELECT user_id,response,reminder_minutes,response_at FROM calendar_attendees WHERE appointment_id=? AND company_id=?").bind(facts.value1, facts.value2).all<{ user_id: string; response: string; reminder_minutes: number | null; response_at: number | null; }>(),
         write31: async (facts: { value1: string; value2: string; }) => nativeOwnerWrite('wp_cal_attendee_delete',[facts.value1,facts.value2],`wp-cal-31:${facts.value1}:${facts.value2}`,{},noop),
         write32: async (facts: { value1: string; value2: string; value3: string; value4: string | null; value5: "optional" | "organizer" | "required"; value6: string; value7: number | null; value8: number | null; }) => nativeOwnerWrite('wp_cal_attendee_insert',[facts.value1,facts.value2,facts.value3,facts.value4,facts.value5,facts.value6,facts.value7,facts.value8],`wp-cal-32:${facts.value2}:${facts.value3}`,{companyId:facts.value1},noop),
         write33: async (facts: { value1: string; value2: string; }) => nativeOwnerWrite('wp_cal_participant_delete',[facts.value1,facts.value2],`wp-cal-33:${facts.value1}:${facts.value2}`,{},noop),
         write34: async (facts: { value1: string; value2: string; value3: string; }) => nativeOwnerWrite('wp_cal_participant_insert',[facts.value1,facts.value2,facts.value3],`wp-cal-34:${facts.value2}:${facts.value3}`,{companyId:facts.value1},noop),
         write35: async (facts: { value1: string; value2: string; }) => nativeOwnerWrite('wp_cal_series_delete',[facts.value1,facts.value2],`wp-cal-35:${facts.value1}:${facts.value2}`,{},noop),
         write36: async (facts: { value1: string; value2: string; value3: "daily" | "weekly" | "monthly" | "yearly"; value4: number; value5: string; value6: "never" | "count" | "until"; value7: number | null; value8: string | null; }) => nativeOwnerWrite('wp_cal_series_upsert',[facts.value1,facts.value2,facts.value3,facts.value4,facts.value5,facts.value6,facts.value7,facts.value8],`wp-cal-36:${facts.value1}`,{companyId:facts.value2},noop),
-        read37: (facts: { value1: string; value2: string; }) => db.prepare("SELECT * FROM calendar_appointments WHERE id=? AND company_id=?").bind(facts.value1, facts.value2).first<AppointmentRow>(),
-        read38: (facts: { value1: string; value2: string; value3: string; }) => db.prepare("SELECT attendance FROM calendar_attendees WHERE company_id=? AND appointment_id=? AND user_id=?").bind(facts.value1, facts.value2, facts.value3).first<{ attendance: string; }>(),
         write39: async (facts: { value1: string; value2: string; value3: string; value4: string; value5: "accepted" | "tentative" | "declined"; value6: number; }) => nativeOwnerWrite('wp_cal_occurrence_response_upsert',[facts.value1,facts.value2,facts.value3,facts.value4,facts.value5,facts.value6],`wp-cal-39:${facts.value2}:${facts.value3}:${facts.value4}`,{companyId:facts.value1},noop),
         write40: async (facts: { value1: "accepted" | "tentative" | "declined"; value2: number; value3: string; value4: string; value5: string; }) => nativeOwnerWrite('wp_cal_attendee_response_update',[facts.value1,facts.value2,facts.value3,facts.value4,facts.value5],`wp-cal-40:${facts.value4}:${facts.value5}`,{companyId:facts.value3},noop),
-        read42: (facts: { value1: string; value2: string; }) => db.prepare("SELECT user_id FROM calendar_attendees WHERE appointment_id=? AND company_id=? AND attendance='organizer'").bind(facts.value1, facts.value2).first<{ user_id: string; }>(),
         read44: async (facts: { value1: number | null; value2: string; value3: string; value4: string; }) => nativeOwnerWriteRow('wp_cal_attendee_reminder_update',[facts.value1,facts.value2,facts.value3,facts.value4],`wp-cal-44:${facts.value3}:${facts.value4}`,{companyId:facts.value2}),
         write45: async (facts: { value1: string; value2: string; value3: string; }) => nativeOwnerWrite('wp_cal_reminder_delivery_delete',[facts.value1,facts.value2,facts.value3],`wp-cal-45:${facts.value2}:${facts.value3}`,{companyId:facts.value1},noop),
         write48: async (facts: { value1: string; value2: string; value3: string; }) => nativeOwnerWrite('wp_cal_occurrence_exception_cancel',[facts.value1,facts.value2,facts.value3],`wp-cal-48:${facts.value2}:${facts.value3}`,{companyId:facts.value1},noop),
         write50: async (facts: { value1: string; value2: string; }) => nativeOwnerWrite('wp_cal_series_until',[facts.value1,facts.value2],`wp-cal-50:${facts.value2}:${facts.value1}`,{},noop),
         write52: async (facts: { value1: "cancelled" | "completed" | "no_show"; value2: number; value3: string; value4: string; }) => nativeOwnerWrite('wp_cal_appointment_status',[facts.value1,facts.value2,facts.value3,facts.value4],`wp-cal-52:${facts.value3}:${facts.value2}`,{companyId:facts.value4},noop),
-        read53: (facts: { value1: string; value2: string; }) => db.prepare("SELECT * FROM calendar_announcements WHERE id=? AND company_id=?").bind(facts.value1, facts.value2).first<AnnouncementRow>(),
         write54: async (facts: { value1: string; value2: string; value3: string | null; value4: string | null; value5: string; value6: string; value7: string; value8: string; value9: string; value10: number; value11: string; value12: number; value13: number; }) => nativeOwnerWrite('wp_cal_announcement_upsert',[facts.value1,facts.value2,facts.value3,facts.value4,facts.value5,facts.value6,facts.value7,facts.value8,facts.value9,facts.value10,facts.value11,facts.value12,facts.value13],`wp-cal-54:${facts.value1}`,{companyId:facts.value2},noop),
         write56: async (facts: { value1: "published" | "withdrawn"; value2: number; value3: string; value4: string; }) => nativeOwnerWrite('wp_cal_announcement_status',[facts.value1,facts.value2,facts.value3,facts.value4],`wp-cal-56:${facts.value3}:${facts.value2}`,{companyId:facts.value4},noop),
         write57: async (facts: { value1: string; value2: string; value3: string; value4: string; value5: string; value6: string; value7: number; value8: number; }) => nativeOwnerWrite('wp_cal_history_insert',[facts.value1,facts.value2,facts.value3,facts.value4,facts.value5,facts.value6,facts.value7,facts.value8],`wp-cal-57:${facts.value4}:${facts.value7}`,{companyId:facts.value2},noop) };

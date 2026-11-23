@@ -2,6 +2,8 @@ pub mod identity_selection_preferences;
 pub mod work_role_store;
 
 pub mod account_workspace_preferences;
+pub mod calendar_read;
+pub mod calendar_read_http;
 
 pub mod home_read_cursor;
 pub mod home_read_cursor_http;

@@ -1,6 +1,8 @@
 pub(crate) mod identity_selection_preferences;
 
 pub mod account_workspace_preferences;
+pub mod calendar_read;
+pub mod calendar_read_http;
 pub mod home_read_cursor_http;
 pub mod owner_write_postgres;
 pub mod owner_write_http;

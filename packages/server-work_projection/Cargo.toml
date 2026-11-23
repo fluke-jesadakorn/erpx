@@ -68,3 +68,11 @@ path = "../../tests/unit/shared.work/rust-work-home-unread-http.test.rs"
 [[test]]
 name = "work_projection_calendar_spec"
 path = "../../tests/unit/work_projection/rust-work-projection-calendar-spec.test.rs"
+
+[[test]]
+name = "work_projection_calendar_read_spec"
+path = "../../tests/unit/work_projection/rust-work-projection-calendar-read-spec.test.rs"
+
+[[test]]
+name = "work_projection_calendar_read_postgres"
+path = "../../tests/integration/work_projection/rust-calendar-read-postgres.test.rs"
