@@ -68,6 +68,30 @@ const READ_BUSINESS_BILL_ROW: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successor of the `entrypoint-queries` period-end-date list. The
+/// caller binds `[companyId]` on its open unit.
+pub const RD_PERIOD_END_DATES: &str = "finance_rd_period_end_dates";
+const SQL_RD_PERIOD_END_DATES: &str =
+    "SELECT id,end_date FROM finance_periods WHERE company_id=? ORDER BY start_date DESC";
+const READ_PERIOD_END_DATES: NativeReadStatement = NativeReadStatement {
+    kind: RD_PERIOD_END_DATES,
+    sql: SQL_RD_PERIOD_END_DATES,
+    bind_count: 1,
+    scope: "holding",
+};
+
+/// Native successor of the `entrypoint-queries` full period list. The caller
+/// binds `[companyId]` on its open unit.
+pub const RD_ALL_PERIODS: &str = "finance_rd_all_periods";
+const SQL_RD_ALL_PERIODS: &str =
+    "SELECT * FROM finance_periods WHERE company_id=? ORDER BY start_date DESC";
+const READ_ALL_PERIODS: NativeReadStatement = NativeReadStatement {
+    kind: RD_ALL_PERIODS,
+    sql: SQL_RD_ALL_PERIODS,
+    bind_count: 1,
+    scope: "holding",
+};
+
 /// Native successor of the retired `supplier-payment-repository` batch row read.
 /// The caller binds `[id, companyId]` on its open unit.
 pub const RD_SUPPLIER_BATCH_ROW: &str = "finance_rd_supplier_batch_row";
@@ -190,6 +214,8 @@ const READS: &[NativeReadStatement] = &[
     READ_ASSET_POLICY_RUNS,
     READ_COLLECTION_CASE_ROW,
     READ_BUSINESS_BILL_ROW,
+    READ_PERIOD_END_DATES,
+    READ_ALL_PERIODS,
     READ_SUPPLIER_BATCH_ROW,
     READ_SUPPLIER_INSTRUCTION_ROW,
     READ_SUPPLIER_BATCH_LIST,
@@ -223,6 +249,8 @@ mod tests {
             RD_ASSET_POLICY_RUNS,
             RD_COLLECTION_CASE_ROW,
             RD_BUSINESS_BILL_ROW,
+            RD_PERIOD_END_DATES,
+            RD_ALL_PERIODS,
             RD_SUPPLIER_BATCH_ROW,
             RD_SUPPLIER_INSTRUCTION_ROW,
             RD_SUPPLIER_BATCH_LIST,
@@ -247,7 +275,7 @@ mod tests {
             assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
             assert_eq!(read.scope, "holding", "{kind}");
         }
-        assert_eq!(READS.len(), 14);
+        assert_eq!(READS.len(), 16);
         assert!(!is_read("finance_stmt_1"));
         assert!(read_statement("finance_stmt_1").is_none());
     }
@@ -284,6 +312,19 @@ mod tests {
             "CASE WHEN EXISTS(SELECT 1 FROM finance_business_billing_runs child WHERE child.parent_run_id=b.id) THEN 0 ELSE 1 END is_current"
         ));
         assert!(bill.sql.ends_with("WHERE b.id=? AND b.company_id=?"));
+
+        let ends = read_statement(RD_PERIOD_END_DATES).expect("read kind");
+        assert_eq!(ends.bind_count, 1);
+        assert_eq!(
+            ends.sql,
+            "SELECT id,end_date FROM finance_periods WHERE company_id=? ORDER BY start_date DESC"
+        );
+        let periods = read_statement(RD_ALL_PERIODS).expect("read kind");
+        assert_eq!(periods.bind_count, 1);
+        assert_eq!(
+            periods.sql,
+            "SELECT * FROM finance_periods WHERE company_id=? ORDER BY start_date DESC"
+        );
     }
 
     /// The supplier-batch reads preserve the retired owner semantics: the
