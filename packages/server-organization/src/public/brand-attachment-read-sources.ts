@@ -1,1 +1,1 @@
-export {brandAttachmentOrganizationSourceLocks,brandAttachmentOrganizationSourceImage} from '@erpx/server-organization/adapters/brand-attachment-read-sources';
+export {brandAttachmentOrganizationSourceLocks} from '@erpx/server-organization/adapters/brand-attachment-read-sources';

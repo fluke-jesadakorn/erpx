@@ -408,3 +408,119 @@ async fn run_raw(
         .map(|raw| serde_json::from_str(&raw).map_err(|_| PgTransactionError::Business(BusinessError::new(erpx_server_shared::public::FailureKind::InvalidInput, "COLLABORATION_WORKSPACE_INVALID", "The workspace could not be read."))))
         .collect()
 }
+
+#[tokio::test]
+async fn brand_attachment_statements_match_retained_reads() {
+    use erpx_server_collaboration::public::notification_statement::{
+        brand_attachment_image_statement, brand_organization_image_statement,
+    };
+    fixture::with_database(2, |pool| async move {
+        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
+        migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
+        PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
+            sqlx::raw_sql(
+                "INSERT INTO organization_nodes(id,kind,slug,display_name,company_id) VALUES \
+                 ('company','company','company','Company','company'), \
+                 ('branch','branch','branch','Branch','company'); \
+                 INSERT INTO organization_brand_profiles(scope_kind,scope_id,company_id,document_mode,updated_by,updated_at) VALUES \
+                 ('holding','company',NULL,'holding','fixture',0), \
+                 ('branch','branch','company','both','fixture',0); \
+                 INSERT INTO storefront_app_brands(company_id,short_name,accent_color,updated_by,updated_at) VALUES \
+                 ('company','Store','#3659c9','fixture',0);",
+            ).execute(&mut *c).await?;
+            // Constructor parity: kind mapping, bind order, fail-closed inputs.
+            assert!(brand_attachment_image_statement("company", "nope", None).is_err());
+            assert!(brand_attachment_image_statement("", "holding_brand", Some("company")).is_err());
+            assert!(brand_organization_image_statement("", None).is_err());
+            let retained_brand = "SELECT jsonb_build_object('profile',(SELECT to_jsonb(profile) FROM organization_brand_profiles profile WHERE profile.scope_kind=? AND profile.scope_id=?),\
+                 'storefront',(SELECT to_jsonb(storefront) FROM storefront_app_brands storefront WHERE storefront.company_id=? AND ?::text='company_storefront_brand'))::text";
+            let retained_org = "SELECT jsonb_build_object('company',(SELECT to_jsonb(company) FROM organization_nodes company WHERE company.id=? AND company.kind='company'),\
+                 'branch',(SELECT to_jsonb(branch) FROM organization_nodes branch WHERE branch.id=? AND branch.company_id=? AND branch.kind='branch'))::text";
+            // Brand half: identical rows for every target; foreign company
+            // sees a null storefront while the holding profile stays visible.
+            for (kind, scope) in [
+                ("holding_brand", Some("company".to_owned())),
+                ("branch_brand", Some("branch".to_owned())),
+                ("company_storefront_brand", None),
+            ] {
+                let statement = brand_attachment_image_statement("company", kind, scope.as_deref())?;
+                let image = run_image_text(c, &statement).await?;
+                let scope_kind = if kind == "holding_brand" { "holding" } else { "branch" };
+                let retained = run_text_raw(
+                    c,
+                    retained_brand,
+                    &[
+                        Some(scope_kind.to_owned()),
+                        scope.clone(),
+                        Some("company".to_owned()),
+                        Some(kind.to_owned()),
+                    ],
+                )
+                .await?;
+                assert_eq!(image, retained, "parity for {kind}");
+            }
+            let foreign = brand_attachment_image_statement("other", "holding_brand", Some("company"))?;
+            assert!(run_image_text(c, &foreign).await?.get("storefront").is_some_and(serde_json::Value::is_null));
+            // Organization half: company+branch snapshots; null branch for
+            // non-branch targets; nulls for foreigners.
+            let organization = brand_organization_image_statement("company", Some("branch"))?;
+            let snapshot = run_image_text(c, &organization).await?;
+            let retained_snapshot = run_text_raw(
+                c,
+                retained_org,
+                &[Some("company".to_owned()), Some("branch".to_owned()), Some("company".to_owned())],
+            )
+            .await?;
+            assert_eq!(snapshot, retained_snapshot);
+            assert_eq!(snapshot.get("branch").and_then(|v| v.get("id")).and_then(serde_json::Value::as_str), Some("branch"));
+            let company_only = brand_organization_image_statement("company", None)?;
+            assert!(run_image_text(c, &company_only).await?.get("branch").is_some_and(serde_json::Value::is_null));
+            let foreign_org = brand_organization_image_statement("other", None)?;
+            assert!(run_image_text(c, &foreign_org).await?.get("company").is_some_and(serde_json::Value::is_null));
+            Ok(())
+        })).await.unwrap();
+    }).await;
+}
+
+async fn run_image_text(
+    c: &mut sqlx::PgConnection,
+    statement: &erpx_server_collaboration::public::notification_statement::NotificationStatement,
+) -> Result<serde_json::Value, PgTransactionError<BusinessError>> {
+    let values: Vec<Option<String>> = statement
+        .values
+        .iter()
+        .map(|value| match value {
+            serde_json::Value::String(text) => Some(text.clone()),
+            serde_json::Value::Null => None,
+            other => Some(other.to_string()),
+        })
+        .collect();
+    run_text_raw(c, &statement.sql, &values).await
+}
+
+async fn run_text_raw(
+    c: &mut sqlx::PgConnection,
+    sql: &str,
+    values: &[Option<String>],
+) -> Result<serde_json::Value, PgTransactionError<BusinessError>> {
+    let mut numbered = String::with_capacity(sql.len() + 8);
+    let parts: Vec<&str> = sql.split('?').collect();
+    for (index, part) in parts.iter().enumerate() {
+        numbered.push_str(part);
+        if index < values.len() {
+            numbered.push_str(&format!("${}", index + 1));
+        }
+    }
+    let mut query = sqlx::query_scalar::<_, String>(sqlx::AssertSqlSafe(numbered));
+    for value in values {
+        query = query.bind(value.clone());
+    }
+    let raw: String = query.fetch_one(&mut *c).await?;
+    serde_json::from_str(&raw).map_err(|_| {
+        PgTransactionError::Business(BusinessError::new(
+            erpx_server_shared::public::FailureKind::InvalidInput,
+            "BRAND_ATTACHMENT_IMAGE_INVALID",
+            "The Brand image could not be read.",
+        ))
+    })
+}

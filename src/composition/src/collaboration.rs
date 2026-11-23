@@ -4358,7 +4358,7 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
                             )
                             .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("collaboration_eligible_people") {
-                            erpx_server_collaboration::public::collaboration_work::eligible_people_statement(
+                            erpx_server_collaboration::public::notification_statement::eligible_people_statement(
                                 company_id.as_str(),
                             )
                             .map_err(Into::into)
@@ -4368,6 +4368,29 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
                                 company_id.as_str(),
                                 workspace.branch_id.as_ref().map(|id| id.as_str()),
                                 workspace.department_id.as_ref().map(|id| id.as_str()),
+                            )
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("brand_attachment_image") {
+                            let target = input.target_kind.as_deref().unwrap_or_default();
+                            erpx_server_collaboration::public::notification_statement::brand_attachment_image_statement(
+                                company_id.as_str(),
+                                target,
+                                if target == "company_storefront_brand" {
+                                    None
+                                } else {
+                                    Some(input.record_id.as_str())
+                                },
+                            )
+                            .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("brand_organization_image") {
+                            let target = input.target_kind.as_deref().unwrap_or_default();
+                            erpx_server_collaboration::public::notification_statement::brand_organization_image_statement(
+                                company_id.as_str(),
+                                if target == "branch_brand" {
+                                    Some(input.record_id.as_str())
+                                } else {
+                                    None
+                                },
                             )
                             .map_err(Into::into)
                         } else {

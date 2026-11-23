@@ -3680,6 +3680,106 @@ pub async fn finance_due_draft_decide_statement(
     })
 }
 
+/// Brand attachment-source image for caller-owned Brand file reads.
+///
+/// Pure constructor: the retained `brandAttachmentReadSourceImage` brand
+/// half byte-identically (same tables, predicates and bind order; the kind
+/// mapping mirrors `isBrandAttachmentReadTarget` and the brand-domain
+/// `BrandAttachmentKind`). The Company bind comes from the authorized
+/// selection; the scope id passes the caller target id through exactly like
+/// the retained read (empty ids yield null rows, which the caller maps to
+/// its retained conflict). Only unknown target kinds fail closed.
+pub fn brand_attachment_image_statement(
+    company: &str,
+    kind: &str,
+    scope_id: Option<&str>,
+) -> Result<NotificationStatement, BusinessError> {
+    let scope_kind = match kind {
+        "holding_brand" => "holding",
+        "branch_brand" | "company_storefront_brand" => "branch",
+        _ => {
+            return Err(BusinessError::new(
+                FailureKind::InvalidInput,
+                "BRAND_ATTACHMENT_TARGET_UNKNOWN",
+                "Unknown Brand attachment read target.",
+            ))
+        }
+    };
+    if company.is_empty() {
+        return Err(BusinessError::new(
+            FailureKind::InvalidInput,
+            "BRAND_ATTACHMENT_COMPANY_REQUIRED",
+            "A Company scope is required.",
+        ));
+    }
+    Ok(NotificationStatement {
+        sql: "SELECT jsonb_build_object('profile',(SELECT to_jsonb(profile) FROM organization_brand_profiles profile WHERE profile.scope_kind=? AND profile.scope_id=?),\
+         'storefront',(SELECT to_jsonb(storefront) FROM storefront_app_brands storefront WHERE storefront.company_id=? AND ?::text='company_storefront_brand'))::text".to_owned(),
+        values: vec![
+            serde_json::Value::String(scope_kind.to_owned()),
+            match scope_id {
+                Some(text) => serde_json::Value::String(text.to_owned()),
+                None => serde_json::Value::Null,
+            },
+            serde_json::Value::String(company.to_owned()),
+            serde_json::Value::String(kind.to_owned()),
+        ],
+    })
+}
+
+/// Organization snapshot for caller-owned Brand file reads.
+///
+/// Pure constructor: the retained `brandAttachmentOrganizationSourceImage`
+/// byte-identically. The Company bind comes from the authorized selection;
+/// the branch id passes the caller target id through for `branch_brand`
+/// reads and is null otherwise, exactly like the retained family.
+pub fn brand_organization_image_statement(
+    company: &str,
+    branch: Option<&str>,
+) -> Result<NotificationStatement, BusinessError> {
+    if company.is_empty() {
+        return Err(BusinessError::new(
+            FailureKind::InvalidInput,
+            "BRAND_ORGANIZATION_COMPANY_REQUIRED",
+            "A Company scope is required.",
+        ));
+    }
+    Ok(NotificationStatement {
+        sql: "SELECT jsonb_build_object('company',(SELECT to_jsonb(company) FROM organization_nodes company WHERE company.id=? AND company.kind='company'),\
+         'branch',(SELECT to_jsonb(branch) FROM organization_nodes branch WHERE branch.id=? AND branch.company_id=? AND branch.kind='branch'))::text".to_owned(),
+        values: vec![
+            serde_json::Value::String(company.to_owned()),
+            match branch {
+                Some(text) if !text.is_empty() => serde_json::Value::String(text.to_owned()),
+                _ => serde_json::Value::Null,
+            },
+            serde_json::Value::String(company.to_owned()),
+        ],
+    })
+}
+
+/// Eligible-people read for the caller-owned Collaboration workspace.
+///
+/// Pure constructor: the retained `eligiblePeople` read byte-identically,
+/// including the workspace-assignment join (mirrors `workspaceAssignment` in
+/// the identity-access collaboration-read-projections) and the
+/// records.write gate. Scope comes from the authorized selection.
+pub fn eligible_people_statement(
+    company: &str,
+) -> Result<NotificationStatement, BusinessError> {
+    if company.is_empty() {
+        return Err(BusinessError::new(
+            FailureKind::InvalidInput,
+            "COLLABORATION_ELIGIBLE_PEOPLE_INVALID",
+            "A Company scope is required.",
+        ));
+    }
+    Ok(NotificationStatement {
+        sql: "SELECT DISTINCT p.user_id id,p.legal_name name FROM hr_people p JOIN assignments x ON x.user_id=p.user_id AND x.company_id=p.company_id WHERE p.company_id=? AND p.status='active' AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(x.role,x.company_id,'records.write') ORDER BY p.legal_name".to_owned(),
+        values: vec![serde_json::Value::String(company.to_owned())],
+    })
+}
+
 /// Finance: create an intercompany document pair.
 pub async fn finance_intercompany_pair_create_statement(
     connection: &mut PgConnection,
