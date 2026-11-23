@@ -109,3 +109,11 @@ path = "../../tests/integration/pms/rust-pms-guest-accounts-postgres.test.rs"
 [[test]]
 name = "pms_social_source_postgres"
 path = "../../tests/integration/pms/rust-pms-social-source-postgres.test.rs"
+
+[[test]]
+name = "pms_home_metrics"
+path = "../../tests/unit/pms/rust-pms-home-metrics.test.rs"
+
+[[test]]
+name = "pms_home_metrics_postgres"
+path = "../../tests/integration/pms/rust-pms-home-metrics-postgres.test.rs"
