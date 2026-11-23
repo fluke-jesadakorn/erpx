@@ -373,3 +373,13 @@ it('keeps one fixed Support ticket-evidence projection for the search and by-id 
     expect(source.match(/\$\{ticketEvidenceSelect\(overdue\)\}/g)).toHaveLength(2);
     expect(source).toContain('FROM support_incidents t WHERE ${conditions.join(" AND ")}');
 });
+
+it('keeps one fixed SLA policy eligibility projection for the workspace and work-item readers', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const source = await readFile(new URL('../../../packages/server-support/src/adapters/support-sla.ts', import.meta.url), 'utf8');
+    expect(source).toContain('const policyEligibilitySelect');
+    expect(source.match(/SELECT p\.\*,CASE WHEN EXISTS\(SELECT 1 FROM/g)).toHaveLength(1);
+    expect(source.match(/\$\{policyEligibilitySelect\((?:false|true)\)\}/g)).toHaveLength(2);
+    expect(source).toContain('FROM support_sla_policies p WHERE p.company_id=? ORDER BY p.created_at DESC,p.id');
+    expect(source).toContain('FROM support_sla_policies p WHERE p.company_id=? ORDER BY p.updated_at DESC');
+});
