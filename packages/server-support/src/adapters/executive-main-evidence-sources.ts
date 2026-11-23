@@ -15,6 +15,12 @@ function supportTicketStatePredicate(metric: SupportTicketMetricId, alias = "t")
       THEN (${alias}.sla_clock_json->>'dueAt')::numeric < floor(extract(epoch FROM clock_timestamp())*1000)::numeric
     ELSE FALSE END`;
 }
+/** Owner-local fixed projection for Support ticket evidence. The native
+ * executive evidence reader already returns this exact shape; keeping one
+ * projection for both the search and by-id sources removes the duplicated
+ * query text and stops the two call sites from drifting apart. */
+const ticketEvidenceSelect = (overdue: boolean) =>
+    `SELECT t.id,t.title,t.status,t.due_date,t.updated_at,t.version${overdue ? ",t.sla_clock_json->>'state' sla_state,t.sla_clock_json->>'dueAt' sla_due_at" : ""}`;
 export function executiveMainEvidenceSources(db: SqlDatabase) {
     return { async factsSearchSupportIncidentEvidence(cursor: {
             updatedAt: number;
@@ -85,7 +91,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 conditions.push("(t.updated_at<? OR (t.updated_at=? AND t.id>?))");
                 values.push(cursor.updatedAt, cursor.updatedAt, cursor.id);
             }
-            const rows = (await db.prepare(`SELECT t.id,t.title,t.status,t.due_date,t.updated_at,t.version${overdue ? ",t.sla_clock_json->>'state' sla_state,t.sla_clock_json->>'dueAt' sla_due_at" : ""}
+            const rows = (await db.prepare(`${ticketEvidenceSelect(overdue)}
     FROM support_tickets t WHERE ${conditions.join(" AND ")} ORDER BY t.updated_at DESC,t.id ASC LIMIT ?`)
                 .bind(...values, input.limit + 1).all<SupportTicketEvidenceRow>()).results;
             return { rows };
@@ -94,7 +100,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         }> {
             if (!(await nativeSupportRuntime(actor, db).purchase(overdue ? "support.sla" : "support.tickets")).history) return { row: null };
             const policy = supportTicketReadPredicate(actor), source = await supportTicketSourceReadPredicate(actor);
-            const row = await db.prepare(`SELECT t.id,t.title,t.status,t.due_date,t.updated_at,t.version${overdue ? ",t.sla_clock_json->>'state' sla_state,t.sla_clock_json->>'dueAt' sla_due_at" : ""}
+            const row = await db.prepare(`${ticketEvidenceSelect(overdue)}
     FROM support_tickets t WHERE t.id=? AND t.company_id=? AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?) AND ${policy.sql} AND ${source.sql} AND ${supportTicketStatePredicate(metric)} LIMIT 1`)
                 .bind(id, actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId, ...policy.bindings, ...source.bindings).first<SupportTicketEvidenceRow>();
             return { row };
