@@ -6,6 +6,8 @@
 //! allow-listed kind and caller-supplied positional values. No TypeScript SQL
 //! copy and no fallback writer remain for a retired kind.
 use crate::application::finance_owner_write::OwnerStatementPort;
+use crate::domain::attachment_version::attachment_version_target;
+use crate::domain::finance_owner_write::ATTACHMENT_VERSION_STEP_PREFIX;
 
 /// Canonical one-row money snapshot insert, repeated safely by
 /// [`statement_sql`] for the bounded batch kind. The row template is a trusted
@@ -21,6 +23,14 @@ pub const MONEY_SNAPSHOT_BATCH_MAX_ROWS: usize = 500;
 /// The money snapshot batch statement is assembled in Rust from a trusted row
 /// template, never from caller-supplied SQL text.
 pub fn statement_sql(kind: &str, value_count: usize) -> Option<String> {
+    // Native attachment version steps are admitted through the same generic
+    // owner-write ingress. The suffix is an exact allow-listed target type;
+    // the descriptor owns the table, column, extra predicate and arity.
+    if let Some(target_type) = kind.strip_prefix(ATTACHMENT_VERSION_STEP_PREFIX) {
+        let target = attachment_version_target(target_type)?;
+        let (sql, arity) = target.step_update_unscoped_q();
+        return (value_count == arity).then_some(sql);
+    }
     if kind == MONEY_SNAPSHOT_BATCH_KIND {
         if value_count == 0
             || value_count % MONEY_SNAPSHOT_BATCH_COLUMNS != 0
@@ -229,6 +239,28 @@ mod tests {
             assert!(!sql.is_empty());
             assert!(!sql.contains(';'), "statements must be singular: {kind}");
         }
+    }
+
+    #[test]
+    fn attachment_version_step_is_arity_fenced_from_owner_fragments() {
+        let kind = format!("{}finance_journal", ATTACHMENT_VERSION_STEP_PREFIX);
+        assert_eq!(
+            statement_sql(&kind, 3).unwrap(),
+            "UPDATE finance_journals SET version=version+1,updated_at=? WHERE id=? AND version=?"
+        );
+        assert!(statement_sql(&kind, 2).is_none());
+        let no_updated = format!("{}finance_business_bill", ATTACHMENT_VERSION_STEP_PREFIX);
+        assert_eq!(
+            statement_sql(&no_updated, 2).unwrap(),
+            "UPDATE finance_business_billing_runs SET version=version+1 WHERE id=? AND version=? \
+             AND no_charge_status='draft' AND NOT EXISTS(SELECT 1 FROM finance_business_billing_runs child WHERE child.parent_run_id=finance_business_billing_runs.id)"
+        );
+        assert!(statement_sql(&no_updated, 3).is_none());
+        assert!(statement_sql(
+            &format!("{}finance_unknown", ATTACHMENT_VERSION_STEP_PREFIX),
+            3
+        )
+        .is_none());
     }
 
     #[test]

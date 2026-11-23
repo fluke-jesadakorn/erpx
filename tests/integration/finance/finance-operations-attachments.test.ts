@@ -16,6 +16,8 @@ import {
   attestAttachmentSetSanitized,
   bindRecordAttachmentSet,
 } from "@erpx/server-files/public/attachments/service";
+import { FinanceAttachmentFinanceFacts } from "@erpx/server-finance/public/attachments-finance-facts";
+import { attachmentServiceFinanceFacts } from "@erpx/server-finance/public/attachments-service-facts";
 
 let fixture: Awaited<ReturnType<typeof expenseFixture>>;
 vi.mock("@erpx/server-runtime/adapters/runtime",()=>({holdingResources:async()=>({write:env.H001_DB,files:env.H001_FILES}),runtimeEnv:async()=>env}));
@@ -164,7 +166,26 @@ describe("Finance, hospitality, Organization and system attachment policy", () =
   });
 });
 
-const financeReadPng=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=','base64');
+describe("finance attachment version-guard cutover contract (retire.finance.attachment-version-writers)", () => {
+  // Writer behaviour (exactly-once bump, stale no-op, Company scope, rollback)
+  // is proved by the native port in rust-attachment-version-postgres.test.rs.
+  // The retained TypeScript facts only keep the fail-closed allow-list and the
+  // native owner-write admission path; no write SQL remains in TypeScript.
+  it("fails closed outside the finance and service allow-lists", () => {
+    const finance = FinanceAttachmentFinanceFacts(db);
+    for (const targetType of ["finance_unknown", "finance_journal; DROP TABLE finance_journals", "", "invoice_payment"]) {
+      expect(finance.versionGuard(`command-${key()}`, targetType, "target-1", fixture.company, 1, 0)).toBeNull();
+      expect(finance.versionStep(targetType, "target-1", 1, Date.now())).toBeNull();
+    }
+    const service = attachmentServiceFinanceFacts(db);
+    for (const targetType of ["finance_journal", "invoice_payment; DROP TABLE finance_invoices", ""]) {
+      expect(service.versionGuard(`command-${key()}`, targetType, "target-1", fixture.owner, 1, 0)).toBeNull();
+      expect(service.versionStep(targetType, "target-1", 1, Date.now())).toBeNull();
+    }
+    expect(finance.versionGuard(`command-${key()}`, "finance_journal", "target-1", fixture.company, 1, 0)).not.toBeNull();
+    expect(service.versionGuard(`command-${key()}`, "invoice_payment", "target-1", fixture.owner, 1, 0)).not.toBeNull();
+  });
+});const financeReadPng=Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=','base64');
 async function nativeJournalEvidence(f:Awaited<ReturnType<typeof expenseFixture>>){
  const {seedFinanceJournal}=await import('../../support/helpers/finance-journal-seed'),files=await import('@erpx/server-files/public/attachments/service');vi.stubEnv('ERPX_ATTACHMENTS_V2','true');vi.stubEnv('ERPX_ATTACHMENT_UPLOAD_FREEZE','false');
  const journal=await seedFinanceJournal(db,{companyId:f.company,chartId:f.chart,periodId:f.period,entryDate:'2026-09-01',currency:'THB',memo:'Actual Finance private-byte source',key:key(),createdBy:f.owner.userId,lines:[{accountId:f.accounts.expense,debit:'100',credit:'0'},{accountId:f.accounts.cash,debit:'0',credit:'100'}]}),set=await files.createAttachmentSet(db,f.owner,{targetType:'finance_journal',targetId:journal.id,componentKind:'record',purposeKey:'journal_support',expectedTargetVersion:1},key()),reserved=await files.reserveAttachmentFile(db,f.owner,set.id,{filename:'original-journal.png',mediaType:'image/png',bytes:financeReadPng.byteLength},key()),upload=await files.completeAttachmentUpload(db,env.H001_FILES,f.owner,reserved.uploadIntentId,financeReadPng.buffer.slice(financeReadPng.byteOffset,financeReadPng.byteOffset+financeReadPng.byteLength));expect(await files.drainAttachmentScans(db,env.H001_FILES,upload.sourceId)).toBe(true);await files.bindRecordAttachmentSet(db,f.owner,set.id,1,key());return {id:journal.id,link:reserved.attachmentLinkId};

@@ -11,6 +11,11 @@ pub const MAX_VALUES: usize = 8192;
 pub const MAX_VALUE_BYTES: usize = 8 * 1024;
 pub const MAX_KIND_BYTES: usize = 96;
 
+/// Kind prefix for the native attachment version step. The suffix is an exact
+/// allow-listed attachment target type resolved in the owner adapter; no
+/// caller-supplied text ever becomes SQL.
+pub const ATTACHMENT_VERSION_STEP_PREFIX: &str = "finance_attachment_version_step_";
+
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct OwnerStatement {
     pub sql: String,
@@ -194,7 +199,15 @@ pub const SUPPORTED_KINDS: &[&str] = &[
 ];
 
 pub fn supported(kind: &str) -> bool {
-    SUPPORTED_KINDS.binary_search(&kind).is_ok()
+    if SUPPORTED_KINDS.binary_search(&kind).is_ok() {
+        return true;
+    }
+    match kind.strip_prefix(ATTACHMENT_VERSION_STEP_PREFIX) {
+        Some(target_type) => {
+            crate::domain::attachment_version::attachment_version_target(target_type).is_some()
+        }
+        None => false,
+    }
 }
 
 /// Validate transport facts independently of storage. Values must be a bounded
@@ -233,6 +246,24 @@ mod tests {
     fn allow_list_is_sorted_and_unique() {
         assert!(SUPPORTED_KINDS.windows(2).all(|w| w[0] < w[1]));
         assert!(SUPPORTED_KINDS.len() > 100);
+    }
+
+    #[test]
+    fn attachment_version_steps_are_admitted_by_allow_listed_suffix() {
+        assert!(supported(&format!(
+            "{}finance_journal",
+            ATTACHMENT_VERSION_STEP_PREFIX
+        )));
+        assert!(supported(&format!(
+            "{}invoice_payment",
+            ATTACHMENT_VERSION_STEP_PREFIX
+        )));
+        assert!(!supported(&format!(
+            "{}finance_unknown",
+            ATTACHMENT_VERSION_STEP_PREFIX
+        )));
+        assert!(!supported(ATTACHMENT_VERSION_STEP_PREFIX));
+        assert!(!supported("finance_attachment_version_step_finance_journal;DROP"));
     }
 
     #[test]

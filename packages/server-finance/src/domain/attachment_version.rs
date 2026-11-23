@@ -72,6 +72,28 @@ impl AttachmentVersionTarget {
         }
         sql
     }
+
+    /// Generic owner-write variant of the single version step. Same
+    /// allow-listed fragments, `?` placeholders for the Finance owner-write
+    /// transport, and Company scope enforced by the separate version guard
+    /// assertion. Returns the exact positional value count for this
+    /// descriptor so the owner-write ingress can arity-fence the command.
+    pub fn step_update_unscoped_q(&self) -> (String, usize) {
+        let set = if self.updated_at {
+            format!("{}={}+1,updated_at=?", self.column, self.column)
+        } else {
+            format!("{}={}+1", self.column, self.column)
+        };
+        let mut sql = format!(
+            "UPDATE {} SET {} WHERE id=? AND {}=?",
+            self.table, set, self.column
+        );
+        if let Some(extra) = self.extra {
+            sql.push_str(" AND ");
+            sql.push_str(extra);
+        }
+        (sql, if self.updated_at { 3 } else { 2 })
+    }
 }
 
 /// Resolve the exact owner descriptor for a target type. Unknown or
@@ -706,6 +728,33 @@ mod tests {
                 "finance_journal"
             )
         );
+    }
+
+    #[test]
+    fn owner_write_step_uses_only_allow_listed_fragments() {
+        let target = attachment_version_target("finance_journal").unwrap();
+        let (sql, arity) = target.step_update_unscoped_q();
+        assert_eq!(arity, 3);
+        assert_eq!(
+            sql,
+            "UPDATE finance_journals SET version=version+1,updated_at=? WHERE id=? AND version=?"
+        );
+        let target = attachment_version_target("finance_period").unwrap();
+        let (sql, arity) = target.step_update_unscoped_q();
+        assert_eq!(arity, 2);
+        assert_eq!(
+            sql,
+            "UPDATE finance_periods SET close_version=close_version+1 WHERE id=? AND close_version=?"
+        );
+        let target = attachment_version_target("finance_business_bill").unwrap();
+        let (sql, arity) = target.step_update_unscoped_q();
+        assert_eq!(arity, 2);
+        assert_eq!(
+            sql,
+            "UPDATE finance_business_billing_runs SET version=version+1 WHERE id=? AND version=? \
+             AND no_charge_status='draft' AND NOT EXISTS(SELECT 1 FROM finance_business_billing_runs child WHERE child.parent_run_id=finance_business_billing_runs.id)"
+        );
+        assert!(attachment_version_target("finance_journal; DROP TABLE finance_journals").is_none());
     }
 
     #[test]
