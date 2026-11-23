@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7224,
+    "revision": 7226,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -123885,7 +123885,7 @@
         "owner": "records",
         "title": "records TS read tail native cutover (round 10)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -123897,28 +123897,41 @@
         "resources": [
           "owner:records"
         ],
-        "claim": {
-          "runId": "run-20261123-h",
-          "agentId": "wCK1rec",
-          "claimedAt": "2026-11-23T23:00:40.225Z",
-          "heartbeatAt": "2026-11-23T23:00:40.660Z",
-          "expiresAt": "2026-11-23T23:30:40.660Z",
-          "generation": 160
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-records/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "961f24898",
+            "owner": "records",
+            "before": 45,
+            "after": 44,
+            "note": "Department override pending requests reuse the canonical employee-request projection; parity 30 columns."
+          },
+          {
+            "command": "cargo check -p erpx-server-records + lib (33)",
+            "result": "passed",
+            "sourceSha": "961f24898"
+          },
+          {
+            "command": "vitest records/organization suites (104) + tsc root",
+            "result": "passed",
+            "sourceSha": "961f24898"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next smallest owner-local single-SELECT facts likely need a mounted native read rather than dedupe (commerce-entrypoint-facts, attachment-migration-owner, attachments-service-facts, department-override-facts); record strictly lower.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-g",
+          "runId": "run-20261123-h",
           "agentId": "wCK1rec",
-          "at": "2026-11-23T23:00:32.496Z",
+          "at": "2026-11-23T23:08:00.607Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
-          "nextAction": "Next smallest owner-local single-SELECT facts likely need a mounted native read rather than dedupe (commerce-entrypoint-facts, attachment-migration-owner, attachments-service-facts, department-override-facts); record strictly lower."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -124383,17 +124396,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 16,
+        "in_progress": 15,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 279,
+        "blocked": 280,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 160,
-    "updatedAt": "2026-11-23T23:05:13.424Z",
+    "updatedAt": "2026-11-23T23:08:00.609Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
