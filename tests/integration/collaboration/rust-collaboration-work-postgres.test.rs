@@ -344,6 +344,57 @@ async fn workspace_statements_match_retained_reads_with_scope_guard() {
     }).await;
 }
 
+#[tokio::test]
+async fn pos_registers_statement_matches_retained_read_with_scope_guard() {
+    use erpx_server_collaboration::public::notification_statement::pos_registers_statement;
+    fixture::with_database(2, |pool| async move {
+        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
+        migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
+        PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
+            // Minimal seed: company + two branches, then two commerce
+            // warehouses feeding one register each in different branches.
+            sqlx::query("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('company','company','company','Company',NULL,'company',NULL,'active'),('b1','branch','b1','Branch 1','company','company',NULL,'active'),('b2','branch','b2','Branch 2','company','company',NULL,'active')").execute(&mut *c).await?;
+            sqlx::query("INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name,status) VALUES('pos-wh-1','company','b1','POSW1','Main','active'),('pos-wh-2','company','b2','POSW2','Second','active')").execute(&mut *c).await?;
+            sqlx::query("INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode,active) VALUES('pos-reg-1','company','b1','pos-wh-1','Alpha','retail',true),('pos-reg-2','company','b2','pos-wh-2','Beta','retail',true)").execute(&mut *c).await?;
+            // Pure constructor: owner-issued text with fixed bind order.
+            let statement = pos_registers_statement("company", None)?;
+            assert!(statement.sql.contains("pos_registers"));
+            assert!(statement.sql.contains("warehouse_name"));
+            assert_eq!(statement.values.len(), 3);
+            assert!(pos_registers_statement("", None).is_err());
+            // Retained `readPosRegisters1` literal (retired TypeScript read)
+            // with the commerce warehouse fragment inlined byte-identically.
+            let retained = "SELECT r.*,w.name warehouse_name FROM pos_registers r JOIN (SELECT \"id\",\"company_id\",\"branch_id\",\"code\",\"name\",\"status\",\"version\" FROM commerce_warehouses) w ON w.id=r.warehouse_id WHERE r.company_id=? AND (?::text IS NULL OR r.branch_id=?) ORDER BY r.name";
+            let via_statement = run_rows_statement(c, &statement).await?;
+            let via_retained = run_rows_raw(
+                c,
+                retained,
+                &[
+                    Some("company".to_owned()),
+                    None,
+                    None,
+                ],
+            )
+            .await?;
+            assert_eq!(via_statement.len(), 2);
+            assert_eq!(via_statement, via_retained);
+            assert_eq!(via_statement[0].get("name").and_then(|v| v.as_str()), Some("Alpha"));
+            assert_eq!(via_statement[0].get("warehouse_name").and_then(|v| v.as_str()), Some("Main"));
+            // Branch-scoped selection sees only its own register.
+            let scoped = pos_registers_statement("company", Some("b1"))?;
+            let scoped_rows = run_rows_statement(c, &scoped).await?;
+            assert_eq!(scoped_rows.len(), 1);
+            assert_eq!(scoped_rows[0].get("id").and_then(|v| v.as_str()), Some("pos-reg-1"));
+            // Scope guard: foreign company and out-of-scope branch yield nothing.
+            let foreign = pos_registers_statement("other", None)?;
+            assert!(run_rows_statement(c, &foreign).await?.is_empty());
+            let denied = pos_registers_statement("company", Some("other-branch"))?;
+            assert!(run_rows_statement(c, &denied).await?.is_empty());
+            Ok(())
+        })).await.unwrap();
+    }).await;
+}
+
 async fn run_rows_statement(
     c: &mut sqlx::PgConnection,
     statement: &erpx_server_collaboration::public::notification_statement::NotificationStatement,

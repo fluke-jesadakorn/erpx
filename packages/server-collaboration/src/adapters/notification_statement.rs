@@ -3780,6 +3780,41 @@ pub fn eligible_people_statement(
     })
 }
 
+/// POS registers list for caller-owned POS workspace reads.
+///
+/// Pure constructor: the retired `readPosRegisters1` read byte-identically,
+/// with the commerce warehouse fragment inlined exactly as it appears in
+/// `hospitalityOwnerProjectionSources.commerce_warehouses`
+/// (`packages/server-commerce/src/adapters/hospitality-owner-projection-sources.ts`).
+/// That fragment is a closed static projection (no session vars or binds); any
+/// change to it must be mirrored here. The parity suite compares both paths
+/// row-for-row. Scope binds come from the authorized selection (Company from
+/// config, branch from workspace), never caller input.
+pub fn pos_registers_statement(
+    company: &str,
+    branch: Option<&str>,
+) -> Result<NotificationStatement, BusinessError> {
+    if company.is_empty() {
+        return Err(BusinessError::new(
+            FailureKind::InvalidInput,
+            "POS_REGISTERS_INVALID",
+            "A Company scope is required.",
+        ));
+    }
+    let value = |slot: Option<&str>| match slot {
+        Some(text) => serde_json::Value::String(text.to_owned()),
+        None => serde_json::Value::Null,
+    };
+    Ok(NotificationStatement {
+        sql: "SELECT r.*,w.name warehouse_name FROM pos_registers r JOIN (SELECT \"id\",\"company_id\",\"branch_id\",\"code\",\"name\",\"status\",\"version\" FROM commerce_warehouses) w ON w.id=r.warehouse_id WHERE r.company_id=? AND (?::text IS NULL OR r.branch_id=?) ORDER BY r.name".to_owned(),
+        values: vec![
+            serde_json::Value::String(company.to_owned()),
+            value(branch),
+            value(branch),
+        ],
+    })
+}
+
 /// Finance: create an intercompany document pair.
 pub async fn finance_intercompany_pair_create_statement(
     connection: &mut PgConnection,

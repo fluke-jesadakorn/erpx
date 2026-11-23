@@ -4370,6 +4370,13 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
                                 workspace.department_id.as_ref().map(|id| id.as_str()),
                             )
                             .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("pos_registers") {
+                            let workspace = current.selection().workspace();
+                            erpx_server_collaboration::public::notification_statement::pos_registers_statement(
+                                company_id.as_str(),
+                                workspace.branch_id.as_ref().map(|id| id.as_str()),
+                            )
+                            .map_err(Into::into)
                         } else if input.kind.as_deref() == Some("brand_attachment_image") {
                             let target = input.target_kind.as_deref().unwrap_or_default();
                             erpx_server_collaboration::public::notification_statement::brand_attachment_image_statement(

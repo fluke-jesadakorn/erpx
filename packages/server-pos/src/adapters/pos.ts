@@ -1,4 +1,5 @@
 import { nativePosAll } from './native-owner-write';
+import { nativePosRegistersStatement } from './native-pos-registers-statement';
 import { roomChargeReversalWork } from "@erpx/server-pos/adapters/room-charge-reversal-queue";
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
 import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/hospitality-owner-projection-sources";
@@ -22,14 +23,14 @@ import { PosReadCommerceFacts } from "@erpx/server-commerce/public/pos-facts";
 import { PosReadInventoryFacts } from "@erpx/server-inventory/public/pos-facts";
 import { PosReadFinanceFacts } from "@erpx/server-finance/public/pos-facts";
 import { PosReadOrganizationFacts } from "@erpx/server-organization/public/pos-facts";
-function unit(db: SqlDatabase): PosReadUnit<SqlStatement> {
+function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
     return {
         hotelLinks: (company,branch) => posGuestAccountInterface(db).hotels(company,branch),
         readPosRegisters1: (facts: {
             company: string;
             branch: string | null;
             branch2: string | null;
-        }) => all(db, `SELECT r.*,w.name warehouse_name FROM pos_registers r JOIN (${commerceProjectionSources.commerce_warehouses}) w ON w.id=r.warehouse_id WHERE r.company_id=? AND (?::text IS NULL OR r.branch_id=?) ORDER BY r.name`, facts.company, facts.branch, facts.branch2),
+        }) => nativePosRegistersStatement(db, actor),
         readPosSales1: (facts: {
             saleId: string;
         }) => one(db, 'SELECT * FROM pos_sales WHERE id=?', facts.saleId),
@@ -284,7 +285,7 @@ function unit(db: SqlDatabase): PosReadUnit<SqlStatement> {
         }), batch: effects => db.batch(effects)
     };
 }
-const application = createPosRead<SqlStatement>({ clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), environment: key => process.env[key], require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), forActor: async (actor) => unit((await holdingResources(actor.holdingId)).write) });
+const application = createPosRead<SqlStatement>({ clock: { now: () => Date.now() }, uuid: randomUUID, hash: value => createHash("sha256").update(value).digest("hex"), environment: key => process.env[key], require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), forActor: async (actor) => unit((await holdingResources(actor.holdingId)).write, actor) });
 export async function posWorkspace(actor: WorkContext, saleId?: string, historyQuery = '', section?: string, cursor?: string, frontMode = false, financeMode = false) {
     requirePermission(actor, financeMode ? "finance.read" : "pos.read");
     const mode = await posPackageEnforcementMode();
@@ -306,7 +307,7 @@ export async function posExecutiveEvidenceRow(db: SqlDatabase, actor: WorkContex
     from: string;
     to: string;
     currency: string;
-}) { requirePermission(actor, "pos.reports"); await requirePosReportingPurchase(db, actor); return application.posExecutiveEvidenceRow(unit(db), actor, metric, recordId, filters); }
+}) { requirePermission(actor, "pos.reports"); await requirePosReportingPurchase(db, actor); return application.posExecutiveEvidenceRow(unit(db, actor), actor, metric, recordId, filters); }
 export async function posWork(actor: WorkContext): Promise<import("@erpx/feature-work_projection/lib/work-item").WorkItem[]> {
     if (!hasPermission(actor, "pos.approve") || actor.departmentId) return [];
     const mode = await posPackageEnforcementMode(), access = mode === "disabled" ? undefined
