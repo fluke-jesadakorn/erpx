@@ -54,10 +54,10 @@ export type NativePlanningWorkspaceReadInput = Readonly<{
 }>;
 
 export type NativePlanningTransport = (
-  method: 'GET',
+  method: 'GET' | 'POST',
   url: URL,
   headers: Headers,
-  body: undefined,
+  body: string | undefined,
   signal: AbortSignal,
 ) => Promise<Response>;
 
@@ -604,7 +604,7 @@ function transportCall(
   signal?.addEventListener('abort', cancel, { once: true });
   if (signal?.aborted) controller.abort();
   const timer = setTimeout(cancel, timeout);
-  return transport('GET', url, headers, undefined, controller.signal).finally(() => {
+  return transport(method, url, headers, body, controller.signal).finally(() => {
     clearTimeout(timer);
     signal?.removeEventListener('abort', cancel);
   });
@@ -784,10 +784,10 @@ export function createNativePlanningClient(
 
 /** Fresh bounded socket; bypasses patched fetch/HMR and ambient proxies. */
 export function directHttp(
-  method: 'GET',
+  method: 'GET' | 'POST',
   url: URL,
   headers: Headers,
-  body: undefined,
+  body: string | undefined,
   signal: AbortSignal,
 ): Promise<Response> {
   return new Promise((resolve, reject) => {
@@ -819,6 +819,6 @@ export function directHttp(
       agent.destroy();
       reject(error);
     });
-    outgoing.end();
+    outgoing.end(body);
   });
 }
