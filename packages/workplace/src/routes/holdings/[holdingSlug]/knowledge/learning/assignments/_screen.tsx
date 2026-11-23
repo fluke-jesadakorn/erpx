@@ -7,8 +7,7 @@ import { SectionWorkspace } from "@erpx/workplace/components/section-workspace";
 import { RecordLink as Link } from "@erpx/feature-records/components/record-link";
 import { LearningConsole } from "@erpx/feature-learning/components/learning-console";
 import { ListFilters } from "@erpx/ui/components/list-filters";
-import { learningWorkspace } from "@erpx/server-learning/public/learning";
-import { nativeLearningAvailable, nativeLearningWorkspacePage } from "@erpx/workplace/lib/native-learning";
+import { nativeLearningWorkspacePage } from "@erpx/workplace/lib/native-learning";
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
@@ -33,10 +32,7 @@ export default async function Knowledge({ params, searchParams }: {
         forbidden();
     const term = typeof query.q === 'string' ? query.q : '';
     
-    const data = await (nativeLearningAvailable()
-        ? nativeLearningWorkspacePage(actor, false)
-        : learningWorkspace(actor, false)
-    ).catch(error => pageError(error, holdingSlug));
+    const data = await nativeLearningWorkspacePage(actor, false).catch(error => pageError(error, holdingSlug));
     const workerPreparation=data.people.length===0&&!actor.beta&&actor.scope?.kind==='holding'&&!actor.branchId&&!actor.departmentId&&hasPermission(actor,'people.manage')&&hasPermission(actor,'organization.manage')
         ?await learningWorkerStartupWorkspace(actor,{}).catch(error=>pageError(error,holdingSlug)):null;
     const matching = (value: unknown) => String(value ?? '').toLocaleLowerCase().includes(term.toLocaleLowerCase());

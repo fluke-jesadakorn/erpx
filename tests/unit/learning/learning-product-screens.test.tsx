@@ -4,7 +4,7 @@ import type {ReactElement} from 'react';
 const ports=vi.hoisted(()=>({allowed:true,handbook:vi.fn(()=>{throw Error('WORK_PACKAGE_REQUIRED');}),learning:vi.fn<(...args:[unknown,boolean])=>Promise<unknown>>(async()=>({courses:[],assignments:[],people:[],canWrite:false,canReview:false,actorId:'learner'}))}));
 vi.mock("@erpx/server-identity_access/public/authorization",()=>({requireWorkContext:async()=>({holdingId:'H001',modules:['learning']}),publicScope:()=>({kind:'holding',holdingSlug:'test',holdingId:'H001',holdingName:'Test',companyId:'company'})}));
 vi.mock("@erpx/server-collaboration/public/presentation-queries",()=>({collaborationPresentationQueries:async()=>({handbookAccess:ports.handbook})}));
-vi.mock("@erpx/server-learning/public/learning",()=>({learningWorkspace:ports.learning}));
+vi.mock("@erpx/workplace/lib/native-learning",()=>({nativeLearningWorkspacePage:ports.learning}));
 vi.mock("@erpx/catalogue/module-access",()=>({hasModuleAccess:()=>ports.allowed}));
 vi.mock("@erpx/feature-identity_access/lib/permissions",()=>({hasPermission:()=>ports.allowed}));
 vi.mock('next/navigation',()=>({forbidden:()=>{throw Error('FORBIDDEN');},notFound:()=>{throw Error('NOT_FOUND');}}));

@@ -2,7 +2,7 @@ import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {nativeLearningAssignmentNotice} from "./native-learning-notification";
 import {learningTalentSnapshotSources as identityaccessSnapshotSources} from '@erpx/server-identity_access/public/learning-talent-snapshot-sources';
 import {learningTalentSnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/learning-talent-snapshot-sources';
-import {learningWorkerChoices,learningWorkerReferenceWitness} from '@erpx/server-people_payroll/public/learning-worker-references';
+import {learningWorkerReferenceWitness} from '@erpx/server-people_payroll/public/learning-worker-references';
 const identityaccessSources=identityaccessSnapshotSources();
 const peoplepayrollSources=peoplepayrollSnapshotSources();
 import "server-only";
@@ -16,7 +16,7 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
-import { createLearningWorkspace, createChangeLearningCourse, createChangeLearningAssignment, createLearningDetail, createLearningExecutiveEvidence, createLearningWork, type LearningCommandPorts, type LearningCommand, type LearningMutation, type LearningExecutiveEvidenceMetric } from "@erpx/server-learning/application/learning";
+import { createChangeLearningCourse, createChangeLearningAssignment, createLearningExecutiveEvidence, createLearningWork, type LearningCommandPorts, type LearningCommand, type LearningMutation, type LearningExecutiveEvidenceMetric } from "@erpx/server-learning/application/learning";
 import type { LearningAssignment as Assignment } from "@erpx/server-learning/domain/learning";
 import {courseActionSchema,learningActionSchema} from "@erpx/server-learning/domain/learning";
 import {withLearningPurchasedCommand,withLearningPurchasedRead,requireLearningPurchasedRead,type LearningCapability,type LearningPurchaseControls} from "@erpx/server-learning/adapters/purchases";
@@ -49,30 +49,9 @@ function commandPorts(database: () => Promise<SqlDatabase>): LearningCommandPort
  commit: async (command: LearningCommand, mutation: LearningMutation) => executeCommand(await database(), command.actor, command.key, command.operation, command.input, command.id, command.version, command.result, mutation.native as Parameters<typeof executeCommand>[8]),
  };
 }
-export function nativeLearningWorkspace(source: DatabaseSource) {
- const database = databaseSource(source);
- const workspace=(database:()=>Promise<SqlDatabase>,purchases:LearningPurchaseControls|undefined)=>createLearningWorkspace({ authorize: access,
- async courses(a) { if(purchases&&!purchases["learn.courses"]?.history)return [];const write = await database(); return (
-      await write
-        .prepare(
-          "SELECT * FROM learning_courses WHERE company_id=? ORDER BY updated_at DESC",
-        )
-        .bind(a.companyId)
-        .all<Row>()
-    ).results; },
- async assignments(a, personal) { const write = await database(); return (
-      await write
-        .prepare(
-          `SELECT ${!purchases||purchases["learn.results"]?.history?"a.*":"a.id,a.company_id,a.branch_id,a.department_id,a.course_id,a.course_version,a.learner_id,a.due_date,a.status,a.created_by,a.version,a.created_at,a.updated_at,NULL::text attendance,NULL::bigint score_bps,NULL::text result_evidence,NULL::text completion_reason"},c.title course_title,c.required_for,(SELECT legal_name ${peoplepayrollSources.learning_adapters_learning_hr_people_from} WHERE company_id=a.company_id AND user_id=a.learner_id AND merged_into_id IS NULL LIMIT 1) learner_name,CASE WHEN ${learnerEligible} THEN 1 ELSE 0 END learner_eligible FROM learning_assignments a JOIN learning_courses c ON c.id=a.course_id WHERE ${scope} AND (NOT ?::boolean OR a.learner_id=?) ORDER BY a.updated_at DESC`,
-        )
-        .bind(...args(a),personal,a.userId)
-        .all<Assignment>()
-    ).results; },
- async people(a) { if(purchases&&!purchases["people.learner-reference"]?.history)return [];return learningWorkerChoices(await database(),a); },
- });
- return async(a:WorkContext,personal=false)=>{access(a);return withLearningPurchasedRead(await database(),a,async write=>{const purchases=await requireLearningPurchasedRead(write,a);return {...await workspace(async()=>write,purchases)(a,personal),...(purchases?{purchases}:{})};});};
-}
-export async function learningWorkspace(a: WorkContext, personal = false) { return nativeLearningWorkspace(lazyDatabase(a))(a, personal); }
+/* Native learning workspace/detail reads are owned by the mounted axum port
+ * (@erpx/server-learning/public/native-learning). The TypeScript workspace and
+ * detail readers were read-only and are retired; no TS fallback remains. */
 function assignmentWitness(actor:WorkContext,id:string){return async(write:SqlDatabase)=>{
  const row=await write.prepare(`SELECT a.course_id,a.course_version,c.company_id course_company,c.required_for,
  (SELECT jsonb_agg(to_jsonb(p)-'updated_at' ORDER BY p.id) ${peoplepayrollSources.learning_adapters_learning_hr_people_p_from} WHERE p.company_id=a.company_id AND p.user_id=a.learner_id) people,
@@ -108,26 +87,8 @@ export function nativeLearningAssignmentChanges(source:DatabaseSource){return as
  }},write=>learningAssignmentChanges(write)(a,id,input,key));
 };}
 export async function changeLearningAssignment(a:WorkContext,id:string,raw:unknown,key:string){return nativeLearningAssignmentChanges(lazyDatabase(a))(a,id,raw,key);}
-export function nativeLearningDetail(source: DatabaseSource) {
- const database=databaseSource(source); return createLearningDetail({workspace:nativeLearningWorkspace(database),error:violation=>new ApiError(violation.status,violation.code,violation.message),
- async history(id,includeResults=true){const write=await database();return (
-      await write
-        .prepare(
-          "SELECT * FROM learning_assignment_events WHERE assignment_id=? AND (?::boolean OR action NOT IN ('complete','waive')) ORDER BY version",
-        )
-        .bind(id,includeResults)
-        .all<Row>()
-    ).results;},
- async handoff(id){const write=await database();return await write
-      .prepare(
-        "SELECT * FROM learning_eligibility_handoffs WHERE assignment_id=?",
-      )
-      .bind(id)
-      .first<Row>();},
- async certificate(id){const write=await database();return await write.prepare("SELECT c.*,r.id revocation_id FROM learning_certificates c LEFT JOIN learning_certificate_revocations r ON r.certificate_id=c.id WHERE c.assignment_id=?").bind(id).first<Row>();},
- });
-}
-export async function learningAssignmentDetail(a:WorkContext,id:string){return nativeLearningDetail(lazyDatabase(a))(a,id);}
+/* Native learning assignment detail (history/handoff/certificate) is owned by
+ * the mounted axum port; the TS detail reader and its export are retired. */
 export function nativeLearningExecutiveEvidence(db:SqlDatabase){return createLearningExecutiveEvidence({authorize:access,error:violation=>new ApiError(violation.status,violation.code,violation.message),
  completions:(a,id,range)=>db.prepare(`SELECT e.id,e.assignment_id,e.version event_version,e.status,e.created_at,
         c.title course_title
@@ -152,8 +113,19 @@ export function nativeLearningExecutiveEvidence(db:SqlDatabase){return createLea
 export async function learningExecutiveEvidenceRow(db:SqlDatabase,a:WorkContext,metric:LearningExecutiveEvidenceMetric,recordId:string,range?:{from:number;toExclusive:number}){await requireLearningPurchasedRead(db,a,metric==="learning-completions"?"learn.results":"learn.assignments");return nativeLearningExecutiveEvidence(db)(a,metric,recordId,range);}
 export async function learningWork(a:WorkContext):Promise<import("@erpx/feature-work_projection/lib/work-item").WorkItem[]>{
  if(!hasModuleAccess(a.modules,"learning"))return [];
- const database=lazyDatabase(a);let workspace:Awaited<ReturnType<ReturnType<typeof nativeLearningWorkspace>>>;
- try{workspace=await nativeLearningWorkspace(database)(a);}catch(error){if(error instanceof ApiError&&error.code==="PACKAGE_REQUIRED")return [];throw error;}
- const purchases=workspace.purchases,items=await createLearningWork({workspace:async()=>workspace})(a),itemsById=new Map(workspace.assignments.map(row=>[row.id,row]));if(!purchases)return items;
- return items.map(item=>{const assignment=itemsById.get(item.id),resultAction=assignment?.status==="in_progress",canAct=item.canAct&&hasPermission(a,"records.write")&&!!purchases["learn.assignments"]?.settleExisting&&(!resultAction||hasPermission(a,"records.review")||!!purchases["learn.results"]?.settleExisting&&(!assignment?.required_for||!!purchases["learn.certificates"]?.settleExisting));return {...item,canAct,queue:item.queue==="todo"&&!canAct?"waiting" as const:item.queue};});
+ let assignments:Assignment[]=[],purchases:LearningPurchaseControls|undefined;
+ try{
+  await withLearningPurchasedRead(await lazyDatabase(a)(),a,async write=>{
+   purchases=await requireLearningPurchasedRead(write,a);
+   const redacted=purchases&&!purchases["learn.results"]?.history;
+   const results=await write.prepare(
+    `SELECT ${redacted?"a.id,a.company_id,a.branch_id,a.department_id,a.course_id,a.course_version,a.learner_id,a.due_date,a.status,a.created_by,a.version,a.created_at,a.updated_at,NULL::text attendance,NULL::bigint score_bps,NULL::text result_evidence,NULL::text completion_reason":"a.*"},c.title course_title,c.required_for,(SELECT legal_name ${peoplepayrollSources.learning_adapters_learning_hr_people_from} WHERE company_id=a.company_id AND user_id=a.learner_id AND merged_into_id IS NULL LIMIT 1) learner_name,CASE WHEN ${learnerEligible} THEN 1 ELSE 0 END learner_eligible FROM learning_assignments a JOIN learning_courses c ON c.id=a.course_id WHERE ${scope} ORDER BY a.updated_at DESC`
+   ).bind(...args(a)).all<Assignment>();
+   assignments=results.results;
+  });
+ }catch(error){if(error instanceof ApiError&&error.code==="PACKAGE_REQUIRED")return [];throw error;}
+ const workspace={courses:[],assignments,people:[],canWrite:hasPermission(a,"records.write"),canReview:hasPermission(a,"records.review"),actorId:a.userId,purchases};
+ const items=await createLearningWork({workspace:async()=>workspace})(a),itemsById=new Map(assignments.map(row=>[row.id,row]));if(!purchases)return items;
+ const p=purchases;
+ return items.map(item=>{const assignment=itemsById.get(item.id),resultAction=assignment?.status==="in_progress",canAct=item.canAct&&hasPermission(a,"records.write")&&!!p["learn.assignments"]?.settleExisting&&(!resultAction||hasPermission(a,"records.review")||!!p["learn.results"]?.settleExisting&&(!assignment?.required_for||!!p["learn.certificates"]?.settleExisting));return {...item,canAct,queue:item.queue==="todo"&&!canAct?"waiting" as const:item.queue};});
 }

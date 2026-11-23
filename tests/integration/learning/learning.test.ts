@@ -7,10 +7,11 @@ import {
 } from "../../support/helpers/expense-fixture";
 import {
   changeLearningAssignment,
-  learningAssignmentDetail,
   learningWork,
-  learningWorkspace,
 } from "@erpx/server-learning/public/learning";
+import {learningPurchaseControls,requireLearningPurchasedRead} from "@erpx/server-learning/public/purchases";
+import {withLearningPurchasedRead} from "@erpx/server-learning/adapters/purchases";
+import {learningWorkerChoices} from "@erpx/server-people_payroll/public/learning-worker-references";
 import {createAssignmentSeed,createCourseSeed,publishCourseSeed,retireCourseSeed} from '../../support/helpers/learning-courses';
 import {
   attachmentBindingState,
@@ -45,6 +46,29 @@ afterEach(()=>vi.unstubAllEnvs());
 async function learningGrant(state:'active'|'draining'='active',endsAt:number|null=null,companyId=f.company){
  const before=(await readCompanyPackageGrants(db,companyId)).find(row=>row.packageId==='learn');
  return packageGrantStore(db,{authorize:async()=>({userId:'isolated-learning-provider'}),obligations:async()=>{throw new Error('LEARNING_WITHDRAWAL_NOT_IMPLEMENTED');}}).apply({expectedVersion:before?.version??0,idempotencyKey:key(),grant:{companyId,packageId:'learn',packageVersion:1,state,startsAt:0,endsAt,version:(before?.version??0)+1,reason:'Isolated actual Learning owner workflow',evidence:'test:learning-owner-purchase'}});
+}
+/* Oracles read the native-mounted source tables directly; the retired TS
+ * workspace/detail readers are no longer reachable from the owner package. */
+async function learningWorkspace(actor:import("@erpx/server-identity_access/public/authorization").WorkContext,personal=false){
+ return withLearningPurchasedRead(db,actor,async database=>{
+  await requireLearningPurchasedRead(database,actor,'learn.assignments');
+  const where=`a.company_id=? AND (?::text IS NULL OR a.branch_id=?) AND (?::text IS NULL OR a.department_id=?) AND (NOT ?::boolean OR a.learner_id=?)`;
+  const bind=[actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId,personal,actor.userId];
+  const courses=(await database.prepare('SELECT * FROM learning_courses WHERE company_id=? ORDER BY updated_at DESC').bind(actor.companyId).all<Record<string,unknown>>()).results;
+  const assignments=(await database.prepare(`SELECT a.*,c.title course_title,c.required_for FROM learning_assignments a JOIN learning_courses c ON c.id=a.course_id WHERE ${where} ORDER BY a.updated_at DESC`).bind(...bind).all<Record<string,unknown>>()).results;
+  const people=await learningWorkerChoices(database,actor);
+  return {courses,assignments,people,canWrite:false,canReview:false,actorId:actor.userId,purchases:await learningPurchaseControls(database,actor)};
+ });
+}
+async function learningAssignmentDetail(actor:import("@erpx/server-identity_access/public/authorization").WorkContext,id:string){
+ return withLearningPurchasedRead(db,actor,async database=>{
+  await requireLearningPurchasedRead(database,actor,'learn.assignments');
+  const assignment=await database.prepare('SELECT a.*,c.title course_title,c.required_for FROM learning_assignments a JOIN learning_courses c ON c.id=a.course_id WHERE a.id=? AND a.company_id=?').bind(id,actor.companyId).first<Record<string,unknown>>();
+  const history=(await database.prepare('SELECT * FROM learning_assignment_events WHERE assignment_id=? ORDER BY version').bind(id).all<Record<string,unknown>>()).results;
+  const handoff=await database.prepare('SELECT * FROM learning_eligibility_handoffs WHERE assignment_id=?').bind(id).first<Record<string,unknown>>();
+  const certificate=await database.prepare('SELECT c.*,r.id revocation_id FROM learning_certificates c LEFT JOIN learning_certificate_revocations r ON r.certificate_id=c.id WHERE c.assignment_id=?').bind(id).first<Record<string,unknown>>();
+  return {assignment,history,handoff,certificate};
+ });
 }
 const learningCourseDraft={title:'Package-only practical course',description:'Actual retained learner assessment and certificate workflow.',provider:'Isolated development academy',durationMinutes:60,requiredFor:'equipment_operator'};
 const learningSettlementInput=()=>({companyId:f.company,packageId:'learn',packageVersion:1});
@@ -308,7 +332,7 @@ it("publishes a reviewed course and completes attendance/results into an eligibi
     "start",
     "complete",
   ]);
-  await retireCourseSeed(db,String(d.assignment.course_id),f.tie.userId);
+  await retireCourseSeed(db,String(d.assignment!.course_id),f.tie.userId);
   expect(await changeLearningAssignment(f.claimant,id,{action:"complete",expectedVersion:2,attendance:"attended",scoreBps:9200,evidence:"Provider result SIM-9200 and observed practical check.",reason:"Course and assessment completed",attachmentSetIds:[certificate.setId]},completeKey)).toMatchObject({status:"completed",version:3});
   expect((await learningAssignmentDetail(f.claimant,id)).history).toHaveLength(3);
   expect((await learningAssignmentDetail(f.claimant,id)).certificate).toMatchObject({source_assignment_version:3,completion_kind:"completed",eligibility_code:"equipment_operator"});
@@ -337,7 +361,7 @@ it("requires the learner for results and permits a reviewer waiver with immutabl
     },
     key(),
   );
-  expect((await learningAssignmentDetail(f.owner, id)).assignment.status).toBe(
+  expect((await learningAssignmentDetail(f.owner, id)).assignment!.status).toBe(
     "waived",
   );
   await expect(
