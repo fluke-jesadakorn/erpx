@@ -46,6 +46,7 @@ fn sql(kind: &str) -> Option<&'static str> {
         EVIDENCE_SCAN_ATTEMPT => r####"INSERT INTO billing_evidence_scan_attempts(id,evidence_id,attempt,state,created_at) VALUES($1,$2,1,'pending',$3) ON CONFLICT(evidence_id,attempt) DO NOTHING"####,
         EVIDENCE_EVENT_QUARANTINED => r####"INSERT INTO billing_evidence_events(id,evidence_id,holding_id,actor,action,details_json,created_at) VALUES($1,$2,$3,$4,'file.quarantined',$5,$6) ON CONFLICT(id) DO NOTHING"####,
         SCAN_SOURCE => r####"SELECT * FROM billing_evidence WHERE id=$1"####,
+        APP_FINANCE_PROJECTION => r####"SELECT invoice_satang,receivable_satang,received_satang,reversed_satang,credited_satang,stripe_status,synced_at FROM billing_test_finance_projection WHERE billing_invoice_id=$1 AND customer_holding_id=$2"####,
         RECONCILIATION_RUN => r####"INSERT INTO billing_evidence_reconciliation_runs(id,mode,upload_frozen,checksums_verified,scanner_engine,scanner_definition_at,ready,report_json,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9)"####,
         SCAN_CLAIM => r####"UPDATE billing_evidence_scan_attempts SET state='running',claimed_at=$1,claim_until=$2,lease_token=$3 WHERE id=(SELECT id FROM billing_evidence_scan_attempts WHERE state IN ('pending','running') AND created_at<=$1 AND (claim_until IS NULL OR claim_until<$1) ORDER BY created_at,id FOR UPDATE SKIP LOCKED LIMIT 1) RETURNING *"####,
         SCAN_MARK_SCANNING => r####"UPDATE billing_evidence SET source_state='scanning' WHERE id=$1 AND source_state IN ('legacy_unscanned','quarantined','scan_error')"####,
@@ -252,5 +253,36 @@ mod tests {
             now: 1,
         })
         .is_err());
+    }
+    #[test]
+    fn app_finance_projection_read_is_owner_authored_and_holding_scoped() {
+        let holding = HoldingId::new("h001").unwrap();
+        let statement = billing_owner_statement(&holding, &BillingOwnerWriteInput {
+            kind: APP_FINANCE_PROJECTION.into(),
+            values: vec![serde_json::json!("inv-1"), serde_json::json!("h001")],
+            now: 1,
+        })
+        .expect("app_finance_projection is an allow-listed owner read kind");
+        assert_eq!(
+            statement.sql,
+            "SELECT invoice_satang,receivable_satang,received_satang,reversed_satang,credited_satang,stripe_status,synced_at FROM billing_test_finance_projection WHERE billing_invoice_id=$1 AND customer_holding_id=$2"
+        );
+        assert_eq!(
+            statement.values,
+            vec![serde_json::json!("inv-1"), serde_json::json!("h001")]
+        );
+        // Both the invoice and its owning holding must be bound; a missing
+        // scope or a single bind cannot widen this owner projection read.
+        for values in [
+            vec![serde_json::json!("inv-1")],
+            vec![],
+        ] {
+            assert!(billing_owner_statement(&holding, &BillingOwnerWriteInput {
+                kind: APP_FINANCE_PROJECTION.into(),
+                values,
+                now: 1,
+            })
+            .is_err());
+        }
     }
 }

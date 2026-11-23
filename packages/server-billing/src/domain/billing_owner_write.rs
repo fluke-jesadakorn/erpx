@@ -35,6 +35,7 @@ pub const MIRROR_INVOICE_STATE: &str = "mirror_invoice_state";
 pub const RELEASE_VOIDED_COSTS: &str = "release_voided_costs";
 pub const MARK_VOIDED_PERIOD_INCOMPLETE: &str = "mark_voided_period_incomplete";
 pub const RETAIN_TEST_FINANCE_PROJECTION: &str = "retain_test_finance_projection";
+pub const APP_FINANCE_PROJECTION: &str = "app_finance_projection";
 pub const RETAIN_JOB_PROGRESS: &str = "retain_job_progress";
 pub const RETAIN_STRIPE_INVOICE: &str = "retain_stripe_invoice";
 pub const RETAIN_INVOICE_MODE: &str = "retain_invoice_mode";
@@ -109,6 +110,7 @@ pub const OWNER_WRITE_KINDS: &[&str] = &[
     RELEASE_VOIDED_COSTS,
     MARK_VOIDED_PERIOD_INCOMPLETE,
     RETAIN_TEST_FINANCE_PROJECTION,
+    APP_FINANCE_PROJECTION,
     RETAIN_JOB_PROGRESS,
     RETAIN_STRIPE_INVOICE,
     RETAIN_INVOICE_MODE,
