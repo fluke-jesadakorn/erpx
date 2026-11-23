@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7379,
+    "revision": 7381,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -125636,7 +125636,7 @@
         "owner": "talent",
         "title": "talent TS read tail native cutover (round 9)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -125648,28 +125648,41 @@
         "resources": [
           "owner:talent"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wDE1tal",
-          "claimedAt": "2026-11-23T23:30:58.185Z",
-          "heartbeatAt": "2026-11-23T23:30:58.574Z",
-          "expiresAt": "2026-11-24T00:00:58.574Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-talent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "644e77dba",
+            "owner": "talent",
+            "before": 91,
+            "after": 89,
+            "note": "Sensitive application read via talent_rd_sensitive_applications (5 binds)."
+          },
+          {
+            "command": "cargo check -p erpx-server-talent --all-targets + lib (9) + http (10)",
+            "result": "passed",
+            "sourceSha": "644e77dba"
+          },
+          {
+            "command": "vitest talent transport (20) + tsc talent/tests-config/root",
+            "result": "passed",
+            "sourceSha": "644e77dba"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Remaining owner-local candidates contain cross-owner IAM helpers or need server-files grants; if none is safe, report the scope blocker instead of forcing a cutover.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released; no safe owner-local tail remains",
         "handoff": {
-          "runId": "run-20261123-h",
+          "runId": "run-20261123-i",
           "agentId": "wDE1tal",
-          "at": "2026-11-23T23:30:50.417Z",
+          "at": "2026-11-23T23:50:53.511Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired at 23:30 during active read-tail and composition mounts; WIP reviewed, slices integrated continuously",
-          "nextAction": "Remaining owner-local candidates contain cross-owner IAM helpers or need server-files grants; if none is safe, report the scope blocker instead of forcing a cutover."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released; no safe owner-local tail remains"
         },
         "scopeRefinementRequired": false
       },
@@ -126255,17 +126268,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 15,
+        "in_progress": 14,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 313,
+        "blocked": 314,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-23T23:48:14.562Z",
+    "updatedAt": "2026-11-23T23:50:53.513Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
