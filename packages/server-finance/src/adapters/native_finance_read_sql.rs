@@ -68,11 +68,138 @@ const READ_BUSINESS_BILL_ROW: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successor of the retired `supplier-payment-repository` batch row read.
+/// The caller binds `[id, companyId]` on its open unit.
+pub const RD_SUPPLIER_BATCH_ROW: &str = "finance_rd_supplier_batch_row";
+const SQL_RD_SUPPLIER_BATCH_ROW: &str = "SELECT \"id\",\"company_id\",\"currency\",\"bank_account_id\",\"planned_date\",\"status\",\"created_by\",\"approved_by\",\"approval_reason\",\"exported_by\",\"export_command_id\",\"export_hash\",\"version\",\"created_at\",\"updated_at\" FROM finance_supplier_batches WHERE id=? AND company_id=?";
+const READ_SUPPLIER_BATCH_ROW: NativeReadStatement = NativeReadStatement {
+    kind: RD_SUPPLIER_BATCH_ROW,
+    sql: SQL_RD_SUPPLIER_BATCH_ROW,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the retired supplier instruction row read.
+pub const RD_SUPPLIER_INSTRUCTION_ROW: &str = "finance_rd_supplier_instruction_row";
+const SQL_RD_SUPPLIER_INSTRUCTION_ROW: &str = "SELECT i.* FROM finance_supplier_instructions i JOIN finance_supplier_batches b ON b.id=i.batch_id WHERE i.id=? AND b.company_id=?";
+const READ_SUPPLIER_INSTRUCTION_ROW: NativeReadStatement = NativeReadStatement {
+    kind: RD_SUPPLIER_INSTRUCTION_ROW,
+    sql: SQL_RD_SUPPLIER_INSTRUCTION_ROW,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the capped supplier-batch console list read.
+pub const RD_SUPPLIER_BATCH_LIST: &str = "finance_rd_supplier_batch_list";
+const SQL_RD_SUPPLIER_BATCH_LIST: &str = concat!(
+    "SELECT b.*,(SELECT count(*) FROM finance_supplier_instructions i WHERE i.batch_id=b.id AND i.status IN ('reserved','exported','unknown')) pending_count,",
+    "(SELECT count(*) FROM finance_supplier_instructions i JOIN finance_invoices f ON f.id=i.invoice_id WHERE i.batch_id=b.id AND i.status='failed' AND f.outstanding_minor>0) failed_count,",
+    "(SELECT count(*) FROM finance_supplier_instructions i WHERE i.batch_id=b.id AND i.status='unknown') unknown_count ",
+    "FROM finance_supplier_batches b WHERE b.company_id=? AND ",
+    "(NOT ? OR (EXISTS(SELECT 1 FROM finance_supplier_instructions owned_item WHERE owned_item.batch_id=b.id) AND NOT EXISTS(SELECT 1 FROM finance_supplier_instructions owned_item WHERE owned_item.batch_id=b.id AND NOT EXISTS(SELECT 1 FROM (SELECT o.company_id,f.invoice_id id FROM commerce_orders o JOIN commerce_fulfillments f ON f.order_id=o.id JOIN finance_invoices i ON i.id=f.invoice_id AND i.company_id=o.company_id AND i.kind='payable' WHERE o.kind='purchase') owned_source WHERE owned_source.id=owned_item.invoice_id AND owned_source.company_id=b.company_id)))) ",
+    "ORDER BY b.updated_at DESC LIMIT 200"
+);
+const READ_SUPPLIER_BATCH_LIST: NativeReadStatement = NativeReadStatement {
+    kind: RD_SUPPLIER_BATCH_LIST,
+    sql: SQL_RD_SUPPLIER_BATCH_LIST,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the uncapped supplier-batch work list read.
+pub const RD_SUPPLIER_BATCH_WORK_LIST: &str = "finance_rd_supplier_batch_work_list";
+const SQL_RD_SUPPLIER_BATCH_WORK_LIST: &str = concat!(
+    "SELECT b.*,(SELECT count(*) FROM finance_supplier_instructions i WHERE i.batch_id=b.id AND i.status IN ('reserved','exported','unknown')) pending_count,",
+    "(SELECT count(*) FROM finance_supplier_instructions i JOIN finance_invoices f ON f.id=i.invoice_id WHERE i.batch_id=b.id AND i.status='failed' AND f.outstanding_minor>0) failed_count,",
+    "(SELECT count(*) FROM finance_supplier_instructions i WHERE i.batch_id=b.id AND i.status='unknown') unknown_count ",
+    "FROM finance_supplier_batches b WHERE b.company_id=? AND ",
+    "(NOT ? OR (EXISTS(SELECT 1 FROM finance_supplier_instructions owned_item WHERE owned_item.batch_id=b.id) AND NOT EXISTS(SELECT 1 FROM finance_supplier_instructions owned_item WHERE owned_item.batch_id=b.id AND NOT EXISTS(SELECT 1 FROM (SELECT o.company_id,f.invoice_id id FROM commerce_orders o JOIN commerce_fulfillments f ON f.order_id=o.id JOIN finance_invoices i ON i.id=f.invoice_id AND i.company_id=o.company_id AND i.kind='payable' WHERE o.kind='purchase') owned_source WHERE owned_source.id=owned_item.invoice_id AND owned_source.company_id=b.company_id)))) ",
+    "ORDER BY b.updated_at DESC"
+);
+const READ_SUPPLIER_BATCH_WORK_LIST: NativeReadStatement = NativeReadStatement {
+    kind: RD_SUPPLIER_BATCH_WORK_LIST,
+    sql: SQL_RD_SUPPLIER_BATCH_WORK_LIST,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the workspace instruction list for one batch.
+pub const RD_SUPPLIER_BATCH_ITEMS: &str = "finance_rd_supplier_batch_items";
+const SQL_RD_SUPPLIER_BATCH_ITEMS: &str = "SELECT s.*,i.invoice_number,i.currency FROM finance_supplier_instructions s JOIN finance_invoices i ON i.id=s.invoice_id WHERE s.batch_id=? ORDER BY s.id";
+const READ_SUPPLIER_BATCH_ITEMS: NativeReadStatement = NativeReadStatement {
+    kind: RD_SUPPLIER_BATCH_ITEMS,
+    sql: SQL_RD_SUPPLIER_BATCH_ITEMS,
+    bind_count: 1,
+    scope: "holding",
+};
+
+/// Native successor of the unbounded payable invoice picker read.
+pub const RD_SUPPLIER_BATCH_INVOICES: &str = "finance_rd_supplier_batch_invoices";
+const SQL_RD_SUPPLIER_BATCH_INVOICES: &str = "SELECT i.*,p.name party_name,i.outstanding_minor-COALESCE((SELECT SUM(s.amount_minor) FROM finance_supplier_instructions s WHERE s.invoice_id=i.id AND s.status IN ('reserved','exported','unknown')),0) available_minor FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id WHERE i.company_id=? AND i.kind='payable' AND i.source_type IN ('standalone','commerce_fulfillment') AND i.status IN ('posted','partially_paid') AND (NOT ? OR EXISTS(SELECT 1 FROM (SELECT o.company_id,f.invoice_id id FROM commerce_orders o JOIN commerce_fulfillments f ON f.order_id=o.id JOIN finance_invoices i ON i.id=f.invoice_id AND i.company_id=o.company_id AND i.kind='payable' WHERE o.kind='purchase') owner_invoice WHERE owner_invoice.id=i.id AND owner_invoice.company_id=i.company_id)) ORDER BY i.due_date,i.id LIMIT 200";
+const READ_SUPPLIER_BATCH_INVOICES: NativeReadStatement = NativeReadStatement {
+    kind: RD_SUPPLIER_BATCH_INVOICES,
+    sql: SQL_RD_SUPPLIER_BATCH_INVOICES,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the invoiceId-narrowed payable picker read.
+pub const RD_SUPPLIER_BATCH_INVOICE: &str = "finance_rd_supplier_batch_invoice";
+const SQL_RD_SUPPLIER_BATCH_INVOICE: &str = "SELECT i.*,p.name party_name,i.outstanding_minor-COALESCE((SELECT SUM(s.amount_minor) FROM finance_supplier_instructions s WHERE s.invoice_id=i.id AND s.status IN ('reserved','exported','unknown')),0) available_minor FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id WHERE i.company_id=? AND i.kind='payable' AND i.source_type IN ('standalone','commerce_fulfillment') AND i.status IN ('posted','partially_paid') AND (NOT ? OR EXISTS(SELECT 1 FROM (SELECT o.company_id,f.invoice_id id FROM commerce_orders o JOIN commerce_fulfillments f ON f.order_id=o.id JOIN finance_invoices i ON i.id=f.invoice_id AND i.company_id=o.company_id AND i.kind='payable' WHERE o.kind='purchase') owner_invoice WHERE owner_invoice.id=i.id AND owner_invoice.company_id=i.company_id)) AND i.id=? ORDER BY i.due_date,i.id LIMIT 200";
+const READ_SUPPLIER_BATCH_INVOICE: NativeReadStatement = NativeReadStatement {
+    kind: RD_SUPPLIER_BATCH_INVOICE,
+    sql: SQL_RD_SUPPLIER_BATCH_INVOICE,
+    bind_count: 3,
+    scope: "holding",
+};
+
+/// Native successor of the cash ledger list in the supplier workspace.
+pub const RD_SUPPLIER_BATCH_ACCOUNTS: &str = "finance_rd_supplier_batch_accounts";
+const SQL_RD_SUPPLIER_BATCH_ACCOUNTS: &str = "SELECT a.id,a.code,a.name,a.currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.company_id=? AND a.category='asset' AND a.status='active' AND a.id=(SELECT cash_account_id FROM commerce_settings WHERE company_id=a.company_id) AND c.status='active' AND a.currency=c.base_currency ORDER BY a.code";
+const READ_SUPPLIER_BATCH_ACCOUNTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_SUPPLIER_BATCH_ACCOUNTS,
+    sql: SQL_RD_SUPPLIER_BATCH_ACCOUNTS,
+    bind_count: 1,
+    scope: "holding",
+};
+
+/// Native successor of the open-period list in the supplier workspace.
+pub const RD_SUPPLIER_BATCH_PERIODS: &str = "finance_rd_supplier_batch_periods";
+const SQL_RD_SUPPLIER_BATCH_PERIODS: &str = "SELECT id,name FROM finance_periods WHERE company_id=? AND state='open' ORDER BY start_date";
+const READ_SUPPLIER_BATCH_PERIODS: NativeReadStatement = NativeReadStatement {
+    kind: RD_SUPPLIER_BATCH_PERIODS,
+    sql: SQL_RD_SUPPLIER_BATCH_PERIODS,
+    bind_count: 1,
+    scope: "holding",
+};
+
+/// Native successor of the candidate bank-debit read. `can_pay` is enforced by
+/// the caller before this plan is requested; `source_only` is bound so an
+/// included Supply buyer only sees debits matching an exported instruction.
+pub const RD_SUPPLIER_BATCH_BANK: &str = "finance_rd_supplier_batch_bank";
+const SQL_RD_SUPPLIER_BATCH_BANK: &str = "SELECT t.*,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.company_id=? AND s.bank_account=? AND t.match_status IN ('unmatched','proposed') AND (NOT ? OR (t.currency=? AND t.transaction_date>=? AND EXISTS(SELECT 1 FROM finance_supplier_instructions instruction WHERE instruction.batch_id=? AND instruction.status IN ('exported','unknown') AND t.amount_minor=-instruction.amount_minor))) ORDER BY t.transaction_date DESC LIMIT 200";
+const READ_SUPPLIER_BATCH_BANK: NativeReadStatement = NativeReadStatement {
+    kind: RD_SUPPLIER_BATCH_BANK,
+    sql: SQL_RD_SUPPLIER_BATCH_BANK,
+    bind_count: 6,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_ASSET_POLICY_ROW,
     READ_ASSET_POLICY_RUNS,
     READ_COLLECTION_CASE_ROW,
     READ_BUSINESS_BILL_ROW,
+    READ_SUPPLIER_BATCH_ROW,
+    READ_SUPPLIER_INSTRUCTION_ROW,
+    READ_SUPPLIER_BATCH_LIST,
+    READ_SUPPLIER_BATCH_WORK_LIST,
+    READ_SUPPLIER_BATCH_ITEMS,
+    READ_SUPPLIER_BATCH_INVOICES,
+    READ_SUPPLIER_BATCH_INVOICE,
+    READ_SUPPLIER_BATCH_ACCOUNTS,
+    READ_SUPPLIER_BATCH_PERIODS,
+    READ_SUPPLIER_BATCH_BANK,
 ];
 
 /// Whether a discriminator is an owner read kind (never a write kind).
@@ -96,6 +223,16 @@ mod tests {
             RD_ASSET_POLICY_RUNS,
             RD_COLLECTION_CASE_ROW,
             RD_BUSINESS_BILL_ROW,
+            RD_SUPPLIER_BATCH_ROW,
+            RD_SUPPLIER_INSTRUCTION_ROW,
+            RD_SUPPLIER_BATCH_LIST,
+            RD_SUPPLIER_BATCH_WORK_LIST,
+            RD_SUPPLIER_BATCH_ITEMS,
+            RD_SUPPLIER_BATCH_INVOICES,
+            RD_SUPPLIER_BATCH_INVOICE,
+            RD_SUPPLIER_BATCH_ACCOUNTS,
+            RD_SUPPLIER_BATCH_PERIODS,
+            RD_SUPPLIER_BATCH_BANK,
         ] {
             assert!(is_read(kind), "{kind}");
             let read = read_statement(kind).expect("read kind");
@@ -110,7 +247,7 @@ mod tests {
             assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
             assert_eq!(read.scope, "holding", "{kind}");
         }
-        assert_eq!(READS.len(), 4);
+        assert_eq!(READS.len(), 14);
         assert!(!is_read("finance_stmt_1"));
         assert!(read_statement("finance_stmt_1").is_none());
     }
@@ -147,5 +284,96 @@ mod tests {
             "CASE WHEN EXISTS(SELECT 1 FROM finance_business_billing_runs child WHERE child.parent_run_id=b.id) THEN 0 ELSE 1 END is_current"
         ));
         assert!(bill.sql.ends_with("WHERE b.id=? AND b.company_id=?"));
+    }
+
+    /// The supplier-batch reads preserve the retired owner semantics: the
+    /// purchase fence and bank reconciliation are bound, never inlined, and
+    /// the work list drops the console row cap without weakening the Company.
+    #[test]
+    fn supplier_batch_read_plans_preserve_source_and_pay_fences() {
+        for kind in [
+            RD_SUPPLIER_BATCH_ROW,
+            RD_SUPPLIER_INSTRUCTION_ROW,
+            RD_SUPPLIER_BATCH_LIST,
+            RD_SUPPLIER_BATCH_WORK_LIST,
+            RD_SUPPLIER_BATCH_ITEMS,
+            RD_SUPPLIER_BATCH_INVOICES,
+            RD_SUPPLIER_BATCH_INVOICE,
+            RD_SUPPLIER_BATCH_ACCOUNTS,
+            RD_SUPPLIER_BATCH_PERIODS,
+            RD_SUPPLIER_BATCH_BANK,
+        ] {
+            let read = read_statement(kind).expect("supplier read kind");
+            assert_eq!(read.scope, "holding", "{kind}");
+            assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
+        }
+        // The instruction list is reached only after the batch was authorized
+        // for the caller's Company; it is keyed by that exact batch id.
+        assert!(read_statement(RD_SUPPLIER_BATCH_ITEMS)
+            .expect("items")
+            .sql
+            .contains("WHERE s.batch_id=?"));
+        for kind in [
+            RD_SUPPLIER_BATCH_ROW,
+            RD_SUPPLIER_INSTRUCTION_ROW,
+            RD_SUPPLIER_BATCH_LIST,
+            RD_SUPPLIER_BATCH_WORK_LIST,
+            RD_SUPPLIER_BATCH_INVOICES,
+            RD_SUPPLIER_BATCH_INVOICE,
+            RD_SUPPLIER_BATCH_ACCOUNTS,
+            RD_SUPPLIER_BATCH_PERIODS,
+            RD_SUPPLIER_BATCH_BANK,
+        ] {
+            assert!(
+                read_statement(kind).expect("supplier read kind").sql.contains("company_id"),
+                "{kind}"
+            );
+        }
+
+        let batch = read_statement(RD_SUPPLIER_BATCH_ROW).expect("row");
+        assert_eq!(batch.bind_count, 2);
+        assert!(batch.sql.ends_with("WHERE id=? AND company_id=?"));
+        assert!(batch.sql.contains("\"approval_reason\""));
+
+        let item = read_statement(RD_SUPPLIER_INSTRUCTION_ROW).expect("item");
+        assert_eq!(item.bind_count, 2);
+        assert!(item.sql.ends_with("WHERE i.id=? AND b.company_id=?"));
+
+        let list = read_statement(RD_SUPPLIER_BATCH_LIST).expect("list");
+        assert_eq!(list.bind_count, 2);
+        assert!(list.sql.contains("owned_source"));
+        assert!(list.sql.ends_with("ORDER BY b.updated_at DESC LIMIT 200"));
+
+        let work = read_statement(RD_SUPPLIER_BATCH_WORK_LIST).expect("work");
+        assert_eq!(work.bind_count, 2);
+        assert_eq!(work.sql.replace(" LIMIT 200", ""), list.sql.replace(" LIMIT 200", ""));
+        assert!(!work.sql.contains("LIMIT 200"));
+
+        let invoices = read_statement(RD_SUPPLIER_BATCH_INVOICES).expect("invoices");
+        assert_eq!(invoices.bind_count, 2);
+        assert!(invoices.sql.contains("owner_invoice"));
+        assert!(invoices.sql.contains("available_minor"));
+        assert!(!invoices.sql.contains("i.id=?"));
+
+        let invoice = read_statement(RD_SUPPLIER_BATCH_INVOICE).expect("invoice");
+        assert_eq!(invoice.bind_count, 3);
+        assert_eq!(
+            invoice.sql.replace(" AND i.id=?", ""),
+            invoices.sql
+        );
+
+        let accounts = read_statement(RD_SUPPLIER_BATCH_ACCOUNTS).expect("accounts");
+        assert_eq!(accounts.bind_count, 1);
+        assert!(accounts.sql.contains("cash_account_id"));
+
+        let periods = read_statement(RD_SUPPLIER_BATCH_PERIODS).expect("periods");
+        assert_eq!(periods.bind_count, 1);
+        assert!(periods.sql.contains("state='open'"));
+
+        let bank = read_statement(RD_SUPPLIER_BATCH_BANK).expect("bank");
+        assert_eq!(bank.bind_count, 6);
+        assert!(bank.sql.contains("t.amount_minor=-instruction.amount_minor"));
+        assert!(bank.sql.contains("t.match_status IN ('unmatched','proposed')"));
+        assert!(bank.sql.contains("NOT ?"));
     }
 }

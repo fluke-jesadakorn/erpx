@@ -21,6 +21,16 @@ export const FINANCE_RD_ASSET_POLICY_ROW = 'finance_rd_asset_policy_row';
 export const FINANCE_RD_ASSET_POLICY_RUNS = 'finance_rd_asset_policy_runs';
 export const FINANCE_RD_COLLECTION_CASE_ROW = 'finance_rd_collection_case_row';
 export const FINANCE_RD_BUSINESS_BILL_ROW = 'finance_rd_business_bill_row';
+export const FINANCE_RD_SUPPLIER_BATCH_ROW = 'finance_rd_supplier_batch_row';
+export const FINANCE_RD_SUPPLIER_INSTRUCTION_ROW = 'finance_rd_supplier_instruction_row';
+export const FINANCE_RD_SUPPLIER_BATCH_LIST = 'finance_rd_supplier_batch_list';
+export const FINANCE_RD_SUPPLIER_BATCH_WORK_LIST = 'finance_rd_supplier_batch_work_list';
+export const FINANCE_RD_SUPPLIER_BATCH_ITEMS = 'finance_rd_supplier_batch_items';
+export const FINANCE_RD_SUPPLIER_BATCH_INVOICES = 'finance_rd_supplier_batch_invoices';
+export const FINANCE_RD_SUPPLIER_BATCH_INVOICE = 'finance_rd_supplier_batch_invoice';
+export const FINANCE_RD_SUPPLIER_BATCH_ACCOUNTS = 'finance_rd_supplier_batch_accounts';
+export const FINANCE_RD_SUPPLIER_BATCH_PERIODS = 'finance_rd_supplier_batch_periods';
+export const FINANCE_RD_SUPPLIER_BATCH_BANK = 'finance_rd_supplier_batch_bank';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'FINANCE_NATIVE_READ_UNAVAILABLE', 'The native Finance read service is unavailable.');
