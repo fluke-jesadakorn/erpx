@@ -354,6 +354,55 @@ describe('native Talent detail read tail', () => {
     }
   });
 
+  it('plans the workspace list reads through the mounted command-plan route', async () => {
+    const previous = process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+    process.env.ERPX_NATIVE_TALENT_READ_CONFIG = readConfig;
+    const cases: Array<{ kind: string; values: unknown[]; sql: string }> = [
+      {
+        kind: 'talent_rd_workspace_requisitions',
+        values: ['company', 'branch', 'branch', null, null],
+        sql: 'SELECT * FROM talent_requisitions WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?) ORDER BY updated_at DESC',
+      },
+      {
+        kind: 'talent_rd_workspace_candidates',
+        values: ['company'],
+        sql: 'SELECT id,legal_name,email,phone,retention_until,status,version,updated_at FROM talent_candidates WHERE company_id=? ORDER BY updated_at DESC',
+      },
+    ];
+    const fetchMock = vi.fn(async (_url: unknown, init: { body?: string }) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      const match = cases.find((item) => item.kind === body.kind);
+      expect(match).toBeDefined();
+      expect(body.values).toEqual(match!.values);
+      return ok({ data: { statements: [{ sql: match!.sql, values: body.values }] } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const seen: string[] = [];
+    const db = {
+      prepare(sql: string) {
+        seen.push(sql);
+        return {
+          bind(...values: unknown[]) {
+            return { all: async () => ({ results: values }) };
+          },
+        };
+      },
+    } as never;
+    try {
+      for (const item of cases) {
+        const rows = await nativeTalentReadAll<unknown>(item.kind, item.values, db);
+        expect(rows).toEqual(item.values);
+      }
+      expect(seen).toEqual([cases[0].sql, cases[1].sql]);
+      expect(String(fetchMock.mock.calls[0][0])).toContain('/api/v1/holdings/acme/talent/command-plan');
+      expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.unstubAllGlobals();
+      if (previous === undefined) delete process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+      else process.env.ERPX_NATIVE_TALENT_READ_CONFIG = previous;
+    }
+  });
+
   it('fails closed without a native read config and never builds local SQL', async () => {
     const previous = process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
     delete process.env.ERPX_NATIVE_TALENT_READ_CONFIG;

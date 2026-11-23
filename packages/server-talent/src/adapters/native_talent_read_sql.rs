@@ -121,6 +121,27 @@ const READ_CHANGE_CANDIDATE_PRIVACY_ROW: NativeTalentReadStatement = NativeTalen
     bind_count: 2,
 };
 
+/// Native successors of the TypeScript `nativeTalentWorkspace` list reads. The
+/// caller binds `[company_id, branch_id, branch_id, department_id,
+/// department_id]` (requisitions) or `[company_id]` (candidates) on its unit.
+pub const RD_WORKSPACE_REQUISITIONS: &str = "talent_rd_workspace_requisitions";
+const SQL_RD_WORKSPACE_REQUISITIONS: &str =
+    "SELECT * FROM talent_requisitions WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?) ORDER BY updated_at DESC";
+const READ_WORKSPACE_REQUISITIONS: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_WORKSPACE_REQUISITIONS,
+    sql: SQL_RD_WORKSPACE_REQUISITIONS,
+    bind_count: 5,
+};
+
+pub const RD_WORKSPACE_CANDIDATES: &str = "talent_rd_workspace_candidates";
+const SQL_RD_WORKSPACE_CANDIDATES: &str =
+    "SELECT id,legal_name,email,phone,retention_until,status,version,updated_at FROM talent_candidates WHERE company_id=? ORDER BY updated_at DESC";
+const READ_WORKSPACE_CANDIDATES: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_WORKSPACE_CANDIDATES,
+    sql: SQL_RD_WORKSPACE_CANDIDATES,
+    bind_count: 1,
+};
+
 const STATEMENTS: &[NativeTalentReadStatement] = &[
     READ_APPLICATION_EVENTS,
     READ_PROPOSALS,
@@ -131,6 +152,8 @@ const STATEMENTS: &[NativeTalentReadStatement] = &[
     READ_PRIVACY_HISTORY,
     READ_CONSUME_HIRE_HANDOFF_RECEIPT,
     READ_CHANGE_CANDIDATE_PRIVACY_ROW,
+    READ_WORKSPACE_REQUISITIONS,
+    READ_WORKSPACE_CANDIDATES,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -165,7 +188,30 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), 1);
         }
-        assert_eq!(STATEMENTS.len(), 9);
+        assert_eq!(STATEMENTS.len(), 11);
+    }
+
+    #[test]
+    fn workspace_list_reads_are_owner_authored_select_only() {
+        let expected = [
+            (RD_WORKSPACE_REQUISITIONS, SQL_RD_WORKSPACE_REQUISITIONS, 5usize),
+            (RD_WORKSPACE_CANDIDATES, SQL_RD_WORKSPACE_CANDIDATES, 1usize),
+        ];
+        for (kind, sql, binds) in expected {
+            let statement = read_statement(kind).expect("registered owner read kind");
+            assert_eq!(statement.kind, kind);
+            assert_eq!(statement.sql, sql);
+            assert_eq!(statement.bind_count, binds);
+            assert!(sql.starts_with("SELECT "), "owner read must be SELECT-only: {sql}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+                assert!(!sql.contains(forbidden), "owner read must not mutate: {forbidden}");
+            }
+            assert!(
+                sql.contains("talent_"),
+                "owner read must stay on owner-local Talent tables: {sql}"
+            );
+            assert_eq!(sql.matches('?').count(), binds);
+        }
     }
 
     #[test]

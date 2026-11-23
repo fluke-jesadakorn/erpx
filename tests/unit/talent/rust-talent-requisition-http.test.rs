@@ -545,3 +545,66 @@ async fn command_plan_returns_owner_authored_hire_handoff_reads() {
 
     server.abort();
 }
+
+#[tokio::test]
+async fn command_plan_returns_owner_authored_workspace_list_reads() {
+    let router = talent_requisition_http_router(vec![TalentRequisitionHttpTarget {
+        host: "acme.example.test".into(),
+        holding_slug: "acme".into(),
+        origin: "https://acme.example.test".into(),
+        backend: Arc::new(Noop),
+    }])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+
+    let cases = [
+        (
+            "talent_rd_workspace_requisitions",
+            r#"["company","branch","branch",null,null]"#,
+            "SELECT * FROM talent_requisitions WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?) ORDER BY updated_at DESC",
+        ),
+        (
+            "talent_rd_workspace_candidates",
+            r#"["company"]"#,
+            "SELECT id,legal_name,email,phone,retention_until,status,version,updated_at FROM talent_candidates WHERE company_id=? ORDER BY updated_at DESC",
+        ),
+    ];
+    for (kind, values, sql) in cases {
+        let payload = format!(r#"{{"kind":"{kind}","values":{values}}}"#);
+        let (status, body, _) = http(
+            addr,
+            post(
+                "/api/v1/holdings/acme/talent/command-plan",
+                "acme.example.test",
+                None,
+                &payload,
+            ),
+        )
+        .await;
+        assert_eq!(status, 200);
+        assert_eq!(body["data"]["statements"][0]["sql"], serde_json::json!(sql));
+        assert_eq!(
+            body["data"]["statements"][0]["values"],
+            serde_json::from_str::<serde_json::Value>(values).unwrap()
+        );
+
+        let bad = format!(r#"{{"kind":"{kind}","values":[]}}"#);
+        let (status, _, _) = http(
+            addr,
+            post(
+                "/api/v1/holdings/acme/talent/command-plan",
+                "acme.example.test",
+                None,
+                &bad,
+            ),
+        )
+        .await;
+        assert_eq!(status, 422);
+    }
+
+    server.abort();
+}

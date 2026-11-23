@@ -57,24 +57,8 @@ async function recruiterReferences(write:SqlDatabase,a:WorkContext){return (awai
         .bind(a.companyId, Date.now(), Date.now())
         .all<Row>()).results;}
 export function nativeTalentWorkspace(source:DatabaseSource){const database=databaseSource(source);return createTalentWorkspace({authorize:access,
-async requisitions(a){const write=await database();return (await write
-        .prepare(
-          "SELECT * FROM talent_requisitions WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?) ORDER BY updated_at DESC",
-        )
-        .bind(
-          a.companyId,
-          a.branchId,
-          a.branchId,
-          a.departmentId,
-          a.departmentId,
-        )
-        .all<Row>()).results;},
-async candidates(a){const write=await database();return (await write
-        .prepare(
-          "SELECT id,legal_name,email,phone,retention_until,status,version,updated_at FROM talent_candidates WHERE company_id=? ORDER BY updated_at DESC",
-        )
-        .bind(a.companyId)
-        .all<Row>()).results;},
+async requisitions(a){return nativeTalentReadAll<Row>('talent_rd_workspace_requisitions',[a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId],await database());},
+async candidates(a){return nativeTalentReadAll<Row>('talent_rd_workspace_candidates',[a.companyId],await database());},
 async applications(a){const write=await database();return (await write
         .prepare(
           `SELECT a.*,r.job_title,c.legal_name candidate_name,CASE WHEN ${eligibleOwner} THEN 1 ELSE 0 END owner_eligible FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id JOIN talent_candidates c ON c.id=a.candidate_id WHERE a.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) ORDER BY a.updated_at DESC`,
