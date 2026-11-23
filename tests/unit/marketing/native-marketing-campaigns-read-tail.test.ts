@@ -78,4 +78,26 @@ describe('Marketing owner-local campaign read tail', () => {
     expect(commercial).toContain('marketingCampaignProjection');
     expect(commercial).toContain('marketingCampaignCostProjection');
   });
+
+  it('keeps one fixed owner projection for the public-submission receipt witness', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
+    const sources = await readFile(new URL('crm-purchase-sources.ts', base), 'utf8');
+    const purchases = await readFile(new URL('purchases.ts', base), 'utf8');
+    const form = await readFile(new URL('public-form.ts', base), 'utf8');
+
+    const witness = 'SELECT 1 FROM marketing_public_receipts receipt JOIN (${crmMarketingCandidateSources}) candidate ON candidate.id=receipt.candidate_id WHERE receipt.key=? AND candidate.company_id=? AND candidate.form_id=? AND candidate.form_version=?';
+    expect(sources.split(witness)).toHaveLength(2);
+    expect(sources.match(/SELECT 1 FROM marketing_public_receipts receipt/g)).toHaveLength(1);
+    expect(sources).toContain('export const publicSubmissionReceiptWitness=`' + witness + '`');
+
+    for (const consumer of [purchases, form]) {
+      expect(consumer).toContain('database.prepare(publicSubmissionReceiptWitness)');
+      expect(consumer).not.toContain('database.prepare(`SELECT 1 FROM marketing_public_receipts receipt');
+    }
+    // The purchase path guards the replay before and after the command; both
+    // must read the same canonical witness inside the caller's transaction.
+    expect(purchases.match(/database\.prepare\(publicSubmissionReceiptWitness\)/g)).toHaveLength(2);
+    expect(form.match(/database\.prepare\(publicSubmissionReceiptWitness\)/g)).toHaveLength(1);
+  });
 });

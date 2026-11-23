@@ -13,7 +13,7 @@ import {marketingExpenseSourceReadLocks} from "@erpx/server-finance/public/marke
 import {isTransactionalSqlDatabase,type SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {ApiError} from "@erpx/server-runtime/public/http";
-import {crmMarketingCandidateSources,crmMarketingSourceReadLocks} from "@erpx/server-marketing/adapters/crm-purchase-sources";
+import {crmMarketingCandidateSources,crmMarketingSourceReadLocks,publicSubmissionReceiptWitness} from "@erpx/server-marketing/adapters/crm-purchase-sources";
 import type {PublicMarketingForm} from "@erpx/server-marketing/application/public-form";
 export type MarketingPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type MarketingPurchaseTarget={kind:"asset"|"candidate"|"campaign"|"campaign-cost";id:string};
@@ -58,10 +58,10 @@ export async function withMarketingPublicSubmission<Result>(owner:SqlDatabase,fo
  try{return await owner.transaction(async database=>{
   const locks=companyPurchaseReadLocks(database,form.company_id);await database.batch([locks[0],...marketingPurchaseSourceReadLocks(database),...locks.slice(1)]);
   const actual=await database.prepare("SELECT id,company_id,version,status,configuration_json FROM marketing_assets WHERE id=? AND company_id=? AND kind='form'").bind(form.id,form.company_id).first<{id:string;company_id:string;version:number;status:string;configuration_json:string}>();if(!actual)throw new ApiError(404,'FORM_NOT_FOUND','Form not found.');
-  const receipt=await database.prepare(`SELECT 1 FROM marketing_public_receipts receipt JOIN (${crmMarketingCandidateSources}) candidate ON candidate.id=receipt.candidate_id WHERE receipt.key=? AND candidate.company_id=? AND candidate.form_id=? AND candidate.form_version=?`).bind(key,actual.company_id,actual.id,form.version).first(),purpose=receipt?'history' as const:'new-work' as const,scope={companyId:actual.company_id,capability:'sales.marketing',purpose},boundaryKey=`marketing-public:${randomUUID()}`,boundary=purchaseCommandBoundary(database,mode,boundaryKey,scope)!;
+  const receipt=await database.prepare(publicSubmissionReceiptWitness).bind(key,actual.company_id,actual.id,form.version).first(),purpose=receipt?'history' as const:'new-work' as const,scope={companyId:actual.company_id,capability:'sales.marketing',purpose},boundaryKey=`marketing-public:${randomUUID()}`,boundary=purchaseCommandBoundary(database,mode,boundaryKey,scope)!;
   await checkPurchasedCapability(database,mode,scope);await database.batch(boundary.before);const result=await run(database,!!receipt);
   const after=await database.prepare("SELECT id,company_id,version,status,configuration_json FROM marketing_assets WHERE id=? AND company_id=? AND kind='form'").bind(actual.id,actual.company_id).first<typeof actual>();if(!after||!receipt&&(after.status!=='active'||Number(after.version)!==Number(form.version)||after.configuration_json!==form.configuration_json))throw new ApiError(409,'FORM_CHANGED','The original approved form changed before submission completed.');
-  const committed=await database.prepare(`SELECT 1 FROM marketing_public_receipts receipt JOIN (${crmMarketingCandidateSources}) candidate ON candidate.id=receipt.candidate_id WHERE receipt.key=? AND candidate.company_id=? AND candidate.form_id=? AND candidate.form_version=?`).bind(key,actual.company_id,actual.id,form.version).first();if(!committed)throw new ApiError(409,'FORM_CHANGED','The exact original consented submission receipt is required.');
+  const committed=await database.prepare(publicSubmissionReceiptWitness).bind(key,actual.company_id,actual.id,form.version).first();if(!committed)throw new ApiError(409,'FORM_CHANGED','The exact original consented submission receipt is required.');
   const observed=await database.batch([...boundary.after,await nativeClearCommandAssertions(database, form.company_id, boundaryKey)]);boundary.observe?.(observed);return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }
