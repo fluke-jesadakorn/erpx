@@ -52,6 +52,9 @@ async fn setup(pool: &DatabasePool) {
          ('company','member-user','principal-member','person-member','active'),\
          ('company','other','principal-other','person-other','active'),\
          ('foreign','owner','principal-foreign','person-foreign','active');\
+          INSERT INTO hr_people(id,user_id,company_id,legal_name,country_code,created_by,created_at,updated_at) VALUES \
+          ('person-owner','owner','company','Project Owner','TH','fixture',10,10),\
+          ('person-member','member-user','company','Project Member','TH','fixture',10,10);\
          INSERT INTO staff_projects(id,company_id,branch_id,department_id,title,description,owner_user_id,version,created_at,updated_at,lifecycle_status) VALUES \
          ('project-owned','company','branch','department','Owned project','Bounded project source','owner',4,10,10,'active'),\
          ('project-member','company',NULL,NULL,'Member project','Bounded member source','owner',1,10,10,'active'),\
@@ -94,6 +97,7 @@ async fn owner_and_member_read_company_scoped_wbs_with_dependencies() {
                     assert_eq!(result.project.version, 4);
                     assert_eq!(result.milestones.len(), 5);
                     assert_eq!(result.milestones[0].id, "m-done");
+                    assert_eq!(result.milestones[0].owner_name.as_deref(), Some("Project Owner"));
                     assert!(!result.milestones[0].is_overdue);
                     let child = result
                         .milestones

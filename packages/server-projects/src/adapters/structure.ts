@@ -5,7 +5,7 @@ import type { WorkContext } from '@erpx/server-identity_access/public/authorizat
 import { requirePermission } from '@erpx/server-identity_access/public/iam-permissions';
 import { activeStaff } from '@erpx/server-operations/public/staff-policy';
 import { getProject } from '@erpx/server-projects/public/staff-projects';
-import { listProjectMilestones } from '@erpx/server-projects/public/project-milestones';
+import { nativeProjectMilestones } from '@erpx/server-projects/public/project-milestones';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { createProjectStructureApplication, type ProjectStructureRepository } from '@erpx/server-projects/application/structure';
@@ -29,7 +29,7 @@ catch (error) {
         throw new ApiError(error.status, error.code, error.message);
     throw error;
 } }
-function application(db: SqlDatabase, purchasedCostHistory = true) { const repository: ProjectStructureRepository = { ...owner0(db), ...owner1(db), ...owner2(db) }; return createProjectStructureApplication({ purchasedCostHistory, repository, clock: { now: () => Date.now() }, requirePermission: (...args) => requirePermission(...args), activeStaff: (...args) => inward(() => activeStaff(db, ...args)), getProject: (...args) => inward(() => getProject(db, ...args)), listMilestones: (...args) => inward(() => listProjectMilestones(db, ...args)) }); }
+function application(db: SqlDatabase, purchasedCostHistory = true) { const repository: ProjectStructureRepository = { ...owner0(db), ...owner1(db), ...owner2(db) }; return createProjectStructureApplication({ purchasedCostHistory, repository, clock: { now: () => Date.now() }, requirePermission: (...args) => requirePermission(...args), activeStaff: (...args) => inward(() => activeStaff(db, ...args)), getProject: (...args) => inward(() => getProject(db, ...args)), listMilestones: (...args) => inward(() => nativeProjectMilestones(db, ...args)) }); }
 async function purchasedApplication(db:SqlDatabase,a:WorkContext){
  const access=await projectPurchaseControls(db,a);return application(db,!access||access['projects.costs'].history);
 }

@@ -5,7 +5,7 @@ import { staffPage } from "@erpx/server-work_projection/public/staff-page";
 import type {StaffPageOptions} from '@erpx/server-work_projection/public/staff-page';
 import {getProject} from '@erpx/server-operations/public/staff-tasks';
 import {listTasks} from '@erpx/server-operations/public/staff-tasks';
-import { listProjectMilestones } from "@erpx/server-projects/public/project-milestones";
+import { nativeProjectMilestones } from "@erpx/server-projects/public/project-milestones";
 import { listProjectWorkLogs } from "@erpx/server-projects/public/project-actuals";
 import { projectMemberIds } from "@erpx/server-projects/public/people-app-entrypoint-facts";
 import { listTemplates } from "@erpx/server-operations/public/routines";
@@ -26,7 +26,7 @@ export async function staffPresentationQueries(holdingSlug: string,presentation?
     routinePurchases:()=>workRoutinePresentation(write,actor),
     getProject: (...args: ReadArguments<typeof getProject>) => getProject(write, ...args),
     listTasks: (...args: ReadArguments<typeof listTasks>) => listTasks(write, ...args),
-    listProjectMilestones: (...args: ReadArguments<typeof listProjectMilestones>) => listProjectMilestones(write, ...args),
+    listProjectMilestones: (...args: ReadArguments<typeof nativeProjectMilestones>) => nativeProjectMilestones(write, ...args),
     listProjectWorkLogs: (...args: ReadArguments<typeof listProjectWorkLogs>) => listProjectWorkLogs(write, ...args),
     projectMemberIds: (...args: ReadArguments<typeof projectMemberIds>) => projectMemberIds(write, ...args),
     listTemplates: (...args: ReadArguments<typeof listTemplates>) => listTemplates(write, ...args),

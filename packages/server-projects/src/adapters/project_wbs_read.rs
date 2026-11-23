@@ -98,12 +98,17 @@ impl<'a> PgProjectWbsRead<'a> {
         let rows = sqlx::query(
             "SELECT m.id,m.company_id,m.project_id,m.parent_milestone_id,\
              m.ordinal_position::bigint AS ordinal_position,m.title,m.description,m.due_at,\
-             m.owner_user_id,m.state,m.version,m.created_by,m.completed_at,m.created_at,\
+             m.owner_user_id,p.legal_name AS owner_name,m.state,\
+             (m.state IN ('planned','in_progress') AND \
+             m.due_at<floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AS is_overdue,\
+             m.version,m.created_by,m.completed_at,m.created_at,\
              m.updated_at,\
              COALESCE(dep.depends_on_ids,'[]'::jsonb)::text AS depends_on_ids,\
              COALESCE(dep.depends_on_titles,'[]'::jsonb)::text AS depends_on_titles,\
              COALESCE(dep.blocked_by_titles,'[]'::jsonb)::text AS blocked_by_titles \
              FROM staff_project_milestones m \
+             LEFT JOIN hr_people p ON p.company_id=m.company_id AND p.user_id=m.owner_user_id \
+             AND p.merged_into_id IS NULL \
              LEFT JOIN LATERAL (\
                SELECT jsonb_agg(predecessor.id ORDER BY predecessor.due_at,predecessor.title) AS depends_on_ids,\
                       jsonb_agg(predecessor.title ORDER BY predecessor.due_at,predecessor.title) AS depends_on_titles,\
@@ -136,9 +141,9 @@ impl<'a> PgProjectWbsRead<'a> {
                     description: row.try_get("description")?,
                     due_at: row.try_get("due_at")?,
                     owner_user_id: row.try_get("owner_user_id")?,
-                    owner_name: None,
+                    owner_name: row.try_get("owner_name")?,
                     state: row.try_get("state")?,
-                    is_overdue: false,
+                    is_overdue: row.try_get("is_overdue")?,
                     version: row.try_get("version")?,
                     created_by: row.try_get("created_by")?,
                     completed_at: row.try_get("completed_at")?,
