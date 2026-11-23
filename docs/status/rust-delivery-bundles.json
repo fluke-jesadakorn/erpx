@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6989,
+    "revision": 6997,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -120354,7 +120354,7 @@
         "owner": "workflow",
         "title": "workflow TS read tail native cutover (r5)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -120366,22 +120366,42 @@
         "resources": [
           "owner:workflow"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wB0wor",
-          "claimedAt": "2026-11-23T21:31:54.890Z",
-          "heartbeatAt": "2026-11-23T21:33:35.449Z",
-          "expiresAt": "2026-11-23T22:03:35.449Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-workflow/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "c87b98203",
+            "owner": "workflow",
+            "before": 102,
+            "after": 101,
+            "note": "WF_NATIVE_STAFF_TASK_ALERT_APPROVERS fixed kind."
+          },
+          {
+            "command": "cargo check -p erpx-server-workflow + lib (35)",
+            "result": "passed",
+            "sourceSha": "c87b98203"
+          },
+          {
+            "command": "vitest workflow transport (10) + tsc workflow",
+            "result": "passed",
+            "sourceSha": "c87b98203"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wB0wor",
+          "at": "2026-11-23T22:01:50.918Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -120928,7 +120948,7 @@
         "owner": "pos",
         "title": "pos TS read tail native cutover (round 5)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -120940,22 +120960,42 @@
         "resources": [
           "owner:pos"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wB9pos",
-          "claimedAt": "2026-11-23T21:43:45.354Z",
-          "heartbeatAt": "2026-11-23T21:43:45.354Z",
-          "expiresAt": "2026-11-23T22:13:45.354Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "c87b98203",
+            "owner": "pos",
+            "before": 288,
+            "after": 285,
+            "note": "Three plain pos_sales by-id copies via core_readpossalesbyid_521."
+          },
+          {
+            "command": "cargo check -p erpx-server-pos + lib (18)",
+            "result": "passed",
+            "sourceSha": "c87b98203"
+          },
+          {
+            "command": "vitest pos native core (9) + full POS units (220) + tsc pos",
+            "result": "passed",
+            "sourceSha": "c87b98203"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Switch the pos_sales by-id copies in pos-core/pos-daily/pos-stripe via a native owner statement kind; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wB9pos",
+          "at": "2026-11-23T22:01:50.753Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -121353,6 +121393,78 @@
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to a mounted native read; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pos.read-tail-r6",
+        "goalId": "G4",
+        "owner": "pos",
+        "title": "pos TS read tail native cutover (r6)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pos/src/**",
+          "tests/unit/pos/**",
+          "tests/integration/pos/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wBKpos",
+          "claimedAt": "2026-11-23T22:01:56.973Z",
+          "heartbeatAt": "2026-11-23T22:01:56.973Z",
+          "expiresAt": "2026-11-23T22:31:56.973Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to a mounted native read; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.workflow.read-tail-r6",
+        "goalId": "G4",
+        "owner": "workflow",
+        "title": "workflow TS read tail native cutover (r6)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/**",
+          "tests/unit/workflow/**",
+          "tests/integration/workflow/**"
+        ],
+        "resources": [
+          "owner:workflow"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wBKwor",
+          "claimedAt": "2026-11-23T22:01:57.135Z",
+          "heartbeatAt": "2026-11-23T22:01:57.135Z",
+          "expiresAt": "2026-11-23T22:31:57.135Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to a mounted native read; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -121361,7 +121473,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 592,
+      "totalPackets": 594,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -121369,13 +121481,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 224,
+        "blocked": 226,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T21:58:35.650Z",
+    "updatedAt": "2026-11-23T22:01:57.138Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
