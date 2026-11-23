@@ -3,6 +3,7 @@ import {hasModuleAccess} from "@erpx/catalogue/module-access";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
+import {assetPermissionProbeSql} from "./asset-scope-probe";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {assetsPackageEnforcementMode,readPurchasedAccesses} from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -11,7 +12,7 @@ const metrics={"active-assets":{module:"assets",table:"operational_assets",capab
 type AssetMetricId=keyof typeof metrics;
 export async function assetMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){
  const mode=await assetsPackageEnforcementMode(),access=await readPurchasedAccesses(database,mode,actor.companyId,["assets.register","assets.maintenance","assets.downtime"]);if(mode!=="enforced")return Object.fromEntries(Object.keys(metrics).map(id=>[id,true]));
- const current=hasPermission(actor,"records.read")&&!!await database.prepare(`SELECT ${assignmentReadSql("asset_metric_scope","records.read")} allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) asset_metric_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<boolean>("allowed");
+ const current=hasPermission(actor,"records.read")&&!!await database.prepare(assetPermissionProbeSql("asset_metric_scope","records.read")).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<boolean>("allowed");
  return Object.fromEntries(Object.entries(metrics).map(([id,definition])=>[id,current&&hasModuleAccess(actor.modules,definition.module)&&access[definition.capability].history]));
 }
 /** Aggregate values and paginated source facts use the same owner rows and

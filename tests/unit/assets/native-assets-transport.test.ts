@@ -280,3 +280,20 @@ it('dedupes the Asset branch display fixed SQL across executive metric projectio
  expect(adapter).toContain('breakdown === "branch" ? assetBranchDisplayNameLabel');
  expect(adapter).toContain('n.id=a.department_id AND n.company_id=a.company_id');
 });
+it('shares one canonical permission-probe SQL with the purchase and metric callers (52->50)',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const helper=await readFile(new URL('../../../packages/server-assets/src/adapters/asset-scope-probe.ts',import.meta.url),'utf8');
+ const purchases=await readFile(new URL('../../../packages/server-assets/src/adapters/purchases.ts',import.meta.url),'utf8');
+ const metrics=await readFile(new URL('../../../packages/server-assets/src/adapters/metric-purchases.ts',import.meta.url),'utf8');
+ const count=(text:string,needle:string)=>text.split(needle).length-1;
+ const probe="allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id)";
+ expect(helper).toContain('export const assetPermissionProbeSql = (alias: string, permission: string) =>');
+ expect(count(helper,probe)).toBe(1);
+ for(const caller of [purchases,metrics]){
+  expect(caller).toContain('assetPermissionProbeSql');
+  expect(count(caller,probe)).toBe(0);
+ }
+ expect(purchases).toContain('assetPermissionProbeSql("assets_scope",permission)');
+ expect(metrics).toContain('assetPermissionProbeSql("asset_metric_scope","records.read")');
+ expect(metrics).toContain('assignmentReadSql("asset_metric_owned","records.read")');
+});

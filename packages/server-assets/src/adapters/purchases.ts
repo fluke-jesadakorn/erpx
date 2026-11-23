@@ -2,7 +2,7 @@ import "server-only";
 import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import {randomUUID} from "node:crypto";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
+import {assetPermissionProbeSql} from "./asset-scope-probe";
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/public/command-guards';
@@ -33,7 +33,7 @@ export async function assetOwnerSourceGuards(database:SqlDatabase,actor:WorkCont
  * original Asset update can deadlock between unrelated Companies. */
 export function assetOwnerSourceReadLocks(database:SqlDatabase,companyId:string){const locks=companyPurchaseReadLocks(database,companyId);return [locks[0],database.prepare("LOCK TABLE operational_assets,operational_asset_finance_links IN SHARE ROW EXCLUSIVE MODE"),database.prepare("LOCK TABLE finance_assets IN SHARE MODE"),...maintenancePurchaseSourceReadLocks(database),...locks.slice(1)];}
 export async function assetCurrentAuthority(database:SqlDatabase,actor:WorkContext,permissions:readonly string[],key:string){
- for(const permission of permissions){const allowed=await database.prepare(`SELECT ${assignmentReadSql("assets_scope",permission)} allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) assets_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();if(!allowed?.allowed)throw new ApiError(403,"ASSETS_ACCESS_CHANGED","Choose a current authorized Assets or Maintenance work role.");}
+ for(const permission of permissions){const allowed=await database.prepare(assetPermissionProbeSql("assets_scope",permission)).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();if(!allowed?.allowed)throw new ApiError(403,"ASSETS_ACCESS_CHANGED","Choose a current authorized Assets or Maintenance work role.");}
  await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await nativeClearCommandAssertions(database, actor.companyId, key)]);
 }
 const authority=assetCurrentAuthority;
