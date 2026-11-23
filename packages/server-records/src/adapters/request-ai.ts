@@ -23,6 +23,7 @@ import { createRequestAiApplication, type RequestAiRepository } from '@erpx/serv
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import { recordsAiQuota } from '@erpx/server-agent/public/records-ai-quota';
+import { requestAiProposalProjectionSql } from './ai-usage-projection';
 import { RequestAiIdentityAccessFacts } from '@erpx/server-identity_access/public/records-request-ai-facts';
 import { RequestAiWorkflowFacts } from '@erpx/server-workflow/public/records-request-ai-facts';
 import { nativeRecordsStatement } from '@erpx/feature-records/adapters/server/native-records-command';
@@ -32,12 +33,12 @@ export type { RequestAiResult } from '@erpx/server-records/domain/request-ai';
 function application(provided?: SqlDatabase, actor?: WorkContext) {
     let database = provided!;
     const repository: RequestAiRepository<SqlStatement> = { readRequestAiStatusProposal(id: string, companyId: string) {
-            return database.prepare("SELECT * FROM request_ai_proposals WHERE request_id=? AND company_id=? ORDER BY created_at DESC LIMIT 1")
+            return database.prepare(`${requestAiProposalProjectionSql} WHERE request_id=? AND company_id=? ORDER BY created_at DESC LIMIT 1`)
                 .bind(id, companyId)
                 .first<Proposal>();
         },
         readQueueRequestAiOld(companyId: string, id: string, version: number, providerJson: string) {
-            return database.prepare("SELECT * FROM request_ai_proposals WHERE company_id=? AND request_id=? AND source_version=? AND provider_json=?")
+            return database.prepare(`${requestAiProposalProjectionSql} WHERE company_id=? AND request_id=? AND source_version=? AND provider_json=?`)
                 .bind(companyId, id, version, providerJson)
                 .first<Proposal>();
         },
