@@ -61,6 +61,14 @@ pub const DEPT_AUTH_READ_LEGACY_HEAD: &str = "dept_auth_read_legacy_head";
 /// evaluates it inside its own command transaction.
 pub const DEPT_AUTH_READ_POLICY_CHECK: &str = "dept_auth_read_policy_check";
 
+// -- organization-work: owner-local change reads ------------------------------
+// The two `SELECT` reads retired from `organization-work.ts`. Both are
+// Company-keyed reads of the org-owned `organization_node_changes` table; the
+// `iam_same_person` predicate is a scalar function, not a cross-owner table,
+// so no people_payroll hr_* source is duplicated here.
+pub const ORG_WORK_READ_CHANGE_EXISTS: &str = "org_work_read_change_exists";
+pub const ORG_WORK_READ_CHANGES: &str = "org_work_read_changes";
+
 // -- operations-level-history-effects / people-placement-level-history -------
 pub const STAFF_LEVEL_HISTORY_INSERT: &str = "staff_level_history_insert";
 
@@ -186,6 +194,8 @@ pub const KINDS: &[&str] = &[
     DEPT_AUTH_READ_POLICY,
     DEPT_AUTH_READ_LEGACY_HEAD,
     DEPT_AUTH_READ_POLICY_CHECK,
+    ORG_WORK_READ_CHANGE_EXISTS,
+    ORG_WORK_READ_CHANGES,
     STAFF_LEVEL_HISTORY_INSERT,
     STAFF_LEVEL_UPDATE,
     STAFF_LEVEL_INSERT,
@@ -348,6 +358,12 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         DEPT_AUTH_READ_POLICY_CHECK => {
             "EXISTS(SELECT 1 FROM department_flow_versions WHERE id=? AND company_id=? AND version=?)"
+        }
+        ORG_WORK_READ_CHANGE_EXISTS => {
+            "SELECT 1 FROM organization_node_changes WHERE id=? AND company_id=?"
+        }
+        ORG_WORK_READ_CHANGES => {
+            "SELECT c.*,iam_same_person(c.requested_by,?,c.company_id) same_requester FROM organization_node_changes c WHERE c.company_id=? AND (c.requested_by=? OR c.state='submitted' OR c.reviewed_by=?) ORDER BY c.updated_at DESC,c.id"
         }
         STAFF_LEVEL_HISTORY_INSERT => {
             "INSERT INTO staff_level_history(id,engagement_id,previous_level_id,level_id,actor_id,reason,command_id,created_at) VALUES(?,?,?,?,?,?,?,?)"
@@ -1026,5 +1042,53 @@ mod tests {
             sql(DEPT_AUTH_READ_POLICY_CHECK).unwrap(),
             "EXISTS(SELECT 1 FROM department_flow_versions WHERE id=? AND company_id=? AND version=?)"
         );
+    }
+
+    /// Owner-local reads retired from `organization-work.ts`: two fixed,
+    /// Company-keyed SELECT statements over the org-owned
+    /// `organization_node_changes` table. `iam_same_person` is a scalar
+    /// function, not a cross-owner people source, so no hr_* table is
+    /// duplicated here.
+    #[test]
+    fn organization_work_read_kinds_are_select_only_and_company_scoped() {
+        let kinds = [(ORG_WORK_READ_CHANGE_EXISTS, 2usize), (ORG_WORK_READ_CHANGES, 4)];
+        assert_eq!(kinds.len(), 2);
+        for (kind, expected) in kinds {
+            assert!(supported(kind), "read kind must be allow listed: {kind}");
+            let statement = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
+            assert!(
+                statement.starts_with("SELECT "),
+                "read kind must be SELECT-only: {kind}"
+            );
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+                assert!(
+                    !statement.contains(forbidden),
+                    "read kind must not mutate or lock: {kind} contains {forbidden}"
+                );
+            }
+            assert!(
+                statement.contains("company_id=?"),
+                "read kind must be Company scoped: {kind}"
+            );
+            assert!(
+                statement.contains("organization_node_changes"),
+                "read kind must stay on the org-owned table: {kind}"
+            );
+            assert!(
+                !statement.contains("hr_people") && !statement.contains("hr_engagements"),
+                "owner-local read must not duplicate cross-owner people sources: {kind}"
+            );
+            assert_eq!(
+                statement.matches('?').count(),
+                expected,
+                "read kind parameter count: {kind}"
+            );
+        }
+        let (statement, values) =
+            owner_statement(ORG_WORK_READ_CHANGE_EXISTS, &[Value::from("change"), Value::from("company")])
+                .expect("change exists statement");
+        assert_eq!(values.len(), 2);
+        assert!(statement.contains("company_id=?"));
+        assert!(owner_statement(ORG_WORK_READ_CHANGE_EXISTS, &[Value::from("change")]).is_err());
     }
 }
