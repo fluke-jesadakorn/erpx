@@ -154,9 +154,6 @@ export type PmsBookingRefundUnit = {
         now: number;
         id: string;
     }): Promise<PmsProviderRows<Record<string, unknown>>>;
-    readPmsBookingRefundRequests8(facts: {
-        id: string;
-    }): Promise<Request | null>;
     insertPmsBookingRefundAttempts2(facts: {
         id: string;
         generation: number;
@@ -423,8 +420,12 @@ export function createPmsBookingRefund(ports: PmsBookingRefundPorts) {
             const s=await tx.bookingSnapshot(found.property_id, undefined, true);
             if(actor.branchId && s.property.branchId !== actor.branchId)throw ports.error(404,'PMS_NOT_FOUND','Refund not found in this workspace.');
             await tx.authorize(actor,'pms.approve');
-            const current = await tx.readPmsBookingRefundRequests8({ id: id });
-            if (current?.state !== 'failed' || current.provider_id !== found.provider_id)
+            /** The native refund request-context read above is authoritative;
+             * its result already carries state/provider/generation/payment facts.
+             * The transaction holds the property lock via the locked snapshot,
+             * so no redundant TypeScript request-row query is needed. */
+            const current = found;
+            if (current.state !== 'failed' || current.provider_id !== found.provider_id)
                 throw ports.error(409, 'PMS_REFUND_CHANGED', 'Refund changed; refresh before retrying');
             await tx.insertPmsBookingRefundAttempts2({ id: id, generation: current.generation, provider_id: current.provider_id, fact3: ports.clock.now() });
             await tx.updatePmsBookingRefundRequests6({ fact0: `Recovery approved by ${actor.userId}: ${reason.trim()}`.slice(0, 500), fact1: ports.clock.now(), id: id });

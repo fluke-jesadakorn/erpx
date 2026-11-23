@@ -158,9 +158,6 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
             now: number;
             id: string;
         }) => write('pms_w021', [facts.now, facts.id]),
-        readPmsBookingRefundRequests8: (facts: {
-            id: string;
-        }) => db.prepare('SELECT * FROM pms_booking_refund_requests WHERE id=? FOR UPDATE').bind(facts.id).first<Request>(),
         insertPmsBookingRefundAttempts2: (facts: {
             id: string;
             generation: number;
