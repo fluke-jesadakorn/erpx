@@ -293,9 +293,11 @@ describe('native Benefits workspace transport',()=>{
   delete process.env.ERPX_NATIVE_BENEFITS_CONFIG;
   expect(nativeBenefitsAvailable()).toBe(false);
   const {nativeBenefitsWorkspace,nativeBenefitCommand,nativeBenefitDetail}=await import('../../../packages/feature-benefits/src/public/native-benefits-workspace-page');
-  await expect(nativeBenefitsWorkspace(actor as never)).resolves.toBeUndefined();
-  await expect(nativeBenefitCommand(actor as never,{entity:'plan'},'command-key-1',incoming())).resolves.toBeUndefined();
-  await expect(nativeBenefitDetail(actor as never,'election-owner')).resolves.toBeUndefined();
+  for(const call of [
+   nativeBenefitsWorkspace(actor as never),
+   nativeBenefitCommand(actor as never,{entity:'plan'},'command-key-1',incoming()),
+   nativeBenefitDetail(actor as never,'election-owner'),
+  ]) await expect(call).rejects.toMatchObject({status:503,code:'NATIVE_BENEFITS_UNAVAILABLE'});
   if(previous!==undefined)process.env.ERPX_NATIVE_BENEFITS_CONFIG=previous;
  });
 
@@ -365,6 +367,15 @@ describe('Benefits route command authority',()=>{
   const response=await call({entity:'plan',name:'Family medical plan'});
   expect(response.status).toBe(503);
   expect((await response.json()).error).toMatchObject({code:'NATIVE_BENEFITS_UNAVAILABLE'});
+ });
+
+ it('fails closed on workspace and detail reads without a TypeScript fallback',async()=>{
+  const {GET}=await import('../../../packages/feature-people/src/routes/api/v1/holdings/[holdingSlug]/benefits/route');
+  const read=(id?:string)=>GET(new Request(`https://acme.example.com/api/v1/holdings/acme/benefits${id?`?id=${id}`:''}`),{params:Promise.resolve({holdingSlug:'acme'})});
+  for(const response of [await read(),await read('election-owner')]){
+   expect(response.status).toBe(503);
+   expect((await response.json()).error).toMatchObject({code:'NATIVE_BENEFITS_UNAVAILABLE'});
+  }
  });
 
  it('keeps origin, idempotency and registered entity guards ahead of the native owner',async()=>{

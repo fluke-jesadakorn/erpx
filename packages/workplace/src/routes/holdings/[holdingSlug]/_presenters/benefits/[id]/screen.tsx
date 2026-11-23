@@ -4,7 +4,7 @@ import { RecordDocumentPanel } from "@erpx/feature-records/components/loaders/at
 import { BenefitsConsole } from "@erpx/feature-records/components/loaders/modules--benefits-console";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { publicScope, requireWorkContext } from "@erpx/server-identity_access/public/authorization";
-import { benefitDetail } from "@erpx/server-benefits/public/benefits";
+import { nativeBenefitDetail } from "@erpx/feature-benefits/public/native-benefits-workspace-page";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { PageContent, Card } from "@erpx/ui/components/foundation";
 
@@ -18,7 +18,7 @@ export default async function Page({
   const { holdingSlug, id } = await params;
   const actor = await requireWorkContext(holdingSlug);
   const base = workspaceBase(publicScope(actor));
-  const data = await benefitDetail(actor, id).catch((error) =>
+  const data = await nativeBenefitDetail(actor, id).catch((error) =>
     pageError(error, holdingSlug),
   );
   const election = data.election;

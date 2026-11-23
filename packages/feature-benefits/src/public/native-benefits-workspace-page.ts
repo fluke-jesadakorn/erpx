@@ -2,18 +2,16 @@ import 'server-only';
 import { headers } from 'next/headers';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import { ApiError } from '@erpx/server-runtime/public/http';
-import type {
-  benefitDetail as retainedBenefitDetail,
-  benefitsWorkspace as retainedBenefitsWorkspace,
-} from '@erpx/server-benefits/public/benefits';
 import {
   createNativeBenefitsClient,
   nativeBenefitsAvailable,
   nativeBenefitsConfiguration,
   NativeBenefitsError,
   type NativeBenefitCommandReceipt,
+  type NativeBenefitDetail,
   type NativeBenefitsPageContext,
   type NativeBenefitsReadInput,
+  type NativeBenefitsWorkspace,
 } from './native-benefits-workspace';
 import { createNextNativeBenefitsWorkspaceReader } from '../adapters/server/next-native-benefits-workspace';
 
@@ -21,6 +19,7 @@ export { nativeBenefitsAvailable };
 export type {
   NativeBenefitCommandReceipt,
   NativeBenefitDependent,
+  NativeBenefitDetail,
   NativeBenefitElection,
   NativeBenefitPlan,
   NativeBenefitWindow,
@@ -29,11 +28,11 @@ export type {
   NativeBenefitsWorkspace,
 } from './native-benefits-workspace';
 
-/** The native read must retain the exact retained workspace wire shape. */
-export type NativeBenefitsWorkspaceResult = Awaited<ReturnType<typeof retainedBenefitsWorkspace>>;
+/** The native read is the sole workspace authority; no TypeScript reader remains. */
+export type NativeBenefitsWorkspaceResult = NativeBenefitsWorkspace;
 
-/** The native detail must retain the exact retained detail wire shape. */
-export type NativeBenefitDetailResult = Awaited<ReturnType<typeof retainedBenefitDetail>>;
+/** The native detail is the sole detail authority; no TypeScript reader remains. */
+export type NativeBenefitDetailResult = NativeBenefitDetail;
 
 /** Retained WorkContext render input; the native owner still re-checks scope. */
 export function nativeBenefitsPageContext(actor: WorkContext): NativeBenefitsPageContext {
@@ -75,22 +74,21 @@ function scope(actor: NativeBenefitsPageContext) {
 
 function client() {
   const raw = process.env.ERPX_NATIVE_BENEFITS_CONFIG;
-  if (raw === undefined) return undefined;
+  if (raw === undefined) throw new NativeBenefitsError('NATIVE_BENEFITS_CONFIGURATION_INVALID');
   return createNativeBenefitsClient(nativeBenefitsConfiguration(raw));
 }
 
 /**
- * Native Benefits enrollment workspace. An unset configuration retains the
- * TypeScript workspace; once configured, an invalid or failed native read is
- * surfaced and never silently replaced.
+ * Native Benefits enrollment workspace. The native owner is the sole authority;
+ * an unset, invalid or failed native read fails closed instead of falling back
+ * to a TypeScript reader.
  */
 export async function nativeBenefitsWorkspace(
   actor: WorkContext,
   personal = false,
-): Promise<NativeBenefitsWorkspaceResult | undefined> {
+): Promise<NativeBenefitsWorkspaceResult> {
   try {
     const native = client();
-    if (!native) return undefined;
     const pageContext = nativeBenefitsPageContext(actor);
     const input: NativeBenefitsReadInput = {
       holdingSlug: actor.holdingSlug,
@@ -109,17 +107,16 @@ export async function nativeBenefitsWorkspace(
 }
 
 /**
- * Native Benefits election detail. An unset configuration retains the
- * TypeScript detail; once configured, an invalid or failed native read is
- * surfaced and never silently replaced.
+ * Native Benefits election detail. The native owner is the sole authority; an
+ * unset, invalid or failed native read fails closed instead of falling back to
+ * a TypeScript reader.
  */
 export async function nativeBenefitDetail(
   actor: WorkContext,
   id: string,
-): Promise<NativeBenefitDetailResult | undefined> {
+): Promise<NativeBenefitDetailResult> {
   try {
     const native = client();
-    if (!native) return undefined;
     const pageContext = nativeBenefitsPageContext(actor);
     const input: NativeBenefitsReadInput = {
       holdingSlug: actor.holdingSlug,
@@ -127,12 +124,7 @@ export async function nativeBenefitDetail(
       ...scope(pageContext),
       expected: expected(pageContext),
     };
-    return (await native.detail(
-      await headers(),
-      pageContext,
-      input,
-      id,
-    )) as NativeBenefitDetailResult;
+    return await native.detail(await headers(), pageContext, input, id);
   } catch (error) {
     const failure = nativeBenefitsFailure(error);
     if (failure) throw new ApiError(failure.status, failure.code, failure.message);
@@ -140,17 +132,16 @@ export async function nativeBenefitDetail(
   }
 }
 
-/** Native command path. Unset configuration retains the TypeScript command;
- * once configured, an invalid or failed native command is surfaced. */
+/** Native command path. The native owner is the sole authority; an unset,
+ * invalid or failed native command fails closed. */
 export async function nativeBenefitCommand(
   actor: WorkContext,
   body: unknown,
   key: string,
   incoming: Pick<Headers, 'get'>,
-): Promise<NativeBenefitCommandReceipt | undefined> {
+): Promise<NativeBenefitCommandReceipt> {
   try {
     const native = client();
-    if (!native) return undefined;
     return await native.command(incoming, nativeBenefitsPageContext(actor), body, key);
   } catch (error) {
     const failure = nativeBenefitsFailure(error);

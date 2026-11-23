@@ -5,7 +5,6 @@ import { RecordCatalog } from "@erpx/feature-records/components/record-catalog";
 import { BenefitsConsole } from "@erpx/feature-benefits/components/benefits-console";
 import { ListFilters } from "@erpx/ui/components/list-filters";
 import { requireWorkContext, publicScope } from "@erpx/server-identity_access/public/authorization";
-import { benefitsWorkspace } from "@erpx/server-benefits/public/benefits";
 import { nativeBenefitsWorkspace } from "@erpx/feature-benefits/public/native-benefits-workspace-page";
 import { pageError } from "@erpx/server-work_projection/public/page-error";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
@@ -21,7 +20,7 @@ export default async function Benefits({ params, searchParams }: {
     const { holdingSlug } = await params, actor = await requireWorkContext(holdingSlug), base = workspaceBase(publicScope(actor)), query = await searchParams, view = "plans";
     if (!sectionWorkspaceTopics.benefits.some(topic => topic.id === view))
         notFound();
-    const data = await nativeBenefitsWorkspace(actor, false).catch(error => pageError(error, holdingSlug)) ?? await benefitsWorkspace(actor, false).catch(error => pageError(error, holdingSlug)), term = typeof query.q === 'string' ? query.q : '';
+    const data = await nativeBenefitsWorkspace(actor, false).catch(error => pageError(error, holdingSlug)), term = typeof query.q === 'string' ? query.q : '';
     const matches = (value: unknown) => String(value ?? '').toLocaleLowerCase().includes(term.toLocaleLowerCase());
     return <SectionWorkspace title="Benefits" selected={view} items={workspaceTopicLinks(base, query, sectionWorkspaceTopics.benefits)} context={'Plans and enrollment windows'}>
  <ListFilters appearance="standard" action={canonicalUiHref(`${base}/benefits?view=${view}`)} query={term} placeholder="Search this view" preserve={workspaceSearchContext(query, { view })}/>

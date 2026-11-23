@@ -137,6 +137,79 @@ export type NativeBenefitsWorkspace = Readonly<{
   purchase?: NativeBenefitsPurchaseControls;
 }>;
 
+export type NativeBenefitElectionEvent = Readonly<{
+  id: string;
+  election_id: string;
+  version: number;
+  action: string;
+  actor_id: string;
+  reason: string;
+  status: string;
+  created_at: number;
+}>;
+
+export type NativeBenefitPayrollInput = Readonly<{
+  id: string;
+  election_id: string;
+  company_id: string;
+  person_id: string;
+  engagement_id: string;
+  currency: string;
+  employee_deduction_minor: number;
+  employer_cost_minor: number;
+  effective_from: string;
+  effective_to: string | null;
+  source_election_version: number;
+  status: string;
+  released_by: string | null;
+  created_at: number;
+}>;
+
+export type NativeBenefitDetailElection = Readonly<{
+  id: string;
+  company_id: string;
+  person_id: string;
+  engagement_id: string;
+  plan_id: string;
+  plan_name: string;
+  employee_name: string;
+  plan_version: number;
+  plan_current_version: number;
+  plan_status: string;
+  window_id: string;
+  window_version: number;
+  coverage_type: string;
+  dependent_ids: string[];
+  currency: string;
+  employee_deduction_minor: number;
+  employer_cost_minor: number;
+  effective_from: string;
+  effective_to: string | null;
+  status: string;
+  created_by: string;
+  submitted_by: string | null;
+  provider_reference: string | null;
+  acknowledged_by: string | null;
+  released_by: string | null;
+  version: number;
+  created_at: number;
+  updated_at: number;
+}>;
+
+/** Exact native election-detail wire shape; the Rust owner re-validates scope. */
+export type NativeBenefitDetail = Readonly<{
+  election: NativeBenefitDetailElection;
+  history: NativeBenefitElectionEvent[];
+  payroll: NativeBenefitPayrollInput | null;
+  canReview: boolean;
+  canManageDocuments: boolean;
+  isOwner: boolean;
+  actorId: string;
+  canWrite: boolean;
+  workContext: string;
+  purchase?: NativeBenefitsPurchaseControls;
+}>;
+
 export type NativeBenefitCommandReceipt = Readonly<{
   id: string;
   status: string;
@@ -797,7 +870,7 @@ export function createNativeBenefitsClient(
     input: NativeBenefitsReadInput,
     id: string,
     signal?: AbortSignal,
-  ): Promise<unknown> => {
+  ): Promise<NativeBenefitDetail> => {
     if (!actor.authority || !actor.iam || actor.holdingSlug !== input.holdingSlug)
       return failure('NATIVE_BENEFITS_CONTEXT_CHANGED');
     if (!detailId(id)) return failure('NATIVE_BENEFITS_REQUEST_INVALID');
@@ -820,7 +893,7 @@ export function createNativeBenefitsClient(
     if (!exact(value, ['data', 'context']))
       return failure('NATIVE_BENEFITS_RESPONSE_INVALID');
     context(value.context, actor, input);
-    return value.data;
+    return value.data as NativeBenefitDetail;
   };
   const command = async (
     incoming: Pick<Headers, 'get'>,

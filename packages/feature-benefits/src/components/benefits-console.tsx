@@ -3,7 +3,7 @@ import {useState,type ReactNode} from 'react';
 import {Button,Field,Select,TextArea,TextInput,InlineNotice,FormLayout} from '@erpx/ui/components/foundation';
 import {AttachmentPanel,type AttachmentPanelChange} from '@erpx/feature-files/components/attachment-panel';
 import {RecordDocumentPanel} from '@erpx/feature-files/components/record-document-panel';
-import type {benefitDetail,benefitsWorkspace} from '@erpx/server-benefits/public/benefits';
+import type {NativeBenefitDetail,NativeBenefitsWorkspace} from '@erpx/feature-benefits/public/native-benefits-workspace-page';
 import {benefitActionAllowed,type BenefitPresentation} from '@erpx/feature-benefits/lib/presentation';
 import type {BenefitKind} from '@erpx/feature-benefits/lib/command';
 import {BenefitDraftBoundary} from '@erpx/feature-benefits/components/benefit-draft-boundary';
@@ -11,7 +11,7 @@ import {BenefitEditor} from '@erpx/feature-benefits/components/benefit-editor';
 import {BenefitCommandFeedback} from '@erpx/feature-benefits/components/benefit-command-feedback';
 import {useBenefitCommand} from '@erpx/feature-benefits/components/use-benefit-command';
 type Command=ReturnType<typeof useBenefitCommand>;
-type Row=Record<string,string|number|null>;
+type Row=Record<string,unknown>;
 const labels:Record<string,string>={publish:'Publish plan',reject:'Reject',retire:'Retire plan',open:'Open window',close:'Close window',cancel:'Cancel',verify:'Verify dependent',remove:'Remove dependent',submit:'Submit election',acknowledge:'Record provider acknowledgement',release:'Release payroll input'};
 function Transition({base,view,command,kind,row,action,canManageDocuments}:{base:string;view:BenefitPresentation;command:Command;kind:BenefitKind;row:Row;action:string;canManageDocuments:boolean}){
  const [files,setFiles]=useState<AttachmentPanelChange|null>(null),input={entity:kind,id:row.id,action,expectedVersion:Number(row.version)};
@@ -25,8 +25,8 @@ function Transition({base,view,command,kind,row,action,canManageDocuments}:{base
   <Button appearance="standard" clientManaged type="submit" variant="primary" disabled={blocked}>{labels[action]}</Button>
  </FormLayout></BenefitEditor>;
 }
-export function BenefitsConsole({recordOnly=false,section,embedded=false,base,data,detail}:{recordOnly?:boolean;section?:'plans'|'enrollments';embedded?:boolean;base:string;data?:Awaited<ReturnType<typeof benefitsWorkspace>>;detail?:Awaited<ReturnType<typeof benefitDetail>>}){
- const source=data??detail,view:BenefitPresentation={actorId:source?.actorId??'',canWrite:source?.canWrite??false,canReview:source?.canReview??false,purchase:source?.purchase,plans:data?.plans,windows:data?.windows,dependents:data?.dependents,election:detail?.election,isOwner:detail?.isOwner},command=useBenefitCommand(base,view,source?.workContext??'unavailable'),newWork=!source?.purchase||source.purchase.newWork,settleExisting=!source?.purchase||source.purchase.settleExisting,blocked=command.busy||!!command.retryAttempt||!!command.savedDraft;
+export function BenefitsConsole({recordOnly=false,section,embedded=false,base,data,detail}:{recordOnly?:boolean;section?:'plans'|'enrollments';embedded?:boolean;base:string;data?:NativeBenefitsWorkspace;detail?:NativeBenefitDetail}){
+ const source=data??detail,view:BenefitPresentation={actorId:source?.actorId??'',canWrite:source?.canWrite??false,canReview:source?.canReview??false,purchase:source?.purchase,plans:data?.plans,windows:data?.windows,dependents:data?.dependents,election:detail?.election as never,isOwner:detail?.isOwner},command=useBenefitCommand(base,view,source?.workContext??'unavailable'),newWork=!source?.purchase||source.purchase.newWork,settleExisting=!source?.purchase||source.purchase.settleExisting,blocked=command.busy||!!command.retryAttempt||!!command.savedDraft;
  const editor=(title:string,children:ReactNode)=><BenefitEditor title={title} busy={command.busy} recovery={<BenefitCommandFeedback command={command} view={view}/>} error={command.error}>{children}</BenefitEditor>;
  const rows=(kind:BenefitKind,values:Row[],actions:string[])=>values.map(row=><div key={`${kind}:${row.id}`} className="ui-stack">{actions.map(action=><Transition key={`${row.id}:${action}`} base={base} view={view} command={command} kind={kind} row={row} action={action} canManageDocuments={source?.canManageDocuments??false}/>)}</div>);
  return <BenefitDraftBoundary dirty={!!command.retryAttempt||!!command.savedDraft}><div className="ui-stack" data-owner-embedded={embedded||undefined}>
