@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6917,
+    "revision": 6921,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -119790,7 +119790,7 @@
         "owner": "manufacturing",
         "title": "manufacturing TS read tail native cutover (round 1)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -119802,22 +119802,42 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wATman",
-          "claimedAt": "2026-11-23T21:14:34.916Z",
-          "heartbeatAt": "2026-11-23T21:33:35.449Z",
-          "expiresAt": "2026-11-23T22:03:35.449Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-manufacturing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b51f5387d",
+            "owner": "manufacturing",
+            "before": 153,
+            "after": 152,
+            "note": "Latest report-actor projection consolidated; live reads preserved."
+          },
+          {
+            "command": "cargo check -p erpx-server-manufacturing + lib (24)",
+            "result": "passed",
+            "sourceSha": "b51f5387d"
+          },
+          {
+            "command": "vitest native-manufacturing-bom-transport (11) + tsc manufacturing",
+            "result": "passed",
+            "sourceSha": "b51f5387d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest owner-local fixed-SQL read family not covered by the read-plan registry; switch and delete redundant TS SQL; record a strictly lower count. Do not replace live planning/records reads with fail-closed markers.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wATman",
+          "at": "2026-11-23T21:37:29.424Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -120345,6 +120365,42 @@
         "nextAction": "Pick the smallest owner-local fixed-SQL read family; dedupe executive metric branch/department label subqueries or another fixed family; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.manufacturing.read-tail-r2",
+        "goalId": "G4",
+        "owner": "manufacturing",
+        "title": "manufacturing TS read tail native cutover (round 2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-manufacturing/src/**",
+          "tests/unit/manufacturing/**",
+          "tests/integration/manufacturing/**"
+        ],
+        "resources": [
+          "owner:manufacturing"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wB4man",
+          "claimedAt": "2026-11-23T21:37:29.591Z",
+          "heartbeatAt": "2026-11-23T21:37:29.591Z",
+          "expiresAt": "2026-11-23T22:07:29.591Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local fixed-SQL read family outside the RD_* registry; dedupe or switch without fail-closed live-read replacement; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -120353,7 +120409,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 574,
+      "totalPackets": 575,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -120361,13 +120417,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 206,
+        "blocked": 207,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T21:36:01.950Z",
+    "updatedAt": "2026-11-23T21:37:29.594Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
