@@ -1,5 +1,5 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
-import { nativePosSaleByIdStatement } from './native-pos-core-statement';
+import { nativePosPostingJournalStatement, nativePosSaleByIdStatement } from './native-pos-core-statement';
 import{secret,stripeRequest}from '@erpx/server-pos/adapters/stripe-provider';
 import {posStripeBindingFacts} from "@erpx/server-runtime/public/pos-stripe-binding-facts";
 import 'server-only';
@@ -212,7 +212,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
         }) => one(db, "SELECT state FROM pos_settlements WHERE account_id=? AND livemode=? AND kind='balance' AND provider_id=?", facts.account_id, facts.livemode, facts.fact2),
         readPosPostings1: (facts: {
             fact0: string;
-        }) => one(db, 'SELECT journal_id FROM pos_postings WHERE source_key=?', facts.fact0),
+        }) => nativePosPostingJournalStatement(db, facts.fact0),
         readPosSettlements3: (facts: {
             company_id: string | number | boolean | null;
             account_id: string | number | boolean | null;

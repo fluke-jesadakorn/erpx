@@ -75,3 +75,16 @@ export async function nativePosSaleByIdStatement(db: SqlDatabase, saleId: unknow
 export async function nativePosSettingsCurrencyStatement(db: SqlDatabase, company: string): Promise<SqlValueRow | null> {
   return nativePosOne(db, company, 'core_readpossettingscurrency_522', [company]);
 }
+
+/**
+ * Owner-issued posting-journal id read. The SQL lives in the native POS owner
+ * registry (`erpx-server-pos::adapters::owner_writes`, kind
+ * `core_readpospostingsjournal_523`); this bridge sends only the typed kind and
+ * the posting source key. It replaces the two byte-identical journal-id row
+ * literals in `pos-core.ts` and `pos-stripe.ts`, so no local SQL, mirror or
+ * fallback remains. The read is scoped by source key alone; no actor/Company
+ * threading is required.
+ */
+export async function nativePosPostingJournalStatement(db: SqlDatabase, sourceKey: unknown): Promise<SqlValueRow | null> {
+  return nativePosOne(db, '', 'core_readpospostingsjournal_523', [sourceKey]);
+}

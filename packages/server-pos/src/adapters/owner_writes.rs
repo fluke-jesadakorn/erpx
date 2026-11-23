@@ -85,6 +85,11 @@ pub const CORE_READPOSSALESBYID_521: &str = "core_readpossalesbyid_521";
 /// `SELECT currency FROM pos_settings WHERE company_id=?` literals in
 /// `pos-daily.ts`. Read-only caller-transaction `SELECT` scoped by Company.
 pub const CORE_READPOSSETTINGSCURRENCY_522: &str = "core_readpossettingscurrency_522";
+/// Posting-journal id read retired from the two byte-identical
+/// `SELECT journal_id FROM pos_postings WHERE source_key=?` literals in
+/// `pos-core.ts` and `pos-stripe.ts`. Read-only caller-transaction `SELECT`
+/// scoped by the posting source key; no actor/Company threading is required.
+pub const CORE_READPOSPOSTINGSJOURNAL_523: &str = "core_readpospostingsjournal_523";
 pub const STRIPE_WRITEPOSSTRIPEEVENTS1_49: &str = "stripe_writeposstripeevents1_49";
 pub const STRIPE_WRITEPOSSTRIPEEVENTS2_53: &str = "stripe_writeposstripeevents2_53";
 pub const STRIPE_WRITEPOSCONNECTIONHISTORY1_58: &str = "stripe_writeposconnectionhistory1_58";
@@ -179,6 +184,7 @@ pub const KINDS: &[&str] = &[
     CORE_READPOSSALES3_520,
     CORE_READPOSSALESBYID_521,
     CORE_READPOSSETTINGSCURRENCY_522,
+    CORE_READPOSPOSTINGSJOURNAL_523,
     STRIPE_WRITEPOSSTRIPEEVENTS1_49,
     STRIPE_WRITEPOSSTRIPEEVENTS2_53,
     STRIPE_WRITEPOSCONNECTIONHISTORY1_58,
@@ -320,6 +326,7 @@ fn sql(kind: &str) -> Option<&'static str> {
      AND s.business_date BETWEEN ? AND ? AND s.state='completed' LIMIT 1"#,
         CORE_READPOSSALESBYID_521 => r#"SELECT * FROM pos_sales WHERE id=?"#,
         CORE_READPOSSETTINGSCURRENCY_522 => r#"SELECT currency FROM pos_settings WHERE company_id=?"#,
+        CORE_READPOSPOSTINGSJOURNAL_523 => r#"SELECT journal_id FROM pos_postings WHERE source_key=?"#,
         STRIPE_WRITEPOSSTRIPEEVENTS1_49 => r#"INSERT INTO pos_stripe_events(id,account_id,livemode,company_id,event_type,payload_json,received_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING"#,
         STRIPE_WRITEPOSSTRIPEEVENTS2_53 => r#"UPDATE pos_stripe_events SET provider_created_at=COALESCE(provider_created_at,?) WHERE id=?"#,
         STRIPE_WRITEPOSCONNECTIONHISTORY1_58 => r#"INSERT INTO pos_connection_history VALUES(?,?,?) ON CONFLICT DO NOTHING"#,
@@ -419,7 +426,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 115);
+        assert_eq!(KINDS.len(), 116);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -523,6 +530,22 @@ mod tests {
         }
         assert_eq!(stmt.matches('?').count(), 1, "currency read carries only the Company");
         assert_eq!(stmt, "SELECT currency FROM pos_settings WHERE company_id=?");
+    }
+
+    /// The retired posting-journal id read is a SELECT-only owner statement. Its
+    /// SQL is byte-identical to the two deleted `SELECT journal_id FROM
+    /// pos_postings WHERE source_key=?` literals in `pos-core.ts`/`pos-stripe.ts`;
+    /// this kind is the sole authority and every TypeScript copy was removed.
+    #[test]
+    fn posting_journal_read_kind_is_select_only() {
+        assert!(supported(CORE_READPOSPOSTINGSJOURNAL_523));
+        let stmt = sql(CORE_READPOSPOSTINGSJOURNAL_523).unwrap();
+        assert!(stmt.starts_with("SELECT "), "posting-journal read kind must be SELECT-only");
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+            assert!(!stmt.contains(forbidden), "posting-journal read kind must not mutate: {forbidden}");
+        }
+        assert_eq!(stmt.matches('?').count(), 1, "posting-journal read carries only the source key");
+        assert_eq!(stmt, "SELECT journal_id FROM pos_postings WHERE source_key=?");
     }
 
     /// The retired purchase-boundary reads are SELECT-only owner statements.

@@ -1,5 +1,5 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
-import { nativePosSaleByIdStatement } from './native-pos-core-statement';
+import { nativePosPostingJournalStatement, nativePosSaleByIdStatement } from './native-pos-core-statement';
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
 import { hospitalityOwnerProjectionSources as pmsProjectionSources } from "@erpx/server-pms/public/hospitality-owner-projection-sources";
 import 'server-only';
@@ -53,7 +53,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         readFinancePeriods1: facts => posCoreFinanceFacts(db).readFinancePeriods1(facts),
         readPosPostings1: (facts: {
             sourceKey: string;
-        }) => one(db, 'SELECT journal_id FROM pos_postings WHERE source_key=?', facts.sourceKey),
+        }) => nativePosPostingJournalStatement(db, facts.sourceKey),
         readFinanceCharts1: facts => posCoreFinanceFacts(db).readFinanceCharts1(facts),
         readFinanceAccounts1: facts => posCoreFinanceFacts(db).readFinanceAccounts1(facts),
         writeFinanceJournals1: facts => posCoreFinanceFacts(db).writeFinanceJournals1(facts),
