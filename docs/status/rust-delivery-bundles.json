@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6463,
+    "revision": 6468,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-f",
       "agentId": "lead",
       "startedAt": "2026-11-23T16:54:33.142Z",
-      "heartbeatAt": "2026-11-23T18:18:19.162Z",
-      "expiresAt": "2026-11-23T18:48:19.162Z",
+      "heartbeatAt": "2026-11-23T18:20:09.070Z",
+      "expiresAt": "2026-11-23T18:50:09.070Z",
       "generation": 158,
       "tokenHash": "786b04e6db95d7a97c392a0b212dc2cfdd563bbd8cc6545681f5e6ff248eceaa"
     },
@@ -50671,8 +50671,8 @@
           "runId": "run-20261123-f",
           "agentId": "wN01",
           "claimedAt": "2026-11-23T18:15:53.634Z",
-          "heartbeatAt": "2026-11-23T18:18:19.162Z",
-          "expiresAt": "2026-11-23T18:48:19.162Z",
+          "heartbeatAt": "2026-11-23T18:20:09.070Z",
+          "expiresAt": "2026-11-23T18:50:09.070Z",
           "generation": 158
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -51225,8 +51225,8 @@
           "runId": "run-20261123-f",
           "agentId": "wM02",
           "claimedAt": "2026-11-23T18:11:26.006Z",
-          "heartbeatAt": "2026-11-23T18:18:19.162Z",
-          "expiresAt": "2026-11-23T18:48:19.162Z",
+          "heartbeatAt": "2026-11-23T18:20:09.070Z",
+          "expiresAt": "2026-11-23T18:50:09.070Z",
           "generation": 158
         },
         "baseSha": null,
@@ -109992,8 +109992,8 @@
           "runId": "run-20261123-f",
           "agentId": "wP01",
           "claimedAt": "2026-11-23T18:17:54.008Z",
-          "heartbeatAt": "2026-11-23T18:18:19.162Z",
-          "expiresAt": "2026-11-23T18:48:19.162Z",
+          "heartbeatAt": "2026-11-23T18:20:09.070Z",
+          "expiresAt": "2026-11-23T18:50:09.070Z",
           "generation": 158
         },
         "baseSha": "d15bbdf7095f86bedb5c69bd0f4b297c357f0061",
@@ -110303,8 +110303,8 @@
           "runId": "run-20261123-f",
           "agentId": "wN02",
           "claimedAt": "2026-11-23T18:15:53.708Z",
-          "heartbeatAt": "2026-11-23T18:18:19.162Z",
-          "expiresAt": "2026-11-23T18:48:19.162Z",
+          "heartbeatAt": "2026-11-23T18:20:09.070Z",
+          "expiresAt": "2026-11-23T18:50:09.070Z",
           "generation": 158
         },
         "baseSha": "dbb5267714fb222c1665428fc0b7c9aec613e926",
@@ -113773,8 +113773,8 @@
           "runId": "run-20261123-f",
           "agentId": "wJ01",
           "claimedAt": "2026-11-23T17:50:16.881Z",
-          "heartbeatAt": "2026-11-23T18:18:19.162Z",
-          "expiresAt": "2026-11-23T18:48:19.162Z",
+          "heartbeatAt": "2026-11-23T18:20:09.070Z",
+          "expiresAt": "2026-11-23T18:50:09.070Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113981,8 +113981,8 @@
           "runId": "run-20261123-f",
           "agentId": "wL01",
           "claimedAt": "2026-11-23T17:59:54.357Z",
-          "heartbeatAt": "2026-11-23T18:18:19.162Z",
-          "expiresAt": "2026-11-23T18:48:19.162Z",
+          "heartbeatAt": "2026-11-23T18:20:09.070Z",
+          "expiresAt": "2026-11-23T18:50:09.070Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114269,8 +114269,8 @@
           "runId": "run-20261123-f",
           "agentId": "wN03",
           "claimedAt": "2026-11-23T18:15:53.785Z",
-          "heartbeatAt": "2026-11-23T18:18:19.162Z",
-          "expiresAt": "2026-11-23T18:48:19.162Z",
+          "heartbeatAt": "2026-11-23T18:20:09.070Z",
+          "expiresAt": "2026-11-23T18:50:09.070Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114282,6 +114282,87 @@
         "nextAction": "Port hotelMetrics SQL exactly into domain/application/adapter/public with unit + PG parity tests. No HTTP/composition; no KPI delta yet.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.identity.gpo-overview-extension",
+        "goalId": "G3",
+        "owner": "identity_access",
+        "title": "Extend native GPO overview + not-required command (owner-side)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/domain/position_gpo.rs",
+          "packages/server-identity_access/src/application/position_gpo.rs",
+          "packages/server-identity_access/src/adapters/position_gpo_postgres.rs",
+          "packages/server-identity_access/src/adapters/position_gpo_http.rs",
+          "packages/server-identity_access/src/public/position_gpo.rs",
+          "packages/server-identity_access/src/public/position_gpo_http.rs",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wQ01",
+          "claimedAt": "2026-11-23T18:19:54.104Z",
+          "heartbeatAt": "2026-11-23T18:20:09.070Z",
+          "expiresAt": "2026-11-23T18:50:09.070Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Extend overview to rules/effectiveByPosition/tasks/canManage with branch/department scope and read authority parity; add not-required command kind + guards; tests",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.support.incident-read-port",
+        "goalId": "G4",
+        "owner": "support",
+        "title": "Native support incident detail/read port for TS consumers",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-support/src/adapters/incident.rs",
+          "packages/server-support/src/application/incident.rs",
+          "packages/server-support/src/public/incident.rs",
+          "packages/server-support/src/adapters/support-incident-read.rs",
+          "packages/server-support/src/public/support-incident-read.ts",
+          "tests/unit/support/**",
+          "tests/integration/support/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wQ02",
+          "claimedAt": "2026-11-23T18:19:54.191Z",
+          "heartbeatAt": "2026-11-23T18:20:09.070Z",
+          "expiresAt": "2026-11-23T18:50:09.070Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Expose native get_incident by-id read (hold fields for notifications/executive/work items) and a bounded TS client; tests. Consumer switches follow.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -114290,11 +114371,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 480,
+      "totalPackets": 482,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 24,
-        "in_progress": 6,
+        "in_progress": 8,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -114304,7 +114385,7 @@
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T18:18:19.164Z",
+    "updatedAt": "2026-11-23T18:20:09.072Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
