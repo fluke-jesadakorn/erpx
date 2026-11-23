@@ -5,6 +5,7 @@ pub(crate) mod commands_http;
 pub(crate) mod day_close;
 pub(crate) mod day_close_http;
 pub(crate) mod day_control_reads;
+pub(crate) mod attachment_read_sources;
 pub(crate) mod boundary_reads;
 pub(crate) mod core_reads;
 pub(crate) mod obligation_reads;

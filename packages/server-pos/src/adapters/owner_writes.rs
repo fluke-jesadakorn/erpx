@@ -231,6 +231,11 @@ pub const KINDS: &[&str] = &[
     crate::adapters::obligation_reads::ADDON_HOTEL,
     crate::adapters::obligation_reads::PACKAGE,
     crate::adapters::obligation_reads::PMS_PACKAGE,
+    // POS attachment source read kinds: closed, SELECT-only owner statements
+    // that the TypeScript attachment source bridge requests on the caller's unit.
+    crate::adapters::attachment_read_sources::POS_SALE,
+    crate::adapters::attachment_read_sources::POS_REFUND,
+    crate::adapters::attachment_read_sources::POS_SHIFT,
 ];
 
 pub fn supported(kind: &str) -> bool { KINDS.contains(&kind) }
@@ -342,6 +347,10 @@ fn sql(kind: &str) -> Option<&'static str> {
         // dedicated module shared with the integration parity oracle.
         kind if crate::adapters::obligation_reads::supported(kind) =>
             return crate::adapters::obligation_reads::sql(kind),
+        // Attachment source reads: authoritative owner SQL lives in the
+        // dedicated module shared with the integration parity oracle.
+        kind if crate::adapters::attachment_read_sources::supported(kind) =>
+            return crate::adapters::attachment_read_sources::sql(kind),
         _ => return None,
     })
 }
@@ -386,7 +395,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 109);
+        assert_eq!(KINDS.len(), 112);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));

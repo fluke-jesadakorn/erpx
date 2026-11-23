@@ -9,6 +9,7 @@
 //! then executes the owner SQL on a seeded database so an invalid SQL shape
 //! cannot pass as "ported".
 use erpx_server_pos::public::boundary_reads as mounted;
+use erpx_server_pos::public::attachment_read_sources as attachment;
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row, postgres::PgConnectOptions};
 use std::str::FromStr;
 
@@ -223,5 +224,46 @@ fn boundary_read_statements_execute_on_postgres() {
         assert_eq!(replay.matches('?').count(), 2);
         assert!(first_col(&mut connection, replay, &["receipt", "company"]).await.is_some());
         assert!(first_col(&mut connection, replay, &["missing", "company"]).await.is_none());
+    });
+}
+
+/// `attachment-read-sources.ts` reconstructed verbatim: one closed literal per
+/// original owner kind, with the table fixed by the allow-listed kind only.
+fn legacy_attachment_sql(kind: &str) -> Option<&'static str> {
+    Some(match kind {
+        "pos_attachment_source_pos_sale" => "SELECT to_jsonb(source)::text image FROM pos_sales source WHERE source.id=? AND source.company_id=?",
+        "pos_attachment_source_pos_refund" => "SELECT to_jsonb(source)::text image FROM pos_refunds source WHERE source.id=? AND source.company_id=?",
+        "pos_attachment_source_pos_shift" => "SELECT to_jsonb(source)::text image FROM pos_shifts source WHERE source.id=? AND source.company_id=?",
+        _ => return None,
+    })
+}
+
+#[test]
+fn attachment_source_read_kinds_are_mounted_and_execute_on_postgres() {
+    const KINDS: &[&str] = &[
+        "pos_attachment_source_pos_sale",
+        "pos_attachment_source_pos_refund",
+        "pos_attachment_source_pos_shift",
+    ];
+    assert_eq!(attachment::KINDS, KINDS);
+    for kind in KINDS {
+        assert!(attachment::supported(kind), "attachment kind must be mounted: {kind}");
+        let sql = attachment::sql(kind).unwrap();
+        assert!(sql.starts_with("SELECT "), "kind must be SELECT-only: {kind}");
+        assert_eq!(sql.matches('?').count(), 2, "kind must carry id/Company scope: {kind}");
+        assert_eq!(sql, legacy_attachment_sql(kind).unwrap(), "mounted SQL drifted for {kind}");
+    }
+    assert!(attachment::sql("pos_attachment_source_unlisted").is_none());
+    with_database(|mut connection| async move {
+        let cases: &[(&str, &str)] = &[
+            ("pos_attachment_source_pos_sale", "sale"),
+            ("pos_attachment_source_pos_refund", "refund"),
+            ("pos_attachment_source_pos_shift", "shift"),
+        ];
+        for (kind, source) in cases {
+            let sql = attachment::sql(kind).unwrap();
+            assert!(first_col(&mut connection, sql, &[source, "company"]).await.is_some(), "owner SQL result for {kind}");
+            assert!(first_col(&mut connection, sql, &[source, "other-company"]).await.is_none(), "Company fence for {kind}");
+        }
     });
 }

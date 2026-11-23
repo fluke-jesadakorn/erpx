@@ -9,6 +9,7 @@ pub mod record_source;
 pub mod day_close;
 pub mod day_close_http;
 pub mod day_control_reads;
+pub mod attachment_read_sources;
 pub mod boundary_reads;
 pub mod core_reads;
 pub mod obligation_reads;
