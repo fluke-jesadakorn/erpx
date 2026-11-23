@@ -307,6 +307,20 @@ const READ_ATTACHMENT_DESCRIPTOR_LOT: NativeStatement = NativeStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `commerce-attachment-sources`
+/// `commerceAttachmentStockSourceImage` read. Owner-local: it aggregates only
+/// Inventory's own reservation, allocation, lot and lot-balance tables, and the
+/// caller executes it on its already-open unit with the same four binds.
+pub const RD_COMMERCE_ATTACHMENT_STOCK_IMAGE: &str = "inventory_rd_commerce_attachment_stock_image";
+const SQL_RD_COMMERCE_ATTACHMENT_STOCK_IMAGE: &str = r#"WITH allocations AS MATERIALIZED(SELECT a.* FROM inventory_fulfillment_lot_allocations a WHERE a.fulfillment_line_id IN(SELECT jsonb_array_elements_text(?::jsonb))),lots AS MATERIALIZED(SELECT l.* FROM inventory_lots l WHERE l.company_id=? AND(l.id IN(SELECT lot_id FROM allocations) OR l.id IN(SELECT jsonb_array_elements_text(?::jsonb))))
+ SELECT jsonb_build_object('reservations',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM inventory_order_reservations r WHERE r.order_line_id IN(SELECT jsonb_array_elements_text(?::jsonb))),'allocations',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM allocations a),'lots',(SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id) FROM lots l),'balances',(SELECT jsonb_agg(to_jsonb(b) ORDER BY b.lot_id,b.warehouse_id) FROM inventory_lot_balances b JOIN lots l ON l.id=b.lot_id))::text image"#;
+const READ_COMMERCE_ATTACHMENT_STOCK_IMAGE: NativeStatement = NativeStatement {
+    kind: RD_COMMERCE_ATTACHMENT_STOCK_IMAGE,
+    sql: SQL_RD_COMMERCE_ATTACHMENT_STOCK_IMAGE,
+    bind_count: 4,
+    scope: "holding",
+};
+
 pub fn is_read(kind: &str) -> bool {
     matches!(
         kind,
@@ -326,6 +340,7 @@ pub fn is_read(kind: &str) -> bool {
             | RD_ATTACHMENT_DESCRIPTOR_TRANSFER
             | RD_ATTACHMENT_DESCRIPTOR_TRANSIT
             | RD_ATTACHMENT_DESCRIPTOR_LOT
+            | RD_COMMERCE_ATTACHMENT_STOCK_IMAGE
     )
 }
 
@@ -347,6 +362,7 @@ pub fn read_statement(kind: &str) -> Option<&'static NativeStatement> {
         RD_ATTACHMENT_DESCRIPTOR_TRANSFER => Some(&READ_ATTACHMENT_DESCRIPTOR_TRANSFER),
         RD_ATTACHMENT_DESCRIPTOR_TRANSIT => Some(&READ_ATTACHMENT_DESCRIPTOR_TRANSIT),
         RD_ATTACHMENT_DESCRIPTOR_LOT => Some(&READ_ATTACHMENT_DESCRIPTOR_LOT),
+        RD_COMMERCE_ATTACHMENT_STOCK_IMAGE => Some(&READ_COMMERCE_ATTACHMENT_STOCK_IMAGE),
         _ => None,
     }
 }
@@ -404,10 +420,12 @@ mod tests {
             RD_ATTACHMENT_DESCRIPTOR_TRANSFER,
             RD_ATTACHMENT_DESCRIPTOR_TRANSIT,
             RD_ATTACHMENT_DESCRIPTOR_LOT,
+            RD_COMMERCE_ATTACHMENT_STOCK_IMAGE,
         ] {
             assert!(is_read(kind));
             let read = read_statement(kind).expect("read kind");
-            assert!(read.sql.trim_start().starts_with("SELECT"), "{kind}");
+            let trimmed = read.sql.trim_start();
+            assert!(trimmed.starts_with("SELECT") || trimmed.starts_with("WITH"), "{kind}");
             assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
             assert_eq!(read.scope, "holding", "{kind}");
         }
@@ -545,6 +563,23 @@ mod tests {
             assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
             assert_eq!(read.scope, "holding", "{kind}");
         }
+    }
+
+    /// Parity witness for the owner-local `commerce-attachment-sources` stock
+    /// image: the native plan aggregates only Inventory's own reservation,
+    /// allocation, lot and lot-balance tables with the retired literal's four
+    /// caller-unit binds and `image` column alias.
+    #[test]
+    fn commerce_attachment_stock_image_plan_matches_retired_owner_statement() {
+        let read = read_statement(RD_COMMERCE_ATTACHMENT_STOCK_IMAGE).expect("read kind");
+        assert_eq!(read.bind_count, 4);
+        assert_eq!(read.sql.matches('?').count(), read.bind_count);
+        assert_eq!(read.scope, "holding");
+        assert!(read.sql.starts_with("WITH allocations AS MATERIALIZED(SELECT a.* FROM inventory_fulfillment_lot_allocations a"));
+        assert!(read.sql.contains("lots AS MATERIALIZED(SELECT l.* FROM inventory_lots l WHERE l.company_id=? AND(l.id IN(SELECT lot_id FROM allocations)"));
+        assert!(read.sql.contains("FROM inventory_order_reservations r WHERE r.order_line_id IN(SELECT jsonb_array_elements_text(?::jsonb))"));
+        assert!(read.sql.contains("FROM inventory_lot_balances b JOIN lots l ON l.id=b.lot_id))::text image"));
+        assert!(!read.sql.contains("commerce_"));
     }
 
     /// Parity witness: the native plan for the lot-balance supplement is the
