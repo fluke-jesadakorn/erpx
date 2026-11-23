@@ -5,6 +5,7 @@ pub(crate) mod commands_http;
 pub(crate) mod day_close;
 pub(crate) mod day_close_http;
 pub(crate) mod day_control_reads;
+pub(crate) mod boundary_reads;
 pub(crate) mod day_report_source;
 pub(crate) mod owner_writes;
 pub(crate) mod owner_writes_http;

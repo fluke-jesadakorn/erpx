@@ -9,6 +9,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { companyPurchaseReadLocks, checkPurchasedCapability, readPurchasedAccesses, purchaseCommandBoundary, purchaseCommandFailure,
   posPackageEnforcementMode, type PackageEnforcementMode } from "@erpx/server-commercial/public/purchase-command-boundary";
 import { posCommandPurchases, type PosProviderPurchase } from "@erpx/server-pos/domain/package-commands";
+import { nativePosOne } from "./native-owner-write";
 import { randomUUID } from "node:crypto";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import type { CapabilityPurpose } from "@erpx/server-commercial/public/packages";
@@ -25,6 +26,14 @@ export async function requirePosReportingPurchase(database: SqlDatabase, actor: 
   if (!Object.values(access).some(value => value.history)) throw new ApiError(403, "PACKAGE_REQUIRED", "This package does not permit POS reporting.");
 }
 
+/** Owner-issued purchase-boundary reads. The SQL for every kind is selected by
+ * the native POS owner registry (`erpx-server-pos::adapters::boundary_reads`) on
+ * the caller's transaction; only a typed kind and positional values cross this
+ * boundary. There is no TypeScript SQL, mirror or fallback here. */
+async function nativePosMode(database: SqlDatabase, companyId: string, kind: string, values: unknown[]) {
+  return (await nativePosOne<{ mode: string }>(database, companyId, kind, values))?.mode ?? null;
+}
+
 /** Derive add-on use from the actual owner record, never a client-supplied
  * service mode on an existing sale/payment/refund/shift. Company remains scoped. */
 async function restaurantWork(database: SqlDatabase, companyId: string, operation: string, input: unknown) {
@@ -35,16 +44,16 @@ async function restaurantWork(database: SqlDatabase, companyId: string, operatio
   if (operation.startsWith("kitchen.") || operation.startsWith("table.")) return true;
   const shiftId = typeof payload.shiftId === "string" ? payload.shiftId : "";
   const registerId = typeof payload.registerId === "string" ? payload.registerId : "";
-  const target = operation === "sale.create" ? database.prepare("SELECT r.mode FROM pos_shifts s JOIN pos_registers r ON r.id=s.register_id WHERE s.id=? AND s.company_id=?").bind(shiftId, companyId)
-    : operation === "shift.open" ? database.prepare("SELECT mode FROM pos_registers WHERE id=? AND company_id=?").bind(registerId, companyId)
-      : operation === "sale.add" ? database.prepare("SELECT CASE WHEN r.mode='restaurant' OR c.kind='recipe' THEN 'restaurant' ELSE r.mode END mode FROM pos_sales s JOIN pos_registers r ON r.id=s.register_id LEFT JOIN pos_catalog c ON c.product_id=? AND c.company_id=s.company_id WHERE s.id=? AND s.company_id=?").bind(typeof payload.productId === "string" ? payload.productId : "", id, companyId)
-        : operation.startsWith("sale.") || operation === "payment.create" || operation === "refund.request" ? database.prepare("SELECT CASE WHEN r.mode='restaurant' OR EXISTS(SELECT 1 FROM pos_lines l JOIN pos_fulfillments f ON f.id=l.fulfillment_id WHERE l.sale_id=s.id AND f.kind='recipe') THEN 'restaurant' ELSE r.mode END mode FROM pos_sales s JOIN pos_registers r ON r.id=s.register_id WHERE s.id=? AND s.company_id=?").bind(id, companyId)
-        : operation === "cash.approve" ? database.prepare("SELECT r.mode FROM pos_cash_movements m JOIN pos_shifts s ON s.id=m.shift_id JOIN pos_registers r ON r.id=s.register_id WHERE m.id=? AND s.company_id=?").bind(id, companyId)
-          : operation.startsWith("shift.") || operation === "cash.create" ? database.prepare("SELECT r.mode FROM pos_shifts s JOIN pos_registers r ON r.id=s.register_id WHERE s.id=? AND s.company_id=?").bind(id, companyId)
-            : operation.startsWith("payment.") ? database.prepare("SELECT r.mode FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id JOIN pos_registers r ON r.id=s.register_id WHERE p.id=? AND s.company_id=?").bind(id, companyId)
-              : operation.startsWith("refund.") ? database.prepare("SELECT r.mode FROM pos_refunds f JOIN pos_sales s ON s.id=f.sale_id JOIN pos_registers r ON r.id=s.register_id WHERE f.id=? AND s.company_id=?").bind(id, companyId)
+  const target = operation === "sale.create" ? nativePosMode(database, companyId, 'pos_boundary_sale_create_mode', [shiftId, companyId])
+    : operation === "shift.open" ? nativePosMode(database, companyId, 'pos_boundary_shift_open_mode', [registerId, companyId])
+      : operation === "sale.add" ? nativePosMode(database, companyId, 'pos_boundary_sale_add_mode', [typeof payload.productId === "string" ? payload.productId : "", id, companyId])
+        : operation.startsWith("sale.") || operation === "payment.create" || operation === "refund.request" ? nativePosMode(database, companyId, 'pos_boundary_sale_mode', [id, companyId])
+        : operation === "cash.approve" ? nativePosMode(database, companyId, 'pos_boundary_cash_approve_mode', [id, companyId])
+          : operation.startsWith("shift.") || operation === "cash.create" ? nativePosMode(database, companyId, 'pos_boundary_shift_mode', [id, companyId])
+            : operation.startsWith("payment.") ? nativePosMode(database, companyId, 'pos_boundary_payment_mode', [id, companyId])
+              : operation.startsWith("refund.") ? nativePosMode(database, companyId, 'pos_boundary_refund_mode', [id, companyId])
                 : null;
-  return target ? (await target.first<{ mode: string }>())?.mode === "restaurant" : false;
+  return target ? (await target) === "restaurant" : false;
 }
 
 /** The original POS application still owns permissions, record versions,
@@ -62,7 +71,7 @@ export async function withPosPurchasedCommand<Result>(owner: PostgresDatabase, a
   try {
     return await owner.transaction(async transaction => {
       await transaction.batch(companyPurchaseReadLocks(transaction, actor.companyId));
-      const replay = !!await transaction.prepare("SELECT 1 FROM pos_receipts WHERE id=? AND company_id=?").bind(key, actor.companyId).first();
+      const replay = !!await nativePosOne(transaction, actor.companyId, 'pos_boundary_receipt_replay', [key, actor.companyId]);
       const scopes = posCommandPurchases(operation, await restaurantWork(transaction, actor.companyId, operation, input))
         .map(scope => ({ companyId: actor.companyId, ...scope, ...(replay ? { purpose: "history" as const } : {}) }));
       const boundaries = scopes.map((scope, index) => purchaseCommandBoundary(transaction, mode, `${key}:purchase:${index}`, scope)!);
