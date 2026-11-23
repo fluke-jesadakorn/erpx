@@ -153,6 +153,28 @@ const READ_SENSITIVE_OFFER: NativeTalentReadStatement = NativeTalentReadStatemen
     bind_count: 2,
 };
 
+/// Native successor of the TypeScript `peopleHireHandoffFacts` accepted hire
+/// source row read. The caller binds `[handoff_id, company_id]` on its unit.
+pub const RD_HIRE_SOURCE_ROW: &str = "talent_rd_hire_source_row";
+const SQL_RD_HIRE_SOURCE_ROW: &str =
+    "SELECT h.*,o.version offer_version,o.status offer_status,o.start_date,o.currency,o.base_amount_minor,o.accepted_evidence,r.job_title,c.version candidate_version,c.status candidate_status,c.retention_until,c.legal_name,c.email,c.phone,c.privacy_hold,c.consent_evidence FROM talent_hire_handoffs h JOIN talent_offers o ON o.id=h.offer_id AND o.company_id=h.company_id JOIN talent_applications a ON a.id=o.application_id AND a.company_id=h.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=h.company_id AND r.branch_id=h.branch_id AND r.department_id IS NOT DISTINCT FROM h.department_id JOIN talent_candidates c ON c.id=h.candidate_id AND c.id=a.candidate_id AND c.company_id=h.company_id WHERE h.id=? AND h.company_id=?";
+const READ_HIRE_SOURCE_ROW: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_HIRE_SOURCE_ROW,
+    sql: SQL_RD_HIRE_SOURCE_ROW,
+    bind_count: 2,
+};
+
+/// Native successor of the TypeScript `peopleHireHandoffFacts` hire queue read.
+/// The caller binds `[company_id]` on its unit.
+pub const RD_HIRE_HANDOFF_QUEUE: &str = "talent_rd_hire_handoff_queue";
+const SQL_RD_HIRE_HANDOFF_QUEUE: &str =
+    "SELECT h.*,o.application_id,o.currency,o.base_amount_minor,o.start_date,o.version offer_version,c.legal_name,c.version candidate_version,c.status candidate_status,r.job_title,x.id receipt_id,x.person_id,x.engagement_id FROM talent_hire_handoffs h JOIN talent_offers o ON o.id=h.offer_id JOIN talent_candidates c ON c.id=h.candidate_id JOIN talent_applications a ON a.id=o.application_id JOIN talent_requisitions r ON r.id=a.requisition_id LEFT JOIN talent_hire_consumption_receipts x ON x.handoff_id=h.id WHERE h.company_id=? ORDER BY h.created_at,h.id";
+const READ_HIRE_HANDOFF_QUEUE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_HIRE_HANDOFF_QUEUE,
+    sql: SQL_RD_HIRE_HANDOFF_QUEUE,
+    bind_count: 1,
+};
+
 const STATEMENTS: &[NativeTalentReadStatement] = &[
     READ_APPLICATION_EVENTS,
     READ_PROPOSALS,
@@ -166,6 +188,8 @@ const STATEMENTS: &[NativeTalentReadStatement] = &[
     READ_WORKSPACE_REQUISITIONS,
     READ_WORKSPACE_CANDIDATES,
     READ_SENSITIVE_OFFER,
+    READ_HIRE_SOURCE_ROW,
+    READ_HIRE_HANDOFF_QUEUE,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -200,7 +224,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), 1);
         }
-        assert_eq!(STATEMENTS.len(), 12);
+        assert_eq!(STATEMENTS.len(), 14);
     }
 
     #[test]
@@ -319,6 +343,34 @@ mod tests {
                 sql.contains("talent_"),
                 "owner read must stay on owner-local Talent tables: {sql}"
             );
+            assert_eq!(sql.matches('?').count(), binds);
+        }
+    }
+
+    #[test]
+    fn hire_handoff_fact_reads_are_owner_authored_select_only() {
+        let expected = [
+            (RD_HIRE_SOURCE_ROW, SQL_RD_HIRE_SOURCE_ROW, 2usize),
+            (RD_HIRE_HANDOFF_QUEUE, SQL_RD_HIRE_HANDOFF_QUEUE, 1usize),
+        ];
+        for (kind, sql, binds) in expected {
+            let statement = read_statement(kind).expect("registered owner read kind");
+            assert_eq!(statement.kind, kind);
+            assert_eq!(statement.sql, sql);
+            assert_eq!(statement.bind_count, binds);
+            assert!(sql.starts_with("SELECT "), "owner read must be SELECT-only: {sql}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+                assert!(!sql.contains(forbidden), "owner read must not mutate: {forbidden}");
+            }
+            for table in [
+                "talent_hire_handoffs",
+                "talent_offers",
+                "talent_applications",
+                "talent_requisitions",
+                "talent_candidates",
+            ] {
+                assert!(sql.contains(table), "hire fact read must stay on owner-local Talent tables: {table}");
+            }
             assert_eq!(sql.matches('?').count(), binds);
         }
     }

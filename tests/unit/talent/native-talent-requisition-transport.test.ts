@@ -17,6 +17,7 @@ import {
 import {nativeTalentLifecycleCommand} from '../../../packages/server-talent/src/public/native-talent-lifecycle-page';
 import {nativeTalentReadAll,nativeTalentReadFirst} from '../../../packages/server-talent/src/adapters/native-talent-read';
 import {SensitiveAttachmentTalentFacts} from '../../../packages/server-talent/src/adapters/attachments-sensitive-facts';
+import {peopleHireHandoffFacts} from '../../../packages/server-talent/src/adapters/people-hire-handoff-facts';
 import {talentPurchaseControls} from '../../../packages/server-talent/src/public/purchases';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
@@ -433,6 +434,51 @@ describe('native Talent detail read tail', () => {
       expect(seen).toEqual([plannedSql]);
       expect(String(fetchMock.mock.calls[0][0])).toContain('/api/v1/holdings/acme/talent/command-plan');
       expect(fetchMock).toHaveBeenCalledTimes(1);
+    } finally {
+      vi.unstubAllGlobals();
+      if (previous === undefined) delete process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+      else process.env.ERPX_NATIVE_TALENT_READ_CONFIG = previous;
+    }
+  });
+
+  it('plans the hire handoff fact reads through the mounted command-plan route', async () => {
+    const previous = process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+    process.env.ERPX_NATIVE_TALENT_READ_CONFIG = readConfig;
+    const sourceSql = 'SELECT h.*,o.version offer_version,o.status offer_status,o.start_date,o.currency,o.base_amount_minor,o.accepted_evidence,r.job_title,c.version candidate_version,c.status candidate_status,c.retention_until,c.legal_name,c.email,c.phone,c.privacy_hold,c.consent_evidence FROM talent_hire_handoffs h JOIN talent_offers o ON o.id=h.offer_id AND o.company_id=h.company_id JOIN talent_applications a ON a.id=o.application_id AND a.company_id=h.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=h.company_id AND r.branch_id=h.branch_id AND r.department_id IS NOT DISTINCT FROM h.department_id JOIN talent_candidates c ON c.id=h.candidate_id AND c.id=a.candidate_id AND c.company_id=h.company_id WHERE h.id=? AND h.company_id=?';
+    const queueSql = 'SELECT h.*,o.application_id,o.currency,o.base_amount_minor,o.start_date,o.version offer_version,c.legal_name,c.version candidate_version,c.status candidate_status,r.job_title,x.id receipt_id,x.person_id,x.engagement_id FROM talent_hire_handoffs h JOIN talent_offers o ON o.id=h.offer_id JOIN talent_candidates c ON c.id=h.candidate_id JOIN talent_applications a ON a.id=o.application_id JOIN talent_requisitions r ON r.id=a.requisition_id LEFT JOIN talent_hire_consumption_receipts x ON x.handoff_id=h.id WHERE h.company_id=? ORDER BY h.created_at,h.id';
+    const cases: Array<{ kind: string; values: unknown[]; sql: string }> = [
+      { kind: 'talent_rd_hire_source_row', values: ['handoff-1', 'company'], sql: sourceSql },
+      { kind: 'talent_rd_hire_handoff_queue', values: ['company'], sql: queueSql },
+    ];
+    const fetchMock = vi.fn(async (_url: unknown, init: { body?: string }) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      const match = cases.find((item) => item.kind === body.kind);
+      expect(match).toBeDefined();
+      expect(body.values).toEqual(match!.values);
+      return ok({ data: { statements: [{ sql: match!.sql, values: body.values }] } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const sourceRow = { id: 'handoff-1', offer_status: 'accepted', candidate_version: 2 };
+    const queueRows = [{ id: 'handoff-1', receipt_id: 'receipt-1' }];
+    const seen: string[] = [];
+    const db = {
+      prepare(sql: string) {
+        seen.push(sql);
+        return {
+          bind(...values: unknown[]) {
+            if (values.length === 2) return { first: async () => sourceRow };
+            return { all: async () => ({ results: queueRows }) };
+          },
+        };
+      },
+    } as never;
+    try {
+      const facts = peopleHireHandoffFacts(db);
+      await expect(facts.readHireSourceRow('handoff-1', 'company')).resolves.toMatchObject(sourceRow);
+      await expect(facts.readHireHandoffQueueEffect('company')).resolves.toEqual({ results: queueRows });
+      expect(seen).toEqual([sourceSql, queueSql]);
+      expect(String(fetchMock.mock.calls[0][0])).toContain('/api/v1/holdings/acme/talent/command-plan');
+      expect(fetchMock).toHaveBeenCalledTimes(2);
     } finally {
       vi.unstubAllGlobals();
       if (previous === undefined) delete process.env.ERPX_NATIVE_TALENT_READ_CONFIG;

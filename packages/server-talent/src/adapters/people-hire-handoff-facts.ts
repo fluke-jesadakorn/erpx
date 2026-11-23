@@ -1,16 +1,15 @@
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Source} from '@erpx/server-people_payroll/public/people-handoff-contract';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {ApiError} from "@erpx/server-runtime/public/http";import {nativeTalentReadFirst} from "./native-talent-read";
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Source} from '@erpx/server-people_payroll/public/people-handoff-contract';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {ApiError} from "@erpx/server-runtime/public/http";import {nativeTalentReadAll,nativeTalentReadFirst} from "./native-talent-read";
 // Wave 3: the four retained write effects below execute only in native owner
 // routes (Talent candidate privacy in talent_lifecycle; hire-consumption in the
 // People Payroll handoff port). No TypeScript SQL writer remains here; the
 // methods stay present and fail closed so cross-owner callers adopt the native
 // client rather than silently executing a fallback write.
-// The hire-consumption receipt and candidate privacy row reads below are owned
-// by the native Talent command-plan registry; no TS SQL mirror remains for them.
+// The hire-source, hire-queue, hire-consumption receipt and candidate privacy
+// row reads below are owned by the native Talent command-plan registry; no TS
+// SQL mirror remains for them.
 function nativeWriteUnavailable():never{throw new ApiError(503,'NATIVE_TALENT_HANDOFF_UNAVAILABLE','The native Talent handoff command is unavailable.');}
-export function peopleHireHandoffFacts(database:SqlDatabase){return {readHireSourceRow(id:string,companyId:string){return database.prepare(`SELECT h.*,o.version offer_version,o.status offer_status,o.start_date,o.currency,o.base_amount_minor,o.accepted_evidence,r.job_title,c.version candidate_version,c.status candidate_status,c.retention_until,c.legal_name,c.email,c.phone,c.privacy_hold,c.consent_evidence
-   FROM talent_hire_handoffs h JOIN talent_offers o ON o.id=h.offer_id AND o.company_id=h.company_id JOIN talent_applications a ON a.id=o.application_id AND a.company_id=h.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=h.company_id AND r.branch_id=h.branch_id AND r.department_id IS NOT DISTINCT FROM h.department_id JOIN talent_candidates c ON c.id=h.candidate_id AND c.id=a.candidate_id AND c.company_id=h.company_id WHERE h.id=? AND h.company_id=?`)
-    .bind(id,companyId).first<Source>();},
-readHireHandoffQueueEffect(companyId:string){return database.prepare("SELECT h.*,o.application_id,o.currency,o.base_amount_minor,o.start_date,o.version offer_version,c.legal_name,c.version candidate_version,c.status candidate_status,r.job_title,x.id receipt_id,x.person_id,x.engagement_id FROM talent_hire_handoffs h JOIN talent_offers o ON o.id=h.offer_id JOIN talent_candidates c ON c.id=h.candidate_id JOIN talent_applications a ON a.id=o.application_id JOIN talent_requisitions r ON r.id=a.requisition_id LEFT JOIN talent_hire_consumption_receipts x ON x.handoff_id=h.id WHERE h.company_id=? ORDER BY h.created_at,h.id").bind(companyId).all();},
+export function peopleHireHandoffFacts(database:SqlDatabase){return {readHireSourceRow(id:string,companyId:string){return nativeTalentReadFirst<Source>('talent_rd_hire_source_row',[id,companyId],database);},
+async readHireHandoffQueueEffect(companyId:string){const results=await nativeTalentReadAll<Record<string,unknown>>('talent_rd_hire_handoff_queue',[companyId],database);return {results};},
 readConsumeHireHandoffReceipt(id:string,companyId:string){return nativeTalentReadFirst<Record<string,unknown>>('talent_rd_consume_hire_handoff_receipt',[id,companyId],database);},
 stageConsumeHireHandoffEffect2(candidate_id:string){return database.prepare("SELECT id FROM talent_candidates WHERE id=? FOR SHARE").bind(candidate_id);},
 guard9(key:string,value:"hire-source",id:string,companyId:string,expectedOfferVersion:number,expectedCandidateVersion:number,today:string){return assertion(database,key,value,"EXISTS(SELECT 1 FROM talent_hire_handoffs h JOIN talent_offers o ON o.id=h.offer_id JOIN talent_candidates c ON c.id=h.candidate_id WHERE h.id=? AND h.company_id=? AND o.status='accepted' AND o.version=? AND h.source_offer_version=o.version AND c.version=? AND c.status='active' AND c.retention_until>=?)",[id,companyId,expectedOfferVersion,expectedCandidateVersion,today]);},

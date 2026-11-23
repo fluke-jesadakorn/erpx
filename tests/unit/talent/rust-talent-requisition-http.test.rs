@@ -662,3 +662,66 @@ async fn command_plan_returns_owner_authored_sensitive_offer_read() {
 
     server.abort();
 }
+
+#[tokio::test]
+async fn command_plan_returns_owner_authored_hire_handoff_fact_reads() {
+    let router = talent_requisition_http_router(vec![TalentRequisitionHttpTarget {
+        host: "acme.example.test".into(),
+        holding_slug: "acme".into(),
+        origin: "https://acme.example.test".into(),
+        backend: Arc::new(Noop),
+    }])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+
+    let cases = [
+        (
+            "talent_rd_hire_source_row",
+            r#"["handoff-1","company"]"#,
+            "SELECT h.*,o.version offer_version,o.status offer_status,o.start_date,o.currency,o.base_amount_minor,o.accepted_evidence,r.job_title,c.version candidate_version,c.status candidate_status,c.retention_until,c.legal_name,c.email,c.phone,c.privacy_hold,c.consent_evidence FROM talent_hire_handoffs h JOIN talent_offers o ON o.id=h.offer_id AND o.company_id=h.company_id JOIN talent_applications a ON a.id=o.application_id AND a.company_id=h.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=h.company_id AND r.branch_id=h.branch_id AND r.department_id IS NOT DISTINCT FROM h.department_id JOIN talent_candidates c ON c.id=h.candidate_id AND c.id=a.candidate_id AND c.company_id=h.company_id WHERE h.id=? AND h.company_id=?",
+        ),
+        (
+            "talent_rd_hire_handoff_queue",
+            r#"["company"]"#,
+            "SELECT h.*,o.application_id,o.currency,o.base_amount_minor,o.start_date,o.version offer_version,c.legal_name,c.version candidate_version,c.status candidate_status,r.job_title,x.id receipt_id,x.person_id,x.engagement_id FROM talent_hire_handoffs h JOIN talent_offers o ON o.id=h.offer_id JOIN talent_candidates c ON c.id=h.candidate_id JOIN talent_applications a ON a.id=o.application_id JOIN talent_requisitions r ON r.id=a.requisition_id LEFT JOIN talent_hire_consumption_receipts x ON x.handoff_id=h.id WHERE h.company_id=? ORDER BY h.created_at,h.id",
+        ),
+    ];
+    for (kind, values, sql) in cases {
+        let payload = format!(r#"{{"kind":"{kind}","values":{values}}}"#);
+        let (status, body, _) = http(
+            addr,
+            post(
+                "/api/v1/holdings/acme/talent/command-plan",
+                "acme.example.test",
+                None,
+                &payload,
+            ),
+        )
+        .await;
+        assert_eq!(status, 200);
+        assert_eq!(body["data"]["statements"][0]["sql"], serde_json::json!(sql));
+        assert_eq!(
+            body["data"]["statements"][0]["values"],
+            serde_json::from_str::<serde_json::Value>(values).unwrap()
+        );
+
+        let bad = format!(r#"{{"kind":"{kind}","values":[]}}"#);
+        let (status, _, _) = http(
+            addr,
+            post(
+                "/api/v1/holdings/acme/talent/command-plan",
+                "acme.example.test",
+                None,
+                &bad,
+            ),
+        )
+        .await;
+        assert_eq!(status, 422);
+    }
+
+    server.abort();
+}
