@@ -2,6 +2,7 @@ import 'server-only';
 import {createHash} from 'node:crypto';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
+import {nativePeoplePayrollReadAll,PEOPLE_PAYROLL_RD_PAYROLL_OTHER_SCHEMA_AVAILABLE} from './native-people-payroll-read';
 export type PayrollOtherRun={id:string;company_id:string;version:number;currency:string;period_end:string;status:string;created_by:string;approved_by:string;posted_by:string};
 export type PayrollOtherSource={run:PayrollOtherRun;journalId:string;postingCommandId:string;image:string;identity:string};
 export const payrollOtherRemittanceTables={runs:'SELECT * FROM hr_payroll_runs',postings:'SELECT * FROM hr_payroll_postings',remittances:'SELECT * FROM hr_payroll_statutory_remittances'} as const;
@@ -13,4 +14,10 @@ export async function payrollOtherSource(database:SqlDatabase,companyId:string,r
  const items=(await database.prepare('SELECT to_jsonb(i)::text image FROM hr_payroll_items i WHERE i.run_id=? ORDER BY i.id').bind(runId).all<{image:string}>()).results;
  return {run,journalId:row.journal_id,postingCommandId:String(JSON.parse(row.receipt).command_id),image:JSON.stringify([row,items]),identity:createHash('sha256').update(JSON.stringify([companyId,runId,row.journal_id,row.posting,row.receipt])).digest('hex')};
 }
-export async function payrollOtherSchemaAvailable(database:SqlDatabase){return !!await database.prepare("SELECT 1 FROM erpx_migration_receipts() WHERE name='1066_payroll_other_liability_remittances.sql'").first();}
+/** Owner-native Payroll-other schema probe. SQL is planned by the People Payroll
+ * native read port (`RD_PAYROLL_OTHER_SCHEMA_AVAILABLE`) and executed on the
+ * caller's open unit; this module carries no SQL for this read. */
+export async function payrollOtherSchemaAvailable(database:SqlDatabase){
+ const result=await nativePeoplePayrollReadAll(PEOPLE_PAYROLL_RD_PAYROLL_OTHER_SCHEMA_AVAILABLE,[],database);
+ return Boolean(result.results[0]);
+}

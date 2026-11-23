@@ -69,12 +69,23 @@ const READ_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE: NativeReadStatement = Native
     bind_count: 0,
 };
 
+/// Native successor of the TypeScript `payroll-other-remittance-sources`
+/// schema-availability probe: same literal and no positional binds.
+pub const RD_PAYROLL_OTHER_SCHEMA_AVAILABLE: &str = "people_payroll_rd_payroll_other_schema_available";
+const SQL_PAYROLL_OTHER_SCHEMA_AVAILABLE: &str = "SELECT 1 FROM erpx_migration_receipts() WHERE name='1066_payroll_other_liability_remittances.sql'";
+const READ_PAYROLL_OTHER_SCHEMA_AVAILABLE: NativeReadStatement = NativeReadStatement {
+    kind: RD_PAYROLL_OTHER_SCHEMA_AVAILABLE,
+    sql: SQL_PAYROLL_OTHER_SCHEMA_AVAILABLE,
+    bind_count: 0,
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_RECORD_SUPPLEMENT_ROWS,
     READ_ORG_ROSTER_EXIT_ENGAGEMENT_IDS,
     READ_ORG_MONTHLY_PAY_GROUPS,
     READ_WORK_REPORT_PEOPLE,
     READ_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE,
+    READ_PAYROLL_OTHER_SCHEMA_AVAILABLE,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -143,5 +154,19 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 0);
         assert!(read.sql.contains("to_regprocedure"));
         assert!(is_read(RD_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE));
+    }
+
+    #[test]
+    fn payroll_other_schema_probe_is_ledger_free_and_zero_bound() {
+        let read = read_statement(RD_PAYROLL_OTHER_SCHEMA_AVAILABLE).expect("read kind");
+        assert!(read.sql.to_ascii_uppercase().starts_with("SELECT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("INSERT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("UPDATE"));
+        assert!(!read.sql.to_ascii_uppercase().contains("DELETE"));
+        assert_eq!(read.bind_count, 0);
+        assert_eq!(read.sql.matches('?').count(), 0);
+        assert!(read.sql.contains("erpx_migration_receipts"));
+        assert!(read.sql.contains("1066_payroll_other_liability_remittances.sql"));
+        assert!(is_read(RD_PAYROLL_OTHER_SCHEMA_AVAILABLE));
     }
 }

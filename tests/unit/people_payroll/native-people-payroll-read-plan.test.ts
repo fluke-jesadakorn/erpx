@@ -7,6 +7,7 @@ import {
   PEOPLE_PAYROLL_RD_ORG_MONTHLY_PAY_GROUPS,
   PEOPLE_PAYROLL_RD_WORK_REPORT_PEOPLE,
   PEOPLE_PAYROLL_RD_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE,
+  PEOPLE_PAYROLL_RD_PAYROLL_OTHER_SCHEMA_AVAILABLE,
 } from '../../../packages/server-people_payroll/src/adapters/native-people-payroll-read';
 import { RecordDetailsPeoplePayrollOwnedFacts } from '../../../packages/server-people_payroll/src/adapters/records-record-details-owned-facts';
 import {
@@ -15,6 +16,7 @@ import {
 } from '../../../packages/server-people_payroll/src/adapters/organization-roster-facts';
 import { workReportPeoplePayrollFacts } from '../../../packages/server-people_payroll/src/adapters/work-report-facts';
 import { finalPayCancellationSchemaAvailable } from '../../../packages/server-people_payroll/src/adapters/final-pay-cancellation-sources';
+import { payrollOtherSchemaAvailable } from '../../../packages/server-people_payroll/src/adapters/payroll-other-remittance-sources';
 
 const envKey = 'ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG';
 const original = process.env[envKey];
@@ -177,6 +179,46 @@ describe('native People Payroll caller-unit read plan', () => {
       values: [],
     }]);
     expect(prepared).toEqual(['SELECT 1 AS ready']);
+  });
+
+  it('exposes the Payroll-other schema-probe read kind with no SQL on the wire', () => {
+    expect(PEOPLE_PAYROLL_RD_PAYROLL_OTHER_SCHEMA_AVAILABLE).toBe('people_payroll_rd_payroll_other_schema_available');
+    expect(PEOPLE_PAYROLL_RD_PAYROLL_OTHER_SCHEMA_AVAILABLE).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+  });
+
+  it('plans the zero-bind Payroll-other schema probe on the caller unit and reads its row presence', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push({ kind: body.kind, values: body.values });
+      return new Response(JSON.stringify({
+        data: { statements: [{ sql: 'SELECT 1', values: body.values }] },
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+    const prepared: string[] = [];
+    let rows: unknown[] = [{ '?column?': 1 }];
+    const db = {
+      prepare(sql: string) {
+        prepared.push(sql);
+        return {
+          bind() { return this; },
+          async all() { return { results: [], success: true, meta: { changes: 0, duration: 0 } }; },
+          async first() { return null; },
+        };
+      },
+      async batch() { return [{ results: rows, success: true, meta: { changes: 0, duration: 0 } }]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+
+    expect(await payrollOtherSchemaAvailable(db as never)).toBe(true);
+    rows = [];
+    expect(await payrollOtherSchemaAvailable(db as never)).toBe(false);
+
+    expect(bodies).toEqual([
+      { kind: PEOPLE_PAYROLL_RD_PAYROLL_OTHER_SCHEMA_AVAILABLE, values: [] },
+      { kind: PEOPLE_PAYROLL_RD_PAYROLL_OTHER_SCHEMA_AVAILABLE, values: [] },
+    ]);
+    expect(prepared).toEqual(['SELECT 1', 'SELECT 1']);
   });
 
   it('fails closed when configuration is missing or the plan is malformed', async () => {
