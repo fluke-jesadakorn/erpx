@@ -553,6 +553,11 @@ async fn auxiliary_reads_keep_company_membership_and_requester_scope() {
         let views = read(&pool, manager(), LegalAuxiliaryRead::SavedViews)
             .await
             .unwrap();
+        // The native `views` read is the authoritative projection for the
+        // TypeScript `savedViews` adapter. Pin its exact field set so the
+        // view TS SELECT can be deleted byte-identically.
+        assert_eq!(views.as_array().unwrap().len(), 1);
+        assert_eq!(views[0].as_object().unwrap().len(), 2);
         assert_eq!(views[0]["name"], "My view");
         assert_eq!(views[0]["query"]["kind"], "matter");
         let history = read(

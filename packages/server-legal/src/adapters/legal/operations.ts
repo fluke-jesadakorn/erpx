@@ -16,7 +16,10 @@ import type {LegalItem} from "@erpx/server-legal/domain/model";
 import type {LegalWrite} from "@erpx/server-legal/application/service";
 import {createLegalOperationsApplication,type LegalOperationUnit,type LegalOperationsRepository} from "@erpx/server-legal/application/operations";
 import { legalOperations } from '@erpx/server-collaboration/adapters/native-legal-operations';
-function unit(db:SqlDatabase,a:WorkContext):LegalOperationUnit{const nativeOps=legalOperations(db,a.companyId,a.userId);let observation:ReturnType<typeof legalReadScope>|undefined;const purchase=()=>observation??=legalReadScope(db,a);const v=visibility(a),writes=new WeakMap<LegalWrite,SqlStatement>();function stage(statement:SqlStatement):LegalWrite{const write:LegalWrite={owner:"legal"};writes.set(write,statement);return write;}function resolve(write:LegalWrite){const statement=writes.get(write);if(!statement)throw new Error("LEGAL_OPERATIONS_REPOSITORY_MISMATCH");return statement;}
+import {nativeLegalAuxiliaryRead} from '../native-legal-auxiliary';
+/** Exact projection of the native `views` auxiliary read; no view SQL remains in TypeScript. */
+type LegalSavedViewsView={name:string;query:unknown}[];
+function unit(db:SqlDatabase,a:WorkContext,views?:LegalSavedViewsView):LegalOperationUnit{const nativeOps=legalOperations(db,a.companyId,a.userId);let observation:ReturnType<typeof legalReadScope>|undefined;const purchase=()=>observation??=legalReadScope(db,a);const v=visibility(a),writes=new WeakMap<LegalWrite,SqlStatement>();function stage(statement:SqlStatement):LegalWrite{const write:LegalWrite={owner:"legal"};writes.set(write,statement);return write;}function resolve(write:LegalWrite){const statement=writes.get(write);if(!statement)throw new Error("LEGAL_OPERATIONS_REPOSITORY_MISMATCH");return statement;}
 return {
 registerRows:async(kind)=>db
       .prepare(
@@ -25,7 +28,7 @@ registerRows:async(kind)=>db
       .bind(...v.values, kind)
       .all<LegalItem>(),
 async exportRead(facts){return stage(await nativeOps.accessEvent({identifier:facts.identifier,id:facts.id,actorId:facts.actorId,action:facts.fact4,now:facts.now}));},
-savedViews:(facts:{companyId:string;actorId:string;})=>db.prepare("SELECT name,query FROM legal_saved_views WHERE company_id=? AND user_id=? ORDER BY name LIMIT 100").bind(facts.companyId,facts.actorId).all(),
+savedViews:async()=>({results:views??[]}),
 async saveView(facts){return stage(await nativeOps.saveView({companyId:facts.companyId,actorId:facts.actorId,name:facts.name,queryJson:facts.fact3}));},
 async derivedLink(facts){return nativeOps.derivedLink({id:facts.id,id2:facts.id2});},
 envelopes:(facts:{id:string;})=>db.prepare("SELECT e.*,s.user_id,s.ordinal,s.state signer_state,s.signed_at,s.evidence FROM legal_envelopes e JOIN legal_signers s ON s.envelope_id=e.id WHERE e.item_id=? ORDER BY e.created_at,s.ordinal").bind(facts.id).all(),
@@ -54,11 +57,11 @@ ruleImpact:async(id)=>db
         .all(),
 access:(id,p)=>access(db,a,id,p),command:(raw,key)=>legalCommand(db,a,raw,key),purchase:async(raw,key)=>saveEmployeeRequest(db,a,null,employeeRequestSchema.parse(raw),key),executedCopies:id=>executedCopies(db,a,id),batch:steps=>db.batch(steps.map(resolve)),guardChanges:(id,version,key,edit,allowFrozen,preparation)=>guards(db,a,id,version,key,edit,allowFrozen,preparation).map(stage),event:async(id,action,note,version,identifier,now)=>stage(await nativeOps.event({id,action,note,version,identifier,now})),replay:(key,operation,id,input)=>replayCommand(db,a,key,operation,id,input),commit:(key,operation,input,id,version,result,steps)=>executeCommand(db,a,key,operation,input,id,version,result,steps.map(resolve)),
 };}
-function application(db:SqlDatabase,a:WorkContext){const repository:LegalOperationsRepository={...unit(db,a),transaction:async work=>{if(await legalPackageEnforcementMode()!=="disabled")return inLegalOwnerUnit(db,a.companyId,tx=>work(unit(tx,a)));return inLegacyLegalOperationsUnit(db,a.companyId,tx=>work(unit(tx,a)));}};return createLegalOperationsApplication({actor:a,repository,require:p=>requirePermission(a,p),clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},hash,byteLength:text=>Buffer.byteLength(text),error:(status,code,message)=>new ApiError(status,code,message)});}
+function application(db:SqlDatabase,a:WorkContext,views?:LegalSavedViewsView){const repository:LegalOperationsRepository={...unit(db,a,views),transaction:async work=>{if(await legalPackageEnforcementMode()!=="disabled")return inLegalOwnerUnit(db,a.companyId,tx=>work(unit(tx,a,views)));return inLegacyLegalOperationsUnit(db,a.companyId,tx=>work(unit(tx,a,views)));}};return createLegalOperationsApplication({actor:a,repository,require:p=>requirePermission(a,p),clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},hash,byteLength:text=>Buffer.byteLength(text),error:(status,code,message)=>new ApiError(status,code,message)});}
 export async function importPreview(a:WorkContext,raw:unknown){requirePermission(a,"legal.create");return previewLegalImport(raw,hash);}
 export function importCommit(db:PostgresDatabase,a:WorkContext,raw:unknown,key:string){return application(db,a).importCommit(raw,key);}
 export function exportRegister(db:SqlDatabase,a:WorkContext,kind:string){return application(db,a).exportRegister(kind);}
-export function savedViews(db:SqlDatabase,a:WorkContext){return application(db,a).savedViews();}
+export async function savedViews(db:SqlDatabase,a:WorkContext){const views=await nativeLegalAuxiliaryRead<LegalSavedViewsView>(a,'views');return application(db,a,views).savedViews();}
 export function saveView(db:SqlDatabase,a:WorkContext,raw:unknown,key:string){return application(db,a).saveView(raw,key);}
 export function applyTemplate(db:PostgresDatabase,a:WorkContext,raw:unknown,key:string){return application(db,a).applyTemplate(raw,key);}
 export function convertRequest(db:PostgresDatabase,a:WorkContext,raw:unknown,key:string){return application(db,a).convertRequest(raw,key);}
