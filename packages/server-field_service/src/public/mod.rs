@@ -24,6 +24,8 @@ pub mod source_record;
 
 pub mod final_root_projection;
 
+pub mod final_root_consumer;
+
 pub mod service_parts_posting;
 
 pub mod field_outbox;
