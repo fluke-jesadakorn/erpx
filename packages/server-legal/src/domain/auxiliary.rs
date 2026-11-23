@@ -85,10 +85,36 @@ pub enum LegalAuxiliaryRead {
     SavedViews,
     AiHistory {
         item_id: String,
+        /// Current purchase/Company-enabled witness. `None` fails closed: the
+        /// owner never infers purchase or readiness from the actor JSON or the
+        /// request path. Composition supplies it from authoritative sources in
+        /// the same Holding unit.
+        authority: Option<AiHistoryAuthority>,
     },
 }
 
+/// Composition-supplied facts for one AI history read. The booleans assert
+/// current, same-transaction purchase and Company-enabled decisions; they are
+/// never granted by the stored actor JSON, a query parameter or a broad role.
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub struct AiHistoryAuthority {
+    /// Legal is enabled for the selected Company.
+    pub company_enabled: bool,
+    /// The item's purchased capability retains history admission.
+    pub item_purchased_history: bool,
+}
+
 impl LegalAuxiliaryRead {
+    /// Authoritative constructor for the AI history read. Composition binds
+    /// the purchase/enabled witness; callers that only hold a request path use
+    /// `parse_auxiliary_path`, which fails closed.
+    pub fn ai_history(item_id: impl Into<String>, authority: AiHistoryAuthority) -> Self {
+        Self::AiHistory {
+            item_id: item_id.into(),
+            authority: Some(authority),
+        }
+    }
+
     pub const fn operation(&self) -> &'static str {
         match self {
             Self::Workspace => "legal.workspace.read",
@@ -110,6 +136,8 @@ impl LegalAuxiliaryRead {
 /// Roles that may read the auxiliary Legal surface. The exact permission is
 /// still required; this constant only documents the current gate.
 pub const READ_PERMISSION: &str = "legal.read";
+/// AI history is its own authority, not the general auxiliary read permission.
+pub const AI_HISTORY_PERMISSION: &str = "legal.ai";
 pub const TRUST_VIEW_PERMISSION: &str = "legal.manage";
 pub const RETENTION_POLICY_PERMISSION: &str = "legal.manage";
 pub const RETENTION_RECORD_PERMISSION: &str = "legal.destroy";
@@ -255,6 +283,7 @@ pub fn authorize_read(
 ) -> Result<(), BusinessError> {
     let permission = match read {
         LegalAuxiliaryRead::Trust => TRUST_VIEW_PERMISSION,
+        LegalAuxiliaryRead::AiHistory { .. } => AI_HISTORY_PERMISSION,
         _ => READ_PERMISSION,
     };
     if !actor.can(permission) {
@@ -276,6 +305,34 @@ pub fn authorize_read(
         parse_identifier(id)?;
     }
     Ok(())
+}
+
+/// Enforce the AI-history purchase/enabled witness. Missing authority denies:
+/// there is no default, ambient mode or successful fallback for the native
+/// read. The adapter re-checks `company_enabled` against its own legal_settings
+/// in the same transaction before releasing any proposal row.
+pub fn authorize_ai_history(
+    authority: Option<AiHistoryAuthority>,
+) -> Result<AiHistoryAuthority, BusinessError> {
+    let authority = authority.ok_or_else(|| {
+        forbidden(
+            "LEGAL_AI_AUTHORITY_REQUIRED",
+            "Current Legal AI purchase and Company authority are required.",
+        )
+    })?;
+    if !authority.company_enabled {
+        return Err(forbidden(
+            "LEGAL_DISABLED",
+            "Legal is not enabled for this Company.",
+        ));
+    }
+    if !authority.item_purchased_history {
+        return Err(forbidden(
+            "PACKAGE_REQUIRED",
+            "This Legal source requires its purchased capability or retained history.",
+        ));
+    }
+    Ok(authority)
 }
 
 /// Validated retention command that owns the whole policy/destruction lifecycle.

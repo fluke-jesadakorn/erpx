@@ -49,6 +49,17 @@ fn reviewer() -> LegalAuxiliaryActor {
     actor("user-two", "legal_manager", &["legal.manage", "legal.destroy"])
 }
 
+fn ai_manager() -> LegalAuxiliaryActor {
+    actor("user-one", "legal_manager", &["legal.read", "legal.ai"])
+}
+
+fn ai_authority() -> AiHistoryAuthority {
+    AiHistoryAuthority {
+        company_enabled: true,
+        item_purchased_history: true,
+    }
+}
+
 fn key(value: &str) -> CommandKey {
     CommandKey::new(value).unwrap()
 }
@@ -562,10 +573,8 @@ async fn auxiliary_reads_keep_company_membership_and_requester_scope() {
         assert_eq!(views[0]["query"]["kind"], "matter");
         let history = read(
             &pool,
-            manager(),
-            LegalAuxiliaryRead::AiHistory {
-                item_id: "matter-open".into(),
-            },
+            ai_manager(),
+            LegalAuxiliaryRead::ai_history("matter-open", ai_authority()),
         )
         .await
         .unwrap();
@@ -1426,4 +1435,120 @@ mod destruction {
             assert_eq!(state, "completed");
         }).await;
     }
+}
+
+/// The native `ai` read is the authoritative projection for the TypeScript
+/// `legalAiHistory` adapter. Pin the exact seven-field projection that replaced
+/// the deleted TS SELECT and every denial that must survive the cutover.
+#[tokio::test]
+async fn ai_history_matches_retired_select_and_enforces_authority() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        seed(&pool).await;
+
+        let history = read(
+            &pool,
+            ai_manager(),
+            LegalAuxiliaryRead::ai_history("matter-open", ai_authority()),
+        )
+        .await
+        .unwrap();
+        let rows = history.as_array().unwrap();
+        assert_eq!(rows.len(), 1, "one proposal for the current actor");
+        assert_eq!(rows[0].as_object().unwrap().len(), 7);
+        assert_eq!(rows[0]["id"], "ai-one");
+        assert_eq!(rows[0]["source_version"], 1);
+        assert_eq!(rows[0]["question"], "What applies?");
+        assert_eq!(rows[0]["state"], "proposed");
+        assert!(rows[0]["proposal"].is_null());
+        assert!(rows[0]["error"].is_null());
+        assert_eq!(rows[0]["created_at"], 1500);
+
+        // The deleted TS SELECT was scoped by `created_by`; the native read
+        // binds the current signed-in actor and hides another actor's rows.
+        let other = read(
+            &pool,
+            actor("user-two", "legal_manager", &["legal.read", "legal.ai"]),
+            LegalAuxiliaryRead::ai_history("matter-open", ai_authority()),
+        )
+        .await
+        .unwrap();
+        assert!(other.as_array().unwrap().is_empty());
+
+        // A confidential item stays hidden from a non-member regardless of the
+        // witness; `user-one` holds the seeded read membership.
+        let hidden = read(
+            &pool,
+            actor("user-three", "legal_manager", &["legal.read", "legal.ai"]),
+            LegalAuxiliaryRead::ai_history("contract-secret", ai_authority()),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(code(hidden), "NOT_FOUND");
+
+        // legal.ai is required; legal.read alone cannot read AI history.
+        let no_permission = read(
+            &pool,
+            actor("user-one", "legal_manager", &["legal.read"]),
+            LegalAuxiliaryRead::ai_history("matter-open", ai_authority()),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(code(no_permission), "PERMISSION_REQUIRED");
+
+        // A request path never carries purchase/readiness authority.
+        let path = parse_auxiliary_path(&["ai".into(), "matter-open".into()], &[]).unwrap();
+        let no_authority = read(&pool, ai_manager(), path).await.unwrap_err();
+        assert_eq!(code(no_authority), "LEGAL_AI_AUTHORITY_REQUIRED");
+
+        let disabled_witness = read(
+            &pool,
+            ai_manager(),
+            LegalAuxiliaryRead::ai_history(
+                "matter-open",
+                AiHistoryAuthority {
+                    company_enabled: false,
+                    item_purchased_history: true,
+                },
+            ),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(code(disabled_witness), "LEGAL_DISABLED");
+
+        let unpurchased = read(
+            &pool,
+            ai_manager(),
+            LegalAuxiliaryRead::ai_history(
+                "matter-open",
+                AiHistoryAuthority {
+                    company_enabled: true,
+                    item_purchased_history: false,
+                },
+            ),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(code(unpurchased), "PACKAGE_REQUIRED");
+
+        // The owner re-checks the witness against its own settings in the same
+        // unit: a stale/true witness cannot reopen a now-disabled Company.
+        sqlx::query("UPDATE legal_settings SET enabled=false WHERE company_id='company-a'")
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        let db_disabled = read(
+            &pool,
+            ai_manager(),
+            LegalAuxiliaryRead::ai_history("matter-open", ai_authority()),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(code(db_disabled), "LEGAL_DISABLED");
+        sqlx::query("UPDATE legal_settings SET enabled=true WHERE company_id='company-a'")
+            .execute(pool.raw())
+            .await
+            .unwrap();
+    })
+    .await;
 }

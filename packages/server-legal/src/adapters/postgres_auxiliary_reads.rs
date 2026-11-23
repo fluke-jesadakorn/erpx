@@ -1002,9 +1002,35 @@ impl LegalAuxiliaryReadPorts for PgLegalAuxiliaryReads<'_> {
         &'a mut self,
         actor: &'a LegalAuxiliaryActor,
         item_id: &'a str,
+        authority: &'a AiHistoryAuthority,
     ) -> LegalAuxiliaryFuture<'a, Value> {
         Box::pin(async move {
             self.ready().await?;
+            // The composition witness is re-checked against the owner's own
+            // settings in this same Holding unit. It grants nothing by itself.
+            let company_enabled = sqlx::query_scalar::<_, bool>(
+                "SELECT enabled FROM legal_settings WHERE company_id=$1",
+            )
+            .bind(actor.company_id.as_str())
+            .fetch_optional(&mut *self.connection)
+            .await?
+            .unwrap_or(false);
+            if !company_enabled || !authority.company_enabled {
+                return Err(BusinessError::new(
+                    FailureKind::Forbidden,
+                    "LEGAL_DISABLED",
+                    "Legal is not enabled for this Company.",
+                )
+                .into());
+            }
+            if !authority.item_purchased_history {
+                return Err(BusinessError::new(
+                    FailureKind::Forbidden,
+                    "PACKAGE_REQUIRED",
+                    "This Legal source requires its purchased capability or retained history.",
+                )
+                .into());
+            }
             self.require_item(actor, item_id).await?;
             let rows = sqlx::query(
                 "SELECT to_jsonb(x) x FROM (SELECT id,source_version,question,proposal,state,error,created_at \

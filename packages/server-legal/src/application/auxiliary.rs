@@ -5,8 +5,8 @@
 //! Account session, selected Company/branch/department and the serializable
 //! Holding transaction; this module never opens its own.
 use crate::domain::auxiliary::{
-    LegalAuxiliaryActor, LegalAuxiliaryRead, authorize_read, bangkok_date, parse_as_of,
-    parse_identifier,
+    AiHistoryAuthority, LegalAuxiliaryActor, LegalAuxiliaryRead, authorize_ai_history,
+    authorize_read, bangkok_date, parse_as_of, parse_identifier,
 };
 use erpx_server_runtime::public::postgres::PgTransactionError;
 use erpx_server_shared::public::{BusinessError, Clock};
@@ -79,6 +79,7 @@ pub trait LegalAuxiliaryReadPorts {
         &'a mut self,
         actor: &'a LegalAuxiliaryActor,
         item_id: &'a str,
+        authority: &'a AiHistoryAuthority,
     ) -> LegalAuxiliaryFuture<'a, Value>;
 }
 
@@ -149,9 +150,10 @@ pub async fn read_auxiliary<P: LegalAuxiliaryReadPorts>(
         }
         LegalAuxiliaryRead::Trust => ports.trust(actor).await,
         LegalAuxiliaryRead::SavedViews => ports.saved_views(actor).await,
-        LegalAuxiliaryRead::AiHistory { item_id } => {
+        LegalAuxiliaryRead::AiHistory { item_id, authority } => {
             let item_id = parse_identifier(&item_id)?;
-            ports.ai_history(actor, &item_id).await
+            let authority = authorize_ai_history(authority)?;
+            ports.ai_history(actor, &item_id, &authority).await
         }
     }
 }
@@ -261,6 +263,9 @@ pub fn parse_auxiliary_path(
         },
         [one, id] if one == "ai" => LegalAuxiliaryRead::AiHistory {
             item_id: id.clone(),
+            // A request path never carries purchase or readiness authority.
+            // Composition binds the authoritative witness; until then deny.
+            authority: None,
         },
         _ => return None,
     })
@@ -379,7 +384,9 @@ mod tests {
             &'a mut self,
             _: &'a LegalAuxiliaryActor,
             item_id: &'a str,
+            authority: &'a AiHistoryAuthority,
         ) -> LegalAuxiliaryFuture<'a, Value> {
+            assert!(authority.company_enabled && authority.item_purchased_history);
             self.calls.push("ai_history");
             self.seen.push(item_id.to_owned());
             Box::pin(async { Ok(serde_json::json!([])) })
@@ -620,6 +627,91 @@ mod tests {
         assert_eq!(
             parse_auxiliary_path(&["laws".into(), "extra".into()], &query),
             None
+        );
+    }
+
+    fn business_code(error: &LegalAuxiliaryError) -> Option<&str> {
+        match error {
+            PgTransactionError::Business(error) => Some(error.code),
+            PgTransactionError::Persistence(_) => None,
+        }
+    }
+
+    fn ai_authority() -> AiHistoryAuthority {
+        AiHistoryAuthority {
+            company_enabled: true,
+            item_purchased_history: true,
+        }
+    }
+
+    #[tokio::test]
+    async fn ai_history_requires_legal_ai_permission_not_general_read() {
+        let mut ports = ports();
+        let actor = actor(&["legal.read"]);
+        let failure = read_auxiliary(
+            &mut ports,
+            &actor,
+            LegalAuxiliaryRead::ai_history("matter-one", ai_authority()),
+            &Fixed(0),
+        )
+        .await
+        .unwrap_err();
+        assert_eq!(business_code(&failure), Some("PERMISSION_REQUIRED"));
+        assert!(ports.calls.is_empty());
+    }
+
+    #[tokio::test]
+    async fn ai_history_denies_without_authority_or_with_a_false_witness() {
+        for authority in [
+            None,
+            Some(AiHistoryAuthority {
+                company_enabled: false,
+                item_purchased_history: true,
+            }),
+            Some(AiHistoryAuthority {
+                company_enabled: true,
+                item_purchased_history: false,
+            }),
+        ] {
+            let mut ports = ports();
+            let actor = actor(&["legal.read", "legal.ai"]);
+            let read = LegalAuxiliaryRead::AiHistory {
+                item_id: "matter-one".into(),
+                authority,
+            };
+            let failure = read_auxiliary(&mut ports, &actor, read, &Fixed(0))
+                .await
+                .unwrap_err();
+            assert_eq!(business_kind(&failure), Some(FailureKind::Forbidden));
+            assert!(ports.calls.is_empty());
+        }
+    }
+
+    #[tokio::test]
+    async fn ai_history_reaches_the_port_only_with_full_authority_and_legal_ai() {
+        let mut ports = ports();
+        let actor = actor(&["legal.read", "legal.ai"]);
+        read_auxiliary(
+            &mut ports,
+            &actor,
+            LegalAuxiliaryRead::ai_history("matter-one", ai_authority()),
+            &Fixed(0),
+        )
+        .await
+        .unwrap();
+        assert_eq!(ports.calls, vec!["ai_history"]);
+        assert_eq!(ports.seen, vec!["matter-one".to_owned()]);
+    }
+
+    #[test]
+    fn ai_request_path_never_supplies_authority() {
+        let read = parse_auxiliary_path(&["ai".into(), "matter-one".into()], &[]).unwrap();
+        assert_eq!(
+            read,
+            LegalAuxiliaryRead::AiHistory {
+                item_id: "matter-one".into(),
+                authority: None,
+            }
         );
     }
 }
