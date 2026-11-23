@@ -1,6 +1,8 @@
+pub mod approval_planning;
 pub mod commands;
 pub mod job_projector;
 pub mod record_origin;
+pub mod request_ai_effects;
 pub mod routing_attention;
 pub mod workflow_wave3;
 

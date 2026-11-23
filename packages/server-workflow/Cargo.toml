@@ -102,3 +102,11 @@ path = "../../tests/unit/workflow/rust-pms-social-event.test.rs"
 [[test]]
 name = "pms_social_event_postgres"
 path = "../../tests/integration/workflow/rust-pms-social-event-postgres.test.rs"
+
+[[test]]
+name = "request_ai_effects_postgres"
+path = "../../tests/integration/workflow/rust-request-ai-effects-postgres.test.rs"
+
+[[test]]
+name = "approval_planning_postgres"
+path = "../../tests/integration/workflow/rust-approval-planning-postgres.test.rs"

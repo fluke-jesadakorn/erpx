@@ -3,6 +3,7 @@ pub mod pms_social_event_facts;
 pub mod pms_social_projector;
 pub mod postgres_commands;
 pub mod postgres_record_origin;
+pub mod request_ai_effects;
 pub(crate) mod workflow_wave3_http;
 pub(crate) mod workflow_wave3_postgres;
 

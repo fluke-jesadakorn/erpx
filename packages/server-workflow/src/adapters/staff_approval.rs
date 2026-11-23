@@ -1,15 +1,19 @@
-//! Native Workflow approval ports for Staff Work.
+//! Native Workflow approval ports for Staff Work and owner record kinds.
 //!
-//! These ports own only the retained task branch of
+//! These ports own the retained owner-local branch of
 //! `createApprovalPlanningApplication` (`openApproval`, `approvalView`,
-//! `prepareDecision` and `closeApprovals`). Every statement runs directly on
-//! the caller's retained `&mut sqlx::PgConnection`; there is no staged effect
-//! list, no notification row and no dependency on the Organization or People
-//! crates. `hr_people` is read only to resolve approver/actor display names.
+//! `prepareDecision` and `closeApprovals`). The `*_staff_*` entry points are
+//! the Staff Work task branch; the `*_owner_*` entry points generalize the same
+//! transaction-local SQL and guards to expense, leave, leave_cancellation and
+//! overtime. Every statement runs directly on the caller's retained
+//! `&mut sqlx::PgConnection`; there is no staged effect list, no notification
+//! row and no dependency on the Organization or People crates. `hr_people` is
+//! read only to resolve approver/actor display names.
 //!
-//! Route computation, live assignment/staff authority and the task state
-//! transition remain composition duties. This adapter never infers or
-//! fabricates an approval: it refuses missing, stale, blocked or
+//! Route computation, live assignment/department/HR authority, expense pool
+//! eligibility, record state transitions and notification rows remain the
+//! owning crates' and composition's duties. This adapter never infers or
+//! fabricates an approval: it refuses missing, stale, blocked, illegal-kind or
 //! self-approving decisions with the retained policy codes.
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind};
 use serde_json::{Value, json};
@@ -48,6 +52,22 @@ pub struct OpenStaffApproval<'a> {
 }
 
 #[derive(Clone, Debug)]
+pub struct OpenOwnerApproval<'a> {
+    pub key: &'a str,
+    pub company_id: &'a str,
+    pub branch_id: Option<&'a str>,
+    pub department_id: Option<&'a str>,
+    pub record_id: &'a str,
+    pub phase: &'a str,
+    pub requester_user_id: &'a str,
+    pub assignee_user_id: Option<&'a str>,
+    pub record_version: i64,
+    pub steps: &'a [StaffApprovalStep],
+    pub now: i64,
+    pub kind: &'a str,
+}
+
+#[derive(Clone, Debug)]
 pub struct StaffApprovalView {
     pub state: String,
     pub phase: Option<String>,
@@ -83,6 +103,36 @@ fn phase_invalid() -> BusinessError {
         "TASK_APPROVAL_PHASE_INVALID",
         "Use a start or completion task approval phase.",
     )
+}
+
+fn owner_phase_invalid() -> BusinessError {
+    BusinessError::invalid(
+        "OWNER_APPROVAL_PHASE_INVALID",
+        "Use a request, start or completion approval phase.",
+    )
+}
+
+/// The owner vertical covers the four Workflow-owned expense/leave/overtime
+/// kinds. Legal decisions remain in the Legal owner with document and signer
+/// checks, and task decisions stay on the dedicated Staff Work ports.
+fn validate_owner_kind(kind: &str) -> Result<(), BusinessError> {
+    if matches!(
+        kind,
+        "expense" | "leave" | "leave_cancellation" | "overtime"
+    ) {
+        return Ok(());
+    }
+    if kind == "legal" {
+        return Err(BusinessError::new(
+            FailureKind::Forbidden,
+            "LEGAL_OWNER_REQUIRED",
+            "Use the Legal approval endpoint with record access checks.",
+        ));
+    }
+    Err(BusinessError::invalid(
+        "OWNER_APPROVAL_KIND_INVALID",
+        "Use an expense, leave, leave_cancellation or overtime approval.",
+    ))
 }
 
 fn not_pending() -> BusinessError {
@@ -221,30 +271,33 @@ struct InstanceRow {
 async fn read_latest_instance(
     connection: &mut PgConnection,
     company_id: &str,
-    task_id: &str,
+    record_id: &str,
+    kind: &str,
     lock: bool,
 ) -> Result<Option<InstanceRow>, BusinessError> {
     const CURRENT: &str = "SELECT id,phase,requester_user_id,assignee_user_id,\
          state,current_step,blocked_reason,version FROM approval_instances \
-         WHERE record_type='task' AND record_id=$1 AND company_id=$2 \
+         WHERE record_type=$3 AND record_id=$1 AND company_id=$2 \
          ORDER BY insertion_order DESC LIMIT 1";
     const LOCKED: &str = "SELECT id,phase,requester_user_id,assignee_user_id,\
          state,current_step,blocked_reason,version FROM approval_instances \
-         WHERE record_type='task' AND record_id=$1 AND company_id=$2 \
+         WHERE record_type=$3 AND record_id=$1 AND company_id=$2 \
          ORDER BY insertion_order DESC LIMIT 1 FOR UPDATE";
     let row = if lock {
         persistence(
             sqlx::query(LOCKED)
-                .bind(task_id)
+                .bind(record_id)
                 .bind(company_id)
+                .bind(kind)
                 .fetch_optional(&mut *connection)
                 .await,
         )?
     } else {
         persistence(
             sqlx::query(CURRENT)
-                .bind(task_id)
+                .bind(record_id)
                 .bind(company_id)
+                .bind(kind)
                 .fetch_optional(&mut *connection)
                 .await,
         )?
@@ -372,8 +425,6 @@ pub async fn open_staff_approval(
     connection: &mut PgConnection,
     request: OpenStaffApproval<'_>,
 ) -> Result<String, BusinessError> {
-    validate_key(request.key)?;
-    let company = CompanyId::new(request.company_id)?;
     if !matches!(request.phase, "start" | "completion") {
         return Err(phase_invalid());
     }
@@ -383,15 +434,78 @@ pub async fn open_staff_approval(
             "Review the task approval request and try again.",
         ));
     }
-    let instance_id = format!("approval-{}", request.key);
+    open_approval_inner(
+        connection,
+        request.key,
+        request.company_id,
+        request.branch_id,
+        request.department_id,
+        request.task_id,
+        request.phase,
+        request.requester_user_id,
+        request.assignee_user_id,
+        request.steps,
+        request.now,
+        "task",
+    )
+    .await
+}
+
+/// Open one owner approval cycle (expense, leave, leave_cancellation or
+/// overtime) on the caller's transaction. Route computation, live authority
+/// and notification rows stay with the owning crate/composition; this port owns
+/// only the Workflow instance, its steps and the cycle bookkeeping.
+pub async fn open_owner_approval(
+    connection: &mut PgConnection,
+    request: OpenOwnerApproval<'_>,
+) -> Result<String, BusinessError> {
+    validate_owner_kind(request.kind)?;
+    if request.phase.is_empty() {
+        return Err(owner_phase_invalid());
+    }
+    if request.record_id.is_empty() {
+        return Err(BusinessError::invalid(
+            "OWNER_APPROVAL_INPUT_INVALID",
+            "Review the approval request and try again.",
+        ));
+    }
+    open_approval_inner(
+        connection,
+        request.key,
+        request.company_id,
+        request.branch_id,
+        request.department_id,
+        request.record_id,
+        request.phase,
+        request.requester_user_id,
+        request.assignee_user_id,
+        request.steps,
+        request.now,
+        request.kind,
+    )
+    .await
+}
+
+async fn open_approval_inner(
+    connection: &mut PgConnection,
+    key: &str,
+    company_id: &str,
+    branch_id: Option<&str>,
+    department_id: Option<&str>,
+    record_id: &str,
+    phase: &str,
+    requester_user_id: &str,
+    assignee_user_id: Option<&str>,
+    steps: &[StaffApprovalStep],
+    now: i64,
+    kind: &str,
+) -> Result<String, BusinessError> {
+    validate_key(key)?;
+    let company = CompanyId::new(company_id)?;
+    let instance_id = format!("approval-{}", key);
 
     if let Some(existing) = read_instance_identity(connection, &instance_id).await? {
-        if existing.matches(
-            company.as_str(),
-            request.task_id,
-            request.phase,
-            &instance_id,
-        ) {
+        if existing.matches(company.as_str(), record_id, phase, &instance_id, kind) {
             return Ok(instance_id);
         }
         return Err(idempotency_conflict());
@@ -400,10 +514,11 @@ pub async fn open_staff_approval(
     let cycle: i64 = persistence(
         sqlx::query_scalar(
             "SELECT COALESCE(MAX(cycle),0) FROM approval_instances \
-             WHERE record_type='task' AND record_id=$1 AND phase=$2",
+             WHERE record_type=$1 AND record_id=$2 AND phase=$3",
         )
-        .bind(request.task_id)
-        .bind(request.phase)
+        .bind(kind)
+        .bind(record_id)
+        .bind(phase)
         .fetch_one(&mut *connection)
         .await,
     )?;
@@ -417,52 +532,45 @@ pub async fn open_staff_approval(
     persistence(
         sqlx::query(
             "UPDATE approval_instances SET state='superseded',version=version+1,updated_at=$1 \
-             WHERE record_type='task' AND record_id=$2 AND company_id=$3 \
+             WHERE record_type=$2 AND record_id=$3 AND company_id=$4 \
              AND state IN ('pending','blocked')",
         )
-        .bind(request.now)
-        .bind(request.task_id)
+        .bind(now)
+        .bind(kind)
+        .bind(record_id)
         .bind(company.as_str())
         .execute(&mut *connection)
         .await,
     )?;
 
-    let state = if request.steps.is_empty() {
-        "approved"
-    } else {
-        "pending"
-    };
+    let state = if steps.is_empty() { "approved" } else { "pending" };
     let inserted = sqlx::query(
         "INSERT INTO approval_instances(id,company_id,branch_id,department_id,record_type,\
          record_id,phase,cycle,requester_user_id,assignee_user_id,state,current_step,version,\
          created_at,updated_at) \
-         VALUES($1,$2,$3,$4,'task',$5,$6,$7,$8,$9,$10,0,1,$11,$11)",
+         VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,0,1,$12,$12)",
     )
     .bind(&instance_id)
     .bind(company.as_str())
-    .bind(request.branch_id)
-    .bind(request.department_id)
-    .bind(request.task_id)
-    .bind(request.phase)
+    .bind(branch_id)
+    .bind(department_id)
+    .bind(kind)
+    .bind(record_id)
+    .bind(phase)
     .bind(cycle)
-    .bind(request.requester_user_id)
-    .bind(request.assignee_user_id)
+    .bind(requester_user_id)
+    .bind(assignee_user_id)
     .bind(state)
-    .bind(request.now)
+    .bind(now)
     .execute(&mut *connection)
     .await;
 
     if let Err(error) = inserted {
         // A concurrent commit with the same key is still an idempotent success
-        // when it produced the exact same task/phase instance.
+        // when it produced the exact same kind/record/phase instance.
         if is_unique_violation(&error) {
             if let Some(existing) = read_instance_identity(connection, &instance_id).await? {
-                if existing.matches(
-                    company.as_str(),
-                    request.task_id,
-                    request.phase,
-                    &instance_id,
-                ) {
+                if existing.matches(company.as_str(), record_id, phase, &instance_id, kind) {
                     return Ok(instance_id);
                 }
             }
@@ -471,7 +579,7 @@ pub async fn open_staff_approval(
         return Err(unavailable());
     }
 
-    for (ordinal, step) in request.steps.iter().enumerate() {
+    for (ordinal, step) in steps.iter().enumerate() {
         let ordinal = i64::try_from(ordinal).map_err(|_| {
             BusinessError::invalid(
                 "TASK_APPROVAL_STEPS_INVALID",
@@ -522,10 +630,10 @@ struct InstanceIdentity {
 }
 
 impl InstanceIdentity {
-    fn matches(&self, company_id: &str, task_id: &str, phase: &str, id: &str) -> bool {
+    fn matches(&self, company_id: &str, record_id: &str, phase: &str, id: &str, kind: &str) -> bool {
         self.company_id == company_id
-            && self.record_type == "task"
-            && self.record_id == task_id
+            && self.record_type == kind
+            && self.record_id == record_id
             && self.phase == phase
             && self.id == id
     }
@@ -562,13 +670,64 @@ pub async fn staff_approval_view(
     connection: &mut PgConnection,
     company_id: &str,
     user_id: &str,
-    _assignment_id: &str,
+    assignment_id: &str,
     role: &str,
     task_id: &str,
+    now: i64,
+) -> Result<StaffApprovalView, BusinessError> {
+    approval_view_inner(
+        connection,
+        company_id,
+        user_id,
+        assignment_id,
+        role,
+        task_id,
+        now,
+        "task",
+    )
+    .await
+}
+
+/// Read the current owner approval. Missing approval is `not_required`, matching
+/// the retained viewer. Live department/HR authority and expense pool
+/// eligibility stay with the owning crate/composition.
+pub async fn owner_approval_view(
+    connection: &mut PgConnection,
+    company_id: &str,
+    user_id: &str,
+    assignment_id: &str,
+    role: &str,
+    record_id: &str,
+    now: i64,
+    kind: &str,
+) -> Result<StaffApprovalView, BusinessError> {
+    validate_owner_kind(kind)?;
+    approval_view_inner(
+        connection,
+        company_id,
+        user_id,
+        assignment_id,
+        role,
+        record_id,
+        now,
+        kind,
+    )
+    .await
+}
+
+async fn approval_view_inner(
+    connection: &mut PgConnection,
+    company_id: &str,
+    user_id: &str,
+    _assignment_id: &str,
+    role: &str,
+    record_id: &str,
     _now: i64,
+    kind: &str,
 ) -> Result<StaffApprovalView, BusinessError> {
     let company = CompanyId::new(company_id)?;
-    let Some(instance) = read_latest_instance(connection, company.as_str(), task_id, false).await?
+    let Some(instance) =
+        read_latest_instance(connection, company.as_str(), record_id, kind, false).await?
     else {
         return Ok(StaffApprovalView {
             state: "not_required".into(),
@@ -593,19 +752,21 @@ pub async fn staff_approval_view(
 async fn read_decision_by_command(
     connection: &mut PgConnection,
     company_id: &str,
-    task_id: &str,
+    record_id: &str,
     key: &str,
+    kind: &str,
 ) -> Result<Option<(String, String, String)>, BusinessError> {
     let row = persistence(
         sqlx::query(
             "SELECT d.action,i.phase,i.state FROM approval_decisions d \
              JOIN approval_instances i ON i.id=d.instance_id \
-             WHERE d.command_id=$1 AND i.company_id=$2 AND i.record_type='task' \
+             WHERE d.command_id=$1 AND i.company_id=$2 AND i.record_type=$4 \
              AND i.record_id=$3 ORDER BY d.insertion_order DESC LIMIT 1",
         )
         .bind(key)
         .bind(company_id)
-        .bind(task_id)
+        .bind(record_id)
+        .bind(kind)
         .fetch_optional(&mut *connection)
         .await,
     )?;
@@ -635,20 +796,26 @@ fn replay_decision(
     })
 }
 
-/// The retained `prepareDecision` receives the task's expected version. Staff
-/// Work composition forwards task rows here, so the stale guard compares the
-/// task version when the row exists and falls back to the instance version only
-/// when the caller is exercising the approval port without a task record.
+/// The retained `prepareDecision` receives the record's expected version. Staff
+/// Work composition forwards task rows here, so the task branch compares the
+/// staff_tasks version when the row exists and falls back to the instance
+/// version only when the caller exercises the port without a task record. Owner
+/// kinds (expense/leave/leave_cancellation/overtime) stay on the Workflow-owned
+/// instance version; their record version is guarded by the owning crate.
 async fn expected_version_is_current(
     connection: &mut PgConnection,
     company_id: &str,
-    task_id: &str,
+    record_id: &str,
+    kind: &str,
     instance_version: i64,
     expected_version: i64,
 ) -> Result<bool, BusinessError> {
+    if kind != "task" {
+        return Ok(instance_version == expected_version);
+    }
     let task_version: Option<i64> = persistence(
         sqlx::query_scalar("SELECT version FROM staff_tasks WHERE id=$1 AND company_id=$2")
-            .bind(task_id)
+            .bind(record_id)
             .bind(company_id)
             .fetch_optional(&mut *connection)
             .await,
@@ -662,7 +829,7 @@ pub async fn prepare_staff_decision(
     connection: &mut PgConnection,
     company_id: &str,
     user_id: &str,
-    _assignment_id: &str,
+    assignment_id: &str,
     role: &str,
     key: &str,
     task_id: &str,
@@ -671,6 +838,73 @@ pub async fn prepare_staff_decision(
     expected_version: i64,
     now: i64,
 ) -> Result<StaffDecision, BusinessError> {
+    prepare_decision_inner(
+        connection,
+        company_id,
+        user_id,
+        assignment_id,
+        role,
+        key,
+        task_id,
+        approve,
+        note,
+        expected_version,
+        now,
+        "task",
+    )
+    .await
+}
+
+/// Prepare an owner approve/reject decision for expense, leave,
+/// leave_cancellation or overtime. Decision authority and notification rows are
+/// checked/written by the owning crate/composition; this port owns the
+/// Workflow-owned instance/step/decision transition on the caller's transaction.
+pub async fn prepare_owner_decision(
+    connection: &mut PgConnection,
+    company_id: &str,
+    user_id: &str,
+    assignment_id: &str,
+    role: &str,
+    key: &str,
+    record_id: &str,
+    approve: bool,
+    note: &str,
+    expected_version: i64,
+    now: i64,
+    kind: &str,
+) -> Result<StaffDecision, BusinessError> {
+    validate_owner_kind(kind)?;
+    prepare_decision_inner(
+        connection,
+        company_id,
+        user_id,
+        assignment_id,
+        role,
+        key,
+        record_id,
+        approve,
+        note,
+        expected_version,
+        now,
+        kind,
+    )
+    .await
+}
+
+async fn prepare_decision_inner(
+    connection: &mut PgConnection,
+    company_id: &str,
+    user_id: &str,
+    _assignment_id: &str,
+    role: &str,
+    key: &str,
+    record_id: &str,
+    approve: bool,
+    note: &str,
+    expected_version: i64,
+    now: i64,
+    kind: &str,
+) -> Result<StaffDecision, BusinessError> {
     validate_key(key)?;
     let company = CompanyId::new(company_id)?;
     if !approve && note.trim().is_empty() {
@@ -678,18 +912,18 @@ pub async fn prepare_staff_decision(
     }
 
     if let Some((action, phase, state)) =
-        read_decision_by_command(connection, company.as_str(), task_id, key).await?
+        read_decision_by_command(connection, company.as_str(), record_id, key, kind).await?
     {
         return replay_decision(&action, phase, &state, approve);
     }
 
-    let instance = read_latest_instance(connection, company.as_str(), task_id, true)
+    let instance = read_latest_instance(connection, company.as_str(), record_id, kind, true)
         .await?
         .ok_or_else(|| {
             BusinessError::new(
                 FailureKind::NotFound,
                 "APPROVAL_INSTANCE_NOT_FOUND",
-                "The task approval is not available.",
+                "The approval is not available.",
             )
         })?;
     if instance.state != "pending" {
@@ -698,7 +932,8 @@ pub async fn prepare_staff_decision(
     if !expected_version_is_current(
         connection,
         company.as_str(),
-        task_id,
+        record_id,
+        kind,
         instance.version,
         expected_version,
     )
@@ -831,6 +1066,60 @@ pub async fn close_staff_approvals(
     expected_version: i64,
     now: i64,
 ) -> Result<(), BusinessError> {
+    close_approvals_inner(
+        connection,
+        company_id,
+        key,
+        task_id,
+        user_id,
+        reason,
+        expected_version,
+        now,
+        "task",
+    )
+    .await
+}
+
+/// Close every open owner approval for the record. The command key is
+/// idempotent: a replayed close returns success without another supersede or
+/// decision row.
+pub async fn close_owner_approvals(
+    connection: &mut PgConnection,
+    company_id: &str,
+    key: &str,
+    record_id: &str,
+    user_id: &str,
+    reason: &str,
+    expected_version: i64,
+    now: i64,
+    kind: &str,
+) -> Result<(), BusinessError> {
+    validate_owner_kind(kind)?;
+    close_approvals_inner(
+        connection,
+        company_id,
+        key,
+        record_id,
+        user_id,
+        reason,
+        expected_version,
+        now,
+        kind,
+    )
+    .await
+}
+
+async fn close_approvals_inner(
+    connection: &mut PgConnection,
+    company_id: &str,
+    key: &str,
+    record_id: &str,
+    user_id: &str,
+    reason: &str,
+    expected_version: i64,
+    now: i64,
+    kind: &str,
+) -> Result<(), BusinessError> {
     validate_key(key)?;
     let company = CompanyId::new(company_id)?;
     let prior: Option<(String, String, String, String)> = persistence(
@@ -843,35 +1132,45 @@ pub async fn close_staff_approvals(
         .fetch_optional(&mut *connection)
         .await,
     )?;
-    if let Some((action, prior_company, record_type, record_id)) = prior {
+    if let Some((action, prior_company, prior_type, prior_record)) = prior {
         if action == "cancel"
             && prior_company == company.as_str()
-            && record_type == "task"
-            && record_id == task_id
+            && prior_type == kind
+            && prior_record == record_id
         {
             return Ok(());
         }
         return Err(idempotency_conflict());
     }
+    // The retained owner `closeApprovals` closes pending, blocked and approved
+    // instances; Staff Work's task close keeps its narrower open-only set.
+    let states = if kind == "task" {
+        "'pending','blocked'"
+    } else {
+        "'pending','blocked','approved'"
+    };
+    let statement = format!(
+        "WITH closed AS ( \
+         UPDATE approval_instances SET state='superseded',version=version+1,updated_at=$4 \
+         WHERE record_type=$8 AND record_id=$1 AND company_id=$2 \
+         AND state IN ({states}) RETURNING id \
+         ) \
+         INSERT INTO approval_decisions(id,instance_id,action,actor_user_id,reason,\
+         reviewed_version,command_id,created_at) \
+         SELECT $3||'-'||id,id,'cancel',$5,$6,$7,$3,$4 FROM closed \
+         ON CONFLICT (id) DO NOTHING"
+    );
+    // `states` is a literal chosen above, never caller input.
     persistence(
-        sqlx::query(
-            "WITH closed AS ( \
-             UPDATE approval_instances SET state='superseded',version=version+1,updated_at=$4 \
-             WHERE record_type='task' AND record_id=$1 AND company_id=$2 \
-             AND state IN ('pending','blocked') RETURNING id \
-             ) \
-             INSERT INTO approval_decisions(id,instance_id,action,actor_user_id,reason,\
-             reviewed_version,command_id,created_at) \
-             SELECT $3||'-'||id,id,'cancel',$5,$6,$7,$3,$4 FROM closed \
-             ON CONFLICT (id) DO NOTHING",
-        )
-        .bind(task_id)
+        sqlx::query(sqlx::AssertSqlSafe(statement))
+        .bind(record_id)
         .bind(company.as_str())
         .bind(key)
         .bind(now)
         .bind(user_id)
         .bind(reason)
         .bind(expected_version)
+        .bind(kind)
         .execute(&mut *connection)
         .await,
     )?;
