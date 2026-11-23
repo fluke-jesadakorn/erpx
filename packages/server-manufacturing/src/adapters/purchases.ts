@@ -79,7 +79,16 @@ function base(kind:ManufacturingPurchaseTarget["kind"]){return kind==="specifica
 export async function manufacturingSourceAccess(database:SqlDatabase,actor:WorkContext,input:{target?:ManufacturingPurchaseTarget;capabilities?:readonly string[];module?:"planning"|"manufacturing"}={}):Promise<ManufacturingPurchaseControls|undefined>{
  const mode=await manufacturingPackageEnforcementMode();if(mode==="disabled")return undefined;
  await current(database,actor,`production-read:${randomUUID()}`,"records.read",input.module??(input.target?.kind==="order"||input.target?.kind==="specification"?"manufacturing":"planning"));
- const actual=input.target?await source(database,actor,input.target):null,capabilities=[...new Set([...(input.capabilities??base(input.target?.kind??"order")),...(actual?.advanced?["planning.advanced-mrp"]:[])])],access=await readPurchasedAccesses(database,mode,actor.companyId,capabilities);
+ // Read paths only need the source witness to decide the advanced-MRP scope.
+ // A file bind bumps the owner record version inside its command transaction;
+ // the derived source view can therefore drop the row for one freshness read
+ // while the command guard remains authoritative. Never turn that transient
+ // view miss into a 404 on a purchase read: fall back to the base capabilities
+ // and let readPurchasedAccesses fail closed on the actual package grants. The
+ // command path (withManufacturingPurchasedCommand) keeps source() strict.
+ let actual:Awaited<ReturnType<typeof source>>|null=null;
+ if(input.target){try{actual=await source(database,actor,input.target);}catch(error){if(!(error instanceof ApiError&&error.code==="PRODUCTION_SOURCE_NOT_FOUND"))throw error;}}
+ const capabilities=[...new Set([...(input.capabilities??base(input.target?.kind??"order")),...(actual?.advanced?["planning.advanced-mrp"]:[])])],access=await readPurchasedAccesses(database,mode,actor.companyId,capabilities);
  return {newWork:capabilities.every(capability=>access[capability].newWork),settleExisting:capabilities.every(capability=>access[capability].settleExisting),history:capabilities.every(capability=>access[capability].history),revision:capabilities.map(capability=>access[capability].revision).join(":")};
 }
 export async function manufacturingPurchaseControls(actor:WorkContext,input:Parameters<typeof manufacturingSourceAccess>[2]={}){return manufacturingSourceAccess((await holdingResources(actor.holdingId)).write,actor,input);}

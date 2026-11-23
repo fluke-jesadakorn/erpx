@@ -625,8 +625,15 @@ async function prepareAttachmentBinding(db: AttachmentServiceUnit<Effect>, actor
     const historicalLeave=set.target_type==="leave_request";
     if(historicalLeave?Number(set.expected_target_version)>input.expectedTargetVersion:Number(set.expected_target_version)!==input.expectedTargetVersion)
       throw ports.error(409,"ATTACHMENT_SET_STALE",historicalLeave?"This Leave file set was authorized against a newer request version.":"Create a file set for the current record version.");
-    const policy=attachmentPolicy(set.target_type,set.purpose_key,set.component_kind),scope=await db.authorizeTarget(actor,policy,set.target_id,"bind");
-    if(scope.version!==input.expectedTargetVersion)throw ports.error(409,"ATTACHMENT_TARGET_CHANGED","The record changed before evidence was bound.");
+    const policy=attachmentPolicy(set.target_type,set.purpose_key,set.component_kind);
+    // Authorize the target, but do not compare the eagerly read scope.version
+    // with the captured expected version here. Under concurrent binds the
+    // eager read can observe a version bumped by another committed command
+    // after this transaction's snapshot was taken, producing a spurious
+    // ATTACHMENT_TARGET_CHANGED. The atomic owner version guard queued below
+    // is evaluated in the same transaction as the version step and is the
+    // single authoritative freshness check.
+    await db.authorizeTarget(actor,policy,set.target_id,"bind");
     guards.push(attachmentTargetVersionGuard(db,input.commandId,set.target_type,set.target_id,actor,input.expectedTargetVersion,setIndex));
     const links=await db.readAttachmentLinks64({id:id,companyId:actor.companyId});
     if(!links.results.length)throw ports.error(422,"ATTACHMENT_SET_EMPTY","Bind at least one available file.");
