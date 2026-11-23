@@ -251,6 +251,62 @@ const READ_TRANSIT_ATTACHMENT_DESCRIPTOR: NativeStatement = NativeStatement {
     scope: "holding",
 };
 
+/// Native successors of the TypeScript `attachments-policy-facts`
+/// `readDescriptor` read. The retired adapter interpolated a per-target-type
+/// descriptor (table, branch column, version column, NULL department, empty
+/// extra); every descriptor in use resolves to one of these five owner-local
+/// fixed statements. The caller executes on its own unit and takes the first
+/// row, exactly as the retired `.first()` literal did.
+pub const RD_ATTACHMENT_DESCRIPTOR_LANDED_COST: &str = "inventory_rd_attachment_descriptor_landed_cost";
+const SQL_RD_ATTACHMENT_DESCRIPTOR_LANDED_COST: &str =
+    "SELECT company_id,branch_id AS branch_id,NULL AS department_id,version AS version FROM inventory_landed_costs WHERE id=? AND company_id=?";
+const READ_ATTACHMENT_DESCRIPTOR_LANDED_COST: NativeStatement = NativeStatement {
+    kind: RD_ATTACHMENT_DESCRIPTOR_LANDED_COST,
+    sql: SQL_RD_ATTACHMENT_DESCRIPTOR_LANDED_COST,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_ATTACHMENT_DESCRIPTOR_STOCK_COUNT: &str = "inventory_rd_attachment_descriptor_stock_count";
+const SQL_RD_ATTACHMENT_DESCRIPTOR_STOCK_COUNT: &str =
+    "SELECT company_id,branch_id AS branch_id,NULL AS department_id,version AS version FROM inventory_counts WHERE id=? AND company_id=?";
+const READ_ATTACHMENT_DESCRIPTOR_STOCK_COUNT: NativeStatement = NativeStatement {
+    kind: RD_ATTACHMENT_DESCRIPTOR_STOCK_COUNT,
+    sql: SQL_RD_ATTACHMENT_DESCRIPTOR_STOCK_COUNT,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_ATTACHMENT_DESCRIPTOR_TRANSFER: &str = "inventory_rd_attachment_descriptor_transfer";
+const SQL_RD_ATTACHMENT_DESCRIPTOR_TRANSFER: &str =
+    "SELECT company_id,source_branch_id AS branch_id,NULL AS department_id,version AS version FROM inventory_transfers WHERE id=? AND company_id=?";
+const READ_ATTACHMENT_DESCRIPTOR_TRANSFER: NativeStatement = NativeStatement {
+    kind: RD_ATTACHMENT_DESCRIPTOR_TRANSFER,
+    sql: SQL_RD_ATTACHMENT_DESCRIPTOR_TRANSFER,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_ATTACHMENT_DESCRIPTOR_TRANSIT: &str = "inventory_rd_attachment_descriptor_transit";
+const SQL_RD_ATTACHMENT_DESCRIPTOR_TRANSIT: &str =
+    "SELECT company_id,source_branch_id AS branch_id,NULL AS department_id,version AS version FROM inventory_transit WHERE id=? AND company_id=?";
+const READ_ATTACHMENT_DESCRIPTOR_TRANSIT: NativeStatement = NativeStatement {
+    kind: RD_ATTACHMENT_DESCRIPTOR_TRANSIT,
+    sql: SQL_RD_ATTACHMENT_DESCRIPTOR_TRANSIT,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_ATTACHMENT_DESCRIPTOR_LOT: &str = "inventory_rd_attachment_descriptor_lot";
+const SQL_RD_ATTACHMENT_DESCRIPTOR_LOT: &str =
+    "SELECT company_id,NULL AS branch_id,NULL AS department_id,version AS version FROM inventory_lots WHERE id=? AND company_id=?";
+const READ_ATTACHMENT_DESCRIPTOR_LOT: NativeStatement = NativeStatement {
+    kind: RD_ATTACHMENT_DESCRIPTOR_LOT,
+    sql: SQL_RD_ATTACHMENT_DESCRIPTOR_LOT,
+    bind_count: 2,
+    scope: "holding",
+};
+
 pub fn is_read(kind: &str) -> bool {
     matches!(
         kind,
@@ -265,6 +321,11 @@ pub fn is_read(kind: &str) -> bool {
             | RD_LEDGER_MOVEMENT_AFTER
             | RD_ATTACHMENT_OPERATIONAL_TRANSFER
             | RD_TRANSIT_ATTACHMENT_DESCRIPTOR
+            | RD_ATTACHMENT_DESCRIPTOR_LANDED_COST
+            | RD_ATTACHMENT_DESCRIPTOR_STOCK_COUNT
+            | RD_ATTACHMENT_DESCRIPTOR_TRANSFER
+            | RD_ATTACHMENT_DESCRIPTOR_TRANSIT
+            | RD_ATTACHMENT_DESCRIPTOR_LOT
     )
 }
 
@@ -281,6 +342,11 @@ pub fn read_statement(kind: &str) -> Option<&'static NativeStatement> {
         RD_LEDGER_MOVEMENT_AFTER => Some(&READ_LEDGER_MOVEMENT_AFTER),
         RD_ATTACHMENT_OPERATIONAL_TRANSFER => Some(&READ_ATTACHMENT_OPERATIONAL_TRANSFER),
         RD_TRANSIT_ATTACHMENT_DESCRIPTOR => Some(&READ_TRANSIT_ATTACHMENT_DESCRIPTOR),
+        RD_ATTACHMENT_DESCRIPTOR_LANDED_COST => Some(&READ_ATTACHMENT_DESCRIPTOR_LANDED_COST),
+        RD_ATTACHMENT_DESCRIPTOR_STOCK_COUNT => Some(&READ_ATTACHMENT_DESCRIPTOR_STOCK_COUNT),
+        RD_ATTACHMENT_DESCRIPTOR_TRANSFER => Some(&READ_ATTACHMENT_DESCRIPTOR_TRANSFER),
+        RD_ATTACHMENT_DESCRIPTOR_TRANSIT => Some(&READ_ATTACHMENT_DESCRIPTOR_TRANSIT),
+        RD_ATTACHMENT_DESCRIPTOR_LOT => Some(&READ_ATTACHMENT_DESCRIPTOR_LOT),
         _ => None,
     }
 }
@@ -333,6 +399,11 @@ mod tests {
             RD_LEDGER_MOVEMENT_AFTER,
             RD_ATTACHMENT_OPERATIONAL_TRANSFER,
             RD_TRANSIT_ATTACHMENT_DESCRIPTOR,
+            RD_ATTACHMENT_DESCRIPTOR_LANDED_COST,
+            RD_ATTACHMENT_DESCRIPTOR_STOCK_COUNT,
+            RD_ATTACHMENT_DESCRIPTOR_TRANSFER,
+            RD_ATTACHMENT_DESCRIPTOR_TRANSIT,
+            RD_ATTACHMENT_DESCRIPTOR_LOT,
         ] {
             assert!(is_read(kind));
             let read = read_statement(kind).expect("read kind");
@@ -437,6 +508,43 @@ mod tests {
         assert_eq!(transit.bind_count, 2);
         assert!(transit.sql.trim_start().starts_with("SELECT"));
         assert_eq!(transit.sql.matches('?').count(), transit.bind_count);
+    }
+
+    /// Parity witness for the `attachments-policy-facts` descriptor family:
+    /// each fixed plan is exactly the statement the retired TypeScript template
+    /// resolved for that target type (constant branch/version columns, NULL
+    /// department and empty extra), with the caller-unit binds intact.
+    #[test]
+    fn attachment_descriptor_read_plans_match_retired_owner_statements() {
+        let cases = [
+            (
+                RD_ATTACHMENT_DESCRIPTOR_LANDED_COST,
+                "SELECT company_id,branch_id AS branch_id,NULL AS department_id,version AS version FROM inventory_landed_costs WHERE id=? AND company_id=?",
+            ),
+            (
+                RD_ATTACHMENT_DESCRIPTOR_STOCK_COUNT,
+                "SELECT company_id,branch_id AS branch_id,NULL AS department_id,version AS version FROM inventory_counts WHERE id=? AND company_id=?",
+            ),
+            (
+                RD_ATTACHMENT_DESCRIPTOR_TRANSFER,
+                "SELECT company_id,source_branch_id AS branch_id,NULL AS department_id,version AS version FROM inventory_transfers WHERE id=? AND company_id=?",
+            ),
+            (
+                RD_ATTACHMENT_DESCRIPTOR_TRANSIT,
+                "SELECT company_id,source_branch_id AS branch_id,NULL AS department_id,version AS version FROM inventory_transit WHERE id=? AND company_id=?",
+            ),
+            (
+                RD_ATTACHMENT_DESCRIPTOR_LOT,
+                "SELECT company_id,NULL AS branch_id,NULL AS department_id,version AS version FROM inventory_lots WHERE id=? AND company_id=?",
+            ),
+        ];
+        for (kind, expected) in cases {
+            let read = read_statement(kind).expect("read kind");
+            assert_eq!(read.sql, expected, "{kind}");
+            assert_eq!(read.bind_count, 2, "{kind}");
+            assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
+            assert_eq!(read.scope, "holding", "{kind}");
+        }
     }
 
     /// Parity witness: the native plan for the lot-balance supplement is the

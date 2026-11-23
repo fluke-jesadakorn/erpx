@@ -1,8 +1,33 @@
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
-import {nativeInventoryReadFirst,INVENTORY_RD_TRANSIT_ATTACHMENT_DESCRIPTOR} from './native-inventory-read';
-const descriptors:Record<string,{table:string;version:string;branch?:string;department?:string;extra?:string;readPermission:string;writePermission:string}>={"landed_cost": {"table": "inventory_landed_costs", "version": "version", "branch": "branch_id", "readPermission": "inventory.read", "writePermission": "inventory.prepare"}, "stock_count": {"table": "inventory_counts", "version": "version", "branch": "branch_id", "readPermission": "inventory.read", "writePermission": "inventory.prepare"}, "inventory_stock_count": {"table": "inventory_counts", "version": "version", "branch": "branch_id", "readPermission": "inventory.read", "writePermission": "inventory.prepare"}, "stock_transfer": {"table": "inventory_transfers", "version": "version", "branch": "source_branch_id", "readPermission": "inventory.read", "writePermission": "inventory.prepare"}, "inventory_transfer": {"table": "inventory_transfers", "version": "version", "branch": "source_branch_id", "readPermission": "inventory.read", "writePermission": "inventory.prepare"}, "inventory_transit": {"table": "inventory_transit", "version": "version", "branch": "source_branch_id", "readPermission": "inventory.read", "writePermission": "inventory.prepare"}, "inventory_lot": {"table": "inventory_lots", "version": "version", "readPermission": "inventory.read", "writePermission": "inventory.prepare"}};
-export function policyInventoryFacts(db:SqlDatabase){return {readDescriptor:(facts:{targetId:string;companyId:string;targetType:string;})=>{const descriptor=descriptors[facts.targetType];if(!descriptor)return Promise.resolve(null);const version=descriptor.version==="1"?"1":descriptor.version,branch=descriptor.branch??"NULL",department=descriptor.department??"NULL",extra=descriptor.extra?` AND ${descriptor.extra}`:"";return db.prepare(`SELECT company_id,${branch} AS branch_id,${department} AS department_id,${version} AS version FROM ${descriptor.table} WHERE id=? AND company_id=?${extra}`).bind(facts.targetId,facts.companyId).first<{ company_id: string; branch_id: string | null; department_id: string | null; version: number; }>();},
-/** Owner-native read: planned by `RD_TRANSIT_ATTACHMENT_DESCRIPTOR` and
- * executed on the caller's unit; this module carries no SQL for it. */
+import {
+  nativeInventoryReadFirst,
+  INVENTORY_RD_TRANSIT_ATTACHMENT_DESCRIPTOR,
+  INVENTORY_RD_ATTACHMENT_DESCRIPTOR_LANDED_COST,
+  INVENTORY_RD_ATTACHMENT_DESCRIPTOR_STOCK_COUNT,
+  INVENTORY_RD_ATTACHMENT_DESCRIPTOR_TRANSFER,
+  INVENTORY_RD_ATTACHMENT_DESCRIPTOR_TRANSIT,
+  INVENTORY_RD_ATTACHMENT_DESCRIPTOR_LOT,
+} from './native-inventory-read';
+/**
+ * Owner-native descriptor reads. The retired adapter interpolated a per-target
+ * descriptor (table/branch/version columns, NULL department, empty extra); all
+ * descriptors in use resolve to the five fixed owner plans below, so this
+ * module emits no SQL. An unknown target type still fails closed with null.
+ */
+const descriptorKinds:Record<string,string>={
+  landed_cost: INVENTORY_RD_ATTACHMENT_DESCRIPTOR_LANDED_COST,
+  stock_count: INVENTORY_RD_ATTACHMENT_DESCRIPTOR_STOCK_COUNT,
+  inventory_stock_count: INVENTORY_RD_ATTACHMENT_DESCRIPTOR_STOCK_COUNT,
+  stock_transfer: INVENTORY_RD_ATTACHMENT_DESCRIPTOR_TRANSFER,
+  inventory_transfer: INVENTORY_RD_ATTACHMENT_DESCRIPTOR_TRANSFER,
+  inventory_transit: INVENTORY_RD_ATTACHMENT_DESCRIPTOR_TRANSIT,
+  inventory_lot: INVENTORY_RD_ATTACHMENT_DESCRIPTOR_LOT,
+};
+export function policyInventoryFacts(db:SqlDatabase){return {
+readDescriptor:(facts:{targetId:string;companyId:string;targetType:string;})=>{
+  const kind=descriptorKinds[facts.targetType];
+  if(!kind)return Promise.resolve(null);
+  return nativeInventoryReadFirst<{ company_id: string; branch_id: string | null; department_id: string | null; version: number; }>(kind,[facts.targetId,facts.companyId],db);
+},
 readTransit:(facts:{targetId:string;companyId:string;})=>nativeInventoryReadFirst<{ company_id: string; source_branch_id: string; target_branch_id: string; version: number; }>(INVENTORY_RD_TRANSIT_ATTACHMENT_DESCRIPTOR,[facts.targetId,facts.companyId],db)};}
