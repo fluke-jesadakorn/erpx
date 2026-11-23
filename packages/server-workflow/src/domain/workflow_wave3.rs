@@ -408,4 +408,48 @@ mod tests {
         assert!(plan(COMMAND_RECEIPT, vec![json!(1)]).is_err());
         assert!(plan("unknown", vec![json!(1)]).is_err());
     }
+
+    /// The assertion-condition bound admits the legitimate two-Company
+    /// concurrent-binds witness (observed 22578 bytes) while rejecting
+    /// anything over the bound, empty conditions, statement/comment
+    /// separators and placeholder-inexact fragments.
+    #[test]
+    fn assertion_condition_bound_admits_concurrent_binds() {
+        fn condition_of(len: usize) -> String {
+            let mut condition = String::from("EXISTS(SELECT 1 FROM command_receipts WHERE operation=$1");
+            while condition.len() < len {
+                condition.push_str(" AND TRUE");
+            }
+            condition.truncate(len);
+            condition
+        }
+        let binds = || vec![json!("command-1"), json!(1)];
+        let mut admitted = binds();
+        admitted.push(json!(condition_of(22578)));
+        let planned = plan(WF_NATIVE_COMMAND_ASSERTIONS_3, admitted)
+            .expect("concurrent-binds witness must be admitted");
+        assert!(planned.sql.contains("EXISTS(SELECT 1"));
+        for oversized in [32769, 65536] {
+            let mut values = binds();
+            values.push(json!(condition_of(oversized)));
+            assert!(
+                plan(WF_NATIVE_COMMAND_ASSERTIONS_3, values).is_err(),
+                "condition of {oversized} bytes must be rejected"
+            );
+        }
+        for forbidden in ["", "   ", "SELECT 1; SELECT 2", "x--y", "x/*y", "x*/y"] {
+            let mut values = binds();
+            values.push(json!(forbidden));
+            assert!(
+                plan(WF_NATIVE_COMMAND_ASSERTIONS_3, values).is_err(),
+                "condition {forbidden:?} must be rejected"
+            );
+        }
+        let mut inexact = binds();
+        inexact.push(json!("EXISTS(SELECT 1 FROM t WHERE a=?)"));
+        assert!(
+            plan(WF_NATIVE_COMMAND_ASSERTIONS_3, inexact).is_err(),
+            "placeholder-inexact condition must be rejected"
+        );
+    }
 }
