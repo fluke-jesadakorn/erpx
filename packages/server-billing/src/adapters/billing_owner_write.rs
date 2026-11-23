@@ -45,6 +45,16 @@ fn sql(kind: &str) -> Option<&'static str> {
         BETA_CUSTOMER => r####"SELECT customer_id FROM beta_billing WHERE holding_id=?"####,
         BETA_INBOX_STATE => r####"SELECT state FROM stripe_inbox WHERE id=?"####,
         BETA_LEGACY_CUSTOMER => r####"SELECT holding_id FROM beta_billing WHERE customer_id=?"####,
+        FORECAST_CURRENT_PRICE => r####"SELECT * FROM billing_target_prices
+        WHERE rating_enabled=TRUE AND seat_terms_status='defined' AND base_monthly_satang=0
+          AND included_seats=0 AND seat_monthly_satang IS NOT NULL
+          AND storage_allowance_mode='per_paid_seat_time' AND effective_month<=$1
+        ORDER BY effective_month DESC,id DESC LIMIT 1"####,
+        FORECAST_FUTURE_PRICE => r####"SELECT * FROM billing_target_prices
+        WHERE rating_enabled=TRUE AND seat_terms_status='defined' AND base_monthly_satang=0
+          AND included_seats=0 AND seat_monthly_satang IS NOT NULL
+          AND storage_allowance_mode='per_paid_seat_time' AND effective_month>$1
+        ORDER BY effective_month ASC,id ASC LIMIT 1"####,
         EVIDENCE_RETAIN => r####"INSERT INTO billing_evidence(id,holding_id,filename,mime,size,sha256,actor,created_at,object_key,detected_mime,source_state) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(id) DO NOTHING"####,
         EVIDENCE_STORAGE_LEDGER => r####"INSERT INTO billing_evidence_storage_ledger(id,evidence_id,holding_id,object_key,bytes,state,created_at,updated_at) SELECT $1,id,holding_id,object_key,size,'stored',$2,$2 FROM billing_evidence WHERE id=$3 ON CONFLICT(object_key) DO NOTHING"####,
         EVIDENCE_SCAN_ATTEMPT => r####"INSERT INTO billing_evidence_scan_attempts(id,evidence_id,attempt,state,created_at) VALUES($1,$2,1,'pending',$3) ON CONFLICT(evidence_id,attempt) DO NOTHING"####,
@@ -295,6 +305,43 @@ mod tests {
             })
             .is_err());
         }
+    }
+    #[test]
+    fn forecast_price_reads_are_owner_authored_and_fully_bound() {
+        let holding = HoldingId::new("h001").unwrap();
+        for (kind, sql) in [
+            (
+                FORECAST_CURRENT_PRICE,
+                "SELECT * FROM billing_target_prices\n        WHERE rating_enabled=TRUE AND seat_terms_status='defined' AND base_monthly_satang=0\n          AND included_seats=0 AND seat_monthly_satang IS NOT NULL\n          AND storage_allowance_mode='per_paid_seat_time' AND effective_month<=$1\n        ORDER BY effective_month DESC,id DESC LIMIT 1",
+            ),
+            (
+                FORECAST_FUTURE_PRICE,
+                "SELECT * FROM billing_target_prices\n        WHERE rating_enabled=TRUE AND seat_terms_status='defined' AND base_monthly_satang=0\n          AND included_seats=0 AND seat_monthly_satang IS NOT NULL\n          AND storage_allowance_mode='per_paid_seat_time' AND effective_month>$1\n        ORDER BY effective_month ASC,id ASC LIMIT 1",
+            ),
+        ] {
+            let statement = billing_owner_statement(&holding, &BillingOwnerWriteInput {
+                kind: kind.into(),
+                values: vec![serde_json::json!("2027-02")],
+                now: 1,
+            })
+            .unwrap_or_else(|_| panic!("{kind} is an allow-listed owner read kind"));
+            assert_eq!(statement.sql, sql);
+            assert_eq!(statement.values, vec![serde_json::json!("2027-02")]);
+            // A missing or extra forecast month bind cannot widen an owner read.
+            assert!(billing_owner_statement(&holding, &BillingOwnerWriteInput {
+                kind: kind.into(),
+                values: vec![],
+                now: 1,
+            })
+            .is_err());
+            assert!(billing_owner_statement(&holding, &BillingOwnerWriteInput {
+                kind: kind.into(),
+                values: vec![serde_json::json!("2027-02"), serde_json::json!("h001")],
+                now: 1,
+            })
+            .is_err());
+        }
+        assert_ne!(FORECAST_CURRENT_PRICE, FORECAST_FUTURE_PRICE);
     }
     #[test]
     fn api_evidence_and_account_reads_are_owner_authored_and_fully_bound() {

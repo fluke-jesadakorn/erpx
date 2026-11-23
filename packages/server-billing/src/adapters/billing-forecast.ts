@@ -1,20 +1,13 @@
 import {nativeCommercialOwnerRead,COMMERCIAL_RD_USAGE_METER,COMMERCIAL_RD_USAGE_SNAPSHOT} from '@erpx/server-commercial/adapters/native-owner-read';
+import {nativeBillingOwnerQuery} from '@erpx/server-billing/adapters/native-billing-owner-write';
 import 'server-only';
 import type {PoolClient} from 'pg';
 import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgres';
 import {readSeatForecastBaseline as calculate,type SeatForecastRepository} from '@erpx/server-billing/application/forecast';
 import type * as D from '@erpx/server-billing/domain/forecast';
 export type {SeatForecastBaseline} from '@erpx/server-billing/domain/forecast';
-export function nativeSeatForecastRepository(c:PoolClient):SeatForecastRepository{return {currentPrice:(value0)=>c.query<D.CurrentPriceRow>(`SELECT * FROM billing_target_prices
-        WHERE rating_enabled=TRUE AND seat_terms_status='defined' AND base_monthly_satang=0
-          AND included_seats=0 AND seat_monthly_satang IS NOT NULL
-          AND storage_allowance_mode='per_paid_seat_time' AND effective_month<=$1
-        ORDER BY effective_month DESC,id DESC LIMIT 1`,[value0]),
-futurePrice:(value0)=>c.query<D.FuturePriceRow>(`SELECT * FROM billing_target_prices
-        WHERE rating_enabled=TRUE AND seat_terms_status='defined' AND base_monthly_satang=0
-          AND included_seats=0 AND seat_monthly_satang IS NOT NULL
-          AND storage_allowance_mode='per_paid_seat_time' AND effective_month>$1
-        ORDER BY effective_month ASC,id ASC LIMIT 1`,[value0]),
+export function nativeSeatForecastRepository(c:PoolClient):SeatForecastRepository{return {currentPrice:async(value0)=>(await nativeBillingOwnerQuery(c,'forecast_current_price',[value0])) as {rows:D.CurrentPriceRow[];rowCount:number|null},
+futurePrice:async(value0)=>(await nativeBillingOwnerQuery(c,'forecast_future_price',[value0])) as {rows:D.FuturePriceRow[];rowCount:number|null},
 usageSnapshot:async(value0,value1)=>c.query<D.UsageSnapshotRow>(`SELECT snapshot_id,refreshed_at,source_count,storage_coverage,
           active_seat_count,active_seat_observed_at FROM (${await nativeCommercialOwnerRead(COMMERCIAL_RD_USAGE_SNAPSHOT)}) billing_usage_snapshots
           WHERE holding_id=$1 AND month=$2`,[value0,value1]),

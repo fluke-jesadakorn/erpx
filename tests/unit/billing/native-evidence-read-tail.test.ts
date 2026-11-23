@@ -10,9 +10,15 @@ vi.mock('../../../packages/server-billing/src/adapters/native-billing-owner-writ
   nativeBillingOwnerQuery: ownerQuery,
   nativeBillingOwnerBind: ownerBind,
 }));
+vi.mock('../../../packages/server-commercial/src/adapters/native-owner-read', () => ({
+  nativeCommercialOwnerRead: vi.fn(async () => 'SELECT 1 FROM billing_usage_snapshots'),
+  COMMERCIAL_RD_USAGE_METER: 'usage.meter',
+  COMMERCIAL_RD_USAGE_SNAPSHOT: 'usage.snapshot',
+}));
 const { drainBillingEvidenceScans } = await import('@erpx/server-billing/adapters/billing-attachments');
 const { billingApiRepository } = await import('@erpx/server-billing/adapters/billing-api');
 const { billingLink, applyLegacyStripeEvent } = await import('@erpx/server-billing/adapters/beta-billing');
+const { nativeSeatForecastRepository } = await import('@erpx/server-billing/adapters/billing-forecast');
 
 function env() {
   const query = vi.fn(async () => ({ rows: [] }));
@@ -98,5 +104,33 @@ describe('Billing beta webhook read tail', () => {
     expect(ownerBind).toHaveBeenCalledWith(expect.anything(), 'beta_inbox_state', ['evt-1']);
     expect(ownerBind).toHaveBeenCalledWith(expect.anything(), 'beta_legacy_customer', ['cus_1']);
     expect(prepare).not.toHaveBeenCalled();
+  });
+});
+
+describe('Billing seat-forecast owner-local price read tail', () => {
+  it('reads current and future prices by typed owner kinds with only the forecast month bind and no local SQL', async () => {
+    ownerQuery.mockReset();
+    const query = vi.fn(async () => ({ rows: [], rowCount: 0 }));
+    const repository = nativeSeatForecastRepository({ query } as never);
+
+    await repository.currentPrice('2027-02');
+    expect(ownerQuery).toHaveBeenCalledWith(expect.anything(), 'forecast_current_price', ['2027-02']);
+    await repository.futurePrice('2027-02');
+    expect(ownerQuery).toHaveBeenCalledWith(expect.anything(), 'forecast_future_price', ['2027-02']);
+
+    expect(ownerQuery).toHaveBeenCalledTimes(2);
+    expect(query).not.toHaveBeenCalled();
+  });
+
+  it('leaves the commercial usage reads on the caller client', async () => {
+    ownerQuery.mockReset();
+    const query = vi.fn(async (_sql: string, _values: unknown[]) => ({ rows: [], rowCount: 0 }));
+    const repository = nativeSeatForecastRepository({ query } as never);
+
+    await repository.usageSnapshot('h001', '2027-01');
+    await repository.retainedStorageTotals('h001', '2027-01', 'snap-1');
+
+    expect(ownerQuery).not.toHaveBeenCalled();
+    expect(query).toHaveBeenCalledTimes(2);
   });
 });

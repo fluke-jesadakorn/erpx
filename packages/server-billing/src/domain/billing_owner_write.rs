@@ -17,6 +17,8 @@ pub const BETA_MANAGEMENT_BILLING_STATUS: &str = "beta_management_billing_status
 pub const BETA_CUSTOMER: &str = "beta_customer";
 pub const BETA_INBOX_STATE: &str = "beta_inbox_state";
 pub const BETA_LEGACY_CUSTOMER: &str = "beta_legacy_customer";
+pub const FORECAST_CURRENT_PRICE: &str = "forecast_current_price";
+pub const FORECAST_FUTURE_PRICE: &str = "forecast_future_price";
 pub const EVIDENCE_RETAIN: &str = "evidence_retain";
 pub const EVIDENCE_STORAGE_LEDGER: &str = "evidence_storage_ledger";
 pub const EVIDENCE_SCAN_ATTEMPT: &str = "evidence_scan_attempt";
@@ -99,6 +101,8 @@ pub const OWNER_WRITE_KINDS: &[&str] = &[
     BETA_CUSTOMER,
     BETA_INBOX_STATE,
     BETA_LEGACY_CUSTOMER,
+    FORECAST_CURRENT_PRICE,
+    FORECAST_FUTURE_PRICE,
     EVIDENCE_RETAIN,
     EVIDENCE_STORAGE_LEDGER,
     EVIDENCE_SCAN_ATTEMPT,
