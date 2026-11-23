@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7173,
+    "revision": 7177,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -123608,7 +123608,7 @@
         "owner": "operations",
         "title": "operations TS read tail native cutover (round 9)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -123620,22 +123620,42 @@
         "resources": [
           "owner:operations"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wCH1ope",
-          "claimedAt": "2026-11-23T22:51:42.886Z",
-          "heartbeatAt": "2026-11-23T22:51:42.886Z",
-          "expiresAt": "2026-11-23T23:21:42.886Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-operations/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "cf34e02cd",
+            "owner": "operations",
+            "before": 197,
+            "after": 196,
+            "note": "Overdue-alert created-at fragment shared by search/by-id evidence."
+          },
+          {
+            "command": "cargo check -p erpx-server-operations + services (82) + transport (11)",
+            "result": "passed",
+            "sourceSha": "cf34e02cd"
+          },
+          {
+            "command": "tsc server-operations",
+            "result": "passed",
+            "sourceSha": "cf34e02cd"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to the native operations registry; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wCH1ope",
+          "at": "2026-11-23T22:57:40.903Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -123853,6 +123873,42 @@
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.operations.read-tail-r10",
+        "goalId": "G4",
+        "owner": "operations",
+        "title": "operations TS read tail native cutover (round 10)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-operations/src/**",
+          "tests/unit/operations/**",
+          "tests/integration/operations/**"
+        ],
+        "resources": [
+          "owner:operations"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wCP1ope",
+          "claimedAt": "2026-11-23T22:57:41.073Z",
+          "heartbeatAt": "2026-11-23T22:57:41.073Z",
+          "expiresAt": "2026-11-23T23:27:41.073Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to the native operations registry; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -123861,7 +123917,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 635,
+      "totalPackets": 636,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -123869,13 +123925,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 271,
+        "blocked": 272,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T22:56:02.243Z",
+    "updatedAt": "2026-11-23T22:57:41.075Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
