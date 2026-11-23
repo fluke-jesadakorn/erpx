@@ -7,8 +7,9 @@
 mod fixture;
 
 use erpx_server_records::public::request_ai_drain::{
-    ClaimedProposal, ProviderFuture, ProviderOutput, RequestAiProvider, RequestSnapshot,
-    drain_request_ai, lease_token, result_command, run_auth_key,
+    ClaimedProposal, DrainJobReport, ProviderFuture, ProviderOutput, RequestAiProvider,
+    RequestSnapshot, drain_request_ai, lease_token, result_command, run_auth_key, run_drain_job,
+    should_retry,
 };
 use erpx_server_runtime::public::postgres::{
     DatabasePool, MigrationTrack, load_migrations, migrate_database,
@@ -266,6 +267,58 @@ async fn drain_claims_writes_results_clears_and_sweeps_on_the_caller_transaction
         replay.commit().await.unwrap();
         assert_eq!(repeated.processed, 0);
         assert_eq!(provider.calls.lock().unwrap().len(), 1);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn worker_commits_a_drain_unit_and_reports_job_state() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let provider = CannedProvider {
+            calls: Arc::new(Mutex::new(Vec::new())),
+        };
+
+        // The worker owns the serializable unit and commits on success.
+        let mut connection = pool.raw().acquire().await.unwrap();
+        let outcome = run_drain_job(&mut connection, NOW, None, &provider)
+            .await
+            .unwrap();
+        drop(connection);
+
+        let report = DrainJobReport::from(outcome);
+        assert_eq!(report.processed, 2);
+        assert_eq!(report.succeeded, 1);
+        assert_eq!(report.stale, 1);
+        assert!(report.has_work());
+        assert!(!report.all_succeeded());
+
+        // Committed by the worker, observable on a fresh connection.
+        let state: String =
+            sqlx::query_scalar("SELECT state FROM request_ai_proposals WHERE id='proposal-1'")
+                .fetch_one(pool.raw())
+                .await
+                .unwrap();
+        assert_eq!(state, "ready");
+
+        // A replay through the worker is a no-op with no work to report.
+        let mut connection = pool.raw().acquire().await.unwrap();
+        let repeated = run_drain_job(&mut connection, NOW, None, &provider)
+            .await
+            .unwrap();
+        drop(connection);
+        assert!(!DrainJobReport::from(repeated).has_work());
+        assert_eq!(provider.calls.lock().unwrap().len(), 1);
+
+        // Caller input is rejected before any unit is opened; persistence
+        // failures are marked retryable for the durable runner.
+        let mut connection = pool.raw().acquire().await.unwrap();
+        let invalid = run_drain_job(&mut connection, NOW, Some(""), &provider)
+            .await
+            .unwrap_err();
+        drop(connection);
+        assert_eq!(invalid.code, "REQUEST_AI_DRAIN_REQUEST_INVALID");
+        assert!(!should_retry(&invalid));
     })
     .await;
 }

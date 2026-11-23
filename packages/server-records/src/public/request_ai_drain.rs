@@ -8,8 +8,10 @@
 //! `erpx_server_workflow::public::request_ai_effects` clears through this
 //! drain (they run in the same unit on success).
 pub use crate::adapters::request_ai_drain_postgres::{ClaimedProposal, RequestSnapshot};
+pub use crate::adapters::request_ai_drain_worker::run_drain_job;
 pub use crate::application::request_ai_drain::{
-    DrainOutcome, ProviderFuture, ProviderOutput, RequestAiProvider, drain_request_ai,
+    DrainJobReport, DrainOutcome, ProviderFuture, ProviderOutput, RequestAiProvider,
+    drain_request_ai, should_retry,
 };
 pub use crate::domain::request_ai_drain::{
     DRAIN_LIMIT, LEASE_WINDOW_MS, MAX_REQUEST_ID, is_stale_code, lease_token, request_filter_invalid,

@@ -55,6 +55,50 @@ pub struct DrainOutcome {
     pub failed: usize,
 }
 
+/// Job-level view of one native drain unit. The jobs runtime logs and
+/// aggregates this instead of depending on the unit's raw counters.
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub struct DrainJobReport {
+    pub processed: usize,
+    pub succeeded: usize,
+    pub stale: usize,
+    pub failed: usize,
+}
+
+impl From<DrainOutcome> for DrainJobReport {
+    fn from(value: DrainOutcome) -> Self {
+        Self {
+            processed: value.processed,
+            succeeded: value.succeeded,
+            stale: value.stale,
+            failed: value.failed,
+        }
+    }
+}
+
+impl DrainJobReport {
+    /// Whether the unit claimed any proposal. A `false` result means the next
+    /// durable tick has no caught-up work for this filter.
+    pub fn has_work(&self) -> bool {
+        self.processed > 0
+    }
+
+    /// Whether every claimed proposal reached `ready` in this unit.
+    pub fn all_succeeded(&self) -> bool {
+        self.processed > 0 && self.succeeded == self.processed
+    }
+}
+
+/// Whether a failed drain unit should be handed back to the durable runner.
+/// Only persistence/unavailability failures are retryable; caller input and
+/// clock errors are not.
+pub fn should_retry(error: &BusinessError) -> bool {
+    matches!(
+        error.code,
+        "REQUEST_AI_DRAIN_UNAVAILABLE" | "REQUEST_AI_DRAIN_TRANSACTION_REQUIRED"
+    )
+}
+
 fn failed_message(error: &BusinessError) -> &'static str {
     if domain::is_stale_code(error.code) {
         error.message
@@ -291,6 +335,43 @@ mod tests {
             let output = self.output.clone();
             Box::pin(async move { output })
         }
+    }
+
+    #[test]
+    fn job_report_aggregates_a_drain_outcome() {
+        let report = DrainJobReport::from(DrainOutcome {
+            processed: 3,
+            succeeded: 2,
+            stale: 1,
+            failed: 0,
+        });
+        assert_eq!(report.processed, 3);
+        assert_eq!(report.succeeded, 2);
+        assert!(report.has_work());
+        assert!(!report.all_succeeded());
+
+        let empty = DrainJobReport::from(DrainOutcome::default());
+        assert!(!empty.has_work());
+        assert!(!empty.all_succeeded());
+
+        let all_ready = DrainJobReport::from(DrainOutcome {
+            processed: 2,
+            succeeded: 2,
+            stale: 0,
+            failed: 0,
+        });
+        assert!(all_ready.has_work());
+        assert!(all_ready.all_succeeded());
+    }
+
+    #[test]
+    fn only_persistence_failures_are_retryable() {
+        let unavailable = domain::drain_unavailable();
+        assert!(should_retry(&unavailable));
+        let transaction = domain::transaction_required();
+        assert!(should_retry(&transaction));
+        assert!(!should_retry(&domain::request_filter_invalid()));
+        assert!(!should_retry(&domain::now_invalid()));
     }
 
     #[test]

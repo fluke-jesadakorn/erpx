@@ -3,6 +3,7 @@ pub(crate) mod native_command_http;
 pub(crate) mod native_command_postgres;
 pub(crate) mod native_command_sql;
 pub(crate) mod request_ai_drain_postgres;
+pub(crate) mod request_ai_drain_worker;
 pub(crate) mod rfq_request_source;
 pub(crate) mod commerce_request_links;
 pub(crate) mod commerce_selected_request;
