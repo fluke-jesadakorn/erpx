@@ -138,6 +138,12 @@ pub const WF_NATIVE_LEGAL_DECISION_HISTORY: &str = "wf_native_legal_decision_his
 /// on the Workflow-owned approval tables; the TypeScript bridge executes it on
 /// the caller's open company unit and carries no receipt/assertion semantics.
 pub const WF_NATIVE_FLOW_DEFINITIONS_INSTANCE: &str = "wf_native_flow_definitions_instance";
+/// Owner-authored caller-unit read for the finance sales-invoice completion
+/// receipt family. The mounted wave3-command planner resolves it to one fixed
+/// SELECT on the Workflow-owned command ledger; the TypeScript bridge executes
+/// it on the caller's open company unit and carries no receipt/assertion
+/// semantics.
+pub const WF_NATIVE_FINANCE_SALES_COMPLETION: &str = "wf_native_finance_sales_completion";
 pub const KINDS: &[&str] = &[
     WF_OPENAPPROVAL,
     WF_OPENAPPROVAL2,
@@ -176,6 +182,7 @@ pub const KINDS: &[&str] = &[
     WF_NATIVE_APPROVAL_ADMINISTRATION_QUEUE,
     WF_NATIVE_LEGAL_DECISION_HISTORY,
     WF_NATIVE_FLOW_DEFINITIONS_INSTANCE,
+    WF_NATIVE_FINANCE_SALES_COMPLETION,
 ];
 
 fn statement(kind: &str) -> Option<(&'static str, usize)> {
@@ -429,6 +436,10 @@ fn statement(kind: &str) -> Option<(&'static str, usize)> {
         WF_NATIVE_FLOW_DEFINITIONS_INSTANCE => (
             "SELECT * FROM approval_instances WHERE company_id=? AND record_type=? AND record_id=? ORDER BY insertion_order DESC LIMIT 1",
             3,
+        ),
+        WF_NATIVE_FINANCE_SALES_COMPLETION => (
+            "SELECT result_json FROM command_receipts WHERE record_id=? AND operation='finance.sales-invoice.prepare' AND authority_json::jsonb->>'companyId'=? ORDER BY created_at DESC LIMIT 1",
+            2,
         ),
 _ => return None,
     })
@@ -831,5 +842,43 @@ mod tests {
             .is_ok()
         );
         assert!(plan(WF_NATIVE_FLOW_DEFINITIONS_INSTANCE, vec![json!("company")]).is_err());
+    }
+
+    /// The owner-local finance sales-invoice completion receipt read stays
+    /// fixed, SELECT-only and company-scoped on the Workflow-owned command
+    /// ledger; the bridge carries no receipt or assertion semantics and the
+    /// planner never accepts caller SQL or writes.
+    #[test]
+    fn finance_sales_completion_read_kind_is_fixed_company_scoped_select() {
+        let (sql, expected) = statement(WF_NATIVE_FINANCE_SALES_COMPLETION)
+            .expect("registered owner read kind");
+        assert!(sql.starts_with("SELECT "), "read must be SELECT-only: {sql}");
+        assert_eq!(expected, 2);
+        assert_eq!(sql.matches('?').count(), expected);
+        assert!(sql.contains("command_receipts"), "read must stay owner-local: {sql}");
+        assert!(
+            sql.contains("authority_json::jsonb->>'companyId'=?"),
+            "read must stay company-scoped: {sql}"
+        );
+        assert!(
+            sql.contains("record_id=?")
+                && sql.contains("operation='finance.sales-invoice.prepare'")
+                && sql.contains("ORDER BY created_at DESC LIMIT 1"),
+            "read must keep the exact owner predicate and order: {sql}"
+        );
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+            assert!(!sql.contains(forbidden), "read must not mutate: {forbidden}");
+        }
+        assert!(supported(WF_NATIVE_FINANCE_SALES_COMPLETION));
+        assert!(
+            plan(
+                WF_NATIVE_FINANCE_SALES_COMPLETION,
+                vec![json!("invoice-1"), json!("company")]
+            )
+            .is_ok()
+        );
+        assert!(
+            plan(WF_NATIVE_FINANCE_SALES_COMPLETION, vec![json!("invoice-1")]).is_err()
+        );
     }
 }

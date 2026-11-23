@@ -647,3 +647,44 @@ describe('workflow flow planning definitions instance read tail (native read pla
     }
   });
 });
+
+describe('workflow finance sales completion receipt read tail (native read plan)', () => {
+  it('carries no retired owner SQL for the switched read', async () => {
+    const source = await readFile(
+      new URL(
+        '../../../packages/server-workflow/src/adapters/finance-command-receipts.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    expect(source).not.toContain("SELECT result_json FROM command_receipts WHERE record_id=? AND operation='finance.sales-invoice.prepare'");
+    expect(source).not.toContain("authority_json::jsonb->>'companyId'=? ORDER BY created_at DESC LIMIT 1");
+  });
+
+  it('plans the sales completion receipt read through the mounted native read with no local SQL', async () => {
+    const row = { result_json: '{"status":"posted"}' };
+    const first = vi.fn(async () => row);
+    vi.resetModules();
+    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+      nativeWorkflowReadFirst: first,
+    }));
+    try {
+      const { financeCommandReceipts } = await import(
+        '../../../packages/server-workflow/src/adapters/finance-command-receipts'
+      );
+      const prepare = vi.fn();
+      const db = { prepare } as never;
+      expect(await financeCommandReceipts(db).salesCompletion('company', 'invoice-1')).toEqual(row);
+      expect(first).toHaveBeenCalledWith(
+        'wf_native_finance_sales_completion',
+        ['invoice-1', 'company'],
+        'company',
+        db,
+      );
+      expect(prepare).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.resetModules();
+    }
+  });
+});
