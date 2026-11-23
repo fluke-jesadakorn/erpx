@@ -7,8 +7,9 @@
 //! coverage/history/name on `service_teams`, `service_team_coverage` and
 //! `service_team_revisions`, ticket-portal response/acknowledgement reads on
 //! `support_ticket_portal_responses` and `support_ticket_portal_acknowledgements`,
-//! and ticket/incident event history on `support_ticket_events` and
-//! `support_incident_events`.
+//! ticket/incident event history on `support_ticket_events` and
+//! `support_incident_events`, and incident-ticket link reads on
+//! `support_incident_tickets`, `support_tickets` and `support_incidents`.
 //! Reads carry no receipt/audit/outbox ledger: the caller executes them on the
 //! same unit as the surrounding command. No SQL is ever accepted from the wire
 //! and no TypeScript SQL remains for these kinds.
@@ -103,6 +104,30 @@ const READ_INCIDENT_EVENT_HISTORY: NativeSupportReadStatement = NativeSupportRea
     bind_count: 1,
 };
 
+/// Native successor of the TypeScript ticket-detail incident link read. The
+/// caller binds `[ticket_id]` and receives the active incidents linked to that
+/// ticket, newest first.
+pub const RD_TICKET_INCIDENT_LINKS: &str = "support_rd_ticket_incident_links";
+const SQL_TICKET_INCIDENT_LINKS: &str =
+    "SELECT i.id,i.title,i.status FROM support_incident_tickets l JOIN support_incidents i ON i.id=l.incident_id WHERE l.ticket_id=? AND l.active ORDER BY i.updated_at DESC";
+const READ_TICKET_INCIDENT_LINKS: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_TICKET_INCIDENT_LINKS,
+    sql: SQL_TICKET_INCIDENT_LINKS,
+    bind_count: 1,
+};
+
+/// Native successor of the TypeScript incident-detail ticket link read. The
+/// caller binds `[incident_id]` and receives the active tickets linked to that
+/// incident with their linked version.
+pub const RD_INCIDENT_TICKET_LINKS: &str = "support_rd_incident_ticket_links";
+const SQL_INCIDENT_TICKET_LINKS: &str =
+    "SELECT t.id,t.title,t.status,t.version,l.linked_version FROM support_incident_tickets l JOIN support_tickets t ON t.id=l.ticket_id WHERE l.incident_id=? AND l.active ORDER BY l.linked_at,t.id";
+const READ_INCIDENT_TICKET_LINKS: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_INCIDENT_TICKET_LINKS,
+    sql: SQL_INCIDENT_TICKET_LINKS,
+    bind_count: 1,
+};
+
 const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SERVICE_COVERAGE_HISTORY,
     READ_SERVICE_TEAM_COVERAGE,
@@ -111,6 +136,8 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_TICKET_PORTAL_ACKNOWLEDGED_AT,
     READ_TICKET_EVENT_HISTORY,
     READ_INCIDENT_EVENT_HISTORY,
+    READ_TICKET_INCIDENT_LINKS,
+    READ_INCIDENT_TICKET_LINKS,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -160,6 +187,16 @@ mod tests {
                 SQL_INCIDENT_EVENT_HISTORY,
                 1usize,
             ),
+            (
+                RD_TICKET_INCIDENT_LINKS,
+                SQL_TICKET_INCIDENT_LINKS,
+                1usize,
+            ),
+            (
+                RD_INCIDENT_TICKET_LINKS,
+                SQL_INCIDENT_TICKET_LINKS,
+                1usize,
+            ),
         ];
         for (kind, sql, binds) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -172,12 +209,13 @@ mod tests {
             }
             assert!(
                 sql.contains("service_team") || sql.contains("support_ticket_portal") ||
-                    sql.contains("support_ticket_events") || sql.contains("support_incident_events"),
+                    sql.contains("support_ticket_events") || sql.contains("support_incident_events") ||
+                    sql.contains("support_incident_tickets"),
                 "owner read must stay on owner-local Support tables: {sql}"
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 7);
+        assert_eq!(STATEMENTS.len(), 9);
     }
 
     #[test]
@@ -198,5 +236,9 @@ mod tests {
         assert_eq!(ticket_events.bind_count, 1);
         let incident_events = read_statement(RD_INCIDENT_EVENT_HISTORY).expect("incident event history");
         assert_eq!(incident_events.bind_count, 1);
+        let ticket_links = read_statement(RD_TICKET_INCIDENT_LINKS).expect("ticket incident links");
+        assert_eq!(ticket_links.bind_count, 1);
+        let incident_links = read_statement(RD_INCIDENT_TICKET_LINKS).expect("incident ticket links");
+        assert_eq!(incident_links.bind_count, 1);
     }
 }
