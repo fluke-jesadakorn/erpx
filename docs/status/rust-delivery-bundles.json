@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5549,
+    "revision": 5557,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-d",
       "agentId": "lead",
       "startedAt": "2026-11-23T06:45:08.420Z",
-      "heartbeatAt": "2026-11-23T09:36:50.982Z",
-      "expiresAt": "2026-11-23T10:06:50.982Z",
+      "heartbeatAt": "2026-11-23T10:04:11.230Z",
+      "expiresAt": "2026-11-23T10:34:11.230Z",
       "generation": 154,
       "tokenHash": "01e24ba69c801ba69506f7381436bc3415092da31ab33204c519241e628cd4c9"
     },
@@ -15563,8 +15563,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:46:29.180Z",
-          "heartbeatAt": "2026-11-23T09:36:50.982Z",
-          "expiresAt": "2026-11-23T10:06:50.982Z",
+          "heartbeatAt": "2026-11-23T10:04:11.230Z",
+          "expiresAt": "2026-11-23T10:34:11.230Z",
           "generation": 154
         },
         "baseSha": "473b198f4838943261a63a1ca44b167d347fc4c4",
@@ -17495,8 +17495,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T09:42:35.908Z",
-          "heartbeatAt": "2026-11-23T09:42:35.908Z",
-          "expiresAt": "2026-11-23T10:12:35.908Z",
+          "heartbeatAt": "2026-11-23T10:04:11.230Z",
+          "expiresAt": "2026-11-23T10:34:11.230Z",
           "generation": 154
         },
         "baseSha": "f901987c8bcb88a080e9beb9d2b87892bc462eea",
@@ -27315,8 +27315,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:04:51.894Z",
-          "heartbeatAt": "2026-11-23T09:36:50.982Z",
-          "expiresAt": "2026-11-23T10:06:50.982Z",
+          "heartbeatAt": "2026-11-23T10:04:11.230Z",
+          "expiresAt": "2026-11-23T10:34:11.230Z",
           "generation": 154
         },
         "baseSha": "d0067f253fd960ab6945c5622e360e2cceeaffe7",
@@ -28391,8 +28391,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:19:17.835Z",
-          "heartbeatAt": "2026-11-23T09:36:50.982Z",
-          "expiresAt": "2026-11-23T10:06:50.982Z",
+          "heartbeatAt": "2026-11-23T10:04:11.230Z",
+          "expiresAt": "2026-11-23T10:34:11.230Z",
           "generation": 154
         },
         "baseSha": null,
@@ -39907,8 +39907,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:59:53.885Z",
-          "heartbeatAt": "2026-11-23T09:36:50.982Z",
-          "expiresAt": "2026-11-23T10:06:50.982Z",
+          "heartbeatAt": "2026-11-23T10:04:11.230Z",
+          "expiresAt": "2026-11-23T10:34:11.230Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45276,8 +45276,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:03:09.640Z",
-          "heartbeatAt": "2026-11-23T09:36:50.982Z",
-          "expiresAt": "2026-11-23T10:06:50.982Z",
+          "heartbeatAt": "2026-11-23T10:04:11.230Z",
+          "expiresAt": "2026-11-23T10:34:11.230Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45808,8 +45808,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:55:34.675Z",
-          "heartbeatAt": "2026-11-23T09:36:50.982Z",
-          "expiresAt": "2026-11-23T10:06:50.982Z",
+          "heartbeatAt": "2026-11-23T10:04:11.230Z",
+          "expiresAt": "2026-11-23T10:34:11.230Z",
           "generation": 154
         },
         "baseSha": "57a1fd51ebacf5fa1ff712f6eaa176f390ad64a3",
@@ -49423,8 +49423,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:31:10.408Z",
-          "heartbeatAt": "2026-11-23T09:36:50.982Z",
-          "expiresAt": "2026-11-23T10:06:50.982Z",
+          "heartbeatAt": "2026-11-23T10:04:11.230Z",
+          "expiresAt": "2026-11-23T10:34:11.230Z",
           "generation": 154
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -50638,8 +50638,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T06:47:05.965Z",
-          "heartbeatAt": "2026-11-23T09:36:50.982Z",
-          "expiresAt": "2026-11-23T10:06:50.982Z",
+          "heartbeatAt": "2026-11-23T10:04:11.230Z",
+          "expiresAt": "2026-11-23T10:34:11.230Z",
           "generation": 154
         },
         "baseSha": null,
@@ -110045,6 +110045,125 @@
           "reason": "Recovery: Previous run-20261123-c lease expired at 06:05Z; WIP reconciled at a34fd42ef==remote, no live worker processes, dev 3100 healthy, dirty slices preserved",
           "nextAction": "Register 2 suites, run all pos gates once, report retirement delta, hand back for lead commit."
         }
+      },
+      {
+        "id": "retire.pos.residual-core-reads",
+        "goalId": "G4",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "pos",
+        "workflowIds": [],
+        "workstream": "S16",
+        "kind": "migration",
+        "title": "Retire POS core workspace reads behind native owner ports",
+        "scope": "156 literal SELECTs in pos-core.ts (58), pos.ts (47), pos-stripe.ts (33), pos-daily.ts (18): workspace queries (registers, sales, catalog, shifts, fulfillments, refunds, cash movements, lines, payments, room charge) with commerce/PMS fragments. Native pos ports cover only day-close commands, so this batch needs NEW native workspace-read ports (statement bridge via the holding notification-statement route, session-derived scope, byte-identical SQL, PG parity per read) plus caller cutover, TS deletion and owner KPI re-measure. Split from retire.reads.pos residual tail (395).",
+        "dependsOn": [],
+        "requiredPorts": [
+          "pos.workspace-read",
+          "runtime.unit-of-work"
+        ],
+        "allowedPaths": [
+          "packages/server-pos/src/adapters/pos-core.ts",
+          "packages/server-pos/src/adapters/pos.ts",
+          "packages/server-pos/src/adapters/pos-stripe.ts",
+          "packages/server-pos/src/adapters/pos-daily.ts",
+          "packages/server-pos/src/application/pos.ts",
+          "packages/server-pos/Cargo.toml",
+          "packages/server-pos/package.json",
+          "tests/unit/pos/**",
+          "tests/integration/pos/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Port the first read family (registers/sales detail) behind a native statement with PG parity, then repeat per family; delete TS literals only after their callers switch.",
+        "handoff": null
+      },
+      {
+        "id": "retire.pos.residual-obligations",
+        "goalId": "G4",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "pos",
+        "workflowIds": [],
+        "workstream": "S16",
+        "kind": "migration",
+        "title": "Retire POS package-obligation reads behind native owner ports",
+        "scope": "96 literal SELECTs in addon-package-obligations.ts (57), package-obligations.ts (22), pms-package-obligations.ts (17). Same statement-bridge pattern as the core batch: native statement kinds with session-derived scope, PG parity per read family, caller cutover, TS deletion and owner KPI re-measure. Split from retire.reads.pos residual tail (395).",
+        "dependsOn": [],
+        "requiredPorts": [
+          "pos.obligation-read",
+          "runtime.unit-of-work"
+        ],
+        "allowedPaths": [
+          "packages/server-pos/src/adapters/addon-package-obligations.ts",
+          "packages/server-pos/src/adapters/package-obligations.ts",
+          "packages/server-pos/src/adapters/pms-package-obligations.ts",
+          "packages/server-pos/Cargo.toml",
+          "packages/server-pos/package.json",
+          "tests/unit/pos/**",
+          "tests/integration/pos/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Inventory obligation read families, then port the largest family first with PG parity.",
+        "handoff": null
+      },
+      {
+        "id": "retire.pos.residual-daycontrol",
+        "goalId": "G4",
+        "planRef": "docs/production-plan.md#rust-migration-current",
+        "owner": "pos",
+        "workflowIds": [],
+        "workstream": "S16",
+        "kind": "migration",
+        "title": "Retire POS day-control, snapshot and boundary reads",
+        "scope": "Remainder of the 395 residual: pms-day-control-facts.ts (33), finance-snapshot-sources.ts, finance-record-sources.ts, executive-metric-projections.ts, startup-sources.ts, purchase-boundary.ts and smaller readers. Same statement-bridge pattern with PG parity per family, caller cutover, TS deletion and owner KPI re-measure. Split from retire.reads.pos residual tail (395).",
+        "dependsOn": [],
+        "requiredPorts": [
+          "pos.daycontrol-read",
+          "runtime.unit-of-work"
+        ],
+        "allowedPaths": [
+          "packages/server-pos/src/adapters/pms-day-control-facts.ts",
+          "packages/server-pos/src/adapters/finance-snapshot-sources.ts",
+          "packages/server-pos/src/adapters/finance-record-sources.ts",
+          "packages/server-pos/src/adapters/executive-metric-projections.ts",
+          "packages/server-pos/src/adapters/startup-sources.ts",
+          "packages/server-pos/src/adapters/purchase-boundary.ts",
+          "packages/server-pos/Cargo.toml",
+          "packages/server-pos/package.json",
+          "tests/unit/pos/**",
+          "tests/integration/pos/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "status": "pending",
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Port pms-day-control-facts first (largest file), then snapshots/boundary readers.",
+        "handoff": null
       }
     ],
     "migrationProgress": {
@@ -110053,10 +110172,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 441,
+      "totalPackets": 444,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 12,
+        "pending": 15,
         "in_progress": 7,
         "ready_for_integration": 2,
         "integrating": 1,
@@ -110067,7 +110186,7 @@
       }
     },
     "lastCoordinatorGeneration": 154,
-    "updatedAt": "2026-11-23T09:42:35.910Z",
+    "updatedAt": "2026-11-23T10:04:40.002Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
