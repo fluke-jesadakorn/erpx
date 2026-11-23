@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6874,
+    "revision": 6878,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -118500,7 +118500,7 @@
         "owner": "people_payroll",
         "title": "people_payroll TS read tail native cutover (round 3)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -118512,22 +118512,42 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wADpeo",
-          "claimedAt": "2026-11-23T20:45:45.566Z",
-          "heartbeatAt": "2026-11-23T21:17:56.011Z",
-          "expiresAt": "2026-11-23T21:47:56.011Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0f5bb2191",
+            "owner": "people_payroll",
+            "before": 1655,
+            "after": 1654,
+            "note": "RD_WORK_REPORT_PEOPLE fixed read kind."
+          },
+          {
+            "command": "cargo check -p erpx-server-people-payroll + lib native_read_sql (3)",
+            "result": "passed",
+            "sourceSha": "0f5bb2191"
+          },
+          {
+            "command": "vitest native-people-payroll-read-plan (7) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "0f5bb2191"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wADpeo",
+          "at": "2026-11-23T21:25:24.207Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -119763,6 +119783,42 @@
         "nextAction": "Pick the smallest owner-local family on the owner-write registry; beta-billing.ts customer/inbox/legacy-customer reads next; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.people_payroll.read-tail-r4",
+        "goalId": "G4",
+        "owner": "people_payroll",
+        "title": "people_payroll TS read tail native cutover (round 4)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/**",
+          "tests/unit/people_payroll/**",
+          "tests/integration/people_payroll/**"
+        ],
+        "resources": [
+          "owner:people_payroll"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wAXpeo",
+          "claimedAt": "2026-11-23T21:25:24.371Z",
+          "heartbeatAt": "2026-11-23T21:25:24.371Z",
+          "expiresAt": "2026-11-23T21:55:24.371Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local fixed-SQL read family; candidates finalPayCancellationSchemaAvailable, payrollOtherSchemaAvailable, workCachePeoplePayrollDeadlines; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -119771,7 +119827,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 564,
+      "totalPackets": 565,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -119779,13 +119835,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 195,
+        "blocked": 196,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T21:24:12.185Z",
+    "updatedAt": "2026-11-23T21:25:24.374Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
