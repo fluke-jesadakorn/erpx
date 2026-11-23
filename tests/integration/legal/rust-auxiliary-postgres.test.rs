@@ -602,6 +602,13 @@ async fn law_corpus_reads_require_approved_applicability_and_audit_the_access() 
         assert_eq!(knowledge["sources"][0]["kind"], "law");
         assert_eq!(knowledge["sources"][0]["item_id"], "rule-law");
         assert_eq!(knowledge["asOf"], "2026-01-01");
+        // The native `knowledge` read is the authoritative projection for the
+        // TypeScript lawKnowledge/legalKnowledge adapters. Pin its exact
+        // top-level field set so the seven view TS SELECTs can be deleted.
+        assert_eq!(knowledge.as_object().unwrap().len(), 5);
+        for field in ["query", "asOf", "sources", "conflicts", "notice"] {
+            assert!(knowledge.get(field).is_some(), "missing {field}");
+        }
 
         let reviewed = read(
             &pool,
