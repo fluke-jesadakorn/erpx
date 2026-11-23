@@ -1,19 +1,34 @@
 # G3 / retire.legal.destruction — mount verification (still blocked)
 
-Status of this worker pass (`run-20261123-e` / `worker-legalD3`): the native
-authority exists and compiles, but the lead-owned composition mount is still
-ABSENT. No production code was changed, no oracle was moved, no ledger or remote
-was mutated. Acceptance stays deferred.
+Status of this worker pass (`run-20261123-e` / `worker-legalD4`): re-verified
+that the native authority exists and compiles, but the lead-owned composition
+mount is still ABSENT. No production code was changed, no oracle was moved, no
+ledger or remote was mutated. Acceptance stays deferred. This re-verification
+supersedes the earlier `worker-legalD3` pass recorded below; the three lead
+prerequisites and the ready worker slice are unchanged.
 
-## Verified state (re-checked this pass)
+## Verified state (re-checked this pass, worker-legalD4)
 
 - Working copy: branch `codex/rust-backend-migration`, HEAD
-  `9e63520b096f86c6d230e05dd319bfb9145afa0f`; claim is held by
-  `worker-legalD3` (generation 155). `validate` returns `{"valid": true}`;
-  `status --task=retire.legal.destruction --json` returns revision 6112 with the
+  `68c78f50d93c748e245b53a72848e203d22ebfb1`; claim is held by
+  `worker-legalD4` (generation 155). `validate` returns `{"valid": true}`;
+  `status --task=retire.legal.destruction --json` returns revision 6128 with the
   claim active and `baseSha` `4b1723460963f08f7c236e7fb223b3c1d56d269f`.
   Working tree has NO diff in any of this packet's `allowedPaths` (Legal source,
   feature-legal, the isolated rehearsal fixture, or legal tests).
+- No Legal-behavior commit since the earlier spec HEAD `9e63520b...`; the only
+  commit touching these paths is `68c78f50d` (this spec file itself).
+- Checks re-run on current HEAD (passed): `cargo check -p erpx-server-legal --lib`
+  (Legal crate clean; only pre-existing warnings in
+  `erpx-server-identity-access` / `erpx-server-collaboration`);
+  `bunx tsc --noEmit --project packages/server-legal/tsconfig.json` (exit 0).
+  The instruction's `-p legal` is not a package name; the crate is
+  `erpx-server-legal`.
+- Scoped KPI unchanged at current HEAD: 0 INSERT/UPDATE/DELETE write statements
+  and 350 total SQL verbs under `packages/server-legal/src/**/*.ts`; the
+  destruction worker holds 8 SELECTs and 0 writes.
+
+## Historical verification (worker-legalD3, re-checked for context)
 - Earlier spec HEAD `cb6d2d22e86b5f4dd603ba953b2ca3b48758dc90` and the native
   authority commit `ef6639fa6ed7b0765a352ab204b6b8045cb7faf9` are both ancestors
   of current HEAD; no later commit touches Legal composition sources.
@@ -59,12 +74,7 @@ was mutated. Acceptance stays deferred.
   (`src/composition/src/main.rs:19-69`,
   `src/composition/src/legal_runtime_worker.rs:436`) currently owns only
   processing/OCR, not destruction.
-- Checks run on current HEAD (passed): `cargo check -p erpx-server-legal --lib`
-  (Legal crate clean; only pre-existing warnings in
-  `erpx-server-identity-access`); `bunx tsc --noEmit --project
-  packages/server-legal/tsconfig.json` (exit 0). The instruction's `-p legal`
-  is not a package name; the crate is `erpx-server-legal`.
-- Scoped KPI at HEAD: 0 INSERT/UPDATE/DELETE write statements and 350 total SQL
+- Scoped KPI at the D3 pass HEAD: 0 INSERT/UPDATE/DELETE write statements and 350 total SQL
   verbs under `packages/server-legal/src/**/*.ts`; the destruction worker itself
   holds 8 SELECTs and 0 writes. Legal writes already reached 0 at
   `retire.legal.destruction-worker` / `c0a24c8136`; this packet's delta is the
@@ -134,6 +144,8 @@ All paths below are already in this packet's `allowedPaths`; no split is needed.
 
 Lead: land the three prerequisites in composition (`src/composition/src/**`,
 outside this claim) and report the exact native invocation plus the new source
-SHA. Then re-dispatch this packet; the worker slice above is ready to execute
-without further scope refinement. Workers must NOT mutate the ledger or push —
-only the lead records the handoff/release and integrates.
+SHA. Then re-dispatch this packet to `worker-legalD4` (or successor); the worker
+slice above is ready to execute without further scope refinement. As of this
+D4 re-verification the mount is still absent, so no production code, oracle or
+ledger was changed and no migration gate was passed. Workers must NOT mutate the
+ledger or push — only the lead records the handoff/release and integrates.
