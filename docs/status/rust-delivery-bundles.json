@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6396,
+    "revision": 6402,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-f",
       "agentId": "lead",
       "startedAt": "2026-11-23T16:54:33.142Z",
-      "heartbeatAt": "2026-11-23T17:49:45.040Z",
-      "expiresAt": "2026-11-23T18:19:45.040Z",
+      "heartbeatAt": "2026-11-23T17:50:38.960Z",
+      "expiresAt": "2026-11-23T18:20:38.960Z",
       "generation": 158,
       "tokenHash": "786b04e6db95d7a97c392a0b212dc2cfdd563bbd8cc6545681f5e6ff248eceaa"
     },
@@ -50652,8 +50652,8 @@
           "runId": "run-20261123-f",
           "agentId": "wH11",
           "claimedAt": "2026-11-23T17:32:50.351Z",
-          "heartbeatAt": "2026-11-23T17:49:45.040Z",
-          "expiresAt": "2026-11-23T18:19:45.040Z",
+          "heartbeatAt": "2026-11-23T17:50:38.960Z",
+          "expiresAt": "2026-11-23T18:20:38.960Z",
           "generation": 158
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -51187,8 +51187,8 @@
           "runId": "run-20261123-f",
           "agentId": "wH10",
           "claimedAt": "2026-11-23T17:32:50.256Z",
-          "heartbeatAt": "2026-11-23T17:49:45.040Z",
-          "expiresAt": "2026-11-23T18:19:45.040Z",
+          "heartbeatAt": "2026-11-23T17:50:38.960Z",
+          "expiresAt": "2026-11-23T18:20:38.960Z",
           "generation": 158
         },
         "baseSha": null,
@@ -109921,8 +109921,8 @@
           "runId": "run-20261123-f",
           "agentId": "wI03",
           "claimedAt": "2026-11-23T17:48:24.405Z",
-          "heartbeatAt": "2026-11-23T17:49:45.040Z",
-          "expiresAt": "2026-11-23T18:19:45.040Z",
+          "heartbeatAt": "2026-11-23T17:50:38.960Z",
+          "expiresAt": "2026-11-23T18:20:38.960Z",
           "generation": 158
         },
         "baseSha": "d15bbdf7095f86bedb5c69bd0f4b297c357f0061",
@@ -110295,8 +110295,8 @@
           "runId": "run-20261123-f",
           "agentId": "wH15",
           "claimedAt": "2026-11-23T17:37:18.775Z",
-          "heartbeatAt": "2026-11-23T17:49:45.040Z",
-          "expiresAt": "2026-11-23T18:19:45.040Z",
+          "heartbeatAt": "2026-11-23T17:50:38.960Z",
+          "expiresAt": "2026-11-23T18:20:38.960Z",
           "generation": 158
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -111695,8 +111695,8 @@
           "runId": "run-20261123-f",
           "agentId": "wI02",
           "claimedAt": "2026-11-23T17:48:33.541Z",
-          "heartbeatAt": "2026-11-23T17:49:45.040Z",
-          "expiresAt": "2026-11-23T18:19:45.040Z",
+          "heartbeatAt": "2026-11-23T17:50:38.960Z",
+          "expiresAt": "2026-11-23T18:20:38.960Z",
           "generation": 158
         },
         "baseSha": null,
@@ -112920,8 +112920,8 @@
           "runId": "run-20261123-f",
           "agentId": "wD01",
           "claimedAt": "2026-11-23T17:15:22.271Z",
-          "heartbeatAt": "2026-11-23T17:49:45.040Z",
-          "expiresAt": "2026-11-23T18:19:45.040Z",
+          "heartbeatAt": "2026-11-23T17:50:38.960Z",
+          "expiresAt": "2026-11-23T18:20:38.960Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113085,8 +113085,8 @@
           "runId": "run-20261123-f",
           "agentId": "wH13",
           "claimedAt": "2026-11-23T17:34:59.726Z",
-          "heartbeatAt": "2026-11-23T17:49:45.040Z",
-          "expiresAt": "2026-11-23T18:19:45.040Z",
+          "heartbeatAt": "2026-11-23T17:50:38.960Z",
+          "expiresAt": "2026-11-23T18:20:38.960Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113284,8 +113284,8 @@
           "runId": "run-20261123-f",
           "agentId": "wH05",
           "claimedAt": "2026-11-23T17:26:53.756Z",
-          "heartbeatAt": "2026-11-23T17:49:45.040Z",
-          "expiresAt": "2026-11-23T18:19:45.040Z",
+          "heartbeatAt": "2026-11-23T17:50:38.960Z",
+          "expiresAt": "2026-11-23T18:20:38.960Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113304,7 +113304,7 @@
         "owner": "collaboration",
         "title": "Native handbook reads for all consumers (16 SELECT -> 0)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -113326,22 +113326,42 @@
         "resources": [
           "owner:collaboration"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wH06",
-          "claimedAt": "2026-11-23T17:31:32.492Z",
-          "heartbeatAt": "2026-11-23T17:49:45.040Z",
-          "expiresAt": "2026-11-23T18:19:45.040Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "41216d9a7",
+            "owner": "collaboration",
+            "before": 492,
+            "after": 469,
+            "note": "wH06: handbook 23 SELECTs -> native; operations +6 local scope predicates; global net -17."
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test handbook",
+            "result": "passed",
+            "sourceSha": "41216d9a7"
+          },
+          {
+            "command": "vitest native-handbook-transport + handbook-services 38/38",
+            "result": "passed",
+            "sourceSha": "41216d9a7"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Make handbook client fail closed, switch operations/agent/notification consumers, delete handbook.ts + handbook-purchases.ts SELECTs and barrels, record 16->0",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wH06",
+          "at": "2026-11-23T17:50:16.800Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -113411,8 +113431,8 @@
           "runId": "run-20261123-f",
           "agentId": "wH17",
           "claimedAt": "2026-11-23T17:43:16.667Z",
-          "heartbeatAt": "2026-11-23T17:49:45.040Z",
-          "expiresAt": "2026-11-23T18:19:45.040Z",
+          "heartbeatAt": "2026-11-23T17:50:38.960Z",
+          "expiresAt": "2026-11-23T18:20:38.960Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113450,8 +113470,8 @@
           "runId": "run-20261123-f",
           "agentId": "wI01",
           "claimedAt": "2026-11-23T17:48:24.243Z",
-          "heartbeatAt": "2026-11-23T17:49:45.040Z",
-          "expiresAt": "2026-11-23T18:19:45.040Z",
+          "heartbeatAt": "2026-11-23T17:50:38.960Z",
+          "expiresAt": "2026-11-23T18:20:38.960Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113470,7 +113490,7 @@
         "owner": "maintenance",
         "title": "Native maintenance preventive-plan reads (8 SELECT -> 0)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -113491,7 +113511,14 @@
         "resources": [
           "owner:maintenance"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wJ01",
+          "claimedAt": "2026-11-23T17:50:16.881Z",
+          "heartbeatAt": "2026-11-23T17:50:38.960Z",
+          "expiresAt": "2026-11-23T18:20:38.960Z",
+          "generation": 158
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -113570,6 +113597,47 @@
         "nextAction": "Switch runtime executive metrics to mounted native field executive read; delete bridge + record-purchases SQL (4 SELECTs); keep serviceMetricHistoryAccess native",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.reads.assets.record-source-facts",
+        "goalId": "G4",
+        "owner": "assets",
+        "title": "Native assets record-source facts (5 SELECT -> 0)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-assets/src/adapters/records-source-facts.ts",
+          "packages/server-assets/src/public/records-source-facts.ts",
+          "packages/server-assets/package.json",
+          "packages/server-records/src/adapters/source-record-policy.ts",
+          "packages/server-support/src/adapters/ticket-source-read-policy.ts",
+          "tests/unit/assets/**",
+          "tests/integration/assets/**",
+          "tests/unit/shared.records/**"
+        ],
+        "resources": [
+          "owner:assets"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wJ03",
+          "claimedAt": "2026-11-23T17:50:26.640Z",
+          "heartbeatAt": "2026-11-23T17:50:38.960Z",
+          "expiresAt": "2026-11-23T18:20:38.960Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Switch records/support consumers to mounted native asset record_source contract; delete 5 SELECTs + barrel; record assets 39->34",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -113578,21 +113646,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 472,
+      "totalPackets": 473,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 20,
-        "in_progress": 10,
+        "pending": 19,
+        "in_progress": 11,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 113,
+        "blocked": 114,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T17:49:45.042Z",
+    "updatedAt": "2026-11-23T17:50:38.963Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
