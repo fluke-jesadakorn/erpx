@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7046,
+    "revision": 7048,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -116475,7 +116475,7 @@
         "owner": "crm",
         "title": "Mount CRM activity workspace + TS client/consumer cutover",
         "kind": "integration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116503,22 +116503,22 @@
           "owner:crm",
           "resource:composition"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wAB01",
-          "claimedAt": "2026-11-23T20:39:04.527Z",
-          "heartbeatAt": "2026-11-23T22:02:15.577Z",
-          "expiresAt": "2026-11-23T22:32:15.577Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Add owner GET router/backend, composition mount with purchase/IAM in-unit, strict TS client, switch activities route/presenter/work-items port, delete 5 TS SELECTs (5->0).",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; composition freed",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wAB01",
+          "at": "2026-11-23T22:23:47.515Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; composition freed"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -117145,7 +117145,7 @@
         "owner": "quality",
         "title": "Mount Quality WorkContext read + switch 4 internal consumers (123->121)",
         "kind": "integration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -117174,7 +117174,14 @@
           "owner:work_projection",
           "resource:composition"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wBXqua",
+          "claimedAt": "2026-11-23T22:24:06.440Z",
+          "heartbeatAt": "2026-11-23T22:24:06.440Z",
+          "expiresAt": "2026-11-23T22:54:06.440Z",
+          "generation": 159
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -122148,7 +122155,7 @@
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T22:23:14.802Z",
+    "updatedAt": "2026-11-23T22:24:06.442Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
