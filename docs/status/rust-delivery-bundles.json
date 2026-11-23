@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6424,
+    "revision": 6434,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-f",
       "agentId": "lead",
       "startedAt": "2026-11-23T16:54:33.142Z",
-      "heartbeatAt": "2026-11-23T17:57:05.360Z",
-      "expiresAt": "2026-11-23T18:27:05.360Z",
+      "heartbeatAt": "2026-11-23T18:03:43.827Z",
+      "expiresAt": "2026-11-23T18:33:43.827Z",
       "generation": 158,
       "tokenHash": "786b04e6db95d7a97c392a0b212dc2cfdd563bbd8cc6545681f5e6ff248eceaa"
     },
@@ -9769,8 +9769,8 @@
           "runId": "run-20261123-f",
           "agentId": "wK06",
           "claimedAt": "2026-11-23T17:56:37.384Z",
-          "heartbeatAt": "2026-11-23T17:57:05.360Z",
-          "expiresAt": "2026-11-23T18:27:05.360Z",
+          "heartbeatAt": "2026-11-23T18:03:43.827Z",
+          "expiresAt": "2026-11-23T18:33:43.827Z",
           "generation": 158
         },
         "baseSha": "f205ed3aac2d99e7cbef528a6426aeca2931161d",
@@ -50657,10 +50657,10 @@
         "status": "in_progress",
         "claim": {
           "runId": "run-20261123-f",
-          "agentId": "wH11",
-          "claimedAt": "2026-11-23T17:32:50.351Z",
-          "heartbeatAt": "2026-11-23T17:57:05.360Z",
-          "expiresAt": "2026-11-23T18:27:05.360Z",
+          "agentId": "wL05",
+          "claimedAt": "2026-11-23T18:01:28.161Z",
+          "heartbeatAt": "2026-11-23T18:03:43.827Z",
+          "expiresAt": "2026-11-23T18:33:43.827Z",
           "generation": 158
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -50763,14 +50763,14 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Integrated; claim released",
+        "nextAction": "Integrated 578; claim released",
         "handoff": {
           "runId": "run-20261123-f",
-          "agentId": "wE01",
-          "at": "2026-11-23T17:32:41.728Z",
+          "agentId": "wH11",
+          "at": "2026-11-23T18:01:28.051Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Integrated; claim released"
+          "nextAction": "Integrated 578; claim released"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -51194,8 +51194,8 @@
           "runId": "run-20261123-f",
           "agentId": "wK01",
           "claimedAt": "2026-11-23T17:56:37.088Z",
-          "heartbeatAt": "2026-11-23T17:57:05.360Z",
-          "expiresAt": "2026-11-23T18:27:05.360Z",
+          "heartbeatAt": "2026-11-23T18:03:43.827Z",
+          "expiresAt": "2026-11-23T18:33:43.827Z",
           "generation": 158
         },
         "baseSha": null,
@@ -109942,8 +109942,8 @@
           "runId": "run-20261123-f",
           "agentId": "wK05",
           "claimedAt": "2026-11-23T17:56:37.304Z",
-          "heartbeatAt": "2026-11-23T17:57:05.360Z",
-          "expiresAt": "2026-11-23T18:27:05.360Z",
+          "heartbeatAt": "2026-11-23T18:03:43.827Z",
+          "expiresAt": "2026-11-23T18:33:43.827Z",
           "generation": 158
         },
         "baseSha": "d15bbdf7095f86bedb5c69bd0f4b297c357f0061",
@@ -110215,8 +110215,8 @@
           "runId": "run-20261123-f",
           "agentId": "wK04",
           "claimedAt": "2026-11-23T17:56:37.219Z",
-          "heartbeatAt": "2026-11-23T17:57:05.360Z",
-          "expiresAt": "2026-11-23T18:27:05.360Z",
+          "heartbeatAt": "2026-11-23T18:03:43.827Z",
+          "expiresAt": "2026-11-23T18:33:43.827Z",
           "generation": 158
         },
         "baseSha": "dbb5267714fb222c1665428fc0b7c9aec613e926",
@@ -110337,15 +110337,8 @@
         "resources": [
           "owner:pms"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wH15",
-          "claimedAt": "2026-11-23T17:37:18.775Z",
-          "heartbeatAt": "2026-11-23T17:57:05.360Z",
-          "expiresAt": "2026-11-23T18:27:05.360Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -110388,19 +110381,38 @@
             "command": "cargo test -p erpx-server-pms --test pms_report_projection_postgres",
             "result": "passed",
             "sourceSha": "b0a7e1eac"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pms/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "41397cb7e",
+            "owner": "pms",
+            "before": 567,
+            "after": 540,
+            "note": "wH15: reports.ts 27 SELECTs deleted; range+entries native-only 503 fail-closed."
+          },
+          {
+            "command": "cargo test -p erpx-server-pms --test pms_report_projection + _postgres",
+            "result": "passed",
+            "sourceSha": "41397cb7e"
+          },
+          {
+            "command": "vitest pms native transport + application 104/104",
+            "result": "passed",
+            "sourceSha": "41397cb7e"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "handoff",
         "handoff": {
           "runId": "run-20261123-f",
-          "agentId": "wC14",
-          "at": "2026-11-23T17:33:33.550Z",
+          "agentId": "wH15",
+          "at": "2026-11-23T18:03:11.901Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Owner parity integrated; transport cutover next"
+          "nextAction": "Integrated; claim released"
         },
-        "nextAction": "Owner parity integrated; transport cutover next",
+        "nextAction": "Integrated; claim released",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -111737,15 +111749,8 @@
         "resources": [
           "owner:finance"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wI02",
-          "claimedAt": "2026-11-23T17:48:33.541Z",
-          "heartbeatAt": "2026-11-23T17:57:05.360Z",
-          "expiresAt": "2026-11-23T18:27:05.360Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -111766,19 +111771,34 @@
             "sourceSha": "b091bb71e0618c71b4e83f68cbe650a090f412ff",
             "before": 18,
             "after": 14
+          },
+          {
+            "command": "cargo test -p erpx-server-finance --lib supplier_batch",
+            "result": "passed",
+            "sourceSha": "3a44ccebb"
+          },
+          {
+            "command": "cargo test -p erpx-server-finance --lib (45)",
+            "result": "passed",
+            "sourceSha": "3a44ccebb"
+          },
+          {
+            "command": "vitest supplier-payment-read-port unit+integration 3/3",
+            "result": "passed",
+            "sourceSha": "3a44ccebb"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "handoff",
         "scopeRefinementRequired": false,
-        "nextAction": "Worker source review at be30e2e27; runtime gates not rerun. Plan scoped Procurement caller and Finance test cutover before deleting supplier payment shell.",
+        "nextAction": "Owner parity integrated; mount is lead item",
         "handoff": {
           "runId": "run-20261123-f",
           "agentId": "wI02",
-          "at": "2026-11-23T17:48:33.410Z",
+          "at": "2026-11-23T18:02:59.834Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Worker source review at be30e2e27; runtime gates not rerun. Plan scoped Procurement caller and Finance test cutover before deleting supplier payment shell."
+          "reason": "handoff",
+          "nextAction": "Owner parity integrated; mount is lead item"
         }
       },
       {
@@ -113526,8 +113546,8 @@
           "runId": "run-20261123-f",
           "agentId": "wH17",
           "claimedAt": "2026-11-23T17:43:16.667Z",
-          "heartbeatAt": "2026-11-23T17:57:05.360Z",
-          "expiresAt": "2026-11-23T18:27:05.360Z",
+          "heartbeatAt": "2026-11-23T18:03:43.827Z",
+          "expiresAt": "2026-11-23T18:33:43.827Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113630,8 +113650,8 @@
           "runId": "run-20261123-f",
           "agentId": "wJ01",
           "claimedAt": "2026-11-23T17:50:16.881Z",
-          "heartbeatAt": "2026-11-23T17:57:05.360Z",
-          "expiresAt": "2026-11-23T18:27:05.360Z",
+          "heartbeatAt": "2026-11-23T18:03:43.827Z",
+          "expiresAt": "2026-11-23T18:33:43.827Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113740,8 +113760,8 @@
           "runId": "run-20261123-f",
           "agentId": "wJ03",
           "claimedAt": "2026-11-23T17:50:26.640Z",
-          "heartbeatAt": "2026-11-23T17:57:05.360Z",
-          "expiresAt": "2026-11-23T18:27:05.360Z",
+          "heartbeatAt": "2026-11-23T18:03:43.827Z",
+          "expiresAt": "2026-11-23T18:33:43.827Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113818,8 +113838,8 @@
           "runId": "run-20261123-f",
           "agentId": "wL01",
           "claimedAt": "2026-11-23T17:59:54.357Z",
-          "heartbeatAt": "2026-11-23T17:59:54.357Z",
-          "expiresAt": "2026-11-23T18:29:54.357Z",
+          "heartbeatAt": "2026-11-23T18:03:43.827Z",
+          "expiresAt": "2026-11-23T18:33:43.827Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113950,6 +113970,85 @@
         "nextAction": "Implement SQL-returning owner-read kinds (3 static SELECTs) + private route + TS fail-closed client; switch 12 billing sites preserving FOR UPDATE on caller unit; delete constants; mount in composition",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.crm.activity-workspace-port",
+        "goalId": "G3",
+        "owner": "crm",
+        "title": "Native CRM activity workspace read port (owner-side prep)",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [
+          "crm/activities"
+        ],
+        "allowedPaths": [
+          "packages/server-crm/src/domain/activity_workspace.rs",
+          "packages/server-crm/src/application/activity_workspace.rs",
+          "packages/server-crm/src/adapters/activity_workspace.rs",
+          "packages/server-crm/src/public/activity_workspace.rs",
+          "packages/server-crm/src/domain/mod.rs",
+          "packages/server-crm/src/application/mod.rs",
+          "packages/server-crm/src/adapters/mod.rs",
+          "packages/server-crm/src/public/mod.rs",
+          "packages/server-crm/Cargo.toml",
+          "tests/unit/crm/**",
+          "tests/integration/crm/**"
+        ],
+        "resources": [
+          "owner:crm"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement ActivityWorkspaceRead port per spec: domain view/work rules, repository+directory traits, PG adapter with exact SQL, unit + PG parity tests. No composition.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.pms.refund-command-prep",
+        "goalId": "G3",
+        "owner": "pms",
+        "title": "PMS refund command HTTP prep + owner-side parity (16 SELECT read tail)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pms/src/adapters/pms_http.rs",
+          "packages/server-pms/src/public/pms_http.rs",
+          "packages/server-pms/src/adapters/refund_postgres.rs",
+          "packages/server-pms/src/application/refund.rs",
+          "packages/server-pms/src/public/refund.rs",
+          "tests/unit/pms/**",
+          "tests/integration/pms/**"
+        ],
+        "resources": [
+          "owner:pms"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wL07",
+          "claimedAt": "2026-11-23T18:03:22.343Z",
+          "heartbeatAt": "2026-11-23T18:03:43.827Z",
+          "expiresAt": "2026-11-23T18:33:43.827Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Export PmsHttpRefundRequest + bounded refund command parser; add HTTP tests for six actions; verify repository parity incl FOR UPDATE/locks. Composition backend remains lead.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -113958,21 +114057,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 476,
+      "totalPackets": 478,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 22,
-        "in_progress": 10,
+        "pending": 23,
+        "in_progress": 9,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 115,
+        "blocked": 117,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T18:00:50.070Z",
+    "updatedAt": "2026-11-23T18:03:43.830Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
