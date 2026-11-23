@@ -3,6 +3,10 @@ import { z } from "zod";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { approvedVersionMetric, approvedVersionFields, invocationFields, inputSchema, type ApprovedVersionRow, type InvocationRow, parseCursor } from '@erpx/server-runtime/public/executive/agent-evidence-contract';
+const approvedVersionCols = `SELECT v.id,v.agent_id,a.name agent_name,a.status agent_status,v.status version_status,
+        v.version_number,v.version,v.created_at,v.updated_at
+      FROM agent_versions v JOIN agent_catalog a ON a.id=v.agent_id`;
+const invocationCols = `SELECT e.id,e.turn_id,e.outcome,e.created_at FROM ai_invocation_evidence e`;
 export function executiveEvidenceSources(database: SqlDatabase) {
     const db = database;
     return { async searchRows0(actor: WorkContext, input: z.infer<typeof inputSchema>, cursor: ReturnType<typeof parseCursor>): Promise<{
@@ -21,9 +25,7 @@ export function executiveEvidenceSources(database: SqlDatabase) {
                     conditions.push("(v.created_at<? OR (v.created_at=? AND v.id<?))");
                     values.push(cursor.createdAt, cursor.createdAt, cursor.id);
                 }
-                rows = (await db.prepare(`SELECT v.id,v.agent_id,a.name agent_name,a.status agent_status,v.status version_status,
-        v.version_number,v.version,v.created_at,v.updated_at
-      FROM agent_versions v JOIN agent_catalog a ON a.id=v.agent_id
+                rows = (await db.prepare(`${approvedVersionCols}
       WHERE ${conditions.join(" AND ")} ORDER BY v.created_at DESC,v.id DESC LIMIT ?`)
                     .bind(...values, input.limit + 1).all<ApprovedVersionRow>()).results;
                 fields = approvedVersionFields;
@@ -39,20 +41,18 @@ export function executiveEvidenceSources(database: SqlDatabase) {
                     invocationConditions.push("(e.created_at<? OR (e.created_at=? AND e.id<?))");
                     invocationValues.push(cursor.createdAt, cursor.createdAt, cursor.id);
                 }
-                rows = (await db.prepare(`SELECT e.id,e.turn_id,e.outcome,e.created_at FROM ai_invocation_evidence e
+                rows = (await db.prepare(`${invocationCols}
       WHERE ${invocationConditions.join(" AND ")} ORDER BY e.created_at DESC,e.id DESC LIMIT ?`)
                     .bind(...invocationValues, input.limit + 1).all<InvocationRow>()).results;
                 fields = invocationFields;
             }
             return { rows, fields };
         }, source1(companyId: string, id: string) {
-            return database.prepare(`SELECT v.id,v.agent_id,a.name agent_name,a.status agent_status,v.status version_status,
-        v.version_number,v.version,v.created_at,v.updated_at
-      FROM agent_versions v JOIN agent_catalog a ON a.id=v.agent_id
+            return database.prepare(`${approvedVersionCols}
       WHERE a.company_id=? AND a.status='approved' AND v.status='approved' AND v.id=? LIMIT 1`)
                 .bind(companyId, id).first<ApprovedVersionRow>();
         }, source2(companyId: string, value: number, value2: number, id: string) {
-            return database.prepare(`SELECT e.id,e.turn_id,e.outcome,e.created_at FROM ai_invocation_evidence e
+            return database.prepare(`${invocationCols}
       WHERE e.company_id=? AND e.created_at>=? AND e.created_at<? AND e.id=? LIMIT 1`)
                 .bind(companyId, value, value2, id).first<InvocationRow>();
         } };
