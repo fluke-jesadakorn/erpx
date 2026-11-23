@@ -105990,6 +105990,33 @@
         "tests/unit/pms/native-pms-read-plan.test.ts"
       ],
       "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Inventory ledger projection must be one canonical fixed owner projection."
+      },
+      "apps": [
+        "supply"
+      ],
+      "packages": [
+        "@erpx/server-inventory"
+      ],
+      "id": "inventory.native-inventory-ledger-projection.unit",
+      "files": [
+        "tests/unit/inventory/native-inventory-ledger-projection.test.ts"
+      ],
+      "framework": "vitest"
     }
   ]
 }
