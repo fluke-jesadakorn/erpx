@@ -186,4 +186,32 @@ describe('Marketing owner-local campaign read tail', () => {
     expect(submission).toContain('db.prepare(marketingCampaignExistsSql).bind(id,companyId).first()');
     expect(campaigns).toContain('`EXISTS(${marketingCampaignExistsSql})`');
   });
+
+  it('keeps one fixed owner projection for executive evidence row reads', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
+    const helper = await readFile(new URL('executive-evidence-rows.ts', base), 'utf8');
+    const evidence = await readFile(new URL('executive-evidence-sources.ts', base), 'utf8');
+    const workspace = await readFile(new URL('marketing.ts', base), 'utf8');
+
+    const candidatePredicate = 'SELECT c.id,c.contact_name,c.status,c.form_version,c.version,c.created_at,c.updated_at,c.branch_id,c.department_id,f.name form_name';
+    const eventPredicate = 'SELECT e.id,e.candidate_id,e.event_type,e.channel,e.version event_version,e.created_at,c.contact_name,c.status candidate_status,c.version candidate_version,c.branch_id,c.department_id,f.name form_name';
+    // One canonical SELECT per row shape; its comment must not smuggle extra
+    // "SELECT" tokens into the retirement KPI.
+    expect(helper.match(/SELECT/g)).toHaveLength(2);
+    expect(helper).toContain('export function marketingEvidenceCandidateRows');
+    expect(helper).toContain('export function marketingEvidenceEventRows');
+    expect(helper).toContain(candidatePredicate);
+    expect(helper).toContain(eventPredicate);
+
+    for (const consumer of [evidence, workspace]) {
+      expect(consumer).toMatch(/from ['"]\.\/executive-evidence-rows['"]/);
+      expect(consumer).not.toContain(candidatePredicate);
+      expect(consumer).not.toContain(eventPredicate);
+    }
+    expect(evidence).toContain('marketingEvidenceCandidateRows(candidateSource)');
+    expect(evidence).toContain('marketingEvidenceEventRows(candidateSource)');
+    expect(workspace).toContain("marketingEvidenceCandidateRows('marketing_lead_candidates')");
+    expect(workspace).toContain("marketingEvidenceEventRows('marketing_lead_candidates')");
+  });
 });

@@ -1,5 +1,6 @@
 import { nativeCreateCandidate, nativeRecordEngagement, nativeReviewAsset } from '@erpx/feature-marketing/adapters/server/native-marketing-wave2';
 import {filterMarketingPurchasedWork} from "@erpx/server-marketing/adapters/record-purchases";
+import {marketingEvidenceCandidateRows,marketingEvidenceEventRows} from "./executive-evidence-rows";
 import { commercialOwnerProjectionSources as organizationProjectionSources } from "@erpx/server-organization/public/commercial-owner-projection-sources";
 
 import "server-only";
@@ -129,16 +130,9 @@ async workRows(){return (await write
           a.departmentId,
         )
         .all<Row>()).results;},
-async evidence(metric,recordId,range){if(metric==="marketing-lead-candidates")return write.prepare(`SELECT c.id,c.contact_name,c.status,c.form_version,c.version,c.created_at,c.updated_at,c.branch_id,c.department_id,
-        f.name form_name
-      FROM marketing_lead_candidates c
-      JOIN marketing_assets f ON f.id=c.form_id AND f.company_id=c.company_id
+async evidence(metric,recordId,range){if(metric==="marketing-lead-candidates")return write.prepare(`${marketingEvidenceCandidateRows('marketing_lead_candidates')}
       WHERE c.id=? AND c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?) LIMIT 1`)
-      .bind(recordId,a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId).first<Row>();if(!range)return null;return write.prepare(`SELECT e.id,e.candidate_id,e.event_type,e.channel,e.version event_version,e.created_at,
-      c.contact_name,c.status candidate_status,c.version candidate_version,c.branch_id,c.department_id,f.name form_name
-    FROM marketing_engagement_events e
-    JOIN marketing_lead_candidates c ON c.id=e.candidate_id
-    JOIN marketing_assets f ON f.id=c.form_id AND f.company_id=c.company_id
+      .bind(recordId,a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId).first<Row>();if(!range)return null;return write.prepare(`${marketingEvidenceEventRows('marketing_lead_candidates')}
     WHERE e.id=? AND c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?)
       AND e.created_at>=? AND e.created_at<? LIMIT 1`)
     .bind(recordId,a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId,range.from,range.toExclusive).first<Row>();},

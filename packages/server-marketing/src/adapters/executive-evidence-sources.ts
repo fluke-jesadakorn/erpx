@@ -1,5 +1,6 @@
 import "server-only";
 import {marketingMetricSource} from "@erpx/server-marketing/adapters/metric-purchases";
+import {marketingEvidenceCandidateRows,marketingEvidenceEventRows} from "./executive-evidence-rows";
 import { z } from "zod";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -7,7 +8,7 @@ import { inputSchema, type CandidateCursor, type EventCursor, type MarketingEvid
 export function executiveEvidenceSources(database: SqlDatabase) {
     const db = database;
     return { async searchRows0(actor: WorkContext, input: z.infer<typeof inputSchema>, cursor: ReturnType<typeof parseCursor>, query: string): Promise<MarketingEvidenceRow[]> {
-            const purchased=await marketingMetricSource(db,actor,input.metric);
+            const purchased=await marketingMetricSource(db,actor,input.metric),candidateSource=`(${purchased.sql})`;
             let rows: MarketingEvidenceRow[];
             if (input.metric === "marketing-lead-candidates") {
                 const values: unknown[] = [...purchased.args,actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId];
@@ -22,8 +23,7 @@ export function executiveEvidenceSources(database: SqlDatabase) {
                     where.push("(c.contact_name>? OR (c.contact_name=? AND c.id>?))");
                     values.push(candidateCursor.name, candidateCursor.name, candidateCursor.id);
                 }
-                rows = (await db.prepare(`SELECT c.id,c.contact_name,c.status,c.form_version,c.version,c.created_at,c.updated_at,c.branch_id,c.department_id,f.name form_name
-      FROM (${purchased.sql}) c JOIN marketing_assets f ON f.id=c.form_id AND f.company_id=c.company_id
+                rows = (await db.prepare(`${marketingEvidenceCandidateRows(candidateSource)}
       WHERE ${where.join(" AND ")} ORDER BY c.contact_name,c.id LIMIT ?`)
                     .bind(...values, input.limit + 1).all<MarketingEvidenceRow>()).results;
             }
@@ -41,10 +41,7 @@ export function executiveEvidenceSources(database: SqlDatabase) {
                     where.push("(e.created_at<? OR (e.created_at=? AND e.id<?))");
                     values.push(eventCursor.createdAt, eventCursor.createdAt, eventCursor.id);
                 }
-                rows = (await db.prepare(`SELECT e.id,e.candidate_id,e.event_type,e.channel,e.version event_version,e.created_at,
-        c.contact_name,c.status candidate_status,c.version candidate_version,c.branch_id,c.department_id,f.name form_name
-      FROM marketing_engagement_events e JOIN (${purchased.sql}) c ON c.id=e.candidate_id
-      JOIN marketing_assets f ON f.id=c.form_id AND f.company_id=c.company_id
+                rows = (await db.prepare(`${marketingEvidenceEventRows(candidateSource)}
       WHERE ${where.join(" AND ")} ORDER BY e.created_at DESC,e.id DESC LIMIT ?`)
                     .bind(...values, input.limit + 1).all<MarketingEvidenceRow>()).results;
             }
