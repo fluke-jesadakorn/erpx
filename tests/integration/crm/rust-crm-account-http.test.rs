@@ -32,6 +32,15 @@ impl CrmAccountCommandHttpBackend for Noop {
             ))
         })
     }
+    fn create_contact<'a>(&'a self, _: CrmAccountCommandHttpRequest<'a>) -> CommandHttpFuture<'a> {
+        Box::pin(async { Err(BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.")) })
+    }
+    fn link_guest<'a>(&'a self, _: CrmAccountCommandHttpRequest<'a>) -> CommandHttpFuture<'a> {
+        Box::pin(async { Err(BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.")) })
+    }
+    fn guest_sharing<'a>(&'a self, _: CrmAccountCommandHttpRequest<'a>) -> CommandHttpFuture<'a> {
+        Box::pin(async { Err(BusinessError::new(FailureKind::NotFound, "NOT_FOUND", "Not found.")) })
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -94,6 +103,54 @@ impl CrmAccountCommandHttpBackend for Probe {
             Ok(CrmCommandHttpReply {
                 data: serde_json::json!({"id": "account-1", "version": 2}),
                 context: serde_json::json!({"userId": "reviewer", "companyId": "company"}),
+            })
+        })
+    }
+    fn create_contact<'a>(
+        &'a self,
+        request: CrmAccountCommandHttpRequest<'a>,
+    ) -> CommandHttpFuture<'a> {
+        Box::pin(async move {
+            self.seen.lock().unwrap().push(Seen {
+                action: "create-contact",
+                key: request.key.as_str().into(),
+                host: request.host.into(),
+                holding: request.holding_slug.into(),
+            });
+            Ok(Self::reply(&request, "contact"))
+        })
+    }
+    fn link_guest<'a>(
+        &'a self,
+        request: CrmAccountCommandHttpRequest<'a>,
+    ) -> CommandHttpFuture<'a> {
+        Box::pin(async move {
+            self.seen.lock().unwrap().push(Seen {
+                action: "link-guest",
+                key: request.key.as_str().into(),
+                host: request.host.into(),
+                holding: request.holding_slug.into(),
+            });
+            Ok(CrmCommandHttpReply {
+                data: serde_json::json!({"id": format!("guest-link-{}", request.key.as_str()), "version": 1}),
+                context: serde_json::json!({"userId": "user", "companyId": "company"}),
+            })
+        })
+    }
+    fn guest_sharing<'a>(
+        &'a self,
+        request: CrmAccountCommandHttpRequest<'a>,
+    ) -> CommandHttpFuture<'a> {
+        Box::pin(async move {
+            self.seen.lock().unwrap().push(Seen {
+                action: "guest-sharing",
+                key: request.key.as_str().into(),
+                host: request.host.into(),
+                holding: request.holding_slug.into(),
+            });
+            Ok(CrmCommandHttpReply {
+                data: serde_json::json!({"id": request.body["linkId"].clone(), "version": 2}),
+                context: serde_json::json!({"userId": "user", "companyId": "company"}),
             })
         })
     }
@@ -256,9 +313,9 @@ async fn actual_router_forwards_native_identity_commands_and_fails_closed() {
             "CRM_IDENTITY_REQUEST_INVALID",
         ),
         (
-            Some("key-contact"),
+            Some("key-unknown"),
             None,
-            r#"{"action":"create-contact","accountId":"account-1","name":"Contact","detail":"Front desk"}"#,
+            r#"{"action":"delete-everything"}"#,
             503,
             "CRM_IDENTITY_ACTION_NOT_NATIVE",
         ),
@@ -289,6 +346,71 @@ async fn actual_router_forwards_native_identity_commands_and_fails_closed() {
         .await;
         assert_eq!(status, 404);
         assert_eq!(body["error"]["code"], "NOT_FOUND");
+    }
+
+    server.abort();
+}
+
+#[tokio::test]
+async fn actual_router_dispatches_all_native_identity_actions() {
+    let seen = Arc::new(Mutex::new(Vec::new()));
+    let router = crm_account_command_http_router(vec![CrmAccountCommandHttpTarget {
+        host: "acme.example.test".into(),
+        holding_slug: "acme".into(),
+        origin: "https://acme.example.test".into(),
+        backend: Arc::new(Probe { seen: seen.clone() }),
+    }])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+
+    const PATH: &str = "/api/v1/holdings/acme/crm/identity/changes";
+    for (key, payload, action, id) in [
+        (
+            "key-contact",
+            r#"{"action":"create-contact","accountId":"account-1","name":"Front Desk","detail":"Reception contact"}"#,
+            "create-contact",
+            "contact-key-contact",
+        ),
+        (
+            "key-guest",
+            r#"{"action":"link-guest","contactId":"contact-1","guestId":"guest-1","propertyId":"property-1","evidence":"Confirmed stay"}"#,
+            "link-guest",
+            "guest-link-key-guest",
+        ),
+        (
+            "key-sharing",
+            r#"{"action":"guest-sharing","linkId":"guest-link-1","expectedVersion":1,"state":"revoked","evidence":"Review completed"}"#,
+            "guest-sharing",
+            "guest-link-1",
+        ),
+    ] {
+        let (status, body, _) = http(
+            addr,
+            post(
+                PATH,
+                "acme.example.test",
+                Some(key),
+                None,
+                payload,
+            ),
+        )
+        .await;
+        assert_eq!(status, 200, "{action}");
+        assert_eq!(body["data"]["id"], id, "{action}");
+        assert_eq!(body["context"]["companyId"], "company");
+        assert_eq!(
+            seen.lock().unwrap().last().cloned(),
+            Some(Seen {
+                action,
+                key: key.into(),
+                host: "acme.example.test".into(),
+                holding: "acme".into(),
+            })
+        );
     }
 
     server.abort();

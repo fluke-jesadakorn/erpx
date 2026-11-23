@@ -4,7 +4,11 @@
 use erpx_server_crm::public::accounts::{
     AccountCreateInput, AccountCreatePlan, AccountCreateRepository, AccountLinkFinanceActor,
     AccountLinkFinanceInput, AccountLinkFinancePlan, AccountLinkFinanceRepository, AccountsFuture,
-    create_account, link_account_finance, validate_account_create, validate_account_link_finance,
+    ContactCreateInput, ContactCreatePlan, GuestLinkInput, GuestLinkPlan, GuestSharingInput,
+    GuestSharingPlan, IdentityFamilyRepository, change_guest_sharing, create_account,
+    create_contact, link_account_finance, link_guest, validate_account_create,
+    validate_account_link_finance, validate_contact_create, validate_guest_link,
+    validate_guest_sharing,
 };
 use erpx_server_crm::public::pipeline::CrmPipelineActor;
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind, TimestampMillis};
@@ -237,4 +241,161 @@ async fn link_finance_application_delegates_the_retained_plan() {
     assert_eq!(actor.user_id, "reviewer");
     assert_eq!(saved, plan);
     assert_eq!(now, NOW.get());
+}
+
+fn native(value: serde_json::Value) -> serde_json::Value {
+    let action = value.get("action").and_then(serde_json::Value::as_str).unwrap_or("");
+    match action {
+        "create-contact" => serde_json::from_value::<ContactCreateInput>(value)
+            .ok()
+            .and_then(|input| validate_contact_create(&input).ok())
+            .map(|plan| json!(["create-contact", plan.account_id, plan.name, plan.detail]))
+            .unwrap_or(serde_json::Value::Null),
+        "link-guest" => serde_json::from_value::<GuestLinkInput>(value)
+            .ok()
+            .and_then(|input| validate_guest_link(&input).ok())
+            .map(|plan| {
+                json!(["link-guest", plan.contact_id, plan.guest_id, plan.property_id, plan.evidence, plan.sharing_evidence])
+            })
+            .unwrap_or(serde_json::Value::Null),
+        "guest-sharing" => serde_json::from_value::<GuestSharingInput>(value)
+            .ok()
+            .and_then(|input| validate_guest_sharing(&input).ok())
+            .map(|plan| {
+                json!(["guest-sharing", plan.link_id, plan.expected_version, plan.state, plan.evidence])
+            })
+            .unwrap_or(serde_json::Value::Null),
+        _ => serde_json::Value::Null,
+    }
+}
+
+#[test]
+fn identity_family_matches_ts_zod_for_all_owner_complete_actions() {
+    let cases = json!([
+        {"action":"create-contact","accountId":"acc-1","name":"  Front Desk  ","detail":"\u{feff}  Reception\u{00a0}  "},
+        {"action":"create-contact","accountId":"acc-1","name":"a","detail":"okay"},
+        {"action":"create-contact","accountId":"","name":"Front Desk","detail":"okay"},
+        {"action":"link-guest","contactId":"c","guestId":"g","propertyId":"p","evidence":"  linked  "},
+        {"action":"link-guest","contactId":"c","guestId":"g","propertyId":"p","evidence":"linked","sharingEvidence":"  granted😀  "},
+        {"action":"link-guest","contactId":"c","guestId":"g","propertyId":"p","evidence":"linked","sharingEvidence":"x"},
+        {"action":"guest-sharing","linkId":"l-1","expectedVersion":4,"state":"revoked","evidence":"  audited  "},
+        {"action":"guest-sharing","linkId":"l-1","expectedVersion":9007199254740992_i64,"state":"granted","evidence":"audited"},
+        {"action":"guest-sharing","linkId":"l-1","expectedVersion":1,"state":"pending","evidence":"audited"},
+        {"action":"delete-everything","linkId":"l-1"}
+    ]);
+    let script = r#"if(Bun.version!=='1.4.3')throw Error('PINNED_BUN_REQUIRED');const m=await import(process.argv[1]);const cases=JSON.parse(process.argv[2]);process.stdout.write(JSON.stringify(cases.map(input=>{const r=m.crmIdentityCommand.safeParse(input);if(!r.success)return null;const d=r.data;switch(d.action){case'create-contact':return['create-contact',d.accountId,d.name,d.detail];case'link-guest':return['link-guest',d.contactId,d.guestId,d.propertyId,d.evidence,d.sharingEvidence===undefined?null:d.sharingEvidence];case'guest-sharing':return['guest-sharing',d.linkId,d.expectedVersion,d.state,d.evidence];default:return null;}})));"#;
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../..");
+    let module = root.join("packages/server-crm/src/domain/identities.ts");
+    let output = std::process::Command::new(std::env::var("ERPX_BUN_BIN").expect("pinned Bun required"))
+        .current_dir(root)
+        .args(["--conditions=react-server", "-e", script])
+        .arg(module)
+        .arg(cases.to_string())
+        .output()
+        .unwrap();
+    assert!(output.status.success(), "actual CRM TS identity schema unavailable");
+    let expected: Vec<serde_json::Value> = serde_json::from_slice(&output.stdout).unwrap();
+    let actual: Vec<serde_json::Value> = cases.as_array().unwrap().iter().map(|value| native(value.clone())).collect();
+    assert_eq!(actual, expected);
+}
+
+#[derive(Default)]
+struct IdentityFake {
+    contact: Option<(String, String, String, ContactCreatePlan, i64)>,
+    guest: Option<(String, String, String, String, GuestLinkPlan, i64)>,
+    sharing: Option<(String, String, String, GuestSharingPlan, i64)>,
+}
+
+impl IdentityFamilyRepository for IdentityFake {
+    type Error = BusinessError;
+
+    fn insert_contact<'a>(
+        &'a mut self,
+        company_id: &'a str,
+        record_id: &'a str,
+        created_by: &'a str,
+        plan: &'a ContactCreatePlan,
+        now: i64,
+    ) -> AccountsFuture<'a, (), Self::Error> {
+        self.contact = Some((company_id.into(), record_id.into(), created_by.into(), plan.clone(), now));
+        Box::pin(async { Ok(()) })
+    }
+
+    fn link_guest<'a>(
+        &'a mut self,
+        company_id: &'a str,
+        link_id: &'a str,
+        sharing_event_id: &'a str,
+        created_by: &'a str,
+        plan: &'a GuestLinkPlan,
+        now: i64,
+    ) -> AccountsFuture<'a, (), Self::Error> {
+        self.guest = Some((company_id.into(), link_id.into(), sharing_event_id.into(), created_by.into(), plan.clone(), now));
+        Box::pin(async { Ok(()) })
+    }
+
+    fn change_guest_sharing<'a>(
+        &'a mut self,
+        company_id: &'a str,
+        sharing_event_id: &'a str,
+        created_by: &'a str,
+        plan: &'a GuestSharingPlan,
+        now: i64,
+    ) -> AccountsFuture<'a, (), Self::Error> {
+        self.sharing = Some((company_id.into(), sharing_event_id.into(), created_by.into(), plan.clone(), now));
+        Box::pin(async { Ok(()) })
+    }
+}
+
+#[tokio::test]
+async fn identity_family_application_delegates_all_actions() {
+    let mut repo = IdentityFake::default();
+    let contact = create_contact(
+        "owner",
+        "company",
+        "key-contact",
+        &serde_json::from_value(json!({
+            "action":"create-contact","accountId":"acc-1","name":"  Front Desk  ","detail":"okay"
+        }))
+        .unwrap(),
+        &mut repo,
+        NOW.get(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(contact.name, "Front Desk");
+    assert_eq!(repo.contact.as_ref().unwrap().1, "contact-key-contact");
+
+    let guest = link_guest(
+        "owner",
+        "company",
+        "key-guest",
+        &serde_json::from_value(json!({
+            "action":"link-guest","contactId":"c","guestId":"g","propertyId":"p","evidence":"linked","sharingEvidence":"granted"
+        }))
+        .unwrap(),
+        &mut repo,
+        NOW.get(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(guest.sharing_evidence.as_deref(), Some("granted"));
+    assert_eq!(repo.guest.as_ref().unwrap().1, "guest-link-key-guest");
+    assert_eq!(repo.guest.as_ref().unwrap().2, "sharing-key-guest");
+
+    let sharing = change_guest_sharing(
+        "owner",
+        "company",
+        "key-sharing",
+        &serde_json::from_value(json!({
+            "action":"guest-sharing","linkId":"l-1","expectedVersion":1,"state":"revoked","evidence":"audited"
+        }))
+        .unwrap(),
+        &mut repo,
+        NOW.get(),
+    )
+    .await
+    .unwrap();
+    assert_eq!(sharing.version, 2);
+    assert_eq!(repo.sharing.as_ref().unwrap().1, "sharing-key-sharing");
 }

@@ -8,16 +8,18 @@
 //! receipts/audit/outbox remain composition responsibilities behind
 //! [`CrmAccountCommandHttpBackend`].
 //!
-//! Only the owner-complete actions are accepted: `create-account` and
-//! `link-finance`. `create-contact`, `link-guest` and `guest-sharing` have no
-//! native owner domain/application/adapter yet, so they fail closed here with
-//! `CRM_IDENTITY_ACTION_NOT_NATIVE` and stay on the retained TypeScript
-//! identity command until their slices land.
+//! The owner-complete actions are `create-account`, `link-finance`,
+//! `create-contact`, `link-guest` and `guest-sharing`. Any other action fails
+//! closed with `CRM_IDENTITY_ACTION_NOT_NATIVE`; there is no TypeScript writer
+//! fallback behind this router.
 use crate::adapters::commands_http::{
     CommandHttpFuture, CrmCommandHttpReply, bounded, configure, error_response, parse_command,
     target,
 };
-use crate::domain::accounts::{AccountCreateInput, AccountLinkFinanceInput};
+use crate::domain::accounts::{
+    AccountCreateInput, AccountLinkFinanceInput, ContactCreateInput, GuestLinkInput,
+    GuestSharingInput,
+};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, Path, Request, Response, Router, State, routing::post, serde_json,
 };
@@ -42,6 +44,18 @@ pub trait CrmAccountCommandHttpBackend: Send + Sync {
         request: CrmAccountCommandHttpRequest<'a>,
     ) -> CommandHttpFuture<'a>;
     fn link_finance<'a>(
+        &'a self,
+        request: CrmAccountCommandHttpRequest<'a>,
+    ) -> CommandHttpFuture<'a>;
+    fn create_contact<'a>(
+        &'a self,
+        request: CrmAccountCommandHttpRequest<'a>,
+    ) -> CommandHttpFuture<'a>;
+    fn link_guest<'a>(
+        &'a self,
+        request: CrmAccountCommandHttpRequest<'a>,
+    ) -> CommandHttpFuture<'a>;
+    fn guest_sharing<'a>(
         &'a self,
         request: CrmAccountCommandHttpRequest<'a>,
     ) -> CommandHttpFuture<'a>;
@@ -139,6 +153,48 @@ async fn change_identity(
                 target
                     .backend
                     .link_finance(CrmAccountCommandHttpRequest {
+                        host: &target.host,
+                        holding_slug: &target.holding_slug,
+                        headers: &parsed.headers,
+                        key: &parsed.key,
+                        body: &parsed.body,
+                    })
+                    .await?
+            }
+            "create-contact" => {
+                let _: ContactCreateInput =
+                    serde_json::from_value(parsed.body.clone()).map_err(|_| malformed())?;
+                target
+                    .backend
+                    .create_contact(CrmAccountCommandHttpRequest {
+                        host: &target.host,
+                        holding_slug: &target.holding_slug,
+                        headers: &parsed.headers,
+                        key: &parsed.key,
+                        body: &parsed.body,
+                    })
+                    .await?
+            }
+            "link-guest" => {
+                let _: GuestLinkInput =
+                    serde_json::from_value(parsed.body.clone()).map_err(|_| malformed())?;
+                target
+                    .backend
+                    .link_guest(CrmAccountCommandHttpRequest {
+                        host: &target.host,
+                        holding_slug: &target.holding_slug,
+                        headers: &parsed.headers,
+                        key: &parsed.key,
+                        body: &parsed.body,
+                    })
+                    .await?
+            }
+            "guest-sharing" => {
+                let _: GuestSharingInput =
+                    serde_json::from_value(parsed.body.clone()).map_err(|_| malformed())?;
+                target
+                    .backend
+                    .guest_sharing(CrmAccountCommandHttpRequest {
                         host: &target.host,
                         holding_slug: &target.holding_slug,
                         headers: &parsed.headers,

@@ -7,11 +7,11 @@
 //! adapter; those stay in the TS runtime (`purchases.ts`, `executeCommand`)
 //! until the coordinator wires the Rust ledger + `sales.crm` enforcement path.
 use crate::application::accounts::{
-    AccountCreateRepository, AccountLinkFinanceRepository, AccountsFuture,
+    AccountCreateRepository, AccountLinkFinanceRepository, AccountsFuture, IdentityFamilyRepository,
 };
 use crate::domain::accounts::{
     AccountCreatePlan, AccountLinkFinanceActor, AccountLinkFinanceInput, AccountLinkFinancePlan,
-    validate_account_link_finance,
+    ContactCreatePlan, GuestLinkPlan, GuestSharingPlan, validate_account_link_finance,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, FailureKind};
@@ -199,5 +199,219 @@ impl AccountLinkFinanceRepository for PgCrmAccountCreate<'_> {
         Box::pin(
             async move { PgCrmAccountCreate::apply_link_finance(self, actor, plan, now).await },
         )
+    }
+}
+
+/// PostgreSQL adapter for the native create-contact / link-guest /
+/// guest-sharing owner effects. It writes only CRM-owned rows and runs on the
+/// caller's retained serializable unit. PMS source, package capability and
+/// Workflow ledger facts stay in composition.
+pub struct PgCrmIdentityFamily<'a> {
+    connection: &'a mut PgConnection,
+}
+
+impl<'a> PgCrmIdentityFamily<'a> {
+    pub fn new(connection: &'a mut PgConnection) -> Self {
+        Self { connection }
+    }
+
+    pub async fn insert_contact(
+        &mut self,
+        company_id: &str,
+        record_id: &str,
+        created_by: &str,
+        plan: &ContactCreatePlan,
+        now: i64,
+    ) -> Result<(), Error> {
+        serializable(&mut *self.connection).await?;
+        if company_id.is_empty() || record_id.is_empty() || created_by.is_empty() {
+            return Err(BusinessError::invalid(
+                "CRM_IDENTITY_INPUT_INVALID",
+                "Use a bounded CRM identity command.",
+            )
+            .into());
+        }
+        sqlx::query(
+            "INSERT INTO crm_contacts(id,company_id,account_id,name,detail,created_by,created_at,updated_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
+        )
+        .bind(record_id)
+        .bind(company_id)
+        .bind(&plan.account_id)
+        .bind(&plan.name)
+        .bind(&plan.detail)
+        .bind(created_by)
+        .bind(now)
+        .bind(now)
+        .execute(&mut *self.connection)
+        .await?;
+        Ok(())
+    }
+
+    pub async fn link_guest(
+        &mut self,
+        company_id: &str,
+        link_id: &str,
+        sharing_event_id: &str,
+        created_by: &str,
+        plan: &GuestLinkPlan,
+        now: i64,
+    ) -> Result<(), Error> {
+        serializable(&mut *self.connection).await?;
+        if company_id.is_empty() || link_id.is_empty() || created_by.is_empty() {
+            return Err(BusinessError::invalid(
+                "CRM_IDENTITY_INPUT_INVALID",
+                "Use a bounded CRM identity command.",
+            )
+            .into());
+        }
+        let granted = plan.sharing_evidence.is_some();
+        sqlx::query(
+            "INSERT INTO crm_guest_links(id,company_id,contact_id,guest_id,property_id,evidence,reviewed_by,created_at,sharing_state,sharing_evidence,sharing_by,sharing_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12)",
+        )
+        .bind(link_id)
+        .bind(company_id)
+        .bind(&plan.contact_id)
+        .bind(&plan.guest_id)
+        .bind(&plan.property_id)
+        .bind(&plan.evidence)
+        .bind(created_by)
+        .bind(now)
+        .bind(if granted { "granted" } else { "pending" })
+        .bind(plan.sharing_evidence.as_deref().unwrap_or(""))
+        .bind(if granted { Some(created_by) } else { None })
+        .bind(if granted { Some(now) } else { None })
+        .execute(&mut *self.connection)
+        .await?;
+        if let Some(evidence) = plan.sharing_evidence.as_deref() {
+            sqlx::query(
+                "INSERT INTO crm_guest_sharing_events(id,link_id,company_id,state,evidence,actor_id,version,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
+            )
+            .bind(sharing_event_id)
+            .bind(link_id)
+            .bind(company_id)
+            .bind("granted")
+            .bind(evidence)
+            .bind(created_by)
+            .bind(1_i64)
+            .bind(now)
+            .execute(&mut *self.connection)
+            .await?;
+        }
+        Ok(())
+    }
+
+    pub async fn change_guest_sharing(
+        &mut self,
+        company_id: &str,
+        sharing_event_id: &str,
+        created_by: &str,
+        plan: &GuestSharingPlan,
+        now: i64,
+    ) -> Result<(), Error> {
+        serializable(&mut *self.connection).await?;
+        if company_id.is_empty() || sharing_event_id.is_empty() || created_by.is_empty() {
+            return Err(BusinessError::invalid(
+                "CRM_IDENTITY_INPUT_INVALID",
+                "Use a bounded CRM identity command.",
+            )
+            .into());
+        }
+        let updated = sqlx::query(
+            "UPDATE crm_guest_links SET sharing_state=$1,sharing_evidence=$2,sharing_by=$3,sharing_at=$4,version=version+1 WHERE id=$5 AND version=$6 AND company_id=$7",
+        )
+        .bind(&plan.state)
+        .bind(&plan.evidence)
+        .bind(created_by)
+        .bind(now)
+        .bind(&plan.link_id)
+        .bind(plan.expected_version)
+        .bind(company_id)
+        .execute(&mut *self.connection)
+        .await?
+        .rows_affected();
+        if updated != 1 {
+            return Err(BusinessError::new(
+                FailureKind::Conflict,
+                "CONFLICT",
+                "The guest link changed. Refresh and review again.",
+            )
+            .into());
+        }
+        sqlx::query(
+            "INSERT INTO crm_guest_sharing_events(id,link_id,company_id,state,evidence,actor_id,version,created_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",
+        )
+        .bind(sharing_event_id)
+        .bind(&plan.link_id)
+        .bind(company_id)
+        .bind(&plan.state)
+        .bind(&plan.evidence)
+        .bind(created_by)
+        .bind(plan.version)
+        .bind(now)
+        .execute(&mut *self.connection)
+        .await?;
+        Ok(())
+    }
+}
+
+impl IdentityFamilyRepository for PgCrmIdentityFamily<'_> {
+    type Error = Error;
+
+    fn insert_contact<'a>(
+        &'a mut self,
+        company_id: &'a str,
+        record_id: &'a str,
+        created_by: &'a str,
+        plan: &'a ContactCreatePlan,
+        now: i64,
+    ) -> AccountsFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            PgCrmIdentityFamily::insert_contact(self, company_id, record_id, created_by, plan, now)
+                .await
+        })
+    }
+
+    fn link_guest<'a>(
+        &'a mut self,
+        company_id: &'a str,
+        link_id: &'a str,
+        sharing_event_id: &'a str,
+        created_by: &'a str,
+        plan: &'a GuestLinkPlan,
+        now: i64,
+    ) -> AccountsFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            PgCrmIdentityFamily::link_guest(
+                self,
+                company_id,
+                link_id,
+                sharing_event_id,
+                created_by,
+                plan,
+                now,
+            )
+            .await
+        })
+    }
+
+    fn change_guest_sharing<'a>(
+        &'a mut self,
+        company_id: &'a str,
+        sharing_event_id: &'a str,
+        created_by: &'a str,
+        plan: &'a GuestSharingPlan,
+        now: i64,
+    ) -> AccountsFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            PgCrmIdentityFamily::change_guest_sharing(
+                self,
+                company_id,
+                sharing_event_id,
+                created_by,
+                plan,
+                now,
+            )
+            .await
+        })
     }
 }
