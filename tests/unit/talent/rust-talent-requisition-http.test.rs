@@ -608,3 +608,57 @@ async fn command_plan_returns_owner_authored_workspace_list_reads() {
 
     server.abort();
 }
+
+#[tokio::test]
+async fn command_plan_returns_owner_authored_sensitive_offer_read() {
+    let router = talent_requisition_http_router(vec![TalentRequisitionHttpTarget {
+        host: "acme.example.test".into(),
+        holding_slug: "acme".into(),
+        origin: "https://acme.example.test".into(),
+        backend: Arc::new(Noop),
+    }])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+
+    let sql = "SELECT o.company_id,o.version,r.branch_id,r.department_id,a.owner_id,CASE WHEN (o.status<>'accepted' OR EXISTS(SELECT 1 FROM talent_hire_handoffs handoff JOIN talent_hire_consumption_receipts receipt ON receipt.handoff_id=handoff.id AND receipt.company_id=handoff.company_id AND receipt.source_offer_version=handoff.source_offer_version WHERE handoff.offer_id=o.id AND handoff.company_id=o.company_id)) THEN 0 ELSE 1 END pending_hire_delivery FROM talent_offers o JOIN talent_applications a ON a.id=o.application_id AND a.company_id=o.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id WHERE o.id=? AND o.company_id=?";
+    let payload = r#"{"kind":"talent_rd_sensitive_offer","values":["offer-1","company"]}"#;
+    let (status, body, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/talent/command-plan",
+            "acme.example.test",
+            None,
+            payload,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["data"]["statements"][0]["sql"], serde_json::json!(sql));
+    assert_eq!(
+        body["data"]["statements"][0]["values"],
+        serde_json::json!(["offer-1", "company"])
+    );
+
+    for bad in [
+        r#"{"kind":"talent_rd_sensitive_offer","values":["offer-1"]}"#,
+        r#"{"kind":"talent_rd_sensitive_offer","values":[]}"#,
+    ] {
+        let (status, _, _) = http(
+            addr,
+            post(
+                "/api/v1/holdings/acme/talent/command-plan",
+                "acme.example.test",
+                None,
+                bad,
+            ),
+        )
+        .await;
+        assert_eq!(status, 422);
+    }
+
+    server.abort();
+}

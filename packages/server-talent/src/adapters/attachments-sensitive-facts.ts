@@ -1,6 +1,7 @@
 import "server-only";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import {nativeTalentReadFirst} from "./native-talent-read";
 const sensitiveTables:Record<string,string>={talent_candidate:"talent_candidates",talent_offer:"talent_offers"};
 // A document bind advances the Offer version. Keep the immutable accepted
 // source exact until its original HR delivery has actually been consumed.
@@ -69,16 +70,12 @@ readTalentApplications1:(facts:{userId:string;userId2:string;userId3:string;targ
       owner_department_id: string | null;
       is_owner: number;
     }>(),
-readTalentOffers1:(facts:{targetId:string;companyId:string;})=>db.prepare(`SELECT o.company_id,o.version,r.branch_id,r.department_id,a.owner_id,CASE WHEN ${offerFilesMutable("o")} THEN 0 ELSE 1 END pending_hire_delivery
-      FROM talent_offers o
-      JOIN talent_applications a ON a.id=o.application_id AND a.company_id=o.company_id
-      JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id
-      WHERE o.id=? AND o.company_id=?`).bind(facts.targetId,facts.companyId).first<{
+readTalentOffers1:(facts:{targetId:string;companyId:string;})=>nativeTalentReadFirst<{
       company_id: string;
       version: number;
       branch_id: string | null;
       department_id: string | null;
       owner_id: string;
       pending_hire_delivery: number;
-    }>(),versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>sensitiveAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>sensitiveAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
+    }>('talent_rd_sensitive_offer',[facts.targetId,facts.companyId],db),versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>sensitiveAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>sensitiveAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
 };}

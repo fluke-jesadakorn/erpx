@@ -142,6 +142,17 @@ const READ_WORKSPACE_CANDIDATES: NativeTalentReadStatement = NativeTalentReadSta
     bind_count: 1,
 };
 
+/// Native successor of the TypeScript `SensitiveAttachmentTalentFacts`
+/// offer row read. The caller binds `[offer_id, company_id]` on its unit.
+pub const RD_SENSITIVE_OFFER: &str = "talent_rd_sensitive_offer";
+const SQL_RD_SENSITIVE_OFFER: &str =
+    "SELECT o.company_id,o.version,r.branch_id,r.department_id,a.owner_id,CASE WHEN (o.status<>'accepted' OR EXISTS(SELECT 1 FROM talent_hire_handoffs handoff JOIN talent_hire_consumption_receipts receipt ON receipt.handoff_id=handoff.id AND receipt.company_id=handoff.company_id AND receipt.source_offer_version=handoff.source_offer_version WHERE handoff.offer_id=o.id AND handoff.company_id=o.company_id)) THEN 0 ELSE 1 END pending_hire_delivery FROM talent_offers o JOIN talent_applications a ON a.id=o.application_id AND a.company_id=o.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id WHERE o.id=? AND o.company_id=?";
+const READ_SENSITIVE_OFFER: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_SENSITIVE_OFFER,
+    sql: SQL_RD_SENSITIVE_OFFER,
+    bind_count: 2,
+};
+
 const STATEMENTS: &[NativeTalentReadStatement] = &[
     READ_APPLICATION_EVENTS,
     READ_PROPOSALS,
@@ -154,6 +165,7 @@ const STATEMENTS: &[NativeTalentReadStatement] = &[
     READ_CHANGE_CANDIDATE_PRIVACY_ROW,
     READ_WORKSPACE_REQUISITIONS,
     READ_WORKSPACE_CANDIDATES,
+    READ_SENSITIVE_OFFER,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -188,7 +200,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), 1);
         }
-        assert_eq!(STATEMENTS.len(), 11);
+        assert_eq!(STATEMENTS.len(), 12);
     }
 
     #[test]
@@ -212,6 +224,31 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
+    }
+
+    #[test]
+    fn sensitive_offer_read_is_owner_authored_select_only() {
+        let statement = read_statement(RD_SENSITIVE_OFFER).expect("registered owner read kind");
+        assert_eq!(statement.kind, RD_SENSITIVE_OFFER);
+        assert_eq!(statement.sql, SQL_RD_SENSITIVE_OFFER);
+        assert_eq!(statement.bind_count, 2);
+        assert!(statement.sql.starts_with("SELECT "), "owner read must be SELECT-only: {sql}", sql = statement.sql);
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+            assert!(!statement.sql.contains(forbidden), "owner read must not mutate: {forbidden}");
+        }
+        for table in [
+            "talent_offers",
+            "talent_applications",
+            "talent_requisitions",
+            "talent_hire_handoffs",
+            "talent_hire_consumption_receipts",
+        ] {
+            assert!(
+                statement.sql.contains(table),
+                "sensitive offer read must stay on owner-local Talent tables: {table}"
+            );
+        }
+        assert_eq!(statement.sql.matches('?').count(), 2);
     }
 
     #[test]

@@ -16,6 +16,7 @@ import {
 } from '../../../packages/feature-talent/src/public/native-talent-page';
 import {nativeTalentLifecycleCommand} from '../../../packages/server-talent/src/public/native-talent-lifecycle-page';
 import {nativeTalentReadAll,nativeTalentReadFirst} from '../../../packages/server-talent/src/adapters/native-talent-read';
+import {SensitiveAttachmentTalentFacts} from '../../../packages/server-talent/src/adapters/attachments-sensitive-facts';
 import {talentPurchaseControls} from '../../../packages/server-talent/src/public/purchases';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
@@ -396,6 +397,42 @@ describe('native Talent detail read tail', () => {
       expect(seen).toEqual([cases[0].sql, cases[1].sql]);
       expect(String(fetchMock.mock.calls[0][0])).toContain('/api/v1/holdings/acme/talent/command-plan');
       expect(fetchMock).toHaveBeenCalledTimes(2);
+    } finally {
+      vi.unstubAllGlobals();
+      if (previous === undefined) delete process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+      else process.env.ERPX_NATIVE_TALENT_READ_CONFIG = previous;
+    }
+  });
+
+  it('plans the sensitive offer read through the mounted command-plan route', async () => {
+    const previous = process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+    process.env.ERPX_NATIVE_TALENT_READ_CONFIG = readConfig;
+    const plannedSql = 'SELECT o.company_id,o.version,r.branch_id,r.department_id,a.owner_id,CASE WHEN (o.status<>\'accepted\' OR EXISTS(SELECT 1 FROM talent_hire_handoffs handoff JOIN talent_hire_consumption_receipts receipt ON receipt.handoff_id=handoff.id AND receipt.company_id=handoff.company_id AND receipt.source_offer_version=handoff.source_offer_version WHERE handoff.offer_id=o.id AND handoff.company_id=o.company_id)) THEN 0 ELSE 1 END pending_hire_delivery FROM talent_offers o JOIN talent_applications a ON a.id=o.application_id AND a.company_id=o.company_id JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id WHERE o.id=? AND o.company_id=?';
+    const fetchMock = vi.fn(async (_url: unknown, init: { body?: string }) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      expect(body.kind).toBe('talent_rd_sensitive_offer');
+      expect(body.values).toEqual(['offer-1', 'company']);
+      return ok({ data: { statements: [{ sql: plannedSql, values: body.values }] } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const seen: string[] = [];
+    const db = {
+      prepare(sql: string) {
+        seen.push(sql);
+        return {
+          bind(...values: unknown[]) {
+            expect(values).toEqual(['offer-1', 'company']);
+            return { first: async () => ({ company_id: 'company', pending_hire_delivery: 0 }) };
+          },
+        };
+      },
+    } as never;
+    try {
+      await expect(SensitiveAttachmentTalentFacts(db).readTalentOffers1({ targetId: 'offer-1', companyId: 'company' }))
+        .resolves.toMatchObject({ company_id: 'company', pending_hire_delivery: 0 });
+      expect(seen).toEqual([plannedSql]);
+      expect(String(fetchMock.mock.calls[0][0])).toContain('/api/v1/holdings/acme/talent/command-plan');
+      expect(fetchMock).toHaveBeenCalledTimes(1);
     } finally {
       vi.unstubAllGlobals();
       if (previous === undefined) delete process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
