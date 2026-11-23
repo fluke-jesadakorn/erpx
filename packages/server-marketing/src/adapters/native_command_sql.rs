@@ -41,6 +41,12 @@ const STATEMENTS: &[NativeStatement] = &[
         bind_count: 10,
         scope: "holding",
     }, // crm-touches.ts
+    NativeStatement {
+        kind: "marketing_stmt_6",
+        sql: r#"INSERT INTO marketing_campaign_costs(id,company_id,campaign_id,journal_line_id,evidence,reviewed_by,created_at) VALUES($1,$2,$3,$4,$5,$6,$7)"#,
+        bind_count: 7,
+        scope: "holding",
+    }, // campaigns.ts cost link
 ];
 
 pub fn statement(kind: &str) -> Option<&'static NativeStatement> {
@@ -53,6 +59,14 @@ pub fn supported(kind: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    #[test]
+    fn admits_campaign_cost_link_with_full_payload() {
+        let cost_link = statement("marketing_stmt_6").expect("cost-link statement");
+        assert_eq!(cost_link.bind_count, 7);
+        assert_eq!(cost_link.scope, "holding");
+        assert!(cost_link.sql.starts_with("INSERT INTO marketing_campaign_costs"));
+    }
+
     #[test]
     fn every_statement_is_well_formed() {
         for s in STATEMENTS {

@@ -87,6 +87,43 @@ async function post(url: URL, headers: Record<string, string>, body: string, tim
 
 export function nativeMarketingStatementAvailable(): boolean { return process.env.ERPX_NATIVE_MARKETING_CONFIG !== undefined; }
 
+export type NativeCampaignCostLink = Readonly<{
+  id: string;
+  companyId: string;
+  campaignId: string;
+  journalLineId: string;
+  evidence: string;
+  reviewedBy: string;
+  now: number;
+}>;
+
+/**
+ * Owner-native campaign cost link. The owner adapter supplies the exact
+ * receipt id, Company and posted-expense evidence; the transport maps them to
+ * the one admitted INSERT. No TypeScript SQL and no fallback: a missing native
+ * transport fails the command closed.
+ */
+export function nativeCampaignCostLink(
+  actor: WorkContext,
+  input: NativeCampaignCostLink,
+  key: string,
+): SqlStatement {
+  return nativeMarketingStatement('marketing_stmt_6', {
+    companyId: input.companyId,
+    now: input.now,
+    actor,
+    key,
+  }).bind(
+    input.id,
+    input.companyId,
+    input.campaignId,
+    input.journalLineId,
+    input.evidence,
+    input.reviewedBy,
+    input.now,
+  );
+}
+
 /** Execute one command through the private axum route in a browser WorkContext. */
 export async function MARKETING_NATIVECommand(
   actor: WorkContext, kind: string, values: unknown[], key = keyFor(kind, values), now = Date.now(),

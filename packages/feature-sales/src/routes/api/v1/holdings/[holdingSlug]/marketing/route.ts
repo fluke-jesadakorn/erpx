@@ -63,8 +63,10 @@ export async function POST(r: Request, c: C) {
       i: Record<string, unknown> = object(raw) ? raw : {};
     // Native fence: campaign/candidate/asset creation, the asset review
     // transition and the candidate engagement command are owner-qualified.
-    // Campaign cost linking, candidate handoff, unknown asset actions and the
-    // public form stay on the retained TypeScript owner.
+    // Campaign cost linking is now owner-native too: the retained adapter
+    // forwards it through the native statement transport, so this route stays
+    // the single authority with no TypeScript writer branch. Candidate handoff,
+    // unknown asset actions and the public form remain on retained owner paths.
     const attempt = async (run: () => Promise<unknown>) => {
       try {
         const data = await run();
