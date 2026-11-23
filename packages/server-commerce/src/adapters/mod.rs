@@ -3,6 +3,7 @@ pub(crate) mod order_http;
 pub(crate) mod quality_masters;
 pub(crate) mod quality_product_read;
 pub(crate) mod quality_receipt_origin;
+pub(crate) mod quality_receipt_origin_read;
 pub(crate) mod quality_return_join;
 pub(crate) mod quality_return_origin;
 pub(crate) mod quality_scrap_stock;
@@ -20,6 +21,7 @@ pub(crate) mod field_service_detail;
 pub(crate) mod service_parts_posting;
 
 pub mod pos_catalog;
+pub mod ecommerce_listing_source;
 pub(crate) mod receipt;
 pub(crate) mod service_initial_count_masters;
 pub(crate) mod service_stock_masters;

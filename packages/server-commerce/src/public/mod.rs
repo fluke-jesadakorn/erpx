@@ -3,6 +3,7 @@ pub mod order_http;
 pub mod quality_masters;
 pub mod quality_product_read;
 pub mod quality_receipt_origin;
+pub mod quality_receipt_origin_read;
 pub mod quality_return_join;
 pub mod quality_return_origin;
 pub mod quality_scrap_stock;
@@ -20,6 +21,7 @@ pub mod field_service_detail;
 pub mod service_parts_posting;
 
 pub mod pos_catalog;
+pub mod ecommerce_listing_source;
 pub mod receipt;
 pub mod service_initial_count_masters;
 pub mod service_stock_masters;
