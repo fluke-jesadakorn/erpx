@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7208,
+    "revision": 7212,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -123364,7 +123364,7 @@
         "owner": "support",
         "title": "support TS read tail native cutover (round 8)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -123376,28 +123376,41 @@
         "resources": [
           "owner:support"
         ],
-        "claim": {
-          "runId": "run-20261123-h",
-          "agentId": "wCA1sup",
-          "claimedAt": "2026-11-23T23:00:39.575Z",
-          "heartbeatAt": "2026-11-23T23:00:40.660Z",
-          "expiresAt": "2026-11-23T23:30:40.660Z",
-          "generation": 160
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "14a0c2f56",
+            "owner": "support",
+            "before": 140,
+            "after": 138,
+            "note": "Ticket source/attachment image kinds for private-file and portal-preview witnesses."
+          },
+          {
+            "command": "cargo check -p erpx-server-support + full crate",
+            "result": "passed",
+            "sourceSha": "14a0c2f56"
+          },
+          {
+            "command": "vitest support units (105) + tsc support",
+            "result": "passed",
+            "sourceSha": "14a0c2f56"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family served by the support command-plan; record a strictly lower count.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-g",
+          "runId": "run-20261123-h",
           "agentId": "wCA1sup",
-          "at": "2026-11-23T23:00:32.496Z",
+          "at": "2026-11-23T23:03:10.975Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
-          "nextAction": "Pick the smallest remaining owner-local fixed-SQL family served by the support command-plan; record a strictly lower count."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -124175,6 +124188,42 @@
         "nextAction": "Next: flow-planning-ports.ts readDefinitionsInstance (3 binds, company scoped); record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.support.read-tail-r9",
+        "goalId": "G4",
+        "owner": "support",
+        "title": "support TS read tail native cutover (round 9)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "claim": {
+          "runId": "run-20261123-h",
+          "agentId": "wCT1sup",
+          "claimedAt": "2026-11-23T23:03:11.138Z",
+          "heartbeatAt": "2026-11-23T23:03:11.138Z",
+          "expiresAt": "2026-11-23T23:33:11.138Z",
+          "generation": 160
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family served by the support command-plan; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -124183,7 +124232,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 639,
+      "totalPackets": 640,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -124191,13 +124240,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 275,
+        "blocked": 276,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 160,
-    "updatedAt": "2026-11-23T23:01:40.889Z",
+    "updatedAt": "2026-11-23T23:03:11.140Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
