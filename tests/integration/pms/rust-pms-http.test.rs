@@ -625,6 +625,49 @@ async fn command_plan_resolves_owner_read_without_accepting_sql_from_the_wire() 
 }
 
 #[tokio::test]
+async fn command_plan_resolves_posting_journal_reads() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    let (status, value, _) = call_post(
+        address,
+        "/api/v1/holdings/acme/pms/command-plan",
+        r#"{"kind":"pms_rd_posting_charge","values":["property-1","property-1","guest-1"],"sql":"DELETE FROM pms_postings"}"#,
+    )
+    .await;
+    assert_eq!(status, 200);
+    let statement = &value["data"]["statements"][0];
+    let sql = statement["sql"].as_str().unwrap();
+    assert!(sql.starts_with("SELECT journal_id FROM pms_postings"));
+    assert!(sql.contains("guestAccountId"));
+    assert!(!sql.to_ascii_uppercase().contains("DELETE"));
+    assert_eq!(statement["values"], json!(["property-1", "property-1", "guest-1"]));
+
+    let (status, value, _) = call_post(
+        address,
+        "/api/v1/holdings/acme/pms/command-plan",
+        r#"{"kind":"pms_rd_posting_by_record","values":["property-1","entry-1"]}"#,
+    )
+    .await;
+    assert_eq!(status, 200);
+    let statement = &value["data"]["statements"][0];
+    assert_eq!(
+        statement["sql"].as_str().unwrap(),
+        "SELECT journal_id FROM pms_postings WHERE property_id=? AND record_id=? ORDER BY source_key LIMIT 1"
+    );
+    assert_eq!(statement["values"], json!(["property-1", "entry-1"]));
+
+    let (status, _, _) = call_post(
+        address,
+        "/api/v1/holdings/acme/pms/command-plan",
+        r#"{"kind":"pms_rd_posting_charge","values":["property-1"]}"#,
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(backend.reads.load(Ordering::SeqCst), 0);
+    task.abort();
+}
+
+#[tokio::test]
 async fn command_plan_rejects_unregistered_kinds_and_wrong_bind_counts() {
     let backend = Arc::new(Backend::new());
     let (address, task) = start(backend.clone()).await;

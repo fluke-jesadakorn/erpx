@@ -46,6 +46,7 @@ import { pmsPosFacts } from "@erpx/server-pos/public/pms-command-facts";
 import { pmsWorkflowFacts } from "@erpx/server-workflow/public/pms-command-facts";
 import { pmsFilesFacts } from "@erpx/server-files/public/pms-command-facts";
 import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
+import { nativePmsReadFirst, PMS_RD_POSTING_CHARGE, PMS_RD_POSTING_BY_RECORD } from "./native-pms-read";
 function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
         const write = (kind: string, values: unknown[]): any => nativePmsOwnerWrite(companyId, kind, values);
     const identity_access = pmsIdentityAccessFacts(db);
@@ -217,16 +218,12 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
             id: string;
             id2: string;
             id3: string;
-        }) => db.prepare("SELECT journal_id FROM pms_postings WHERE property_id=? AND record_id IN (SELECT id FROM pms_records WHERE property_id=? AND kind='entry' AND data_json::jsonb->>'guestAccountId'=?) AND source_key LIKE '%:charge' ORDER BY business_date,source_key LIMIT 1").bind(facts.id, facts.id2, facts.id3).first<{
-            journal_id: string;
-        }>(),
+        }) => nativePmsReadFirst<{ journal_id: string }>(PMS_RD_POSTING_CHARGE, [facts.id, facts.id2, facts.id3], db),
         insertFinanceInvoices: facts => finance.insertFinanceInvoices(facts),
         readPmsPostings2: (facts: {
             id: string;
             entryId: string | undefined;
-        }) => db.prepare("SELECT journal_id FROM pms_postings WHERE property_id=? AND record_id=? ORDER BY source_key LIMIT 1").bind(facts.id, facts.entryId).first<{
-            journal_id: string;
-        }>(),
+        }) => nativePmsReadFirst<{ journal_id: string }>(PMS_RD_POSTING_BY_RECORD, [facts.id, facts.entryId], db),
         insertFinancePayments: facts => finance.insertFinancePayments(facts),
         insertPmsDocuments: (facts: {
             id: string;
