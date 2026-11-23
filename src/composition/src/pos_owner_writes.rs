@@ -12,10 +12,13 @@ use erpx_server_pos::public::owner_writes_http::{
     PosOwnerStatement,
 };
 use erpx_server_runtime::public::http_support::{header, HeaderMap, Router};
-use erpx_server_runtime::public::postgres::PgTransactionError;
+use erpx_server_runtime::public::postgres::{
+    DatabasePool, PgTransactionError, PgUnitOfWork, TransactionOptions,
+};
 use erpx_server_shared::public::{BusinessError, CompanyId, FailureKind};
 use serde_json::Value;
 use sqlx::PgConnection;
+use std::collections::BTreeMap;
 use std::sync::Arc;
 
 fn invalid() -> BusinessError {
@@ -119,6 +122,66 @@ impl PosOwnerWriteBackend for PosOwnerWriteBackendImpl {
             self.executor
                 .execute(&company, request.kind, request.values, request.key)
                 .await
+        })
+    }
+}
+
+/// Pool-backed executor: opens the authorized serializable Holding unit and
+/// returns the planned owner statement for the caller to execute together
+/// with its receipt/audit/outbox. Mirrors FinanceOwnerWriteBackendImpl pool
+/// fallback: per-company pool when registered, otherwise the Holding pool.
+pub struct PosOwnerWriteCompanyExecutor {
+    holding: DatabasePool,
+    companies: BTreeMap<String, DatabasePool>,
+}
+
+impl PosOwnerWriteCompanyExecutor {
+    pub fn new(holding: DatabasePool) -> Self {
+        Self {
+            holding,
+            companies: BTreeMap::new(),
+        }
+    }
+
+    pub fn with_companies(mut self, companies: BTreeMap<String, DatabasePool>) -> Self {
+        self.companies = companies;
+        self
+    }
+
+    fn pool(&self, company: &str) -> DatabasePool {
+        self.companies
+            .get(company)
+            .cloned()
+            .unwrap_or_else(|| self.holding.clone())
+    }
+}
+
+impl PosOwnerWriteExecutor for PosOwnerWriteCompanyExecutor {
+    fn execute<'a>(
+        &'a self,
+        company_id: &'a str,
+        kind: &'a str,
+        values: &'a [Value],
+        _key: &'a str,
+    ) -> PosOwnerWriteFuture<'a> {
+        Box::pin(async move {
+            let pool = self.pool(company_id);
+            let company = company_id.to_owned();
+            let kind = kind.to_owned();
+            let values = values.to_vec();
+            PgUnitOfWork::new(pool)
+                .run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                    let company = company.clone();
+                    let kind = kind.clone();
+                    let values = values.clone();
+                    Box::pin(async move {
+                        statement_on_unit(connection, &company, &kind, values)
+                            .await
+                            .map_err(PgTransactionError::Business)
+                    })
+                })
+                .await
+                .map_err(business)
         })
     }
 }

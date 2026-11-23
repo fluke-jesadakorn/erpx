@@ -50,5 +50,9 @@ path = "../../tests/unit/pos/rust-pos-workspace-http.test.rs"
 name = "pos_workspace_postgres"
 path = "../../tests/integration/pos/rust-pos-workspace-postgres.test.rs"
 
+[[test]]
+name = "pos_work_reads_postgres"
+path = "../../tests/integration/pos/rust-pos-work-reads-postgres.test.rs"
+
 [lints]
 workspace=true

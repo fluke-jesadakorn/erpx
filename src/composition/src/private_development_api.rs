@@ -3304,6 +3304,11 @@ async fn assemble_checked(
         let mut work_owner_targets: Vec<(String, String, String, bool)> = Vec::new();
         let mut executive_evidence_routers: Vec<Router> = Vec::new();
         let mut commercial_native_routers: Vec<Router> = Vec::new();
+        let mut pos_native_routers: Vec<Router> = Vec::new();
+        let mut pos_owner_write_company_pools: std::collections::BTreeMap<
+            String,
+            erpx_server_runtime::public::postgres::DatabasePool,
+        > = std::collections::BTreeMap::new();
         let mut ecommerce_native_routers: Vec<Router> = Vec::new();
         let mut marketing_native_routers: Vec<Router> = Vec::new();
         let mut marketing_company_pools: std::collections::BTreeMap<
@@ -4134,6 +4139,8 @@ async fn assemble_checked(
                         .insert(company.as_str().to_owned(), pools[i + 1].clone());
                     finance_owner_write_pools
                         .insert(company.as_str().to_owned(), pools[i + 1].clone());
+                    pos_owner_write_company_pools
+                        .insert(company.as_str().to_owned(), pools[i + 1].clone());
                     records_company_pools
                         .insert(company.as_str().to_owned(), pools[i + 1].clone());
                     records_native_routers.push(
@@ -4297,6 +4304,19 @@ async fn assemble_checked(
                             ),
                         )
                         .map_err(|_| "PRIVATE_API_COMMERCIAL_OWNER_WRITE_CONFIGURATION_INVALID")?,
+                    );
+                    pos_native_routers.push(
+                        crate::pos_owner_writes::pos_owner_write_browser_router(
+                            Arc::new(crate::pos_owner_writes::PosOwnerWriteCompanyExecutor::new(
+                                pools[i + 1].clone(),
+                            )),
+                            vec![(
+                                holding.host.clone(),
+                                holding.registration.slug.clone(),
+                                format!("https://{}", holding.host),
+                            )],
+                        )
+                        .map_err(|_| "PRIVATE_API_POS_OWNER_WRITE_CONFIGURATION_INVALID")?,
                     );
                     agent_quota_targets.push((
                         holding.host.clone(),
@@ -7119,6 +7139,23 @@ async fn assemble_checked(
                 )
                 .map_err(|_| "PRIVATE_API_FINANCE_OWNER_WRITE_CONFIGURATION_INVALID")?,
             );
+        if !pos_owner_write_company_pools.is_empty() {
+            router = router.merge(
+                crate::pos_owner_writes::pos_owner_write_company_backend_router(
+                    Arc::new(
+                        crate::pos_owner_writes::PosOwnerWriteCompanyExecutor::new(
+                            pools.get(1).cloned().unwrap_or_else(|| pools[0].clone()),
+                        )
+                        .with_companies(pos_owner_write_company_pools.clone()),
+                    ),
+                    pos_owner_write_company_pools.keys().cloned().collect(),
+                )
+                .map_err(|_| "PRIVATE_API_POS_OWNER_WRITE_CONFIGURATION_INVALID")?,
+            );
+        }
+        for pos_router in pos_native_routers {
+            router = router.merge(pos_router);
+        }
         }
         if !company_money_pools.is_empty() {
             router = router.merge(
@@ -9267,7 +9304,8 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             || path.starts_with("/api/v1/holdings/")
                 && path.ends_with("/workflow/wave3-execute")
             || path.starts_with("/api/v1/holdings/")
-                && path.ends_with("/commercial/owner-write"));
+                && path.ends_with("/commercial/owner-write")
+            || path.ends_with("/pos/owner-write"));
     if state.policy.audience(host).is_none()
         && !(host == state.loopback
             && (matches!(request.uri().path(), "/api/health" | "/api/ready") || loopback_system_command))
@@ -11821,6 +11859,19 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         ) if !slug.is_empty() && !order_id.is_empty() => state.policy.audience(host).is_some(),
         _ => false,
     };
+    let pos_owner_write = match (
+        request.method(),
+        request.uri().path().split('/').collect::<Vec<_>>().as_slice(),
+    ) {
+        (
+            &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "pos", "owner-write"],
+        ) => state
+            .policy
+            .audience(host)
+            .is_some_and(|_| !slug.is_empty()),
+        _ => false,
+    };
     let commercial_owner_write = match (
         request.method(),
         request
@@ -12170,6 +12221,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || account_security
         || commerce
         || commercial_owner_write
+        || pos_owner_write
         || customer_access
         || service_packages
         || field_work_roles

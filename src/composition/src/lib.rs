@@ -167,6 +167,8 @@ pub mod pos;
 #[cfg(feature = "existing-business")]
 pub mod pos_day_close_http;
 pub mod pos_effects;
+#[cfg(feature = "existing-business")]
+pub mod pos_owner_writes;
 pub mod pos_stripe_worker;
 #[cfg(feature = "existing-business")]
 pub mod position_gpo_worker;

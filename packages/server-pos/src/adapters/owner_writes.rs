@@ -1,9 +1,11 @@
-//! Authoritative SQL registry for every remaining POS owner write literal.
+//! Authoritative SQL registry for every remaining POS owner write literal and the
+//! retired POS owner read literals.
 //!
 //! This is the single owner model for the 79 TypeScript write statements retired in
-//! the wf1a4 owner-wide slice. Each typed `kind` maps to one parameterized SQL string
-//! here; transport only supplies positional values, never statement text. No TS copy
-//! and no fallback writer exists for a retired kind. The caller executes the returned
+//! the wf1a4 owner-wide slice plus the retired POS approval-queue read statements.
+//! Each typed `kind` maps to one parameterized SQL string here; transport only
+//! supplies positional values, never statement text. No TS copy and no fallback
+//! writer/reader exists for a retired kind. The caller executes the returned
 //! statement on the same serializable transaction that carries receipt/audit/outbox.
 
 use erpx_server_runtime::public::postgres::PgTransactionError;
@@ -98,6 +100,15 @@ pub const STRIPE_WRITEPOSJOBS4_325: &str = "stripe_writeposjobs4_325";
 pub const STRIPE_CONTROLRUN1_364: &str = "stripe_controlrun1_364";
 pub const DAILY_WRITEPOSSALEDOCUMENTS1_43: &str = "daily_writepossaledocuments1_43";
 pub const IMAGES_WRITEPOSPRODUCTIMAGES1_60: &str = "images_writeposproductimages1_60";
+/// POS approval-queue (`posWork`) read literals retired from
+/// `packages/server-pos/src/adapters/pos.ts`. Read-only: every `pos_read*`
+/// statement is a caller-transaction `SELECT` with fixed Company/branch scope
+/// and independence filters. The retained `posWork` permission checks stay in
+/// the TypeScript application; transport never substitutes for the check.
+pub const POS_READPOSREFUNDS3_230: &str = "pos_readposrefunds3_230";
+pub const POS_READPOSSHIFTS1_236: &str = "pos_readposshifts1_236";
+pub const POS_READPOSCASHMOVEMENTS2_242: &str = "pos_readposcashmovements2_242";
+pub const POS_READPOSJOBS1_245: &str = "pos_readposjobs1_245";
 pub const ATTACH_STAGEBACKFILLSPECIALIZEDATTACHMENTSEFFECT13_5: &str = "attach_stagebackfillspecializedattachmentseffect13_5";
 
 /// Every kind this owner module accepts. Anything else fails closed.
@@ -180,6 +191,10 @@ pub const KINDS: &[&str] = &[
     STRIPE_CONTROLRUN1_364,
     DAILY_WRITEPOSSALEDOCUMENTS1_43,
     IMAGES_WRITEPOSPRODUCTIMAGES1_60,
+    POS_READPOSREFUNDS3_230,
+    POS_READPOSSHIFTS1_236,
+    POS_READPOSCASHMOVEMENTS2_242,
+    POS_READPOSJOBS1_245,
     ATTACH_STAGEBACKFILLSPECIALIZEDATTACHMENTSEFFECT13_5,
 ];
 
@@ -187,7 +202,9 @@ pub fn supported(kind: &str) -> bool { KINDS.contains(&kind) }
 
 fn invalid() -> BusinessError { BusinessError::new(FailureKind::InvalidInput, "POS_OWNER_WRITE_INVALID", "Review the POS owner write request.") }
 
-/// Authoritative SQL for one owner write kind.
+/// Authoritative SQL for one owner write kind, plus the retired read-only
+/// approval-queue kinds. Read kinds are `SELECT`-only; the arity check below
+/// applies to them exactly like writes.
 fn sql(kind: &str) -> Option<&'static str> {
     Some(match kind {
         CORE_SAVEREVERSALREQUEST_41 => r#"INSERT INTO pos_room_charge_reversal_requests(id,sale_id,company_id,branch_id,property_id,sale_version,property_version,amount_minor,reason,restock_line_ids_json,state,requested_by,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?,?,'requested',?,?,?)"#,
@@ -269,6 +286,10 @@ fn sql(kind: &str) -> Option<&'static str> {
         DAILY_WRITEPOSSALEDOCUMENTS1_43 => r#"INSERT INTO pos_sale_documents(sale_id,company_id,branch_id,snapshot_json,created_at) VALUES(?,?,?,?::jsonb,?) ON CONFLICT(sale_id) DO NOTHING"#,
         IMAGES_WRITEPOSPRODUCTIMAGES1_60 => r#"INSERT INTO pos_product_images(id,company_id,product_id,object_key,thumbnail_key,sha256,width,height,mime_type,source,metadata_json,created_by,created_at,
    attachment_source_id,attachment_link_id,attachment_set_id,thumbnail_checksum_sha256) VALUES(?,?,?,?,?,?,?,?,?,?,?::jsonb,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING"#,
+        POS_READPOSREFUNDS3_230 => r#"SELECT * FROM pos_refunds WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND state='requested' AND requested_by<>?"#,
+        POS_READPOSSHIFTS1_236 => r#"SELECT * FROM pos_shifts WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND state='closed' AND opened_by<>?"#,
+        POS_READPOSCASHMOVEMENTS2_242 => r#"SELECT m.* FROM pos_cash_movements m JOIN pos_shifts s ON s.id=m.shift_id WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND m.approved_by IS NULL AND m.created_by<>?"#,
+        POS_READPOSJOBS1_245 => r#"SELECT * FROM pos_jobs WHERE company_id=? AND state='exception'"#,
         ATTACH_STAGEBACKFILLSPECIALIZEDATTACHMENTSEFFECT13_5 => r#"UPDATE pos_product_images SET attachment_set_id=?,attachment_link_id=?,attachment_source_id=?,thumbnail_checksum_sha256=? WHERE id=? AND attachment_source_id IS NULL"#,
         _ => return None,
     })
@@ -314,7 +335,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 79);
+        assert_eq!(KINDS.len(), 83);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -325,5 +346,47 @@ mod tests {
     fn unknown_kind_fails_closed() {
         assert!(!supported("not_a_pos_owner_write"));
         assert!(sql("not_a_pos_owner_write").is_none());
+    }
+    /// The retired approval-queue read port is read-only: fixed `SELECT`
+    /// statements with Company/branch scope and independence filters, never a
+    /// mutation. The retained `posWork` permission checks stay in the
+    /// TypeScript application; transport only selects the statement text.
+    #[test]
+    fn approval_queue_read_kinds_are_select_only() {
+        for kind in [
+            POS_READPOSREFUNDS3_230,
+            POS_READPOSSHIFTS1_236,
+            POS_READPOSCASHMOVEMENTS2_242,
+            POS_READPOSJOBS1_245,
+        ] {
+            assert!(supported(kind), "read kind must be allow listed: {kind}");
+            let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
+            assert!(
+                stmt.starts_with("SELECT "),
+                "read kind must be SELECT-only: {kind}"
+            );
+            for forbidden in ["INSERT", "UPDATE", "DELETE", "RETURNING", ";"] {
+                assert!(
+                    !stmt.contains(forbidden),
+                    "read kind must not mutate: {kind} contains {forbidden}"
+                );
+            }
+        }
+        assert_eq!(
+            sql(POS_READPOSREFUNDS3_230).unwrap(),
+            "SELECT * FROM pos_refunds WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND state='requested' AND requested_by<>?"
+        );
+        assert_eq!(
+            sql(POS_READPOSSHIFTS1_236).unwrap(),
+            "SELECT * FROM pos_shifts WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND state='closed' AND opened_by<>?"
+        );
+        assert_eq!(
+            sql(POS_READPOSCASHMOVEMENTS2_242).unwrap(),
+            "SELECT m.* FROM pos_cash_movements m JOIN pos_shifts s ON s.id=m.shift_id WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND m.approved_by IS NULL AND m.created_by<>?"
+        );
+        assert_eq!(
+            sql(POS_READPOSJOBS1_245).unwrap(),
+            "SELECT * FROM pos_jobs WHERE company_id=? AND state='exception'"
+        );
     }
 }

@@ -2,18 +2,24 @@ import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import type { SqlDatabase, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
+import type { SqlValueRow } from '@erpx/server-runtime/public/runtime/sql';
 
 /**
- * Native POS owner-write transport for the owner-wide retirement slice.
+ * Native POS owner-write transport for the owner-wide retirement slice, also
+ * serving the retired owner read literals.
  *
- * The SQL for every retired write lives in the Rust owner registry
+ * The SQL for every retired write and for the retired read-only approval-queue
+ * kinds lives in the Rust owner registry
  * (`erpx-server-pos::adapters::owner_writes`). This bridge asks the one axum
- * command router for the authoritative statement by typed `kind`, then binds
+ * owner router for the authoritative statement by typed `kind`, then binds
  * it on the caller's existing SqlDatabase. The caller executes it inside the
  * same transaction that carries the POS receipt/audit/outbox effects: full
- * parity with the retired `run(db, sql, ...)` helper, with no TypeScript SQL,
- * no mirror and no fallback writer. An unconfigured or failing native service
- * fails closed; it never writes locally.
+ * parity with the retired `run(db, sql, ...)` / `all(db, sql, ...)` helpers,
+ * with no TypeScript SQL, no mirror and no fallback writer/reader. An
+ * unconfigured or failing native service fails closed; it never writes or
+ * reads locally. Read kinds return rows only (enforced by a Rust unit test);
+ * permission checks stay in the TypeScript application and transport never
+ * substitutes for the check.
  */
 type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number }>;
 type Statement = Readonly<{ sql: string; values: unknown[] }>;
@@ -80,6 +86,11 @@ export async function nativePosRun(db: SqlDatabase, company: string, kind: strin
 /** Execute a `... RETURNING` owner write on the caller's unit (retired `one` parity). */
 export async function nativePosOne<T = Record<string, unknown>>(db: SqlDatabase, company: string, kind: string, values: unknown[]): Promise<T | null> {
   return (await statement(db, company, kind, values)).first<T>();
+}
+
+/** Execute a read-only owner statement on the caller's unit (retired `all` parity). */
+export async function nativePosAll(db: SqlDatabase, company: string, kind: string, values: unknown[]): Promise<SqlValueRow[]> {
+  return (await (await statement(db, company, kind, values)).all<SqlValueRow>()).results;
 }
 
 /** Return a bound owner statement for callers that batch multiple effects. */

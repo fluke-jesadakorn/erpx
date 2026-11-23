@@ -101521,6 +101521,112 @@
       }
     },
     {
+      "id": "pos.rust-pos-work-reads-postgres.integration",
+      "lane": "integration",
+      "owner": "pos",
+      "modules": [
+        "pos"
+      ],
+      "files": [
+        "tests/integration/pos/rust-pos-work-reads-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native POS approval-queue read statements retain Company/branch scope, independence filters, serializable guards and fail-closed owner-kind and arity validation."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-pos",
+        "targets": [
+          "pos_work_reads_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-pos/Cargo.toml"
+      ],
+      "apps": [
+        "pos"
+      ],
+      "packages": [
+        "@erpx/server-pos",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      }
+    },
+    {
+      "id": "pos.native-pos-work-reads-transport.unit",
+      "lane": "unit",
+      "owner": "pos",
+      "modules": [
+        "pos"
+      ],
+      "files": [
+        "tests/unit/pos/native-pos-work-reads-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native POS work-read owner transport must retain fail-closed config, exact caller-database binding, bounded responses and owner error mapping."
+      },
+      "framework": "vitest",
+      "apps": [
+        "pos"
+      ],
+      "packages": [
+        "@erpx/catalogue",
+        "@erpx/contracts",
+        "@erpx/feature-identity_access",
+        "@erpx/feature-organization",
+        "@erpx/feature-pos",
+        "@erpx/feature-records",
+        "@erpx/feature-runtime",
+        "@erpx/feature-shared",
+        "@erpx/feature-work_projection",
+        "@erpx/native-sdk",
+        "@erpx/server-commercial",
+        "@erpx/server-files",
+        "@erpx/server-finance",
+        "@erpx/server-identity_access",
+        "@erpx/server-legal",
+        "@erpx/server-manage_erpx",
+        "@erpx/server-organization",
+        "@erpx/server-people_payroll",
+        "@erpx/server-platform_administration",
+        "@erpx/server-runtime",
+        "@erpx/server-shared",
+        "@erpx/server-support",
+        "@erpx/server-talent",
+        "@erpx/server-work_projection",
+        "@erpx/server-workflow"
+      ]
+    },
+    {
       "owner": "pms",
       "modules": [
         "pms"

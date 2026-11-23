@@ -1,3 +1,4 @@
+import { nativePosAll } from './native-owner-write';
 import { roomChargeReversalWork } from "@erpx/server-pos/adapters/room-charge-reversal-queue";
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
 import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/hospitality-owner-projection-sources";
@@ -227,22 +228,22 @@ function unit(db: SqlDatabase): PosReadUnit<SqlStatement> {
             branch: string | null;
             branch2: string | null;
             userId: string;
-        }) => all(db, "SELECT * FROM pos_refunds WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND state='requested' AND requested_by<>?", facts.company, facts.branch, facts.branch2, facts.userId),
+        }) => nativePosAll(db, facts.company, 'pos_readposrefunds3_230', [facts.company, facts.branch, facts.branch2, facts.userId]),
         readPosShifts1: (facts: {
             company: string;
             branch: string | null;
             branch2: string | null;
             userId: string;
-        }) => all(db, "SELECT * FROM pos_shifts WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND state='closed' AND opened_by<>?", facts.company, facts.branch, facts.branch2, facts.userId),
+        }) => nativePosAll(db, facts.company, 'pos_readposshifts1_236', [facts.company, facts.branch, facts.branch2, facts.userId]),
         readPosCashMovements2: (facts: {
             company: string;
             branch: string | null;
             branch2: string | null;
             userId: string;
-        }) => all(db, 'SELECT m.* FROM pos_cash_movements m JOIN pos_shifts s ON s.id=m.shift_id WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND m.approved_by IS NULL AND m.created_by<>?', facts.company, facts.branch, facts.branch2, facts.userId),
+        }) => nativePosAll(db, facts.company, 'pos_readposcashmovements2_242', [facts.company, facts.branch, facts.branch2, facts.userId]),
         readPosJobs1: (facts: {
             company: string;
-        }) => all(db, "SELECT * FROM pos_jobs WHERE company_id=? AND state='exception'", facts.company),
+        }) => nativePosAll(db, facts.company, 'pos_readposjobs1_245', [facts.company]),
         readPosRegisters3: (facts: {
             registerId: string;
         }) => one(db, 'SELECT * FROM pos_registers WHERE id=?', facts.registerId),
