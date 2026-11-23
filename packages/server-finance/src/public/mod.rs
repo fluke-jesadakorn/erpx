@@ -164,3 +164,4 @@ pub mod finance_owner_write_adapter;
 pub mod finance_owner_write_application;
 pub mod finance_owner_write_http;
 pub mod finance_owner_write_postgres;
+pub mod native_finance_read;

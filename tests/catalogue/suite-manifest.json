@@ -105271,6 +105271,33 @@
         ],
         "migratedSlots": []
       }
+    },
+    {
+      "lane": "unit",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Finance caller-unit read plans must return only registered SELECT kinds with exact binds and preserve caller-unit execution."
+      },
+      "apps": [
+        "finance"
+      ],
+      "packages": [
+        "@erpx/server-finance"
+      ],
+      "id": "finance.native-finance-read-plan.unit",
+      "files": [
+        "tests/unit/finance/native-finance-read-plan.test.ts"
+      ],
+      "framework": "vitest"
     }
   ]
 }

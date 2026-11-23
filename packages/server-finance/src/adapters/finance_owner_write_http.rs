@@ -287,6 +287,41 @@ async fn company_write(
     }
 }
 
+/// Plan an owner-owned caller-unit read. No SQL is accepted from the wire: the
+/// allow-listed read `kind` resolves to the exact statement in the native read
+/// registry, which the TS caller prepares and executes on its own open unit.
+/// Reads carry no write ledger and never execute here.
+async fn plan_read(
+    State(state): State<Arc<FinanceOwnerWriteHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async {
+        let _target = target(&state, &headers, &slug)?;
+        if request.uri().query().is_some() {
+            return Err(invalid());
+        }
+        let bytes = to_bytes(request.into_body(), BODY_LIMIT)
+            .await
+            .map_err(|_| invalid())?;
+        let command: OwnerWriteCommand = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
+        let statement = crate::adapters::native_finance_read_sql::read_statement(&command.kind)
+            .ok_or_else(invalid)?;
+        if command.values.len() != statement.bind_count {
+            return Err(invalid());
+        }
+        Ok(json!({
+            "statements": [{ "sql": statement.sql, "values": command.values }]
+        }))
+    }
+    .await;
+    match result {
+        Ok(data) => json_response(StatusCode::OK, json!({"data": data})),
+        Err(error) => error_response(error),
+    }
+}
+
 /// Browser-facing router: exact registered Holding host/origin + one key.
 pub fn owner_write_router(targets: Vec<FinanceOwnerWriteTarget>) -> Result<Router, BusinessError> {
     let mut configured = BTreeMap::new();
@@ -310,6 +345,10 @@ pub fn owner_write_router(targets: Vec<FinanceOwnerWriteTarget>) -> Result<Route
         .route(
             "/api/v1/holdings/{holding_slug}/finance/owner-write",
             post(write),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/finance/command-plan",
+            post(plan_read),
         )
         .with_state(Arc::new(FinanceOwnerWriteHttpState {
             targets: configured,
@@ -497,6 +536,92 @@ mod tests {
         )
         .await;
         assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        assert!(backend.seen.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn command_plan_returns_the_registered_read_statement() {
+        let backend = Arc::new(FakeBackend::default());
+        let state = state(FinanceOwnerWriteTarget {
+            host: "acme.example.test".into(),
+            holding_slug: "acme".into(),
+            origin: "https://acme.example.test".into(),
+            backend: backend.clone(),
+        });
+        let response = plan_read(
+            State(state),
+            Path("acme".into()),
+            post(
+                Some("https://acme.example.test"),
+                None,
+                r#"{"kind":"finance_rd_asset_policy_row","values":["company-1","policy-1"]}"#,
+            ),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.unwrap();
+        let payload: Value = serde_json::from_slice(&bytes).unwrap();
+        let planned = &payload["data"]["statements"][0];
+        let expected = crate::adapters::native_finance_read_sql::read_statement(
+            "finance_rd_asset_policy_row",
+        )
+        .expect("registered read")
+        .sql;
+        assert_eq!(planned["sql"], expected);
+        assert_eq!(planned["values"][0], "company-1");
+        assert_eq!(planned["values"][1], "policy-1");
+        // A read plan never reaches the write backend.
+        assert!(backend.seen.lock().unwrap().is_empty());
+    }
+
+    #[tokio::test]
+    async fn command_plan_rejects_write_kinds_wrong_binds_and_foreign_origin() {
+        let backend = Arc::new(FakeBackend::default());
+        let state = state(FinanceOwnerWriteTarget {
+            host: "acme.example.test".into(),
+            holding_slug: "acme".into(),
+            origin: "https://acme.example.test".into(),
+            backend: backend.clone(),
+        });
+
+        // A write kind is never planable as a read.
+        let response = plan_read(
+            State(state.clone()),
+            Path("acme".into()),
+            post(
+                Some("https://acme.example.test"),
+                None,
+                r#"{"kind":"finance_stmt_1","values":["company-1","id-1"]}"#,
+            ),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+        // The value count must match the planned statement's binds.
+        let response = plan_read(
+            State(state.clone()),
+            Path("acme".into()),
+            post(
+                Some("https://acme.example.test"),
+                None,
+                r#"{"kind":"finance_rd_asset_policy_row","values":["company-1"]}"#,
+            ),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+
+        // The registered origin is enforced for plan reads too.
+        let response = plan_read(
+            State(state),
+            Path("acme".into()),
+            post(
+                Some("https://evil.test"),
+                None,
+                r#"{"kind":"finance_rd_asset_policy_row","values":["company-1","policy-1"]}"#,
+            ),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
         assert!(backend.seen.lock().unwrap().is_empty());
     }
 }

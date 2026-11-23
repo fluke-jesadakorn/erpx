@@ -125,3 +125,4 @@ pub(crate) mod portal_commerce_locks;
 pub(crate) mod finance_owner_write;
 pub(crate) mod finance_owner_write_http;
 pub(crate) mod finance_owner_write_postgres;
+pub(crate) mod native_finance_read_sql;
