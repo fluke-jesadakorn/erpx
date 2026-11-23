@@ -1,9 +1,11 @@
 pub(crate) mod asset_acquisition_money;
 pub(crate) mod asset_purchase_source;
 pub(crate) mod attachment_target_source;
+pub(crate) mod attachment_version;
 pub(crate) mod commerce_goods_journal;
 pub(crate) mod commerce_order_money;
 pub(crate) mod commerce_order_party_guard;
+pub(crate) mod due_draft_schedule;
 pub(crate) mod field_attachment_routing;
 pub(crate) mod field_history_candidates;
 pub(crate) mod field_history_money_lines;

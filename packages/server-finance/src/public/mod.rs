@@ -1,9 +1,11 @@
 pub mod asset_acquisition_money;
 pub mod asset_purchase_source;
 pub mod attachment_target_source;
+pub mod attachment_version;
 pub mod commerce_goods_journal;
 pub mod commerce_order_money;
 pub mod commerce_order_party_guard;
+pub mod due_draft_schedule;
 pub mod field_attachment_routing;
 pub mod field_history_candidates;
 pub mod field_history_money_lines;
