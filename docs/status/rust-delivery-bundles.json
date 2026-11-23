@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5563,
+    "revision": 5570,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-d",
       "agentId": "lead",
       "startedAt": "2026-11-23T06:45:08.420Z",
-      "heartbeatAt": "2026-11-23T10:04:53.493Z",
-      "expiresAt": "2026-11-23T10:34:53.493Z",
+      "heartbeatAt": "2026-11-23T10:08:17.238Z",
+      "expiresAt": "2026-11-23T10:38:17.238Z",
       "generation": 154,
       "tokenHash": "01e24ba69c801ba69506f7381436bc3415092da31ab33204c519241e628cd4c9"
     },
@@ -15563,8 +15563,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:46:29.180Z",
-          "heartbeatAt": "2026-11-23T10:04:53.493Z",
-          "expiresAt": "2026-11-23T10:34:53.493Z",
+          "heartbeatAt": "2026-11-23T10:08:17.238Z",
+          "expiresAt": "2026-11-23T10:38:17.238Z",
           "generation": 154
         },
         "baseSha": "473b198f4838943261a63a1ca44b167d347fc4c4",
@@ -17494,9 +17494,9 @@
         "claim": {
           "runId": "run-20261123-d",
           "agentId": "lead",
-          "claimedAt": "2026-11-23T10:07:43.442Z",
-          "heartbeatAt": "2026-11-23T10:07:43.442Z",
-          "expiresAt": "2026-11-23T10:37:43.442Z",
+          "claimedAt": "2026-11-23T10:14:07.216Z",
+          "heartbeatAt": "2026-11-23T10:14:07.216Z",
+          "expiresAt": "2026-11-23T10:44:07.216Z",
           "generation": 154
         },
         "baseSha": "f901987c8bcb88a080e9beb9d2b87892bc462eea",
@@ -17812,7 +17812,7 @@
         "handoff": {
           "runId": "run-20261123-d",
           "agentId": "lead",
-          "at": "2026-11-23T10:06:49.500Z",
+          "at": "2026-11-23T10:08:17.310Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
           "nextAction": "Harness step 1 landed at 87576956 (pushed, remote verified): lanes backfill 24 wired ERPX_NATIVE_* keys; green-lane audit clean. Step 2 (worker-sized): per-suite composition on leased DBs + 5-key matrix (COMMERCE_WAVE2, COMMERCIAL_WAVE2, COMMERCE_OWNER_WRITE, FINANCE_OWNER_WRITE, WORKFLOW_WAVE3) — unblocks transit/payroll-core/manufacturing lanes. Smoke still user-blocked."
@@ -27315,8 +27315,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:04:51.894Z",
-          "heartbeatAt": "2026-11-23T10:04:53.493Z",
-          "expiresAt": "2026-11-23T10:34:53.493Z",
+          "heartbeatAt": "2026-11-23T10:08:17.238Z",
+          "expiresAt": "2026-11-23T10:38:17.238Z",
           "generation": 154
         },
         "baseSha": "d0067f253fd960ab6945c5622e360e2cceeaffe7",
@@ -28391,8 +28391,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:19:17.835Z",
-          "heartbeatAt": "2026-11-23T10:04:53.493Z",
-          "expiresAt": "2026-11-23T10:34:53.493Z",
+          "heartbeatAt": "2026-11-23T10:08:17.238Z",
+          "expiresAt": "2026-11-23T10:38:17.238Z",
           "generation": 154
         },
         "baseSha": null,
@@ -39907,8 +39907,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:59:53.885Z",
-          "heartbeatAt": "2026-11-23T10:04:53.493Z",
-          "expiresAt": "2026-11-23T10:34:53.493Z",
+          "heartbeatAt": "2026-11-23T10:08:17.238Z",
+          "expiresAt": "2026-11-23T10:38:17.238Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45276,8 +45276,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:03:09.640Z",
-          "heartbeatAt": "2026-11-23T10:04:53.493Z",
-          "expiresAt": "2026-11-23T10:34:53.493Z",
+          "heartbeatAt": "2026-11-23T10:08:17.238Z",
+          "expiresAt": "2026-11-23T10:38:17.238Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45808,8 +45808,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:55:34.675Z",
-          "heartbeatAt": "2026-11-23T10:04:53.493Z",
-          "expiresAt": "2026-11-23T10:34:53.493Z",
+          "heartbeatAt": "2026-11-23T10:08:17.238Z",
+          "expiresAt": "2026-11-23T10:38:17.238Z",
           "generation": 154
         },
         "baseSha": "57a1fd51ebacf5fa1ff712f6eaa176f390ad64a3",
@@ -49423,8 +49423,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:31:10.408Z",
-          "heartbeatAt": "2026-11-23T10:04:53.493Z",
-          "expiresAt": "2026-11-23T10:34:53.493Z",
+          "heartbeatAt": "2026-11-23T10:08:17.238Z",
+          "expiresAt": "2026-11-23T10:38:17.238Z",
           "generation": 154
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -50638,8 +50638,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T06:47:05.965Z",
-          "heartbeatAt": "2026-11-23T10:04:53.493Z",
-          "expiresAt": "2026-11-23T10:34:53.493Z",
+          "heartbeatAt": "2026-11-23T10:08:17.238Z",
+          "expiresAt": "2026-11-23T10:38:17.238Z",
           "generation": 154
         },
         "baseSha": null,
@@ -53202,9 +53202,9 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": "0091339e4f4c4837d57bc45718fe35f6517183e0",
-        "implementedCommit": "2ca5d3efd73a61906ab0bfcac8a6237376351bfa",
-        "lastPushedSha": "2ca5d3efd73a61906ab0bfcac8a6237376351bfa",
+        "baseSha": "89bc7d952fa849d4a3955cf1c626ea2d640a3e59",
+        "implementedCommit": "8d71a830a618fe647e40dffaf92ee55c423b6821",
+        "lastPushedSha": "8d71a830a618fe647e40dffaf92ee55c423b6821",
         "checks": [
           {
             "command": "cargo check -p erpx-server-brand",
@@ -53301,33 +53301,62 @@
             "result": "passed",
             "sourceSha": "f5112793451ddeef2cb4da2bc9fc9e855bc21ed",
             "note": "lead; POST /api/v1/holdings/{slug}/files/command-plan takes only host/origin/idempotency-key/company headers (no session), plans statements via sql(kind) in server-files domain files_wave1b.rs, caller executes on own tx via resolveNativeEffects with nativeContext (holdingSlug/key/company already captured at command time). Worker checked branding_http routes only. Corrected slice: add 4 brand kinds with byte-identical history SQL (adapted to publication cols) + steps return nativeWrite descriptors. No Request/actor threading, no new route."
+          },
+          {
+            "command": "cargo test -p erpx-server-files --test files_wave1b_plan",
+            "result": "passed",
+            "sourceSha": "8d71a830a618fe647e40dffaf92ee55c423b6821",
+            "note": "lead; 6/6 incl new brand-kind parity (byte-identical SQL, bind counts, arity fail-closed)"
+          },
+          {
+            "command": "cargo check -p erpx-server-files + -p erpx-service",
+            "result": "passed",
+            "sourceSha": "8d71a830a618fe647e40dffaf92ee55c423b6821",
+            "note": "lead; 0 errors (6 new kinds in allow-list + dispatch)"
+          },
+          {
+            "command": "bunx tsc files + brand",
+            "result": "passed",
+            "sourceSha": "8d71a830a618fe647e40dffaf92ee55c423b6821",
+            "note": "lead; clean after step switch + stub/barrel/export deletion"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "8d71a830a618fe647e40dffaf92ee55c423b6821",
+            "note": "lead; repository layout passed"
+          },
+          {
+            "command": "command-plan BRAND_PUB_74 probe on rebuilt 3198 (no session)",
+            "result": "passed",
+            "sourceSha": "8d71a830a618fe647e40dffaf92ee55c423b6821",
+            "note": "lead; 200 with exact retained UPDATE + values + receipt/audit/outbox rows; unknown kind and wrong arity both FILES_COMMAND_INVALID"
+          },
+          {
+            "command": "restart v4/v5/dev on fresh build",
+            "result": "passed",
+            "sourceSha": "8d71a830a618fe647e40dffaf92ee55c423b6821",
+            "note": "lead; 3198/3199/3100 health 200; dev fully restarted, 0 boot errors"
           }
         ],
         "retainedLegacy": [
           {
-            "path": "packages/server-brand/src/adapters/native-brand-attachment-statement.ts",
-            "writes": 0,
-            "reads": 0,
-            "removalTaskId": "retire.records",
-            "removalCondition": "Transport stays: it is the native-backed read path. Remove only if Brand reads move to a dedicated native route."
-          },
-          {
-            "path": "packages/server-brand/src/adapters/attachment-read.ts",
+            "path": "packages/server-files/src/adapters/attachments/service.ts",
             "writes": 0,
             "reads": 0,
             "removalTaskId": "retire.brand.attachment-facts",
-            "removalCondition": "Orchestration stays TS (locks, stability recheck, denial flow); only the SQL moved native. No further removal."
+            "removalCondition": "Steps now emit nativeWrite descriptors; retained orchestration stays. Nothing further to remove here."
           }
         ],
         "blocker": "handoff",
-        "nextAction": "Claim to implement the 4 brand command-plan kinds + step descriptor switch (design verified this turn).",
+        "nextAction": "Publication switch landed; lane verification with session pending user smoke. Re-claim for any follow-up.",
         "handoff": {
           "runId": "run-20261123-d",
           "agentId": "lead",
-          "at": "2026-11-23T10:07:38.806Z",
+          "at": "2026-11-23T10:14:07.141Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Claim to implement the 4 brand command-plan kinds + step descriptor switch (design verified this turn)."
+          "nextAction": "Publication switch landed; lane verification with session pending user smoke. Re-claim for any follow-up."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -110198,7 +110227,7 @@
       }
     },
     "lastCoordinatorGeneration": 154,
-    "updatedAt": "2026-11-23T10:07:43.444Z",
+    "updatedAt": "2026-11-23T10:14:07.217Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
