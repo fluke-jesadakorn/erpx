@@ -145,10 +145,13 @@ struct Batch {
     status: String,
     created_by: String,
     approved_by: Option<String>,
+    approval_reason: Option<String>,
     exported_by: Option<String>,
     export_command_id: Option<String>,
     export_hash: Option<String>,
     version: i64,
+    created_at: i64,
+    updated_at: i64,
 }
 
 #[derive(Clone, Debug)]
@@ -505,7 +508,8 @@ fn sha256_hex(content: &str) -> String {
 async fn batch(c: &mut PgConnection, company: &str, id: &str) -> Result<Batch, Error> {
     let row = sqlx::query(
         "SELECT id,company_id,currency,bank_account_id,planned_date,status,created_by,\
-         approved_by,exported_by,export_command_id,export_hash,version \
+         approved_by,approval_reason,exported_by,export_command_id,export_hash,version,\
+         created_at,updated_at \
          FROM finance_supplier_batches WHERE id=$1 AND company_id=$2",
     )
     .bind(id)
@@ -522,10 +526,13 @@ async fn batch(c: &mut PgConnection, company: &str, id: &str) -> Result<Batch, E
         status: row.try_get("status")?,
         created_by: row.try_get("created_by")?,
         approved_by: row.try_get("approved_by")?,
+        approval_reason: row.try_get("approval_reason")?,
         exported_by: row.try_get("exported_by")?,
         export_command_id: row.try_get("export_command_id")?,
         export_hash: row.try_get("export_hash")?,
         version: row.try_get("version")?,
+        created_at: row.try_get("created_at")?,
+        updated_at: row.try_get("updated_at")?,
     })
 }
 
@@ -1730,14 +1737,82 @@ pub async fn list_supplier_batches(
         .collect()
 }
 
+/// The retained read projection for a selected batch: the full
+/// `finance_supplier_batches` row the TypeScript `SELECT b.*` shell exposed,
+/// including approval reason and timestamps the command writer already stores.
+fn batch_projection(batch: &Batch) -> Value {
+    json!({
+        "id": batch.id,
+        "company_id": batch.company_id,
+        "currency": batch.currency,
+        "bank_account_id": batch.bank_account_id,
+        "planned_date": batch.planned_date,
+        "status": batch.status,
+        "created_by": batch.created_by,
+        "approved_by": batch.approved_by,
+        "approval_reason": batch.approval_reason,
+        "exported_by": batch.exported_by,
+        "export_command_id": batch.export_command_id,
+        "export_hash": batch.export_hash,
+        "version": batch.version,
+        "created_at": batch.created_at,
+        "updated_at": batch.updated_at,
+    })
+}
+
+/// Invoice-picker SQL for a new batch. The purchased Supply source fence is
+/// always compiled and gated by bound $2 (`source_only`); `invoice_id`
+/// optionally narrows the picker to one source invoice (the retained
+/// `supplierInvoiceBatchWorkspace` read) through bound $3. The only dynamic SQL
+/// text is the fixed ` AND i.id=$3` literal, so no request value is inlined.
+fn invoice_picker_sql(source_only: bool, invoice_id: Option<&str>) -> String {
+    let _ = source_only;
+    let invoice_filter = if invoice_id.is_some() {
+        " AND i.id=$3"
+    } else {
+        ""
+    };
+    format!(
+        "SELECT (to_jsonb(i)||jsonb_build_object('party_name',p.name,\
+         'available_minor',i.outstanding_minor-COALESCE((SELECT SUM(s.amount_minor) \
+         FROM finance_supplier_instructions s WHERE s.invoice_id=i.id \
+         AND s.status IN ('reserved','exported','unknown')),0)))::text row \
+         FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id \
+         WHERE i.company_id=$1 AND i.kind='payable' \
+         AND i.source_type IN ('standalone','commerce_fulfillment') \
+         AND i.status IN ('posted','partially_paid') \
+         AND (NOT $2 OR EXISTS(SELECT 1 FROM (SELECT o.company_id,f.invoice_id id FROM commerce_orders o \
+         JOIN commerce_fulfillments f ON f.order_id=o.id JOIN finance_invoices i ON i.id=f.invoice_id \
+         AND i.company_id=o.company_id AND i.kind='payable' WHERE o.kind='purchase') owner_invoice \
+         WHERE owner_invoice.id=i.id AND owner_invoice.company_id=i.company_id)){invoice_filter} \
+         ORDER BY i.due_date,i.id LIMIT 200"
+    )
+}
+
+/// Carry the composition-resolved Commercial purchase decision into the native
+/// workspace under the retained `sourcePurchase` key. It is omitted when the
+/// caller has no purchase decision, matching the TypeScript `undefined`.
+fn with_source_purchase(mut workspace: Value, source_purchase: Option<Value>) -> Value {
+    if let Some(purchase) = source_purchase {
+        if let Value::Object(ref mut object) = workspace {
+            object.insert("sourcePurchase".into(), purchase);
+        }
+    }
+    workspace
+}
+
 /// The supplier batch workspace: selected batch/items plus open payables, cash
-/// ledgers, open periods and candidate bank debits.
+/// ledgers, open periods and candidate bank debits. `source_only` and
+/// `invoice_id` are the bounded read filters; `source_purchase` is the
+/// composition-resolved Commercial decision echoed for the consumer.
 pub async fn supplier_batch_workspace(
     c: &mut PgConnection,
     company: &str,
     id: Option<&str>,
     can_pay: bool,
     source_only: bool,
+    invoice_id: Option<&str>,
+    source_purchase: Option<Value>,
 ) -> Result<Value, Error> {
     let selected = match id {
         Some(id) => Some(batch(c, company, id).await?),
@@ -1763,25 +1838,17 @@ pub async fn supplier_batch_workspace(
         None => Vec::new(),
     };
     let invoices: Vec<Value> = if id.is_none() {
-        let rows = sqlx::query(
-            "SELECT (to_jsonb(i)||jsonb_build_object('party_name',p.name,\
-             'available_minor',i.outstanding_minor-COALESCE((SELECT SUM(s.amount_minor) \
-             FROM finance_supplier_instructions s WHERE s.invoice_id=i.id \
-             AND s.status IN ('reserved','exported','unknown')),0)))::text row \
-             FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id \
-             WHERE i.company_id=$1 AND i.kind='payable' \
-             AND i.source_type IN ('standalone','commerce_fulfillment') \
-             AND i.status IN ('posted','partially_paid') \
-             AND (NOT $2 OR EXISTS(SELECT 1 FROM (SELECT o.company_id,f.invoice_id id FROM commerce_orders o \
-             JOIN commerce_fulfillments f ON f.order_id=o.id JOIN finance_invoices i ON i.id=f.invoice_id \
-             AND i.company_id=o.company_id AND i.kind='payable' WHERE o.kind='purchase') owner_invoice \
-             WHERE owner_invoice.id=i.id AND owner_invoice.company_id=i.company_id)) \
-             ORDER BY i.due_date,i.id LIMIT 200",
-        )
-        .bind(company)
-        .bind(source_only)
-        .fetch_all(&mut *c)
-        .await?;
+        let picker = invoice_picker_sql(source_only, invoice_id);
+        // SQL-safety audit: `picker` is built from a fixed literal plus the
+        // fixed, request-independent ` AND i.id=$3` clause; every runtime value
+        // (company, source_only, invoice_id) is a bind parameter.
+        let mut query = sqlx::query(sqlx::AssertSqlSafe(picker.as_str()))
+            .bind(company)
+            .bind(source_only);
+        if let Some(invoice) = invoice_id {
+            query = query.bind(invoice);
+        }
+        let rows = query.fetch_all(&mut *c).await?;
         rows.into_iter()
             .map(|row| {
                 let text: String = row.try_get("row")?;
@@ -1849,25 +1916,108 @@ pub async fn supplier_batch_workspace(
         }
         None => Vec::new(),
     };
-    Ok(json!({
-        "batch": selected.map(|batch| json!({
-            "id": batch.id,
-            "company_id": batch.company_id,
-            "currency": batch.currency,
-            "bank_account_id": batch.bank_account_id,
-            "planned_date": batch.planned_date,
-            "status": batch.status,
-            "created_by": batch.created_by,
-            "approved_by": batch.approved_by,
-            "exported_by": batch.exported_by,
-            "export_command_id": batch.export_command_id,
-            "export_hash": batch.export_hash,
-            "version": batch.version,
-        })),
-        "items": items,
-        "invoices": invoices,
-        "accounts": accounts,
-        "periods": periods,
-        "bank": bank,
-    }))
+    Ok(with_source_purchase(
+        json!({
+            "batch": selected.as_ref().map(batch_projection),
+            "items": items,
+            "invoices": invoices,
+            "accounts": accounts,
+            "periods": periods,
+            "bank": bank,
+        }),
+        source_purchase,
+    ))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn invoice_picker_keeps_source_fence_and_optional_invoice_filter() {
+        let open = invoice_picker_sql(false, None);
+        assert!(open.contains("i.company_id=$1"));
+        assert!(open.contains("NOT $2"));
+        assert!(open.contains("owner_invoice"));
+        assert!(!open.contains("i.id=$3"));
+        assert!(open.contains("ORDER BY i.due_date,i.id LIMIT 200"));
+
+        let owned = invoice_picker_sql(true, None);
+        assert!(owned.contains("NOT $2"));
+        assert!(!owned.contains("i.id=$3"));
+
+        let filtered = invoice_picker_sql(true, Some("inv-1"));
+        assert!(filtered.contains(" AND i.id=$3"));
+        assert!(filtered.contains("NOT $2"));
+        assert!(filtered.contains("owner_invoice"));
+    }
+
+    #[test]
+    fn source_purchase_is_echoed_only_when_supplied() {
+        let base = json!({
+            "batch": null,
+            "items": [],
+            "invoices": [],
+            "accounts": [],
+            "periods": [],
+            "bank": [],
+        });
+        let absent = with_source_purchase(base.clone(), None);
+        assert!(absent.get("sourcePurchase").is_none());
+
+        let purchase = json!({
+            "capability": "finance.inventory-valuation",
+            "settleExisting": true,
+            "history": true,
+            "revision": "source-rev",
+        });
+        let present = with_source_purchase(base, Some(purchase.clone()));
+        assert_eq!(present["sourcePurchase"], purchase);
+        assert_eq!(present["items"], json!([]));
+    }
+
+    #[test]
+    fn batch_projection_matches_the_retained_read_columns() {
+        let batch = Batch {
+            id: "batch-1".into(),
+            company_id: "company".into(),
+            currency: "THB".into(),
+            bank_account_id: "cash".into(),
+            planned_date: "2026-10-08".into(),
+            status: "approved".into(),
+            created_by: "preparer".into(),
+            approved_by: Some("approver".into()),
+            approval_reason: Some("reviewed source".into()),
+            exported_by: None,
+            export_command_id: None,
+            export_hash: None,
+            version: 2,
+            created_at: 11,
+            updated_at: 22,
+        };
+        let value = batch_projection(&batch);
+        for key in [
+            "id",
+            "company_id",
+            "currency",
+            "bank_account_id",
+            "planned_date",
+            "status",
+            "created_by",
+            "approved_by",
+            "approval_reason",
+            "exported_by",
+            "export_command_id",
+            "export_hash",
+            "version",
+            "created_at",
+            "updated_at",
+        ] {
+            assert!(value.get(key).is_some(), "missing retained column {key}");
+        }
+        assert_eq!(value["approval_reason"], json!("reviewed source"));
+        assert_eq!(value["created_at"], json!(11));
+        assert_eq!(value["updated_at"], json!(22));
+        assert_eq!(value["version"], json!(2));
+    }
 }
