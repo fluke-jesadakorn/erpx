@@ -15,7 +15,7 @@ import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {stageSupplierBillReceiptVersion,stageSupplierBillReceiptLinks} from "@erpx/server-commerce/public/supplier-bill-receipts";
 import {stageSupplierBillDraftVoid} from "@erpx/server-finance/public/supplier-bill-draft-void";
 import {nativeSupplierBillNotification} from "./native-supplier-bill-notification";
-import {nativeProcurementReadAll,PROCUREMENT_RD_BILL_MATCH_RECEIPTS} from "./native-procurement-read";
+import {nativeProcurementReadAll,nativeProcurementReadFirst,PROCUREMENT_RD_BILL_MATCH_RECEIPTS,PROCUREMENT_RD_BILL_MATCH_VARIANCE} from "./native-procurement-read";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {samePerson} from "@erpx/feature-identity_access/lib/iam";
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
@@ -125,7 +125,7 @@ return {lines:lines.results,receipts:receipts.results,events:events.results,acco
  configuration:async()=>(await database()).prepare(`SELECT * FROM (${commercePlatformSources.commerce_settings}) commerce_settings WHERE company_id=?`).bind(actor.companyId).first<Row>(),
  postings:async(id)=>(await (await database()).prepare(`SELECT * FROM (${financePlatformSources.finance_journal_lines}) finance_journal_lines WHERE journal_id=? ORDER BY ordinal`).bind(id).all<Row>()).results,
  receiptLines:async(ids)=>(await (await database()).prepare(`SELECT fl.*,ol.product_id,ol.description,p.sku,p.unit,p.tracking_mode FROM (${commercePlatformSources.commerce_fulfillment_lines}) fl JOIN (${commercePlatformSources.commerce_order_lines}) ol ON ol.id=fl.order_line_id JOIN (${commercePlatformSources.commerce_products}) p ON p.id=ol.product_id WHERE fl.fulfillment_id IN (${ids.map(()=>'?').join(',')}) ORDER BY fl.fulfillment_id,ol.ordinal`).bind(...ids).all<Row>()).results,
- variance:async(id)=>!!await (await database()).prepare('SELECT id FROM procurement_bill_match_lines WHERE match_id=? AND subtotal_minor<>expected_subtotal_minor LIMIT 1').bind(id).first(),
+ variance:async(id)=>!!await nativeProcurementReadFirst(PROCUREMENT_RD_BILL_MATCH_VARIANCE,[id],await database()),
  varianceAccount:async(id,chartId)=>!!await (await database()).prepare(`SELECT a.id FROM (${financePlatformSources.finance_accounts}) a JOIN (${financePlatformSources.finance_charts}) c ON c.id=a.chart_id AND c.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND a.chart_id=? AND a.currency=c.base_currency AND a.category='expense' AND a.status='active'`).bind(id,actor.companyId,chartId).first(),
  commit:async(m,result)=>commit(await database(),actor,m,result),
  receiptHistory:async(id)=>(await database()).prepare('SELECT br.match_id id FROM procurement_bill_match_receipts br WHERE br.fulfillment_id=? LIMIT 1').bind(id).first<Row>(),

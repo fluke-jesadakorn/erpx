@@ -12,6 +12,7 @@ import {
   PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT,
   PROCUREMENT_RD_REQUEST_ALLOCATIONS,
   PROCUREMENT_RD_REQUEST_ORDER_LINK,
+  PROCUREMENT_RD_BILL_MATCH_VARIANCE,
 } from '../../../packages/server-procurement/src/adapters/native-procurement-read';
 import { procurementInvoiceMatchForFinance } from '../../../packages/server-procurement/src/adapters/finance-entrypoint-queries';
 import { requestQuotation } from '../../../packages/server-procurement/src/adapters/people-app-entrypoint-facts';
@@ -30,6 +31,7 @@ const planned = {
   [PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT]: "SELECT count(*) n FROM procurement_rfqs WHERE request_id=? AND status<>'cancelled'",
   [PROCUREMENT_RD_REQUEST_ALLOCATIONS]: "SELECT l.request_item_ordinal ordinal,COALESCE(sum(l.request_quantity_milli),0) allocated_milli FROM procurement_rfq_lines l JOIN procurement_rfqs r ON r.id=l.rfq_id WHERE r.request_id=? AND r.status<>'cancelled' GROUP BY l.request_item_ordinal",
   [PROCUREMENT_RD_REQUEST_ORDER_LINK]: 'SELECT request_id FROM procurement_request_orders WHERE request_id=? AND order_id=?',
+  [PROCUREMENT_RD_BILL_MATCH_VARIANCE]: 'SELECT id FROM procurement_bill_match_lines WHERE match_id=? AND subtotal_minor<>expected_subtotal_minor LIMIT 1',
 };
 const stubFetch = (payload: unknown, status = 200) => {
   const fetchMock = vi.fn(async () => ({
@@ -84,7 +86,8 @@ describe('native Procurement caller-unit read plan', () => {
     expect(PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT).toBe('procurement_rd_active_quotation_count');
     expect(PROCUREMENT_RD_REQUEST_ALLOCATIONS).toBe('procurement_rd_request_allocations');
     expect(PROCUREMENT_RD_REQUEST_ORDER_LINK).toBe('procurement_rd_request_order_link');
-    for (const kind of [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE, PROCUREMENT_RD_REQUEST_QUOTATION, PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH, PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL, PROCUREMENT_RD_BILL_MATCH_RECEIPTS, PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT, PROCUREMENT_RD_REQUEST_ALLOCATIONS, PROCUREMENT_RD_REQUEST_ORDER_LINK]) {
+    expect(PROCUREMENT_RD_BILL_MATCH_VARIANCE).toBe('procurement_rd_bill_match_variance');
+    for (const kind of [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE, PROCUREMENT_RD_REQUEST_QUOTATION, PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH, PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL, PROCUREMENT_RD_BILL_MATCH_RECEIPTS, PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT, PROCUREMENT_RD_REQUEST_ALLOCATIONS, PROCUREMENT_RD_REQUEST_ORDER_LINK, PROCUREMENT_RD_BILL_MATCH_VARIANCE]) {
       expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
     }
   });
@@ -248,6 +251,30 @@ describe('native Procurement caller-unit read plan', () => {
     expect(source).not.toContain('SELECT 1 ok FROM procurement_request_orders WHERE request_id=? AND order_id=?');
     expect(source).not.toContain('SELECT request_id FROM procurement_request_orders WHERE request_id=? AND order_id=?');
     expect(source).toContain('PROCUREMENT_RD_REQUEST_ORDER_LINK');
+  });
+
+  it('plans the bill-match variance read and retires the supplier-bills SELECT', async () => {
+    const sql = planned[PROCUREMENT_RD_BILL_MATCH_VARIANCE];
+    const fetchMock = stubFetch({ data: { statements: [{ sql, values: ['bill-1'] }] } });
+    const { db, prepared, bound } = fakeDb([{ id: 'line-1' }]);
+    const row = await nativeProcurementReadFirst<{ id: string }>(
+      PROCUREMENT_RD_BILL_MATCH_VARIANCE, ['bill-1'], db as never,
+    );
+    expect(row).toEqual({ id: 'line-1' });
+    expect(prepared).toEqual([sql]);
+    expect(bound).toEqual([['bill-1']]);
+    const [, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+    const body = JSON.parse(init.body as string) as { kind: string; values: unknown[] };
+    expect(body.kind).toBe('procurement_rd_bill_match_variance');
+    expect(body.values).toEqual(['bill-1']);
+    expect(JSON.stringify(body)).not.toContain('SELECT');
+
+    const source = readFileSync(
+      new URL('../../../packages/server-procurement/src/adapters/supplier-bills.ts', import.meta.url),
+      'utf8',
+    );
+    expect(source).not.toContain('SELECT id FROM procurement_bill_match_lines WHERE match_id=? AND subtotal_minor<>expected_subtotal_minor LIMIT 1');
+    expect(source).toContain('PROCUREMENT_RD_BILL_MATCH_VARIANCE');
   });
 
   it('fails closed when the native transport is not configured', async () => {

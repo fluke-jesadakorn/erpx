@@ -127,6 +127,20 @@ const READ_REQUEST_ORDER_LINK: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `supplier-bills` price-variance read.
+/// The owner plans this literal; the caller executes it on its open unit with
+/// the same `[matchId]` bind. It reads back matched-bill lines written by the
+/// mounted command-plan statements.
+pub const RD_BILL_MATCH_VARIANCE: &str = "procurement_rd_bill_match_variance";
+const SQL_BILL_MATCH_VARIANCE: &str =
+    "SELECT id FROM procurement_bill_match_lines WHERE match_id=? AND subtotal_minor<>expected_subtotal_minor LIMIT 1";
+const READ_BILL_MATCH_VARIANCE: NativeReadStatement = NativeReadStatement {
+    kind: RD_BILL_MATCH_VARIANCE,
+    sql: SQL_BILL_MATCH_VARIANCE,
+    bind_count: 1,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_INVOICE_MATCH_FOR_FINANCE,
     READ_REQUEST_QUOTATION,
@@ -136,6 +150,7 @@ const READS: &[NativeReadStatement] = &[
     READ_ACTIVE_QUOTATION_COUNT,
     READ_REQUEST_ALLOCATIONS,
     READ_REQUEST_ORDER_LINK,
+    READ_BILL_MATCH_VARIANCE,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -162,6 +177,7 @@ mod tests {
         assert!(is_read(RD_ACTIVE_QUOTATION_COUNT));
         assert!(is_read(RD_REQUEST_ALLOCATIONS));
         assert!(is_read(RD_REQUEST_ORDER_LINK));
+        assert!(is_read(RD_BILL_MATCH_VARIANCE));
         assert!(!is_read("procurement_stmt_1"));
         assert!(read_statement("not_a_native_read").is_none());
     }
@@ -204,6 +220,11 @@ mod tests {
                 RD_REQUEST_ORDER_LINK,
                 2usize,
                 "procurement_request_orders",
+            ),
+            (
+                RD_BILL_MATCH_VARIANCE,
+                1usize,
+                "procurement_bill_match_lines",
             ),
         ] {
             let read = read_statement(kind).expect("read kind");
@@ -285,6 +306,20 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 2);
         assert_eq!(read.scope, "holding");
         assert!(is_read(RD_REQUEST_ORDER_LINK));
+        assert!(!is_read("procurement_stmt_1"));
+    }
+
+    #[test]
+    fn bill_match_variance_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_BILL_MATCH_VARIANCE).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT id FROM procurement_bill_match_lines WHERE match_id=? AND subtotal_minor<>expected_subtotal_minor LIMIT 1"
+        );
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_BILL_MATCH_VARIANCE));
         assert!(!is_read("procurement_stmt_1"));
     }
 
