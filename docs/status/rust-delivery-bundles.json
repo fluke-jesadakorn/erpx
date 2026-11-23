@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6886,
+    "revision": 6888,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -113904,25 +113904,45 @@
         "resources": [
           "owner:quality"
         ],
-        "nextAction": "Route consumers to native quality read/detail_core; delete rows/activeSpec/evidenceVersionGuard; record 125->121",
+        "nextAction": "Integrated; claim released; mount task queued behind composition",
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wAJqua",
-          "claimedAt": "2026-11-23T20:59:42.766Z",
-          "heartbeatAt": "2026-11-23T21:17:56.011Z",
-          "expiresAt": "2026-11-23T21:47:56.011Z",
-          "generation": 159
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-quality/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a4d5e875a",
+            "owner": "quality",
+            "before": 123,
+            "after": 121,
+            "note": "workspace/detail-core hold reads via native Quality reader; TS rows() SQL deleted."
+          },
+          {
+            "command": "cargo check -p erpx-server-quality + 7 non-PG targets (35)",
+            "result": "passed",
+            "sourceSha": "a4d5e875a"
+          },
+          {
+            "command": "vitest quality semantic (16) + native transport (11) + tsc quality",
+            "result": "passed",
+            "sourceSha": "a4d5e875a"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wAJqua",
+          "at": "2026-11-23T21:30:02.058Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released; mount task queued behind composition"
+        },
         "scopeRefinementRequired": false,
         "dependsOn": [],
         "requiredPorts": [],
@@ -119943,17 +119963,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 21,
+        "in_progress": 20,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 198,
+        "blocked": 199,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T21:27:37.627Z",
+    "updatedAt": "2026-11-23T21:30:02.061Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
