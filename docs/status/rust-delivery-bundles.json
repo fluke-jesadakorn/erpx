@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6503,
+    "revision": 6510,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -51463,11 +51463,35 @@
             "command": "vitest company-acceptance-services 14/14",
             "result": "passed",
             "sourceSha": "8660c7040"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-organization/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "71709e0ce",
+            "owner": "organization",
+            "before": 412,
+            "after": 410,
+            "note": "wM02: company acceptance projection + active department fact native; workspace route retained pending holding-scoped mount."
+          },
+          {
+            "command": "cargo check -p erpx-server-organization",
+            "result": "passed",
+            "sourceSha": "71709e0ce"
+          },
+          {
+            "command": "cargo test -p erpx-server-organization --lib (29)",
+            "result": "passed",
+            "sourceSha": "71709e0ce"
+          },
+          {
+            "command": "tsc server-organization",
+            "result": "passed",
+            "sourceSha": "71709e0ce"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Integrated; claim released",
+        "nextAction": "410 recorded; workspaceRouteCompany retained pending holding-scoped native read",
         "handoff": {
           "runId": "run-20261123-f",
           "agentId": "wK01",
@@ -113966,7 +113990,7 @@
         "owner": "field_service",
         "title": "Native field executive report reads + record purchase tail",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -113984,22 +114008,47 @@
         "resources": [
           "owner:field_service"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wS03",
-          "claimedAt": "2026-11-23T18:25:28.719Z",
-          "heartbeatAt": "2026-11-23T18:35:24.663Z",
-          "expiresAt": "2026-11-23T19:05:24.663Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-field_service/src/**/*.ts'",
+            "result": "observed",
+            "sourceSha": "71709e0ce",
+            "owner": "field_service",
+            "before": 19,
+            "after": 19,
+            "note": "Bridge deleted (0 SQL); 4 partition SELECTs retained under retire.records.registry-fallback because the generic Records engine still serves field_service legacy rows."
+          },
+          {
+            "command": "cargo check -p erpx-server-field-service",
+            "result": "passed",
+            "sourceSha": "71709e0ce"
+          },
+          {
+            "command": "tsc server-field_service + server-runtime",
+            "result": "passed",
+            "sourceSha": "71709e0ce"
+          },
+          {
+            "command": "vitest runtime-executive-services + field_service (223)",
+            "result": "passed",
+            "sourceSha": "71709e0ce"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Switch runtime executive metrics to mounted native field executive read; delete bridge + record-purchases SQL (4 SELECTs); keep serviceMetricHistoryAccess native",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated native metric authority; partition deletion waits on retire.records",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wS03",
+          "at": "2026-11-23T18:47:13.231Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated native metric authority; partition deletion waits on retire.records"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -114567,7 +114616,7 @@
         "owner": "work_projection",
         "title": "Native work-card preference read for summary (2 SELECT -> 0)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -114582,22 +114631,48 @@
         "resources": [
           "owner:work_projection"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wR01",
-          "claimedAt": "2026-11-23T18:20:47.575Z",
-          "heartbeatAt": "2026-11-23T18:35:24.663Z",
-          "expiresAt": "2026-11-23T19:05:24.663Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-work_projection/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "71709e0ce",
+            "owner": "work_projection",
+            "before": 114,
+            "after": 113,
+            "note": "wR01: summary preferences via readNativeWorkCardPreferences; removed 2 reader SELECTs."
+          },
+          {
+            "command": "cargo check -p erpx-server-work-projection",
+            "result": "passed",
+            "sourceSha": "71709e0ce"
+          },
+          {
+            "command": "tsc root + tests/config",
+            "result": "passed",
+            "sourceSha": "71709e0ce",
+            "note": "at worker verification time; later transient PMS consumer WIP"
+          },
+          {
+            "command": "vitest work-cards + work-page (15)",
+            "result": "passed",
+            "sourceSha": "71709e0ce"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Switch work-summary preferences to readNativeWorkCardPreferences; delete TS reader/application; keep schema export; record 2-statement delta",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wR01",
+          "at": "2026-11-23T18:47:03.848Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -114676,7 +114751,14 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "retainedLegacy": [],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-platform_administration/src/adapters/executive-generation-source-lock.ts",
+            "statements": 1,
+            "removalTaskId": "retire.platform.executive-read-tail",
+            "removalCondition": "After the runtime generation native statement lands."
+          }
+        ],
         "checks": [
           {
             "command": "retirement:ts-statements -- ':(glob)packages/server-platform_administration/src/adapters/platform-executive.ts'",
@@ -114858,6 +114940,45 @@
         "nextAction": "Remove HANDOVER_AUTHORITY_PORT_UNAVAILABLE; add SocialUnit handover authority witness (Bangkok date, per-source current versions, recipient eligibility/access, deferred recheck) and real PublishHandoverPost planning; PG impl + drift-rollback tests. No composition.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.manufacturing.accounting-dead-writers",
+        "goalId": "G4",
+        "owner": "manufacturing",
+        "title": "Delete dead TS accounting-profile create/review path (156->154)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-manufacturing/src/adapters/accounting.ts",
+          "packages/server-manufacturing/src/application/accounting.ts",
+          "packages/server-manufacturing/src/public/production-accounting.ts",
+          "fixtures/shared/builders/engineering-business-browser.ts",
+          "tests/integration/manufacturing/production.test.ts",
+          "tests/unit/manufacturing/**"
+        ],
+        "resources": [
+          "owner:manufacturing"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wU03",
+          "claimedAt": "2026-11-23T18:42:45.943Z",
+          "heartbeatAt": "2026-11-23T18:42:45.943Z",
+          "expiresAt": "2026-11-23T19:12:45.944Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Delete dead createManufacturingAccountingProfile/reviewManufacturingAccountingProfile + profile/guardProfileVersion reads (2 SELECTs), repoint fixture and oracles to native posting-profile entrypoints; keep approvedProfile.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -114866,21 +114987,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 489,
+      "totalPackets": 490,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 22,
-        "in_progress": 14,
+        "in_progress": 13,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 124,
+        "blocked": 126,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T18:41:57.315Z",
+    "updatedAt": "2026-11-23T18:47:13.235Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
