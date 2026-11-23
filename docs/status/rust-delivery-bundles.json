@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6543,
+    "revision": 6546,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -51535,11 +51535,35 @@
             "command": "tsc server-organization + vitest native-read-tail (3)",
             "result": "passed",
             "sourceSha": "4b90d0e4e"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-organization/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "109612544",
+            "owner": "organization",
+            "before": 409,
+            "after": 408,
+            "note": "wM02: work_report_organization_nodes via nativeOrgAll."
+          },
+          {
+            "command": "cargo check -p erpx-server-organization",
+            "result": "passed",
+            "sourceSha": "109612544"
+          },
+          {
+            "command": "cargo test -p erpx-server-organization --lib (31)",
+            "result": "passed",
+            "sourceSha": "109612544"
+          },
+          {
+            "command": "tsc server-organization + vitest native-read-tail (4)",
+            "result": "passed",
+            "sourceSha": "109612544"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "409 recorded; next single-Company-keyed owner fact",
+        "nextAction": "408 recorded; next single-Company-keyed owner fact",
         "handoff": {
           "runId": "run-20261123-f",
           "agentId": "wK01",
@@ -110289,6 +110313,25 @@
             "command": "tsc server-files + server-pms",
             "result": "passed",
             "sourceSha": "527ff6767"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "109612544",
+            "owner": "files",
+            "before": 295,
+            "after": 294,
+            "note": "wP01: RD_RECORDS_EVIDENCE_SETS + nativeFilesReadAll JSON array bind."
+          },
+          {
+            "command": "cargo test -p erpx-server-files --test files_wave1b_plan (17)",
+            "result": "passed",
+            "sourceSha": "109612544"
+          },
+          {
+            "command": "tsc server-files + records",
+            "result": "passed",
+            "sourceSha": "109612544"
           }
         ],
         "retainedLegacy": [],
@@ -110301,7 +110344,7 @@
           "reason": "handoff",
           "nextAction": "Integrated; claim released"
         },
-        "nextAction": "295 recorded; remaining records-evidence (after wS03) and legal-corpus (after wN02)",
+        "nextAction": "294 recorded; legal-corpus-source-facts is the last single-read candidate",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -114653,7 +114696,7 @@
         "owner": "marketing",
         "title": "Restore public submission rate limit: return RETURNING rows through native command",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -114671,7 +114714,14 @@
           "owner:marketing",
           "resource:composition"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wX01",
+          "claimedAt": "2026-11-23T19:09:59.338Z",
+          "heartbeatAt": "2026-11-23T19:09:59.338Z",
+          "expiresAt": "2026-11-23T19:39:59.338Z",
+          "generation": 158
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -115468,8 +115518,8 @@
       "totalPackets": 494,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 21,
-        "in_progress": 11,
+        "pending": 20,
+        "in_progress": 12,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -115479,7 +115529,7 @@
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T19:09:49.000Z",
+    "updatedAt": "2026-11-23T19:13:05.635Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
