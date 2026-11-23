@@ -127,6 +127,19 @@ const READ_FIELD_POLICY: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `legacy-routine-access` templates read.
+/// The owner plans this literal; the caller executes it on its open unit with
+/// the same `[company_id, creator_user_id, is_owner]` bind.
+pub const RD_LEGACY_ROUTINE_TEMPLATES: &str = "operations_rd_legacy_routine_templates";
+const SQL_LEGACY_ROUTINE_TEMPLATES: &str =
+    "SELECT t.* FROM routine_templates t WHERE t.company_id=? AND t.project_id IS NULL AND (t.published=1 OR t.creator_user_id=? OR ?=1) ORDER BY t.id";
+const READ_LEGACY_ROUTINE_TEMPLATES: NativeReadStatement = NativeReadStatement {
+    kind: RD_LEGACY_ROUTINE_TEMPLATES,
+    sql: SQL_LEGACY_ROUTINE_TEMPLATES,
+    bind_count: 3,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_TASK_PROJECTION_SOURCE,
     READ_APP_UPLOAD_TASK_STATE,
@@ -136,6 +149,7 @@ const READS: &[NativeReadStatement] = &[
     READ_ROUTINE_TEMPLATE_SCHEDULES,
     READ_FIELD_EXCEPTION,
     READ_FIELD_POLICY,
+    READ_LEGACY_ROUTINE_TEMPLATES,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -317,6 +331,29 @@ mod tests {
         assert_eq!(
             policy.sql,
             "SELECT source_kinds_json FROM operations_queue_policies WHERE id=? AND company_id=?"
+        );
+    }
+
+    #[test]
+    fn legacy_routine_templates_plan_is_holding_scoped_and_ledger_free() {
+        let read = read_statement(RD_LEGACY_ROUTINE_TEMPLATES).expect("read kind");
+        let upper = read.sql.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT"), "{}", read.kind);
+        assert!(!upper.contains("INSERT"));
+        assert!(!upper.contains("UPDATE"));
+        assert!(!upper.contains("DELETE"));
+        assert_eq!(read.bind_count, 3);
+        assert_eq!(read.sql.matches('?').count(), 3);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_LEGACY_ROUTINE_TEMPLATES));
+    }
+
+    #[test]
+    fn legacy_routine_templates_sql_matches_retired_typescript_literal() {
+        let read = read_statement(RD_LEGACY_ROUTINE_TEMPLATES).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT t.* FROM routine_templates t WHERE t.company_id=? AND t.project_id IS NULL AND (t.published=1 OR t.creator_user_id=? OR ?=1) ORDER BY t.id"
         );
     }
 }

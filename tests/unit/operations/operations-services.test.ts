@@ -254,6 +254,49 @@ describe('Field command owner native reads',()=>{
   }finally{fetchMock.mockRestore();restore();}
  });
 });
+describe('Legacy routine access native read',()=>{
+ const nativeConfig=JSON.stringify({privateBaseUrl:'http://127.0.0.1:3999',timeoutMs:1000,holdings:[{origin:'https://acme.jesadakorn.com',holdingSlug:'acme',holdingId:'h1',companyId:'company'}]});
+ const plannedSql='SELECT t.* FROM routine_templates t WHERE t.company_id=? AND t.project_id IS NULL AND (t.published=1 OR t.creator_user_id=? OR ?=1) ORDER BY t.id';
+ const plan=(values:unknown[])=>new Response(JSON.stringify({data:{statements:[{sql:plannedSql,values}]}}),{status:200,headers:{'content-type':'application/json'}});
+ const harness=(templates:unknown[],owner:boolean)=>{
+  const prepare=vi.fn(()=>({bind:vi.fn()}));
+  const batch=vi.fn(async()=>[{results:templates,success:true,meta:{changes:0,duration:0}}]);
+  const db={prepare,batch} as unknown as SqlDatabase;
+  process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG=nativeConfig;
+  vi.resetModules();
+  vi.doMock('@erpx/server-identity_access/public/operations-staff-policy-facts',()=>({
+   StaffPolicyIdentityAccessFacts:()=>({
+    readReadActiveStaffResults:async()=>({results:[{person_id:'p',engagement_id:'e',engagement_version:1,company_id:'company',branch_id:null,department_id:null,start_date:0,end_date:null}]}),
+    readCompanyAuthorityEffect:async()=>owner,
+   }),
+  }));
+  return {db,prepare};
+ };
+ const restore=()=>{vi.doUnmock('@erpx/server-identity_access/public/operations-staff-policy-facts');vi.resetModules();delete process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG;};
+ test('owner templates delegate to the native owner plan and keep no local SQL',async()=>{
+  const {db,prepare}=harness([{id:'tpl',title:'Template'}],true);
+  const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(plan(['company','owner',1]));
+  try{
+   const {legacyRoutineAccess}=await import('../../../packages/server-operations/src/adapters/legacy-routine-access');
+   const result=await legacyRoutineAccess(db,'company',{id:'assignment',userId:'owner'},0);
+   expect(result).toMatchObject({source:'operations/original-routines/v1',activeStaff:true,retainedTemplates:1,revision:expect.any(String)});
+   const call=fetchMock.mock.calls[0]!;
+   expect(String(call[0])).toContain('/operations/command-plan');
+   expect(JSON.parse(String(call[1]!.body))).toMatchObject({kind:'operations_rd_legacy_routine_templates',values:['company','owner',1]});
+   expect(prepare).toHaveBeenCalledWith(plannedSql);
+  }finally{fetchMock.mockRestore();restore();}
+ });
+ test('a non-owner keeps the original visibility bind without a local SQL fallback',async()=>{
+  const {db}=harness([],false);
+  const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(plan(['company','owner',0]));
+  try{
+   const {legacyRoutineAccess}=await import('../../../packages/server-operations/src/adapters/legacy-routine-access');
+   const result=await legacyRoutineAccess(db,'company',{id:'assignment',userId:'owner'},0);
+   expect(result.retainedTemplates).toBe(0);
+   expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({kind:'operations_rd_legacy_routine_templates',values:['company','owner',0]});
+  }finally{fetchMock.mockRestore();restore();}
+ });
+});
 describe('Handover source and colleague constraints',()=>{
  test('Bangkok day derives entirely from the supplied instant',()=>{expect(bangkokToday(Date.UTC(2026,0,1,20))).toBe('2026-01-02');});
  test('duplicate recipients and source references fail validation',()=>{const source={id:'task',sourceVersion:1,kind:'staff_task' as const},base={date:'2026-01-02',body:'Shift report',sources:[source],recipientIds:['colleague']};expect(handoverPublishSchema.safeParse({...base,sources:[source,source]}).success).toBe(false);expect(handoverPublishSchema.safeParse({...base,recipientIds:['colleague','colleague']}).success).toBe(false);});

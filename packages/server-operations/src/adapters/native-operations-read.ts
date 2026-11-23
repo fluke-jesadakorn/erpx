@@ -25,6 +25,7 @@ export const OPERATIONS_RD_BETA_MANAGEMENT_TASK_FILE_OWNER = 'operations_rd_beta
 export const OPERATIONS_RD_ROUTINE_TEMPLATE_SCHEDULES = 'operations_rd_routine_template_schedules';
 export const OPERATIONS_RD_FIELD_EXCEPTION = 'operations_rd_field_exception';
 export const OPERATIONS_RD_FIELD_POLICY = 'operations_rd_field_policy';
+export const OPERATIONS_RD_LEGACY_ROUTINE_TEMPLATES = 'operations_rd_legacy_routine_templates';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'OPERATIONS_NATIVE_READ_UNAVAILABLE', 'The native Operations read service is unavailable.');

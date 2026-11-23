@@ -5,6 +5,7 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {StaffPolicyIdentityAccessFacts} from '@erpx/server-identity_access/public/operations-staff-policy-facts';
 import type {LegacyRoutineAccess} from '@erpx/server-identity_access/public/rules/legacy-module-access';
 import type {TemplateRow} from '@erpx/server-operations/domain/routines';
+import {nativeOperationsReadAll,OPERATIONS_RD_LEGACY_ROUTINE_TEMPLATES} from './native-operations-read';
 
 /** One-off license evidence only. Actual commands still require their original
  * staff, creator, independent review and task configuration policies. */
@@ -23,8 +24,9 @@ export async function legacyRoutineAccess(database:SqlDatabase,companyId:string,
  const owner=!!await original.readCompanyAuthorityEffect(assignment.id,companyId,permissionForRoles(['holding_owner']),now,now);
  // These are exactly the original get/list visibility alternatives. A private
  // orphan, another creator or a Project routine is not standalone coverage.
- const templates=(await database.prepare('SELECT t.* FROM routine_templates t WHERE t.company_id=? AND t.project_id IS NULL AND (t.published=1 OR t.creator_user_id=? OR ?=1) ORDER BY t.id')
-  .bind(companyId,assignment.userId,owner?1:0).all<TemplateRow>()).results;
+ // The statement is planned by the Operations native read port and executed on
+ // the caller's open unit; this module carries no SQL for this read.
+ const templates=(await nativeOperationsReadAll<TemplateRow>(OPERATIONS_RD_LEGACY_ROUTINE_TEMPLATES,[companyId,assignment.userId,owner?1:0],database)).results;
  const image={staff:staff.map(row=>({personId:row.person_id,engagementId:row.engagement_id,version:row.engagement_version,companyId:row.company_id,branchId:row.branch_id,departmentId:row.department_id,start:row.start_date,end:row.end_date})).sort((a,b)=>a.engagementId.localeCompare(b.engagementId)),templates};
  return {source:'operations/original-routines/v1',activeStaff:staff.length===1,retainedTemplates:templates.length,revision:createHash('sha256').update(JSON.stringify(image)).digest('hex')};
 }
