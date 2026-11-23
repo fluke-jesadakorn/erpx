@@ -51,6 +51,7 @@ pub mod approval_oversight;
 mod asset_command_wire;
 pub mod asset_http;
 pub mod native_work_snapshot;
+pub mod native_work_report;
 mod work_card_preferences;
 #[cfg(feature = "existing-business")]
 pub mod workflow_projection_worker;

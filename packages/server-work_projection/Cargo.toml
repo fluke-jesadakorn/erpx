@@ -80,3 +80,7 @@ path = "../../tests/integration/work_projection/rust-calendar-read-postgres.test
 [[test]]
 name = "work_report_read_http"
 path = "../../tests/unit/shared.work/rust-work-report-http.test.rs"
+
+[[test]]
+name = "work_report_composition"
+path = "../../tests/unit/shared.work/rust-work-report-composition.test.rs"

@@ -104337,6 +104337,47 @@
       "packages": [
         "@erpx/server-identity_access"
       ]
+    },
+    {
+      "id": "files.rust-asset-descriptor-binding.unit",
+      "lane": "unit",
+      "owner": "files",
+      "modules": [
+        "assets"
+      ],
+      "files": [
+        "tests/unit/files/rust-asset-descriptor-binding.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Files asset-descriptor binding must re-prove source freshness and fail closed."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-files",
+        "targets": [
+          "asset_descriptor_binding"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-files/Cargo.toml"
+      ],
+      "apps": [
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-files",
+        "@erpx/server-assets"
+      ]
     }
   ]
 }
