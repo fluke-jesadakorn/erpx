@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7153,
+    "revision": 7157,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -122816,7 +122816,7 @@
         "owner": "agent",
         "title": "agent TS read tail native cutover (round 5)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -122828,22 +122828,42 @@
         "resources": [
           "owner:agent"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wBZ1age",
-          "claimedAt": "2026-11-23T22:29:49.539Z",
-          "heartbeatAt": "2026-11-23T22:29:49.539Z",
-          "expiresAt": "2026-11-23T22:59:49.539Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-agent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "6260acc34",
+            "owner": "agent",
+            "before": 79,
+            "after": 78,
+            "note": "Assistant-rate guard SQL consolidated to one canonical constant."
+          },
+          {
+            "command": "cargo check -p erpx-server-agent",
+            "result": "passed",
+            "sourceSha": "6260acc34"
+          },
+          {
+            "command": "vitest agent suites (54) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "6260acc34"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL read family; dedupe or switch to a mounted native read; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wBZ1age",
+          "at": "2026-11-23T22:53:51.064Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -123573,6 +123593,42 @@
         "nextAction": "Pick the smallest remaining company-scoped fixed-SQL read family served by the wave3 planner; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.agent.read-tail-r6",
+        "goalId": "G4",
+        "owner": "agent",
+        "title": "agent TS read tail native cutover (round 6)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-agent/src/**",
+          "tests/unit/agent/**",
+          "tests/integration/agent/**"
+        ],
+        "resources": [
+          "owner:agent"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wCJ1age",
+          "claimedAt": "2026-11-23T22:53:51.231Z",
+          "heartbeatAt": "2026-11-23T22:53:51.231Z",
+          "expiresAt": "2026-11-23T23:23:51.231Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Dedupe the guided-intake quota template pair (collaboration-guided-intake-quota.ts + workspace-assistant.ts) or the next smallest family; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -123581,7 +123637,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 630,
+      "totalPackets": 631,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -123589,13 +123645,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 266,
+        "blocked": 267,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T22:53:15.790Z",
+    "updatedAt": "2026-11-23T22:53:51.233Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
