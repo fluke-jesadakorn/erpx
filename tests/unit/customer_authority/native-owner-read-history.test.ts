@@ -10,6 +10,7 @@ import {
   nativeOwnerReadAll,
   nativeOwnerReadStatement,
 } from '../../../packages/server-customer_authority/src/adapters/native-owner-read';
+import { readExecutiveMetricProjection } from '../../../packages/server-customer_authority/src/adapters/executive-metric-projections';
 
 const key = 'ERPX_NATIVE_CUSTOMER_AUTHORITY_READ_CONFIG';
 const config = () => JSON.stringify({
@@ -136,5 +137,49 @@ describe('native Customer Authority change-history owner reads', () => {
 
   it('carries the exact pending duplicate-review metric discriminator', () => {
     expect(CA_RD_DUPLICATE_REVIEWS_PENDING).toBe('customer_authority_rd_duplicate_reviews_pending');
+  });
+});
+
+describe('executive duplicate-review pending metric owner read', () => {
+  const nativeSql = "SELECT 'Pending reviews' label,count(*)::text value FROM customer_duplicate_reviews WHERE company_id=? AND status='pending'";
+  const actor = { companyId: 'company', holdingSlug: 'acme' };
+  const filters = { from: '2026-01-01', to: '2026-01-31', currency: 'USD' };
+
+  it('plans the count on the native owner registry and executes its exact statement', async () => {
+    process.env[key] = config();
+    const fetchMock = vi.fn(async () => new Response(
+      JSON.stringify({ data: { statements: [{ sql: nativeSql, values: ['company'] }] } }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+    const seen: { sql: string; values: unknown[] }[] = [];
+    const db = {
+      prepare: (statement: string) => ({
+        bind: (...values: unknown[]) => {
+          seen.push({ sql: statement, values });
+          return { all: async () => ({ results: [{ label: 'Pending reviews', value: '3' }] }) };
+        },
+      }),
+    };
+    const result = await readExecutiveMetricProjection(
+      db as never, actor as never, 'duplicate-reviews-pending', filters as never, 'default',
+    );
+    expect(result.raw).toEqual([{ label: 'Pending reviews', value: '3' }]);
+    expect(seen).toEqual([{ sql: nativeSql, values: ['company'] }]);
+    const body = JSON.parse(((fetchMock.mock.calls[0] as unknown as [URL, RequestInit])[1] as RequestInit).body as string);
+    expect(body.kind).toBe('customer_authority_rd_duplicate_reviews_pending');
+    expect(body.values).toEqual(['company']);
+    vi.unstubAllGlobals();
+    delete process.env[key];
+  });
+
+  it('fails closed when the native owner read service is unconfigured', async () => {
+    delete process.env[key];
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('must not fetch'); }));
+    await expect(readExecutiveMetricProjection(
+      { prepare: () => { throw new Error('must not prepare'); } } as never,
+      actor as never, 'duplicate-reviews-pending', filters as never, 'default',
+    )).rejects.toMatchObject({ code: 'CUSTOMER_AUTHORITY_NATIVE_READ_UNAVAILABLE', status: 503 });
+    vi.unstubAllGlobals();
   });
 });

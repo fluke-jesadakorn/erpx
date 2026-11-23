@@ -107,6 +107,22 @@ const READ_ACCESS_IDENTITIES: NativeReadStatement = NativeReadStatement {
     bind_count: 1,
 };
 
+/// Native successor of the TypeScript `executive-metric-projections.ts`
+/// pending duplicate-review metric count. The owner plans the literal; the
+/// caller binds `[companyId]` on its own unit and reuses the exact planned
+/// statement for executive source drill-down. It is a distinct owner-local
+/// count read, not the duplicate review-history event read.
+pub const RD_DUPLICATE_REVIEWS_PENDING: &str = "customer_authority_rd_duplicate_reviews_pending";
+
+const SQL_RD_DUPLICATE_REVIEWS_PENDING: &str =
+    "SELECT 'Pending reviews' label,count(*)::text value FROM customer_duplicate_reviews WHERE company_id=? AND status='pending'";
+
+const READ_DUPLICATE_REVIEWS_PENDING: NativeReadStatement = NativeReadStatement {
+    kind: RD_DUPLICATE_REVIEWS_PENDING,
+    sql: SQL_RD_DUPLICATE_REVIEWS_PENDING,
+    bind_count: 1,
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_SALES_REVIEW_COUNTS,
     READ_IDENTITY_CHANGE_HISTORY,
@@ -114,6 +130,7 @@ const READS: &[NativeReadStatement] = &[
     READ_ACCESS_EVENTS,
     READ_ACCESS_READS,
     READ_ACCESS_IDENTITIES,
+    READ_DUPLICATE_REVIEWS_PENDING,
 ];
 
 /// Resolve an owner read kind. `None` for every unregistered discriminator.
@@ -191,6 +208,24 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 1);
         assert!(read.sql.starts_with("SELECT 1 FROM customer_access_identities"));
         assert!(read.sql.contains("binding_id=?"));
+        assert!(!read.sql.to_uppercase().contains("INSERT INTO"));
+        assert!(!read.sql.to_uppercase().contains("DELETE FROM"));
+        assert!(!read.sql.to_uppercase().contains("UPDATE "));
+    }
+
+    #[test]
+    fn duplicate_reviews_pending_is_a_fixed_select_with_exact_binds() {
+        let read = read_statement(RD_DUPLICATE_REVIEWS_PENDING).expect("read kind");
+        assert!(is_read(RD_DUPLICATE_REVIEWS_PENDING));
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(
+            read.sql,
+            "SELECT 'Pending reviews' label,count(*)::text value FROM customer_duplicate_reviews WHERE company_id=? AND status='pending'"
+        );
+        assert!(read.sql.contains("count(*)::text value"));
+        assert!(read.sql.contains("company_id=?"));
+        assert!(read.sql.contains("status='pending'"));
         assert!(!read.sql.to_uppercase().contains("INSERT INTO"));
         assert!(!read.sql.to_uppercase().contains("DELETE FROM"));
         assert!(!read.sql.to_uppercase().contains("UPDATE "));

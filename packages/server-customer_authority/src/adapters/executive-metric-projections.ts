@@ -5,13 +5,15 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
+import { CA_RD_DUPLICATE_REVIEWS_PENDING, nativeOwnerReadStatement } from './native-owner-read';
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const spec = specs[id];
     let sql = '', values: unknown[] = [];
     const referenceAtOverride: number | null = null;
     if (id === "duplicate-reviews-pending") {
-        sql = "SELECT 'Pending reviews' label,count(*)::text value FROM customer_duplicate_reviews WHERE company_id=? AND status='pending'";
-        values = [a.companyId];
+        const statement = await nativeOwnerReadStatement(CA_RD_DUPLICATE_REVIEWS_PENDING, [a.companyId], a.holdingSlug);
+        sql = statement.sql;
+        values = [...statement.values];
     }
     if (id === "identity-change-events") {
         const label = breakdown === "month" || breakdown === "default"

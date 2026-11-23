@@ -20,6 +20,10 @@ export const CA_RD_DUPLICATE_REVIEW_HISTORY = 'customer_authority_rd_duplicate_r
 export const CA_RD_ACCESS_EVENTS = 'customer_authority_rd_access_events';
 export const CA_RD_ACCESS_READS = 'customer_authority_rd_access_reads';
 export const CA_RD_ACCESS_IDENTITIES = 'customer_authority_rd_access_identities';
+export const CA_RD_DUPLICATE_REVIEWS_PENDING = 'customer_authority_rd_duplicate_reviews_pending';
+
+/** An exact owner-planned statement: native SQL and its positional values. */
+export type OwnerReadStatement = Readonly<{ sql: string; values: readonly unknown[] }>;
 
 const unavailable = (): never => {
   throw new ApiError(503, 'CUSTOMER_AUTHORITY_NATIVE_READ_UNAVAILABLE', 'The native Customer Authority read service is unavailable.');
@@ -53,13 +57,16 @@ function configuration(): Settings {
   return { privateBaseUrl: base.origin, timeoutMs: value.timeoutMs, holdings };
 }
 
-/** Plan one owner read and execute it on the caller's open unit. */
-export async function nativeOwnerReadAll<T>(
+/** Plan one owner read without executing it. The returned statement is the
+ * exact native literal and its positional values; the caller prepares and
+ * executes it on its own already-open unit. Consumers that also need the SQL
+ * text (for example executive source drill-down) use this instead of keeping
+ * a TypeScript mirror. */
+export async function nativeOwnerReadStatement(
   kind: string,
   values: readonly unknown[],
-  db: SqlDatabase,
   holdingSlug: string,
-): Promise<SqlResult<T>> {
+): Promise<OwnerReadStatement> {
   const config = configuration();
   const holding = config.holdings.find(h => h.holdingSlug === holdingSlug);
   if (!holding) return unavailable();
@@ -98,5 +105,16 @@ export async function nativeOwnerReadAll<T>(
   if (!Array.isArray(statements) || statements.length !== 1) return unavailable();
   const statement = statements[0];
   if (!record(statement) || typeof statement.sql !== 'string' || !Array.isArray(statement.values)) return unavailable();
+  return { sql: statement.sql, values: statement.values };
+}
+
+/** Plan one owner read and execute it on the caller's open unit. */
+export async function nativeOwnerReadAll<T>(
+  kind: string,
+  values: readonly unknown[],
+  db: SqlDatabase,
+  holdingSlug: string,
+): Promise<SqlResult<T>> {
+  const statement = await nativeOwnerReadStatement(kind, values, holdingSlug);
   return db.prepare(statement.sql).bind(...statement.values).all<T>();
 }
