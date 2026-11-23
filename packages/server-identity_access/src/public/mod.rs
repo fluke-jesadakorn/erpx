@@ -4,6 +4,7 @@ pub mod account_sessions;
 pub mod account_sso;
 pub mod account_time_preference;
 pub mod account_time_preference_http;
+pub mod account_invitation_list_read;
 pub mod identity_write;
 pub mod identity_write_http;
 pub mod portal_session;

@@ -4,6 +4,7 @@ pub(crate) mod account_crypto;
 pub(crate) mod account_http;
 pub(crate) mod account_invitations_http;
 pub(crate) mod account_invitations_postgres;
+pub(crate) mod account_invitation_list_read;
 pub(crate) mod account_mail_crypto;
 pub(crate) mod account_mail_postgres;
 #[cfg(any(feature = "mail-resend", feature = "mail-smtp"))]
