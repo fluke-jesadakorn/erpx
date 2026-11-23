@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7032,
+    "revision": 7038,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -119248,7 +119248,7 @@
         "owner": "field_service",
         "title": "Field finance-lineage TS source cutover to native finance port",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -119266,22 +119266,47 @@
           "owner:field_service",
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wARfie",
-          "claimedAt": "2026-11-23T21:10:51.277Z",
-          "heartbeatAt": "2026-11-23T22:02:15.577Z",
-          "expiresAt": "2026-11-23T22:32:15.577Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-field_service/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "cdcf1f2ae",
+            "owner": "field_service",
+            "before": 16,
+            "after": 6,
+            "note": "10 finance-lineage SELECTs replaced by the native field_finance_source contract; record-purchases/final-root pins retained."
+          },
+          {
+            "command": "cargo check -p erpx-server-field-service -p erpx-server-finance",
+            "result": "passed",
+            "sourceSha": "cdcf1f2ae"
+          },
+          {
+            "command": "cargo test field service_parts_history_postgres (5/5) + finance_source_contract (1)",
+            "result": "passed",
+            "sourceSha": "cdcf1f2ae"
+          },
+          {
+            "command": "tsc field_service + re-pointed PG oracles",
+            "result": "passed",
+            "sourceSha": "cdcf1f2ae"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Switch finance document/payment/package/attachment consumers from Field TS SQL fragments to the mounted finance_lineage native port, then delete the 10 field_service finance-record-source SELECTs and re-point the field/collaboration PG oracles. Expected field KPI 16->6.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released; residual requires registry/final-root follow-ups",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wARfie",
+          "at": "2026-11-23T22:22:00.733Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released; residual requires registry/final-root follow-ups"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -121616,7 +121641,7 @@
         "owner": "workflow",
         "title": "workflow TS read tail native cutover (r6)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -121628,22 +121653,42 @@
         "resources": [
           "owner:workflow"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wBKwor",
-          "claimedAt": "2026-11-23T22:01:57.135Z",
-          "heartbeatAt": "2026-11-23T22:02:15.577Z",
-          "expiresAt": "2026-11-23T22:32:15.577Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-workflow/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "cdcf1f2ae",
+            "owner": "workflow",
+            "before": 101,
+            "after": 100,
+            "note": "wf_native_department_approval_queue kind; receipt read retained as different family."
+          },
+          {
+            "command": "cargo check -p erpx-server-workflow + lib workflow_wave3 (9)",
+            "result": "passed",
+            "sourceSha": "cdcf1f2ae"
+          },
+          {
+            "command": "vitest native-workflow-evidence-transport (12) + tsc workflow",
+            "result": "passed",
+            "sourceSha": "cdcf1f2ae"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to a mounted native read; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wBKwor",
+          "at": "2026-11-23T22:22:00.910Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -121933,6 +121978,42 @@
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family served by the procurement command-plan; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.workflow.read-tail-r7",
+        "goalId": "G4",
+        "owner": "workflow",
+        "title": "workflow TS read tail native cutover (round 7)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/**",
+          "tests/unit/workflow/**",
+          "tests/integration/workflow/**"
+        ],
+        "resources": [
+          "owner:workflow"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wBU1wor",
+          "claimedAt": "2026-11-23T22:22:01.073Z",
+          "heartbeatAt": "2026-11-23T22:22:01.073Z",
+          "expiresAt": "2026-11-23T22:52:01.073Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining company-scoped fixed-SQL read family served by the wave3 command planner; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -121941,21 +122022,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 602,
+      "totalPackets": 603,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 19,
+        "in_progress": 18,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 235,
+        "blocked": 237,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T22:21:38.901Z",
+    "updatedAt": "2026-11-23T22:22:01.076Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
