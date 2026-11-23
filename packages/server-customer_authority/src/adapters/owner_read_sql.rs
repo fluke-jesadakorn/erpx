@@ -45,7 +45,36 @@ const READ_SALES_REVIEW_COUNTS: NativeReadStatement = NativeReadStatement {
     bind_count: 7,
 };
 
-const READS: &[NativeReadStatement] = &[READ_SALES_REVIEW_COUNTS];
+/// Native successor of the TypeScript `identity.ts` change-history read. The
+/// owner plans the literal; the caller binds `[changeId]` on its open unit.
+pub const RD_IDENTITY_CHANGE_HISTORY: &str = "customer_authority_rd_identity_change_history";
+
+const SQL_RD_IDENTITY_CHANGE_HISTORY: &str =
+    "SELECT * FROM customer_identity_change_events WHERE change_id=? ORDER BY version";
+
+const READ_IDENTITY_CHANGE_HISTORY: NativeReadStatement = NativeReadStatement {
+    kind: RD_IDENTITY_CHANGE_HISTORY,
+    sql: SQL_RD_IDENTITY_CHANGE_HISTORY,
+    bind_count: 1,
+};
+
+/// Native successor of the TypeScript `duplicates.ts` review-history read.
+pub const RD_DUPLICATE_REVIEW_HISTORY: &str = "customer_authority_rd_duplicate_review_history";
+
+const SQL_RD_DUPLICATE_REVIEW_HISTORY: &str =
+    "SELECT * FROM customer_duplicate_events WHERE review_id=? ORDER BY version";
+
+const READ_DUPLICATE_REVIEW_HISTORY: NativeReadStatement = NativeReadStatement {
+    kind: RD_DUPLICATE_REVIEW_HISTORY,
+    sql: SQL_RD_DUPLICATE_REVIEW_HISTORY,
+    bind_count: 1,
+};
+
+const READS: &[NativeReadStatement] = &[
+    READ_SALES_REVIEW_COUNTS,
+    READ_IDENTITY_CHANGE_HISTORY,
+    READ_DUPLICATE_REVIEW_HISTORY,
+];
 
 /// Resolve an owner read kind. `None` for every unregistered discriminator.
 pub fn read_statement(kind: &str) -> Option<&'static NativeReadStatement> {
@@ -74,6 +103,25 @@ mod tests {
         assert!(!read.sql.to_uppercase().contains("INSERT INTO"));
         assert!(!read.sql.to_uppercase().contains("DELETE FROM"));
         assert!(!read.sql.to_uppercase().contains("UPDATE "));
+    }
+
+    #[test]
+    fn history_reads_are_fixed_selects_with_exact_binds() {
+        for (kind, table) in [
+            (RD_IDENTITY_CHANGE_HISTORY, "customer_identity_change_events"),
+            (RD_DUPLICATE_REVIEW_HISTORY, "customer_duplicate_events"),
+        ] {
+            let read = read_statement(kind).expect("read kind");
+            assert!(is_read(kind));
+            assert_eq!(read.bind_count, 1);
+            assert_eq!(read.sql.matches('?').count(), 1);
+            assert!(read.sql.starts_with("SELECT *"));
+            assert!(read.sql.contains(table));
+            assert!(read.sql.contains("ORDER BY version"));
+            assert!(!read.sql.to_uppercase().contains("INSERT INTO"));
+            assert!(!read.sql.to_uppercase().contains("DELETE FROM"));
+            assert!(!read.sql.to_uppercase().contains("UPDATE "));
+        }
     }
 
     #[test]
