@@ -91,6 +91,18 @@ const READ_FLOW_ROUTING_PERSON_LEGAL_NAME: NativeReadStatement = NativeReadState
     bind_count: 2,
 };
 
+/// Native successor of the TypeScript `work-ui-staff-facts` head-placement
+/// read: same literal and three positional binds. The owner plans this
+/// statement; the caller executes it on its open unit with the same
+/// `[company_id, department_id, person_id]` binds.
+pub const RD_WORK_UI_HEAD_PLACEMENT: &str = "people_payroll_rd_work_ui_head_placement";
+const SQL_WORK_UI_HEAD_PLACEMENT: &str = "SELECT e.position_id FROM hr_engagements e WHERE e.company_id=? AND e.department_id=? AND e.person_id=? AND e.status='active' ORDER BY e.updated_at DESC LIMIT 1";
+const READ_WORK_UI_HEAD_PLACEMENT: NativeReadStatement = NativeReadStatement {
+    kind: RD_WORK_UI_HEAD_PLACEMENT,
+    sql: SQL_WORK_UI_HEAD_PLACEMENT,
+    bind_count: 3,
+};
+
 /// Native successors of the TypeScript `attachment-migration-facts`
 /// attachment-storage reconciliation reads: same literals and zero positional
 /// binds. The owner plans each statement; the caller executes it on its open
@@ -121,6 +133,7 @@ const READS: &[NativeReadStatement] = &[
     READ_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE,
     READ_PAYROLL_OTHER_SCHEMA_AVAILABLE,
     READ_FLOW_ROUTING_PERSON_LEGAL_NAME,
+    READ_WORK_UI_HEAD_PLACEMENT,
     READ_ATTACHMENT_MIGRATION_PAYMENT_EXPORTS,
     READ_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS,
 ];
@@ -217,6 +230,19 @@ mod tests {
         assert_eq!(read.bind_count, 2);
         assert_eq!(read.sql.matches('?').count(), 2);
         assert!(is_read(RD_FLOW_ROUTING_PERSON_LEGAL_NAME));
+    }
+
+    #[test]
+    fn work_ui_head_placement_read_plan_is_ledger_free_and_bounded() {
+        let read = read_statement(RD_WORK_UI_HEAD_PLACEMENT).expect("read kind");
+        assert!(read.sql.to_ascii_uppercase().starts_with("SELECT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("INSERT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("UPDATE "));
+        assert!(!read.sql.to_ascii_uppercase().contains("DELETE"));
+        assert_eq!(read.bind_count, 3);
+        assert_eq!(read.sql.matches('?').count(), 3);
+        assert!(read.sql.contains("hr_engagements"));
+        assert!(is_read(RD_WORK_UI_HEAD_PLACEMENT));
     }
 
     #[test]

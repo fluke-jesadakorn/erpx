@@ -9,6 +9,7 @@ import {
   PEOPLE_PAYROLL_RD_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE,
   PEOPLE_PAYROLL_RD_PAYROLL_OTHER_SCHEMA_AVAILABLE,
   PEOPLE_PAYROLL_RD_FLOW_ROUTING_PERSON_LEGAL_NAME,
+  PEOPLE_PAYROLL_RD_WORK_UI_HEAD_PLACEMENT,
   PEOPLE_PAYROLL_RD_ATTACHMENT_MIGRATION_PAYMENT_EXPORTS,
   PEOPLE_PAYROLL_RD_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS,
 } from '../../../packages/server-people_payroll/src/adapters/native-people-payroll-read';
@@ -22,6 +23,7 @@ import {
 import { workReportPeoplePayrollFacts } from '../../../packages/server-people_payroll/src/adapters/work-report-facts';
 import { finalPayCancellationSchemaAvailable } from '../../../packages/server-people_payroll/src/adapters/final-pay-cancellation-sources';
 import { payrollOtherSchemaAvailable } from '../../../packages/server-people_payroll/src/adapters/payroll-other-remittance-sources';
+import { workUiStaffFacts } from '../../../packages/server-people_payroll/src/adapters/work-ui-staff-facts';
 
 const envKey = 'ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG';
 const original = process.env[envKey];
@@ -265,6 +267,33 @@ describe('native People Payroll caller-unit read plan', () => {
     ]);
     expect(bound).toEqual([['company', 'user-1'], ['company', 'user-2']]);
     expect(prepared).toEqual(['SELECT 1 AS row', 'SELECT 1 AS row']);
+  });
+
+  it('exposes the work-UI head-placement read kind with no SQL on the wire', () => {
+    expect(PEOPLE_PAYROLL_RD_WORK_UI_HEAD_PLACEMENT).toBe('people_payroll_rd_work_ui_head_placement');
+    expect(PEOPLE_PAYROLL_RD_WORK_UI_HEAD_PLACEMENT).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+  });
+
+  it('plans the work-UI head-placement read on the caller unit with its binds', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push({ kind: body.kind, values: body.values });
+      return new Response(JSON.stringify({
+        data: { statements: [{ sql: 'SELECT 1 AS row', values: body.values }] },
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+    const { db, bound, prepared } = fakeDb();
+
+    const placement = await workUiStaffFacts(db as never).headPlacement('company', 'department-1', 'person-1');
+    expect(placement).toEqual({ id: 'run-1' });
+
+    expect(bodies).toEqual([{
+      kind: PEOPLE_PAYROLL_RD_WORK_UI_HEAD_PLACEMENT,
+      values: ['company', 'department-1', 'person-1'],
+    }]);
+    expect(bound).toEqual([['company', 'department-1', 'person-1']]);
+    expect(prepared).toEqual(['SELECT 1 AS row']);
   });
 
   it('exposes attachment-storage reconciliation read kinds with no SQL on the wire', () => {
