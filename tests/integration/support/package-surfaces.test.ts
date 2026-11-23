@@ -13,7 +13,7 @@ import { readablePmsSource, readablePmsSourceIds } from "@erpx/server-pms/public
 import { afterEach, beforeAll, beforeEach, expect, it, vi } from "vitest";
 import { applyMigrations, env } from "../../support/runtime-env";
 import { expenseDb as db, expenseFixture, key } from "../../support/helpers/expense-fixture";
-import {supportWorkspace,supportDetail,getSupportTicket,supportWork} from '@erpx/server-support/public/support';
+import {supportDetail,getSupportTicket,supportWork} from '@erpx/server-support/public/support';
 import {seedSupportTicket,seedSupportTicketState} from '../../support/helpers/support-ticket-seed';
 import {seedSupportIncident} from '../../support/helpers/support-incident-seed';
 import { supportEvidence } from "@erpx/server-support/public/support-evidence";
@@ -118,7 +118,7 @@ async function orderTicket() {
 }
 
 it("denies real Support collections, detail and evidence without a purchase", async () => {
-  for (const read of [() => supportWorkspace(f.manager), () => getSupportTicket(f.manager, ticketId), () => supportEvidence(f.manager, ticketId),
+  for (const read of [() => getSupportTicket(f.manager, ticketId), () => supportEvidence(f.manager, ticketId),
     () => incidentWorkspace(f.manager), () => supportSlaWorkspace(f.manager), () => supportSessionWorkspace(f.manager)])
     await expect(read()).rejects.toMatchObject({ status: 403, code: "PACKAGE_REQUIRED" });
 });
@@ -199,10 +199,10 @@ it("forwards Executive customer evidence through the native transport without a 
 
 it("intersects real workspace/detail controls with draining, expiry and retained inactive history", async () => {
   await grant("active"); await triage();
-  expect((await supportWorkspace(f.manager)).items.map(row => row.id)).toContain(ticketId);
+  expect(await getSupportTicket(f.manager, ticketId)).toMatchObject({ id: ticketId });
   expect((await supportDetail(f.manager, ticketId)).canManage).toBe(true);
   await grant("draining");
-  expect(await supportWorkspace(f.manager)).toMatchObject({ canCreate: false, canCreateOrder: false, sources: [] });
+
   expect(await supportDetail(f.manager, ticketId)).toMatchObject({ canManage: true, canReopen: false });
   expect(await supportSlaWorkspace(f.manager)).toMatchObject({ canCreate: false, canManage: true });
   expect(await supportEvidence(f.manager, ticketId)).toMatchObject({ canChange: true });
@@ -211,7 +211,7 @@ it("intersects real workspace/detail controls with draining, expiry and retained
   await seedSupportTicketState(db, ticketId, { action: "cancel", status: "cancelled", actorId: f.manager.userId, reason: "Close the existing report" });
   await grant("draining"); await grant("inactive");
   expect(await supportDetail(f.manager, ticketId)).toMatchObject({ canManage: false, canReopen: false, canWork: false });
-  expect((await supportWorkspace(f.manager)).items).toHaveLength(1);
+
   expect(await getSupportTicket(f.manager, ticketId)).toMatchObject({ status: "cancelled" });
 });
 
@@ -449,7 +449,7 @@ it('reads a native managed Field case through retained Support consumers after t
    await tx.prepare("INSERT INTO company_package_grant_events(id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at)SELECT ?,company_id,package_id,?,'native-support-consumer',NULL,jsonb_build_object('companyId',company_id,'packageId',package_id,'packageVersion',package_version,'state',state,'startsAt',starts_at,'endsAt',ends_at,'version',version,'reason',reason,'evidence',evidence),? FROM company_package_grants WHERE company_id=? AND package_id='support'").bind(key(),f.owner.userId,now,f.company).run();
   });
   const helpdesk={...f.owner,modules:['field_service','support']};
-  expect((await supportWorkspace(helpdesk)).items.some(row=>row.id===ticket)).toBe(true);
+  expect(await getSupportTicket(helpdesk, ticket)).toMatchObject({ id: ticket });
   expect(await supportDetail(helpdesk,ticket)).toMatchObject({managedInFieldService:true,canWork:false,canManage:false,canReport:false,canConfirm:false,canReopen:false,slaPolicies:[]});
   expect((await supportWork(helpdesk)).some(row=>row.id===ticket)).toBe(false);
   expect(await supportEvidence(helpdesk,ticket)).toMatchObject({canChange:false,canShare:false});

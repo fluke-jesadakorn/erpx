@@ -1,2 +1,17 @@
 /** Compatibility entry; its legacy implementation is tracked in ownership.json. */
-export { supportCreateSchema, supportChangeSchema, supportTicketSourceGuards, getSupportTicket, supportWorkspace, supportWorkspacePurchaseAccess, supportRecipients, supportDetail, supportWork } from "@erpx/server-support/adapters/support";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import type { SupportRow } from "@erpx/server-support/application/command";
+
+/** Type-only compatibility for downstream `typeof` projections; no runtime TypeScript reader remains. */
+export type SupportWorkspaceData = {
+  items: SupportRow[];
+  sources: SupportRow[];
+  canCreate: boolean;
+  canCreateOrder: boolean;
+  ownReportsOnly: boolean;
+};
+export type SupportRecipient = { id: string; name: string };
+export declare const supportWorkspace: (a: WorkContext) => Promise<SupportWorkspaceData>;
+export declare const supportRecipients: (a: WorkContext, orderId: string) => Promise<SupportRecipient[]>;
+
+export { supportCreateSchema, supportChangeSchema, supportTicketSourceGuards, getSupportTicket, supportWorkspacePurchaseAccess, supportDetail, supportWork } from "@erpx/server-support/adapters/support";

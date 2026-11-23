@@ -16,7 +16,8 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import { editedCustomerParty } from "@erpx/server-finance/public/document-posting-preview";
 import { customerWorkspaceDirectory } from "@erpx/server-sales/public/sales-customers";
 import { crmIdentities } from "@erpx/server-crm/public/crm-identities";
-import {supportWorkspace,supportRecipients} from '@erpx/server-support/public/support';
+import { createNativeSupportReader } from "@erpx/feature-support/lib/native-support-read";
+import { createNextNativeSupportReader } from "../../adapters/server/next-native-support-read";
 import { readSourceRecord } from "@erpx/server-records/public/source-record-policy";
 import { customerIdentityWorkspace } from "@erpx/server-customer_authority/public/customer-identity-changes";
 import { customerDuplicateWorkspace } from "@erpx/server-customer_authority/public/customer-duplicates";
@@ -25,6 +26,20 @@ import { nativeCustomerAccessWorkspace } from "@erpx/feature-sales/public/native
 import { HubEmpty, HubPagination, HubSegments } from "@erpx/feature-sales/components/customers/hub-shell";
 import { HubCreate, HubCursor, HubFilters, HubTable, hubPage } from "@erpx/feature-sales/components/customers/hub-list";
 import styles from "@erpx/feature-sales/components/customers/hub.module.css";
+
+function nativeSupportReader() {
+  const config = process.env.ERPX_NATIVE_SUPPORT_READ_CONFIG;
+  if (!config) throw new ApiError(503, "NATIVE_SUPPORT_READ_UNAVAILABLE", "The native Support reader is unavailable.");
+  return createNativeSupportReader(config);
+}
+async function supportWorkspace(actor: WorkContext) {
+  const reader = nativeSupportReader();
+  return createNextNativeSupportReader(actor)((incoming, holdingSlug) => reader.workspace(incoming, holdingSlug));
+}
+async function supportRecipients(actor: WorkContext, orderId: string) {
+  const reader = nativeSupportReader();
+  return createNextNativeSupportReader(actor)((incoming, holdingSlug) => reader.recipients(incoming, holdingSlug, orderId));
+}
 
 export async function CustomerDirectoryView({ actor, base, query }: { actor: WorkContext; base: string; query: HubQuery }) {
   const data = await customerWorkspaceDirectory(actor, query), canCreate = hasPermission(actor, "commerce.sales"), editing = queryValue(query, "edit");

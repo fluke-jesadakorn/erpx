@@ -1,4 +1,5 @@
-import {describe,expect,it} from 'vitest';
+import {describe,expect,it,vi} from 'vitest';
+vi.mock('server-only',()=>({}));
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {createNativeSupportReader,type SupportReadTransport} from '../../../packages/feature-support/src/adapters/server/native-support-read';
 
