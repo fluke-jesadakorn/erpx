@@ -244,6 +244,16 @@ describe("native Brand presentation reads", () => {
     await expect(failing(409, "COMPANY_REQUIRED").storefront(actor, incoming)).rejects.toMatchObject({ code: "COMPANY_REQUIRED", status: 409 });
   });
 
+  it("keeps the storefront client exact to the native service payload shape", async () => {
+    const withoutRevision = { ...storefrontRow } as Record<string, unknown>;
+    delete withoutRevision.identityRevision;
+    const { client } = stub(() => withoutRevision);
+    expect(await client.storefront(actor, incoming)).toEqual(withoutRevision);
+    await expect(
+      stub(() => ({ ...storefrontRow, unexpected: "shape drift" })).client.storefront(actor, incoming),
+    ).rejects.toMatchObject({ code: "NATIVE_BRAND_PRESENTATION_RESPONSE_INVALID", status: 502 });
+  });
+
   it("maps the native evidence row and keeps the retained null row", async () => {
     const row = { id: "branch-1", branch_name: "North Branch", document_mode: "both", updated_at: 1_700_000_000_000, primary_attachment_id: null, inverse_attachment_id: "att-2" };
     const { client, calls } = stub(() => row);

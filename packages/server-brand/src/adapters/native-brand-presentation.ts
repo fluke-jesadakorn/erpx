@@ -59,6 +59,19 @@ const CONFIG_ENV = "ERPX_NATIVE_BRANDING_CONFIG";
 const RESPONSE_LIMIT = 1024 * 1024;
 const MAX_BRANCHES = 5_000;
 const DOCUMENT_MODES: readonly DocumentBrandMode[] = ["holding", "branch", "both"];
+/** Exact native `StorefrontAppBrand` shape. `identityRevision` is omitted by the
+ * owner when the storefront has no published identity. A payload that drifts
+ * from this shape is refused instead of being projected with fields dropped. */
+const STOREFRONT_FIELDS: readonly string[] = [
+  "companyId",
+  "holdingSlug",
+  "companySlug",
+  "companyName",
+  "shortName",
+  "accentColor",
+  "logoUrl",
+  "identityRevision",
+];
 
 const object = (value: unknown): value is Row =>
   value !== null && typeof value === "object" && !Array.isArray(value);
@@ -121,7 +134,8 @@ function toStorefrontBrand(value: unknown): StorefrontAppBrand {
     typeof value.accentColor !== "string" ||
     !/^#[0-9a-fA-F]{6}$/.test(value.accentColor) ||
     !mediaUrl(value.logoUrl) ||
-    !(value.identityRevision === undefined || timestamp(value.identityRevision))
+    !(value.identityRevision === undefined || timestamp(value.identityRevision)) ||
+    Object.keys(value).some((key) => !STOREFRONT_FIELDS.includes(key))
   )
     return failure("NATIVE_BRAND_PRESENTATION_RESPONSE_INVALID", 502);
   return {
