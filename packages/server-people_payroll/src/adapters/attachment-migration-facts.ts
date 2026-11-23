@@ -1,2 +1,5 @@
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';export function attachmentMigrationpeoplepayroll(database:SqlDatabase){return {readReconcileAttachmentStoragePaymentExports(){return database.prepare("SELECT id,file_key,file_checksum FROM hr_payment_batches WHERE file_key IS NOT NULL ORDER BY id").all<{id:string;file_key:string;file_checksum:string|null}>();},
-readReconcileAttachmentStoragePayrollReviewExports(){return database.prepare("SELECT id,file_key,checksum_sha256 FROM hr_payroll_review_exports ORDER BY id").all<{id:string;file_key:string;checksum_sha256:string}>();}};}
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import {nativePeoplePayrollReadAll,PEOPLE_PAYROLL_RD_ATTACHMENT_MIGRATION_PAYMENT_EXPORTS,PEOPLE_PAYROLL_RD_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS} from './native-people-payroll-read';
+export function attachmentMigrationpeoplepayroll(database:SqlDatabase){return {
+readReconcileAttachmentStoragePaymentExports(){return nativePeoplePayrollReadAll<{id:string;file_key:string;file_checksum:string|null}>(PEOPLE_PAYROLL_RD_ATTACHMENT_MIGRATION_PAYMENT_EXPORTS,[],database);},
+readReconcileAttachmentStoragePayrollReviewExports(){return nativePeoplePayrollReadAll<{id:string;file_key:string;checksum_sha256:string}>(PEOPLE_PAYROLL_RD_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS,[],database);}};}

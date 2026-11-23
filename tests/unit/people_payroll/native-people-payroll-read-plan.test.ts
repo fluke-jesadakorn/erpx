@@ -9,7 +9,10 @@ import {
   PEOPLE_PAYROLL_RD_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE,
   PEOPLE_PAYROLL_RD_PAYROLL_OTHER_SCHEMA_AVAILABLE,
   PEOPLE_PAYROLL_RD_FLOW_ROUTING_PERSON_LEGAL_NAME,
+  PEOPLE_PAYROLL_RD_ATTACHMENT_MIGRATION_PAYMENT_EXPORTS,
+  PEOPLE_PAYROLL_RD_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS,
 } from '../../../packages/server-people_payroll/src/adapters/native-people-payroll-read';
+import { attachmentMigrationpeoplepayroll } from '../../../packages/server-people_payroll/src/adapters/attachment-migration-facts';
 import { createFlowRoutingSourceRepository } from '../../../packages/server-people_payroll/src/adapters/workflow-flow-routing-facts';
 import { RecordDetailsPeoplePayrollOwnedFacts } from '../../../packages/server-people_payroll/src/adapters/records-record-details-owned-facts';
 import {
@@ -261,6 +264,39 @@ describe('native People Payroll caller-unit read plan', () => {
       { kind: PEOPLE_PAYROLL_RD_FLOW_ROUTING_PERSON_LEGAL_NAME, values: ['company', 'user-2'] },
     ]);
     expect(bound).toEqual([['company', 'user-1'], ['company', 'user-2']]);
+    expect(prepared).toEqual(['SELECT 1 AS row', 'SELECT 1 AS row']);
+  });
+
+  it('exposes attachment-storage reconciliation read kinds with no SQL on the wire', () => {
+    expect(PEOPLE_PAYROLL_RD_ATTACHMENT_MIGRATION_PAYMENT_EXPORTS).toBe('people_payroll_rd_attachment_migration_payment_exports');
+    expect(PEOPLE_PAYROLL_RD_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS).toBe('people_payroll_rd_attachment_migration_payroll_review_exports');
+    for (const kind of [PEOPLE_PAYROLL_RD_ATTACHMENT_MIGRATION_PAYMENT_EXPORTS, PEOPLE_PAYROLL_RD_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS]) {
+      expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+    }
+  });
+
+  it('plans both zero-bind attachment reconciliation reads on the caller unit', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push({ kind: body.kind, values: body.values });
+      return new Response(JSON.stringify({
+        data: { statements: [{ sql: 'SELECT 1 AS row', values: body.values }] },
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+    const { db, bound, prepared } = fakeDb();
+
+    const facts = attachmentMigrationpeoplepayroll(db as never);
+    const exports = await facts.readReconcileAttachmentStoragePaymentExports();
+    const reviews = await facts.readReconcileAttachmentStoragePayrollReviewExports();
+    expect(exports).toMatchObject({ results: [{ id: 'run-1' }] });
+    expect(reviews).toMatchObject({ results: [{ id: 'run-1' }] });
+
+    expect(bodies).toEqual([
+      { kind: PEOPLE_PAYROLL_RD_ATTACHMENT_MIGRATION_PAYMENT_EXPORTS, values: [] },
+      { kind: PEOPLE_PAYROLL_RD_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS, values: [] },
+    ]);
+    expect(bound).toEqual([[], []]);
     expect(prepared).toEqual(['SELECT 1 AS row', 'SELECT 1 AS row']);
   });
 

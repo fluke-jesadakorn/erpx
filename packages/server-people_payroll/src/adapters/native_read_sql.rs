@@ -91,6 +91,28 @@ const READ_FLOW_ROUTING_PERSON_LEGAL_NAME: NativeReadStatement = NativeReadState
     bind_count: 2,
 };
 
+/// Native successors of the TypeScript `attachment-migration-facts`
+/// attachment-storage reconciliation reads: same literals and zero positional
+/// binds. The owner plans each statement; the caller executes it on its open
+/// unit with no binds.
+pub const RD_ATTACHMENT_MIGRATION_PAYMENT_EXPORTS: &str = "people_payroll_rd_attachment_migration_payment_exports";
+const SQL_ATTACHMENT_MIGRATION_PAYMENT_EXPORTS: &str = "SELECT id,file_key,file_checksum FROM hr_payment_batches WHERE file_key IS NOT NULL ORDER BY id";
+const READ_ATTACHMENT_MIGRATION_PAYMENT_EXPORTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_ATTACHMENT_MIGRATION_PAYMENT_EXPORTS,
+    sql: SQL_ATTACHMENT_MIGRATION_PAYMENT_EXPORTS,
+    bind_count: 0,
+};
+
+/// Native successor of the TypeScript `attachment-migration-facts`
+/// payroll-review-export reconciliation read: same literal and zero binds.
+pub const RD_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS: &str = "people_payroll_rd_attachment_migration_payroll_review_exports";
+const SQL_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS: &str = "SELECT id,file_key,checksum_sha256 FROM hr_payroll_review_exports ORDER BY id";
+const READ_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS,
+    sql: SQL_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS,
+    bind_count: 0,
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_RECORD_SUPPLEMENT_ROWS,
     READ_ORG_ROSTER_EXIT_ENGAGEMENT_IDS,
@@ -99,6 +121,8 @@ const READS: &[NativeReadStatement] = &[
     READ_FINAL_PAY_CANCELLATION_SCHEMA_AVAILABLE,
     READ_PAYROLL_OTHER_SCHEMA_AVAILABLE,
     READ_FLOW_ROUTING_PERSON_LEGAL_NAME,
+    READ_ATTACHMENT_MIGRATION_PAYMENT_EXPORTS,
+    READ_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -193,5 +217,23 @@ mod tests {
         assert_eq!(read.bind_count, 2);
         assert_eq!(read.sql.matches('?').count(), 2);
         assert!(is_read(RD_FLOW_ROUTING_PERSON_LEGAL_NAME));
+    }
+
+    #[test]
+    fn attachment_migration_reconciliation_read_plans_are_ledger_free_and_zero_bound() {
+        for (kind, table) in [
+            (RD_ATTACHMENT_MIGRATION_PAYMENT_EXPORTS, "hr_payment_batches"),
+            (RD_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS, "hr_payroll_review_exports"),
+        ] {
+            let read = read_statement(kind).expect("read kind");
+            assert!(read.sql.to_ascii_uppercase().starts_with("SELECT"));
+            assert!(!read.sql.to_ascii_uppercase().contains("INSERT"));
+            assert!(!read.sql.to_ascii_uppercase().contains("UPDATE"));
+            assert!(!read.sql.to_ascii_uppercase().contains("DELETE"));
+            assert_eq!(read.bind_count, 0);
+            assert_eq!(read.sql.matches('?').count(), 0);
+            assert!(read.sql.contains(table));
+            assert!(is_read(kind));
+        }
     }
 }
