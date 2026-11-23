@@ -277,3 +277,24 @@ pub fn workflow_wave3_execute(
             .collect(),
     )
 }
+
+/// Build the executing holding-keyed router with one pool per holding. The
+/// route path is holding-parameterized, so all holding targets must live in a
+/// single merged router; merging one router per holding panics on the
+/// duplicate path. Each holding keeps its own pool-backed backend.
+pub fn workflow_wave3_execute_pools(
+    pairs: Vec<(String, erpx_server_runtime::public::postgres::DatabasePool)>,
+) -> Result<Router, BusinessError> {
+    workflow_wave3_execute_router(
+        pairs
+            .into_iter()
+            .map(|(holding, pool)| {
+                (
+                    holding,
+                    Arc::new(WorkflowWave3ExecuteBackendImpl::new(pool))
+                        as Arc<dyn WorkflowWave3ExecuteBackend>,
+                )
+            })
+            .collect(),
+    )
+}

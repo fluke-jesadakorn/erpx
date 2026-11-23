@@ -3204,15 +3204,22 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_WORKFLOW_WAVE3_CONFIGURATION_INVALID")?,
             );
         }
-        for (i, holding) in config.holdings.iter().enumerate() {
-            router = router.merge(
-                crate::workflow_wave3::workflow_wave3_execute(
-                    pools[i + 1].clone(),
-                    vec![holding.registration.holding_id.as_str().to_owned()],
-                )
-                .map_err(|_| "PRIVATE_API_WORKFLOW_WAVE3_CONFIGURATION_INVALID")?,
-            );
-        }
+        router = router.merge(
+            crate::workflow_wave3::workflow_wave3_execute_pools(
+                config
+                    .holdings
+                    .iter()
+                    .enumerate()
+                    .map(|(i, holding)| {
+                        (
+                            holding.registration.holding_id.as_str().to_owned(),
+                            pools[i + 1].clone(),
+                        )
+                    })
+                    .collect(),
+            )
+            .map_err(|_| "PRIVATE_API_WORKFLOW_WAVE3_CONFIGURATION_INVALID")?,
+        );
         let catalogue = Arc::new(
             current_package_catalogue().map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
         );
