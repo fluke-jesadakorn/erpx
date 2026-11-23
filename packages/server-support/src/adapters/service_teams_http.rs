@@ -605,11 +605,13 @@ mod tests {
                 json!(["company", "it", "company", null, null]),
                 200,
             ),
+            ("support_rd_service_team_name", json!(["team-1", "company"]), 200),
             (
                 "support_rd_service_coverage_history",
                 json!(["company", "extra"]),
                 422,
             ),
+            ("support_rd_service_team_name", json!(["team-1"]), 422),
             ("SELECT 1 FROM service_teams", json!([]), 422),
         ] {
             let response = block_on(plan_read(

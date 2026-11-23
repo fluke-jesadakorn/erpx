@@ -40,9 +40,22 @@ const READ_SERVICE_TEAM_COVERAGE: NativeSupportReadStatement = NativeSupportRead
     bind_count: 5,
 };
 
+/// Native successor of the TypeScript service-team name lookups used by the
+/// records employee-request and workflow flow-routing facts. The caller binds
+/// `[team_id, company_id]` and receives the single team name row.
+pub const RD_SERVICE_TEAM_NAME: &str = "support_rd_service_team_name";
+const SQL_SERVICE_TEAM_NAME: &str =
+    "SELECT name FROM service_teams WHERE id=? AND company_id=?";
+const READ_SERVICE_TEAM_NAME: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_SERVICE_TEAM_NAME,
+    sql: SQL_SERVICE_TEAM_NAME,
+    bind_count: 2,
+};
+
 const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SERVICE_COVERAGE_HISTORY,
     READ_SERVICE_TEAM_COVERAGE,
+    READ_SERVICE_TEAM_NAME,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -67,6 +80,11 @@ mod tests {
                 SQL_SERVICE_TEAM_COVERAGE,
                 5usize,
             ),
+            (
+                RD_SERVICE_TEAM_NAME,
+                SQL_SERVICE_TEAM_NAME,
+                2usize,
+            ),
         ];
         for (kind, sql, binds) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -83,7 +101,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 2);
+        assert_eq!(STATEMENTS.len(), 3);
     }
 
     #[test]
@@ -94,5 +112,7 @@ mod tests {
         let statement = read_statement(RD_SERVICE_TEAM_COVERAGE).expect("coverage read");
         assert_eq!(statement.bind_count, 5);
         assert!(statement.bind_count != 1);
+        let name = read_statement(RD_SERVICE_TEAM_NAME).expect("team name read");
+        assert_eq!(name.bind_count, 2);
     }
 }

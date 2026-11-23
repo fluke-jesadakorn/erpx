@@ -19,6 +19,7 @@ type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: 
 /** Read-kind ids shared with the Rust read registry in `native_support_read_sql.rs`. */
 export const SUPPORT_RD_SERVICE_COVERAGE_HISTORY = 'support_rd_service_coverage_history';
 export const SUPPORT_RD_SERVICE_TEAM_COVERAGE = 'support_rd_service_team_coverage';
+export const SUPPORT_RD_SERVICE_TEAM_NAME = 'support_rd_service_team_name';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'SUPPORT_NATIVE_READ_UNAVAILABLE', 'The native Support read service is unavailable.');
