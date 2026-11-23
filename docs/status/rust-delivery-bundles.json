@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7335,
+    "revision": 7339,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -125274,7 +125274,7 @@
         "owner": "pms",
         "title": "pms TS read tail native cutover (r8)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -125286,28 +125286,41 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wD09pms",
-          "claimedAt": "2026-11-23T23:30:57.664Z",
-          "heartbeatAt": "2026-11-23T23:30:58.574Z",
-          "expiresAt": "2026-11-24T00:00:58.574Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pms/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "c699c0e4c",
+            "owner": "pms",
+            "before": 526,
+            "after": 525,
+            "note": "PMS property config point read via PMS_RD_PROPERTY_CONFIG."
+          },
+          {
+            "command": "cargo check -p erpx-server-pms + lib native (8) + http (5)",
+            "result": "passed",
+            "sourceSha": "c699c0e4c"
+          },
+          {
+            "command": "vitest native-pms-read-plan (22) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "c699c0e4c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to a mounted native read; record a strictly lower count.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-h",
+          "runId": "run-20261123-i",
           "agentId": "wD09pms",
-          "at": "2026-11-23T23:30:50.417Z",
+          "at": "2026-11-23T23:32:58.440Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired at 23:30 during active read-tail and composition mounts; WIP reviewed, slices integrated continuously",
-          "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to a mounted native read; record a strictly lower count."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -125697,6 +125710,42 @@
           "nextAction": "Migrate the four pos_payments by-id FOR UPDATE copies through a caller-unit registry statement preserving lock semantics; record a strictly lower count."
         },
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pms.read-tail-r9",
+        "goalId": "G4",
+        "owner": "pms",
+        "title": "pms TS read tail native cutover (round 9)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pms/src/**",
+          "tests/unit/pms/**",
+          "tests/integration/pms/**"
+        ],
+        "resources": [
+          "owner:pms"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wDI1pms",
+          "claimedAt": "2026-11-23T23:32:58.627Z",
+          "heartbeatAt": "2026-11-23T23:32:58.627Z",
+          "expiresAt": "2026-11-24T00:02:58.627Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: remaining hospitality-day-controls transfer/booking count reads or hospitality-setup properties read; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -125705,7 +125754,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 665,
+      "totalPackets": 666,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -125713,13 +125762,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 302,
+        "blocked": 303,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-23T23:30:58.577Z",
+    "updatedAt": "2026-11-23T23:32:58.630Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
