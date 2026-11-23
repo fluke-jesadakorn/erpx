@@ -141,6 +141,19 @@ const READ_BILL_MATCH_VARIANCE: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `supplier-bills` `receiptHistory` read.
+/// The owner plans this literal; the caller executes it on its open unit with
+/// the same `[fulfillmentId]` bind.
+pub const RD_BILL_MATCH_RECEIPT_HISTORY: &str = "procurement_rd_bill_match_receipt_history";
+const SQL_BILL_MATCH_RECEIPT_HISTORY: &str =
+    "SELECT br.match_id id FROM procurement_bill_match_receipts br WHERE br.fulfillment_id=? LIMIT 1";
+const READ_BILL_MATCH_RECEIPT_HISTORY: NativeReadStatement = NativeReadStatement {
+    kind: RD_BILL_MATCH_RECEIPT_HISTORY,
+    sql: SQL_BILL_MATCH_RECEIPT_HISTORY,
+    bind_count: 1,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_INVOICE_MATCH_FOR_FINANCE,
     READ_REQUEST_QUOTATION,
@@ -151,6 +164,7 @@ const READS: &[NativeReadStatement] = &[
     READ_REQUEST_ALLOCATIONS,
     READ_REQUEST_ORDER_LINK,
     READ_BILL_MATCH_VARIANCE,
+    READ_BILL_MATCH_RECEIPT_HISTORY,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -178,6 +192,7 @@ mod tests {
         assert!(is_read(RD_REQUEST_ALLOCATIONS));
         assert!(is_read(RD_REQUEST_ORDER_LINK));
         assert!(is_read(RD_BILL_MATCH_VARIANCE));
+        assert!(is_read(RD_BILL_MATCH_RECEIPT_HISTORY));
         assert!(!is_read("procurement_stmt_1"));
         assert!(read_statement("not_a_native_read").is_none());
     }
@@ -225,6 +240,11 @@ mod tests {
                 RD_BILL_MATCH_VARIANCE,
                 1usize,
                 "procurement_bill_match_lines",
+            ),
+            (
+                RD_BILL_MATCH_RECEIPT_HISTORY,
+                1usize,
+                "procurement_bill_match_receipts",
             ),
         ] {
             let read = read_statement(kind).expect("read kind");
@@ -334,6 +354,20 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 1);
         assert_eq!(read.scope, "holding");
         assert!(is_read(RD_BILL_MATCH_RECEIPTS));
+        assert!(!is_read("procurement_stmt_1"));
+    }
+
+    #[test]
+    fn bill_match_receipt_history_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_BILL_MATCH_RECEIPT_HISTORY).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT br.match_id id FROM procurement_bill_match_receipts br WHERE br.fulfillment_id=? LIMIT 1"
+        );
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_BILL_MATCH_RECEIPT_HISTORY));
         assert!(!is_read("procurement_stmt_1"));
     }
 }
