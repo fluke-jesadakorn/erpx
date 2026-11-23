@@ -432,3 +432,12 @@ test('actual Sales service owner reader retains Department history while origina
  expect(hasPermission(department,'commerce.read')).toBe(true);expect(hasPermission(department,'commerce.sales')).toBe(true);expect(hasPermission(department,'inventory.prepare')).toBe(false);const view=await reader.read(department);expect(view).toMatchObject({available:true,canCreate:false,currency:'THB',unavailableReason:null,products:[{id:'service',name:'Company service'}]});expect(view.contextKey).toMatch(/^[a-f0-9]{64}$/);expect(bound).toEqual([['company']]);expect(queued.mock.calls.every(call=>call[1]===department)).toBe(true);await expect(reader.createAuthority(department)).rejects.toMatchObject({status:403,code:'SALES_SERVICE_SCOPE_REQUIRED'});
  const html=renderToStaticMarkup(createElement(SalesServiceProducts,{base:'/holdings/acme/branches/branch/departments/department',initial:view}));expect(html).toContain('Company service');expect(html).not.toContain('Add service item');expect(html).toContain('authorized product preparer');
 });
+
+test('keeps one fixed Sales follow-up source projection for the enforced and non-enforced metric readers',async()=>{
+ const {readFile}=await import('node:fs/promises'),source=await readFile(new URL("../../../packages/server-sales/src/adapters/metric-purchases.ts",import.meta.url),'utf8');
+ expect(source).toContain('const followupSourceSelect=');
+ expect(source.match(/SELECT followup\.\*,actual\.branch_id,actual\.department_id,actual\.kind order_kind FROM customer_followups followup JOIN /g)).toHaveLength(1);
+ expect(source.match(/followupSourceSelect/g)).toHaveLength(3);
+ expect(source).toContain('return {sql:followupSourceSelect,args:[] as unknown[]}');
+ expect(source).toContain('`${followupSourceSelect} JOIN (${crmFinanceCustomerSources}) customer');
+});
