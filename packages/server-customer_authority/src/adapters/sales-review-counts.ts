@@ -1,8 +1,27 @@
-import { finalRootOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/final-root-owner-projection-sources";
 import 'server-only';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-function orderScope(actor: WorkContext, alias = "o") {
-  return { sql: `${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?)`, args: [actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId] };
+import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+import { CA_RD_SALES_REVIEW_COUNTS, nativeOwnerReadAll } from './native-owner-read';
+
+/**
+ * Native owner read. The pending identity-change, duplicate-review and access
+ * counts are planned by the Customer Authority owner registry and executed on
+ * the caller's already-open unit. No TypeScript SQL remains for this family.
+ */
+export async function salesCustomerReviewCounts(write: SqlDatabase, actor: WorkContext) {
+  const values = [
+    actor.companyId,
+    actor.companyId,
+    actor.companyId,
+    actor.branchId,
+    actor.branchId,
+    actor.departmentId,
+    actor.departmentId,
+  ];
+  return (await nativeOwnerReadAll<{ kind: string; count: number }>(
+    CA_RD_SALES_REVIEW_COUNTS,
+    values,
+    write,
+    actor.holdingSlug,
+  )).results;
 }
-export async function salesCustomerReviewCounts(write:SqlDatabase,actor:WorkContext){const s=orderScope(actor);return (await write.prepare(`SELECT 'identity' kind,COUNT(*) count FROM customer_identity_changes WHERE company_id=? AND status='pending' UNION ALL SELECT 'duplicates',COUNT(*) FROM customer_duplicate_reviews WHERE company_id=? AND status='pending' UNION ALL SELECT 'access',COUNT(*) FROM customer_access_bindings b JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=b.order_id AND o.company_id=b.company_id WHERE ${s.sql} AND b.status='pending'`).bind(actor.companyId, actor.companyId, ...s.args).all<{ kind: string; count: number }>()).results;}

@@ -182,6 +182,55 @@ fn post(path: &str, host: &str, key: Option<&str>, body: &str) -> String {
 }
 
 #[tokio::test]
+async fn command_plan_route_returns_owner_read_statement() {
+    let router = customer_access_http_router(vec![CustomerAccessHttpTarget {
+        host: "acme.example.test".into(),
+        holding_slug: "acme".into(),
+        origin: "https://acme.example.test".into(),
+        backend: Arc::new(Noop),
+    }])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+
+    let (status, body, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/customer-access/command-plan",
+            "acme.example.test",
+            Some("ca-read-plan-1"),
+            r#"{"kind":"customer_authority_rd_sales_review_counts","values":["company","company","company",null,null,null,null]}"#,
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    let sql = body["data"]["statements"][0]["sql"]
+        .as_str()
+        .expect("planned sql");
+    assert!(sql.contains("customer_identity_changes"));
+    assert!(sql.contains("customer_duplicate_reviews"));
+    assert!(sql.contains("customer_access_bindings"));
+    assert_eq!(body["data"]["statements"][0]["values"].as_array().unwrap().len(), 7);
+
+    let (status, _, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/customer-access/command-plan",
+            "acme.example.test",
+            Some("ca-read-plan-2"),
+            r#"{"kind":"unknown_read_kind","values":[]}"#,
+        ),
+    )
+    .await;
+    assert_ne!(status, 200);
+
+    server.abort();
+}
+
+#[tokio::test]
 async fn actual_router_forwards_access_reads_and_commands() {
     let seen = Arc::new(Mutex::new(Vec::new()));
     let router = customer_access_http_router(vec![

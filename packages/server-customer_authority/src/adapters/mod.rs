@@ -4,6 +4,7 @@ pub mod duplicates;
 pub mod duplicates_http;
 pub mod identity_http;
 pub mod identity_postgres;
+pub mod owner_read_sql;
 pub mod portal_enrollment;
 pub mod portal_enrollment_http;
 pub mod portal_evidence;

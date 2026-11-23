@@ -8,9 +8,10 @@
 use crate::domain::access::{request_invalid, source_not_found};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
-    StatusCode, body::to_bytes, header, routing::get, serde_json,
+    StatusCode, body::to_bytes, header, routing::get, routing::post, serde_json,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind, RecordId};
+use serde::Deserialize;
 use serde_json::Value;
 use std::collections::BTreeMap;
 use std::{future::Future, pin::Pin, sync::Arc};
@@ -88,6 +89,15 @@ pub struct CustomerAccessHttpTarget {
 
 struct CustomerAccessHttpState {
     targets: BTreeMap<(String, String), CustomerAccessHttpTarget>,
+}
+
+/// Owner-unit read plan request. Only an allow-listed kind and bounded
+/// positional values cross the wire; no SQL is ever accepted from a caller.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+struct OwnerReadPlanBody {
+    kind: String,
+    values: Vec<Value>,
 }
 
 fn missing() -> BusinessError {
@@ -232,6 +242,43 @@ fn strict_key(headers: &HeaderMap) -> Result<String, BusinessError> {
     Ok(value.to_owned())
 }
 
+/// Plan an owner-owned caller-unit read. The mounted customer-access router
+/// resolves the exact Holding target; the allow-listed read kind selects the
+/// exact statement in the owner read registry, which the TypeScript caller
+/// prepares and executes on its own open unit. Reads carry no write ledger and
+/// never execute here.
+async fn plan_read(
+    State(state): State<Arc<CustomerAccessHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async {
+        let _target = target(&state, &headers, &slug)?;
+        if request.uri().query().is_some() {
+            return Err(malformed());
+        }
+        let bytes = to_bytes(request.into_body(), BODY_LIMIT)
+            .await
+            .map_err(|_| malformed())?;
+        let body: OwnerReadPlanBody =
+            serde_json::from_slice(&bytes).map_err(|_| malformed())?;
+        let read = crate::adapters::owner_read_sql::read_statement(&body.kind)
+            .ok_or_else(malformed)?;
+        if body.values.len() != read.bind_count {
+            return Err(malformed());
+        }
+        Ok(serde_json::json!({
+            "statements": [{ "sql": read.sql, "values": body.values }]
+        }))
+    }
+    .await;
+    match result {
+        Ok(data) => bounded(serde_json::json!({"data": data})),
+        Err(error) => error_response(error),
+    }
+}
+
 pub fn customer_access_http_router(
     targets: Vec<CustomerAccessHttpTarget>,
 ) -> Result<Router, BusinessError> {
@@ -259,6 +306,10 @@ pub fn customer_access_http_router(
         .route(
             "/api/v1/holdings/{holding_slug}/customer-access/{binding_id}/invitations",
             get(read_invitation_history).post(invite),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/customer-access/command-plan",
+            post(plan_read),
         )
         .with_state(Arc::new(CustomerAccessHttpState {
             targets: configured,

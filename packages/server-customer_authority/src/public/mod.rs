@@ -5,6 +5,7 @@ pub mod duplicates;
 pub mod duplicates_http;
 pub mod identity;
 pub mod identity_http;
+pub mod owner_read;
 pub mod portal_enrollment;
 pub mod portal_evidence;
 pub mod portal_invitation_delivery;
