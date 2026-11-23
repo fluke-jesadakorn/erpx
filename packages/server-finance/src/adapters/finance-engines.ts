@@ -1,6 +1,6 @@
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { nativeFinanceEngines } from '@erpx/server-collaboration/adapters/native-finance-engines';
-import {financeCloseManufacturingSource} from "@erpx/server-manufacturing/public/finance-close-source";
+import {nativePeriodCloseReadiness} from '@erpx/server-finance/adapters/finance-workspace';
 import { createFinanceEngines } from '@erpx/server-finance/application/engines';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import "server-only";
@@ -29,7 +29,7 @@ function engineService(provided?: SqlDatabase) {
                 { key: "draft-journals", query: "SELECT count(*) n FROM finance_journals WHERE company_id=? AND period_id=? AND status IN ('draft','in_review')", args: [actor.companyId, periodId] },
                 { key: "draft-invoices", query: "SELECT count(*) n FROM finance_invoices WHERE company_id=? AND status IN ('draft','in_review') AND invoice_date BETWEEN ? AND ?", args: [actor.companyId, period.start_date, period.end_date] },
                 { key: "unmatched-bank", query: "SELECT count(*) n FROM finance_bank_transactions WHERE company_id=? AND match_status IN ('unmatched','proposed') AND transaction_date BETWEEN ? AND ?", args: [actor.companyId, period.start_date, period.end_date] },
-                { key: "open-manufacturing", query: financeCloseManufacturingSource(write).engineQuery, args: [actor.companyId] },
+                { key: "open-manufacturing" },
                 { key: "unapproved-calculations", query: "SELECT count(*) n FROM finance_calculation_runs WHERE company_id=? AND period_id=? AND status IN ('prepared','reviewed','stale')", args: [actor.companyId, periodId] },
             ];
             const values = [] as Array<{
@@ -38,7 +38,11 @@ function engineService(provided?: SqlDatabase) {
                 status: "pass" | "block";
             }>;
             for (const check of checks) {
-                const count = Number(await write.prepare(check.query).bind(...check.args).first("n") ?? 0);
+                // open-manufacturing is owned by the native period-close readiness
+                // computation; no manufacturing-order SQL is authored here.
+                const count = check.key === "open-manufacturing"
+                    ? (await nativePeriodCloseReadiness(actor, periodId)).openManufacturing
+                    : Number(await write.prepare(check.query!).bind(...check.args!).first("n") ?? 0);
                 values.push({ key: check.key, count, status: count ? "block" : "pass" });
             }
             return values.map(({ key, count }) => ({ key, count }));

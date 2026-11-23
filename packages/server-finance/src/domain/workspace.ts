@@ -32,6 +32,9 @@ export type PaymentObligationFilters = {
 };
 
 export type CountRow = Record<string, number | string | null>;
+/** Projection of the native Company Finance period-close readiness. The owner
+ * computes the open-manufacturing count; TypeScript never selects it. */
+export type CloseReadiness = { openManufacturing: number };
 export type ClosePeriodRow = {
   [key: string]: string | number | null | CloseReconciliation[] | VatCloseEvidence;
   id: string;
@@ -61,7 +64,6 @@ export type ClosePeriodSource = {
   draft_journals: number;
   unmatched_bank: number;
   draft_invoices: number;
-  open_manufacturing: number;
   pending_calculations: number;
 };
 

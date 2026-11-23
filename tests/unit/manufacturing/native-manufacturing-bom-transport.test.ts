@@ -1,4 +1,6 @@
 import {describe,it,expect,vi} from 'vitest';
+import * as nodeFs from 'node:fs';
+import * as nodePath from 'node:path';
 vi.mock('server-only',()=>({}));
 vi.mock('next/headers',()=>({headers:async()=>new Headers()}));
 import {
@@ -156,4 +158,13 @@ describe('native Manufacturing BOM register transport',()=>{
     .toMatchObject({status:503,code:'NATIVE_MANUFACTURING_UNAVAILABLE'});
   expect(nativeManufacturingFailure(new Error('other'))).toBeUndefined();
  });
+});
+describe('Manufacturing finance-close read retirement',()=>{
+  const src=new URL('../../../packages/server-manufacturing/src/',import.meta.url).pathname;
+  const files=(dir:string):string[]=>nodeFs.readdirSync(dir).flatMap(name=>{const path=nodePath.join(dir,name);return nodeFs.statSync(path).isDirectory()?files(path):path.endsWith('.ts')?[path]:[];});
+  it('removed the four close-source SELECT modules and keeps the owner SELECT KPI at 156',()=>{
+    const paths=files(src);
+    expect(paths.some(path=>path.includes('finance-close-source'))).toBe(false);
+    expect(paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0)).toBe(156);
+  });
 });

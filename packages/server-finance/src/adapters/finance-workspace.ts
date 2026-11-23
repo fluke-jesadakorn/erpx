@@ -15,13 +15,32 @@ import { readListPage } from "@erpx/server-work_projection/public/list-page";
 import {financeSetupAuthority} from "@erpx/server-finance/public/finance-starter";
 
 import {createFinanceWorkspace} from '@erpx/server-finance/application/workspace';
-import type {PaymentRecord,CountRow,ClosePeriodSource,PaymentObligationFilters} from '@erpx/server-finance/domain/workspace';
+import type {PaymentRecord,CountRow,ClosePeriodSource,CloseReadiness,PaymentObligationFilters} from '@erpx/server-finance/domain/workspace';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {financeWorkspacePeoplePayments,financeWorkspacePendingPeopleSql,financeWorkspaceReadyExpenseAiSql} from '@erpx/server-people_payroll/public/finance-workspace-sources';
-import {financeWorkspaceOpenManufacturingSql} from '@erpx/server-manufacturing/public/finance-close-sources';
+import {headers as nextHeaders} from 'next/headers';
+import {nativePeriodCloseWorkspace} from '@erpx/feature-finance/public/server';
 import {financeWorkspaceReturnJoinSql} from '@erpx/server-commerce/public/finance-obligation-sources';
 export type {FinanceAttention,PaymentObligation,PaymentObligationFilters,ClosePeriodRow} from '@erpx/server-finance/domain/workspace';
-function nativeFinanceWorkspace(provided?:SqlDatabase){let write:SqlDatabase;return createFinanceWorkspace({error:(...args)=>new ApiError(...args),permission:requirePermission,hasPermission,ready:async actor=>{write=provided??(await holdingResources(actor.holdingId)).write;await requireFinancePurchasedRead(write,actor)},today:()=>new Date().toISOString().slice(0,10),businessDate:()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),reconciliation:(actor,period)=>calculateCloseReconciliations(write,actor,period),expansionPending:(actor,start,end)=>financeExpansionClosePending(write,actor.companyId,start,end),consolidation:consolidationRunWorkspace,intercompany:intercompanyWorkspace,setupAuthority:actor=>financeSetupAuthority(write,actor.companyId),paymentRecords:async(actor,query)=>{  const clauses = ["p.company_id=?"], args: unknown[] = [actor.companyId];
+const readinessUnavailable=(status=503,code='NATIVE_FINANCE_PERIOD_CLOSE_UNAVAILABLE'):never=>{throw new ApiError(status,code,'The native Finance period-close readiness is unavailable.');};
+/** Exact native readiness projection. The native owner computes the count; a
+ * missing, malformed or denied reply closes the read without a TS SQL fallback. */
+export async function periodCloseReadiness(reply:Response|undefined):Promise<CloseReadiness>{
+  if(!reply||reply.status!==200||!reply.body){void reply?.body?.cancel().catch(()=>undefined);return readinessUnavailable(reply?.status && reply.status>=400&&reply.status<600?reply.status:503);}
+  let value:unknown;
+  try{value=await reply.json();}catch{return readinessUnavailable(502,'NATIVE_FINANCE_PERIOD_CLOSE_INVALID');}
+  const count=(value as {data?:{readiness?:{openManufacturing?:unknown}}})?.data?.readiness?.openManufacturing;
+  if(typeof count!=='number'||!Number.isSafeInteger(count)||count<0)return readinessUnavailable(502,'NATIVE_FINANCE_PERIOD_CLOSE_INVALID');
+  return {openManufacturing:count};
+}
+/** Company Finance period-close readiness read through the owner's native
+ * workspace transport. The current browser headers carry the session context. */
+export async function nativePeriodCloseReadiness(actor:WorkContext,periodId:string):Promise<CloseReadiness>{
+  if(!periodId||periodId.includes('/')||periodId.includes('\\'))return readinessUnavailable(422,'NATIVE_FINANCE_PERIOD_CLOSE_INVALID');
+  const reply=await nativePeriodCloseWorkspace(new Request('http://native-period-close.invalid',{headers:new Headers(await nextHeaders() as unknown as Headers)}),actor as Parameters<typeof nativePeriodCloseWorkspace>[1],actor.holdingSlug,periodId);
+  return periodCloseReadiness(reply);
+}
+function nativeFinanceWorkspace(provided?:SqlDatabase){let write:SqlDatabase;return createFinanceWorkspace({error:(...args)=>new ApiError(...args),permission:requirePermission,hasPermission,ready:async actor=>{write=provided??(await holdingResources(actor.holdingId)).write;await requireFinancePurchasedRead(write,actor)},today:()=>new Date().toISOString().slice(0,10),businessDate:()=>new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date()),reconciliation:(actor,period)=>calculateCloseReconciliations(write,actor,period),expansionPending:(actor,start,end)=>financeExpansionClosePending(write,actor.companyId,start,end),closeReadiness:(actor,periodId)=>nativePeriodCloseReadiness(actor,periodId),consolidation:consolidationRunWorkspace,intercompany:intercompanyWorkspace,setupAuthority:actor=>financeSetupAuthority(write,actor.companyId),paymentRecords:async(actor,query)=>{  const clauses = ["p.company_id=?"], args: unknown[] = [actor.companyId];
   const search = query.search;
   if (search) { clauses.push("(p.payment_number ILIKE ? OR COALESCE(f.name,'') ILIKE ?)"); args.push(`%${search}%`,`%${search}%`); }
   if (query.status) { clauses.push("p.status=?"); args.push(query.status); }
@@ -93,7 +112,6 @@ periods:async(actor)=>(await write
       (SELECT count(*) FROM finance_journals j WHERE j.company_id=p.company_id AND j.period_id=p.id AND j.status IN ('draft','in_review')) draft_journals,
       (SELECT count(*) FROM finance_bank_transactions b WHERE b.company_id=p.company_id AND b.transaction_date BETWEEN p.start_date AND p.end_date AND b.match_status<>'matched') unmatched_bank,
       (SELECT count(*) FROM finance_invoices i WHERE i.company_id=p.company_id AND i.status IN ('draft','in_review') AND i.invoice_date BETWEEN p.start_date AND p.end_date) draft_invoices,
-      ${financeWorkspaceOpenManufacturingSql} open_manufacturing,
       (SELECT count(*) FROM finance_calculation_runs r WHERE r.company_id=p.company_id AND r.period_id=p.id AND r.status IN ('prepared','reviewed','stale')) pending_calculations
       FROM finance_periods p WHERE p.company_id=? ORDER BY p.start_date DESC`)
     .bind(actor.companyId)
