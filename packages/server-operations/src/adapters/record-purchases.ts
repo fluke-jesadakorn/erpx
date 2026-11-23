@@ -53,13 +53,14 @@ export async function workSourceReadScope(database:SqlDatabase,actor:WorkContext
   return {where:'TRUE',args:[] as unknown[]};
  }
  const id=surface==='records'?'workspace_records.id':surface==='staff'?'staff_notifications.record_id':'e.source_id',company=surface==='records'?'workspace_records.company_id':surface==='staff'?'staff_notifications.company_id':'e.company_id';
+ const projectTaskExists=`EXISTS(SELECT 1 FROM staff_tasks work_record_project WHERE work_record_project.id=${id} AND work_record_project.company_id=${company} AND work_record_project.project_id IS NOT NULL)`;
  const task=await visibleTask(database,actor,id,company),handbook=await handbookSourceReadScope(actor,surface),actual=`EXISTS(SELECT 1 FROM staff_tasks work_record_task WHERE work_record_task.id=${id} AND work_record_task.project_id IS NULL)`;
  if(surface!=='records'){
   const type=surface==='staff'?'staff_notifications.record_type':'e.source_type';
-  return {where:`(${type} NOT IN ('task','staff_task','staff_task_alert') OR EXISTS(SELECT 1 FROM staff_tasks work_record_project WHERE work_record_project.id=${id} AND work_record_project.company_id=${company} AND work_record_project.project_id IS NOT NULL) OR ${task.where}) AND ${handbook.where}`,args:[...task.args,...handbook.args]};
+  return {where:`(${type} NOT IN ('task','staff_task','staff_task_alert') OR ${projectTaskExists} OR ${task.where}) AND ${handbook.where}`,args:[...task.args,...handbook.args]};
  }
  const current=authority(actor);
- return {where:`(NOT ${actual} OR ${task.where}) AND (module_id<>'operations' OR EXISTS(SELECT 1 FROM staff_tasks work_record_project WHERE work_record_project.id=${id} AND work_record_project.company_id=${company} AND work_record_project.project_id IS NOT NULL) OR EXISTS(SELECT 1 FROM(SELECT ${company} company_id,workspace_records.branch_id,workspace_records.department_id,${packageClockSql} now_ms)workforce_actor_scope WHERE ${current.where} AND ${purchasedCapabilityPredicate('workforce_actor_scope.company_id','work.actions','history','workforce_actor_scope.now_ms')} AND ${scheduledFeaturePredicate('workforce_actor_scope.company_id','operations')})) AND ${handbook.where}`,args:[...task.args,...current.args,...handbook.args]};
+ return {where:`(NOT ${actual} OR ${task.where}) AND (module_id<>'operations' OR ${projectTaskExists} OR EXISTS(SELECT 1 FROM(SELECT ${company} company_id,workspace_records.branch_id,workspace_records.department_id,${packageClockSql} now_ms)workforce_actor_scope WHERE ${current.where} AND ${purchasedCapabilityPredicate('workforce_actor_scope.company_id','work.actions','history','workforce_actor_scope.now_ms')} AND ${scheduledFeaturePredicate('workforce_actor_scope.company_id','operations')})) AND ${handbook.where}`,args:[...task.args,...current.args,...handbook.args]};
 }
 export async function requireWorkWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,moduleId:string,id:string){
  const mode=await appsPackageEnforcementMode();if(mode==='disabled')return;
