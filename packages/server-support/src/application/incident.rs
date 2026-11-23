@@ -5,6 +5,7 @@ use crate::domain::incident::{
     IncidentPlan, IncidentSnapshot, IncidentWorkItem, plan_change, plan_create, work_items,
 };
 use erpx_server_shared::public::{BusinessError, FailureKind};
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -154,6 +155,98 @@ pub async fn get_incident<P: IncidentPorts>(
 ) -> Result<IncidentSnapshot, BusinessError> {
     ports.authorize(actor, false).await?;
     ports.incident(actor, id).await
+}
+
+/// Bounded by-id incident projection for the SELECT-only read tail. Exactly the
+/// five fields that notification, executive and work-item consumers need cross
+/// the owner boundary; database-only facts never reach them through this port.
+#[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct IncidentRead {
+    pub id: String,
+    pub version: i64,
+    pub status: String,
+    pub title: String,
+    pub href: String,
+}
+
+impl IncidentRead {
+    /// Fail closed on any projection that would widen or mislead the read tail.
+    pub fn validate(&self) -> Result<(), BusinessError> {
+        if self.id.is_empty() || self.id.len() > 200 {
+            return Err(BusinessError::invalid(
+                "SUPPORT_INCIDENT_READ_INVALID",
+                "Invalid incident id.",
+            ));
+        }
+        if !(1..=9_007_199_254_740_991).contains(&self.version) {
+            return Err(BusinessError::invalid(
+                "SUPPORT_INCIDENT_READ_INVALID",
+                "Invalid incident version.",
+            ));
+        }
+        if !matches!(
+            self.status.as_str(),
+            "open" | "investigating" | "mitigated" | "closed" | "cancelled"
+        ) {
+            return Err(BusinessError::invalid(
+                "SUPPORT_INCIDENT_READ_INVALID",
+                "Invalid incident status.",
+            ));
+        }
+        if self.title.is_empty() || self.title.len() > 160 {
+            return Err(BusinessError::invalid(
+                "SUPPORT_INCIDENT_READ_INVALID",
+                "Invalid incident title.",
+            ));
+        }
+        if self.href != format!("/support/incidents/{}", self.id) {
+            return Err(BusinessError::invalid(
+                "SUPPORT_INCIDENT_READ_INVALID",
+                "Invalid incident link.",
+            ));
+        }
+        Ok(())
+    }
+}
+
+/// Native by-id read port. The owner's Postgres adapter resolves the current
+/// scoped row; portable callers never open a transaction or build SQL.
+pub trait IncidentReadPorts {
+    fn authorize<'a>(
+        &'a self,
+        actor: &'a IncidentActor,
+    ) -> impl std::future::Future<Output = Result<(), BusinessError>> + Send + 'a;
+    fn incident<'a>(
+        &'a self,
+        actor: &'a IncidentActor,
+        id: &'a str,
+    ) -> impl std::future::Future<Output = Result<Option<IncidentRead>, BusinessError>> + Send + 'a;
+}
+
+/// Native `get_incident` by-id read. Authority and Company/scope filtering stay
+/// in the port; the bounded projection is validated before it is returned.
+pub async fn get_incident_read<P: IncidentReadPorts>(
+    ports: &P,
+    actor: &IncidentActor,
+    id: &str,
+) -> Result<IncidentRead, BusinessError> {
+    if id.is_empty() || id.len() > 200 {
+        return Err(BusinessError::invalid(
+            "SUPPORT_INCIDENT_ID_INVALID",
+            "Provide a valid incident id.",
+        ));
+    }
+    ports.authorize(actor).await?;
+    let row = ports.incident(actor, id).await?.ok_or_else(|| {
+        BusinessError::new(
+            FailureKind::NotFound,
+            "SUPPORT_INCIDENT_NOT_FOUND",
+            "Incident not found in this scope.",
+        )
+    })?;
+    row.validate()?;
+    Ok(row)
 }
 
 pub async fn workspace<P: IncidentPorts>(
@@ -436,5 +529,149 @@ mod tests {
             .code,
             "SUPPORT_INCIDENT_LAST_LINK"
         );
+    }
+}
+
+#[cfg(test)]
+mod read_tests {
+    use super::*;
+    use crate::domain::incident::IncidentPermissions;
+
+    fn actor() -> IncidentActor {
+        IncidentActor {
+            user_id: "manager".into(),
+            company_id: "company".into(),
+            branch_id: None,
+            department_id: None,
+            permissions: IncidentPermissions {
+                can_read: true,
+                can_work: false,
+                can_manage: false,
+            },
+            same_person_ids: vec![],
+        }
+    }
+
+    fn row() -> IncidentRead {
+        IncidentRead {
+            id: "incident-1".into(),
+            version: 3,
+            status: "investigating".into(),
+            title: "Checkout outage".into(),
+            href: "/support/incidents/incident-1".into(),
+        }
+    }
+
+    fn block_on<F: std::future::Future>(future: F) -> F::Output {
+        let mut future = Box::pin(future);
+        let mut context = std::task::Context::from_waker(std::task::Waker::noop());
+        match future.as_mut().poll(&mut context) {
+            std::task::Poll::Ready(value) => value,
+            std::task::Poll::Pending => panic!("test future unexpectedly pending"),
+        }
+    }
+
+    struct Fake {
+        denied: bool,
+        row: Option<IncidentRead>,
+        seen: std::sync::Mutex<Vec<String>>,
+    }
+    impl IncidentReadPorts for Fake {
+        async fn authorize(&self, _: &IncidentActor) -> Result<(), BusinessError> {
+            if self.denied {
+                Err(BusinessError::new(
+                    FailureKind::Forbidden,
+                    "SUPPORT_INCIDENT_READ_REQUIRED",
+                    "Choose a role that can read Support incidents.",
+                ))
+            } else {
+                Ok(())
+            }
+        }
+        async fn incident(
+            &self,
+            actor: &IncidentActor,
+            id: &str,
+        ) -> Result<Option<IncidentRead>, BusinessError> {
+            self.seen.lock().unwrap().push(format!("{}:{}", actor.company_id, id));
+            Ok(self.row.clone())
+        }
+    }
+
+    #[test]
+    fn get_incident_read_authorizes_and_returns_the_bounded_projection() {
+        let fake = Fake {
+            denied: false,
+            row: Some(row()),
+            seen: std::sync::Mutex::new(Vec::new()),
+        };
+        let read = block_on(get_incident_read(&fake, &actor(), "incident-1")).unwrap();
+        assert_eq!(read, row());
+        assert_eq!(fake.seen.lock().unwrap().as_slice(), &["company:incident-1"]);
+    }
+
+    #[test]
+    fn get_incident_read_fails_closed_on_denial_and_absence() {
+        let denied = Fake {
+            denied: true,
+            row: Some(row()),
+            seen: std::sync::Mutex::new(Vec::new()),
+        };
+        assert_eq!(
+            block_on(get_incident_read(&denied, &actor(), "incident-1"))
+                .unwrap_err()
+                .code,
+            "SUPPORT_INCIDENT_READ_REQUIRED"
+        );
+        assert!(denied.seen.lock().unwrap().is_empty());
+        let absent = Fake {
+            denied: false,
+            row: None,
+            seen: std::sync::Mutex::new(Vec::new()),
+        };
+        assert_eq!(
+            block_on(get_incident_read(&absent, &actor(), "incident-1"))
+                .unwrap_err()
+                .code,
+            "SUPPORT_INCIDENT_NOT_FOUND"
+        );
+    }
+
+    #[test]
+    fn get_incident_read_rejects_unbounded_or_misleading_projections() {
+        for value in [
+            IncidentRead { version: 0, ..row() },
+            IncidentRead { status: "unknown".into(), ..row() },
+            IncidentRead { title: String::new(), ..row() },
+            IncidentRead { href: "/elsewhere".into(), ..row() },
+        ] {
+            value.validate().unwrap_err();
+        }
+        row().validate().unwrap();
+    }
+
+    #[test]
+    fn get_incident_read_rejects_an_unbounded_id_before_the_port() {
+        let fake = Fake {
+            denied: false,
+            row: Some(row()),
+            seen: std::sync::Mutex::new(Vec::new()),
+        };
+        assert_eq!(
+            block_on(get_incident_read(&fake, &actor(), ""))
+                .unwrap_err()
+                .code,
+            "SUPPORT_INCIDENT_ID_INVALID"
+        );
+        assert!(fake.seen.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn incident_read_wire_rejects_extra_fields() {
+        let raw = r#"{"id":"incident-1","version":1,"status":"open","title":"Outage","href":"/support/incidents/incident-1","severity":"critical"}"#;
+        assert!(serde_json::from_str::<IncidentRead>(raw).is_err());
+        let raw = r#"{"id":"incident-1","version":1,"status":"open","title":"Outage","href":"/support/incidents/incident-1"}"#;
+        let read: IncidentRead = serde_json::from_str(raw).unwrap();
+        assert_eq!(read.id, "incident-1");
     }
 }

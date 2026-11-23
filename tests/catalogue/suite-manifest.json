@@ -82775,7 +82775,8 @@
         "support"
       ],
       "files": [
-        "tests/unit/support/native-support-read.test.ts"
+        "tests/unit/support/native-support-read.test.ts",
+        "tests/unit/support/support-incident-read-client.test.ts"
       ],
       "fixture": "none",
       "requires": {
