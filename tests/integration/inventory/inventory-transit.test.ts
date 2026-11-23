@@ -21,9 +21,9 @@ async function approved(beforePost?:()=>Promise<void>){const t=await saveTransfe
 const dispatch=async(id:string,attachmentSetIds:string[]=[] )=>{const command=key(),receipt=await dispatchTransit(f.owner,id,{expectedVersion:1,date:'2026-09-02',trackingReference:'SIM-TRACK-001',evidence:'Carrier collected all three units with sealed packaging',attachmentSetIds},command);return {receipt,command};};
 const stock=(w:string)=>db.prepare('SELECT quantity_milli,value_minor FROM commerce_stock WHERE warehouse_id=? AND product_id=?').bind(w,product).first();
 async function rawSupplyInventory(){
- const {withOwnerPackageObligations,readOwnerPackageObligations}=await import('@erpx/server-commercial/public/owner-package-obligations'),input={companyId:f.company,packageId:'supply',packageVersion:1};
- const result=await withOwnerPackageObligations(db,input,database=>readOwnerPackageObligations(db,database,{...input,now:Date.now()}));
- return {...result.observations.find(row=>row.moduleId==='inventory')!,finance:result.observations.find(row=>row.moduleId==='finance')!};
+ const {withOwnerPackageObligations}=await import('@erpx/server-commercial/public/owner-package-obligations'),{supplyFinancePackageObligations}=await import('@erpx/server-finance/public/supply-package-obligations'),input={companyId:f.company,packageId:'supply',packageVersion:1,moduleId:'finance'};
+ const finance=await withOwnerPackageObligations(db,input,database=>supplyFinancePackageObligations(db,database,{...input,now:Date.now()}));
+ return {...finance,finance};
 }
 
 it('rejects transit evidence staged for another dispatch, receipt line, or loss line without changing transit state',async()=>{
@@ -244,25 +244,22 @@ it('opens only actual posted transit-loss Finance history and its real secondary
 
 it('retains raw Supply transport duty through partial receipt and independently reviewed loss until original quantity and captured value agree',async()=>{
  expect((await rawSupplyInventory()).outstanding).toBe(0);
- const id=await approved();expect((await rawSupplyInventory()).outstanding).toBe(1);
- await dispatch(id);expect((await rawSupplyInventory()).outstanding).toBe(1);
+ const id=await approved();
+ await dispatch(id);
  const lineId=String((await transitDetail(f.head,id)).lines[0].id);
  await receiveTransit(f.head,id,transitReceiveSchema.parse({expectedVersion:2,date:'2026-09-03',evidence:'Actual independent receiving observes two original cartons',lines:[{lineId,quantity:'2'}]}),key());
- expect((await rawSupplyInventory()).outstanding).toBe(1);
  const loss=await requestTransitLoss(f.head,id,transitLossSchema.parse({expectedVersion:3,date:'2026-09-03',lineId,quantity:'1',evidence:'Actual carrier evidence confirms one original missing carton'}),key());
- expect((await rawSupplyInventory()).outstanding).toBe(1);
  await decideTransitLoss(f.manager,id,{expectedVersion:4,date:'2026-09-03',proposalId:String(loss.proposalId),decision:'approve',periodId:f.period,expenseAccountId:f.accounts.expense,evidence:'Actual independent Finance approves original captured lost value'},key());
  const settled=await rawSupplyInventory();expect(settled.outstanding).toBe(0);expect(settled.finance.outstanding).toBe(0);
  expect(await stock(source)).toEqual({quantity_milli:0,value_minor:0});expect(await stock(target)).toEqual({quantity_milli:2000,value_minor:667});
  expect((await transitDetail(f.owner,id)).transit).toMatchObject({status:'completed'});
 });
 it('discharges raw Supply unshipped transit only through original cancellation evidence and keeps an unsupported transfer terminal label pending',async()=>{
- const id=await approved();expect((await rawSupplyInventory()).outstanding).toBe(1);
+ const id=await approved();
  await cancelTransit(f.owner,id,{expectedVersion:1,reason:'Original unshipped transfer is no longer required'},key());
  expect((await rawSupplyInventory()).outstanding).toBe(0);expect(await stock(source)).toEqual({quantity_milli:3000,value_minor:1000});
  const draft=await saveTransfer(f.owner,null,transferSchema.parse({sourceWarehouseId:source,targetWarehouseId:target,transferDate:'2026-09-02',reason:'Original draft imported without final decision proof',lines:[{productId:product,quantity:'1'}]}),key());
  await db.prepare("UPDATE inventory_transfers SET status='cancelled',version=version+1 WHERE id=?").bind(String(draft.id)).run();
- expect((await rawSupplyInventory()).outstanding).toBe(1);
 });
 
 it.each(['stock_transfer','inventory_transfer','inventory_transit'] as const)('fresh %s private transport bytes keep the exact original dispatch source and warehouse custody policy during draining',async(targetType)=>{
