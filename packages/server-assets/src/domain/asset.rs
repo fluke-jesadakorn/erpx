@@ -38,11 +38,6 @@ pub fn ecma_trim(value: &str) -> &str {
     })
 }
 
-/// Count UTF-16 code units for JavaScript operations that explicitly need them.
-pub fn utf16_len(value: &str) -> usize {
-    value.encode_utf16().count()
-}
-
 pub fn validate_trimmed_text(
     value: &str,
     minimum: usize,

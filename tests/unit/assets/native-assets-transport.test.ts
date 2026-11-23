@@ -73,6 +73,19 @@ describe('native Assets transport',()=>{
   expect(headers.get('x-erpx-workspace-branch')).toBe('branch');
  });
 
+ it('returns the complete native detail payload with Finance snapshot and Maintenance rows',async()=>{
+  const finance={id:'finance-1',asset_number:'FA-1',name:'Asset One',status:'in_service',currency:'THB',cost_minor:125050,accumulated_depreciation_minor:0,version:2};
+  const work={id:'work-1',title:'Inspect asset',status:'open',priority:'normal',owner_id:'user',scheduled_at:0,version:1};
+  const transport=vi.fn().mockResolvedValue(ok({data:{...detail,finance,maintenance:[work]},context}));
+  const client=createNativeAssetsClient(JSON.parse(config()),transport);
+  const result=await client.detail(incoming(),actor,{holdingSlug:'acme',id:'asset-1',...readInput});
+  expect(result.finance).toEqual(finance);
+  expect(result.maintenance).toEqual([work]);
+  expect(result.items).toEqual(workspace.items);
+  expect(result.history).toEqual(detail.history);
+  expect(result.asset).toEqual(asset);
+ });
+
  it('sends one keyed command with origin and returns the owner acknowledgement',async()=>{
   const transport=vi.fn().mockResolvedValue(ok({data:{id:'asset-1',version:2,status:'in_service'},context}));
   const client=createNativeAssetsClient(JSON.parse(config()),transport);
