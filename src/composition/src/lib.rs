@@ -89,6 +89,8 @@ pub mod commerce_owner_write;
 pub mod commerce_request_linkage;
 pub mod commercial;
 #[cfg(feature = "existing-business")]
+pub mod commercial_owner_write;
+#[cfg(feature = "existing-business")]
 pub mod crm;
 #[cfg(feature = "existing-business")]
 pub mod crm_reassign_wire;

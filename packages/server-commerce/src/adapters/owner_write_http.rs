@@ -171,11 +171,23 @@ async fn write(
             .filter(|v| !v.is_empty())
             .ok_or_else(missing)?
             .to_owned();
+        let origin = unique_header(request.headers(), ORIGIN_HEADER)?.ok_or_else(forbidden)?;
+        // fetch() forbids overriding Host, so native loopback POSTs arrive with a
+        // loopback Host. Fall back to the validated Origin's host before giving up;
+        // the exact Origin check below still applies to the selected target.
         let target = state
             .targets
             .get(&(host, slug.clone()))
+            .or_else(|| {
+                origin
+                    .strip_prefix("https://")
+                    .and_then(|rest| match rest.rsplit_once(':') {
+                        Some((h, _)) => Some(h),
+                        None => Some(rest),
+                    })
+                    .and_then(|h| state.targets.get(&(h.to_owned(), slug.clone())))
+            })
             .ok_or_else(missing)?;
-        let origin = unique_header(request.headers(), ORIGIN_HEADER)?.ok_or_else(forbidden)?;
         if origin != target.origin {
             return Err(forbidden());
         }

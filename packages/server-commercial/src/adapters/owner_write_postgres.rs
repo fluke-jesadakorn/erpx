@@ -152,9 +152,9 @@ impl<'c> PgOwnerWrite<'c> {
         .bind(entry.actor_id)
         .bind(entry.request_hash)
         .bind(entry.record_id)
-        .bind(entry.result)
+        .bind(sqlx::types::Json(entry.result.clone()))
         .bind(entry.now)
-        .bind(&authority)
+        .bind(sqlx::types::Json(authority.clone()))
         .execute(&mut *self.connection).await?.rows_affected();
         if changed != 1 {
             return Err(conflict().into());
@@ -171,7 +171,7 @@ impl<'c> PgOwnerWrite<'c> {
         .bind(entry.record_type)
         .bind(entry.record_id)
         .bind(entry.now)
-        .bind(&authority)
+        .bind(sqlx::types::Json(authority.clone()))
         .execute(&mut *self.connection)
         .await?;
         let payload = serde_json::json!({"companyId": &self.company, "recordId": entry.record_id, "result": entry.result});
@@ -181,7 +181,7 @@ impl<'c> PgOwnerWrite<'c> {
              VALUES(gen_random_uuid()::text,$1,$2,$3,$4,1,$5,$6)",
         )
         .bind(entry.key).bind(entry.operation).bind(entry.record_type)
-        .bind(entry.record_id).bind(&payload).bind(entry.now)
+        .bind(entry.record_id).bind(sqlx::types::Json(payload.clone())).bind(entry.now)
         .execute(&mut *self.connection).await?;
         Ok(())
     }
@@ -244,9 +244,15 @@ impl OwnerWriteRepository for PgOwnerWrite<'_> {
             .fetch_optional(&mut *self.connection)
             .await?;
             let Some(row) = row else { return Ok(None) };
+            // command_receipts.result_json is TEXT: decode it as JSON explicitly.
+            // A row that cannot be decoded is a corrupt receipt, not a replay.
+            let request_hash: String = row.try_get("request_hash")?;
+            let raw_result: String = row.try_get("result_json")?;
+            let result: Value =
+                serde_json::from_str(&raw_result).map_err(|_| invalid())?;
             Ok(Some(StoredReceipt {
-                request_hash: row.try_get("request_hash")?,
-                result: Some(row.try_get("result_json")?),
+                request_hash,
+                result: Some(result),
             }))
         })
     }

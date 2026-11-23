@@ -72,7 +72,11 @@ export function purchaseCommandBoundary(database: SqlDatabase, mode: PackageEnfo
       async run<T>(): Promise<SqlResult<T>> {
         const row = await database.prepare(clock + `SELECT CASE WHEN ${predicate} THEN 1 ELSE 0 END ok FROM purchase_scope`)
           .bind(input.companyId).first<{ ok: number }>();
-        await nativeOwnerStatement('purchase.assertion', [key, step, Number(row?.ok ?? 0)], input.companyId, 'system', key).run();
+        // Before/after are distinct native writes sharing one boundary key: the
+        // idempotency key carries the phase so the after-guard never replays or
+        // conflicts with the before-guard's receipt. values[0] keeps the stable
+        // boundary key for assertion matching.
+        await nativeOwnerStatement('purchase.assertion', [key, step, Number(row?.ok ?? 0)], input.companyId, 'system', `${key}:${phase}`).run();
         return { results: [], success: true, meta: { changes: 1, duration: 0 } };
       },
       async first<T>(): Promise<T | null> { throw new Error('COMMERCIAL_OWNER_WRITE_READ_UNSUPPORTED'); },

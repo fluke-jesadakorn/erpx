@@ -4284,6 +4284,20 @@ async fn assemble_checked(
                         )
                         .map_err(|_| "PRIVATE_API_COMMERCIAL_WAVE2_CONFIGURATION_INVALID")?,
                     );
+                    commercial_native_routers.push(
+                        crate::commercial_owner_write::commercial_owner_write_composed_router(
+                            holding.host.clone(),
+                            holding.registration.slug.clone(),
+                            format!("https://{}", holding.host),
+                            Arc::new(
+                                crate::commercial_owner_write::CommercialOwnerWriteBackend::new(
+                                    pools[i + 1].clone(),
+                                    Arc::new(SharedClock(clock.clone())),
+                                ),
+                            ),
+                        )
+                        .map_err(|_| "PRIVATE_API_COMMERCIAL_OWNER_WRITE_CONFIGURATION_INVALID")?,
+                    );
                     agent_quota_targets.push((
                         holding.host.clone(),
                         holding.registration.slug.clone(),
@@ -9251,7 +9265,9 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 || path.ends_with("/finance/owner-write")
                 || path.contains("/finance/company-money/"))
             || path.starts_with("/api/v1/holdings/")
-                && path.ends_with("/workflow/wave3-execute"));
+                && path.ends_with("/workflow/wave3-execute")
+            || path.starts_with("/api/v1/holdings/")
+                && path.ends_with("/commercial/owner-write"));
     if state.policy.audience(host).is_none()
         && !(host == state.loopback
             && (matches!(request.uri().path(), "/api/health" | "/api/ready") || loopback_system_command))
@@ -11805,6 +11821,24 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         ) if !slug.is_empty() && !order_id.is_empty() => state.policy.audience(host).is_some(),
         _ => false,
     };
+    let commercial_owner_write = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "commercial", "owner-write"],
+        ) => state
+            .policy
+            .audience(host)
+            .is_some_and(|_| !slug.is_empty()),
+        _ => false,
+    };
     let talent = match (
         request.method(),
         request
@@ -12135,6 +12169,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || benefits
         || account_security
         || commerce
+        || commercial_owner_write
         || customer_access
         || service_packages
         || field_work_roles
