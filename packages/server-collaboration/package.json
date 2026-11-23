@@ -166,6 +166,7 @@
     "./public/rules/social-presentation": "./src/public/rules/social-presentation.ts",
     "./public/messaging-owner-projections": "./src/public/messaging-owner-projections.ts",
     "./public/social-page": "./src/public/social-page.ts",
+    "./public/native-social-page-types": "./src/public/native-social-page-types.ts",
     "./public/customer-portal-notifications": "./src/public/customer-portal-notifications.ts",
     "./public/operations-staff-task-alerts-facts": "./src/public/operations-staff-task-alerts-facts.ts",
     "./public/attachments-service-facts": "./src/public/attachments-service-facts.ts",

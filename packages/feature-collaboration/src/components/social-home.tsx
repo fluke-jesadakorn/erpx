@@ -13,7 +13,7 @@ import { ComposerLauncher, HandoverLauncher } from "@erpx/feature-work_projectio
 import { DeferredRegion } from "@erpx/feature-work_projection/components/home/deferred-region";
 import { lazy, useCallback, useEffect, useRef, useState } from "react";
 import { betaFetch } from "@erpx/feature-shared/lib/beta-client";
-import type {HomePost} from '@erpx/server-collaboration/public/social-home';
+import type {HomePost} from '@erpx/server-collaboration/public/native-social-page-types';
 import type { Meta } from "@erpx/feature-collaboration/components/social-types";
 
 import { SocialPost } from "@erpx/feature-collaboration/components/social-post";
