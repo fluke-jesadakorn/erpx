@@ -126,6 +126,10 @@ name = "attachment_read_policy"
 path = "../../tests/unit/files/rust-attachment-read-policy.test.rs"
 
 [[test]]
+name = "asset_descriptor_binding"
+path = "../../tests/unit/files/rust-asset-descriptor-binding.test.rs"
+
+[[test]]
 name = "attachment_read_http"
 path = "../../tests/unit/files/rust-attachment-read-http.test.rs"
 

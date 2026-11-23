@@ -13,6 +13,7 @@ pub mod attachment_http;
 pub mod files_wave1b;
 pub mod files_wave1b_http;
 pub mod attachment_read;
+pub mod asset_descriptor_binding;
 pub mod attachment_scan;
 pub mod portal_attachment_http;
 pub mod support_attachment_http;
