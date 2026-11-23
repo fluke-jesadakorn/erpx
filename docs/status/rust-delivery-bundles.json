@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6961,
+    "revision": 6969,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -120094,7 +120094,7 @@
         "owner": "billing",
         "title": "billing TS read tail native cutover (round 4)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -120106,22 +120106,42 @@
         "resources": [
           "owner:billing"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wAWbil",
-          "claimedAt": "2026-11-23T21:24:12.182Z",
-          "heartbeatAt": "2026-11-23T21:33:35.449Z",
-          "expiresAt": "2026-11-23T22:03:35.449Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-billing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "05fdec01a",
+            "owner": "billing",
+            "before": 117,
+            "after": 114,
+            "note": "beta customer/inbox/legacy customer typed kinds; FOR UPDATE and scan-source untouched."
+          },
+          {
+            "command": "cargo check -p erpx-server-billing + 5 targets (87)",
+            "result": "passed",
+            "sourceSha": "05fdec01a"
+          },
+          {
+            "command": "vitest billing units (96) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "05fdec01a"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest owner-local family on the owner-write registry; beta-billing.ts customer/inbox/legacy-customer reads next; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wAWbil",
+          "at": "2026-11-23T21:52:25.804Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -120242,7 +120262,7 @@
         "owner": "customer_authority",
         "title": "customer_authority TS read tail native cutover (round 5)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -120254,22 +120274,42 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wAYcus",
-          "claimedAt": "2026-11-23T21:27:37.624Z",
-          "heartbeatAt": "2026-11-23T21:33:35.449Z",
-          "expiresAt": "2026-11-23T22:03:35.449Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-customer_authority/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "05fdec01a",
+            "owner": "customer_authority",
+            "before": 103,
+            "after": 102,
+            "note": "customer_authority_rd_access_identities kind."
+          },
+          {
+            "command": "cargo check -p erpx-server-customer-authority + lib (8) + access (8) + http (6)",
+            "result": "passed",
+            "sourceSha": "05fdec01a"
+          },
+          {
+            "command": "vitest customer authority units (24) + tsc owner",
+            "result": "passed",
+            "sourceSha": "05fdec01a"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest non-portal owner-local read family served by the customer-access command-plan registry; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wAYcus",
+          "at": "2026-11-23T21:52:25.973Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -120961,6 +121001,78 @@
         "nextAction": "Pick the smallest owner-local fixed-SQL read family outside RD_*; dedupe without fail-closed live-read replacement; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.billing.read-tail-r5",
+        "goalId": "G4",
+        "owner": "billing",
+        "title": "billing TS read tail native cutover (r5)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-billing/src/**",
+          "tests/unit/billing/**",
+          "tests/integration/billing/**"
+        ],
+        "resources": [
+          "owner:billing"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wBEbil",
+          "claimedAt": "2026-11-23T21:52:32.088Z",
+          "heartbeatAt": "2026-11-23T21:52:32.088Z",
+          "expiresAt": "2026-11-23T22:22:32.088Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local fixed-SQL read family; dedupe or switch to a mounted native read; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.customer_authority.read-tail-r6",
+        "goalId": "G4",
+        "owner": "customer_authority",
+        "title": "customer_authority TS read tail native cutover (r6)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-customer_authority/src/**",
+          "tests/unit/customer_authority/**",
+          "tests/integration/customer_authority/**"
+        ],
+        "resources": [
+          "owner:customer_authority"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wBEcus",
+          "claimedAt": "2026-11-23T21:52:32.254Z",
+          "heartbeatAt": "2026-11-23T21:52:32.254Z",
+          "expiresAt": "2026-11-23T22:22:32.254Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local fixed-SQL read family; dedupe or switch to a mounted native read; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -120969,7 +121081,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 585,
+      "totalPackets": 587,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -120977,13 +121089,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 217,
+        "blocked": 219,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T21:52:13.922Z",
+    "updatedAt": "2026-11-23T21:52:32.257Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
