@@ -5,12 +5,14 @@ import {
   PEOPLE_PAYROLL_RD_RECORD_SUPPLEMENT_ROWS,
   PEOPLE_PAYROLL_RD_ORG_ROSTER_EXIT_ENGAGEMENT_IDS,
   PEOPLE_PAYROLL_RD_ORG_MONTHLY_PAY_GROUPS,
+  PEOPLE_PAYROLL_RD_WORK_REPORT_PEOPLE,
 } from '../../../packages/server-people_payroll/src/adapters/native-people-payroll-read';
 import { RecordDetailsPeoplePayrollOwnedFacts } from '../../../packages/server-people_payroll/src/adapters/records-record-details-owned-facts';
 import {
   organizationRosterExitEngagementIds,
   organizationMonthlyPayGroups,
 } from '../../../packages/server-people_payroll/src/adapters/organization-roster-facts';
+import { workReportPeoplePayrollFacts } from '../../../packages/server-people_payroll/src/adapters/work-report-facts';
 
 const envKey = 'ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG';
 const original = process.env[envKey];
@@ -109,6 +111,33 @@ describe('native People Payroll caller-unit read plan', () => {
     ]);
     expect(bound).toEqual([['company', 'position-1'], ['company']]);
     expect(prepared).toEqual(['SELECT 1 AS row', 'SELECT 1 AS row']);
+  });
+
+  it('exposes the work-report people read kind with no SQL on the wire', () => {
+    expect(PEOPLE_PAYROLL_RD_WORK_REPORT_PEOPLE).toBe('people_payroll_rd_work_report_people');
+    expect(PEOPLE_PAYROLL_RD_WORK_REPORT_PEOPLE).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+  });
+
+  it('plans the work-report people read on the caller unit with its bind', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push({ kind: body.kind, values: body.values });
+      return new Response(JSON.stringify({
+        data: { statements: [{ sql: 'SELECT 1 AS row', values: body.values }] },
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+    const { db, bound, prepared } = fakeDb();
+
+    const people = await workReportPeoplePayrollFacts(db as never).people('company');
+    expect(people).toMatchObject({ results: [{ id: 'run-1' }] });
+
+    expect(bodies).toEqual([{
+      kind: PEOPLE_PAYROLL_RD_WORK_REPORT_PEOPLE,
+      values: ['company'],
+    }]);
+    expect(bound).toEqual([['company']]);
+    expect(prepared).toEqual(['SELECT 1 AS row']);
   });
 
   it('fails closed when configuration is missing or the plan is malformed', async () => {

@@ -49,10 +49,21 @@ const READ_ORG_MONTHLY_PAY_GROUPS: NativeReadStatement = NativeReadStatement {
     bind_count: 1,
 };
 
+/// Native successor of the TypeScript `work-report-facts` people-name read:
+/// same literal and one positional bind.
+pub const RD_WORK_REPORT_PEOPLE: &str = "people_payroll_rd_work_report_people";
+const SQL_WORK_REPORT_PEOPLE: &str = "SELECT user_id,legal_name FROM hr_people WHERE company_id=? AND merged_into_id IS NULL";
+const READ_WORK_REPORT_PEOPLE: NativeReadStatement = NativeReadStatement {
+    kind: RD_WORK_REPORT_PEOPLE,
+    sql: SQL_WORK_REPORT_PEOPLE,
+    bind_count: 1,
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_RECORD_SUPPLEMENT_ROWS,
     READ_ORG_ROSTER_EXIT_ENGAGEMENT_IDS,
     READ_ORG_MONTHLY_PAY_GROUPS,
+    READ_WORK_REPORT_PEOPLE,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -96,5 +107,17 @@ mod tests {
             assert_eq!(read.sql.matches('?').count(), binds);
             assert!(is_read(kind));
         }
+    }
+
+    #[test]
+    fn work_report_people_read_plan_is_ledger_free_and_bounded() {
+        let read = read_statement(RD_WORK_REPORT_PEOPLE).expect("read kind");
+        assert!(read.sql.to_ascii_uppercase().starts_with("SELECT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("INSERT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("UPDATE"));
+        assert!(!read.sql.to_ascii_uppercase().contains("DELETE"));
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert!(is_read(RD_WORK_REPORT_PEOPLE));
     }
 }
