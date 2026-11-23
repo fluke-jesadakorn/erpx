@@ -460,3 +460,55 @@ it("native Legal failures retain verified status codes without inventing success
   expect(nativeLegalFailure(new NativeLegalError("NATIVE_LEGAL_CONFIGURATION_INVALID"))).toMatchObject({status: 503, code: "NATIVE_LEGAL_UNAVAILABLE"});
   expect(nativeLegalFailure(new Error("plain"))).toBeUndefined();
 });
+
+it("native Legal reports adapter keeps the exact native response, auth, errors and fails closed", async () => {
+  const { legalReports } = await import("@erpx/server-legal/public/legal/reports");
+  const categories = ["case_event","compliance_action","privacy_case","corporate_action","ip_action","counsel_entry","schedule","custody","policy_ack","intake"];
+  // Exact authoritative projection of the native `reports` read: every field,
+  // the compile-owned workflow order and no request-selected relation.
+  const native = {
+    asOf: 1794330000000,
+    registers: [{kind:"matter",state:"open",count:1,overdue:1,sla_breached:1}],
+    upcoming: [{id:"u1",title:"U",kind:"matter",due_date:"2026-11-30",owner_id:"user-one",state:"open"}],
+    workflows: categories.map(category=>({category,rows:[]})),
+    costs: [{currency:"THB",budget_minor:0,fees_minor:0}],
+    access: [{id:"matter-open",title:"Open matter",classification:"internal",members:1,external_shares:0}],
+    jobs: [],
+    invitations: [],
+  };
+  const config = {privateBaseUrl:"http://127.0.0.1:44999",timeoutMs:2000,holdings:[{origin:"http://acme.example.test:3443",holdingSlug:"acme",holdingId:"holding-a"}]};
+  const prior = process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG, originalFetch = globalThis.fetch;
+  const actor = {
+    userId:"user-one", holdingSlug:"acme", holdingId:"holding-a", companyId:"company-a",
+    assignmentId:"assignment-user-one", branchId:undefined, departmentId:undefined,
+    role:"legal_manager", permissions:["legal.read"], authority:{revision:4,assignmentVersion:2},
+  } as unknown as WorkContext;
+  try {
+    process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG = JSON.stringify(config);
+    const calls: {url:string;init?:RequestInit}[] = [];
+    globalThis.fetch = (async (url:RequestInfo|URL,init?:RequestInit) => {
+      calls.push({url:String(url),init});
+      return Response.json(native);
+    }) as typeof fetch;
+    expect(await legalReports({} as never, actor)).toEqual(native);
+    expect(calls).toHaveLength(1);
+    expect(new URL(calls[0]!.url).pathname).toBe("/api/v1/holdings/acme/legal/reports");
+    expect(new Headers(calls[0]!.init?.headers).get("x-erpx-context-company")).toBe("company-a");
+
+    // No private configuration: fail closed with no SQL fallback.
+    process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG = "";
+    await expect(legalReports({} as never, actor)).rejects.toMatchObject({status:503,code:"NATIVE_LEGAL_UNAVAILABLE"});
+    // Authorization still fails before transport configuration is consulted.
+    const deniedActor = {...actor, permissions:[]} as unknown as WorkContext;
+    await expect(legalReports({} as never, deniedActor)).rejects.toMatchObject({status:403,code:"PERMISSION_REQUIRED"});
+
+    // Native authority denial is passed through unchanged.
+    process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG = JSON.stringify(config);
+    globalThis.fetch = (async () => Response.json({error:{code:"PERMISSION_REQUIRED",message:"Denied"}},{status:403})) as typeof fetch;
+    await expect(legalReports({} as never, actor)).rejects.toMatchObject({status:403,code:"PERMISSION_REQUIRED",message:"Denied"});
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (prior===undefined) delete process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG;
+    else process.env.ERPX_NATIVE_LEGAL_RECORDS_CONFIG = prior;
+  }
+});

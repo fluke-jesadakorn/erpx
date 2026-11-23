@@ -399,12 +399,66 @@ async fn auxiliary_reads_keep_company_membership_and_requester_scope() {
             .collect();
         assert_eq!(requester_ids, vec!["request-mine"]);
 
+        // The native `reports` read is the authoritative projection for the
+        // TypeScript `legalReports` adapter. Pin its exact field set, workflow
+        // order and Company/membership isolation so the seven TS SELECTs can be
+        // deleted byte-identically.
         let reports = read(&pool, manager(), LegalAuxiliaryRead::Reports)
             .await
             .unwrap();
-        assert_eq!(reports["workflows"].as_array().unwrap().len(), 10);
-        assert!(reports["asOf"].as_i64().unwrap() > 0);
-        assert!(!reports["registers"].as_array().unwrap().is_empty());
+        assert_eq!(reports.as_object().unwrap().len(), 8);
+        assert_eq!(reports["asOf"].as_i64().unwrap(), 1_794_330_000_000);
+        let workflows = reports["workflows"].as_array().unwrap();
+        let categories = [
+            "case_event", "compliance_action", "privacy_case", "corporate_action", "ip_action",
+            "counsel_entry", "schedule", "custody", "policy_ack", "intake",
+        ];
+        assert_eq!(workflows.len(), categories.len());
+        for (row, category) in workflows.iter().zip(categories) {
+            assert_eq!(row.as_object().unwrap().len(), 2);
+            assert_eq!(row["category"], category);
+            for line in row["rows"].as_array().unwrap() {
+                assert_eq!(line.as_object().unwrap().len(), 3);
+            }
+        }
+        for (field, width) in [
+            ("registers", 5usize), ("upcoming", 6), ("costs", 3),
+            ("access", 5), ("jobs", 7), ("invitations", 6),
+        ] {
+            assert!(reports[field].is_array(), "{field} must be an array");
+            for row in reports[field].as_array().unwrap() {
+                assert_eq!(row.as_object().unwrap().len(), width, "{field} must carry every authoritative field");
+            }
+        }
+        let report_ids: Vec<&str> = reports["access"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| row["id"].as_str().unwrap())
+            .collect();
+        assert!(report_ids.contains(&"matter-open"));
+        assert!(report_ids.contains(&"request-mine"));
+        assert!(report_ids.contains(&"contract-secret"));
+        assert!(!report_ids.contains(&"matter-other"));
+        assert!(!report_ids.contains(&"request-other"));
+        let requester_reports = read(
+            &pool,
+            actor("user-one", "legal_requester", &["legal.read"]),
+            LegalAuxiliaryRead::Reports,
+        )
+        .await
+        .unwrap();
+        let requester_ids: Vec<&str> = requester_reports["access"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|row| row["id"].as_str().unwrap())
+            .collect();
+        assert_eq!(requester_ids, vec!["request-mine"]);
+        let denied = read(&pool, reviewer(), LegalAuxiliaryRead::Reports)
+            .await
+            .unwrap_err();
+        assert_eq!(code(denied), "PERMISSION_REQUIRED");
 
         // A confidential record is readable through membership only.
         let retention = read(
