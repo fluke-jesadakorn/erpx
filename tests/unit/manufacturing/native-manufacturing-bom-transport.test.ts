@@ -162,10 +162,10 @@ describe('native Manufacturing BOM register transport',()=>{
 describe('Manufacturing finance-close read retirement',()=>{
   const src=new URL('../../../packages/server-manufacturing/src/',import.meta.url).pathname;
   const files=(dir:string):string[]=>nodeFs.readdirSync(dir).flatMap(name=>{const path=nodePath.join(dir,name);return nodeFs.statSync(path).isDirectory()?files(path):path.endsWith('.ts')?[path]:[];});
-  it('removed the four close-source SELECT modules and keeps the owner SELECT KPI at 151',()=>{
+  it('removed the four close-source SELECT modules and keeps the owner SELECT KPI at 150',()=>{
     const paths=files(src);
     expect(paths.some(path=>path.includes('finance-close-source'))).toBe(false);
-    expect(paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0)).toBe(151);
+    expect(paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0)).toBe(150);
   });
 });
 describe('Manufacturing owner-local report-actor read dedupe',()=>{
@@ -234,5 +234,26 @@ describe('Manufacturing command-receipt replay read dedupe',()=>{
     expect(commandReceiptSelect).toBe(sql);
     expect(purchases).toContain('.bind(command.key,command.operation,command.target.id,actor.userId,actor.companyId)');
     expect(posting).toContain('.bind(key,operation,target,actor.userId,actor.companyId)');
+  });
+});
+describe('Manufacturing executive-metric branch-label read dedupe',()=>{
+  const source=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/executive-metric-projections.ts',import.meta.url),'utf8');
+  const registry=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/public/native_command.rs',import.meta.url),'utf8');
+  const fragment="COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=o.branch_id AND n.company_id=o.company_id),'Branch')";
+  it('keeps one fixed-SQL definition and switches both branch breakdowns to it',()=>{
+    expect(source).toContain('const branchDisplayLabel');
+    expect(source.split(fragment)).toHaveLength(2);
+    expect(source.split('breakdown === "branch" ? branchDisplayLabel')).toHaveLength(3);
+  });
+  it('stays owner-local, outside the RD_* registry and free of fail-closed markers',()=>{
+    expect(fragment).toContain('FROM (${organizationProjectionSources.organization_nodes})');
+    expect(registry).not.toContain(fragment);
+    expect(source).not.toMatch(/503|UNAVAILABLE|fail closed/i);
+  });
+  it('keeps the live fragment interpolated into both caller queries on the caller snapshot',()=>{
+    for(const needle of ['SELECT ${label} label,count(*)','SELECT ${label} label,COALESCE(sum(m.amount_minor']){
+      expect(source).toContain(needle);
+    }
+    expect(source).toContain('sourceDb.prepare(sql).bind(...values)');
   });
 });

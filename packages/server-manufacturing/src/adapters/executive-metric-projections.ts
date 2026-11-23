@@ -9,6 +9,13 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
+/** Owner-local fixed read fragment: the organization branch display name used
+ * by executive metric breakdowns. The completed-orders and production-cost
+ * branch breakdowns project the same organization_nodes witness on the caller's
+ * own query and snapshot; one definition keeps them from drifting and removes
+ * the redundant TypeScript SQL. It stays a live fragment inside its parent
+ * query (no fail-closed replacement) and is outside the RD_* read-plan registry. */
+const branchDisplayLabel = `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=o.branch_id AND n.company_id=o.company_id),'Branch')`;
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const source=await manufacturingMetricSource(sourceDb,a,id);
     const spec = specs[id];
@@ -16,14 +23,14 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     const referenceAtOverride: number | null = null;
     if (id === "completed-manufacturing-orders" || id === "manufacturing-orders-with-scrap") {
         const scrap = id === "manufacturing-orders-with-scrap";
-        const label = breakdown === "branch" ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=o.branch_id AND n.company_id=o.company_id),'Branch')`
+        const label = breakdown === "branch" ? branchDisplayLabel
             : "to_char(to_timestamp(o.updated_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')";
         sql = `SELECT ${label} label,count(*)::text value FROM manufacturing_orders o JOIN (${source.sql}) purchased_production ON purchased_production.id=o.id WHERE o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND o.status='completed' AND o.updated_at>=? AND o.updated_at<? ${scrap ? "AND o.reported_scrap_milli>0" : ""} GROUP BY 1 ORDER BY 1`;
         values = [a.companyId, a.branchId, a.branchId, Date.parse(f.from), Date.parse(f.to) + 86400000];
     }
     if (id === "production-cost") {
         const label = breakdown === "month" ? "to_char(to_timestamp(j.posted_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')"
-            : breakdown === "branch" ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=o.branch_id AND n.company_id=o.company_id),'Branch')`
+            : breakdown === "branch" ? branchDisplayLabel
                 : breakdown === "product" ? "p.name"
                     : breakdown === "warehouse" ? "w.name"
                         : "'Posted production costs'";
