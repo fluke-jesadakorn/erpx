@@ -18,6 +18,9 @@ type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: 
 
 /** Read-kind ids shared with the Rust read registry in `native_read_sql.rs`. */
 export const PMS_RD_INVENTORY_COMMAND = 'pms_rd_inventory_command';
+export const PMS_RD_BOOKING_CHANGE = 'pms_rd_booking_change';
+export const PMS_RD_BOOKING_CHANGE_PENDING = 'pms_rd_booking_change_pending';
+export const PMS_RD_BOOKING_PAYMENT = 'pms_rd_booking_payment';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');

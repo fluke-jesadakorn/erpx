@@ -14,6 +14,7 @@ import type { Effects } from "@erpx/feature-pms/lib/pms-engine";
 import { createPmsBookingChange, type PmsBookingChangeUnit, type PmsBookingChangeRepository, type StaffAuthority, type Proposal } from "@erpx/server-pms/application/pms-booking-changes";
 import { holdingResources as resolveResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { requirePmsPropertyPurchase, withPmsPropertyPurchasedTransaction } from "@erpx/server-pms/adapters/property-purchase-boundary";
+import { nativePmsReadFirst, PMS_RD_BOOKING_CHANGE, PMS_RD_BOOKING_CHANGE_PENDING, PMS_RD_BOOKING_PAYMENT } from "./native-pms-read";
 const signature = (env: BookingEnv, payload: string) => createHmac('sha256', env.secret).update(`pms-change:${payload}`).digest('base64url');
 function signed(p: Proposal, env: BookingEnv) { const payload = Buffer.from(JSON.stringify(p)).toString('base64url'); return `${payload}.${signature(env, payload)}`; }
 function read(token: string, env: BookingEnv): Proposal { const [body, sig, extra] = token.split("."), expected = signature(env, body ?? ''); if (extra || !body || !sig || sig.length !== expected.length || !timingSafeEqual(Buffer.from(sig), Buffer.from(expected)))
@@ -46,19 +47,19 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
         readPmsBookingChanges: (facts: {
             key: string;
             id: string;
-        }) => db.prepare('SELECT request_hash,state FROM pms_booking_changes WHERE id=? AND reservation_id=?').bind(facts.key, facts.id).first<{
+        }) => nativePmsReadFirst<{
             request_hash: string;
             state: string;
-        }>(),
+        }>(PMS_RD_BOOKING_CHANGE, [facts.key, facts.id], db),
         readPmsBookingPayments: (facts: {
             key: string;
-        }) => db.prepare('SELECT id FROM pms_booking_payments WHERE proposal_id=?').bind(facts.key).first<{
+        }) => nativePmsReadFirst<{
             id: string;
-        }>(),
+        }>(PMS_RD_BOOKING_PAYMENT, [facts.key], db),
         readPmsBookingChanges2: (facts: {
             id: string;
             now: number;
-        }) => db.prepare("SELECT id FROM pms_booking_changes WHERE reservation_id=? AND state='payment_pending' AND expires_at>? LIMIT 1").bind(facts.id, facts.now).first(),
+        }) => nativePmsReadFirst(PMS_RD_BOOKING_CHANGE_PENDING, [facts.id, facts.now], db),
         updatePmsBookingChanges: (facts: {
             id: string;
             now: number;

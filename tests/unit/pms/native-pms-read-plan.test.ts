@@ -1,9 +1,13 @@
+import { readFile } from 'node:fs/promises';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 vi.mock('server-only', () => ({}));
 import {
   nativePmsReadAll,
   nativePmsReadFirst,
   PMS_RD_INVENTORY_COMMAND,
+  PMS_RD_BOOKING_CHANGE,
+  PMS_RD_BOOKING_CHANGE_PENDING,
+  PMS_RD_BOOKING_PAYMENT,
 } from '../../../packages/server-pms/src/adapters/native-pms-read';
 import { readPmsInventoryCommand } from '../../../packages/server-pms/src/adapters/pms/read-repository';
 
@@ -88,5 +92,60 @@ describe('native PMS caller-unit read plan', () => {
     delete process.env[envKey];
     await expect(nativePmsReadFirst(PMS_RD_INVENTORY_COMMAND, ['property-1', 'property-1'], fakeDb().db as never))
       .rejects.toMatchObject({ status: 503 });
+  });
+});
+
+const changeSql = 'SELECT request_hash,state FROM pms_booking_changes WHERE id=? AND reservation_id=?';
+const pendingSql = "SELECT id FROM pms_booking_changes WHERE reservation_id=? AND state='payment_pending' AND expires_at>? LIMIT 1";
+const paymentSql = 'SELECT id FROM pms_booking_payments WHERE proposal_id=?';
+
+describe('native PMS booking-change read retirement', () => {
+  it('exposes fixed booking-change read kinds with no SQL on the wire', () => {
+    expect(PMS_RD_BOOKING_CHANGE).toBe('pms_rd_booking_change');
+    expect(PMS_RD_BOOKING_CHANGE_PENDING).toBe('pms_rd_booking_change_pending');
+    expect(PMS_RD_BOOKING_PAYMENT).toBe('pms_rd_booking_payment');
+    for (const kind of [PMS_RD_BOOKING_CHANGE, PMS_RD_BOOKING_CHANGE_PENDING, PMS_RD_BOOKING_PAYMENT])
+      expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+  });
+
+  it('removes the three TypeScript booking-change SELECT literals but keeps refund/lock reads', async () => {
+    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/pms-booking-changes.ts', import.meta.url), 'utf8');
+    expect(adapter).not.toContain(changeSql);
+    expect(adapter).not.toContain(pendingSql);
+    expect(adapter).not.toContain(paymentSql);
+    expect(adapter).toContain('nativePmsReadFirst');
+    expect(adapter).toContain('FOR UPDATE');
+    expect(adapter).toContain('readPmsBookingRefundRequests');
+  });
+
+  it('plans change/pending/payment reads in Rust and runs them on the caller unit', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push(body);
+      const sql = body.kind === PMS_RD_BOOKING_CHANGE ? changeSql
+        : body.kind === PMS_RD_BOOKING_CHANGE_PENDING ? pendingSql : paymentSql;
+      return new Response(JSON.stringify({ data: { statements: [{ sql, values: body.values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+    const prepared: string[] = [], bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) { prepared.push(sql); return { bind(...values: unknown[]) { bound.push(values); return this; } }; },
+      async batch<T>() { return [{ results: [{ id: 'payment-1', request_hash: 'hash', state: 'applied' }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+    const change = await nativePmsReadFirst(PMS_RD_BOOKING_CHANGE, ['change-1', 'reservation-1'], db as never);
+    const pending = await nativePmsReadFirst(PMS_RD_BOOKING_CHANGE_PENDING, ['reservation-1', 1000], db as never);
+    const payment = await nativePmsReadFirst(PMS_RD_BOOKING_PAYMENT, ['change-1'], db as never);
+
+    expect(change).toMatchObject({ request_hash: 'hash' });
+    expect(pending).toMatchObject({ id: 'payment-1' });
+    expect(payment).toMatchObject({ id: 'payment-1' });
+    expect(bodies.map(b => b.kind)).toEqual([PMS_RD_BOOKING_CHANGE, PMS_RD_BOOKING_CHANGE_PENDING, PMS_RD_BOOKING_PAYMENT]);
+    expect(bodies.map(b => b.values)).toEqual([['change-1', 'reservation-1'], ['reservation-1', 1000], ['change-1']]);
+    expect(bound).toEqual([['change-1', 'reservation-1'], ['reservation-1', 1000], ['change-1']]);
+    expect(prepared).toEqual([changeSql, pendingSql, paymentSql]);
+    for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
   });
 });
