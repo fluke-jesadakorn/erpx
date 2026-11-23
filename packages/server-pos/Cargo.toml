@@ -66,5 +66,9 @@ path = "../../tests/integration/pos/rust-pos-daycontrol-reads-postgres.test.rs"
 name = "pos_boundary_reads_postgres"
 path = "../../tests/integration/pos/rust-pos-boundary-reads-postgres.test.rs"
 
+[[test]]
+name = "pos_core_reads_postgres"
+path = "../../tests/integration/pos/rust-pos-core-reads-postgres.test.rs"
+
 [lints]
 workspace=true

@@ -1,4 +1,5 @@
 import { nativePosAll } from './native-owner-write';
+import { nativePosCashMovementsStatement, nativePosShiftsStatement, nativePosTablesStatement } from './native-pos-core-statement';
 import { nativePosRegistersStatement, nativePosRegistersFrontStatement, nativePosSaleStatement, nativePosSettingsStatement } from './native-pos-registers-statement';
 import { roomChargeReversalWork } from "@erpx/server-pos/adapters/room-charge-reversal-queue";
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
@@ -61,16 +62,12 @@ function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
             company: string;
             branch: string | null;
             branch2: string | null;
-        }) => all(db, `SELECT s.*,r.name register_name,
-   s.opening_minor+COALESCE((SELECT SUM(p.amount_minor) FROM pos_payments p JOIN pos_sales b ON b.id=p.sale_id WHERE b.shift_id=s.id AND p.method='cash' AND p.state='succeeded'),0)
-   -COALESCE((SELECT SUM(rp.amount_minor) FROM pos_refund_payments rp JOIN pos_refunds rf ON rf.id=rp.refund_id JOIN pos_payments p ON p.id=rp.payment_id WHERE rf.payout_shift_id=s.id AND p.method='cash' AND rp.state='succeeded'),0)
-   +COALESCE((SELECT SUM(m.amount_minor) FROM pos_cash_movements m WHERE m.shift_id=s.id AND m.approved_by IS NOT NULL),0) cash_expected_minor
-   FROM pos_shifts s JOIN pos_registers r ON r.id=s.register_id WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) ORDER BY s.opened_at DESC LIMIT 100`, facts.company, facts.branch, facts.branch2),
+        }) => nativePosShiftsStatement(db, facts),
         readPosTables1: (facts: {
             company: string;
             branch: string | null;
             branch2: string | null;
-        }) => all(db, 'SELECT t.* FROM pos_tables t JOIN pos_registers r ON r.id=t.register_id WHERE r.company_id=? AND (?::text IS NULL OR r.branch_id=?) ORDER BY t.name', facts.company, facts.branch, facts.branch2),
+        }) => nativePosTablesStatement(db, facts),
         readPosSales2: (facts: {
             company: string;
             branch: string | null;
@@ -95,7 +92,7 @@ function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
             company: string;
             branch: string | null;
             branch2: string | null;
-        }) => all(db, 'SELECT m.*,s.register_id FROM pos_cash_movements m JOIN pos_shifts s ON s.id=m.shift_id WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) ORDER BY m.created_at DESC LIMIT 100', facts.company, facts.branch, facts.branch2),
+        }) => nativePosCashMovementsStatement(db, facts),
         readInventoryActiveReservations1: facts => PosReadInventoryFacts(db).readInventoryActiveReservations1(facts),
         readFinanceAccounts1: facts => PosReadFinanceFacts(db).readFinanceAccounts1(facts),
         readPosLines2: (facts: {
