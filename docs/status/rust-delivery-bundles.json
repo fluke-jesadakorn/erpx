@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5610,
+    "revision": 5617,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-d",
       "agentId": "lead",
       "startedAt": "2026-11-23T06:45:08.420Z",
-      "heartbeatAt": "2026-11-23T10:38:13.260Z",
-      "expiresAt": "2026-11-23T11:08:13.260Z",
+      "heartbeatAt": "2026-11-23T10:43:04.416Z",
+      "expiresAt": "2026-11-23T11:13:04.416Z",
       "generation": 154,
       "tokenHash": "01e24ba69c801ba69506f7381436bc3415092da31ab33204c519241e628cd4c9"
     },
@@ -15563,8 +15563,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:46:29.180Z",
-          "heartbeatAt": "2026-11-23T10:38:13.260Z",
-          "expiresAt": "2026-11-23T11:08:13.260Z",
+          "heartbeatAt": "2026-11-23T10:43:04.416Z",
+          "expiresAt": "2026-11-23T11:13:04.416Z",
           "generation": 154
         },
         "baseSha": "473b198f4838943261a63a1ca44b167d347fc4c4",
@@ -17495,8 +17495,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T10:31:26.482Z",
-          "heartbeatAt": "2026-11-23T10:38:13.260Z",
-          "expiresAt": "2026-11-23T11:08:13.260Z",
+          "heartbeatAt": "2026-11-23T10:43:04.416Z",
+          "expiresAt": "2026-11-23T11:13:04.416Z",
           "generation": 154
         },
         "baseSha": "f901987c8bcb88a080e9beb9d2b87892bc462eea",
@@ -27345,8 +27345,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:04:51.894Z",
-          "heartbeatAt": "2026-11-23T10:38:13.260Z",
-          "expiresAt": "2026-11-23T11:08:13.260Z",
+          "heartbeatAt": "2026-11-23T10:43:04.416Z",
+          "expiresAt": "2026-11-23T11:13:04.416Z",
           "generation": 154
         },
         "baseSha": "d0067f253fd960ab6945c5622e360e2cceeaffe7",
@@ -28421,8 +28421,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:19:17.835Z",
-          "heartbeatAt": "2026-11-23T10:38:13.260Z",
-          "expiresAt": "2026-11-23T11:08:13.260Z",
+          "heartbeatAt": "2026-11-23T10:43:04.416Z",
+          "expiresAt": "2026-11-23T11:13:04.416Z",
           "generation": 154
         },
         "baseSha": null,
@@ -39937,8 +39937,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:59:53.885Z",
-          "heartbeatAt": "2026-11-23T10:38:13.260Z",
-          "expiresAt": "2026-11-23T11:08:13.260Z",
+          "heartbeatAt": "2026-11-23T10:43:04.416Z",
+          "expiresAt": "2026-11-23T11:13:04.416Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45306,8 +45306,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:03:09.640Z",
-          "heartbeatAt": "2026-11-23T10:38:13.260Z",
-          "expiresAt": "2026-11-23T11:08:13.260Z",
+          "heartbeatAt": "2026-11-23T10:43:04.416Z",
+          "expiresAt": "2026-11-23T11:13:04.416Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45838,8 +45838,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:55:34.675Z",
-          "heartbeatAt": "2026-11-23T10:38:13.260Z",
-          "expiresAt": "2026-11-23T11:08:13.260Z",
+          "heartbeatAt": "2026-11-23T10:43:04.416Z",
+          "expiresAt": "2026-11-23T11:13:04.416Z",
           "generation": 154
         },
         "baseSha": "57a1fd51ebacf5fa1ff712f6eaa176f390ad64a3",
@@ -49453,8 +49453,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:31:10.408Z",
-          "heartbeatAt": "2026-11-23T10:38:13.260Z",
-          "expiresAt": "2026-11-23T11:08:13.260Z",
+          "heartbeatAt": "2026-11-23T10:43:04.416Z",
+          "expiresAt": "2026-11-23T11:13:04.416Z",
           "generation": 154
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -50667,9 +50667,9 @@
         "claim": {
           "runId": "run-20261123-d",
           "agentId": "lead",
-          "claimedAt": "2026-11-23T10:42:32.616Z",
-          "heartbeatAt": "2026-11-23T10:42:32.616Z",
-          "expiresAt": "2026-11-23T11:12:32.616Z",
+          "claimedAt": "2026-11-23T10:48:34.081Z",
+          "heartbeatAt": "2026-11-23T10:48:34.081Z",
+          "expiresAt": "2026-11-23T11:18:34.081Z",
           "generation": 154
         },
         "baseSha": null,
@@ -50813,7 +50813,7 @@
         "handoff": {
           "runId": "run-20261123-d",
           "agentId": "lead",
-          "at": "2026-11-23T10:42:27.243Z",
+          "at": "2026-11-23T10:48:23.078Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
           "nextAction": "Registers family landed via retire.pos.residual-core-reads at d2890da2 (statement + cutover + PG parity, KPI 47->46). Residual queue now tracked in 3 bounded tasks; next: sales-detail family. (Status in_progress after reclaim dance; prior integrating evidence retained in checks.)"
@@ -110148,9 +110148,9 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": "a26db9ab11c0581d45539be12487f776fd2fafe4",
-        "implementedCommit": "1054b50164e330f6fd42ecfb7bda53e590f0a74b",
-        "lastPushedSha": "1054b50164e330f6fd42ecfb7bda53e590f0a74b",
+        "baseSha": "b43f5c44303dce8d26635e05538a1877c2fac494",
+        "implementedCommit": "80f0c1f7866d983981ecff82112a6e5587c982fb",
+        "lastPushedSha": "80f0c1f7866d983981ecff82112a6e5587c982fb",
         "checks": [
           {
             "command": "cargo check -p erpx-server-pos + -p erpx-service",
@@ -110276,18 +110276,60 @@
             "result": "passed",
             "sourceSha": "1054b50164e330f6fd42ecfb7bda53e590f0a74b",
             "note": "lead; 3198/3199/3100 health 200; dev fully restarted, 0 boot errors"
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration + -p erpx-service",
+            "result": "passed",
+            "sourceSha": "80f0c1f7866d983981ecff82112a6e5587c982fb",
+            "note": "lead; 0 errors (pos_registers_front ctor + arm compile in chain)"
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test collaboration_work_postgres",
+            "result": "passed",
+            "sourceSha": "80f0c1f7866d983981ecff82112a6e5587c982fb",
+            "note": "lead re-ran at pushed SHA; 11/11 incl new front parity (hotel_name/finance_approved, scope denial; seed fixed to restaurant mode per property scope guard)"
+          },
+          {
+            "command": "bunx tsc --noEmit -p packages/server-pos",
+            "result": "passed",
+            "sourceSha": "80f0c1f7866d983981ecff82112a6e5587c982fb",
+            "note": "lead; clean"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "80f0c1f7866d983981ecff82112a6e5587c982fb",
+            "note": "lead; repository layout passed"
+          },
+          {
+            "command": "git grep SELECT pos.ts HEAD vs worktree",
+            "result": "passed",
+            "sourceSha": "80f0c1f7866d983981ecff82112a6e5587c982fb",
+            "note": "lead; 44->43 (registers-front literal retired)"
+          },
+          {
+            "command": "native kind probe on rebuilt 3198",
+            "result": "passed",
+            "note": "lead; pos_registers_front kind resolved (session gate)",
+            "sourceSha": "80f0c1f7866d983981ecff82112a6e5587c982fb"
+          },
+          {
+            "command": "restart v4/v5/dev on fresh build",
+            "result": "passed",
+            "sourceSha": "80f0c1f7866d983981ecff82112a6e5587c982fb",
+            "note": "lead; 3198/3199/3100 health 200; dev fully restarted, 0 boot errors"
           }
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Settings family done. Claim to port catalog/registers-2 family next.",
+        "nextAction": "Registers-front done. Claim to port catalog/shifts family next.",
         "handoff": {
           "runId": "run-20261123-d",
           "agentId": "lead",
-          "at": "2026-11-23T10:42:32.544Z",
+          "at": "2026-11-23T10:48:28.481Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Settings family done. Claim to port catalog/registers-2 family next."
+          "nextAction": "Registers-front done. Claim to port catalog/shifts family next."
         }
       },
       {
@@ -110390,7 +110432,7 @@
       }
     },
     "lastCoordinatorGeneration": 154,
-    "updatedAt": "2026-11-23T10:42:32.618Z",
+    "updatedAt": "2026-11-23T10:48:34.084Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
