@@ -9,11 +9,13 @@ import {
   PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH,
   PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL,
   PROCUREMENT_RD_BILL_MATCH_RECEIPTS,
+  PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT,
 } from '../../../packages/server-procurement/src/adapters/native-procurement-read';
 import { procurementInvoiceMatchForFinance } from '../../../packages/server-procurement/src/adapters/finance-entrypoint-queries';
 import { requestQuotation } from '../../../packages/server-procurement/src/adapters/people-app-entrypoint-facts';
 import { OperationalAttachmentProcurementFacts } from '../../../packages/server-procurement/src/adapters/attachments-operational-facts';
 import { documentPostingPreviewFacts } from '../../../packages/server-procurement/src/adapters/document-posting-preview-facts';
+import { EmployeeRequestsProcurementOwnedFacts } from '../../../packages/server-procurement/src/adapters/records-employee-requests-owned-facts';
 
 const envKey = 'ERPX_NATIVE_PROCUREMENT_CONFIG';
 const original = process.env[envKey];
@@ -23,6 +25,7 @@ const planned = {
   [PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH]: 'SELECT company_id,branch_id,department_id,version FROM procurement_bill_matches WHERE id=? AND company_id=?',
   [PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL]: "SELECT * FROM procurement_bill_matches WHERE invoice_id=? AND company_id=? AND status='invoiced'",
   [PROCUREMENT_RD_BILL_MATCH_RECEIPTS]: 'SELECT * FROM procurement_bill_match_receipts WHERE match_id=? ORDER BY id',
+  [PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT]: "SELECT count(*) n FROM procurement_rfqs WHERE request_id=? AND status<>'cancelled'",
 };
 const stubFetch = (payload: unknown, status = 200) => {
   const fetchMock = vi.fn(async () => ({
@@ -74,7 +77,8 @@ describe('native Procurement caller-unit read plan', () => {
     expect(PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH).toBe('procurement_rd_operational_attachment_bill_match');
     expect(PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL).toBe('procurement_rd_document_posting_matched_bill');
     expect(PROCUREMENT_RD_BILL_MATCH_RECEIPTS).toBe('procurement_rd_bill_match_receipts');
-    for (const kind of [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE, PROCUREMENT_RD_REQUEST_QUOTATION, PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH, PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL, PROCUREMENT_RD_BILL_MATCH_RECEIPTS]) {
+    expect(PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT).toBe('procurement_rd_active_quotation_count');
+    for (const kind of [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE, PROCUREMENT_RD_REQUEST_QUOTATION, PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH, PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL, PROCUREMENT_RD_BILL_MATCH_RECEIPTS, PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT]) {
       expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
     }
   });
@@ -163,6 +167,29 @@ describe('native Procurement caller-unit read plan', () => {
     );
     expect(source).not.toContain('SELECT * FROM procurement_bill_match_receipts WHERE match_id=? ORDER BY id');
     expect(source).toContain('PROCUREMENT_RD_BILL_MATCH_RECEIPTS');
+  });
+
+  it('plans the active-quotation-count read and retires both TypeScript literals', async () => {
+    const sql = planned[PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT];
+    const fetchMock = stubFetch({ data: { statements: [{ sql, values: ['req-1'] }] } });
+    const { db, prepared, bound } = fakeDb([{ n: 2 }]);
+    const facts = EmployeeRequestsProcurementOwnedFacts(db as never);
+    expect(await facts.readActOnEmployeeRequestQuotationCount('req-1')).toBe(2);
+    expect(await facts.readPrepareRequestOrderHandoffActiveQuotationCount('req-1')).toBe(2);
+    expect(prepared).toEqual([sql, sql]);
+    expect(bound).toEqual([['req-1'], ['req-1']]);
+    const [, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+    const body = JSON.parse(init.body as string) as { kind: string; values: unknown[] };
+    expect(body.kind).toBe('procurement_rd_active_quotation_count');
+    expect(body.values).toEqual(['req-1']);
+    expect(JSON.stringify(body)).not.toContain('SELECT');
+
+    const source = readFileSync(
+      new URL('../../../packages/server-procurement/src/adapters/records-employee-requests-owned-facts.ts', import.meta.url),
+      'utf8',
+    );
+    expect(source).not.toContain("SELECT count(*) n FROM procurement_rfqs WHERE request_id=? AND status<>'cancelled'");
+    expect(source).toContain('PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT');
   });
 
   it('fails closed when the native transport is not configured', async () => {

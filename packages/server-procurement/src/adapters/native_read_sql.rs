@@ -84,12 +84,27 @@ const READ_BILL_MATCH_RECEIPTS: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successor of the two identical TypeScript
+/// `records-employee-requests-owned-facts` active-quotation-count literals.
+/// The owner plans this literal; the caller executes it on its open unit with
+/// the same `[requestId]` bind.
+pub const RD_ACTIVE_QUOTATION_COUNT: &str = "procurement_rd_active_quotation_count";
+const SQL_ACTIVE_QUOTATION_COUNT: &str =
+    "SELECT count(*) n FROM procurement_rfqs WHERE request_id=? AND status<>'cancelled'";
+const READ_ACTIVE_QUOTATION_COUNT: NativeReadStatement = NativeReadStatement {
+    kind: RD_ACTIVE_QUOTATION_COUNT,
+    sql: SQL_ACTIVE_QUOTATION_COUNT,
+    bind_count: 1,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_INVOICE_MATCH_FOR_FINANCE,
     READ_REQUEST_QUOTATION,
     READ_OPERATIONAL_ATTACHMENT_BILL_MATCH,
     READ_DOCUMENT_POSTING_MATCHED_BILL,
     READ_BILL_MATCH_RECEIPTS,
+    READ_ACTIVE_QUOTATION_COUNT,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -113,6 +128,7 @@ mod tests {
         assert!(is_read(RD_OPERATIONAL_ATTACHMENT_BILL_MATCH));
         assert!(is_read(RD_DOCUMENT_POSTING_MATCHED_BILL));
         assert!(is_read(RD_BILL_MATCH_RECEIPTS));
+        assert!(is_read(RD_ACTIVE_QUOTATION_COUNT));
         assert!(!is_read("procurement_stmt_1"));
         assert!(read_statement("not_a_native_read").is_none());
     }
@@ -140,6 +156,11 @@ mod tests {
                 RD_BILL_MATCH_RECEIPTS,
                 1usize,
                 "procurement_bill_match_receipts",
+            ),
+            (
+                RD_ACTIVE_QUOTATION_COUNT,
+                1usize,
+                "procurement_rfqs",
             ),
         ] {
             let read = read_statement(kind).expect("read kind");
@@ -179,6 +200,20 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 2);
         assert_eq!(read.scope, "holding");
         assert!(is_read(RD_DOCUMENT_POSTING_MATCHED_BILL));
+        assert!(!is_read("procurement_stmt_1"));
+    }
+
+    #[test]
+    fn active_quotation_count_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_ACTIVE_QUOTATION_COUNT).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT count(*) n FROM procurement_rfqs WHERE request_id=? AND status<>'cancelled'"
+        );
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_ACTIVE_QUOTATION_COUNT));
         assert!(!is_read("procurement_stmt_1"));
     }
 
