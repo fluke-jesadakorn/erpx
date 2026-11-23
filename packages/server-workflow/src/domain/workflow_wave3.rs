@@ -345,7 +345,12 @@ fn invalid() -> BusinessError {
 pub fn plan(kind: &str, values: Vec<Value>) -> Result<WorkflowWave3Statement, BusinessError> {
     // Assertion writes carry the audited code-owned condition as their last
     // value; the remaining values are the positional binds. Bound the
-    // fragment and reject statement/comment separators.
+    // fragment and reject statement/comment separators. The bound admits the
+    // legitimate manufacturing file-purchase witness (observed 22578 bytes
+    // for two-Company concurrent binds) while staying well under the 64 KiB
+    // transport body limit; authority stays narrow because the fragment is
+    // still code-owned, placeholder-exact, and executed with the caller-unit
+    // receipt/replay/audit.
     if kind == WF_NATIVE_COMMAND_ASSERTIONS_3 {
         let (template, _) = statement(kind).ok_or_else(invalid)?;
         if values.len() < 3 || values.len() > 64 {
@@ -356,7 +361,7 @@ pub fn plan(kind: &str, values: Vec<Value>) -> Result<WorkflowWave3Statement, Bu
             .and_then(Value::as_str)
             .ok_or_else(invalid)?;
         if condition.trim().is_empty()
-            || condition.len() > 4096
+            || condition.len() > 32768
             || condition.contains(';')
             || condition.contains("--")
             || condition.contains("/*")
