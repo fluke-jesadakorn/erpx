@@ -3,6 +3,11 @@ import { Agent, request as httpRequest } from 'node:http';
 import { Readable } from 'node:stream';
 import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 
+/** Canonical no-op readback statement returned after a successful native owner
+ * write. It keeps existing caller batches in shape without carrying any
+ * business SQL; every owner adapter shares this one literal. */
+export const nativeOwnerWriteNoopSql = "SELECT 1";
+
 /**
  * The single write transport for all remaining Agent owner writes.
  * It sends a typed allow-listed `kind` and positional values to the native
