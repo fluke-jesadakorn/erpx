@@ -34,6 +34,10 @@ name = "crm_activities"
 path = "../../tests/unit/crm/rust-crm-activities.test.rs"
 
 [[test]]
+name = "crm_activity_workspace"
+path = "../../tests/unit/crm/rust-crm-activity-workspace.test.rs"
+
+[[test]]
 name = "crm_leads"
 path = "../../tests/unit/crm/rust-crm-leads.test.rs"
 
@@ -52,6 +56,10 @@ path = "../../tests/integration/crm/rust-crm-account-http.test.rs"
 [[test]]
 name = "crm_identity_family_postgres"
 path = "../../tests/integration/crm/rust-crm-identity-family-postgres.test.rs"
+
+[[test]]
+name = "crm_activity_workspace_postgres"
+path = "../../tests/integration/crm/rust-crm-activity-workspace-postgres.test.rs"
 
 [[test]]
 name = "crm_activity_http"

@@ -3,6 +3,7 @@ pub mod accounts_http;
 pub mod activities_http;
 pub mod activities_native;
 pub mod activity_source;
+pub mod activity_workspace;
 pub mod commands_http;
 pub mod leads_http;
 pub mod leads_intake_http;
