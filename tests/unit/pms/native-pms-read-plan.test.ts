@@ -13,6 +13,8 @@ import {
   PMS_RD_CHARGE_CORRECTION_PENDING,
   PMS_RD_CHARGE_CORRECTION_PENDING_COUNT,
   PMS_RD_GUEST_COMMAND_RECORD,
+  PMS_RD_DOCUMENT_BY_ID,
+  PMS_RD_DOCUMENT_SNAPSHOT,
 } from '../../../packages/server-pms/src/adapters/native-pms-read';
 import { readPmsInventoryCommand } from '../../../packages/server-pms/src/adapters/pms/read-repository';
 
@@ -294,6 +296,60 @@ describe('native PMS guest command record read retirement', () => {
     expect(bodies.map(b => b.values)).toEqual([['property-1', 'guest-1']]);
     expect(bound).toEqual([['property-1', 'guest-1']]);
     expect(prepared).toEqual([guestCommandRecordSql]);
+    for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
+  });
+});
+
+const documentByIdSql = 'SELECT * FROM pms_documents WHERE id=?';
+const documentSnapshotSql = 'SELECT property_id,snapshot_json FROM pms_documents WHERE id=?';
+
+describe('native PMS document point-read retirement', () => {
+  it('exposes fixed document read kinds with no SQL on the wire', () => {
+    expect(PMS_RD_DOCUMENT_BY_ID).toBe('pms_rd_document_by_id');
+    expect(PMS_RD_DOCUMENT_SNAPSHOT).toBe('pms_rd_document_snapshot');
+    for (const kind of [PMS_RD_DOCUMENT_BY_ID, PMS_RD_DOCUMENT_SNAPSHOT]) {
+      expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+    }
+  });
+
+  it('removes both TypeScript pms_documents point-read SELECT literals', async () => {
+    const entrypoint = await readFile(new URL('../../../packages/server-pms/src/adapters/entrypoint-queries.ts', import.meta.url), 'utf8');
+    const document = entrypoint.split('\n').find(line => line.includes('document: (id: string)')) ?? '';
+    expect(document).toContain('nativePmsReadFirst');
+    expect(document).toContain('PMS_RD_DOCUMENT_BY_ID');
+    expect(document).not.toContain('db.prepare');
+    expect(entrypoint).not.toContain('SELECT * FROM pms_documents WHERE id=?');
+
+    const details = await readFile(new URL('../../../packages/server-pms/src/adapters/pms/record-details.ts', import.meta.url), 'utf8');
+    expect(details).toContain('PMS_RD_DOCUMENT_SNAPSHOT');
+    expect(details).not.toContain('SELECT property_id,snapshot_json FROM pms_documents WHERE id=?');
+  });
+
+  it('plans both document reads in Rust and runs them on the caller unit', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push(body);
+      const sql = body.kind === PMS_RD_DOCUMENT_BY_ID ? documentByIdSql : documentSnapshotSql;
+      return new Response(JSON.stringify({ data: { statements: [{ sql, values: body.values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+    const prepared: string[] = [], bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) { prepared.push(sql); return { bind(...values: unknown[]) { bound.push(values); return this; } }; },
+      async batch<T>() { return [{ results: [{ property_id: 'property-1', snapshot_json: '{}' }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+    const full = await nativePmsReadFirst<{ property_id: string }>(PMS_RD_DOCUMENT_BY_ID, ['doc-1'], db as never);
+    const snapshot = await nativePmsReadFirst<{ property_id: string }>(PMS_RD_DOCUMENT_SNAPSHOT, ['doc-1'], db as never);
+
+    expect(full).toMatchObject({ property_id: 'property-1' });
+    expect(snapshot).toMatchObject({ property_id: 'property-1' });
+    expect(bodies.map(b => b.kind)).toEqual([PMS_RD_DOCUMENT_BY_ID, PMS_RD_DOCUMENT_SNAPSHOT]);
+    expect(bodies.map(b => b.values)).toEqual([['doc-1'], ['doc-1']]);
+    expect(bound).toEqual([['doc-1'], ['doc-1']]);
+    expect(prepared).toEqual([documentByIdSql, documentSnapshotSql]);
     for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
   });
 });
