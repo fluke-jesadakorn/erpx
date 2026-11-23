@@ -16,6 +16,7 @@ import {projectsPackageEnforcementMode,readPurchasedAccesses,checkPurchasedCapab
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
 import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-transactions";
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
+import {projectMemberRows} from "@erpx/server-projects/adapters/work-ui-staff-facts";
 
 export type ProjectCapability="projects.wbs"|"projects.tasks"|"projects.time"|"projects.handover"|"projects.costs";
 export type ProjectPurchaseTarget={kind:"milestone"|"work_log"|"allocation"|"handoff";id:string}|{kind:"work_date";date:string}|{kind:"cost_line";id:string};
@@ -87,7 +88,7 @@ async function workerReferences(database:SqlDatabase,companyId:string,users:read
  const staff:Array<{user:string;rows:StaffPerson[]}>=[];for(const user of users){const now=Date.now();staff.push({user,rows:(await StaffPolicyIdentityAccessFacts(database).readReadActiveStaffResults(companyId,now,now,user)).results});}
  return JSON.stringify({people:await projectWorkerReferenceWitness(database,companyId,users),staff});
 }
-async function memberUsers(database:SqlDatabase,id:string){return (await database.prepare('SELECT user_id FROM staff_project_members WHERE project_id=? ORDER BY user_id').bind(id).all<{user_id:string}>()).results.map(row=>row.user_id);}
+async function memberUsers(database:SqlDatabase,id:string){return (await projectMemberRows(database,id)).results.map(row=>row.user_id);}
 export async function withProjectPurchasedCommand<Result>(owner:SqlDatabase,actor:StaffActor,
  command:{key:string;operations:readonly string[];projectId:string;purpose:CapabilityPurpose;capability?:ProjectCapability;permission?:string;existing?:boolean;member?:boolean;target?:ProjectPurchaseTarget;memberUserIds?:readonly string[]},run:(database:SqlDatabase)=>Promise<Result>){
  const mode=await projectsPackageEnforcementMode();if(mode==="disabled")return run(owner);
