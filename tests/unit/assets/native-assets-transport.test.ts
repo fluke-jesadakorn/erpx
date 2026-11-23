@@ -328,6 +328,23 @@ it('shares two canonical source-probe projections across the Assets record-purch
  expect(adapter).toContain('database.prepare(assetSourceReadSql(definition.table,"id"))');
  expect(adapter).toContain('database.prepare(assetSourceReadSql(`${definition.table} asset_record_source`,"id",` AND ${scope.where}`))');
 });
+it('shares one canonical aggregate projection across the Assets executive breakdowns (45->44)',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const adapter=await readFile(new URL('../../../packages/server-assets/src/adapters/executive-metric-projections.ts',import.meta.url),'utf8');
+ const count=(text:string,needle:string)=>text.split(needle).length-1;
+ const literal='SELECT ${label} label,count(*)::text value FROM';
+ // The canonical helper owns the single aggregate projection; its comment adds
+ // no "SELECT" token to the retirement KPI.
+ expect(count(adapter,literal)).toBe(1);
+ expect(adapter).toContain('const assetMetricBreakdownProjectionSql = (label: string) =>');
+ // No duplicate raw projection literal remains at either breakdown call site.
+ expect(count(adapter,'`SELECT ${label} label,count(*)::text value FROM (${source.sql}) a')).toBe(0);
+ expect(count(adapter,'`SELECT ${label} label,count(*)::text value FROM operational_asset_events e')).toBe(0);
+ expect(count(adapter,'${assetMetricBreakdownProjectionSql(label)} (${source.sql}) a')).toBe(1);
+ expect(count(adapter,'${assetMetricBreakdownProjectionSql(label)} operational_asset_events e')).toBe(1);
+ // The already-shared org-node label family remains intact.
+ expect(count(adapter,'SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes})')).toBe(1);
+});
 it('shares one fixed owner predicate for attachment owner version guards (46->45)',async()=>{
   const {readFile}=await import('node:fs/promises');
   const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);

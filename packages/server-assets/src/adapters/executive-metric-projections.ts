@@ -12,6 +12,12 @@ import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/e
  * so the TS read tail carries no duplicate statement. */
 const assetNodeDisplayNameLabel = (column: "branch_id" | "department_id", fallback: string) =>
     `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=a.${column} AND n.company_id=a.company_id),'${fallback}')`;
+/** Canonical owner-local fixed aggregate prefix for Assets executive breakdowns.
+ * The in-service and retirement projections share this one literal so the TS
+ * read tail carries no duplicate statement. Callers pass only an owner-owned
+ * label expression; no SQL or relation name is accepted from a request. */
+const assetMetricBreakdownProjectionSql = (label: string) =>
+    `SELECT ${label} label,count(*)::text value FROM`;
 export const assetBranchDisplayNameLabel = assetNodeDisplayNameLabel("branch_id", "Company-wide");
 const assetDepartmentDisplayNameLabel = assetNodeDisplayNameLabel("department_id", "Unassigned");
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
@@ -23,7 +29,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         const label = breakdown === "branch" ? assetBranchDisplayNameLabel
             : breakdown === "department" ? assetDepartmentDisplayNameLabel
                 : "a.condition";
-        sql = `SELECT ${label} label,count(*)::text value FROM (${source.sql}) a WHERE ${scopedAlias("a")} AND a.lifecycle_status='in_service' GROUP BY 1 ORDER BY 1`;
+        sql = `${assetMetricBreakdownProjectionSql(label)} (${source.sql}) a WHERE ${scopedAlias("a")} AND a.lifecycle_status='in_service' GROUP BY 1 ORDER BY 1`;
         values = scopeArgs;
     }
     if (id === "asset-retirements") {
@@ -32,7 +38,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
             : breakdown === "month" || breakdown === "default"
                 ? "to_char(to_timestamp(e.created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')"
                 : "'Retired assets'";
-        sql = `SELECT ${label} label,count(*)::text value FROM operational_asset_events e
+        sql = `${assetMetricBreakdownProjectionSql(label)} operational_asset_events e
       JOIN (${source.sql}) a ON a.id=e.asset_id
       WHERE ${scopedAlias("a")} AND e.action IN ('retire','retire-approve') AND e.lifecycle_status='retired' AND e.created_at>=? AND e.created_at<?
       GROUP BY 1 ORDER BY 1`;
