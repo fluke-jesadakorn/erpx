@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5532,
+    "revision": 5540,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-d",
       "agentId": "lead",
       "startedAt": "2026-11-23T06:45:08.420Z",
-      "heartbeatAt": "2026-11-23T09:21:39.323Z",
-      "expiresAt": "2026-11-23T09:51:39.323Z",
+      "heartbeatAt": "2026-11-23T09:24:19.619Z",
+      "expiresAt": "2026-11-23T09:54:19.619Z",
       "generation": 154,
       "tokenHash": "01e24ba69c801ba69506f7381436bc3415092da31ab33204c519241e628cd4c9"
     },
@@ -15563,8 +15563,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:46:29.180Z",
-          "heartbeatAt": "2026-11-23T09:21:39.323Z",
-          "expiresAt": "2026-11-23T09:51:39.323Z",
+          "heartbeatAt": "2026-11-23T09:24:19.619Z",
+          "expiresAt": "2026-11-23T09:54:19.619Z",
           "generation": 154
         },
         "baseSha": "473b198f4838943261a63a1ca44b167d347fc4c4",
@@ -17494,9 +17494,9 @@
         "claim": {
           "runId": "run-20261123-d",
           "agentId": "lead",
-          "claimedAt": "2026-11-23T08:26:32.057Z",
-          "heartbeatAt": "2026-11-23T09:21:39.323Z",
-          "expiresAt": "2026-11-23T09:51:39.323Z",
+          "claimedAt": "2026-11-23T09:34:12.830Z",
+          "heartbeatAt": "2026-11-23T09:34:12.830Z",
+          "expiresAt": "2026-11-23T10:04:12.830Z",
           "generation": 154
         },
         "baseSha": "f901987c8bcb88a080e9beb9d2b87892bc462eea",
@@ -17812,10 +17812,10 @@
         "handoff": {
           "runId": "run-20261123-d",
           "agentId": "lead",
-          "at": "2026-11-23T08:25:14.032Z",
+          "at": "2026-11-23T09:34:07.753Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
-          "nextAction": "Lane finding: exporting all 26 ERPX_NATIVE_* configs unblocks test discovery but transit still fails — composition backends are dev-DB-bound while suites use leased DBs, so native HTTP calls cross databases. Lane needs per-suite composition on leased DBs (harness epic). Transit oracle seed epic remains the viable path; smoke still user-blocked."
+          "nextAction": "Harness step 1 landed at 87576956 (pushed, remote verified): lanes backfill 24 wired ERPX_NATIVE_* keys; green-lane audit clean. Step 2 (worker-sized): per-suite composition on leased DBs + 5-key matrix (COMMERCE_WAVE2, COMMERCIAL_WAVE2, COMMERCE_OWNER_WRITE, FINANCE_OWNER_WRITE, WORKFLOW_WAVE3) — unblocks transit/payroll-core/manufacturing lanes. Smoke still user-blocked."
         },
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -27315,8 +27315,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:04:51.894Z",
-          "heartbeatAt": "2026-11-23T09:21:39.323Z",
-          "expiresAt": "2026-11-23T09:51:39.323Z",
+          "heartbeatAt": "2026-11-23T09:24:19.619Z",
+          "expiresAt": "2026-11-23T09:54:19.619Z",
           "generation": 154
         },
         "baseSha": "d0067f253fd960ab6945c5622e360e2cceeaffe7",
@@ -28391,8 +28391,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:19:17.835Z",
-          "heartbeatAt": "2026-11-23T09:21:39.323Z",
-          "expiresAt": "2026-11-23T09:51:39.323Z",
+          "heartbeatAt": "2026-11-23T09:24:19.619Z",
+          "expiresAt": "2026-11-23T09:54:19.619Z",
           "generation": 154
         },
         "baseSha": null,
@@ -39907,8 +39907,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:59:53.885Z",
-          "heartbeatAt": "2026-11-23T09:21:39.323Z",
-          "expiresAt": "2026-11-23T09:51:39.323Z",
+          "heartbeatAt": "2026-11-23T09:24:19.619Z",
+          "expiresAt": "2026-11-23T09:54:19.619Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45276,8 +45276,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:03:09.640Z",
-          "heartbeatAt": "2026-11-23T09:21:39.323Z",
-          "expiresAt": "2026-11-23T09:51:39.323Z",
+          "heartbeatAt": "2026-11-23T09:24:19.619Z",
+          "expiresAt": "2026-11-23T09:54:19.619Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45808,8 +45808,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:55:34.675Z",
-          "heartbeatAt": "2026-11-23T09:21:39.323Z",
-          "expiresAt": "2026-11-23T09:51:39.323Z",
+          "heartbeatAt": "2026-11-23T09:24:19.619Z",
+          "expiresAt": "2026-11-23T09:54:19.619Z",
           "generation": 154
         },
         "baseSha": "57a1fd51ebacf5fa1ff712f6eaa176f390ad64a3",
@@ -46095,19 +46095,74 @@
             "result": "passed",
             "sourceSha": "a15718127fa14ff0324453488ebdd83a9a276b28",
             "note": "lead; build 22s; 3198/3199/3100 health 200; dev fully restarted, 0 boot errors"
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration",
+            "result": "passed",
+            "sourceSha": "d2d23b110544d367f0869e3605aad1c330aa49a7",
+            "note": "lead; 0 errors (statement providers + exports)"
+          },
+          {
+            "command": "cargo check -p erpx-service",
+            "result": "passed",
+            "sourceSha": "d2d23b110544d367f0869e3605aad1c330aa49a7",
+            "note": "lead; 0 errors (2 new dispatch arms compile in chain)"
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test collaboration_work_postgres",
+            "result": "passed",
+            "sourceSha": "d2d23b110544d367f0869e3605aad1c330aa49a7",
+            "note": "lead; 7/7 incl brand+org statement parity (row-equality, foreign/null denial, constructor fail-closed)"
+          },
+          {
+            "command": "bunx tsc brand + organization",
+            "result": "passed",
+            "sourceSha": "2ca5d3efd73a61906ab0bfcac8a6237376351bfa",
+            "note": "lead re-ran at fixup SHA; clean"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "2ca5d3efd73a61906ab0bfcac8a6237376351bfa",
+            "note": "lead; repository layout passed"
+          },
+          {
+            "command": "git grep SELECT brand/org families HEAD vs worktree",
+            "result": "passed",
+            "sourceSha": "2ca5d3efd73a61906ab0bfcac8a6237376351bfa",
+            "note": "lead; 3->0 both files; org image function deleted with barrel (zero callers)"
+          },
+          {
+            "command": "native kind probes on rebuilt 3198",
+            "result": "passed",
+            "sourceSha": "2ca5d3efd73a61906ab0bfcac8a6237376351bfa",
+            "note": "lead; snake_case 400 diagnosed to deny_unknown_fields; camelCase resolves to session gate"
+          },
+          {
+            "command": "restart v4/v5/dev on fresh build",
+            "result": "passed",
+            "sourceSha": "2ca5d3efd73a61906ab0bfcac8a6237376351bfa",
+            "note": "lead; build 54s; 3198/3199/3100 health 200; dev fully restarted, 0 boot errors"
           }
         ],
         "retainedLegacy": [
           {
-            "path": "packages/server-collaboration/src/adapters/collaboration-work.ts",
+            "path": "packages/server-brand/src/adapters/native-brand-attachment-statement.ts",
             "writes": 0,
-            "reads": 2,
-            "removalTaskId": "retire.reads.collaboration",
-            "removalCondition": "Retire recordRelations/actionCards reads behind native owner-statement ports with their own consumers switched; actionHistory already native."
+            "reads": 0,
+            "removalTaskId": "retire.records",
+            "removalCondition": "Transport stays: it is the native-backed read path. Remove only if Brand reads move to a dedicated native route."
+          },
+          {
+            "path": "packages/server-brand/src/adapters/attachment-read.ts",
+            "writes": 0,
+            "reads": 0,
+            "removalTaskId": "retire.brand.attachment-facts",
+            "removalCondition": "Orchestration stays TS (locks, stability recheck, denial flow); only the SQL moved native. No further removal."
           }
         ],
         "blocker": null,
-        "nextAction": "Eligible-people slice landed at a15718127 (pushed, remote verified): statement + cutover, PG 6/6, KPI 1->0, stack rebuilt+healthy. Collaboration TS reads fully native. Remaining tail: lane verification only.",
+        "nextAction": "Brand statement kinds dispatched through collaboration notification-statement route (shared ingress, no new route/env). Remaining tail: lane verification only.",
         "handoff": {
           "runId": "run-20261123-b",
           "agentId": "worker-col",
@@ -49368,8 +49423,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:31:10.408Z",
-          "heartbeatAt": "2026-11-23T09:21:39.323Z",
-          "expiresAt": "2026-11-23T09:51:39.323Z",
+          "heartbeatAt": "2026-11-23T09:24:19.619Z",
+          "expiresAt": "2026-11-23T09:54:19.619Z",
           "generation": 154
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -50583,8 +50638,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T06:47:05.965Z",
-          "heartbeatAt": "2026-11-23T09:21:39.323Z",
-          "expiresAt": "2026-11-23T09:51:39.323Z",
+          "heartbeatAt": "2026-11-23T09:24:19.619Z",
+          "expiresAt": "2026-11-23T09:54:19.619Z",
           "generation": 154
         },
         "baseSha": null,
@@ -53123,9 +53178,9 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": "d0067f253fd960ab6945c5622e360e2cceeaffe7",
-        "implementedCommit": "d5da90169a6cbe4a97ad757a2af1b537db56614c",
-        "lastPushedSha": "d5da90169a6cbe4a97ad757a2af1b537db56614c",
+        "baseSha": "0091339e4f4c4837d57bc45718fe35f6517183e0",
+        "implementedCommit": "2ca5d3efd73a61906ab0bfcac8a6237376351bfa",
+        "lastPushedSha": "2ca5d3efd73a61906ab0bfcac8a6237376351bfa",
         "checks": [
           {
             "command": "cargo check -p erpx-server-brand",
@@ -53150,26 +53205,81 @@
             "result": "passed",
             "sourceSha": "d5da90169a6cbe4a97ad757a2af1b537db56614c",
             "note": "lead; 0/0 TS write statements (publication writers already 503 stubs); TS read retained by live Files consumer"
+          },
+          {
+            "command": "cargo check -p erpx-server-collaboration",
+            "result": "passed",
+            "sourceSha": "d2d23b110544d367f0869e3605aad1c330aa49a7",
+            "note": "lead; 0 errors (statement providers + exports)"
+          },
+          {
+            "command": "cargo check -p erpx-service",
+            "result": "passed",
+            "sourceSha": "d2d23b110544d367f0869e3605aad1c330aa49a7",
+            "note": "lead; 0 errors (2 new dispatch arms compile in chain)"
+          },
+          {
+            "command": "cargo test -p erpx-server-collaboration --test collaboration_work_postgres",
+            "result": "passed",
+            "sourceSha": "d2d23b110544d367f0869e3605aad1c330aa49a7",
+            "note": "lead; 7/7 incl brand+org statement parity (row-equality, foreign/null denial, constructor fail-closed)"
+          },
+          {
+            "command": "bunx tsc brand + organization",
+            "result": "passed",
+            "sourceSha": "2ca5d3efd73a61906ab0bfcac8a6237376351bfa",
+            "note": "lead re-ran at fixup SHA; clean"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "2ca5d3efd73a61906ab0bfcac8a6237376351bfa",
+            "note": "lead; repository layout passed"
+          },
+          {
+            "command": "git grep SELECT brand/org families HEAD vs worktree",
+            "result": "passed",
+            "sourceSha": "2ca5d3efd73a61906ab0bfcac8a6237376351bfa",
+            "note": "lead; 3->0 both files; org image function deleted with barrel (zero callers)"
+          },
+          {
+            "command": "native kind probes on rebuilt 3198",
+            "result": "passed",
+            "sourceSha": "2ca5d3efd73a61906ab0bfcac8a6237376351bfa",
+            "note": "lead; snake_case 400 diagnosed to deny_unknown_fields; camelCase resolves to session gate"
+          },
+          {
+            "command": "restart v4/v5/dev on fresh build",
+            "result": "passed",
+            "sourceSha": "2ca5d3efd73a61906ab0bfcac8a6237376351bfa",
+            "note": "lead; build 54s; 3198/3199/3100 health 200; dev fully restarted, 0 boot errors"
           }
         ],
         "retainedLegacy": [
           {
-            "path": "packages/server-brand/src/adapters/attachment-read-sources.ts",
+            "path": "packages/server-brand/src/adapters/native-brand-attachment-statement.ts",
             "writes": 0,
-            "reads": 1,
+            "reads": 0,
+            "removalTaskId": "retire.records",
+            "removalCondition": "Transport stays: it is the native-backed read path. Remove only if Brand reads move to a dedicated native route."
+          },
+          {
+            "path": "packages/server-brand/src/adapters/attachment-read.ts",
+            "writes": 0,
+            "reads": 0,
             "removalTaskId": "retire.brand.attachment-facts",
-            "removalCondition": "Remove after Files consumer switches to brand_attachment_read native port plus Organization-native organization image, with live-route proof; TS read stays authoritative until then."
+            "removalCondition": "Orchestration stays TS (locks, stability recheck, denial flow); only the SQL moved native. No further removal."
           }
         ],
         "blocker": "handoff",
-        "nextAction": "Port + catalogue suite landed at d5da9016 (PG 2/2). Next: Files consumer switch to native brand_attachment_read plus Organization-native organization image with live-route proof, then TS read removal; claim when starting that slice (needs owner:files + resource:composition).",
+        "nextAction": "Read tail closed; publication-command slice (native Brand publication mount) unblocks the rest. Claim when starting that slice (needs owner:brand + resource:composition).",
         "handoff": {
           "runId": "run-20261123-d",
           "agentId": "lead",
-          "at": "2026-11-23T08:26:31.980Z",
+          "at": "2026-11-23T09:34:12.757Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Port + catalogue suite landed at d5da9016 (PG 2/2). Next: Files consumer switch to native brand_attachment_read plus Organization-native organization image with live-route proof, then TS read removal; claim when starting that slice (needs owner:files + resource:composition)."
+          "nextAction": "Read tail closed; publication-command slice (native Brand publication mount) unblocks the rest. Claim when starting that slice (needs owner:brand + resource:composition)."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -109921,7 +110031,7 @@
       }
     },
     "lastCoordinatorGeneration": 154,
-    "updatedAt": "2026-11-23T09:21:39.325Z",
+    "updatedAt": "2026-11-23T09:34:12.832Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
