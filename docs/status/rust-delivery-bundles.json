@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6623,
+    "revision": 6626,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -115865,7 +115865,7 @@
         "owner": "benefits",
         "title": "Switch benefits consumers to native read port and drop compatibility barrel",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -115884,22 +115884,47 @@
         "resources": [
           "owner:benefits"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wV01",
-          "claimedAt": "2026-11-23T19:42:35.368Z",
-          "heartbeatAt": "2026-11-23T19:45:10.073Z",
-          "expiresAt": "2026-11-23T20:15:10.073Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-benefits/src/**/*.ts'",
+            "result": "observed",
+            "sourceSha": "a9ac2176b",
+            "owner": "benefits",
+            "before": 80,
+            "after": 80,
+            "note": "Import-only consumer switch; compatibility barrel deleted, no SQL delta."
+          },
+          {
+            "command": "cargo check benefits/work_projection/records/collaboration",
+            "result": "passed",
+            "sourceSha": "a9ac2176b"
+          },
+          {
+            "command": "tsc server-benefits/work_projection/collaboration",
+            "result": "passed",
+            "sourceSha": "a9ac2176b"
+          },
+          {
+            "command": "vitest benefits (48)",
+            "result": "passed",
+            "sourceSha": "a9ac2176b"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Repoint work-items, record-purchases, records domain-details, and staff-notifications to public/benefits-native-read; delete the compatibility public/benefits.ts re-export; no KPI delta (0 SQL).",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wV01",
+          "at": "2026-11-23T19:46:39.047Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -116471,7 +116496,7 @@
         "owner": "work_projection",
         "title": "Work projection TS read tail native cutover",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116483,7 +116508,14 @@
         "resources": [
           "owner:work_projection"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wZ04",
+          "claimedAt": "2026-11-23T19:46:39.125Z",
+          "heartbeatAt": "2026-11-23T19:46:39.125Z",
+          "expiresAt": "2026-11-23T20:16:39.125Z",
+          "generation": 158
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -116681,18 +116713,18 @@
       "totalPackets": 508,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 22,
+        "pending": 21,
         "in_progress": 14,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 143,
+        "blocked": 144,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T19:46:06.617Z",
+    "updatedAt": "2026-11-23T19:46:39.128Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
