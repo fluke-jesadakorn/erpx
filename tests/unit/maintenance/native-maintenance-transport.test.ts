@@ -413,3 +413,73 @@ describe('native preventive-plan read transport',()=>{
   await expect(preventivePlanDetail(actor,'plan')).rejects.toMatchObject({status:409,code:'WORK_CONTEXT_CHANGED'});
  });
 });
+
+/** The downtime-evidence transport is a strict projection of the native GET:
+ * it forwards only bounded query facts, rechecks the current context and never
+ * builds owner SQL or falls back to the retained TypeScript reader. */
+describe('native downtime-evidence read transport',()=>{
+ const key='ERPX_NATIVE_MAINTENANCE_CONFIG';
+ const cfg=()=>JSON.stringify({privateBaseUrl:'http://127.0.0.1:44992',timeoutMs:1000,holdings:[{origin:'https://acme.example.com',holdingSlug:'acme',holdingId:'holding'}]});
+ const actor={
+  userId:'user',holdingId:'holding',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,
+  assignmentId:'assignment',role:'owner',assignmentScope:'holding',scope:{kind:'holding'},
+  authority:{revision:7,assignmentVersion:3},modules:['maintenance'],
+  iam:{permissions:['records.read','records.write','records.review']},
+ } as unknown as import('@erpx/server-identity_access/public/authorization').WorkContext;
+ const evidence={id:'work',version:'2',status:'completed',title:'Bearing replacement',asset_code:'A-1',
+  asset_name:'Asset One',downtime_started_at:'1000',downtime_ended_at:'2000'};
+ const context={companyId:'company',assignmentId:'assignment',revision:7,assignmentVersion:3,permissions:['records.read','records.write','records.review']};
+ const input={from:0,to:1800000000000,query:'Bearing',limit:2,cursor:{endedAt:1500,id:'previous'},recordId:'work'};
+ const okJson=(data:unknown)=>new Response(JSON.stringify({data,context}),{status:200,headers:{'content-type':'application/json'}});
+ const load=()=>import('../../../packages/server-maintenance/src/public/native-downtime-evidence');
+ let spy:ReturnType<typeof vi.spyOn>;
+ beforeEach(()=>{vi.stubEnv(key,cfg());});
+ afterEach(()=>{vi.unstubAllEnvs();vi.restoreAllMocks();});
+
+ it('forwards bounded query facts and the current context without building owner SQL',async()=>{
+  spy=vi.spyOn(globalThis,'fetch').mockResolvedValue(okJson([evidence]));
+  const {nativeDowntimeEvidenceRows,nativeDowntimeReadConfigured}=await load();
+  expect(nativeDowntimeReadConfigured()).toBe(true);
+  const db={prepare:vi.fn(()=>{throw Error('downtime evidence read must not build SQL');})} as unknown as import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
+  const rows=await nativeDowntimeEvidenceRows(actor,input,db);
+  expect(rows).toEqual([evidence]);
+  const url=new URL(String(spy.mock.calls[0][0]));
+  expect(url.pathname).toBe('/api/v1/holdings/acme/maintenance/downtime-evidence');
+  expect(url.searchParams.get('from')).toBe('0');
+  expect(url.searchParams.get('to')).toBe('1800000000000');
+  expect(url.searchParams.get('query')).toBe('Bearing');
+  expect(url.searchParams.get('limit')).toBe('2');
+  expect(url.searchParams.get('cursorEndedAt')).toBe('1500');
+  expect(url.searchParams.get('cursorId')).toBe('previous');
+  expect(url.searchParams.get('recordId')).toBe('work');
+  expect(spy.mock.calls[0][1]).toMatchObject({method:'GET',cache:'no-store',redirect:'error'});
+  expect(new Headers((spy.mock.calls[0][1] as RequestInit).headers as HeadersInit).get('x-erpx-context-revision')).toBe('7');
+  expect(db.prepare).not.toHaveBeenCalled();
+ });
+
+ it('fails closed for missing config, forbidden, changed context and malformed rows',async()=>{
+  const {nativeDowntimeEvidenceRows}=await load();
+  vi.unstubAllEnvs();delete process.env[key];
+  await expect(nativeDowntimeEvidenceRows(actor,input)).rejects.toMatchObject({status:503,code:'NATIVE_MAINTENANCE_UNAVAILABLE'});
+  vi.stubEnv(key,cfg());
+  spy=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response('{}',{status:403}));
+  await expect(nativeDowntimeEvidenceRows(actor,input)).rejects.toMatchObject({status:403,code:'MAINTENANCE_DOWNTIME_EVIDENCE_FORBIDDEN'});
+  spy.mockResolvedValue(new Response(JSON.stringify({data:[evidence],context:{...context,revision:8}}),{status:200,headers:{'content-type':'application/json'}}));
+  await expect(nativeDowntimeEvidenceRows(actor,input)).rejects.toMatchObject({status:409,code:'WORK_CONTEXT_CHANGED'});
+  spy.mockResolvedValue(new Response(JSON.stringify({data:[{...evidence,extra:true}],context}),{status:200,headers:{'content-type':'application/json'}}));
+  await expect(nativeDowntimeEvidenceRows(actor,input)).rejects.toMatchObject({status:503,code:'NATIVE_MAINTENANCE_RESPONSE_INVALID'});
+  spy.mockResolvedValue(new Response(JSON.stringify({data:[evidence],context}),{status:200,headers:{'content-type':'text/plain'}}));
+  await expect(nativeDowntimeEvidenceRows(actor,input)).rejects.toMatchObject({status:503,code:'NATIVE_MAINTENANCE_READ_UNAVAILABLE'});
+ });
+
+ it('rejects unbounded queries before any fetch and refuses a missing holding',async()=>{
+  const {nativeDowntimeEvidenceRows}=await load();
+  spy=vi.spyOn(globalThis,'fetch').mockResolvedValue(okJson([evidence]));
+  for(const bad of [{...input,limit:51},{...input,query:'x'.repeat(201)},{...input,cursor:{endedAt:1,id:''}},{...input,recordId:''}]){
+   await expect(nativeDowntimeEvidenceRows(actor,bad)).rejects.toMatchObject({status:422,code:'MAINTENANCE_DOWNTIME_QUERY_INVALID'});
+  }
+  expect(spy).not.toHaveBeenCalled();
+  const foreign={...actor,holdingId:'other'} as typeof actor;
+  await expect(nativeDowntimeEvidenceRows(foreign,input)).rejects.toMatchObject({status:409,code:'WORK_CONTEXT_CHANGED'});
+ });
+});

@@ -13,6 +13,7 @@ use crate::adapters::work_wire::{
     normalize_maintenance_preventive_action, normalize_preventive_plan_save,
 };
 use crate::application::preventive_plan::PreventivePlanCommand;
+use crate::application::read::{MaintenanceDowntimeCursor, MaintenanceDowntimeQuery};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
     StatusCode, body::to_bytes, header, routing::get, serde_json,
@@ -43,6 +44,17 @@ pub struct MaintenanceHttpReadRequest<'a> {
     pub holding_slug: &'a str,
     pub headers: &'a HeaderMap,
     pub kind: MaintenanceHttpReadKind,
+}
+
+/// Bounded downtime-evidence query for the dedicated native GET. Composition
+/// owns the Account session and the serializable owner transaction, so it binds
+/// this value directly to `read_maintenance_downtime_evidence`.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct MaintenanceHttpDowntimeRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub query: MaintenanceDowntimeQuery,
 }
 
 #[derive(Clone, Debug)]
@@ -148,6 +160,22 @@ pub trait MaintenanceHttpBackend: Send + Sync {
                 FailureKind::Unavailable,
                 "NATIVE_MAINTENANCE_PLAN_UNAVAILABLE",
                 "The native preventive plan command is not mounted.",
+            ))
+        })
+    }
+    /// Native downtime-evidence read. Composition mounts this with the retained
+    /// Account session and serializable owner transaction, dispatching the
+    /// already parsed query to `read_maintenance_downtime_evidence`. Until then
+    /// it fails explicitly; the transport never falls back to TypeScript SQL.
+    fn downtime_evidence<'a>(
+        &'a self,
+        _request: MaintenanceHttpDowntimeRequest<'a>,
+    ) -> MaintenanceHttpFuture<'a, MaintenanceHttpResponse> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "NATIVE_MAINTENANCE_DOWNTIME_UNAVAILABLE",
+                "The native downtime evidence read is not mounted.",
             ))
         })
     }
@@ -338,6 +366,10 @@ pub fn maintenance_router(targets: Vec<MaintenanceHttpTarget>) -> Result<Router,
             "/api/v1/holdings/{holding_slug}/maintenance/plans",
             get(read_plans).post(command_plans),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/maintenance/downtime-evidence",
+            get(read_downtime_evidence),
+        )
         .with_state(Arc::new(MaintenanceHttpState {
             targets: configured,
         })))
@@ -389,6 +421,135 @@ async fn read_plans(
                 holding_slug: &target.holding_slug,
                 headers: request.headers(),
                 kind,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded(reply.value()),
+        Err(error) => error_response(error),
+    }
+}
+
+/// Strictly parse the bounded downtime-evidence GET. Unknown, repeated or
+/// unbounded parameters fail closed before any backend/session is touched.
+fn downtime_query(request: &Request) -> Result<MaintenanceDowntimeQuery, BusinessError> {
+    let invalid = || {
+        BusinessError::invalid(
+            "MAINTENANCE_DOWNTIME_QUERY_INVALID",
+            "Use a bounded Maintenance downtime evidence query.",
+        )
+    };
+    let Some(query) = request.uri().query() else {
+        return Err(invalid());
+    };
+    if query.is_empty() {
+        return Err(invalid());
+    }
+    let mut from = None;
+    let mut to = None;
+    let mut text = None;
+    let mut limit = None;
+    let mut cursor_ended_at = None;
+    let mut cursor_id = None;
+    let mut record_id = None;
+    for pair in query.split('&') {
+        if pair.is_empty() {
+            return Err(invalid());
+        }
+        let (name, raw) = pair.split_once('=').ok_or_else(invalid)?;
+        let value = percent_decode(raw).map_err(|_| invalid())?;
+        let slot = match name {
+            "from" => &mut from,
+            "to" => &mut to,
+            "query" => &mut text,
+            "limit" => &mut limit,
+            "cursorEndedAt" => &mut cursor_ended_at,
+            "cursorId" => &mut cursor_id,
+            "recordId" => &mut record_id,
+            _ => return Err(invalid()),
+        };
+        if slot.is_some() {
+            return Err(invalid());
+        }
+        *slot = Some(value);
+    }
+    let millis = |value: Option<String>| -> Result<i64, BusinessError> {
+        let value = value.ok_or_else(invalid)?;
+        if value.is_empty() || value.len() > 20 {
+            return Err(invalid());
+        }
+        let bytes = value.as_bytes();
+        let digits = if bytes[0] == b'-' { &bytes[1..] } else { bytes };
+        if digits.is_empty() || !digits.iter().all(u8::is_ascii_digit) {
+            return Err(invalid());
+        }
+        value.parse::<i64>().map_err(|_| invalid())
+    };
+    let bounded_id = |value: Option<String>| -> Result<String, BusinessError> {
+        let value = value.ok_or_else(invalid)?;
+        if value.is_empty() || value.len() > 200 {
+            return Err(invalid());
+        }
+        Ok(value)
+    };
+    let from = millis(from)?;
+    let to = millis(to)?;
+    let limit = {
+        let value = limit.ok_or_else(invalid)?;
+        if value.is_empty()
+            || value.len() > 3
+            || !value.bytes().all(|byte| byte.is_ascii_digit())
+        {
+            return Err(invalid());
+        }
+        let value: i32 = value.parse().map_err(|_| invalid())?;
+        if !(1..=50).contains(&value) {
+            return Err(invalid());
+        }
+        value
+    };
+    let text = text.ok_or_else(invalid)?;
+    if text.len() > 200 {
+        return Err(invalid());
+    }
+    let cursor = match (cursor_ended_at, cursor_id) {
+        (None, None) => None,
+        (Some(ended_at), Some(id)) => Some(MaintenanceDowntimeCursor {
+            ended_at: millis(Some(ended_at))?,
+            id: bounded_id(Some(id))?,
+        }),
+        _ => return Err(invalid()),
+    };
+    let record_id = match record_id {
+        None => None,
+        Some(value) => Some(bounded_id(Some(value))?),
+    };
+    Ok(MaintenanceDowntimeQuery {
+        from,
+        to,
+        query: text,
+        limit,
+        cursor,
+        record_id,
+    })
+}
+
+async fn read_downtime_evidence(
+    State(state): State<Arc<MaintenanceHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        let query = downtime_query(&request)?;
+        target
+            .backend
+            .downtime_evidence(MaintenanceHttpDowntimeRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: request.headers(),
+                query,
             })
             .await
     }
@@ -781,6 +942,79 @@ mod tests {
     }
 
     #[test]
+    fn downtime_query_parses_bounded_parameters_and_rejects_unbounded_ones() {
+        let request = |query: &str| {
+            Request::builder()
+                .uri(format!(
+                    "/api/v1/holdings/acme/maintenance/downtime-evidence?{query}"
+                ))
+                .body(erpx_server_runtime::public::http_support::Body::empty())
+                .unwrap()
+        };
+        let parsed = downtime_query(&request(
+            "from=1700000000000&to=1800000000000&query=Bearing&limit=2&cursorEndedAt=1750000000000&cursorId=work-1&recordId=work-2",
+        ))
+        .unwrap();
+        assert_eq!(parsed.from, 1_700_000_000_000);
+        assert_eq!(parsed.to, 1_800_000_000_000);
+        assert_eq!(parsed.query, "Bearing");
+        assert_eq!(parsed.limit, 2);
+        assert_eq!(
+            parsed.cursor,
+            Some(MaintenanceDowntimeCursor {
+                ended_at: 1_750_000_000_000,
+                id: "work-1".into(),
+            })
+        );
+        assert_eq!(parsed.record_id.as_deref(), Some("work-2"));
+        let plain = downtime_query(&request("from=0&to=1&query=&limit=50")).unwrap();
+        assert_eq!(plain.cursor, None);
+        assert_eq!(plain.record_id, None);
+
+        for bad in [
+            "",
+            "from=0&to=1",
+            "from=0&to=1&query=&limit=0",
+            "from=0&to=1&query=&limit=51",
+            "from=0&to=1&query=&limit=1&limit=2",
+            "from=0&to=1&query=&limit=1&other=x",
+            "from=0&to=1&query=&limit=1&cursorId=work",
+            "from=not-a-number&to=1&query=&limit=1",
+            "from=0&to=1&query=&limit=1&recordId=",
+            "from=0&to=1&query=&limit=1&query=x",
+        ] {
+            assert!(
+                downtime_query(&request(bad)).is_err(),
+                "unbounded query accepted: {bad}"
+            );
+        }
+    }
+
+    #[tokio::test]
+    async fn downtime_evidence_default_fails_closed_without_a_mounted_backend() {
+        let backend = Noop;
+        let headers = HeaderMap::new();
+        let result = backend
+            .downtime_evidence(MaintenanceHttpDowntimeRequest {
+                host: "acme.example.test",
+                holding_slug: "acme",
+                headers: &headers,
+                query: MaintenanceDowntimeQuery {
+                    from: 0,
+                    to: 1,
+                    query: String::new(),
+                    limit: 1,
+                    cursor: None,
+                    record_id: None,
+                },
+            })
+            .await;
+        let error = result.unwrap_err();
+        assert_eq!(error.kind, FailureKind::Unavailable);
+        assert_eq!(error.code, "NATIVE_MAINTENANCE_DOWNTIME_UNAVAILABLE");
+    }
+
+    #[test]
     fn target_configuration_requires_distinct_exact_holdings() {
         let backend = std::sync::Arc::new(Noop);
         let target = || MaintenanceHttpTarget {
@@ -877,6 +1111,24 @@ mod tests {
                 })
             })
         }
+        fn downtime_evidence<'a>(
+            &'a self,
+            request: MaintenanceHttpDowntimeRequest<'a>,
+        ) -> MaintenanceHttpFuture<'a, MaintenanceHttpResponse> {
+            Box::pin(async move {
+                self.seen.lock().unwrap().push(format!(
+                    "downtime:{}:{}:{}:{}",
+                    request.query.from,
+                    request.query.to,
+                    request.query.query,
+                    request.query.limit
+                ));
+                Ok(MaintenanceHttpResponse {
+                    data: serde_json::json!({"rows":[]}),
+                    context: serde_json::json!({"userId":"user"}),
+                })
+            })
+        }
     }
 
     async fn http(addr: std::net::SocketAddr, raw: String) -> (u16, serde_json::Value) {
@@ -939,6 +1191,20 @@ mod tests {
         assert_eq!(status, 200);
         let (status, _) = http(addr, get("/api/v1/holdings/acme/maintenance/plans?id=plan")).await;
         assert_eq!(status, 200);
+        let (status, body) = http(
+            addr,
+            get("/api/v1/holdings/acme/maintenance/downtime-evidence?from=0&to=1800000000000&query=Bearing&limit=2"),
+        )
+        .await;
+        assert_eq!(status, 200);
+        assert_eq!(body["data"]["rows"], serde_json::json!([]));
+        let (status, body) = http(
+            addr,
+            get("/api/v1/holdings/acme/maintenance/downtime-evidence?from=0&to=1&query=&limit=99"),
+        )
+        .await;
+        assert_eq!(status, 422);
+        assert_eq!(body["error"]["code"], "MAINTENANCE_DOWNTIME_QUERY_INVALID");
         let (status, body) = http(
             addr,
             get("/api/v1/holdings/acme/maintenance?id=work&id=other"),
@@ -1037,6 +1303,7 @@ mod tests {
         assert!(seen.iter().any(|value| value == "read:Workspace"));
         assert!(seen.iter().any(|value| value == "read:Detail(\"work\")"));
         assert!(seen.iter().any(|value| value == "read:PlanDetail(\"plan\")"));
+        assert!(seen.iter().any(|value| value == "downtime:0:1800000000000:Bearing:2"));
         assert!(seen.iter().any(|value| value == "command:maintenance-key-1:maintenance.complete:work"));
         assert!(seen.iter().any(|value| value == "command:maintenance-key-2:maintenance.create:create"));
         server.abort();

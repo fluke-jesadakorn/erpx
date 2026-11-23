@@ -12,7 +12,8 @@ use erpx_server_identity_access::public::effective_authority::{
     HoldingWorkSourcePreparation, WorkAuthorizationRequest,
 };
 use erpx_server_maintenance::public::read::{
-    read_maintenance_detail, read_maintenance_plan_detail, read_maintenance_plans,
+    MaintenanceDowntimeCursor, MaintenanceDowntimeQuery, read_maintenance_detail,
+    read_maintenance_downtime_evidence, read_maintenance_plan_detail, read_maintenance_plans,
     read_maintenance_workspace,
 };
 use erpx_server_runtime::public::postgres::{DatabasePool, PgWorkFuture};
@@ -50,6 +51,192 @@ async fn seed(pool: &DatabasePool) {
     sqlx::query("INSERT INTO maintenance_preventive_plans(id,company_id,branch_id,department_id,asset_id,title,priority,owner_id,interval_days,time_zone,first_due_local,next_due_local,next_due_at,lead_days,created_by,edited_by,created_at,updated_at)VALUES('plan','company','branch',NULL,'asset','Synthetic preventive plan','normal','user',30,'Asia/Bangkok','2026-11-10T09:00','2026-11-10T09:00',$1,7,'user','user',0,0)").bind(NOW).execute(&mut *tx).await.unwrap();
     sqlx::raw_sql("INSERT INTO maintenance_preventive_events(id,plan_id,version,action,actor_id,reason,snapshot_json,created_at)SELECT 'plan-event-1',id,version,'create','user','Synthetic plan created',to_jsonb(p),0 FROM maintenance_preventive_plans p WHERE id='plan'").execute(&mut *tx).await.unwrap();
     tx.commit().await.unwrap();
+}
+
+async fn seed_downtime(pool: &DatabasePool) {
+    sqlx::raw_sql(
+        "INSERT INTO operational_assets(id,company_id,branch_id,code,name,category,currency,created_by,created_at,updated_at)VALUES('downtime-open-asset','company','branch','DOWNTIME-OPEN','Open downtime asset','synthetic','THB','fixture',0,0);\
+        INSERT INTO maintenance_work_orders(id,company_id,branch_id,asset_id,title,priority,status,owner_id,created_by,created_at,updated_at,version,downtime_started_at,downtime_ended_at,completion_evidence,resulting_condition)VALUES \
+         ('downtime-complete','company','branch','asset','Bearing replacement','normal','completed','user','user',0,0,1,1000,2000,'Synthetic bearing evidence','good'), \
+         ('downtime-cancelled','company','branch','asset','Filter cleaning','normal','cancelled','user','user',0,0,2,3000,4000,NULL,NULL), \
+         ('downtime-open','company','branch','downtime-open-asset','Open downtime','normal','in_progress','user','user',0,0,1,5000,6000,NULL,NULL), \
+         ('downtime-unfinished','company','branch','asset','Unfinished downtime','normal','completed','user','user',0,0,1,5000,NULL,'Synthetic unfinished evidence','good'), \
+         ('downtime-foreign','foreign','branch','asset','Foreign downtime','normal','completed','user','user',0,0,1,1000,9000,'Synthetic foreign evidence','good')",
+    )
+    .execute(pool.raw())
+    .await
+    .unwrap();
+}
+
+fn evidence_query() -> MaintenanceDowntimeQuery {
+    MaintenanceDowntimeQuery {
+        from: 0,
+        to: 10_000,
+        query: String::new(),
+        limit: 1,
+        cursor: None,
+        record_id: None,
+    }
+}
+
+#[tokio::test]
+async fn downtime_evidence_returns_bounded_company_scoped_terminal_windows() {
+    fixture::with_database(2, |control| async move {
+        fixture::with_database(2, move |holding| async move {
+            let (authorizer, clock) = setup(&control, &holding).await;
+            seed(&holding).await;
+            seed_downtime(&holding).await;
+            let now = clock.now();
+            authorizer
+                .execute_with_sources(
+                    "acme.example.test",
+                    proof(),
+                    input(),
+                    read_request(),
+                    ReadSources,
+                    move |connection, current| {
+                        Box::pin(async move {
+                            // The adapter clamps the row limit to limit+1, so a
+                            // requested page of one still exposes the next row.
+                            let rows = read_maintenance_downtime_evidence(
+                                connection,
+                                current,
+                                &evidence_query(),
+                                now,
+                            )
+                            .await?;
+                            assert_eq!(
+                                rows.iter().map(|row| row.id.as_str()).collect::<Vec<_>>(),
+                                vec!["downtime-cancelled", "downtime-complete"]
+                            );
+                            assert_eq!(rows[0].version, "2");
+                            assert_eq!(rows[0].status, "cancelled");
+                            assert_eq!(rows[0].asset_code, "SYNTHETIC");
+                            assert_eq!(rows[0].asset_name, "PRIVATE_ASSET");
+                            assert_eq!(rows[0].downtime_started_at, "3000");
+                            assert_eq!(rows[0].downtime_ended_at, "4000");
+                            assert_eq!(rows[0].value()["title"], "Filter cleaning");
+
+                            let filtered = MaintenanceDowntimeQuery {
+                                query: "bearing".into(),
+                                ..evidence_query()
+                            };
+                            let rows = read_maintenance_downtime_evidence(
+                                connection,
+                                current,
+                                &filtered,
+                                now,
+                            )
+                            .await?;
+                            assert_eq!(rows.len(), 1);
+                            assert_eq!(rows[0].id, "downtime-complete");
+
+                            let cursor = MaintenanceDowntimeQuery {
+                                limit: 50,
+                                cursor: Some(MaintenanceDowntimeCursor {
+                                    ended_at: 4000,
+                                    id: "downtime-cancelled".into(),
+                                }),
+                                ..evidence_query()
+                            };
+                            let rows = read_maintenance_downtime_evidence(
+                                connection, current, &cursor, now,
+                            )
+                            .await?;
+                            assert_eq!(
+                                rows.iter().map(|row| row.id.as_str()).collect::<Vec<_>>(),
+                                vec!["downtime-complete"]
+                            );
+
+                            let record = MaintenanceDowntimeQuery {
+                                record_id: Some("downtime-complete".into()),
+                                ..evidence_query()
+                            };
+                            let rows = read_maintenance_downtime_evidence(
+                                connection, current, &record, now,
+                            )
+                            .await?;
+                            assert_eq!(rows.len(), 1);
+                            assert_eq!(rows[0].id, "downtime-complete");
+                            Ok(())
+                        })
+                    },
+                )
+                .await
+                .unwrap();
+        })
+        .await;
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn downtime_evidence_fails_closed_without_read_permission_or_before_context_expiry() {
+    fixture::with_database(2, |control| async move {
+        fixture::with_database(2, move |holding| async move {
+            let (authorizer, clock) = setup(&control, &holding).await;
+            seed(&holding).await;
+            seed_downtime(&holding).await;
+            let now = clock.now();
+            // Remove records.read while keeping a live selected context.
+            sqlx::raw_sql("INSERT INTO iam_role_revisions(company_id,role_id,revision,permissions_json,grantable_json,scopes_json,created_by,created_at)VALUES('*','custom_native_authority',4,'[\"module.maintenance.read\"]','[]','[\"holding\",\"branch\",\"department\"]','fixture',0);UPDATE iam_roles SET published_revision=4 WHERE id='custom_native_authority'").execute(holding.raw()).await.unwrap();
+            let forbidden = authorizer
+                .execute_with_sources(
+                    "acme.example.test",
+                    proof(),
+                    input(),
+                    read_request(),
+                    ReadSources,
+                    move |connection, current| {
+                        Box::pin(async move {
+                            read_maintenance_downtime_evidence(
+                                connection,
+                                current,
+                                &evidence_query(),
+                                now,
+                            )
+                            .await
+                        })
+                    },
+                )
+                .await
+                .unwrap_err();
+            assert!(
+                matches!(
+                    forbidden,
+                    erpx_server_runtime::public::postgres::PgTransactionError::Business(ref e)
+                        if e.kind == FailureKind::Forbidden
+                ),
+                "downtime evidence must fail closed without records.read"
+            );
+            // Restore read, then observe beyond the selected context expiry.
+            sqlx::raw_sql("UPDATE iam_roles SET published_revision=3 WHERE id='custom_native_authority'").execute(holding.raw()).await.unwrap();
+            let expired_now = TimestampMillis::new(NOW + 3_600_001);
+            let expired = authorizer
+                .execute_with_sources(
+                    "acme.example.test",
+                    proof(),
+                    input(),
+                    read_request(),
+                    ReadSources,
+                    move |connection, current| {
+                        Box::pin(async move {
+                            read_maintenance_downtime_evidence(
+                                connection,
+                                current,
+                                &evidence_query(),
+                                expired_now,
+                            )
+                            .await
+                        })
+                    },
+                )
+                .await;
+            assert!(expired.is_err(), "an expired context must fail closed");
+        })
+        .await;
+    })
+    .await;
 }
 
 #[tokio::test]
