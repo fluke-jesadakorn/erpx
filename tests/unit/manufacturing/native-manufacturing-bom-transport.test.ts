@@ -162,9 +162,9 @@ describe('native Manufacturing BOM register transport',()=>{
 describe('Manufacturing finance-close read retirement',()=>{
   const src=new URL('../../../packages/server-manufacturing/src/',import.meta.url).pathname;
   const files=(dir:string):string[]=>nodeFs.readdirSync(dir).flatMap(name=>{const path=nodePath.join(dir,name);return nodeFs.statSync(path).isDirectory()?files(path):path.endsWith('.ts')?[path]:[];});
-  it('removed the four close-source SELECT modules and keeps the owner SELECT KPI at 156',()=>{
+  it('removed the four close-source SELECT modules and keeps the owner SELECT KPI at 153',()=>{
     const paths=files(src);
     expect(paths.some(path=>path.includes('finance-close-source'))).toBe(false);
-    expect(paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0)).toBe(156);
+    expect(paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0)).toBe(153);
   });
 });

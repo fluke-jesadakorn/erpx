@@ -13,7 +13,6 @@ import {saveMaster,saveOrder,orderSchema,transitionOrder} from '@erpx/server-com
 import {assignFlowPrimary,resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {saveCount,transitionCount,countSchema} from "@erpx/server-inventory/public/inventory-counts";
 import {saveProductionResource,saveProductionResourceCalendar} from "../../../tests/support/planning";
-import {createManufacturingAccountingProfile,reviewManufacturingAccountingProfile} from "@erpx/server-manufacturing/public/production-accounting";
 import {createChannel,createListing,createCart,addCartLine,changeEcommerce} from "@erpx/server-ecommerce/public/ecommerce";
 import {posCommand} from '@erpx/server-pos/public/pos-core';
 import {prepareCustomerAccessNotice1} from "../../../tests/support/collaboration/customer-authority-notifications-fixture";
@@ -55,9 +54,15 @@ export async function seedEngineeringBusinessBrowser({run,db,f}:Input){
  const accounting={inventory:inventoryId,wip:`${f.company}-browser-wip`,labor:`${f.company}-browser-labor`,overhead:`${f.company}-browser-overhead`};
  await db.batch((['wip','labor','overhead'] as const).map(name=>db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) VALUES(?,?,?,?,?,?,'THB',?,?)").bind(accounting[name],f.chart,f.company,`BROWSER-${name.toUpperCase()}`,`Fictional browser ${name}`,name==='wip'?'asset':'liability',now,now)));
  await db.prepare("INSERT INTO finance_accounts(id,chart_id,company_id,code,name,category,currency,created_at,updated_at) SELECT ?,?,?,'5400','Declared browser stock count variance','expense','THB',?,? WHERE NOT EXISTS(SELECT 1 FROM finance_accounts WHERE chart_id=? AND company_id=? AND code='5400')").bind(`${f.company}-browser-count-variance`,f.chart,f.company,now,now,f.chart,f.company).run();
- const profile=await createManufacturingAccountingProfile(source,{chartId:f.chart,inventoryAccountId:accounting.inventory,wipAccountId:accounting.wip,laborAccountId:accounting.labor,overheadAccountId:accounting.overhead,scrapAccountId:f.accounts.expense},key());
- await reviewManufacturingAccountingProfile(f.manager,String(profile.id),{action:'approve',expectedVersion:1,reason:'Independent Finance review of the synthetic browser production adapter.'},key());
- async function routedJournal(input:{chartId:string;periodId:string;entryDate:string;currency:string;sourceType?:string;memo?:string;lines:{accountId:string;debit:string;credit:string}[]}){
+  // The approved production profile is seeded as the exact row the native
+  // accounting-profile command persists. The dead TypeScript create/review
+  // writers were retired; the native HTTP entrypoint needs a configured
+  // transport and the shared Holding database, not this disposable browser DB.
+  const profileId=`mfg-accounting-${key()}`;
+  await db.prepare(`INSERT INTO manufacturing_accounting_profiles(id,company_id,chart_id,currency,inventory_account_id,wip_account_id,labor_account_id,overhead_account_id,scrap_account_id,status,version,created_by,reviewed_by,created_at,updated_at)
+    VALUES(?,?,?,'THB',?,?,?,?,?,'approved',2,?,?,?,?)`)
+   .bind(profileId,f.company,f.chart,accounting.inventory,accounting.wip,accounting.labor,accounting.overhead,f.accounts.expense,source.userId,f.manager.userId,now,now).run();
+  async function routedJournal(input:{chartId:string;periodId:string;entryDate:string;currency:string;sourceType?:string;memo?:string;lines:{accountId:string;debit:string;credit:string}[]}){
   return seedFinanceJournal(db,{companyId:f.company,chartId:input.chartId,periodId:input.periodId,entryDate:input.entryDate,currency:input.currency,memo:input.memo,key:key(),createdBy:source.userId,status:'posted',sourceType:input.sourceType,lines:input.lines});
  }
  async function openingStock(warehouseId:string,productId:string,quantity:string,unitCost:string){

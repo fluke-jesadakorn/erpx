@@ -1,54 +1,12 @@
-import type {WorkContext} from '@erpx/server-identity_access/public/authorization';import type {Row} from '@erpx/server-commerce/public/commerce';import type {prepareJournal} from '@erpx/server-finance/public/journal-planning';import type {snapshotMoney} from '@erpx/server-finance/public/company-money';import {minorToDecimal} from "@erpx/feature-finance/lib/finance-money";import {BusinessRuleError,type Clock} from '@erpx/server-shared/index';import {profileSchema,reviewSchema,manufacturingAccountKind} from '@erpx/server-manufacturing/domain/accounting';export interface ManufacturingAccountingRepository<Effect>{activeChart(chartId:string,companyId:string):Promise<{ base_currency: string }|null>;
+import type {WorkContext} from '@erpx/server-identity_access/public/authorization';import type {Row} from '@erpx/server-commerce/public/commerce';import type {prepareJournal} from '@erpx/server-finance/public/journal-planning';import type {snapshotMoney} from '@erpx/server-finance/public/company-money';import {minorToDecimal} from "@erpx/feature-finance/lib/finance-money";import {BusinessRuleError,type Clock} from '@erpx/server-shared/index';export interface ManufacturingAccountingRepository<Effect>{activeChart(chartId:string,companyId:string):Promise<{ base_currency: string }|null>;
 guardInventoryMapping(key:string,value:"chart",companyId:string,chartId:string,inventoryAccountId:string):Effect;
 guardAccountCategory(key:string,value:string,account:string,companyId:string,chartId:string,accountKind:'asset'|'scrap_expense'|'conversion'):Effect;
-prepareProfile(id:string,companyId:string,chartId:string,inventoryAccountId:string,wipAccountId:string,laborAccountId:string,overheadAccountId:string,scrapAccountId:string,userId:string,now:number,now2:number):Effect;
-profile(id:string,companyId:string):Promise<Row|null>;
-guardProfileVersion(key:string,value:"profile",id:string,companyId:string,expectedVersion:number,expected:"approved" | "draft",userId:string):Effect;
-prepareProfileReview(status:"approved" | "rejected" | "retired",userId:string,now:number,id:string):Effect;
 approvedProfile(companyId:string):Promise<Row|null>;
 guardApprovedProfile(key:string,value:"production-accounting-profile",value2:string,companyId:string,value3:number):Effect;
 guardFunctionalCurrency(key:string,value:"production-currency",companyId:string,value2:string,value3:string):Effect;
 postingPeriod(companyId:string,entryDate:string,entryDate2:string):Promise<{ id: string }|null>;
 preparePostingEvidence(value:string,companyId:string,orderId:string,orderVersion:number,phase:"output" | "issue" | "report" | "scrap",id:string | number | null,version:string | number | null,id2:string,total:number,value2:string,userId:string,now:number):Effect;
-prepareCostMovement(id:string,companyId:string,orderId:string,kind:string,value:number,amount:number,sourceId:string,id2:string,entryDate:string,userId:string,now:number):Effect;}export interface OwnerCommands<Effect>{replay<Result=Record<string,unknown>>(actor:WorkContext,key:string,operation:string,id:string,input:unknown):Promise<Result|null>;commit<Result>(actor:WorkContext,key:string,operation:string,input:unknown,id:string,version:number,result:Result,effects:Effect[],scope?:Pick<WorkContext,'companyId'|'branchId'|'departmentId'>):Promise<Result>;}export interface ManufacturingAccountingPorts<Effect>{repository:ManufacturingAccountingRepository<Effect>;clock:Clock;commands:OwnerCommands<Effect>;requirePermission(actor:WorkContext,permission:string):WorkContext;prepareJournal(actor:WorkContext,input:Parameters<typeof prepareJournal>[2],key:string,status:Parameters<typeof prepareJournal>[4]):Promise<{result:{id:string};steps:Effect[]}>;snapshotMoney(actor:WorkContext,input:Parameters<typeof snapshotMoney>[2]):Promise<{statement:Effect}>;}export function createManufacturingAccountingApplication<Effect>(ports:ManufacturingAccountingPorts<Effect>){const r=ports.repository;function companyFinance(a: WorkContext, permission: "finance.write" | "finance.approve") {
-  ports.requirePermission(a, permission);
-  if (a.branchId || a.departmentId || a.beta)
-    throw new BusinessRuleError(403, "COMPANY_FINANCE_REQUIRED", "Choose Company Finance to configure the production accounting adapter.");
-}
-async function createManufacturingAccountingProfile(a: WorkContext, raw: unknown, key: string) {
-  companyFinance(a, "finance.write");
-  const i = profileSchema.parse(raw), id = `mfg-accounting-${key}`,
-    op = "manufacturing.accounting.create", prior = await ports.commands.replay( a, key, op, id, i);
-  if (prior) return prior;
-  if ([i.inventoryAccountId, i.laborAccountId, i.overheadAccountId, i.scrapAccountId].includes(i.wipAccountId))
-    throw new BusinessRuleError(422, "MANUFACTURING_WIP_ACCOUNT", "WIP must be separate from inventory and conversion-cost clearing accounts.");
-  const chart = await r.activeChart(i.chartId,a.companyId);
-  if (chart?.base_currency !== "THB")
-    throw new BusinessRuleError(422, "MANUFACTURING_CURRENCY_ADAPTER", "The production accounting adapter requires a THB functional-currency chart.");
-  const now = ports.clock.now();
-  return ports.commands.commit( a, key, op, i, id, 1, { id, version: 1, status: "draft" }, [
-    r.guardInventoryMapping(key,"chart",a.companyId,i.chartId,i.inventoryAccountId),
-    ...[i.inventoryAccountId, i.wipAccountId, i.laborAccountId, i.overheadAccountId, i.scrapAccountId].map((account, n) =>
-      r.guardAccountCategory(key,`account-${n}`,account,a.companyId,i.chartId,manufacturingAccountKind(n))),
-    r.prepareProfile(id,a.companyId,i.chartId,i.inventoryAccountId,i.wipAccountId,i.laborAccountId,i.overheadAccountId,i.scrapAccountId,a.userId,now,now),
-  ]);
-}
-async function reviewManufacturingAccountingProfile(a: WorkContext, id: string, raw: unknown, key: string) {
-  companyFinance(a, "finance.approve");
-  const i = reviewSchema.parse(raw), op = `manufacturing.accounting.${i.action}`,
-    prior = await ports.commands.replay( a, key, op, id, i);
-  if (prior) return prior;
-  const row = await r.profile(id,a.companyId);
-  if (!row) throw new BusinessRuleError(404, "MANUFACTURING_ACCOUNTING_NOT_FOUND", "Accounting profile not found in Company Finance.");
-  const expected = i.action === "retire" ? "approved" : "draft", status = i.action === "approve" ? "approved" : i.action === "reject" ? "rejected" : "retired";
-  if (row.status !== expected || Number(row.version) !== i.expectedVersion || row.created_by === a.userId)
-    throw new BusinessRuleError(409, "CONFLICT", "An independent Finance reviewer must use the current profile version.");
-  return ports.commands.commit( a, key, op, i, id, i.expectedVersion + 1, { id, status, version: i.expectedVersion + 1 }, [
-    r.guardProfileVersion(key,"profile",id,a.companyId,i.expectedVersion,expected,a.userId),
-    r.prepareProfileReview(status,a.userId,ports.clock.now(),id),
-  ]);
-}
-async function prepareManufacturingPosting( a: WorkContext, input: {
+prepareCostMovement(id:string,companyId:string,orderId:string,kind:string,value:number,amount:number,sourceId:string,id2:string,entryDate:string,userId:string,now:number):Effect;}export interface OwnerCommands<Effect>{replay<Result=Record<string,unknown>>(actor:WorkContext,key:string,operation:string,id:string,input:unknown):Promise<Result|null>;commit<Result>(actor:WorkContext,key:string,operation:string,input:unknown,id:string,version:number,result:Result,effects:Effect[],scope?:Pick<WorkContext,'companyId'|'branchId'|'departmentId'>):Promise<Result>;}export interface ManufacturingAccountingPorts<Effect>{repository:ManufacturingAccountingRepository<Effect>;clock:Clock;commands:OwnerCommands<Effect>;requirePermission(actor:WorkContext,permission:string):WorkContext;prepareJournal(actor:WorkContext,input:Parameters<typeof prepareJournal>[2],key:string,status:Parameters<typeof prepareJournal>[4]):Promise<{result:{id:string};steps:Effect[]}>;snapshotMoney(actor:WorkContext,input:Parameters<typeof snapshotMoney>[2]):Promise<{statement:Effect}>;}export function createManufacturingAccountingApplication<Effect>(ports:ManufacturingAccountingPorts<Effect>){const r=ports.repository;async function prepareManufacturingPosting( a: WorkContext, input: {
   key: string; orderId: string; orderVersion: number; phase: "issue" | "report" | "output" | "scrap";
   entryDate: string; material?: number; labor?: number; overhead?: number; output?: number; quantityMilli?: number;
 }): Promise<{ steps: Effect[]; journalId: string | null }> {
@@ -97,4 +55,4 @@ async function prepareManufacturingPosting( a: WorkContext, input: {
       transactionDate: input.entryDate, currency: "THB", currencyScale: 2, amountUnits: String(movement.amount) })).statement);
   }
   return { steps, journalId: journal.result.id };
-}return {createManufacturingAccountingProfile,reviewManufacturingAccountingProfile,prepareManufacturingPosting};}
+}return {prepareManufacturingPosting};}

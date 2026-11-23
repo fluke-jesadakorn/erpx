@@ -782,7 +782,7 @@ async function zeroLedgerManufacturingCompany() {
 
 it('retains the original Manufacturing missing-mapping guard after real Finance references without orphan effects',async()=>{
  const z=await zeroLedgerManufacturingCompany();await z.purchase();
- const finance=await import('@erpx/server-finance/public/finance'),money=await import('@erpx/server-finance/public/company-money'),production=await import('@erpx/server-manufacturing/public/production'),accounting=await import('@erpx/server-manufacturing/public/production-accounting');
+ const finance=await import('@erpx/server-finance/public/finance'),money=await import('@erpx/server-finance/public/company-money'),production=await import('@erpx/server-manufacturing/public/production'),profiles=await import('@erpx/server-manufacturing/public/posting-profiles');
  expect(await z.counts()).toEqual([0,0,0,0,0,0,0,0]);
  expect((await db.prepare('SELECT package_id FROM company_package_grants WHERE company_id=? ORDER BY package_id').bind(z.company).all()).results).toEqual([{package_id:'manufacturing'}]);
  const chart=await finance.createChart(z.reviewer,{name:'Actual first Manufacturing chart',baseCurrency:'THB',accountingBasis:'IFRS'},key()),accounts:Record<string,string>={};
@@ -798,10 +798,10 @@ it('retains the original Manufacturing missing-mapping guard after real Finance 
  const command=key(),profileInput={chartId:chart.id,inventoryAccountId:accounts.inventoryAccountId,wipAccountId:accounts.wipAccountId,laborAccountId:accounts.laborAccountId,overheadAccountId:accounts.overheadAccountId,scrapAccountId:accounts.scrapAccountId};
  const image=async()=>({profiles:(await db.prepare('SELECT to_jsonb(p)::text image FROM manufacturing_accounting_profiles p WHERE company_id=? ORDER BY id').bind(z.company).all()).results,settings:(await db.prepare('SELECT to_jsonb(s)::text image FROM commerce_settings s WHERE company_id=?').bind(z.company).all()).results,commands:await Promise.all(['command_receipts','audit_events','outbox_events'].map(async table=>(await db.prepare(`SELECT to_jsonb(r)::text image FROM ${table} r WHERE command_id=? ORDER BY image`).bind(command).all()).results))});
  const before=await image();
- // The mapping guard now belongs to the native command (require_profile_sources
- // rejects a non-THB chart or shared WIP after replay). The retained TypeScript
+ // The mapping guard belongs to the native command (require_profile_sources
+ // rejects a non-THB chart or shared WIP after replay). The native-only profile
  // entry point must fail closed before any Finance/Commerce/profile effect.
- await expect(accounting.createManufacturingAccountingProfile(z.reviewer,profileInput,command)).rejects.toMatchObject({status:503,code:'NATIVE_MANUFACTURING_UNAVAILABLE'});
+ await expect(profiles.prepareManufacturingPostingProfile(z.reviewer,{contextKey:'0'.repeat(64),input:profileInput},command)).rejects.toMatchObject({status:503,code:'NATIVE_MANUFACTURING_UNAVAILABLE'});
  expect(await image()).toEqual(before);
 });
 
