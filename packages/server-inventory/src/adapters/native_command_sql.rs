@@ -197,6 +197,32 @@ const READ_STOCK_COUNT_DELTAS: NativeStatement = NativeStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `pos-core-facts` active-reservation
+/// total read. Owner-local: the statement touches only Inventory's own table
+/// and the caller executes it on its already-open unit with the same binds.
+pub const RD_ACTIVE_RESERVATIONS_TOTAL: &str = "inventory_rd_active_reservations_total";
+const SQL_RD_ACTIVE_RESERVATIONS_TOTAL: &str =
+    "SELECT COALESCE(SUM(quantity_milli),0) n FROM inventory_active_reservations WHERE warehouse_id=? AND product_id=?";
+const READ_ACTIVE_RESERVATIONS_TOTAL: NativeStatement = NativeStatement {
+    kind: RD_ACTIVE_RESERVATIONS_TOTAL,
+    sql: SQL_RD_ACTIVE_RESERVATIONS_TOTAL,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript `pos-core-facts` ledger movement read.
+/// Owner-local and planned here; the caller runs it on its own unit and takes
+/// the first row, exactly as the retired `.first()` literal did.
+pub const RD_LEDGER_MOVEMENT_AFTER: &str = "inventory_rd_ledger_movement_after";
+const SQL_RD_LEDGER_MOVEMENT_AFTER: &str =
+    "SELECT id FROM inventory_ledger WHERE warehouse_id=? AND product_id=? AND movement_date>? LIMIT 1";
+const READ_LEDGER_MOVEMENT_AFTER: NativeStatement = NativeStatement {
+    kind: RD_LEDGER_MOVEMENT_AFTER,
+    sql: SQL_RD_LEDGER_MOVEMENT_AFTER,
+    bind_count: 3,
+    scope: "holding",
+};
+
 pub fn is_read(kind: &str) -> bool {
     matches!(
         kind,
@@ -207,6 +233,8 @@ pub fn is_read(kind: &str) -> bool {
             | RD_STOCK_SUPPLEMENT_ROW
             | RD_STOCK_COUNT_ROW
             | RD_STOCK_COUNT_DELTAS
+            | RD_ACTIVE_RESERVATIONS_TOTAL
+            | RD_LEDGER_MOVEMENT_AFTER
     )
 }
 
@@ -219,6 +247,8 @@ pub fn read_statement(kind: &str) -> Option<&'static NativeStatement> {
         RD_STOCK_SUPPLEMENT_ROW => Some(&READ_STOCK_SUPPLEMENT_ROW),
         RD_STOCK_COUNT_ROW => Some(&READ_STOCK_COUNT_ROW),
         RD_STOCK_COUNT_DELTAS => Some(&READ_STOCK_COUNT_DELTAS),
+        RD_ACTIVE_RESERVATIONS_TOTAL => Some(&READ_ACTIVE_RESERVATIONS_TOTAL),
+        RD_LEDGER_MOVEMENT_AFTER => Some(&READ_LEDGER_MOVEMENT_AFTER),
         _ => None,
     }
 }
@@ -267,6 +297,8 @@ mod tests {
             RD_STOCK_SUPPLEMENT_ROW,
             RD_STOCK_COUNT_ROW,
             RD_STOCK_COUNT_DELTAS,
+            RD_ACTIVE_RESERVATIONS_TOTAL,
+            RD_LEDGER_MOVEMENT_AFTER,
         ] {
             assert!(is_read(kind));
             let read = read_statement(kind).expect("read kind");
@@ -319,6 +351,26 @@ mod tests {
             deltas.sql,
             "SELECT counted_value_minor-snapshot_value_minor delta FROM inventory_count_lines WHERE count_id=?"
         );
+    }
+
+    /// Parity witness for the owner-local `pos-core-facts` read family: each
+    /// native plan is the exact statement the retired TypeScript literals bound,
+    /// with caller-unit binds and no cross-owner projection.
+    #[test]
+    fn pos_core_facts_read_plans_match_retired_owner_statements() {
+        let total = read_statement(RD_ACTIVE_RESERVATIONS_TOTAL).expect("read kind");
+        assert_eq!(
+            total.sql,
+            "SELECT COALESCE(SUM(quantity_milli),0) n FROM inventory_active_reservations WHERE warehouse_id=? AND product_id=?"
+        );
+        assert_eq!(total.bind_count, 2);
+
+        let movement = read_statement(RD_LEDGER_MOVEMENT_AFTER).expect("read kind");
+        assert_eq!(
+            movement.sql,
+            "SELECT id FROM inventory_ledger WHERE warehouse_id=? AND product_id=? AND movement_date>? LIMIT 1"
+        );
+        assert_eq!(movement.bind_count, 3);
     }
 
     /// Parity witness: the native plan for the lot-balance supplement is the

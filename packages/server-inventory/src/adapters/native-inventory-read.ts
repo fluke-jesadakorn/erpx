@@ -24,6 +24,8 @@ export const INVENTORY_RD_LOT_SUPPLEMENT_ROW = 'inventory_rd_lot_supplement_row'
 export const INVENTORY_RD_STOCK_SUPPLEMENT_ROW = 'inventory_rd_stock_supplement_row';
 export const INVENTORY_RD_STOCK_COUNT_ROW = 'inventory_rd_stock_count_row';
 export const INVENTORY_RD_STOCK_COUNT_DELTAS = 'inventory_rd_stock_count_deltas';
+export const INVENTORY_RD_ACTIVE_RESERVATIONS_TOTAL = 'inventory_rd_active_reservations_total';
+export const INVENTORY_RD_LEDGER_MOVEMENT_AFTER = 'inventory_rd_ledger_movement_after';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'INVENTORY_NATIVE_READ_UNAVAILABLE', 'The native Inventory read service is unavailable.');
