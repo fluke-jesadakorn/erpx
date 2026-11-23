@@ -15,8 +15,9 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     const referenceAtOverride: number | null = null;
     if (id === "open-work-orders" || id === "blocked-maintenance") {
         const blocked = id === "blocked-maintenance";
-        const label = breakdown === "branch" ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=w.branch_id AND n.company_id=w.company_id),'Company-wide')`
-            : breakdown === "department" ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=w.department_id AND n.company_id=w.company_id),'Unassigned')`
+        const orgLabel = (col: string, fallback: string) => `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=w.${col} AND n.company_id=w.company_id),'${fallback}')`;
+        const label = breakdown === "branch" ? orgLabel("branch_id", "Company-wide")
+            : breakdown === "department" ? orgLabel("department_id", "Unassigned")
                 : blocked ? "'Blocked'" : "w.status";
         sql = `SELECT ${label} label,count(*)::text value FROM (${source.sql}) w WHERE ${scopedAlias("w")} AND ${blocked ? "w.status='blocked'" : "w.status NOT IN ('completed','cancelled')"} GROUP BY 1 ORDER BY 1`;
         values = [...source.args,...scopeArgs];
