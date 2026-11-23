@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7308,
+    "revision": 7313,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -116379,7 +116379,7 @@
         "owner": "finance",
         "title": "Mount finance journal batch-post + route/client cutover",
         "kind": "integration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116398,7 +116398,14 @@
           "owner:finance",
           "resource:composition"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-h",
+          "agentId": "wDG1fin",
+          "claimedAt": "2026-11-23T23:27:51.582Z",
+          "heartbeatAt": "2026-11-23T23:27:51.582Z",
+          "expiresAt": "2026-11-23T23:57:51.582Z",
+          "generation": 160
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -125105,7 +125112,7 @@
         "owner": "procurement",
         "title": "procurement TS read tail native cutover (round 7)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -125117,22 +125124,42 @@
         "resources": [
           "owner:procurement"
         ],
-        "claim": {
-          "runId": "run-20261123-h",
-          "agentId": "wD07pro",
-          "claimedAt": "2026-11-23T23:19:07.734Z",
-          "heartbeatAt": "2026-11-23T23:19:07.734Z",
-          "expiresAt": "2026-11-23T23:49:07.735Z",
-          "generation": 160
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-procurement/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "3e79f95d3",
+            "owner": "procurement",
+            "before": 218,
+            "after": 216,
+            "note": "Request-order link kind shared by act-linked and handoff-existing probes."
+          },
+          {
+            "command": "cargo check -p erpx-server-procurement + lib (17)",
+            "result": "passed",
+            "sourceSha": "3e79f95d3"
+          },
+          {
+            "command": "vitest procurement read-plan/services (78) + tsc owner/tests-config",
+            "result": "passed",
+            "sourceSha": "3e79f95d3"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family served by the procurement command-plan; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-h",
+          "agentId": "wD07pro",
+          "at": "2026-11-23T23:27:59.918Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -125494,6 +125521,42 @@
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.procurement.read-tail-r8",
+        "goalId": "G4",
+        "owner": "procurement",
+        "title": "procurement TS read tail native cutover (round 8)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-procurement/src/**",
+          "tests/unit/procurement/**",
+          "tests/integration/procurement/**"
+        ],
+        "resources": [
+          "owner:procurement"
+        ],
+        "claim": {
+          "runId": "run-20261123-h",
+          "agentId": "wDG2pro",
+          "claimedAt": "2026-11-23T23:28:00.094Z",
+          "heartbeatAt": "2026-11-23T23:28:00.094Z",
+          "expiresAt": "2026-11-23T23:58:00.094Z",
+          "generation": 160
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family served by the procurement command-plan; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -125502,7 +125565,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 663,
+      "totalPackets": 664,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -125510,13 +125573,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 300,
+        "blocked": 301,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 160,
-    "updatedAt": "2026-11-23T23:27:48.394Z",
+    "updatedAt": "2026-11-23T23:28:00.096Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
