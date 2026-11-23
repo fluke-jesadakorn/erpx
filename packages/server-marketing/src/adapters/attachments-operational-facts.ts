@@ -2,6 +2,7 @@ import "server-only";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type {TargetRow} from "@erpx/server-files/public/contracts/attachments-operational";
+import { attachmentOwnerVersionGuardSql } from "./attachment-owner-version-guard";
 const versionOwners:Record<string,string>={"marketing_asset": "marketing_assets"};
 const allowedTargets=new Set<string>(["marketing_asset"]);
 function remainingOperationalAttachmentTargetVersionGuard(
@@ -20,7 +21,7 @@ if(!allowedTargets.has(targetType))return null;
     db,
     commandId,
     `attachment-owner-${index}`,
-    `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=?)`,
+    attachmentOwnerVersionGuardSql(table),
     [targetId, companyId, version],
   );
 }
