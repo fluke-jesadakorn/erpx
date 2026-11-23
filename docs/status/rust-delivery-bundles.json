@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7411,
+    "revision": 7413,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -126452,7 +126452,7 @@
         "owner": "assets",
         "title": "assets TS read tail native cutover (round 10)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -126464,22 +126464,42 @@
         "resources": [
           "owner:assets"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wDT1ass",
-          "claimedAt": "2026-11-23T23:51:38.599Z",
-          "heartbeatAt": "2026-11-23T23:51:38.599Z",
-          "expiresAt": "2026-11-24T00:21:38.599Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-assets/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "84a276acc",
+            "owner": "assets",
+            "before": 42,
+            "after": 39,
+            "note": "Four lineage jsonb_agg subqueries share one canonical shape; byte-identical."
+          },
+          {
+            "command": "cargo check -p erpx-server-assets (+all-targets) + maintenance/register (16)",
+            "result": "passed",
+            "sourceSha": "84a276acc"
+          },
+          {
+            "command": "vitest assets transport (22) + typecheck + structure",
+            "result": "passed",
+            "sourceSha": "84a276acc"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "financial-workflow-sources (9 SELECTs) and small families remain; pick the smallest safe sub-family; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wDT1ass",
+          "at": "2026-11-23T23:58:24.966Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -126673,17 +126693,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 13,
+        "in_progress": 12,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 322,
+        "blocked": 323,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-23T23:56:42.211Z",
+    "updatedAt": "2026-11-23T23:58:24.968Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
