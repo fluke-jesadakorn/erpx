@@ -18,15 +18,16 @@ use erpx_server_identity_access::public::{
     work_context::{ExpectedWorkSelection, HoldingWorkspaceRequest, WorkScopeKind},
 };
 use erpx_server_maintenance::public::http::{
-    MaintenanceHttpBackend, MaintenanceHttpCommandRequest, MaintenanceHttpFuture,
-    MaintenanceHttpReadKind, MaintenanceHttpReadRequest, MaintenanceHttpResponse,
+    MaintenanceHttpBackend, MaintenanceHttpCommandRequest, MaintenanceHttpDowntimeRequest,
+    MaintenanceHttpFuture, MaintenanceHttpReadKind, MaintenanceHttpReadRequest,
+    MaintenanceHttpResponse,
 };
 use erpx_server_maintenance::public::preventive_plan::{
     PreventivePlanAccess, PreventivePlanCommand, execute_preventive_plan_command,
 };
 use erpx_server_maintenance::public::read::{
-    read_maintenance_detail, read_maintenance_plan_detail, read_maintenance_plans,
-    read_maintenance_workspace,
+    MaintenanceDowntimeQuery, read_maintenance_detail, read_maintenance_downtime_evidence,
+    read_maintenance_plan_detail, read_maintenance_plans, read_maintenance_workspace,
 };
 use erpx_server_maintenance::public::{
     work_commands::{MaintenanceWorkCommand, NormalizedMaintenanceCreate},
@@ -298,6 +299,56 @@ impl<C: Clock + Send + Sync + 'static> MaintenanceService<C> {
                         let plans = read_maintenance_plans(connection, current, now).await?;
                         let data =
                             Value::Array(plans.into_iter().map(|plan| plan.value()).collect());
+                        Ok(MaintenanceHttpResponse {
+                            data,
+                            context: context(current),
+                        })
+                    })
+                },
+            )
+            .await
+    }
+
+    pub async fn downtime_evidence<Input>(
+        &self,
+        host: &str,
+        proof: DeviceProof,
+        input: Input,
+        query: MaintenanceDowntimeQuery,
+    ) -> Result<MaintenanceHttpResponse, Error>
+    where
+        Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
+    {
+        let holding = self.configuration.holding.clone();
+        let company = self.configuration.company.clone();
+        let clock = self.clock.clone();
+        self.authorizer
+            .execute_with_sources_deferred(
+                host,
+                proof,
+                self.input(input),
+                Self::access(),
+                MaintenanceSources,
+                move |connection, current| {
+                    let holding = holding.clone();
+                    let company = company.clone();
+                    let clock = clock.clone();
+                    let query = query.clone();
+                    Box::pin(async move {
+                        if current.holding_id() != &holding
+                            || current.selection().workspace().company_id != company
+                        {
+                            return Err(scope().into());
+                        }
+                        current.require_permission("records.read")?;
+                        let rows = read_maintenance_downtime_evidence(
+                            connection,
+                            current,
+                            &query,
+                            clock.now(),
+                        )
+                        .await?;
+                        let data = Value::Array(rows.into_iter().map(|row| row.value()).collect());
                         Ok(MaintenanceHttpResponse {
                             data,
                             context: context(current),
@@ -888,6 +939,24 @@ impl<C: Clock + Send + Sync + 'static> MaintenanceHttpBackend for MaintenanceBac
                     proof,
                     move || Ok(selection),
                     request.command.clone(),
+                )
+                .await
+                .map_err(business)
+        })
+    }
+
+    fn downtime_evidence<'a>(
+        &'a self,
+        request: MaintenanceHttpDowntimeRequest<'a>,
+    ) -> MaintenanceHttpFuture<'a, MaintenanceHttpResponse> {
+        Box::pin(async move {
+            let (proof, selection) = self.context(request.headers)?;
+            self.service
+                .downtime_evidence(
+                    request.host,
+                    proof,
+                    move || Ok(selection),
+                    request.query,
                 )
                 .await
                 .map_err(business)

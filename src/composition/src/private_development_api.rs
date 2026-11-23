@@ -4401,6 +4401,22 @@ async fn assemble_checked(
                         .map_err(|_| "PRIVATE_API_QUALITY_RECEIPT_ORIGIN_READ_CONFIGURATION_INVALID")?,
                     );
                     commerce_native_routers.push(
+                        erpx_server_commerce::public::records_request_page_source::commerce_currency_read_router(
+                            Arc::new(
+                                erpx_server_commerce::public::records_request_page_source::PgCommerceCurrencyRead::new(
+                                    pools[i + 1].clone(),
+                                ),
+                            ),
+                            vec![
+                                erpx_server_commerce::public::records_request_page_source::CommerceCurrencyReadTarget {
+                                    host: holding.host.clone(),
+                                    holding_slug: holding.registration.slug.clone(),
+                                },
+                            ],
+                        )
+                        .map_err(|_| "PRIVATE_API_COMMERCE_CURRENCY_READ_CONFIGURATION_INVALID")?,
+                    );
+                    commerce_native_routers.push(
                         crate::commerce_wave2::commerce_warehouse_save_composed_router(
                             holding.host.clone(),
                             holding.registration.slug.clone(),
@@ -11986,6 +12002,21 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .collect::<Vec<_>>()
             .as_slice(),
     ) {
+        (
+            &axum::http::Method::GET,
+            [
+                "",
+                "api",
+                "v1",
+                "holdings",
+                slug,
+                "commerce",
+                "request-page-currency",
+            ],
+        ) => state
+            .policy
+            .audience(host)
+            .is_some_and(|_| !slug.is_empty()),
         (
             &axum::http::Method::GET,
             [
