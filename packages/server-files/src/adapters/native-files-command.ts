@@ -17,7 +17,7 @@ type Settings = Readonly<{
   holdings: ReadonlyArray<Readonly<{ origin: string; holdingSlug: string; holdingId: string; companyId: string }>>;
 }>;
 
-export type NativeResult = Readonly<{ rows: number; row?: unknown; rowsAffected?: number; batch?: unknown }>;
+export type NativeResult = Readonly<{ rows: number; row?: unknown; rowsAffected?: number; batch?: unknown; all?: unknown[] }>;
 export type NativeContext = Readonly<{
   companyId?: string;
   key?: string;
@@ -155,6 +155,7 @@ async function dispatchPlan(
   return {
     rows: Number(results[0]?.meta?.changes ?? 0),
     row: results[0]?.results?.[0],
+    all: results.flatMap(result => (result.results ?? []) as unknown[]),
   };
 }
 
@@ -176,6 +177,25 @@ export async function nativeFilesRead<T>(
   const key = `files-read-${createHash('sha256').update(JSON.stringify([kind, values, resolved])).digest('hex').slice(0, 32)}`;
   const outcome = await dispatchPlan(config, holding, resolved, key, Date.now(), kind, values, db);
   return (outcome.row as T) ?? null;
+}
+
+/**
+ * Execute an owner-owned array read plan on the caller's already-open unit and
+ * return every row in the caller's `SqlResult` shape. Used by reads whose
+ * retained consumer reads `.results` (for example a variable-cardinality `IN`
+ * list carried as a single JSON-array bind). SQL stays in the Rust owner; a
+ * missing or failing native transport fails closed with no TypeScript fallback.
+ */
+export async function nativeFilesReadAll<T>(
+  kind: string,
+  values: unknown[],
+  db: import('@erpx/server-runtime/public/runtime/types').SqlDatabase,
+  companyId?: string,
+): Promise<SqlResult<T>> {
+  const { config, holding, companyId: resolved } = effective(kind, values, { companyId, db });
+  const key = `files-read-${createHash('sha256').update(JSON.stringify([kind, values, resolved])).digest('hex').slice(0, 32)}`;
+  const outcome = await dispatchPlan(config, holding, resolved, key, Date.now(), kind, values, db);
+  return { results: (outcome.all ?? []) as T[], success: true, meta: { changes: 0, duration: 0 } };
 }
 
 async function dispatch(kind: string, values: unknown[], context?: NativeContext): Promise<NativeResult> {
