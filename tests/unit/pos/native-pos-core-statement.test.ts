@@ -10,6 +10,7 @@ import {
   nativePosPostingJournalStatement,
   nativePosRegisterCatalogStatement,
   nativePosSettingsAccountsStatement,
+  nativePosConnectionsStatement,
 } from '../../../packages/server-pos/src/adapters/native-pos-core-statement';
 import { pmsHospitalitySetupPosFacts } from '../../../packages/server-pos/src/adapters/pms-hospitality-setup-facts';
 import { pmsBookingChangeFacts } from '../../../packages/server-pos/src/adapters/pms-booking-change-facts';
@@ -362,6 +363,50 @@ describe('native POS core workspace read bridge (shifts family)', () => {
     const fetch = vi.fn();
     vi.stubGlobal('fetch', fetch);
     await expect(nativePosSettingsAccountsStatement({} as never, 'company')).rejects.toMatchObject({
+      code: 'NATIVE_POS_OWNER_UNAVAILABLE',
+      status: 503,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('requests the by-company connection row from the native owner registry only', async () => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const sql = 'SELECT * FROM pos_connections WHERE company_id=?';
+    const values = ['company'];
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { sql, values } }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const seen: { sql?: string; values?: unknown[] } = {};
+    const row = { company_id: 'company', account_id: 'acct_1', state: 'ready' };
+    const db = {
+      prepare: (text: string) => ({
+        bind: (...bound: unknown[]) => {
+          seen.sql = text;
+          seen.values = bound;
+          return { first: async () => row };
+        },
+      }),
+    };
+    const result = await nativePosConnectionsStatement(db as never, 'company');
+    expect(result).toEqual(row);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe('http://127.0.0.1:44994/api/v1/companies/company/pos/owner-write');
+    expect(JSON.parse(init.body)).toEqual({
+      company: 'company',
+      kind: 'stripe_readposconnections_526',
+      values,
+    });
+    expect(seen.sql).toBe(sql);
+    expect(seen.values).toEqual(values);
+  });
+
+  it('fails closed for the connections read when the native owner service is unconfigured', async () => {
+    delete process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    await expect(nativePosConnectionsStatement({} as never, 'company')).rejects.toMatchObject({
       code: 'NATIVE_POS_OWNER_UNAVAILABLE',
       status: 503,
     });

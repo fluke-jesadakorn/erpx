@@ -1,5 +1,5 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
-import { nativePosPostingJournalStatement, nativePosSaleByIdStatement, nativePosStripeRoutesStatement } from './native-pos-core-statement';
+import { nativePosConnectionsStatement, nativePosPostingJournalStatement, nativePosSaleByIdStatement, nativePosStripeRoutesStatement } from './native-pos-core-statement';
 import{secret,stripeRequest}from '@erpx/server-pos/adapters/stripe-provider';
 import {posStripeBindingFacts} from "@erpx/server-runtime/public/pos-stripe-binding-facts";
 import 'server-only';
@@ -118,7 +118,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
         }) => one(db, 'SELECT * FROM pos_stripe_events WHERE id=?', facts.record_id),
         readPosConnections1: (facts: {
             company_id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_connections WHERE company_id=?', facts.company_id),
+        }) => nativePosConnectionsStatement(db, facts.company_id),
         writePosConnections2: (facts: {
             company_id: string | number | boolean | null;
             account_id: string | number | boolean | null;
@@ -246,10 +246,10 @@ function unit(db: SqlDatabase): PosStripeUnit {
         readAssignments2: facts => posStripeIdentityAccessFacts(db).readAssignments2(facts),
         readPosConnections3: (facts: {
             company_id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_connections WHERE company_id=?', facts.company_id),
+        }) => nativePosConnectionsStatement(db, facts.company_id),
         readPosConnections4: (facts: {
             company_id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_connections WHERE company_id=?', facts.company_id),
+        }) => nativePosConnectionsStatement(db, facts.company_id),
         writePosJobs1: (facts: {
             fact0: string;
             id: string | number | boolean | null;
