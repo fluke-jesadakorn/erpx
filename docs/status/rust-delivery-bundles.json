@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6945,
+    "revision": 6949,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -118968,7 +118968,7 @@
         "owner": "pms",
         "title": "pms TS read tail native cutover (round 2)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -118980,22 +118980,42 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wAHpms",
-          "claimedAt": "2026-11-23T20:56:28.012Z",
-          "heartbeatAt": "2026-11-23T21:33:35.449Z",
-          "expiresAt": "2026-11-23T22:03:35.449Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pms/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ed10bbc2c",
+            "owner": "pms",
+            "before": 537,
+            "after": 535,
+            "note": "Native PMS command-plan read for inventory record/stay; no refund lock paths."
+          },
+          {
+            "command": "cargo check -p erpx-server-pms + lib (2) + pms_http (16)",
+            "result": "passed",
+            "sourceSha": "ed10bbc2c"
+          },
+          {
+            "command": "vitest native-pms-read-plan (4) + tsc owner/tests-config",
+            "result": "passed",
+            "sourceSha": "ed10bbc2c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wAHpms",
+          "at": "2026-11-23T21:47:26.389Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -120737,6 +120757,42 @@
         "nextAction": "Switch the pos_sales by-id copies in pos-core/pos-daily/pos-stripe via a native owner statement kind; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pms.read-tail-r3",
+        "goalId": "G4",
+        "owner": "pms",
+        "title": "pms TS read tail native cutover (round 3)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pms/src/**",
+          "tests/unit/pms/**",
+          "tests/integration/pms/**"
+        ],
+        "resources": [
+          "owner:pms"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wBApms",
+          "claimedAt": "2026-11-23T21:47:26.549Z",
+          "heartbeatAt": "2026-11-23T21:47:26.549Z",
+          "expiresAt": "2026-11-23T22:17:26.549Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local fixed-SQL read family served by the mounted pms command-plan; avoid refund retry/lock paths; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -120745,7 +120801,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 581,
+      "totalPackets": 582,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -120753,13 +120809,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 213,
+        "blocked": 214,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T21:43:45.357Z",
+    "updatedAt": "2026-11-23T21:47:26.552Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
