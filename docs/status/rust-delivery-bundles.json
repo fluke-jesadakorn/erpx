@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6539,
+    "revision": 6540,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -114409,7 +114409,7 @@
         "owner": "commercial",
         "title": "Commercial owner-read SQL kinds route + billing switches (3 SELECT -> 0)",
         "kind": "integration",
-        "status": "in_progress",
+        "status": "ready_for_integration",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -114451,10 +114451,49 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-commercial/src/adapters/last-audit-owner-projection-sources.ts'",
+            "result": "passed",
+            "sourceSha": "731a5c8af",
+            "owner": "commercial",
+            "before": 3,
+            "after": 0,
+            "note": "Static usage SELECTs moved to native owner-read kinds."
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-commercial/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "731a5c8af",
+            "owner": "commercial",
+            "before": 45,
+            "after": 42,
+            "note": "3 static SELECTs removed at current HEAD (spec lineage 46->43)."
+          },
+          {
+            "command": "cargo check -p erpx-server-commercial",
+            "result": "passed",
+            "sourceSha": "731a5c8af"
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "731a5c8af"
+          },
+          {
+            "command": "cargo test owner_read (3) + owner_read_postgres (1)",
+            "result": "passed",
+            "sourceSha": "731a5c8af"
+          },
+          {
+            "command": "tsc commercial + billing; vitest native-owner-read (3)",
+            "result": "passed",
+            "sourceSha": "731a5c8af"
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Implement SQL-returning owner-read kinds (3 static SELECTs) + private route + TS fail-closed client; switch 12 billing sites preserving FOR UPDATE on caller unit; delete constants; mount in composition",
+        "nextAction": "Checks recorded; integrate",
         "handoff": null,
         "scopeRefinementRequired": false
       },
@@ -115408,7 +115447,7 @@
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T19:06:15.427Z",
+    "updatedAt": "2026-11-23T19:09:25.786Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
