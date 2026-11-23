@@ -113,6 +113,20 @@ const READ_REQUEST_ALLOCATIONS: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successor of the two TypeScript request-order link literals in
+/// `records-employee-requests-owned-facts` (linked-order check and handoff
+/// existing-link check). The owner plans this literal; the caller executes it
+/// on its open unit with the same `[requestId, orderId]` binds.
+pub const RD_REQUEST_ORDER_LINK: &str = "procurement_rd_request_order_link";
+const SQL_REQUEST_ORDER_LINK: &str =
+    "SELECT request_id FROM procurement_request_orders WHERE request_id=? AND order_id=?";
+const READ_REQUEST_ORDER_LINK: NativeReadStatement = NativeReadStatement {
+    kind: RD_REQUEST_ORDER_LINK,
+    sql: SQL_REQUEST_ORDER_LINK,
+    bind_count: 2,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_INVOICE_MATCH_FOR_FINANCE,
     READ_REQUEST_QUOTATION,
@@ -121,6 +135,7 @@ const READS: &[NativeReadStatement] = &[
     READ_BILL_MATCH_RECEIPTS,
     READ_ACTIVE_QUOTATION_COUNT,
     READ_REQUEST_ALLOCATIONS,
+    READ_REQUEST_ORDER_LINK,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -146,6 +161,7 @@ mod tests {
         assert!(is_read(RD_BILL_MATCH_RECEIPTS));
         assert!(is_read(RD_ACTIVE_QUOTATION_COUNT));
         assert!(is_read(RD_REQUEST_ALLOCATIONS));
+        assert!(is_read(RD_REQUEST_ORDER_LINK));
         assert!(!is_read("procurement_stmt_1"));
         assert!(read_statement("not_a_native_read").is_none());
     }
@@ -183,6 +199,11 @@ mod tests {
                 RD_REQUEST_ALLOCATIONS,
                 1usize,
                 "procurement_rfq_lines",
+            ),
+            (
+                RD_REQUEST_ORDER_LINK,
+                2usize,
+                "procurement_request_orders",
             ),
         ] {
             let read = read_statement(kind).expect("read kind");
@@ -250,6 +271,20 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 1);
         assert_eq!(read.scope, "holding");
         assert!(is_read(RD_REQUEST_ALLOCATIONS));
+        assert!(!is_read("procurement_stmt_1"));
+    }
+
+    #[test]
+    fn request_order_link_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_REQUEST_ORDER_LINK).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT request_id FROM procurement_request_orders WHERE request_id=? AND order_id=?"
+        );
+        assert_eq!(read.bind_count, 2);
+        assert_eq!(read.sql.matches('?').count(), 2);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_REQUEST_ORDER_LINK));
         assert!(!is_read("procurement_stmt_1"));
     }
 

@@ -24,6 +24,7 @@ export const PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL = 'procurement_rd_docu
 export const PROCUREMENT_RD_BILL_MATCH_RECEIPTS = 'procurement_rd_bill_match_receipts';
 export const PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT = 'procurement_rd_active_quotation_count';
 export const PROCUREMENT_RD_REQUEST_ALLOCATIONS = 'procurement_rd_request_allocations';
+export const PROCUREMENT_RD_REQUEST_ORDER_LINK = 'procurement_rd_request_order_link';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PROCUREMENT_NATIVE_READ_UNAVAILABLE', 'The native Procurement read service is unavailable.');
