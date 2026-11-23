@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7024,
+    "revision": 7028,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -120952,7 +120952,7 @@
         "owner": "talent",
         "title": "talent TS read tail native cutover (round 5)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -120964,22 +120964,42 @@
         "resources": [
           "owner:talent"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wB8tal",
-          "claimedAt": "2026-11-23T21:43:07.402Z",
-          "heartbeatAt": "2026-11-23T22:02:15.577Z",
-          "expiresAt": "2026-11-23T22:32:15.577Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-talent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f08cde003",
+            "owner": "talent",
+            "before": 98,
+            "after": 96,
+            "note": "Hire-handoff receipt and candidate privacy row kinds."
+          },
+          {
+            "command": "cargo check -p erpx-server-talent + all targets incl PG (10)",
+            "result": "passed",
+            "sourceSha": "f08cde003"
+          },
+          {
+            "command": "tsc talent + route tests (6)",
+            "result": "passed",
+            "sourceSha": "f08cde003"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Migrate hire-handoff receipt and candidate privacy row fixed reads via command-plan; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wB8tal",
+          "at": "2026-11-23T22:21:28.397Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -121821,6 +121841,42 @@
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to the native operations registry; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.talent.read-tail-r6",
+        "goalId": "G4",
+        "owner": "talent",
+        "title": "talent TS read tail native cutover (round 6)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-talent/src/**",
+          "tests/unit/talent/**",
+          "tests/integration/talent/**"
+        ],
+        "resources": [
+          "owner:talent"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wBS1tal",
+          "claimedAt": "2026-11-23T22:21:28.594Z",
+          "heartbeatAt": "2026-11-23T22:21:28.594Z",
+          "expiresAt": "2026-11-23T22:51:28.594Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL read family in the command-plan registry; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -121829,7 +121885,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 600,
+      "totalPackets": 601,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -121837,13 +121893,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 233,
+        "blocked": 234,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T22:19:59.230Z",
+    "updatedAt": "2026-11-23T22:21:28.597Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
