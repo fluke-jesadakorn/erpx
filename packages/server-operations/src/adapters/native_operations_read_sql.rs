@@ -45,7 +45,24 @@ const READ_APP_UPLOAD_TASK_STATE: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
-const READS: &[NativeReadStatement] = &[READ_TASK_PROJECTION_SOURCE, READ_APP_UPLOAD_TASK_STATE];
+/// Native successor of the TypeScript `workflow-flow-routing-facts` read. The
+/// owner plans this literal; the caller executes it on its open unit with the
+/// same `[company_id, id]` bind. `id` may be a string, number or null exactly as
+/// the retired owner literal bound it.
+pub const RD_FLOW_DEFINITIONS_DELEGATION: &str = "operations_rd_flow_definitions_delegation";
+const SQL_FLOW_DEFINITIONS_DELEGATION: &str = "SELECT delegate_user_id FROM staff_task_delegations WHERE company_id=? AND task_id=? AND status='active' AND starts_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint ORDER BY created_at DESC,id DESC LIMIT 1";
+const READ_FLOW_DEFINITIONS_DELEGATION: NativeReadStatement = NativeReadStatement {
+    kind: RD_FLOW_DEFINITIONS_DELEGATION,
+    sql: SQL_FLOW_DEFINITIONS_DELEGATION,
+    bind_count: 2,
+    scope: "holding",
+};
+
+const READS: &[NativeReadStatement] = &[
+    READ_TASK_PROJECTION_SOURCE,
+    READ_APP_UPLOAD_TASK_STATE,
+    READ_FLOW_DEFINITIONS_DELEGATION,
+];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -104,5 +121,30 @@ mod tests {
     fn app_upload_task_state_sql_matches_retired_typescript_literal() {
         let read = read_statement(RD_APP_UPLOAD_TASK_STATE).expect("read kind");
         assert_eq!(read.sql, "SELECT state FROM staff_tasks WHERE id=? AND company_id=?");
+    }
+
+    #[test]
+    fn flow_definitions_delegation_plan_is_holding_scoped_and_ledger_free() {
+        let read = read_statement(RD_FLOW_DEFINITIONS_DELEGATION).expect("read kind");
+        let upper = read.sql.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT"), "{}", read.kind);
+        assert!(!upper.contains("INSERT"));
+        assert!(!upper.contains("UPDATE"));
+        assert!(!upper.contains("DELETE"));
+        assert_eq!(read.bind_count, 2);
+        assert_eq!(read.sql.matches('?').count(), 2);
+        assert_eq!(read.scope, "holding");
+        assert!(upper.contains("STAFF_TASK_DELEGATIONS"));
+        assert!(upper.contains("DELEGATE_USER_ID"));
+        assert!(is_read(RD_FLOW_DEFINITIONS_DELEGATION));
+    }
+
+    #[test]
+    fn flow_definitions_delegation_sql_matches_retired_typescript_literal() {
+        let read = read_statement(RD_FLOW_DEFINITIONS_DELEGATION).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT delegate_user_id FROM staff_task_delegations WHERE company_id=? AND task_id=? AND status='active' AND starts_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint ORDER BY created_at DESC,id DESC LIMIT 1"
+        );
     }
 }

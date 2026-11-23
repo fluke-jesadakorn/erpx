@@ -72,6 +72,28 @@ describe('App upload task state native read',()=>{
   }
  });
 });
+describe('Flow routing delegation native read',()=>{
+  test('delegation reads delegate to the native owner plan and keep no local SQL',async()=>{
+   const prepare=vi.fn(()=>({bind:vi.fn()}));
+   const batch=vi.fn(async()=>[{results:[{delegate_user_id:'delegate'}],success:true,meta:{changes:0,duration:0}}]);
+   const db={prepare,batch} as unknown as SqlDatabase;
+   process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG=JSON.stringify({privateBaseUrl:'http://127.0.0.1:3999',timeoutMs:1000,holdings:[{origin:'https://acme.jesadakorn.com',holdingSlug:'acme',holdingId:'h1',companyId:'company'}]});
+   const plannedSql="SELECT delegate_user_id FROM staff_task_delegations WHERE company_id=? AND task_id=? AND status='active' AND starts_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint ORDER BY created_at DESC,id DESC LIMIT 1";
+   const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({data:{statements:[{sql:plannedSql,values:['company','task']}]}}),{status:200,headers:{'content-type':'application/json'}}));
+   try{
+    const {createFlowRoutingSourceRepository}=await import('@erpx/server-operations/adapters/workflow-flow-routing-facts');
+    const repo=createFlowRoutingSourceRepository(db);
+    await expect(repo.readDefinitionsDelegation('company','task')).resolves.toMatchObject({delegate_user_id:'delegate'});
+    const call=fetchMock.mock.calls[0]!;
+    expect(String(call[0])).toContain('/operations/command-plan');
+    expect(JSON.parse(String(call[1]!.body))).toMatchObject({kind:'operations_rd_flow_definitions_delegation',values:['company','task']});
+    expect(prepare).toHaveBeenCalledWith(plannedSql);
+   }finally{
+    fetchMock.mockRestore();
+    delete process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG;
+   }
+  });
+ });
 describe('Handover source and colleague constraints',()=>{
  test('Bangkok day derives entirely from the supplied instant',()=>{expect(bangkokToday(Date.UTC(2026,0,1,20))).toBe('2026-01-02');});
  test('duplicate recipients and source references fail validation',()=>{const source={id:'task',sourceVersion:1,kind:'staff_task' as const},base={date:'2026-01-02',body:'Shift report',sources:[source],recipientIds:['colleague']};expect(handoverPublishSchema.safeParse({...base,sources:[source,source]}).success).toBe(false);expect(handoverPublishSchema.safeParse({...base,recipientIds:['colleague','colleague']}).success).toBe(false);});

@@ -1,2 +1,8 @@
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-export function createFlowRoutingSourceRepository(database:SqlDatabase){return {readDefinitionsDelegation(company_id:string,id:string | number | null){return database.prepare("SELECT delegate_user_id FROM staff_task_delegations WHERE company_id=? AND task_id=? AND status='active' AND starts_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint ORDER BY created_at DESC,id DESC LIMIT 1").bind(company_id,id).first<{delegate_user_id:string}>();}};}
+import {nativeOperationsReadFirst,OPERATIONS_RD_FLOW_DEFINITIONS_DELEGATION} from './native-operations-read';
+/** Owner-native read: the statement is planned by the Operations native read
+ * port (`RD_FLOW_DEFINITIONS_DELEGATION`) and executed on the caller's open
+ * unit. This module carries no SQL for this read. */
+export function createFlowRoutingSourceRepository(database:SqlDatabase){return {readDefinitionsDelegation(company_id:string,id:string | number | null):Promise<{delegate_user_id:string}|null>{
+ return nativeOperationsReadFirst<{delegate_user_id:string}>(OPERATIONS_RD_FLOW_DEFINITIONS_DELEGATION,[company_id,id],database);
+}};}
