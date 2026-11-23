@@ -504,10 +504,21 @@ async fn auxiliary_reads_keep_company_membership_and_requester_scope() {
         )
         .await
         .unwrap();
+        // The native `governance` read is the authoritative projection for the
+        // TypeScript `governanceView` adapter. Pin its exact top-level field set
+        // so the three view TS SELECTs can be deleted byte-identically.
+        assert_eq!(governance.as_object().unwrap().len(), 3);
         assert_eq!(governance["forms"].as_array().unwrap().len(), 1);
         assert_eq!(governance["forms"][0]["fields"][0]["key"], "subject");
         assert_eq!(governance["authorities"].as_array().unwrap().len(), 1);
         assert_eq!(governance["settings"]["enabled"], true);
+        let governance_list = read(&pool, manager(), LegalAuxiliaryRead::Governance { id: None })
+            .await
+            .unwrap();
+        assert_eq!(governance_list.as_object().unwrap().len(), 3);
+        assert_eq!(governance_list["forms"].as_array().unwrap().len(), 1);
+        assert!(governance_list["authorities"].as_array().unwrap().is_empty());
+        assert_eq!(governance_list["settings"]["enabled"], true);
 
         let references = read(
             &pool,

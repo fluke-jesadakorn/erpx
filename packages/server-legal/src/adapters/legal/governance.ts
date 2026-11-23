@@ -12,11 +12,15 @@ import {access,guards,eligible,personGuard,lock} from "@erpx/server-legal/adapte
 import type {LegalWrite} from "@erpx/server-legal/application/service";
 import {createLegalGovernanceApplication} from "@erpx/server-legal/application/governance";
 import { legalGovernance } from '@erpx/server-collaboration/adapters/native-legal-governance';
-function application(db:SqlDatabase,a:WorkContext){const nativeWrites=new WeakMap<LegalWrite,SqlStatement>();const nativeGov=legalGovernance(db,a.companyId,a.userId);const stage=(statement:SqlStatement):LegalWrite=>{const write:LegalWrite={owner:"legal"};nativeWrites.set(write,statement);return write;};
+import {nativeLegalAuxiliaryRead} from '../native-legal-auxiliary';
+/** Exact projection of the native `governance` auxiliary read; the transport accepts
+ * every authoritative field and no SQL text remains in TypeScript. */
+type LegalGovernanceRead={forms:Record<string,unknown>[];authorities:Record<string,unknown>[];settings:(Record<string,unknown>&{enabled:boolean;ai_enabled:boolean;reminder_days:number})|null;};
+function application(db:SqlDatabase,a:WorkContext,view?:LegalGovernanceRead){const nativeWrites=new WeakMap<LegalWrite,SqlStatement>();const nativeGov=legalGovernance(db,a.companyId,a.userId);const stage=(statement:SqlStatement):LegalWrite=>{const write:LegalWrite={owner:"legal"};nativeWrites.set(write,statement);return write;};
 return createLegalGovernanceApplication({actor:a,access:(id,p)=>access(db,a,id,p),eligible:(id,item,p)=>eligible(db,a,id,item,p),samePerson:id=>samePerson(a,id),require:permission=>requirePermission(a,permission),clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},error:(status,code,message)=>new ApiError(status,code,message),repository:{
-forms:(facts:{companyId:string;})=>db.prepare("SELECT * FROM legal_intake_forms WHERE company_id=? ORDER BY name").bind(facts.companyId).all(),
-authorities:(facts:{id:string;})=>db.prepare("SELECT * FROM legal_authorities WHERE item_id=? ORDER BY id").bind(facts.id).all(),
-settings:(facts:{companyId:string;})=>db.prepare("SELECT enabled,ai_enabled,reminder_days FROM legal_settings WHERE company_id=?").bind(facts.companyId).first(),
+forms:async()=>({results:view?.forms??[]}),
+authorities:async()=>({results:view?.authorities??[]}),
+settings:async()=>view?.settings??null,
 async createForm(facts){return stage(await nativeGov.createForm(facts));},
 form:(facts:{formId:string;companyId:string;})=>db.prepare("SELECT * FROM legal_intake_forms WHERE id=? AND company_id=?").bind(facts.formId,facts.companyId).first<{ created_by: string; state: string; version: number }>(),
 async approveForm(facts){return stage(await nativeGov.approveForm(facts));},
@@ -36,7 +40,7 @@ async event(id,action,note,version,identifier,now){return stage(await nativeGov.
 replay:(key,operation,id,input)=>replayCommand(db,a,key,operation,id,input),
 commit:(key,operation,input,id,version,result,writes)=>executeCommand(db,a,key,operation,input,id,version,result,writes.map(write=>{const statement=nativeWrites.get(write);if(!statement)throw new Error("LEGAL_REPOSITORY_MISMATCH");return statement;})),
 }});}
-export async function governanceView(db:SqlDatabase,a:WorkContext,id?:string){if(await legalPackageEnforcementMode()==="disabled")return application(db,a).governanceView(id);if(id)await requireLegalItemPurchasedRead(db,a,await access(db,a,id),["legal.access","legal.documents"]);const purchases=await legalPurchaseControls(db,a),data=await application(db,a).governanceView(id);return {...data,...(purchases?.["legal.matters"]?.history===false?{forms:[]}:{}),purchases};}
+export async function governanceView(db:SqlDatabase,a:WorkContext,id?:string){if(await legalPackageEnforcementMode()==="disabled"){const view=await nativeLegalAuxiliaryRead<LegalGovernanceRead>(a,'governance',id);return application(db,a,view).governanceView(id);}if(id)await requireLegalItemPurchasedRead(db,a,await access(db,a,id),["legal.access","legal.documents"]);const purchases=await legalPurchaseControls(db,a),view=await nativeLegalAuxiliaryRead<LegalGovernanceRead>(a,'governance',id),data=await application(db,a,view).governanceView(id);return {...data,...(purchases?.["legal.matters"]?.history===false?{forms:[]}:{}),purchases};}
 export async function governanceCommand(db:SqlDatabase,a:WorkContext,raw:unknown,key:string){
  const input=(raw&&typeof raw==='object'?raw:{}) as Record<string,unknown>,action=String(input.action),form=action.startsWith('form.');
  if(!form&&await legalPackageEnforcementMode()==='disabled')return inLegacyLegalOperationsUnit(db,a.companyId,tx=>application(tx,a).governanceCommand(raw,key));
