@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6521,
+    "revision": 6523,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -114898,7 +114898,7 @@
         "owner": "quality",
         "title": "Retire dead quality read branches (activeSpec/evidenceVersionGuard 125->123)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -114911,22 +114911,47 @@
         "resources": [
           "owner:quality"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wS01",
-          "claimedAt": "2026-11-23T18:23:39.206Z",
-          "heartbeatAt": "2026-11-23T18:48:17.410Z",
-          "expiresAt": "2026-11-23T19:18:17.410Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-quality/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "3f9e495c1",
+            "owner": "quality",
+            "before": 125,
+            "after": 123,
+            "note": "wS01: activeSpec + evidenceVersionGuard retired; rows()/getQualityHold/qualityWork retained pending native WorkContext port."
+          },
+          {
+            "command": "cargo check -p erpx-server-quality",
+            "result": "passed",
+            "sourceSha": "3f9e495c1"
+          },
+          {
+            "command": "tsc server-quality",
+            "result": "passed",
+            "sourceSha": "3f9e495c1"
+          },
+          {
+            "command": "vitest quality semantic/services + Rust quality units (46)",
+            "result": "passed",
+            "sourceSha": "3f9e495c1"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Remove activeSpec + evidenceVersionGuard repository members and SELECTs; receiptHold(input,now); keep rows()/getQualityHold/qualityWork with removal note; move unit assertions to native coverage",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wS01",
+          "at": "2026-11-23T18:58:22.331Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -115150,17 +115175,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 21,
-        "in_progress": 15,
+        "in_progress": 14,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 127,
+        "blocked": 128,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T18:56:32.341Z",
+    "updatedAt": "2026-11-23T18:58:22.335Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
