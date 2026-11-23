@@ -56,6 +56,11 @@ pub const PMS_RD_PROPERTY_CONFIG: &str = "pms_rd_property_config";
 /// already-open unit.
 pub const PMS_RD_PENDING_HOTEL_TRANSFERS: &str = "pms_rd_pending_hotel_transfers";
 pub const PMS_RD_UNPOSTED_BOOKING_RECEIPTS: &str = "pms_rd_unposted_booking_receipts";
+/// Native successor of the owner-local hospitality day-control unposted counter
+/// receipt count read. Fixed SQL with four positional binds, no
+/// ledger/receipt/outbox and no lock/refund path; the caller runs it on its
+/// already-open unit.
+pub const PMS_RD_UNPOSTED_COUNTER_RECEIPTS: &str = "pms_rd_unposted_counter_receipts";
 const SQL_INVENTORY_COMMAND: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
 WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
 UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
@@ -163,8 +168,16 @@ const READ_UNPOSTED_BOOKING_RECEIPTS: NativeReadStatement = NativeReadStatement 
     sql: SQL_UNPOSTED_BOOKING_RECEIPTS,
     bind_count: 4,
 };
+/// Retired TypeScript literal (newline and four-space indentation preserved):
+/// `SELECT count(*) n FROM pms_stripe_payments\n    WHERE property_id=? AND company_id=? AND received_at IS NOT NULL AND state IN ('requested','pending','cancelled')\n    AND to_char(to_timestamp(received_at/1000.0) AT TIME ZONE ?,'YYYY-MM-DD')<=?`
+const SQL_UNPOSTED_COUNTER_RECEIPTS: &str = "SELECT count(*) n FROM pms_stripe_payments\n    WHERE property_id=? AND company_id=? AND received_at IS NOT NULL AND state IN ('requested','pending','cancelled')\n    AND to_char(to_timestamp(received_at/1000.0) AT TIME ZONE ?,'YYYY-MM-DD')<=?";
+const READ_UNPOSTED_COUNTER_RECEIPTS: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_UNPOSTED_COUNTER_RECEIPTS,
+    sql: SQL_UNPOSTED_COUNTER_RECEIPTS,
+    bind_count: 4,
+};
 
-const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS];
+const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -348,5 +361,23 @@ ORDER BY id"
         assert_eq!(transfers.bind_count, 3);
         assert_eq!(receipts.bind_count, 4);
         assert!(!is_read("pms_rd_refund"));
+    }
+
+    #[test]
+    fn unposted_counter_receipts_read_matches_retired_typescript_literal() {
+        let read = read_statement(PMS_RD_UNPOSTED_COUNTER_RECEIPTS).expect("unposted counter receipts read");
+        assert_eq!(read.sql, "SELECT count(*) n FROM pms_stripe_payments\n    WHERE property_id=? AND company_id=? AND received_at IS NOT NULL AND state IN ('requested','pending','cancelled')\n    AND to_char(to_timestamp(received_at/1000.0) AT TIME ZONE ?,'YYYY-MM-DD')<=?");
+        let upper = read.sql.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT"));
+        assert!(!upper.contains("INSERT INTO"));
+        assert!(!upper.contains("UPDATE "));
+        assert!(!upper.contains("DELETE FROM"));
+        assert!(!upper.contains("FOR UPDATE"));
+        assert!(!upper.contains("FOR SHARE"));
+        assert!(!upper.contains("LOCK TABLE"));
+        assert!(!upper.contains("REFUND"));
+        assert_eq!(read.sql.matches('?').count(), read.bind_count);
+        assert_eq!(read.bind_count, 4);
+        assert!(is_read(read.kind));
     }
 }

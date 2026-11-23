@@ -18,6 +18,7 @@ import {
   PMS_RD_PROPERTY_CONFIG,
   PMS_RD_PENDING_HOTEL_TRANSFERS,
   PMS_RD_UNPOSTED_BOOKING_RECEIPTS,
+  PMS_RD_UNPOSTED_COUNTER_RECEIPTS,
 } from '../../../packages/server-pms/src/adapters/native-pms-read';
 import { readPmsInventoryCommand } from '../../../packages/server-pms/src/adapters/pms/read-repository';
 
@@ -443,6 +444,50 @@ describe('native PMS day-control count-read retirement', () => {
     expect(bodies.map(b => b.values)).toEqual([['company-1', 'property-1', '2026-11-24'], ['property-1', 'company-1', 'Asia/Bangkok', '2026-11-24']]);
     expect(bound).toEqual([['company-1', 'property-1', '2026-11-24'], ['property-1', 'company-1', 'Asia/Bangkok', '2026-11-24']]);
     expect(prepared).toEqual([pendingTransfersSql, unpostedBookingReceiptsSql]);
+    for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
+  });
+});
+
+const unpostedCounterReceiptsSql = "SELECT count(*) n FROM pms_stripe_payments\n    WHERE property_id=? AND company_id=? AND received_at IS NOT NULL AND state IN ('requested','pending','cancelled')\n    AND to_char(to_timestamp(received_at/1000.0) AT TIME ZONE ?,'YYYY-MM-DD')<=?";
+
+describe('native PMS unposted counter receipts read retirement', () => {
+  it('exposes a fixed unposted-counter-receipts read kind with no SQL on the wire', () => {
+    expect(PMS_RD_UNPOSTED_COUNTER_RECEIPTS).toBe('pms_rd_unposted_counter_receipts');
+    expect(PMS_RD_UNPOSTED_COUNTER_RECEIPTS).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+  });
+
+  it('removes the TypeScript unposted counter receipts SELECT literal but keeps refund reads', async () => {
+    const controls = await readFile(new URL('../../../packages/server-pms/src/adapters/hospitality-day-controls.ts', import.meta.url), 'utf8');
+    expect(controls).not.toContain('FROM pms_stripe_payments\n    WHERE property_id=? AND company_id=? AND received_at IS NOT NULL');
+    expect(controls).toContain('PMS_RD_UNPOSTED_COUNTER_RECEIPTS');
+    const call = controls.split('\n').find(line => line.includes('PMS_RD_UNPOSTED_COUNTER_RECEIPTS,')) ?? '';
+    expect(call).toContain('nativePmsReadFirst');
+    expect(call).not.toContain('db.prepare');
+    expect(controls).toContain("refund_state='failed'");
+  });
+
+  it('plans the unposted counter receipts read in Rust and runs it on the caller unit', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push(body);
+      return new Response(JSON.stringify({ data: { statements: [{ sql: unpostedCounterReceiptsSql, values: body.values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+    const prepared: string[] = [], bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) { prepared.push(sql); return { bind(...values: unknown[]) { bound.push(values); return this; } }; },
+      async batch<T>() { return [{ results: [{ n: 3 }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+    const receipts = await nativePmsReadFirst<{ n: number }>(PMS_RD_UNPOSTED_COUNTER_RECEIPTS, ['property-1', 'company-1', 'Asia/Bangkok', '2026-11-24'], db as never);
+
+    expect(receipts).toMatchObject({ n: 3 });
+    expect(bodies.map(b => b.kind)).toEqual([PMS_RD_UNPOSTED_COUNTER_RECEIPTS]);
+    expect(bodies.map(b => b.values)).toEqual([['property-1', 'company-1', 'Asia/Bangkok', '2026-11-24']]);
+    expect(bound).toEqual([['property-1', 'company-1', 'Asia/Bangkok', '2026-11-24']]);
+    expect(prepared).toEqual([unpostedCounterReceiptsSql]);
     for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
   });
 });

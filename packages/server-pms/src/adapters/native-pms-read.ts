@@ -31,6 +31,7 @@ export const PMS_RD_DOCUMENT_SNAPSHOT = 'pms_rd_document_snapshot';
 export const PMS_RD_PROPERTY_CONFIG = 'pms_rd_property_config';
 export const PMS_RD_PENDING_HOTEL_TRANSFERS = 'pms_rd_pending_hotel_transfers';
 export const PMS_RD_UNPOSTED_BOOKING_RECEIPTS = 'pms_rd_unposted_booking_receipts';
+export const PMS_RD_UNPOSTED_COUNTER_RECEIPTS = 'pms_rd_unposted_counter_receipts';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');
