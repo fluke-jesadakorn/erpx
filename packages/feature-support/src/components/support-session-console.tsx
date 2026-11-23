@@ -8,7 +8,7 @@ import { PreferredDateTimeField } from "@erpx/feature-people_payroll/components/
 import { useRef, useState } from "react";
 import { useRouter } from "@erpx/feature-shared/lib/destination-router";
 import { workFetch } from "@erpx/feature-work_projection/lib/work-fetch";
-import type { supportSessionDetail, supportSessionWorkspace } from "@erpx/server-support/public/support-sessions";
+import type { SupportSessionDetail, SupportSessionWorkspace } from "@erpx/server-support/public/support-sessions";
 import { FormLayout } from "@erpx/ui/components/foundation";
 
 export function SupportSessionConsole({
@@ -17,8 +17,8 @@ export function SupportSessionConsole({
   detail,
 }: {
   base: string;
-  data?: Awaited<ReturnType<typeof supportSessionWorkspace>>;
-  detail?: Awaited<ReturnType<typeof supportSessionDetail>>;
+  data?: SupportSessionWorkspace;
+  detail?: SupportSessionDetail;
 }) {
   const router = useRouter(),
     [busy, setBusy] = useState(false),

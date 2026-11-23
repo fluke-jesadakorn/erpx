@@ -4,7 +4,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import type {supportDetail,supportRecipients,supportWorkspace} from '@erpx/server-support/public/support';
 import type {incidentDetail,incidentWorkspace} from '@erpx/server-support/public/support-incidents';
 import type {supportSlaWorkspace} from '@erpx/server-support/public/support-sla';
-import type {supportSessionDetail,supportSessionWorkspace} from '@erpx/server-support/public/support-sessions';
+import type {SupportSessionDetail,SupportSessionWorkspace} from '@erpx/server-support/public/support-sessions';
 import type {supportEvidence} from '@erpx/server-support/public/support-evidence';
 
 export type NativeSupportWorkspace = Awaited<ReturnType<typeof supportWorkspace>>;
@@ -13,8 +13,8 @@ export type NativeSupportRecipients = Awaited<ReturnType<typeof supportRecipient
 export type NativeSupportIncidentWorkspace = Awaited<ReturnType<typeof incidentWorkspace>>;
 export type NativeSupportIncidentDetail = Awaited<ReturnType<typeof incidentDetail>>;
 export type NativeSupportSlaWorkspace = Awaited<ReturnType<typeof supportSlaWorkspace>>;
-export type NativeSupportSessionWorkspace = Awaited<ReturnType<typeof supportSessionWorkspace>>;
-export type NativeSupportSessionDetail = Awaited<ReturnType<typeof supportSessionDetail>>;
+export type NativeSupportSessionWorkspace = SupportSessionWorkspace;
+export type NativeSupportSessionDetail = SupportSessionDetail;
 export type NativeSupportEvidence = Awaited<ReturnType<typeof supportEvidence>>;
 
 type Settings={privateBaseUrl:string;timeoutMs:number;holdings:{origin:string;holdingSlug:string;holdingId:string}[];production?:boolean};

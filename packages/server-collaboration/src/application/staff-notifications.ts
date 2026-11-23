@@ -35,7 +35,7 @@ export interface StaffNotificationPorts {
     getSupportTicket(...args: Parameters<typeof import("@erpx/server-support/public/support").getSupportTicket>): ReturnType<typeof import("@erpx/server-support/public/support").getSupportTicket>;
     nativeFieldNotificationTarget?(actor:WorkContext,kind:"operations"|"collaboration",id:string):Promise<{href:string}|undefined>;
     operationsExceptionDetail(...args: Parameters<typeof import("@erpx/server-operations/public/operations-exceptions").operationsExceptionDetail>): ReturnType<typeof import("@erpx/server-operations/public/operations-exceptions").operationsExceptionDetail>;
-    supportSessionDetail(...args: Parameters<typeof import("@erpx/server-support/public/support-sessions").supportSessionDetail>): ReturnType<typeof import("@erpx/server-support/public/support-sessions").supportSessionDetail>;
+    supportSessionDetail(actor: WorkContext, id: string): Promise<unknown>;
     canReadAccessReviewAlert(...args: Tail<Parameters<typeof import("@erpx/server-identity_access/public/iam-access-review-alerts").canReadAccessReviewAlert>>): ReturnType<typeof import("@erpx/server-identity_access/public/iam-access-review-alerts").canReadAccessReviewAlert>;
     payrollCorrectionAlertTarget(...args: Tail<Parameters<typeof import("@erpx/server-people_payroll/public/people-payroll").payrollCorrectionAlertTarget>>): ReturnType<typeof import("@erpx/server-people_payroll/public/people-payroll").payrollCorrectionAlertTarget>;
     payrollAdvanceAlertTarget(...args: Tail<Parameters<typeof import("@erpx/server-people_payroll/public/people-payroll").payrollAdvanceAlertTarget>>): ReturnType<typeof import("@erpx/server-people_payroll/public/people-payroll").payrollAdvanceAlertTarget>;

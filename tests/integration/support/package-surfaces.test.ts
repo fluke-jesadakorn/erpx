@@ -19,7 +19,6 @@ import {seedSupportIncident} from '../../support/helpers/support-incident-seed';
 import { supportEvidence } from "@erpx/server-support/public/support-evidence";
 import {incidentWorkspace} from '@erpx/server-support/public/support-incidents';
 import { supportSlaWorkspace } from "@erpx/server-support/public/support-sla";
-import { supportSessionWorkspace } from "@erpx/server-support/public/support-sessions";
 import { packageGrantStore } from "@erpx/server-commercial/adapters/package-grants";
 import { readCompanyPackageGrants, packageGrantRevision } from "@erpx/server-commercial/public/package-grants";
 import { ownerPackageObligations, withOwnerPackageObligations } from "@erpx/server-commercial/public/owner-package-obligations";
@@ -27,7 +26,6 @@ import type { CompanyPackageGrant } from "@erpx/server-commercial/public/package
 import { attachmentPolicy, authorizeAttachmentTarget } from "@erpx/server-files/public/attachments/policy";
 import { createAttachmentSet } from "@erpx/server-files/public/attachments/service";
 import {saveMaster,saveOrder,orderSchema} from '@erpx/server-commerce/public/commerce';
-import { seedSupportSession } from "../../support/helpers/support-session-seed";
 import { startSupportClock } from "@erpx/server-support/public/rules/support-clock";
 import { seedSupportClock, seedSupportPolicy } from "../../support/helpers/support-sla-seed";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -119,7 +117,7 @@ async function orderTicket() {
 
 it("denies real Support collections, detail and evidence without a purchase", async () => {
   for (const read of [() => getSupportTicket(f.manager, ticketId), () => supportEvidence(f.manager, ticketId),
-    () => incidentWorkspace(f.manager), () => supportSlaWorkspace(f.manager), () => supportSessionWorkspace(f.manager)])
+    () => incidentWorkspace(f.manager), () => supportSlaWorkspace(f.manager)])
     await expect(read()).rejects.toMatchObject({ status: 403, code: "PACKAGE_REQUIRED" });
 });
 
@@ -278,21 +276,6 @@ it("reads incident file authority through the supplied owner transaction without
       .toMatchObject({ companyId: f.company, editable: false });
   });
   expect(holdingResources).not.toHaveBeenCalled();
-});
-
-it("keeps rejection/revocation while draining, hides access expansion and expires pending sessions in Work", async () => {
-  await grant("active"); const ticket = await orderTicket();
-  const expiresAt = Date.now() + 60000;
-  const approved = await seedSupportSession(db, f.manager, { ticketId: ticket.id, requestedFor: f.head.userId, createdBy: f.head.userId, reviewedBy: f.manager.userId, status: "approved", expiresAt });
-  const pending = await seedSupportSession(db, f.head, { ticketId: ticket.id, requestedFor: f.head.userId, createdBy: f.head.userId, status: "pending", expiresAt });
-  await grant("draining");
-  const data = await supportSessionWorkspace(f.manager);
-  expect(data.tickets).toEqual([]);
-  expect(data.rows.find(row => row.id === pending.id)).toMatchObject({ canReview: true, canApprove: false });
-  expect(data.rows.find(row => row.id === approved.id)).toMatchObject({ canManage: true, canIssueCapability: false });
-  vi.spyOn(Date, "now").mockReturnValue(expiresAt + 1);
-  const expired = await supportSessionWorkspace(f.manager);
-  expect(expired.rows.find(row => row.id === pending.id)).toMatchObject({ effective_status: "expired", canReview: false, canApprove: false });
 });
 
 it("protects actual private-file HTTP bytes without purchase and retains held history across draining, inactivation and future renewal", async () => {

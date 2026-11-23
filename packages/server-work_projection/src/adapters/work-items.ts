@@ -40,7 +40,6 @@ export function workSnapshotPorts(write: SqlDatabase): WorkSnapshotPorts {
                 case "incidentWork": return (await import("@erpx/server-support/public/support-incidents")).incidentWork(actor);
                 case "supportPolicyWork": return (await import("@erpx/server-support/public/support-sla")).supportPolicyWork(actor);
                 case "supportWork": return (await import("@erpx/server-support/public/support")).supportWork(actor);
-                case "supportSessionWork": return (await import("@erpx/server-support/public/support-sessions")).supportSessionWork(actor);
                 case "maintenanceWork": return (await import("@erpx/server-maintenance/public/asset-maintenance")).maintenanceWork(actor);
                 case "preventivePlanWork": return (await import("../../../server-maintenance/src/public/native-preventive-read")).preventivePlanWork(actor);
                 case "projectHandoffWork": return (await import("@erpx/server-projects/public/project-structure")).projectHandoffWork(actor);
@@ -90,6 +89,10 @@ export function workSnapshotPorts(write: SqlDatabase): WorkSnapshotPorts {
                 }
                 case "otherFlowWork": return (await import("@erpx/server-workflow/public/flow-work")).otherFlowWork(actor);
             }
+            // Retired owner reads have no TypeScript source. The native
+            // snapshot reports them as unavailable rather than falling back
+            // to a retained reader.
+            return [];
         }, domain: (actor, source) => getDomainWork(actor, source), leave: actor => getWork(actor.holdingId, actor), enrich: (actor, items) => enrichFlowWork(actor, items), enabledModules: async (actor) => (await import("@erpx/server-pms/public/feature-availability")).enabledProductionModules(write, actor.companyId), production: () => process.env.NODE_ENV === 'production', monotonic: () => performance.now(), performanceLog: () => process.env.ERPX_PERF_LOG === '1', errorStatus: error => error instanceof ApiError ? error.status : undefined, info: value => console.info(value), warn: (...values) => console.warn(...values), cached: (actor, load) => process.env.ERPX_NATIVE_FIELD_SERVICE_WORK_CONFIG !== undefined || process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_CONFIG !== undefined || actor.modules.includes('field_service') ? load() : cachedWorkSnapshot(actor, write, load)
     };
 }
