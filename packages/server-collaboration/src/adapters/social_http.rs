@@ -63,6 +63,40 @@ pub struct SocialThreadData {
     pub posts: Vec<FeedPost>,
 }
 
+/// Audience options for the social composer. The cross-owner rows stay opaque
+/// JSON so the composition owner can project them without duplicating types.
+#[derive(Clone, Debug, Serialize)]
+pub struct SocialAudienceOptionsData {
+    pub branches: Vec<Value>,
+    pub audiences: Vec<Value>,
+    pub projects: Vec<Value>,
+}
+
+/// Purchase/context presentation carried by the page. `context` is the stable
+/// home cache token; `purchase` is omitted until a purchase gate is bound.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SocialPresentationData {
+    pub context: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub purchase: Option<Value>,
+}
+
+/// Complete SSR page payload. Every field the Social home/document presenters
+/// read is present; consumers never reconstruct a value from a partial native
+/// projection merged over the retained TypeScript payload.
+#[derive(Clone, Debug, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SocialPageData {
+    pub posts: Vec<Value>,
+    pub milestones: Vec<Value>,
+    pub options: SocialAudienceOptionsData,
+    pub moderate: bool,
+    pub presentation: Option<SocialPresentationData>,
+    pub initial_day: Option<Value>,
+    pub post: Option<Value>,
+}
+
 /// One bounded comment page. Item fields stay snake_case because the existing
 /// conversation client renders them directly.
 #[derive(Clone, Debug, Serialize)]
@@ -133,6 +167,19 @@ pub struct SocialHttpRevisionsRequest<'a> {
     pub post_id: &'a str,
 }
 
+/// One aggregate SSR page read. The owner returns every field in one reply so
+/// the Next transport cannot accidentally render a half-native page.
+pub struct SocialHttpPageRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub post_id: Option<&'a str>,
+    pub tag: Option<&'a str>,
+    pub skip_day: bool,
+    pub skip_milestones: bool,
+    pub source_only: bool,
+}
+
 pub enum SocialHttpReadReply {
     Feed(Box<SocialFeedData>),
     Thread(Box<SocialThreadData>),
@@ -175,6 +222,22 @@ pub trait SocialHttpBackend: Send + Sync {
                 FailureKind::Unavailable,
                 "SOCIAL_REVISIONS_PORT_UNAVAILABLE",
                 "The native Social revision reader is unavailable.",
+            ))
+        })
+    }
+
+    /// Aggregate SSR page read. Composition binds the cross-owner audience,
+    /// presentation and moderation ports; until then the default fails closed
+    /// instead of returning an empty or partial page.
+    fn page<'a>(
+        &'a self,
+        _request: SocialHttpPageRequest<'a>,
+    ) -> SocialHttpFuture<'a, SocialPageData> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "SOCIAL_PAGE_PORT_UNAVAILABLE",
+                "The native Social page reader is unavailable.",
             ))
         })
     }
@@ -240,6 +303,21 @@ pub struct CommentsQuery {
     pub cursor: Option<String>,
     #[serde(default)]
     pub limit: Option<String>,
+}
+
+#[derive(Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SocialPageQuery {
+    #[serde(default, alias = "post_id")]
+    pub post_id: Option<String>,
+    #[serde(default)]
+    pub tag: Option<String>,
+    #[serde(default, alias = "skip_day")]
+    pub skip_day: Option<String>,
+    #[serde(default, alias = "skip_milestones")]
+    pub skip_milestones: Option<String>,
+    #[serde(default, alias = "source_only")]
+    pub source_only: Option<String>,
 }
 
 fn missing() -> BusinessError {
@@ -325,6 +403,7 @@ pub fn social_router(targets: Vec<SocialHttpTarget>) -> Result<Router, BusinessE
             "/api/v1/holdings/{holding_slug}/stories/{story_id}/archive",
             post(archive_story),
         )
+        .route("/api/v1/holdings/{holding_slug}/page", get(read_page))
         .with_state(Arc::new(state)))
 }
 
@@ -368,6 +447,17 @@ fn read_limit(value: Option<&str>) -> Result<usize, BusinessError> {
 
 fn cursor(value: Option<&str>) -> Result<Option<FeedCursor>, BusinessError> {
     value.map(FeedCursor::decode).transpose()
+}
+
+/// SSR page flags are transported as `1`/`true` and default to false. An
+/// unknown value is rejected instead of silently widening the page read.
+fn page_flag(value: Option<&str>, name: &'static str) -> Result<bool, BusinessError> {
+    match value {
+        None => Ok(false),
+        Some("1" | "true") => Ok(true),
+        Some("0" | "false" | "") => Ok(false),
+        Some(_) => Err(BusinessError::invalid(name, "Choose a valid page flag.")),
+    }
 }
 
 pub async fn read_feed(
@@ -486,6 +576,42 @@ pub async fn read_post_revisions(
     .await;
     match result {
         Ok(rows) => bounded(rows),
+        Err(error) => error_response(error),
+    }
+}
+
+/// Aggregate SSR page read. Every field is produced by one owner call so the
+/// Next transport never assembles a partial native page from retained state.
+pub async fn read_page(
+    State(state): State<Arc<SocialHttpState>>,
+    Path(slug): Path<String>,
+    Query(query): Query<SocialPageQuery>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async {
+        let target = target(&state, &headers, &slug)?;
+        let skip_day = page_flag(query.skip_day.as_deref(), "SOCIAL_SKIP_DAY_INVALID")?;
+        let skip_milestones =
+            page_flag(query.skip_milestones.as_deref(), "SOCIAL_SKIP_MILESTONES_INVALID")?;
+        let source_only = page_flag(query.source_only.as_deref(), "SOCIAL_SOURCE_ONLY_INVALID")?;
+        target
+            .backend
+            .page(SocialHttpPageRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                post_id: query.post_id.as_deref(),
+                tag: query.tag.as_deref(),
+                skip_day,
+                skip_milestones,
+                source_only,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(page) => bounded(page),
         Err(error) => error_response(error),
     }
 }
@@ -868,6 +994,7 @@ mod tests {
     struct FakeBackend {
         reads: Mutex<Vec<(String, String, &'static str)>>,
         commands: Mutex<Vec<(String, String, Change)>>,
+        pages: Mutex<Vec<(String, String, bool, bool, bool)>>,
         failure: Option<BusinessError>,
     }
 
@@ -956,6 +1083,40 @@ mod tests {
                     id: "post-key".into(),
                     version: 1,
                     status: "published",
+                })
+            })
+        }
+
+        fn page<'a>(
+            &'a self,
+            request: SocialHttpPageRequest<'a>,
+        ) -> SocialHttpFuture<'a, SocialPageData> {
+            self.pages.lock().unwrap().push((
+                request.host.into(),
+                request.holding_slug.into(),
+                request.skip_day,
+                request.skip_milestones,
+                request.source_only,
+            ));
+            Box::pin(async move {
+                if let Some(error) = &self.failure {
+                    return Err(error.clone());
+                }
+                Ok(SocialPageData {
+                    posts: vec![serde_json::json!({"id": "post-1", "version": 1})],
+                    milestones: vec![],
+                    options: SocialAudienceOptionsData {
+                        branches: vec![],
+                        audiences: vec![],
+                        projects: vec![],
+                    },
+                    moderate: false,
+                    presentation: Some(SocialPresentationData {
+                        context: "home-token".into(),
+                        purchase: None,
+                    }),
+                    initial_day: None,
+                    post: None,
                 })
             })
         }
@@ -1176,5 +1337,110 @@ mod tests {
         assert_eq!(status, StatusCode::OK);
         assert_eq!(value["data"]["posts"][0]["id"], "post-9");
         assert_eq!(backend.reads.lock().unwrap()[0].2, "thread");
+    }
+
+    fn page_query(
+        post_id: Option<&str>,
+        tag: Option<&str>,
+        skip_day: Option<&str>,
+        skip_milestones: Option<&str>,
+        source_only: Option<&str>,
+    ) -> SocialPageQuery {
+        SocialPageQuery {
+            post_id: post_id.map(str::to_owned),
+            tag: tag.map(str::to_owned),
+            skip_day: skip_day.map(str::to_owned),
+            skip_milestones: skip_milestones.map(str::to_owned),
+            source_only: source_only.map(str::to_owned),
+        }
+    }
+
+    #[tokio::test]
+    async fn page_read_returns_full_payload_and_forwards_every_flag() {
+        let backend = Arc::new(FakeBackend::default());
+        let state = http_state(make_target(backend.clone()));
+        let response = read_page(
+            State(state.clone()),
+            Path("acme".into()),
+            Query(page_query(
+                Some("post-1"),
+                Some("tag"),
+                Some("1"),
+                Some("true"),
+                Some("0"),
+            )),
+            get_request(),
+        )
+        .await;
+        let (status, value) = body(response).await;
+        assert_eq!(status, StatusCode::OK);
+        assert_eq!(value["data"]["posts"][0]["id"], "post-1");
+        assert_eq!(value["data"]["options"]["branches"], serde_json::json!([]));
+        assert_eq!(value["data"]["moderate"], false);
+        assert_eq!(value["data"]["presentation"]["context"], "home-token");
+        assert!(value["data"]["presentation"].get("purchase").is_none());
+        assert_eq!(value["data"]["initialDay"], serde_json::Value::Null);
+        assert_eq!(
+            backend.pages.lock().unwrap().as_slice(),
+            [("acme.example.test".into(), "acme".into(), true, true, false)]
+        );
+
+        let response = read_page(
+            State(state),
+            Path("other".into()),
+            Query(page_query(None, None, None, None, None)),
+            get_request(),
+        )
+        .await;
+        assert_eq!(body(response).await.0, StatusCode::NOT_FOUND);
+
+        let response = read_page(
+            State(http_state(make_target(backend))),
+            Path("acme".into()),
+            Query(page_query(None, None, Some("bogus"), None, None)),
+            get_request(),
+        )
+        .await;
+        let (status, value) = body(response).await;
+        assert_eq!(status, StatusCode::UNPROCESSABLE_ENTITY);
+        assert_eq!(value["error"]["code"], "SOCIAL_SKIP_DAY_INVALID");
+    }
+
+    #[tokio::test]
+    async fn page_default_backend_fails_closed() {
+        // A backend that only implements the required read/command ports (the
+        // page method keeps its fail-closed default) must not serve a page.
+        #[derive(Default)]
+        struct MinimalBackend;
+        impl SocialHttpBackend for MinimalBackend {
+            fn read<'a>(
+                &'a self,
+                _request: SocialHttpReadRequest<'a>,
+            ) -> SocialHttpFuture<'a, SocialHttpReadReply> {
+                Box::pin(async { Err(BusinessError::new(FailureKind::Unavailable, "NO", "no")) })
+            }
+            fn command<'a>(
+                &'a self,
+                _request: SocialHttpCommandRequest<'a>,
+            ) -> SocialHttpFuture<'a, Receipt> {
+                Box::pin(async { Err(BusinessError::new(FailureKind::Unavailable, "NO", "no")) })
+            }
+        }
+        let state = http_state(SocialHttpTarget {
+            host: "acme.example.test".into(),
+            holding_slug: "acme".into(),
+            origin: "https://acme.example.test".into(),
+            backend: Arc::new(MinimalBackend),
+        });
+        let response = read_page(
+            State(state),
+            Path("acme".into()),
+            Query(page_query(None, None, None, None, None)),
+            get_request(),
+        )
+        .await;
+        let (status, value) = body(response).await;
+        assert_eq!(status, StatusCode::SERVICE_UNAVAILABLE);
+        assert_eq!(value["error"]["code"], "SOCIAL_PAGE_PORT_UNAVAILABLE");
     }
 }

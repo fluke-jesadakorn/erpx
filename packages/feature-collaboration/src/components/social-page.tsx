@@ -10,6 +10,7 @@ import { PageContent } from "@erpx/ui/components/patterns";
 import {SocialCommandProvider} from "@erpx/feature-collaboration/components/social-command-context";
 import { SocialHome } from "@erpx/feature-collaboration/components/social-home";
 import { socialPageData } from "@erpx/server-collaboration/public/social-page";
+import type { SocialPageData } from "@erpx/server-collaboration/public/native-social-page-types";
 import { publicScope, type WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
 import { RecordDocumentPanel } from "@erpx/feature-files/components/record-document-panel";
@@ -42,7 +43,7 @@ export async function SocialPage({
 }
 
 async function SocialFeed({ actor, base, postId, sourceOnly, data }: {
-  actor: WorkContext; base: string; postId?: string; sourceOnly:boolean; data: ReturnType<typeof socialPageData>;
+  actor: WorkContext; base: string; postId?: string; sourceOnly:boolean; data: Promise<SocialPageData>;
 }) {
   const { posts, options, moderate, presentation } = await data;
   return (
@@ -76,7 +77,7 @@ async function SocialFeed({ actor, base, postId, sourceOnly, data }: {
 }
 
 async function SocialDocuments({ actor, base, data }: {
-  actor: WorkContext; base: string; data: ReturnType<typeof socialPageData>;
+  actor: WorkContext; base: string; data: Promise<SocialPageData>;
 }) {
   const { post } = await data;
   return <>    {post&&<PageContent ><RecordDocumentPanel appearance="standard"

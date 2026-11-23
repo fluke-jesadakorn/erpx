@@ -1,5 +1,8 @@
 import 'server-only';
+import { cookies, headers } from 'next/headers';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
+import type { HomePost, SocialPageData } from './native-social-page-types';
 
 /** Strict owner transport for the native Collaboration social feed router. */
 export type NativeSocialConfiguration = Readonly<{
@@ -325,4 +328,134 @@ export function nativePublishHandover(
   key: string,
 ) {
   return call(request, holdingSlug, '/feed/handovers', { body, key });
+}
+
+/** Server-component variant of the forwarded header set: a page has no
+ *  Request object, so it reads the incoming headers and cookies directly.
+ *  `host` is required — the owner keys the registered Holding target on it. */
+async function ssrHeaders(): Promise<Headers> {
+  const outgoing = new Headers({ accept: 'application/json' });
+  const incoming = await headers();
+  const cookie = (await cookies()).toString();
+  if (cookie) outgoing.set('cookie', cookie);
+  for (const name of [
+    'host',
+    'origin',
+    'x-erpx-context-company',
+    'x-erpx-context-assignment',
+    'x-erpx-context-revision',
+    'x-erpx-context-assignment-version',
+    'x-erpx-workspace-branch',
+    'x-erpx-workspace-department',
+  ]) {
+    const value = incoming.get(name);
+    if (value) outgoing.set(name, value);
+  }
+  return outgoing;
+}
+
+const failed = (): never => {
+  throw new ApiError(
+    503,
+    'NATIVE_COLLABORATION_FAILED',
+    'The Collaboration request failed.',
+  );
+};
+
+const object = (value: unknown): value is Record<string, unknown> =>
+  !!value && typeof value === 'object' && !Array.isArray(value);
+
+/** Strict full-page validation. A malformed reply throws instead of degrading
+ *  into a partial native payload merged with retained TypeScript state. */
+function asPage(value: unknown): SocialPageData {
+  if (!object(value)) return failed();
+  const { posts, milestones, options, moderate, presentation, post } = value;
+  if (
+    !Array.isArray(posts) ||
+    !Array.isArray(milestones) ||
+    !object(options) ||
+    !Array.isArray(options.branches) ||
+    !Array.isArray(options.audiences) ||
+    !Array.isArray(options.projects) ||
+    typeof moderate !== 'boolean'
+  )
+    return failed();
+  for (const row of [...posts, ...milestones])
+    if (!object(row) || typeof row.id !== 'string') return failed();
+  if (
+    post !== null &&
+    post !== undefined &&
+    (!object(post) || typeof post.id !== 'string')
+  )
+    return failed();
+  if (presentation !== null && presentation !== undefined) {
+    if (!object(presentation) || typeof presentation.context !== 'string')
+      return failed();
+    if (
+      presentation.purchase !== undefined &&
+      presentation.purchase !== null &&
+      !object(presentation.purchase)
+    )
+      return failed();
+  }
+  return {
+    posts: posts as HomePost[],
+    milestones: milestones as HomePost[],
+    options: options as SocialPageData['options'],
+    moderate,
+    presentation: (presentation ?? undefined) as SocialPageData['presentation'],
+    initialDay: value.initialDay,
+    post: (post ?? null) as HomePost | null,
+  };
+}
+
+/** Aggregate SSR page read for server components without a Request object.
+ *  Every field the home/document presenters read comes from this one owner
+ *  reply; there is no field-by-field native-over-TypeScript overlay. */
+export async function nativeSocialPageDataSSR(
+  actor: Pick<WorkContext, 'holdingSlug'>,
+  input: {
+    postId?: string;
+    tag?: string;
+    skipDay?: boolean;
+    skipMilestones?: boolean;
+    sourceOnly?: boolean;
+  },
+): Promise<SocialPageData> {
+  const config = configuration();
+  const query = new URLSearchParams();
+  if (input.postId) query.set('postId', input.postId);
+  if (input.tag) query.set('tag', input.tag);
+  if (input.skipDay) query.set('skipDay', '1');
+  if (input.skipMilestones) query.set('skipMilestones', '1');
+  if (input.sourceOnly) query.set('sourceOnly', '1');
+  const search = query.toString();
+  let response: Response;
+  try {
+    response = await fetch(
+      `${config.privateBaseUrl}/api/v1/holdings/${encodeURIComponent(actor.holdingSlug)}/page${search ? `?${search}` : ''}`,
+      {
+        method: 'GET',
+        headers: await ssrHeaders(),
+        cache: 'no-store',
+        signal: AbortSignal.timeout(config.timeoutMs),
+      },
+    );
+  } catch {
+    throw new ApiError(
+      503,
+      'NATIVE_COLLABORATION_UNAVAILABLE',
+      'The native Collaboration service is unavailable.',
+    );
+  }
+  const payload = (await response.json().catch(() => null)) as
+    | { data?: unknown; error?: { code?: string; message?: string } }
+    | null;
+  if (!response.ok)
+    throw new ApiError(
+      response.status,
+      payload?.error?.code ?? 'NATIVE_COLLABORATION_FAILED',
+      payload?.error?.message ?? 'The Collaboration request failed.',
+    );
+  return asPage(payload?.data);
 }
