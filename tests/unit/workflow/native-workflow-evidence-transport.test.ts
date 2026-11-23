@@ -561,3 +561,46 @@ describe('workflow approval administration queue read tail (native read plan)', 
     }
   });
 });
+
+describe('workflow legal decision history read tail (native read plan)', () => {
+  it('carries no retired owner SQL for the switched read', async () => {
+    const source = await readFile(
+      new URL(
+        '../../../packages/server-workflow/src/adapters/legal-approval-facts.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    expect(source).not.toContain('SELECT d.* FROM approval_decisions d JOIN approval_instances i');
+    expect(source).not.toContain("i.record_type='legal' AND i.record_id=? AND i.company_id=?");
+    expect(source).not.toContain('ORDER BY d.insertion_order');
+  });
+
+  it('plans the decision history read through the mounted native read with no local SQL', async () => {
+    const rows = [{ id: 'decision-1', action: 'approve', actor_user_id: 'actor' }];
+    const all = vi.fn(async () => rows);
+    vi.resetModules();
+    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+      nativeWorkflowReadAll: all,
+    }));
+    try {
+      const { legalApprovalFacts } = await import(
+        '../../../packages/server-workflow/src/adapters/legal-approval-facts'
+      );
+      const prepare = vi.fn();
+      const db = { prepare } as never;
+      expect(await legalApprovalFacts(db).decisionHistory({ id: 'legal-1', companyId: 'company' }))
+        .toEqual({ results: rows });
+      expect(all).toHaveBeenCalledWith(
+        'wf_native_legal_decision_history',
+        ['legal-1', 'company'],
+        'company',
+        db,
+      );
+      expect(prepare).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.resetModules();
+    }
+  });
+});

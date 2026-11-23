@@ -128,6 +128,11 @@ pub const WF_NATIVE_WORK_REPORT_SAVED_ROUTES: &str = "wf_native_work_report_save
 /// Workflow-owned approval tables; the TypeScript bridge executes it on the
 /// caller's open company unit and carries no receipt/assertion semantics.
 pub const WF_NATIVE_APPROVAL_ADMINISTRATION_QUEUE: &str = "wf_native_approval_administration_queue";
+/// Owner-authored caller-unit read for the legal decision history family. The
+/// mounted wave3-command planner resolves it to one fixed SELECT on the
+/// Workflow-owned approval tables; the TypeScript bridge executes it on the
+/// caller's open company unit and carries no receipt/assertion semantics.
+pub const WF_NATIVE_LEGAL_DECISION_HISTORY: &str = "wf_native_legal_decision_history";
 pub const KINDS: &[&str] = &[
     WF_OPENAPPROVAL,
     WF_OPENAPPROVAL2,
@@ -164,6 +169,7 @@ pub const KINDS: &[&str] = &[
     WF_NATIVE_WORK_REPORT_DECISIONS,
     WF_NATIVE_WORK_REPORT_SAVED_ROUTES,
     WF_NATIVE_APPROVAL_ADMINISTRATION_QUEUE,
+    WF_NATIVE_LEGAL_DECISION_HISTORY,
 ];
 
 fn statement(kind: &str) -> Option<(&'static str, usize)> {
@@ -409,6 +415,10 @@ fn statement(kind: &str) -> Option<(&'static str, usize)> {
         WF_NATIVE_APPROVAL_ADMINISTRATION_QUEUE => (
             "SELECT record_type,record_id FROM approval_instances WHERE company_id=? AND state IN ('pending','blocked') AND (?::text IS NULL OR (record_type=? AND record_id=?)) ORDER BY created_at LIMIT 50",
             4,
+        ),
+        WF_NATIVE_LEGAL_DECISION_HISTORY => (
+            "SELECT d.* FROM approval_decisions d JOIN approval_instances i ON i.id=d.instance_id WHERE i.record_type='legal' AND i.record_id=? AND i.company_id=? ORDER BY d.insertion_order",
+            2,
         ),
 _ => return None,
     })
@@ -745,5 +755,39 @@ mod tests {
         assert!(
             plan(WF_NATIVE_APPROVAL_ADMINISTRATION_QUEUE, vec![json!("company")]).is_err()
         );
+    }
+
+    /// The owner-local legal decision history read stays fixed, SELECT-only and
+    /// company-scoped on the Workflow-owned approval tables; the bridge carries
+    /// no receipt or assertion semantics and the planner never accepts caller
+    /// SQL or writes.
+    #[test]
+    fn legal_decision_history_read_kind_is_fixed_company_scoped_select() {
+        let (sql, expected) = statement(WF_NATIVE_LEGAL_DECISION_HISTORY)
+            .expect("registered owner read kind");
+        assert!(sql.starts_with("SELECT "), "read must be SELECT-only: {sql}");
+        assert_eq!(expected, 2);
+        assert_eq!(sql.matches('?').count(), expected);
+        assert!(
+            sql.contains("approval_decisions") && sql.contains("approval_instances"),
+            "read must stay owner-local: {sql}"
+        );
+        assert!(sql.contains("i.company_id=?"), "read must stay company-scoped: {sql}");
+        assert!(
+            sql.contains("i.record_type='legal'") && sql.contains("ORDER BY d.insertion_order"),
+            "read must keep the exact owner predicate and order: {sql}"
+        );
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+            assert!(!sql.contains(forbidden), "read must not mutate: {forbidden}");
+        }
+        assert!(supported(WF_NATIVE_LEGAL_DECISION_HISTORY));
+        assert!(
+            plan(
+                WF_NATIVE_LEGAL_DECISION_HISTORY,
+                vec![json!("legal-1"), json!("company")]
+            )
+            .is_ok()
+        );
+        assert!(plan(WF_NATIVE_LEGAL_DECISION_HISTORY, vec![json!("legal-1")]).is_err());
     }
 }
