@@ -575,3 +575,35 @@ async fn run_text_raw(
         ))
     })
 }
+
+#[tokio::test]
+async fn pos_sale_statement_matches_retained_read() {
+    use erpx_server_collaboration::public::notification_statement::pos_sale_statement;
+    fixture::with_database(2, |pool| async move {
+        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
+        migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
+        PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
+            sqlx::query("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('company','company','company','Company',NULL,'company',NULL,'active'),('b1','branch','b1','Branch 1','company','company',NULL,'active')").execute(&mut *c).await?;
+            sqlx::query("INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name,status) VALUES('pos-wh-1','company','b1','POSW1','Main','active')").execute(&mut *c).await?;
+            sqlx::query("INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode,active) VALUES('pos-reg-1','company','b1','pos-wh-1','Alpha','retail',true)").execute(&mut *c).await?;
+            sqlx::query("INSERT INTO pos_shifts(id,register_id,company_id,branch_id,opened_by,opened_at,opening_minor) VALUES('pos-shift-1','pos-reg-1','company','b1','fixture',0,0)").execute(&mut *c).await?;
+            sqlx::query("INSERT INTO pos_sales(id,company_id,branch_id,register_id,shift_id,number,currency,business_date,created_by,created_at,updated_at,accounts_json) VALUES('pos-sale-1','company','b1','pos-reg-1','pos-shift-1','S-1','THB','2026-09-02','fixture',0,0,'{}')").execute(&mut *c).await?;
+            // Pure constructor: single-row lookup, empty id rejected.
+            let statement = pos_sale_statement("pos-sale-1")?;
+            assert!(statement.sql.contains("pos_sales"));
+            assert_eq!(statement.values.len(), 1);
+            assert!(pos_sale_statement("").is_err());
+            // Retained `readPosSales1` literal: identical row.
+            let retained = "SELECT * FROM pos_sales WHERE id=?";
+            let via_statement = run_rows_statement(c, &statement).await?;
+            let via_retained = run_rows_raw(c, retained, &[Some("pos-sale-1".to_owned())]).await?;
+            assert_eq!(via_statement.len(), 1);
+            assert_eq!(via_statement, via_retained);
+            assert_eq!(via_statement[0].get("number").and_then(|v| v.as_str()), Some("S-1"));
+            // Unknown id yields no row.
+            let missing = pos_sale_statement("pos-sale-missing")?;
+            assert!(run_rows_statement(c, &missing).await?.is_empty());
+            Ok(())
+        })).await.unwrap();
+    }).await;
+}

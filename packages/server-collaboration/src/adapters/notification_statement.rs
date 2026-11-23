@@ -3780,6 +3780,25 @@ pub fn eligible_people_statement(
     })
 }
 
+/// POS sale row for caller-owned POS workspace reads.
+///
+/// Pure constructor: the retained `readPosSales1` read byte-identically (row
+/// by id; Company scoping stays with the caller's scopeRow exactly like the
+/// retained path).
+pub fn pos_sale_statement(sale_id: &str) -> Result<NotificationStatement, BusinessError> {
+    if sale_id.is_empty() {
+        return Err(BusinessError::new(
+            FailureKind::InvalidInput,
+            "POS_SALE_REQUIRED",
+            "A sale id is required.",
+        ));
+    }
+    Ok(NotificationStatement {
+        sql: "SELECT * FROM pos_sales WHERE id=?".to_owned(),
+        values: vec![serde_json::Value::String(sale_id.to_owned())],
+    })
+}
+
 /// POS registers list for caller-owned POS workspace reads.
 ///
 /// Pure constructor: the retired `readPosRegisters1` read byte-identically,

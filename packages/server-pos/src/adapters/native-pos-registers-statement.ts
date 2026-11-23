@@ -29,3 +29,24 @@ export async function nativePosRegistersStatement(db: SqlDatabase, actor: WorkCo
   );
   return (await statement.all<PosRow>()).results;
 }
+
+/** Owner-issued POS sale row. Company scoping stays with the caller's
+ * scopeRow exactly like the retained read. */
+export async function nativePosSaleStatement(db: SqlDatabase, actor: WorkContext, saleId: string): Promise<PosRow | null> {
+  const statement = await nativeNotificationStatement(
+    db,
+    actor,
+    {
+      companyId: actor.companyId,
+      userId: actor.userId,
+      recordType: 'pos_sale',
+      recordId: saleId,
+      recordVersion: 1,
+      message: 'pos sale read',
+      kind: 'pos_sale',
+    },
+    randomUUID(),
+    Date.now(),
+  );
+  return statement.first<PosRow>();
+}
