@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6812,
+    "revision": 6814,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -118254,7 +118254,7 @@
         "owner": "field_service",
         "title": "field_service TS read tail native cutover (round 3)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -118266,22 +118266,22 @@
         "resources": [
           "owner:field_service"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wACfie",
-          "claimedAt": "2026-11-23T20:41:44.888Z",
-          "heartbeatAt": "2026-11-23T20:46:16.114Z",
-          "expiresAt": "2026-11-23T21:16:16.114Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked on scope: 10 finance-lineage SELECT consumers + 4 registry-fallback + 2 final-root pins; needs cross-owner finance cutover task",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wACfie",
+          "at": "2026-11-23T21:02:31.785Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Blocked on scope: 10 finance-lineage SELECT consumers + 4 registry-fallback + 2 final-root pins; needs cross-owner finance cutover task"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -118879,6 +118879,41 @@
         "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.field_service.finance-lineage-cutover",
+        "goalId": "G4",
+        "owner": "field_service",
+        "title": "Field finance-lineage TS source cutover to native finance port",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-field_service/src/**",
+          "packages/server-finance/src/adapters/document-purchases.ts",
+          "packages/server-finance/src/adapters/service-payment-purchases.ts",
+          "packages/server-finance/src/adapters/package-obligations.ts",
+          "packages/server-finance/src/adapters/attachment-purchases.ts",
+          "tests/unit/field_service/**",
+          "tests/integration/field_service/**",
+          "tests/integration/collaboration/**"
+        ],
+        "resources": [
+          "owner:field_service",
+          "owner:finance"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Switch finance document/payment/package/attachment consumers from Field TS SQL fragments to the mounted finance_lineage native port, then delete the 10 field_service finance-record-source SELECTs and re-point the field/collaboration PG oracles. Expected field KPI 16->6.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -118887,21 +118922,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 547,
+      "totalPackets": 548,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 18,
-        "in_progress": 19,
+        "pending": 19,
+        "in_progress": 18,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 181,
+        "blocked": 182,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T21:00:23.238Z",
+    "updatedAt": "2026-11-23T21:02:40.579Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
