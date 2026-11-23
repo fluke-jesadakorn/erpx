@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6369,
+    "revision": 6396,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-f",
       "agentId": "lead",
       "startedAt": "2026-11-23T16:54:33.142Z",
-      "heartbeatAt": "2026-11-23T17:37:32.050Z",
-      "expiresAt": "2026-11-23T18:07:32.050Z",
+      "heartbeatAt": "2026-11-23T17:49:45.040Z",
+      "expiresAt": "2026-11-23T18:19:45.040Z",
       "generation": 158,
       "tokenHash": "786b04e6db95d7a97c392a0b212dc2cfdd563bbd8cc6545681f5e6ff248eceaa"
     },
@@ -10233,15 +10233,8 @@
         "resources": [
           "owner:identity_access"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wG02",
-          "claimedAt": "2026-11-23T17:22:26.858Z",
-          "heartbeatAt": "2026-11-23T17:37:32.050Z",
-          "expiresAt": "2026-11-23T18:07:32.050Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "a0e90c6c9c6fec55b9aafd0a17de807f2f007008",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -10284,18 +10277,37 @@
             "sourceSha": "8785f0f3f801919cbad372acdc6145b1f487184a",
             "before": 610,
             "after": 608
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ad053e5c0",
+            "owner": "identity_access",
+            "before": 608,
+            "after": 607,
+            "note": "wG02: invitation-list SELECT -> native router; mount remains lead item."
+          },
+          {
+            "command": "cargo check -p erpx-server-identity-access --all-targets",
+            "result": "passed",
+            "sourceSha": "ad053e5c0"
+          },
+          {
+            "command": "tsc server-identity_access",
+            "result": "passed",
+            "sourceSha": "ad053e5c0"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Lead integrated, worker claim released",
+        "blocker": "handoff",
+        "nextAction": "Checks recorded; claim released",
         "handoff": {
-          "runId": "run-20261123-e",
-          "agentId": "lead",
-          "at": "2026-11-23T15:20:03.262Z",
-          "previousStatus": "integrating",
-          "reason": "Recovery: Operator authorized takeover. Prior OpenCode session ended idle/interrupted; reviewed checkout and preserved all WIP for task-by-task reconciliation.",
-          "nextAction": "Lead integrated, worker claim released"
+          "runId": "run-20261123-f",
+          "agentId": "wG02",
+          "at": "2026-11-23T17:48:15.819Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Checks recorded; claim released"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "registeredPackage": "erpx-server-identity-access",
@@ -50640,8 +50652,8 @@
           "runId": "run-20261123-f",
           "agentId": "wH11",
           "claimedAt": "2026-11-23T17:32:50.351Z",
-          "heartbeatAt": "2026-11-23T17:37:32.050Z",
-          "expiresAt": "2026-11-23T18:07:32.050Z",
+          "heartbeatAt": "2026-11-23T17:49:45.040Z",
+          "expiresAt": "2026-11-23T18:19:45.040Z",
           "generation": 158
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -51175,8 +51187,8 @@
           "runId": "run-20261123-f",
           "agentId": "wH10",
           "claimedAt": "2026-11-23T17:32:50.256Z",
-          "heartbeatAt": "2026-11-23T17:37:32.050Z",
-          "expiresAt": "2026-11-23T18:07:32.050Z",
+          "heartbeatAt": "2026-11-23T17:49:45.040Z",
+          "expiresAt": "2026-11-23T18:19:45.040Z",
           "generation": 158
         },
         "baseSha": null,
@@ -109907,10 +109919,10 @@
         "status": "in_progress",
         "claim": {
           "runId": "run-20261123-f",
-          "agentId": "wH09",
-          "claimedAt": "2026-11-23T17:31:56.799Z",
-          "heartbeatAt": "2026-11-23T17:37:32.050Z",
-          "expiresAt": "2026-11-23T18:07:32.050Z",
+          "agentId": "wI03",
+          "claimedAt": "2026-11-23T17:48:24.405Z",
+          "heartbeatAt": "2026-11-23T17:49:45.040Z",
+          "expiresAt": "2026-11-23T18:19:45.040Z",
           "generation": 158
         },
         "baseSha": "d15bbdf7095f86bedb5c69bd0f4b297c357f0061",
@@ -109958,19 +109970,33 @@
             "command": "tsc server-files + server-pms",
             "result": "passed",
             "sourceSha": "faee5bba3"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ad053e5c0",
+            "owner": "files",
+            "before": 302,
+            "after": 301,
+            "note": "wH09: overtime evidence array read via RD_OVERTIME_EVIDENCE_SETS + nativeFilesReadAll."
+          },
+          {
+            "command": "cargo test -p erpx-server-files --test files_wave1b_plan",
+            "result": "passed",
+            "sourceSha": "ad053e5c0"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
         "handoff": {
           "runId": "run-20261123-f",
-          "agentId": "wC12",
-          "at": "2026-11-23T17:20:53.142Z",
+          "agentId": "wH09",
+          "at": "2026-11-23T17:48:16.132Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Integrated 302; claim released"
+          "nextAction": "Integrated; claim released"
         },
-        "nextAction": "Integrated 302; claim released",
+        "nextAction": "Integrated; claim released",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -110144,15 +110170,8 @@
         "resources": [
           "owner:legal"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wH12",
-          "claimedAt": "2026-11-23T17:33:20.148Z",
-          "heartbeatAt": "2026-11-23T17:37:32.050Z",
-          "expiresAt": "2026-11-23T18:07:32.050Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "dbb5267714fb222c1665428fc0b7c9aec613e926",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -110214,19 +110233,38 @@
             "command": "tsc server-legal + legal-application vitest 60/60",
             "result": "passed",
             "sourceSha": "a725b48cb"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ff24debbd",
+            "owner": "legal",
+            "before": 337,
+            "after": 330,
+            "note": "wH12: knowledge/citations 7 view SELECTs -> native auxiliary reads; 6 command reads retained."
+          },
+          {
+            "command": "cargo test -p erpx-server-legal --test auxiliary_postgres -- --test-threads=2",
+            "result": "passed",
+            "sourceSha": "ff24debbd"
+          },
+          {
+            "command": "vitest legal-application 60/60",
+            "result": "passed",
+            "sourceSha": "ff24debbd"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "handoff",
         "handoff": {
           "runId": "run-20261123-f",
-          "agentId": "wB05",
-          "at": "2026-11-23T17:24:13.542Z",
+          "agentId": "wH12",
+          "at": "2026-11-23T17:48:42.119Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Integrated 340; claim released"
+          "nextAction": "Integrated; claim released"
         },
-        "nextAction": "Integrated 340; claim released",
+        "nextAction": "Integrated; claim released",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -110257,8 +110295,8 @@
           "runId": "run-20261123-f",
           "agentId": "wH15",
           "claimedAt": "2026-11-23T17:37:18.775Z",
-          "heartbeatAt": "2026-11-23T17:37:32.050Z",
-          "expiresAt": "2026-11-23T18:07:32.050Z",
+          "heartbeatAt": "2026-11-23T17:49:45.040Z",
+          "expiresAt": "2026-11-23T18:19:45.040Z",
           "generation": 158
         },
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
@@ -111638,13 +111676,29 @@
           "packages/server-finance/src/adapters/supplier-payment-repository.ts",
           "packages/server-finance/src/public/supplier-payment-repository.ts",
           "tests/unit/finance/**",
-          "tests/integration/finance/**"
+          "tests/integration/finance/**",
+          "packages/server-procurement/src/adapters/supplier-payments.ts",
+          "packages/server-procurement/src/public/supplier-payments.ts",
+          "packages/feature-finance/src/adapters/server/native-supplier-batch.ts",
+          "packages/feature-finance/src/public/server.ts",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance",
+          "packages/workplace/src/routes/holdings/[holdingSlug]/_presenters/finance",
+          "packages/server-finance/src/adapters/supplier_batch.rs",
+          "packages/server-finance/src/public/supplier_batch.rs",
+          "tests/integration/procurement/**"
         ],
         "resources": [
           "owner:finance"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wI02",
+          "claimedAt": "2026-11-23T17:48:33.541Z",
+          "heartbeatAt": "2026-11-23T17:49:45.040Z",
+          "expiresAt": "2026-11-23T18:19:45.040Z",
+          "generation": 158
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -111668,15 +111722,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "scopeRefinementRequired": false,
         "nextAction": "Worker source review at be30e2e27; runtime gates not rerun. Plan scoped Procurement caller and Finance test cutover before deleting supplier payment shell.",
         "handoff": {
-          "runId": "run-20261123-codex",
-          "agentId": "hy4-finance",
-          "at": "2026-11-23T15:54:36.518Z",
-          "previousStatus": "integrating",
-          "reason": "handoff",
+          "runId": "run-20261123-f",
+          "agentId": "wI02",
+          "at": "2026-11-23T17:48:33.410Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
           "nextAction": "Worker source review at be30e2e27; runtime gates not rerun. Plan scoped Procurement caller and Finance test cutover before deleting supplier payment shell."
         }
       },
@@ -112796,25 +112850,46 @@
         "resources": [
           "owner:benefits"
         ],
-        "nextAction": "Remove native-first fallbacks and detail presenter TS path; delete 7 SELECT adapter; record strictly lower statements",
+        "nextAction": "Consumers integrated; full deletion needs extended paths",
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wD03",
-          "claimedAt": "2026-11-23T17:15:22.471Z",
-          "heartbeatAt": "2026-11-23T17:37:32.050Z",
-          "expiresAt": "2026-11-23T18:07:32.050Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-benefits",
+            "result": "passed",
+            "sourceSha": "0a83d2505"
+          },
+          {
+            "command": "cargo test -p erpx-server-benefits (6 targets, 53 tests)",
+            "result": "passed",
+            "sourceSha": "0a83d2505"
+          },
+          {
+            "command": "test:unit benefits + test:integration benefits.benefits.integration",
+            "result": "passed",
+            "sourceSha": "0a83d2505"
+          },
+          {
+            "command": "tsc feature-benefits",
+            "result": "passed",
+            "sourceSha": "0a83d2505"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wD03",
+          "at": "2026-11-23T17:39:57.175Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Consumers integrated; full deletion needs extended paths"
+        },
         "scopeRefinementRequired": false,
         "dependsOn": [],
         "requiredPorts": [],
@@ -112845,8 +112920,8 @@
           "runId": "run-20261123-f",
           "agentId": "wD01",
           "claimedAt": "2026-11-23T17:15:22.271Z",
-          "heartbeatAt": "2026-11-23T17:37:32.050Z",
-          "expiresAt": "2026-11-23T18:07:32.050Z",
+          "heartbeatAt": "2026-11-23T17:49:45.040Z",
+          "expiresAt": "2026-11-23T18:19:45.040Z",
           "generation": 158
         },
         "baseSha": null,
@@ -112879,25 +112954,45 @@
         "resources": [
           "owner:projects"
         ],
-        "nextAction": "Switch staff-api/presentation/structure to native WBS milestones; add owner_name/is_overdue parity if needed; delete 2 SELECTs",
+        "nextAction": "Integrated; claim released",
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wD04",
-          "claimedAt": "2026-11-23T17:15:22.573Z",
-          "heartbeatAt": "2026-11-23T17:37:32.050Z",
-          "expiresAt": "2026-11-23T18:07:32.050Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-projects/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e1f9113c2",
+            "owner": "projects",
+            "before": 172,
+            "after": 170,
+            "note": "wD04: milestones.ts 2 SELECTs delegate to native WBS; owner_name/is_overdue native parity."
+          },
+          {
+            "command": "cargo test -p erpx-server-projects --test project_wbs --test project_wbs_http --test project_wbs_postgres",
+            "result": "passed",
+            "sourceSha": "e1f9113c2"
+          },
+          {
+            "command": "vitest projects native-wbs 18 + services 108",
+            "result": "passed",
+            "sourceSha": "e1f9113c2"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wD04",
+          "at": "2026-11-23T17:43:03.958Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false,
         "dependsOn": [],
         "requiredPorts": [],
@@ -112990,8 +113085,8 @@
           "runId": "run-20261123-f",
           "agentId": "wH13",
           "claimedAt": "2026-11-23T17:34:59.726Z",
-          "heartbeatAt": "2026-11-23T17:37:32.050Z",
-          "expiresAt": "2026-11-23T18:07:32.050Z",
+          "heartbeatAt": "2026-11-23T17:49:45.040Z",
+          "expiresAt": "2026-11-23T18:19:45.040Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113025,25 +113120,40 @@
           "owner:manufacturing",
           "owner:finance"
         ],
-        "nextAction": "Rewire finance-engines/finance-workspace to native period-close readiness; delete 4 SELECT sources; record 160->156",
+        "nextAction": "Integrated; claim released",
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wF01",
-          "claimedAt": "2026-11-23T17:22:09.705Z",
-          "heartbeatAt": "2026-11-23T17:37:32.050Z",
-          "expiresAt": "2026-11-23T18:07:32.050Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-manufacturing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ad053e5c0",
+            "owner": "manufacturing",
+            "before": 160,
+            "after": 156,
+            "note": "wF01: 4 finance-close SELECT sources deleted; finance consumers native readiness."
+          },
+          {
+            "command": "cargo check -p erpx-server-finance -p erpx-server-manufacturing",
+            "result": "passed",
+            "sourceSha": "ad053e5c0"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wF01",
+          "at": "2026-11-23T17:48:15.979Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false,
         "dependsOn": [],
         "requiredPorts": [],
@@ -113064,25 +113174,45 @@
         "resources": [
           "owner:maintenance"
         ],
-        "nextAction": "Switch source-record-policy to native record_source port (mirror field_service_order precedent); delete 3 SELECTs",
+        "nextAction": "Integrated; claim released",
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wF02",
-          "claimedAt": "2026-11-23T17:22:09.787Z",
-          "heartbeatAt": "2026-11-23T17:37:32.050Z",
-          "expiresAt": "2026-11-23T18:07:32.050Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-maintenance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "4cd61dd16",
+            "owner": "maintenance",
+            "before": 62,
+            "after": 59,
+            "note": "wF02: 3 records-source SELECTs -> native Maintenance HTTP bridge in records source policy."
+          },
+          {
+            "command": "cargo check -p erpx-server-maintenance -p erpx-server-records",
+            "result": "passed",
+            "sourceSha": "4cd61dd16"
+          },
+          {
+            "command": "test:unit shared.records.services.unit + native-maintenance-transport",
+            "result": "passed",
+            "sourceSha": "4cd61dd16"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wF02",
+          "at": "2026-11-23T17:48:58.438Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false,
         "dependsOn": [],
         "requiredPorts": [],
@@ -113154,8 +113284,8 @@
           "runId": "run-20261123-f",
           "agentId": "wH05",
           "claimedAt": "2026-11-23T17:26:53.756Z",
-          "heartbeatAt": "2026-11-23T17:37:32.050Z",
-          "expiresAt": "2026-11-23T18:07:32.050Z",
+          "heartbeatAt": "2026-11-23T17:49:45.040Z",
+          "expiresAt": "2026-11-23T18:19:45.040Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113200,8 +113330,8 @@
           "runId": "run-20261123-f",
           "agentId": "wH06",
           "claimedAt": "2026-11-23T17:31:32.492Z",
-          "heartbeatAt": "2026-11-23T17:37:32.050Z",
-          "expiresAt": "2026-11-23T18:07:32.050Z",
+          "heartbeatAt": "2026-11-23T17:49:45.040Z",
+          "expiresAt": "2026-11-23T18:19:45.040Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113213,6 +113343,233 @@
         "nextAction": "Make handbook client fail closed, switch operations/agent/notification consumers, delete handbook.ts + handbook-purchases.ts SELECTs and barrels, record 16->0",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.benefits.workspace-read-close",
+        "goalId": "G4",
+        "owner": "benefits",
+        "title": "Delete benefits TS reader and switch all consumers (7 SELECT -> 0)",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-benefits/src/adapters/benefits.ts",
+          "packages/server-benefits/src/public/benefits.ts",
+          "packages/server-benefits/src/adapters/benefits-native-read.ts",
+          "packages/server-benefits/src/public/benefits-native-read.ts",
+          "packages/server-benefits/package.json",
+          "packages/server-benefits/src/adapters/record-purchases.ts",
+          "packages/server-work_projection/src/adapters/work-items.ts",
+          "packages/server-records/src/adapters/record-domain-details.ts",
+          "packages/server-records/src/application/record-domain-details.ts",
+          "packages/server-collaboration/src/adapters/staff-notifications.ts",
+          "packages/server-collaboration/src/application/staff-notifications.ts",
+          "tests/unit/benefits/**",
+          "tests/integration/benefits/**",
+          "tests/unit/shared.records/**"
+        ],
+        "resources": [
+          "owner:benefits"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Add server-side native benefits read port (HTTP client) for benefitWork/benefitsWorkspace/benefitDetail; switch record-purchases, work-items, records, collaboration consumers; delete adapter+barrel+exports; record 87->80",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.records.registry-fallback",
+        "goalId": "G4",
+        "owner": "records",
+        "title": "Remove records TS registry/context fallback for all modules",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/route.ts",
+          "packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/records/[module]/[id]/route.ts",
+          "packages/server-records/src/adapters/records.ts",
+          "packages/server-records/src/public/records.ts",
+          "packages/feature-records/src/adapters/server/native-record-registry.ts",
+          "packages/feature-records/src/adapters/server/native-record-context.ts",
+          "tests/unit/records/**",
+          "tests/integration/records/**"
+        ],
+        "resources": [
+          "owner:records"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wH17",
+          "claimedAt": "2026-11-23T17:43:16.667Z",
+          "heartbeatAt": "2026-11-23T17:49:45.040Z",
+          "expiresAt": "2026-11-23T18:19:45.040Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Widen native registry/context authority to all modules, fail closed 503, delete TS fallback branches/gates and records.ts SELECTs where unused; keep mention view decision explicit",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.quality.stock-dead-branch",
+        "goalId": "G4",
+        "owner": "quality",
+        "title": "Delete dead quality-stock TS read branch (1 SELECT -> 0)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-commerce/src/adapters/quality-stock.ts",
+          "packages/server-commerce/src/public/quality-stock.ts",
+          "packages/server-commerce/package.json",
+          "packages/server-quality/src/adapters/purchases.ts",
+          "tests/unit/quality/**",
+          "tests/integration/quality/**"
+        ],
+        "resources": [
+          "owner:quality"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wI01",
+          "claimedAt": "2026-11-23T17:48:24.243Z",
+          "heartbeatAt": "2026-11-23T17:49:45.040Z",
+          "expiresAt": "2026-11-23T18:19:45.040Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Confirm new-work branch unreachable (only settle-existing caller), delete quality-stock adapter+barrel+exports and unreachable branch/import, record 125->124 quality-select or commerce 565->564",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.maintenance.preventive-read-tail",
+        "goalId": "G4",
+        "owner": "maintenance",
+        "title": "Native maintenance preventive-plan reads (8 SELECT -> 0)",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-maintenance/src/adapters/preventive-plan.ts",
+          "packages/server-maintenance/src/application/preventive-plan.ts",
+          "packages/server-maintenance/src/domain/preventive-plan.ts",
+          "packages/server-maintenance/src/domain/recurrence.ts",
+          "packages/server-maintenance/src/public/maintenance-preventive.ts",
+          "packages/server-maintenance/src/adapters/native-preventive-read.ts",
+          "packages/server-maintenance/src/public/native-preventive-read.ts",
+          "packages/server-work_projection/src/adapters/work-items.ts",
+          "packages/server-collaboration/src/adapters/staff-notifications.ts",
+          "packages/server-collaboration/src/application/staff-notifications.ts",
+          "tests/unit/maintenance/**",
+          "tests/integration/maintenance/**"
+        ],
+        "resources": [
+          "owner:maintenance"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Add native preventive read transport over /maintenance/plans (workspace+plan detail), switch work-items and staff-notifications consumers, delete 8 SELECTs",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.support.session-reads",
+        "goalId": "G4",
+        "owner": "support",
+        "title": "Native support session reads (12 SELECT -> 0)",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-support/src/adapters/support-sessions.ts",
+          "packages/server-support/src/public/support-sessions.ts",
+          "packages/server-support/src/application/support-sessions.ts",
+          "packages/server-collaboration/src/adapters/staff-notifications.ts",
+          "packages/server-collaboration/src/application/staff-notifications.ts",
+          "packages/server-work_projection/src/adapters/work-items.ts",
+          "tests/unit/support/**",
+          "tests/integration/support/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Type-only barrel, rebind supportSessionDetail to native session detail/inbox target, drop work-items case, delete 12 SELECTs, record 165->153",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.field.executive-report-read",
+        "goalId": "G4",
+        "owner": "field_service",
+        "title": "Native field executive report reads + record purchase tail",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-field_service/src/adapters/executive-metric-projections.ts",
+          "packages/server-field_service/src/public/executive-metric-projections.ts",
+          "packages/server-field_service/package.json",
+          "packages/server-field_service/src/adapters/record-purchases.ts",
+          "packages/server-field_service/src/public/record-purchases.ts",
+          "packages/server-runtime/src/adapters/executive/metrics.ts",
+          "packages/server-records/src/adapters/records.ts",
+          "tests/unit/field_service/**",
+          "tests/integration/field_service/**"
+        ],
+        "resources": [
+          "owner:field_service"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Switch runtime executive metrics to mounted native field executive read; delete bridge + record-purchases SQL (4 SELECTs); keep serviceMetricHistoryAccess native",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -113221,21 +113578,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 466,
+      "totalPackets": 472,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 16,
-        "in_progress": 13,
+        "pending": 20,
+        "in_progress": 10,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 108,
+        "blocked": 113,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T17:37:32.053Z",
+    "updatedAt": "2026-11-23T17:49:45.042Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
