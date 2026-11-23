@@ -3791,7 +3791,8 @@
         "benefits"
       ],
       "files": [
-        "tests/unit/benefits/native-benefits-workspace-transport.test.ts"
+        "tests/unit/benefits/native-benefits-workspace-transport.test.ts",
+        "tests/unit/benefits/benefits-native-read.test.ts"
       ],
       "fixture": "none",
       "requires": {
@@ -104456,6 +104457,33 @@
       "framework": "vitest",
       "apps": [
         "files"
+      ],
+      "packages": [
+        "@erpx/server-inventory"
+      ]
+    },
+    {
+      "id": "inventory.native-inventory-commerce-attachment-sources.unit",
+      "lane": "unit",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "files": [
+        "tests/unit/inventory/native-inventory-commerce-attachment-sources.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Inventory commerce attachment stock image read must use the owner kind and fail closed without native transport."
+      },
+      "framework": "vitest",
+      "apps": [
+        "commerce"
       ],
       "packages": [
         "@erpx/server-inventory"

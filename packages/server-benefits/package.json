@@ -6,7 +6,7 @@
   "exports": {
     "./adapters/attachment-read-sources": "./src/adapters/attachment-read-sources.ts",
     "./adapters/executive-metric-projections": "./src/adapters/executive-metric-projections.ts",
-    "./adapters/benefits": "./src/adapters/benefits.ts",
+    "./adapters/benefits-native-read": "./src/adapters/benefits-native-read.ts",
     "./adapters/payroll-owner-facts": "./src/adapters/payroll-owner-facts.ts",
     "./adapters/people-package-obligations": "./src/adapters/people-package-obligations.ts",
     "./adapters/attachment-purchases": "./src/adapters/attachment-purchases.ts",
@@ -20,6 +20,7 @@
     "./adapters/payroll-source-facts": "./src/adapters/payroll-source-facts.ts",
     "./public/executive-metric-projections": "./src/public/executive-metric-projections.ts",
     "./public/benefits": "./src/public/benefits.ts",
+    "./public/benefits-native-read": "./src/public/benefits-native-read.ts",
     "./public/payroll-owner-facts": "./src/public/payroll-owner-facts.ts",
     "./public/people-package-obligations": "./src/public/people-package-obligations.ts",
     "./public/attachment-purchases": "./src/public/attachment-purchases.ts",
@@ -39,6 +40,7 @@
   },
   "dependencies": {
     "@erpx/catalogue": "workspace:*",
+    "@erpx/feature-benefits": "workspace:*",
     "@erpx/feature-finance": "workspace:*",
     "@erpx/feature-identity_access": "workspace:*",
     "@erpx/feature-shared": "workspace:*",
