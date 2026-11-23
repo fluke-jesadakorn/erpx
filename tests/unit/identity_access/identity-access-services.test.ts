@@ -50,3 +50,11 @@ describe('Identity MFA, principals and emergency access policies', () => {
     it('requires an active emergency elevation and deduplicates approved person aliases', async () => { const p = authority(); p.member = async () => ({ status: 'active', login_policy: 'emergency', version: 2, person_id: 'person', principal_id: 'local:user', enabled: true, observed_at: 1000, connection_status: 'active' }); await expect(createIamAuthority(p)('company', 'user', 'holding_owner', 'session')).rejects.toMatchObject({ code: 'EMERGENCY_ACCESS_REQUIRED' }); p.emergency = async () => ({ expires_at: 5000 }); p.aliases = async () => ['user', 'alias', 'alias']; expect(await createIamAuthority(p)('company', 'user', 'holding_owner', 'session')).toMatchObject({ personUserIds: ['user', 'alias'], emergencyUntil: 5000, identityVersion: 2 }); });
     it('does not select an ambiguous principal successor', async () => { expect([...(await createCurrentPersonPrincipals({ successors: async () => [{ original_id: 'old', current_id: 'one' }, { original_id: 'old', current_id: 'two' }] })('company', ['old'])).entries()]).toEqual([['old', 'old']]); });
 });
+
+it('keeps one fixed POS Stripe holding-assignment role projection for both facts reads', async () => {
+    const { readFile } = await import("node:fs/promises");
+    const source = await readFile(new URL("../../../packages/server-identity_access/src/adapters/pos-stripe-facts.ts", import.meta.url), "utf8");
+    expect(source).toContain("const holdingAssignmentRoleSql");
+    expect(source.split("SELECT role FROM assignments WHERE id=?").length - 1).toBe(1);
+    expect(source.split("one(db,holdingAssignmentRoleSql,").length - 1).toBe(2);
+});
