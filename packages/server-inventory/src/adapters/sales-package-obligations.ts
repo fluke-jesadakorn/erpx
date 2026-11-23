@@ -12,6 +12,7 @@ import {qualityPurchaseSourceRows} from '@erpx/server-quality/public/purchase-so
 import {ecommerceCommerceSettlementSources} from "@erpx/server-commerce/public/ecommerce-package-sources";
 import {ecommerceQualitySettlementSources} from "@erpx/server-quality/public/ecommerce-package-sources";
 import {qualityDisposalCountRows} from '@erpx/server-inventory/adapters/quality-count-purchases';
+import {inventoryLotMovesSql} from '@erpx/server-inventory/adapters/inventory-read-projections';
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
 export async function lockSalesInventoryPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.batch(salesQualitySettlementSourceReadLocks(database));await database.batch(recordAttachmentVersionSourceReadLocks(database));await database.prepare('LOCK TABLE inventory_order_reservations,inventory_lots,inventory_lot_balances,inventory_lot_moves,inventory_fulfillment_lot_allocations,inventory_counts,inventory_count_lines,inventory_count_lot_lines,inventory_count_decisions,inventory_adjustment_moves,command_receipts IN SHARE MODE').run();sources.set(database,companyId);}
 export function assertSalesInventoryPackageObligationSources(owner:PostgresDatabase,database:SqlDatabase,companyId:string){owner.assertActiveTransaction(database);if(sources.get(database)!==companyId)throw Error('SALES_INVENTORY_PACKAGE_OBLIGATION_SOURCE_REQUIRED');assertSalesPackageObligationSources(owner,database,companyId);}
@@ -19,7 +20,7 @@ export function assertSalesInventoryPackageObligationSources(owner:PostgresDatab
  * would be excluded by the normal valid-only Count/Files presentation port. */
 export const salesInventorySettlementSources={
  disposalCounts:`SELECT count.*,hold.source_type quality_source_type,hold.source_id quality_source_id FROM inventory_counts count JOIN (${baseQuality.holds}) hold ON hold.id=count.quality_hold_id WHERE hold.source_type='customer_return'`,
- reservations:'SELECT * FROM inventory_order_reservations',lots:'SELECT * FROM inventory_lots',lotBalances:'SELECT * FROM inventory_lot_balances',lotMoves:'SELECT * FROM inventory_lot_moves',fulfillmentLots:'SELECT * FROM inventory_fulfillment_lot_allocations'
+ reservations:'SELECT * FROM inventory_order_reservations',lots:'SELECT * FROM inventory_lots',lotBalances:'SELECT * FROM inventory_lot_balances',lotMoves:inventoryLotMovesSql,fulfillmentLots:'SELECT * FROM inventory_fulfillment_lot_allocations'
 } as const;
 export async function readSalesInventorySettlementFacts(database:SqlDatabase,companyId:string,selection:'sales'|'ecommerce'){
  const sales=selection==='ecommerce'?ecommerceCommerceSettlementSources:baseSales,quality=selection==='ecommerce'?ecommerceQualitySettlementSources:baseQuality;
