@@ -6,10 +6,12 @@ import {
   PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE,
   PROCUREMENT_RD_REQUEST_QUOTATION,
   PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH,
+  PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL,
 } from '../../../packages/server-procurement/src/adapters/native-procurement-read';
 import { procurementInvoiceMatchForFinance } from '../../../packages/server-procurement/src/adapters/finance-entrypoint-queries';
 import { requestQuotation } from '../../../packages/server-procurement/src/adapters/people-app-entrypoint-facts';
 import { OperationalAttachmentProcurementFacts } from '../../../packages/server-procurement/src/adapters/attachments-operational-facts';
+import { documentPostingPreviewFacts } from '../../../packages/server-procurement/src/adapters/document-posting-preview-facts';
 
 const envKey = 'ERPX_NATIVE_PROCUREMENT_CONFIG';
 const original = process.env[envKey];
@@ -17,6 +19,7 @@ const planned = {
   [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE]: 'SELECT id,reference FROM procurement_bill_matches WHERE invoice_id=? AND company_id=?',
   [PROCUREMENT_RD_REQUEST_QUOTATION]: "SELECT id FROM procurement_rfqs WHERE request_id=? AND company_id=? AND status<>'cancelled'",
   [PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH]: 'SELECT company_id,branch_id,department_id,version FROM procurement_bill_matches WHERE id=? AND company_id=?',
+  [PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL]: "SELECT * FROM procurement_bill_matches WHERE invoice_id=? AND company_id=? AND status='invoiced'",
 };
 const stubFetch = (payload: unknown, status = 200) => {
   const fetchMock = vi.fn(async () => ({
@@ -66,7 +69,8 @@ describe('native Procurement caller-unit read plan', () => {
     expect(PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE).toBe('procurement_rd_invoice_match_finance');
     expect(PROCUREMENT_RD_REQUEST_QUOTATION).toBe('procurement_rd_request_quotation');
     expect(PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH).toBe('procurement_rd_operational_attachment_bill_match');
-    for (const kind of [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE, PROCUREMENT_RD_REQUEST_QUOTATION, PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH]) {
+    expect(PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL).toBe('procurement_rd_document_posting_matched_bill');
+    for (const kind of [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE, PROCUREMENT_RD_REQUEST_QUOTATION, PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH, PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL]) {
       expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
     }
   });
@@ -112,6 +116,24 @@ describe('native Procurement caller-unit read plan', () => {
     const result = await facts.readProcurementBillMatches1({ targetId: 'bill-1', companyId: 'company' });
     expect(result).toEqual(row);
     expect(prepared).toEqual([planned[PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH]]);
+    expect(bound).toEqual([['bill-1', 'company']]);
+  });
+
+  it('switched document-posting-preview facts adapter carries no SQL and returns the planned lines', async () => {
+    const bill = {
+      expected_subtotal_minor: 1000, subtotal_minor: 1000, tax_minor: 70,
+      clearing_account_id: 'clearing', variance_account_id: 'variance',
+      tax_account_id: 'tax', payable_account_id: 'payable',
+    };
+    stubFetch({ data: { statements: [{ sql: planned[PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL], values: ['bill-1', 'company'] }] } });
+    const { db, prepared, bound } = fakeDb([bill]);
+    const lines = await documentPostingPreviewFacts(db as never).matchedInvoiceLines('company', 'bill-1');
+    expect(lines).toEqual([
+      { id: 'clearing', debit: 1000, credit: 0 },
+      { id: 'tax', debit: 70, credit: 0 },
+      { id: 'payable', debit: 0, credit: 1070 },
+    ]);
+    expect(prepared).toEqual([planned[PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL]]);
     expect(bound).toEqual([['bill-1', 'company']]);
   });
 

@@ -58,10 +58,23 @@ const READ_OPERATIONAL_ATTACHMENT_BILL_MATCH: NativeReadStatement = NativeReadSt
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `document-posting-preview-facts`
+/// matched-invoice read. Same owner literal and `[invoiceId, companyId]` binds.
+pub const RD_DOCUMENT_POSTING_MATCHED_BILL: &str = "procurement_rd_document_posting_matched_bill";
+const SQL_DOCUMENT_POSTING_MATCHED_BILL: &str =
+    "SELECT * FROM procurement_bill_matches WHERE invoice_id=? AND company_id=? AND status='invoiced'";
+const READ_DOCUMENT_POSTING_MATCHED_BILL: NativeReadStatement = NativeReadStatement {
+    kind: RD_DOCUMENT_POSTING_MATCHED_BILL,
+    sql: SQL_DOCUMENT_POSTING_MATCHED_BILL,
+    bind_count: 2,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_INVOICE_MATCH_FOR_FINANCE,
     READ_REQUEST_QUOTATION,
     READ_OPERATIONAL_ATTACHMENT_BILL_MATCH,
+    READ_DOCUMENT_POSTING_MATCHED_BILL,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -83,6 +96,7 @@ mod tests {
         assert!(is_read(RD_INVOICE_MATCH_FOR_FINANCE));
         assert!(is_read(RD_REQUEST_QUOTATION));
         assert!(is_read(RD_OPERATIONAL_ATTACHMENT_BILL_MATCH));
+        assert!(is_read(RD_DOCUMENT_POSTING_MATCHED_BILL));
         assert!(!is_read("procurement_stmt_1"));
         assert!(read_statement("not_a_native_read").is_none());
     }
@@ -98,6 +112,11 @@ mod tests {
             (RD_REQUEST_QUOTATION, 2usize, "procurement_rfqs"),
             (
                 RD_OPERATIONAL_ATTACHMENT_BILL_MATCH,
+                2usize,
+                "procurement_bill_matches",
+            ),
+            (
+                RD_DOCUMENT_POSTING_MATCHED_BILL,
                 2usize,
                 "procurement_bill_matches",
             ),
@@ -126,5 +145,19 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 2);
         assert_eq!(read.scope, "holding");
         assert!(is_read(RD_OPERATIONAL_ATTACHMENT_BILL_MATCH));
+    }
+
+    #[test]
+    fn document_posting_matched_bill_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_DOCUMENT_POSTING_MATCHED_BILL).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT * FROM procurement_bill_matches WHERE invoice_id=? AND company_id=? AND status='invoiced'"
+        );
+        assert_eq!(read.bind_count, 2);
+        assert_eq!(read.sql.matches('?').count(), 2);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_DOCUMENT_POSTING_MATCHED_BILL));
+        assert!(!is_read("procurement_stmt_1"));
     }
 }
