@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5557,
+    "revision": 5563,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-d",
       "agentId": "lead",
       "startedAt": "2026-11-23T06:45:08.420Z",
-      "heartbeatAt": "2026-11-23T10:04:11.230Z",
-      "expiresAt": "2026-11-23T10:34:11.230Z",
+      "heartbeatAt": "2026-11-23T10:04:53.493Z",
+      "expiresAt": "2026-11-23T10:34:53.493Z",
       "generation": 154,
       "tokenHash": "01e24ba69c801ba69506f7381436bc3415092da31ab33204c519241e628cd4c9"
     },
@@ -15563,8 +15563,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:46:29.180Z",
-          "heartbeatAt": "2026-11-23T10:04:11.230Z",
-          "expiresAt": "2026-11-23T10:34:11.230Z",
+          "heartbeatAt": "2026-11-23T10:04:53.493Z",
+          "expiresAt": "2026-11-23T10:34:53.493Z",
           "generation": 154
         },
         "baseSha": "473b198f4838943261a63a1ca44b167d347fc4c4",
@@ -17494,9 +17494,9 @@
         "claim": {
           "runId": "run-20261123-d",
           "agentId": "lead",
-          "claimedAt": "2026-11-23T09:42:35.908Z",
-          "heartbeatAt": "2026-11-23T10:04:11.230Z",
-          "expiresAt": "2026-11-23T10:34:11.230Z",
+          "claimedAt": "2026-11-23T10:07:43.442Z",
+          "heartbeatAt": "2026-11-23T10:07:43.442Z",
+          "expiresAt": "2026-11-23T10:37:43.442Z",
           "generation": 154
         },
         "baseSha": "f901987c8bcb88a080e9beb9d2b87892bc462eea",
@@ -17812,7 +17812,7 @@
         "handoff": {
           "runId": "run-20261123-d",
           "agentId": "lead",
-          "at": "2026-11-23T09:36:13.618Z",
+          "at": "2026-11-23T10:06:49.500Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
           "nextAction": "Harness step 1 landed at 87576956 (pushed, remote verified): lanes backfill 24 wired ERPX_NATIVE_* keys; green-lane audit clean. Step 2 (worker-sized): per-suite composition on leased DBs + 5-key matrix (COMMERCE_WAVE2, COMMERCIAL_WAVE2, COMMERCE_OWNER_WRITE, FINANCE_OWNER_WRITE, WORKFLOW_WAVE3) — unblocks transit/payroll-core/manufacturing lanes. Smoke still user-blocked."
@@ -27315,8 +27315,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:04:51.894Z",
-          "heartbeatAt": "2026-11-23T10:04:11.230Z",
-          "expiresAt": "2026-11-23T10:34:11.230Z",
+          "heartbeatAt": "2026-11-23T10:04:53.493Z",
+          "expiresAt": "2026-11-23T10:34:53.493Z",
           "generation": 154
         },
         "baseSha": "d0067f253fd960ab6945c5622e360e2cceeaffe7",
@@ -28391,8 +28391,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:19:17.835Z",
-          "heartbeatAt": "2026-11-23T10:04:11.230Z",
-          "expiresAt": "2026-11-23T10:34:11.230Z",
+          "heartbeatAt": "2026-11-23T10:04:53.493Z",
+          "expiresAt": "2026-11-23T10:34:53.493Z",
           "generation": 154
         },
         "baseSha": null,
@@ -39907,8 +39907,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:59:53.885Z",
-          "heartbeatAt": "2026-11-23T10:04:11.230Z",
-          "expiresAt": "2026-11-23T10:34:11.230Z",
+          "heartbeatAt": "2026-11-23T10:04:53.493Z",
+          "expiresAt": "2026-11-23T10:34:53.493Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45276,8 +45276,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:03:09.640Z",
-          "heartbeatAt": "2026-11-23T10:04:11.230Z",
-          "expiresAt": "2026-11-23T10:34:11.230Z",
+          "heartbeatAt": "2026-11-23T10:04:53.493Z",
+          "expiresAt": "2026-11-23T10:34:53.493Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45808,8 +45808,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:55:34.675Z",
-          "heartbeatAt": "2026-11-23T10:04:11.230Z",
-          "expiresAt": "2026-11-23T10:34:11.230Z",
+          "heartbeatAt": "2026-11-23T10:04:53.493Z",
+          "expiresAt": "2026-11-23T10:34:53.493Z",
           "generation": 154
         },
         "baseSha": "57a1fd51ebacf5fa1ff712f6eaa176f390ad64a3",
@@ -49423,8 +49423,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:31:10.408Z",
-          "heartbeatAt": "2026-11-23T10:04:11.230Z",
-          "expiresAt": "2026-11-23T10:34:11.230Z",
+          "heartbeatAt": "2026-11-23T10:04:53.493Z",
+          "expiresAt": "2026-11-23T10:34:53.493Z",
           "generation": 154
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -50638,8 +50638,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T06:47:05.965Z",
-          "heartbeatAt": "2026-11-23T10:04:11.230Z",
-          "expiresAt": "2026-11-23T10:34:11.230Z",
+          "heartbeatAt": "2026-11-23T10:04:53.493Z",
+          "expiresAt": "2026-11-23T10:34:53.493Z",
           "generation": 154
         },
         "baseSha": null,
@@ -53289,6 +53289,18 @@
             "result": "passed",
             "sourceSha": "c5ce802e76feefba52bf1c6b35806d4c792899de",
             "note": "lead verified: stubs take (db,facts) only; branding_http ingress requires host/origin/idempotency-key + session; ERPX_NATIVE_BRANDING_CONFIG covers erpx/h003 only; composition builds per-holding targets but transport cannot select holding from facts. Unblock paths: company/system branding command route, or thread Request+actor through the Files attachment unit (beyond 4-line scope)."
+          },
+          {
+            "command": "worker slice retire.brand.attachment-facts: STOP with blockers, no files changed",
+            "result": "passed",
+            "sourceSha": "f5112793451ddeef2cb4da2bc9fc9e855bc21ed",
+            "note": "lead-reviewed worker report: facts-only steps cannot reach the session-gated branding ingress; step-72 scope unrecoverable; 73/74 divergent. No code changed, fail-closed preserved."
+          },
+          {
+            "command": "lead follow-up: Files command-plan route verifies as the missing path",
+            "result": "passed",
+            "sourceSha": "f5112793451ddeef2cb4da2bc9fc9e855bc21ed",
+            "note": "lead; POST /api/v1/holdings/{slug}/files/command-plan takes only host/origin/idempotency-key/company headers (no session), plans statements via sql(kind) in server-files domain files_wave1b.rs, caller executes on own tx via resolveNativeEffects with nativeContext (holdingSlug/key/company already captured at command time). Worker checked branding_http routes only. Corrected slice: add 4 brand kinds with byte-identical history SQL (adapted to publication cols) + steps return nativeWrite descriptors. No Request/actor threading, no new route."
           }
         ],
         "retainedLegacy": [
@@ -53308,14 +53320,14 @@
           }
         ],
         "blocker": "handoff",
-        "nextAction": "Blocked on (a) company/system branding command route or (b) Request+actor threading through Files attachment unit. Claim when starting either unblock slice.",
+        "nextAction": "Claim to implement the 4 brand command-plan kinds + step descriptor switch (design verified this turn).",
         "handoff": {
           "runId": "run-20261123-d",
           "agentId": "lead",
-          "at": "2026-11-23T09:42:35.835Z",
+          "at": "2026-11-23T10:07:38.806Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Blocked on (a) company/system branding command route or (b) Request+actor threading through Files attachment unit. Claim when starting either unblock slice."
+          "nextAction": "Claim to implement the 4 brand command-plan kinds + step descriptor switch (design verified this turn)."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -110186,7 +110198,7 @@
       }
     },
     "lastCoordinatorGeneration": 154,
-    "updatedAt": "2026-11-23T10:04:40.002Z",
+    "updatedAt": "2026-11-23T10:07:43.444Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
