@@ -4,7 +4,7 @@
 //! `mod files_wave1b;` and mounts `files_command_router` with exact registered
 //! Holding targets. The owner crate owns all SQL and executes writes in Rust.
 use erpx_server_files::public::files_wave1b::{
-    CommandResult, FilesCommandInput, PostgresFilesCommandPort, validate,
+    CommandResult, FilesCommandInput, PostgresFilesCommandPort, plan, validate,
 };
 use erpx_server_files::public::files_wave1b_http::{
     FilesCommandBackend, FilesCommandFuture, FilesCommandRequest, FilesCommandTarget,
@@ -77,6 +77,17 @@ impl FilesCommandBackendImpl {
 }
 
 impl FilesCommandBackend for FilesCommandBackendImpl {
+    fn plan<'a>(
+        &'a self,
+        request: FilesCommandRequest<'a>,
+    ) -> erpx_server_files::public::files_wave1b_http::FilesCommandPlanFuture<'a> {
+        Box::pin(async move {
+            let company = browser_company(request.headers)?;
+            let company = CompanyId::new(&company).map_err(|_| invalid())?;
+            plan(&company, request.key.as_str(), request.input)
+        })
+    }
+
     fn execute<'a>(&'a self, request: FilesCommandRequest<'a>) -> FilesCommandFuture<'a> {
         Box::pin(async move {
             let company = browser_company(request.headers)?;

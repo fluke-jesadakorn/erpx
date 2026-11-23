@@ -24,6 +24,8 @@ export type NativeContext = Readonly<{
   now?: number;
   holdingId?: string;
   holdingSlug?: string;
+  /** Caller unit: when present, commands are planned and executed locally. */
+  db?: import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
 }>;
 
 const RESERVED = new Set([3000, 3001, 3100, 3101, 3103, 5432, 5433, 5435, 8080]);
@@ -114,9 +116,52 @@ function post(
   });
 }
 
+/** Plan owner SQL in Rust and execute it on the caller's open unit. */
+async function dispatchPlan(
+  config: { privateBaseUrl: string; timeoutMs: number },
+  holding: { origin: string; holdingSlug: string },
+  companyId: string,
+  key: string,
+  now: number,
+  kind: string,
+  values: unknown[],
+  db: import('@erpx/server-runtime/public/runtime/types').SqlDatabase,
+): Promise<NativeResult> {
+  let response: { status: number; value: unknown };
+  try {
+    response = await post(
+      new URL(`/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/files/command-plan`, config.privateBaseUrl),
+      {
+        host: new URL(holding.origin).host,
+        origin: holding.origin,
+        'idempotency-key': key,
+        'x-erpx-context-company': companyId,
+      },
+      JSON.stringify({ kind, values, now, companyId }),
+      config.timeoutMs,
+    );
+  } catch { throw new ApiError(503, 'NATIVE_FILES_UNAVAILABLE', 'The native Files service is unavailable.'); }
+  const payload = response.value as
+    | { data?: { statements?: { sql?: unknown; values?: unknown }[] }; error?: { code?: string; message?: string } }
+    | null;
+  if (response.status !== 200 || !Array.isArray(payload?.data?.statements))
+    throw new ApiError(response.status, payload?.error?.code ?? 'NATIVE_FILES_FAILED', payload?.error?.message ?? 'The native Files request failed.');
+  const statements = payload.data.statements.map(statement => {
+    if (typeof statement.sql !== 'string' || !Array.isArray(statement.values))
+      throw new ApiError(503, 'NATIVE_FILES_RESPONSE_INVALID', 'The native Files plan was invalid.');
+    return db.prepare(statement.sql).bind(...statement.values);
+  });
+  const results = await db.batch(statements);
+  return {
+    rows: Number(results[0]?.meta?.changes ?? 0),
+    row: results[0]?.results?.[0],
+  };
+}
+
 async function dispatch(kind: string, values: unknown[], context?: NativeContext): Promise<NativeResult> {
   const { config, holding, companyId, key, now } = effective(kind, values, context);
   if (!/^[a-zA-Z0-9:_-]{1,180}$/.test(key)) throw new ApiError(503, 'NATIVE_FILES_COMMAND_INVALID', 'The native Files command key is invalid.');
+  if (context?.db) return dispatchPlan(config, holding, companyId, key, now, kind, values, context.db);
   const headers: Record<string, string> = {
     'host': new URL(holding.origin).host,
     'origin': holding.origin,

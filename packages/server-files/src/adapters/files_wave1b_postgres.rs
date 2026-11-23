@@ -1,7 +1,7 @@
 //! Native Files wave-1b Postgres adapter. Executes owner SQL in the caller's
 //! serializable unit and writes receipt/audit/outbox rows in that same unit.
 use crate::application::files_wave1b::{
-    CommandResult, FilesCommandFuture, FilesCommandPort, unit_error,
+    CommandResult, FilesCommandFuture, FilesCommandInput, FilesCommandPort, unit_error, validate,
 };
 use crate::domain::files_wave1b::{invalid, sql};
 use erpx_server_runtime::public::postgres::PgTransactionError;
@@ -10,6 +10,113 @@ use serde_json::Value;
 use sqlx::{Connection, PgConnection, Row};
 
 type Error = PgTransactionError<BusinessError>;
+
+/// One caller-unit statement: fixed owner SQL plus positional values.
+#[derive(Clone, Debug, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PlannedStatement {
+    pub sql: String,
+    pub values: Vec<Value>,
+}
+
+fn lit(text: &str) -> String {
+    format!("'{}'", text.replace('\'', "''"))
+}
+
+/// Convert owner `$n` placeholders to the caller's `?` dialect, expanding a
+/// repeated parameter into one value per occurrence.
+fn question_placeholders(
+    statement: &str,
+    values: &[Value],
+) -> Result<(String, Vec<Value>), BusinessError> {
+    let mut sql = String::with_capacity(statement.len());
+    let mut expanded = Vec::new();
+    let mut chars = statement.chars().peekable();
+    while let Some(ch) = chars.next() {
+        if ch != '$' {
+            sql.push(ch);
+            continue;
+        }
+        let mut digits = String::new();
+        while let Some(next) = chars.peek().copied() {
+            if next.is_ascii_digit() {
+                digits.push(next);
+                chars.next();
+            } else {
+                break;
+            }
+        }
+        let index: usize = digits.parse().map_err(|_| invalid())?;
+        if index == 0 || index > values.len() {
+            return Err(invalid());
+        }
+        let value = values[index - 1].clone();
+        sql.push('?');
+        expanded.push(value);
+    }
+    Ok((sql, expanded))
+}
+
+/// Plan the full command for execution in the caller's unit. The ledger shape
+/// matches the executed path statement-for-statement: the same tables, columns,
+/// conflict targets and jsonb_build_object payloads, including the audit row's
+/// authority read-back from the receipt written earlier in the same unit. The
+/// receipt/outbox result carries the kind and a zero row count because the
+/// count is only known after the caller executes the owner statement; the
+/// caller's batch result carries the true count. This function never opens a
+/// pool, commits, retries or mints authority: validation and SQL ownership
+/// stay here, while source/authority rechecks stay in the owner's read and the
+/// transport headers only scope rows, never substitute for authority.
+pub fn plan(
+    company: &CompanyId,
+    key: &str,
+    input: &FilesCommandInput,
+) -> Result<Vec<PlannedStatement>, BusinessError> {
+    validate(input)?;
+    let statement = sql(&input.kind).ok_or_else(invalid)?;
+    let (statement, statement_values) = question_placeholders(statement, &input.values)?;
+    let id = format!("files-{}", key);
+    let operation = format!("files.command.{}", input.kind);
+    let receipt = format!(
+        "INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) \
+         VALUES({}, {}, 'system:files', {}, {}, jsonb_build_object('kind', {}, 'rows', 0), {}, '{{}}'::jsonb) \
+         ON CONFLICT(command_id) DO NOTHING",
+        lit(&id),
+        lit(&operation),
+        lit(key),
+        lit(company.as_str()),
+        lit(&input.kind),
+        input.now,
+    );
+    let audit = format!(
+        "INSERT INTO audit_events(id,command_id,actor_id,assignment_id,action,record_type,record_id,record_version,purpose,created_at,authority_json) \
+         VALUES({}, {}, 'system:files', '', {}, 'files', {}, 1, 'files-command', {}, (SELECT authority_json FROM command_receipts WHERE command_id = {})) \
+         ON CONFLICT(id) DO NOTHING",
+        lit(&format!("files-audit-{}", key)),
+        lit(&id),
+        lit(&operation),
+        lit(company.as_str()),
+        input.now,
+        lit(&id),
+    );
+    let outbox = format!(
+        "INSERT INTO outbox_events(id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,payload_json,created_at) \
+         VALUES({}, {}, {}, 'files', {}, 1, jsonb_build_object('kind', {}, 'rows', 0), {}) \
+         ON CONFLICT(id) DO NOTHING",
+        lit(&format!("files-outbox-{}", key)),
+        lit(&id),
+        lit(&operation),
+        lit(company.as_str()),
+        lit(&input.kind),
+        input.now,
+    );
+    Ok(vec![
+        PlannedStatement { sql: statement, values: statement_values },
+        PlannedStatement { sql: receipt, values: vec![] },
+        PlannedStatement { sql: audit, values: vec![] },
+        PlannedStatement { sql: outbox, values: vec![] },
+    ])
+}
 
 pub struct PostgresFilesCommandPort;
 
@@ -161,5 +268,32 @@ impl FilesCommandPort for PostgresFilesCommandPort {
                 .await
                 .map_err(unit_error)
         })
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn value(number: i64) -> Value {
+        serde_json::json!(number)
+    }
+
+    #[test]
+    fn placeholders_reject_zero_and_bare_markers() {
+        // `$0` has no positional meaning and a bare `$` is never emitted by
+        // the owner SQL: both fail closed instead of binding the wrong value.
+        assert!(question_placeholders("SELECT $0", &[value(1)]).is_err());
+        assert!(question_placeholders("SELECT $", &[value(1)]).is_err());
+        assert!(question_placeholders("SELECT $1", &[]).is_err());
+    }
+
+    #[test]
+    fn placeholders_support_multi_digit_indexes_and_casts() {
+        let values: Vec<Value> = (1..=12).map(value).collect();
+        let (sql, expanded) =
+            question_placeholders("SELECT $10::bigint, $3::text, $10", &values).unwrap();
+        assert_eq!(sql, "SELECT ?::bigint, ?::text, ?");
+        assert_eq!(expanded, vec![value(10), value(3), value(10)]);
     }
 }

@@ -118,6 +118,10 @@ name = "field_visit_upload_policy"
 path = "../../tests/unit/files/rust-field-visit-upload-policy.test.rs"
 
 [[test]]
+name = "files_wave1b_plan"
+path = "../../tests/unit/files/rust-files-wave1b-plan.test.rs"
+
+[[test]]
 name = "attachment_read_policy"
 path = "../../tests/unit/files/rust-attachment-read-policy.test.rs"
 

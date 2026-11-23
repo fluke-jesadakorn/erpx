@@ -17,6 +17,8 @@ const KEY_HEADER: HeaderName = HeaderName::from_static("idempotency-key");
 
 pub type FilesCommandFuture<'a> =
     Pin<Box<dyn Future<Output = Result<CommandResult, BusinessError>> + Send + 'a>>;
+pub type FilesCommandPlanFuture<'a> =
+    Pin<Box<dyn Future<Output = Result<Vec<crate::adapters::files_wave1b_postgres::PlannedStatement>, BusinessError>> + Send + 'a>>;
 
 pub struct FilesCommandRequest<'a> {
     pub host: &'a str,
@@ -28,6 +30,17 @@ pub struct FilesCommandRequest<'a> {
 
 pub trait FilesCommandBackend: Send + Sync {
     fn execute<'a>(&'a self, request: FilesCommandRequest<'a>) -> FilesCommandFuture<'a>;
+    /// Caller-unit plan: owner SQL for the command plus its ledger, executed by
+    /// the caller inside its open transaction.
+    fn plan<'a>(&'a self, _request: FilesCommandRequest<'a>) -> FilesCommandPlanFuture<'a> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "FILES_COMMAND_PLAN_UNAVAILABLE",
+                "The native Files command plan is unavailable.",
+            ))
+        })
+    }
 }
 
 #[derive(Clone)]
@@ -122,6 +135,7 @@ pub fn files_command_router(targets: Vec<FilesCommandTarget>) -> Result<Router, 
     }
     Ok(Router::new()
         .route("/api/v1/holdings/{holding_slug}/files/commands", post(command))
+        .route("/api/v1/holdings/{holding_slug}/files/command-plan", post(plan_command))
         .with_state(Arc::new(AppState { targets: configured })))
 }
 
@@ -154,6 +168,42 @@ async fn command(
     .await;
     match result {
         Ok(result) => bounded(serde_json::json!({"data": result})),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn plan_command(
+    State(state): State<Arc<AppState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        let headers = request.headers().clone();
+        let origin = unique_header(&headers, header::ORIGIN)?.ok_or_else(forbidden)?;
+        if origin != target.origin {
+            return Err(forbidden());
+        }
+        let key = mutation_key(&headers)?;
+        if request.uri().query().is_some() {
+            return Err(malformed());
+        }
+        let bytes = to_bytes(request.into_body(), BODY_LIMIT).await.map_err(|_| malformed())?;
+        let input: FilesCommandInput = serde_json::from_slice(&bytes).map_err(|_| malformed())?;
+        target
+            .backend
+            .plan(FilesCommandRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                input: &input,
+                key: &key,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(statements) => bounded(serde_json::json!({"data": {"statements": statements}})),
         Err(error) => error_response(error),
     }
 }
