@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6439,
+    "revision": 6448,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -51192,10 +51192,10 @@
         "status": "in_progress",
         "claim": {
           "runId": "run-20261123-f",
-          "agentId": "wK01",
-          "claimedAt": "2026-11-23T17:56:37.088Z",
-          "heartbeatAt": "2026-11-23T18:10:15.948Z",
-          "expiresAt": "2026-11-23T18:40:15.948Z",
+          "agentId": "wM02",
+          "claimedAt": "2026-11-23T18:11:26.006Z",
+          "heartbeatAt": "2026-11-23T18:11:26.006Z",
+          "expiresAt": "2026-11-23T18:41:26.006Z",
           "generation": 158
         },
         "baseSha": null,
@@ -51365,6 +51365,25 @@
             "command": "cargo test -p erpx-server-organization --lib",
             "result": "passed",
             "sourceSha": "6cdfc3eb4"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-organization/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "8660c7040",
+            "owner": "organization",
+            "before": 417,
+            "after": 414,
+            "note": "wK01: 3 acceptance version EXISTS predicates -> nativeOrgSql kinds."
+          },
+          {
+            "command": "cargo test -p erpx-server-organization --lib (26)",
+            "result": "passed",
+            "sourceSha": "8660c7040"
+          },
+          {
+            "command": "vitest company-acceptance-services 14/14",
+            "result": "passed",
+            "sourceSha": "8660c7040"
           }
         ],
         "retainedLegacy": [],
@@ -51372,8 +51391,8 @@
         "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261123-f",
-          "agentId": "wH10",
-          "at": "2026-11-23T17:52:51.276Z",
+          "agentId": "wK01",
+          "at": "2026-11-23T18:11:25.929Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
           "nextAction": "Integrated; claim released"
@@ -110229,15 +110248,8 @@
         "resources": [
           "owner:legal"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wK04",
-          "claimedAt": "2026-11-23T17:56:37.219Z",
-          "heartbeatAt": "2026-11-23T18:10:15.948Z",
-          "expiresAt": "2026-11-23T18:40:15.948Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "dbb5267714fb222c1665428fc0b7c9aec613e926",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -110318,14 +110330,33 @@
             "command": "vitest legal-application 60/60",
             "result": "passed",
             "sourceSha": "ff24debbd"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "bf52f3e04",
+            "owner": "legal",
+            "before": 330,
+            "after": 329,
+            "note": "wK04: references view -> native auxiliary read; command-side assertion retained."
+          },
+          {
+            "command": "cargo test -p erpx-server-legal --test auxiliary_postgres -- --test-threads=2",
+            "result": "passed",
+            "sourceSha": "bf52f3e04"
+          },
+          {
+            "command": "vitest legal-application 60/60",
+            "result": "passed",
+            "sourceSha": "bf52f3e04"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "handoff",
         "handoff": {
           "runId": "run-20261123-f",
-          "agentId": "wH12",
-          "at": "2026-11-23T17:48:42.119Z",
+          "agentId": "wK04",
+          "at": "2026-11-23T18:12:00.119Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
           "nextAction": "Integrated; claim released"
@@ -113544,7 +113575,7 @@
         "owner": "records",
         "title": "Remove records TS registry/context fallback for all modules",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -113561,22 +113592,38 @@
         "resources": [
           "owner:records"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wH17",
-          "claimedAt": "2026-11-23T17:43:16.667Z",
-          "heartbeatAt": "2026-11-23T18:10:15.948Z",
-          "expiresAt": "2026-11-23T18:40:15.948Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-records + erpx-service",
+            "result": "passed",
+            "sourceSha": "bf52f3e04"
+          },
+          {
+            "command": "cargo test -p erpx-server-records --lib (33) + TS records 85/85",
+            "result": "passed",
+            "sourceSha": "bf52f3e04"
+          },
+          {
+            "command": "tsc root",
+            "result": "passed",
+            "sourceSha": "bf52f3e04"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Widen native registry/context authority to all modules, fail closed 503, delete TS fallback branches/gates and records.ts SELECTs where unused; keep mention view decision explicit",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wH17",
+          "at": "2026-11-23T18:11:59.961Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -114035,7 +114082,7 @@
         "owner": "pms",
         "title": "PMS refund command HTTP prep + owner-side parity (16 SELECT read tail)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -114051,22 +114098,33 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wL07",
-          "claimedAt": "2026-11-23T18:03:22.343Z",
-          "heartbeatAt": "2026-11-23T18:10:15.948Z",
-          "expiresAt": "2026-11-23T18:40:15.948Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-pms",
+            "result": "passed",
+            "sourceSha": "bf52f3e04"
+          },
+          {
+            "command": "cargo test -p erpx-server-pms --test pms_http (14)",
+            "result": "passed",
+            "sourceSha": "bf52f3e04"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Export PmsHttpRefundRequest + bounded refund command parser; add HTTP tests for six actions; verify repository parity incl FOR UPDATE/locks. Composition backend remains lead.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Owner prep integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wL07",
+          "at": "2026-11-23T18:12:00.282Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Owner prep integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -114115,17 +114173,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 24,
-        "in_progress": 9,
+        "in_progress": 6,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 117,
+        "blocked": 120,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T18:10:42.470Z",
+    "updatedAt": "2026-11-23T18:12:00.285Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
