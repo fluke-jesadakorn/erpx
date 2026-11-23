@@ -8,13 +8,14 @@ use crate::domain::iam_roles::IamRoleActor;
 use crate::domain::position_gpo::{
     CONFIG_RETRY_OPERATION, ClaimRow, ConfigRetryInput, ConfigRow, ConnectionRow, DesiredRow,
     DirectoryState, FreshMfa, GpoAction, GpoAuthority, HolderRow, INTERRUPTED_AFTER_MS, Inventory,
-    JobRetryInput, JobRow, JobStateRow, MappingRow, OwnershipRow, PUBLISH_OPERATION, PolicyRow,
-    PositionFacts, PositionGpoInput, PreviewResult, PublishInput, RuleStatusRow, UNMAP_OPERATION,
-    UnmapInput, UnmapPublishInput, config_blocked, config_changed, connection_required,
-    delivery_id, idempotency_conflict, inventory_filters, inventory_links, inventory_object,
-    job_changed, mapping_changed, membership_key, position_not_found, preview_changed,
-    readback_invalid, readback_required, revision_id, same_ids, target_invalid, version_conflict,
-    waiting_key, write_not_ready,
+    JobRetryInput, JobRow, JobStateRow, MappingRow, NOT_REQUIRED_OPERATION, OwnershipRow,
+    PUBLISH_OPERATION, PolicyRow, PositionFacts, PositionGpoInput, PreviewResult, PublishInput,
+    RuleStatusRow, UNMAP_OPERATION, UnmapInput, UnmapPublishInput, can_manage_gpo_rules,
+    config_blocked, config_changed, connection_required, delivery_id, idempotency_conflict,
+    inventory_filters, inventory_links, inventory_object, job_changed, mapping_changed,
+    membership_key, position_not_found, preview_changed, readback_invalid, readback_required,
+    require_gpo_read, revision_id, same_ids, target_invalid, task_changed, version_conflict,
+    waiting_key, write_not_ready, NotRequiredInput,
 };
 use erpx_server_shared::public::BusinessError;
 use serde_json::{Value, json};
@@ -161,7 +162,32 @@ pub trait PositionGpoRepository {
         request_hash: &'a str,
     ) -> GpoFuture<'a, Value, Self::Error>;
 
-    fn overview<'a>(&'a mut self, company_id: &'a str) -> GpoFuture<'a, Value, Self::Error>;
+    fn overview<'a>(
+        &'a mut self,
+        company_id: &'a str,
+        branch_id: Option<&'a str>,
+        department_id: Option<&'a str>,
+    ) -> GpoFuture<'a, Value, Self::Error>;
+    fn task_eligible<'a>(
+        &'a mut self,
+        company_id: &'a str,
+        position_id: &'a str,
+        expected_version: i64,
+    ) -> GpoFuture<'a, bool, Self::Error>;
+    fn guard_task_version<'a>(
+        &'a mut self,
+        company_id: &'a str,
+        position_id: &'a str,
+        expected_version: i64,
+    ) -> GpoFuture<'a, (), Self::Error>;
+    fn commit_not_required<'a>(
+        &'a mut self,
+        actor: &'a IamRoleActor,
+        key: &'a str,
+        input: &'a NotRequiredInput,
+        request_hash: &'a str,
+        now: i64,
+    ) -> GpoFuture<'a, Value, Self::Error>;
     fn job_state<'a>(
         &'a mut self,
         company_id: &'a str,
@@ -731,11 +757,65 @@ pub async fn position_gpo_overview<R: PositionGpoRepository>(
     actor: &IamRoleActor,
     now: i64,
 ) -> Result<Value, R::Error> {
-    let authority = repository.authority(actor, now).await?;
-    if !authority.it_holding {
+    require_gpo_read(actor)?;
+    let can_manage = can_manage_gpo_rules(actor);
+    let mut value = repository
+        .overview(
+            actor.company_id.as_str(),
+            actor.branch_id.as_ref().map(|value| value.as_str()),
+            actor.department_id.as_ref().map(|value| value.as_str()),
+        )
+        .await?;
+    if let Some(object) = value.as_object_mut() {
+        object.insert("canManage".into(), Value::Bool(can_manage));
+    }
+    let _ = now;
+    Ok(value)
+}
+
+/// Close a Position task as not required. The pre-check is `taskEligible`; the
+/// in-transaction assertion is `guardTaskVersion`; the guarded write is owned
+/// by `commit_not_required`. A stale or already-disposed task conflicts.
+pub async fn mark_position_gpo_not_required<R: PositionGpoRepository>(
+    repository: &mut R,
+    actor: &IamRoleActor,
+    key: &str,
+    input: &NotRequiredInput,
+    now: i64,
+) -> Result<Value, R::Error> {
+    if !can_manage_gpo_rules(actor) {
         return Err(crate::domain::position_gpo::it_authority_required().into());
     }
-    repository.overview(actor.company_id.as_str()).await
+    let request_hash = crate::domain::position_gpo::sha256_hex(&input.to_json());
+    if let Some(result) = receipt_result(
+        repository.receipt(key).await?,
+        actor,
+        key,
+        NOT_REQUIRED_OPERATION,
+        &input.position_id,
+        &request_hash,
+    )? {
+        return Ok(result);
+    }
+    if !repository
+        .task_eligible(
+            actor.company_id.as_str(),
+            &input.position_id,
+            input.expected_version,
+        )
+        .await?
+    {
+        return Err(task_changed().into());
+    }
+    let result = json!({
+        "positionId": input.position_id,
+        "version": input.expected_version + 1,
+        "status": "not_required",
+    });
+    repository
+        .commit_not_required(actor, key, input, &request_hash, now)
+        .await?;
+    Ok(result)
 }
 
 pub async fn retry_position_gpo<R: PositionGpoRepository>(

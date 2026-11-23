@@ -16,13 +16,15 @@ use crate::application::position_gpo::{
 use crate::domain::iam_roles::IamRoleActor;
 use crate::domain::position_gpo::{
     ClaimRow, ConfigRetryInput, ConfigRow, ConnectionRow, DesiredRow, DirectoryState, GpoAuthority,
-    HolderRow, JobRetryInput, JobRow, JobStateRow, MappingRow, OwnershipRow, PolicyRow,
-    PositionFacts, RuleStatusRow, idempotency_conflict, readback_invalid, version_conflict,
+    HolderRow, JobRetryInput, JobRow, JobStateRow, MappingRow, NotRequiredInput, OwnershipRow,
+    PolicyRow, PositionFacts, RuleStatusRow, idempotency_conflict, present_gpo_task,
+    readback_invalid, version_conflict,
 };
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::BusinessError;
 use serde_json::{Value, json};
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row};
+use std::collections::{BTreeMap, BTreeSet};
 
 type Error = PgTransactionError<BusinessError>;
 
@@ -141,6 +143,33 @@ impl<'c> PgPositionGpo<'c> {
         .execute(&mut *self.connection)
         .await?;
         Ok(())
+    }
+
+    /// In-transaction `guardTaskVersion` assertion for a Position task.
+    async fn assert_task_version(
+        &mut self,
+        company_id: &str,
+        position_id: &str,
+        expected_version: i64,
+    ) -> Result<(), Error> {
+        let current = sqlx::query_scalar::<_, bool>(
+            "SELECT EXISTS(SELECT 1 FROM position_gpo_tasks t \
+             JOIN organization_positions p ON p.company_id=t.company_id AND p.id=t.position_id AND p.active=1 \
+             WHERE t.company_id=$1 AND t.position_id=$2 AND t.version=$3 AND t.disposition IS NULL \
+               AND NOT EXISTS(SELECT 1 FROM organization_gpo_rules r \
+                WHERE r.company_id=t.company_id AND r.target_kind='position' \
+                  AND r.target_id=t.position_id AND r.active))",
+        )
+        .bind(company_id)
+        .bind(position_id)
+        .bind(expected_version)
+        .fetch_one(&mut *self.connection)
+        .await?;
+        if current {
+            Ok(())
+        } else {
+            Err(crate::domain::position_gpo::task_changed().into())
+        }
     }
 }
 
@@ -623,52 +652,266 @@ impl PositionGpoRepository for PgPositionGpo<'_> {
         })
     }
 
-    fn overview<'a>(&'a mut self, company_id: &'a str) -> GpoFuture<'a, Value, Self::Error> {
+    fn overview<'a>(
+        &'a mut self,
+        company_id: &'a str,
+        branch_id: Option<&'a str>,
+        department_id: Option<&'a str>,
+    ) -> GpoFuture<'a, Value, Self::Error> {
         Box::pin(async move {
             self.ready().await?;
-            let policies: Value = sqlx::query_scalar(
-                "SELECT COALESCE(jsonb_agg(to_jsonb(p) || jsonb_build_object('mapped',p.connection_id IS NOT NULL,'title',o.title) ORDER BY o.title),'[]'::jsonb) \
-                 FROM position_gpo_policies p JOIN organization_positions o \
-                  ON o.id=p.position_id AND o.company_id=p.company_id \
-                 WHERE p.company_id=$1",
+            let visible: Value = sqlx::query_scalar(
+                "SELECT COALESCE(jsonb_agg(id ORDER BY id),'[]'::jsonb) FROM ( \
+                 SELECT id FROM organization_positions WHERE company_id=$1 AND active=1 \
+                  AND ($2::text IS NULL OR branch_id=$2) \
+                  AND ($3::text IS NULL OR department_id=$3)) v",
             )
             .bind(company_id)
+            .bind(branch_id)
+            .bind(department_id)
+            .fetch_one(&mut *self.connection)
+            .await?;
+            let all_rules: Value = sqlx::query_scalar(
+                "SELECT COALESCE(jsonb_agg(rule ORDER BY rule->>'id'),'[]'::jsonb) FROM ( \
+                 SELECT jsonb_build_object( \
+                  'id',g.id,'target',jsonb_build_object('kind',g.target_kind,'id',g.target_id), \
+                  'targetName',COALESCE(l.name,n.display_name,p.title,g.target_id), \
+                  'version',g.version,'revision',g.revision,'connectionId',g.connection_id, \
+                  'gpoId',g.gpo_id,'userFilterGroupId',g.user_filter_group_id, \
+                  'computerTargetOuId',g.computer_target_ou_id,'active',g.active, \
+                  'directoryStatus',g.directory_config_status,'directoryError',g.directory_config_error, \
+                  'legacyPositionId',g.legacy_position_id) rule \
+                 FROM organization_gpo_rules g \
+                 LEFT JOIN staff_levels l ON g.target_kind='level' AND l.id=g.target_id AND l.company_id=g.company_id \
+                 LEFT JOIN organization_nodes n ON g.target_kind='department' AND n.id=g.target_id AND n.company_id=g.company_id \
+                 LEFT JOIN organization_positions p ON g.target_kind='position' AND p.id=g.target_id AND p.company_id=g.company_id \
+                 WHERE g.company_id=$1 AND g.active) rules",
+            )
+            .bind(company_id)
+            .fetch_one(&mut *self.connection)
+            .await?;
+            let effective: Value = sqlx::query_scalar(
+                "SELECT COALESCE(jsonb_agg(jsonb_build_object( \
+                  'positionId',e.position_id,'rule',e.rule,'inherited',e.inherited) \
+                  ORDER BY e.position_id,e.rule->>'id'),'[]'::jsonb) FROM ( \
+                 SELECT p.id position_id, \
+                  jsonb_build_object( \
+                   'id',g.id,'target',jsonb_build_object('kind',g.target_kind,'id',g.target_id), \
+                   'targetName',COALESCE(l.name,n.display_name,direct.title,g.target_id), \
+                   'version',g.version,'revision',g.revision,'connectionId',g.connection_id, \
+                   'gpoId',g.gpo_id,'userFilterGroupId',g.user_filter_group_id, \
+                   'computerTargetOuId',g.computer_target_ou_id,'active',g.active, \
+                   'directoryStatus',g.directory_config_status,'directoryError',g.directory_config_error, \
+                   'legacyPositionId',g.legacy_position_id) rule, \
+                  (g.target_kind <> 'position') inherited \
+                 FROM organization_positions p \
+                 JOIN organization_gpo_rules g ON g.company_id=p.company_id AND g.active \
+                  AND g.target_kind='position' AND g.target_id=p.id \
+                 LEFT JOIN staff_levels l ON g.target_kind='level' AND l.id=g.target_id \
+                  AND l.company_id=g.company_id AND l.active=1 \
+                 LEFT JOIN organization_nodes n ON g.target_kind='department' AND n.id=g.target_id \
+                  AND n.company_id=g.company_id AND n.status='active' \
+                 LEFT JOIN organization_positions direct ON g.target_kind='position' AND direct.id=g.target_id \
+                  AND direct.company_id=g.company_id AND direct.active=1 \
+                 WHERE p.active=1 AND p.company_id=$1 \
+                  AND ($2::text IS NULL OR p.branch_id=$2) \
+                  AND ($3::text IS NULL OR p.department_id=$3)) e",
+            )
+            .bind(company_id)
+            .bind(branch_id)
+            .bind(department_id)
             .fetch_one(&mut *self.connection)
             .await?;
             let jobs: Value = sqlx::query_scalar(
-                "SELECT COALESCE(jsonb_agg(jsonb_build_object(\
-                  'id',j.id,'position_id',j.position_id,'person_id',j.person_id,\
-                  'engagement_id',j.engagement_id,'account_id',j.account_id,'legal_name',p.legal_name,\
-                  'revision',j.revision,'desired_action',j.desired_action,'status',j.status,\
-                  'version',j.version,'attempts',j.attempts,'last_error',j.last_error,\
-                  'directory_observed_at',j.directory_observed_at,\
-                  'endpoint_observed_at',j.endpoint_observed_at) ORDER BY j.updated_at DESC),'[]'::jsonb) \
-                 FROM (SELECT * FROM position_gpo_jobs WHERE company_id=$1 \
-                  ORDER BY updated_at DESC LIMIT 200) j \
-                 JOIN hr_people p ON p.id=j.person_id",
+                "SELECT COALESCE(jsonb_agg(jsonb_build_object( \
+                  'id',j.id,'rule_id',j.rule_id,'position_id',j.position_id, \
+                  'person_id',j.person_id,'engagement_id',j.engagement_id,'account_id',j.account_id, \
+                  'connection_id',j.connection_id,'revision',j.revision,'desired_action',j.desired_action, \
+                  'status',j.status,'version',j.version,'last_error',j.last_error, \
+                  'directory_observed_at',j.directory_observed_at, \
+                  'endpoint_observed_at',j.endpoint_observed_at) \
+                  ORDER BY j.updated_at DESC,j.id),'[]'::jsonb) FROM ( \
+                 SELECT j.* FROM position_gpo_jobs j \
+                 JOIN organization_positions p ON p.id=j.position_id AND p.company_id=j.company_id \
+                 WHERE j.company_id=$1 AND p.active=1 \
+                  AND ($2::text IS NULL OR p.branch_id=$2) \
+                  AND ($3::text IS NULL OR p.department_id=$3) \
+                 ORDER BY j.updated_at DESC,j.id LIMIT 200) j",
             )
             .bind(company_id)
+            .bind(branch_id)
+            .bind(department_id)
             .fetch_one(&mut *self.connection)
             .await?;
-            let positions: Value = sqlx::query_scalar(
-                "SELECT COALESCE(jsonb_agg(jsonb_build_object(\
-                  'id',o.id,'title',o.title,'holder_count',count(DISTINCT e.id)::integer,\
-                  'mapping_version',p.version,'mapped',p.connection_id IS NOT NULL,\
-                  'mapping_status',CASE WHEN p.connection_id IS NOT NULL \
-                   THEN p.directory_config_status ELSE NULL END) ORDER BY o.title,o.id),'[]'::jsonb) \
-                 FROM organization_positions o \
-                 LEFT JOIN position_gpo_policies p \
-                  ON p.company_id=o.company_id AND p.position_id=o.id \
-                 LEFT JOIN hr_engagements e ON e.company_id=o.company_id AND e.position_id=o.id \
-                  AND e.status='active' AND e.start_date<=CURRENT_DATE::text \
-                  AND (e.end_date IS NULL OR e.end_date>=CURRENT_DATE::text) \
-                 WHERE o.company_id=$1 AND o.active=1 \
-                 GROUP BY o.id,o.title,p.version,p.connection_id,p.directory_config_status",
+            let task_rows: Value = sqlx::query_scalar(
+                "SELECT COALESCE(jsonb_agg(jsonb_build_object( \
+                  'positionId',x.position_id,'positionName',x.position_name,'version',x.version, \
+                  'disposition',x.disposition,'reason',x.reason, \
+                  'mappingCount',x.mapping_count,'verifiedCount',x.verified_count, \
+                  'blockedCount',x.blocked_count) ORDER BY x.position_name,x.position_id),'[]'::jsonb) \
+                 FROM ( \
+                  SELECT t.position_id,p.title position_name,t.version,t.disposition,t.reason, \
+                   count(g.id)::integer mapping_count, \
+                   count(g.id) FILTER (WHERE g.directory_config_status='directory_applied')::integer verified_count, \
+                   count(g.id) FILTER (WHERE g.directory_config_status='blocked')::integer blocked_count \
+                  FROM position_gpo_tasks t \
+                  JOIN organization_positions p ON p.id=t.position_id AND p.company_id=t.company_id \
+                  LEFT JOIN organization_gpo_rules g ON g.company_id=t.company_id \
+                   AND g.target_kind='position' AND g.target_id=t.position_id AND g.active \
+                  WHERE t.company_id=$1 AND p.active=1 \
+                   AND ($2::text IS NULL OR p.branch_id=$2) \
+                   AND ($3::text IS NULL OR p.department_id=$3) \
+                  GROUP BY t.position_id,p.title,t.version,t.disposition,t.reason) x",
             )
             .bind(company_id)
+            .bind(branch_id)
+            .bind(department_id)
             .fetch_one(&mut *self.connection)
             .await?;
-            Ok(json!({"policies": policies, "jobs": jobs, "positions": positions}))
+
+            let visible_ids: Vec<String> = serde_json::from_value(visible).unwrap_or_default();
+            let rules: Vec<Value> = serde_json::from_value(all_rules).unwrap_or_default();
+            let effective: Vec<Value> = serde_json::from_value(effective).unwrap_or_default();
+            let raw_tasks: Vec<Value> = serde_json::from_value(task_rows).unwrap_or_default();
+            let effective_ids: BTreeSet<String> = effective
+                .iter()
+                .filter_map(|row| {
+                    row.get("rule")
+                        .and_then(|rule| rule.get("id"))
+                        .and_then(Value::as_str)
+                        .map(str::to_owned)
+                })
+                .collect();
+            let whole_company = branch_id.is_none() && department_id.is_none();
+            let rules: Vec<Value> = rules
+                .into_iter()
+                .filter(|rule| {
+                    whole_company
+                        || rule
+                            .get("id")
+                            .and_then(Value::as_str)
+                            .is_some_and(|id| effective_ids.contains(id))
+                })
+                .collect();
+            let mut by_position: BTreeMap<String, Vec<Value>> = visible_ids
+                .into_iter()
+                .map(|id| (id, Vec::new()))
+                .collect();
+            for row in effective {
+                let position_id = row
+                    .get("positionId")
+                    .and_then(Value::as_str)
+                    .unwrap_or_default()
+                    .to_owned();
+                let mut rule = row.get("rule").cloned().unwrap_or(Value::Null);
+                if let Some(object) = rule.as_object_mut() {
+                    object.insert(
+                        "inherited".into(),
+                        row.get("inherited").cloned().unwrap_or(Value::Bool(false)),
+                    );
+                }
+                by_position.entry(position_id).or_default().push(rule);
+            }
+            let tasks: Vec<Value> = raw_tasks.iter().map(present_gpo_task).collect();
+            Ok(json!({
+                "rules": rules,
+                "effectiveByPosition": by_position,
+                "jobs": jobs,
+                "tasks": tasks,
+            }))
+        })
+    }
+
+    fn task_eligible<'a>(
+        &'a mut self,
+        company_id: &'a str,
+        position_id: &'a str,
+        expected_version: i64,
+    ) -> GpoFuture<'a, bool, Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            let eligible = sqlx::query_scalar::<_, bool>(
+                "SELECT EXISTS(SELECT 1 FROM position_gpo_tasks t \
+                 JOIN organization_positions p ON p.company_id=t.company_id AND p.id=t.position_id AND p.active=1 \
+                 WHERE t.company_id=$1 AND t.position_id=$2 AND t.version=$3 AND t.disposition IS NULL \
+                   AND NOT EXISTS(SELECT 1 FROM organization_gpo_rules r \
+                    WHERE r.company_id=t.company_id AND r.target_kind='position' \
+                      AND r.target_id=t.position_id AND r.active))",
+            )
+            .bind(company_id)
+            .bind(position_id)
+            .bind(expected_version)
+            .fetch_one(&mut *self.connection)
+            .await?;
+            Ok(eligible)
+        })
+    }
+
+    fn guard_task_version<'a>(
+        &'a mut self,
+        company_id: &'a str,
+        position_id: &'a str,
+        expected_version: i64,
+    ) -> GpoFuture<'a, (), Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            self.assert_task_version(company_id, position_id, expected_version)
+                .await
+        })
+    }
+
+    fn commit_not_required<'a>(
+        &'a mut self,
+        actor: &'a IamRoleActor,
+        key: &'a str,
+        input: &'a NotRequiredInput,
+        request_hash: &'a str,
+        now: i64,
+    ) -> GpoFuture<'a, Value, Self::Error> {
+        Box::pin(async move {
+            self.ready().await?;
+            self.assert_task_version(
+                actor.company_id.as_str(),
+                &input.position_id,
+                input.expected_version,
+            )
+            .await?;
+            let updated = sqlx::query(
+                "UPDATE position_gpo_tasks \
+                 SET disposition='not_required',reason=$1,version=version+1,updated_at=$2 \
+                 WHERE company_id=$3 AND position_id=$4 AND version=$5 AND disposition IS NULL \
+                   AND NOT EXISTS(SELECT 1 FROM organization_gpo_rules r \
+                    WHERE r.company_id=position_gpo_tasks.company_id AND r.target_kind='position' \
+                      AND r.target_id=position_gpo_tasks.position_id AND r.active)",
+            )
+            .bind(&input.reason)
+            .bind(now)
+            .bind(actor.company_id.as_str())
+            .bind(&input.position_id)
+            .bind(input.expected_version)
+            .execute(&mut *self.connection)
+            .await?
+            .rows_affected();
+            if updated != 1 {
+                return Err(crate::domain::position_gpo::task_changed().into());
+            }
+            let result = json!({
+                "positionId": input.position_id,
+                "version": input.expected_version + 1,
+                "status": "not_required",
+            });
+            self.effects(
+                actor,
+                key,
+                request_hash,
+                crate::domain::position_gpo::NOT_REQUIRED_OPERATION,
+                &input.position_id,
+                input.expected_version + 1,
+                &result,
+                now,
+            )
+            .await?;
+            Ok(result)
         })
     }
 

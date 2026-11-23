@@ -294,3 +294,129 @@ fn a_job_is_deliverable_only_with_account_engagement_rule_and_source() {
     job.engagement_id = None;
     assert!(!job.deliverable());
 }
+
+fn overview_actor(role: &str, permissions: &[&str], branch: bool, department: bool) -> erpx_server_identity_access::public::position_gpo::IamRoleActor {
+    use erpx_server_identity_access::public::position_gpo::IamRoleActor;
+    use erpx_server_shared::public::{AssignmentId, CompanyId, HoldingId, RecordId, UserId};
+    let rid = |value: &str| RecordId::new(value).unwrap();
+    IamRoleActor {
+        user_id: UserId::new("actor").unwrap(),
+        session_id: rid("session"),
+        holding_id: HoldingId::new("holding").unwrap(),
+        company_id: CompanyId::new("company").unwrap(),
+        branch_id: branch.then(|| rid("branch")),
+        department_id: department.then(|| rid("department")),
+        assignment_id: AssignmentId::new("assignment").unwrap(),
+        scope_kind: if branch || department { "branch".into() } else { "holding".into() },
+        scope_node_id: None,
+        role: Some(role.into()),
+        role_revision: Some(1),
+        assignment_version: Some(1),
+        identity_version: Some(1),
+        authority_revision: Some(1),
+        permissions: permissions.iter().map(|value| (*value).to_owned()).collect(),
+        grantable_permissions: vec![],
+        person_user_ids: vec![],
+        person_id: None,
+        platform: false,
+        emergency_until: None,
+        expires_at: 1_000_000,
+    }
+}
+
+#[test]
+fn not_required_input_bounds_and_canonical_json() {
+    use erpx_server_identity_access::public::position_gpo::NotRequiredInput;
+    let parsed = NotRequiredInput::parse(&json!({
+        "positionId": "position-1", "expectedVersion": 2, "reason": "  No Windows policy needed  "
+    }))
+    .unwrap();
+    assert_eq!(parsed.position_id, "position-1");
+    assert_eq!(parsed.expected_version, 2);
+    assert_eq!(parsed.reason, "No Windows policy needed");
+    assert_eq!(parsed.to_json()["expectedVersion"], json!(2));
+
+    for raw in [
+        json!({"positionId": "position-1", "expectedVersion": 0, "reason": "No Windows policy needed"}),
+        json!({"positionId": "", "expectedVersion": 1, "reason": "No Windows policy needed"}),
+        json!({"positionId": "position-1", "expectedVersion": 1, "reason": " x "}),
+        json!({"positionId": "position-1", "expectedVersion": 1}),
+    ] {
+        assert_eq!(
+            NotRequiredInput::parse(&raw).unwrap_err().code,
+            "GPO_REQUEST_INVALID"
+        );
+    }
+}
+
+#[test]
+fn overview_read_authority_matches_organization_parity() {
+    use erpx_server_identity_access::public::position_gpo::{gpo_read_allowed, require_gpo_read};
+    for permission in ["iam.read", "people.read", "people.manage", "organization.manage"] {
+        let actor = overview_actor("employee", &[permission], false, false);
+        assert!(gpo_read_allowed(&actor), "{permission}");
+        require_gpo_read(&actor).unwrap();
+    }
+    let outsider = overview_actor("employee", &["iam.self"], false, false);
+    assert!(!gpo_read_allowed(&outsider));
+    assert_eq!(require_gpo_read(&outsider).unwrap_err().code, "GPO_READ_REQUIRED");
+}
+
+#[test]
+fn can_manage_requires_it_holding_scope_without_branch_or_department() {
+    use erpx_server_identity_access::public::position_gpo::can_manage_gpo_rules;
+    assert!(can_manage_gpo_rules(&overview_actor(
+        "it_admin",
+        &["iam.read", "iam.directory.apply"],
+        false,
+        false
+    )));
+    assert!(!can_manage_gpo_rules(&overview_actor(
+        "hr_admin",
+        &["iam.read", "iam.directory.apply"],
+        false,
+        false
+    )));
+    assert!(!can_manage_gpo_rules(&overview_actor(
+        "it_admin",
+        &["iam.read"],
+        false,
+        false
+    )));
+    assert!(!can_manage_gpo_rules(&overview_actor(
+        "it_admin",
+        &["iam.read", "iam.directory.apply"],
+        true,
+        false
+    )));
+    assert!(!can_manage_gpo_rules(&overview_actor(
+        "it_admin",
+        &["iam.read", "iam.directory.apply"],
+        false,
+        true
+    )));
+}
+
+#[test]
+fn task_status_and_presentation_follow_the_oracle_precedence() {
+    use erpx_server_identity_access::public::position_gpo::{present_gpo_task, task_status};
+    assert_eq!(task_status(Some("not_required"), 3, 2, 2), "not_required");
+    assert_eq!(task_status(None, 1, 2, 2), "blocked");
+    assert_eq!(task_status(None, 0, 2, 2), "completed");
+    assert_eq!(task_status(None, 0, 2, 1), "pending");
+    assert_eq!(task_status(None, 0, 0, 0), "pending");
+
+    let row = json!({
+        "positionId": "position-1", "positionName": "Head", "version": 3,
+        "disposition": "not_required", "reason": "No policy",
+        "mappingCount": 2, "verifiedCount": 1, "blockedCount": 1
+    });
+    assert_eq!(
+        present_gpo_task(&row),
+        json!({
+            "positionId": "position-1", "positionName": "Head", "version": 3,
+            "reason": "No policy", "mappingCount": 2, "verifiedCount": 1,
+            "status": "not_required"
+        })
+    );
+}

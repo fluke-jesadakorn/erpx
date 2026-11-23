@@ -6,8 +6,8 @@
 //! serializable owner unit and the Directory connector stay behind
 //! [`PositionGpoHttpBackend`]; the router never mints authority.
 use crate::domain::position_gpo::{
-    ConfigRetryInput, JobRetryInput, PositionGpoInput, PublishInput, UnmapInput, UnmapPublishInput,
-    request_invalid,
+    ConfigRetryInput, JobRetryInput, NotRequiredInput, PositionGpoInput, PublishInput, UnmapInput,
+    UnmapPublishInput, request_invalid,
 };
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
@@ -39,6 +39,10 @@ pub enum PositionGpoHttpCommand {
     },
     Unmap {
         input: UnmapPublishInput,
+        idempotency_key: String,
+    },
+    NotRequired {
+        input: NotRequiredInput,
         idempotency_key: String,
     },
     Retry {
@@ -277,6 +281,10 @@ pub fn position_gpo_http_router(
             post(unmap),
         )
         .route(
+            "/api/v1/holdings/{holding_slug}/technology/position-gpo/not-required",
+            post(not_required),
+        )
+        .route(
             "/api/v1/holdings/{holding_slug}/technology/position-gpo/retry",
             post(retry),
         )
@@ -438,6 +446,41 @@ async fn unmap(
                 holding_slug: &target.holding_slug,
                 headers: &headers,
                 command: PositionGpoHttpCommand::Unmap {
+                    input,
+                    idempotency_key: key,
+                },
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded(serde_json::json!({"data": reply.data})),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn not_required(
+    State(state): State<Arc<PositionGpoHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async {
+        let target = target(&state, request.headers(), &slug)?;
+        ensure_no_query(&request)?;
+        if !origin_allowed(&request, target) {
+            return Err(origin_forbidden());
+        }
+        let key = strict_key(request.headers())?;
+        let headers = request.headers().clone();
+        let body = strict_body(request).await?;
+        let input = NotRequiredInput::parse(&body)?;
+        target
+            .backend
+            .execute(PositionGpoHttpRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                command: PositionGpoHttpCommand::NotRequired {
                     input,
                     idempotency_key: key,
                 },

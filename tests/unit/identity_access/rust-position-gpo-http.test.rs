@@ -52,6 +52,16 @@ impl PositionGpoHttpBackend for Probe {
                     "unmap|{}|{}|{}|{}|{cookie:?}",
                     request.host, request.holding_slug, input.input.position_id, idempotency_key
                 ),
+                PositionGpoHttpCommand::NotRequired {
+                    input,
+                    idempotency_key,
+                } => format!(
+                    "not-required|{}|{}|{}|{}|{cookie:?}",
+                    request.host,
+                    request.holding_slug,
+                    input.position_id,
+                    idempotency_key
+                ),
                 PositionGpoHttpCommand::Retry {
                     input,
                     idempotency_key,
@@ -90,6 +100,9 @@ impl PositionGpoHttpBackend for Probe {
                 }),
                 PositionGpoHttpCommand::Unmap { input, .. } => serde_json::json!({
                     "positionId": input.input.position_id, "mapped": false
+                }),
+                PositionGpoHttpCommand::NotRequired { input, .. } => serde_json::json!({
+                    "positionId": input.position_id, "status": "not_required"
                 }),
                 PositionGpoHttpCommand::Retry { input, .. } => serde_json::json!({
                     "id": input.id, "status": "queued"

@@ -4,10 +4,11 @@
 //! `position_gpo_policies` row; delivery to the Directory is a separate queued
 //! job. Nothing here reads a database, HTTP request, provider or clock; callers
 //! supply current authority, Directory evidence and the serializable unit.
+use crate::domain::iam_roles::IamRoleActor;
 use erpx_server_shared::public::BusinessError;
 use serde::Deserialize;
 use serde::de::DeserializeOwned;
-use serde_json::Value;
+use serde_json::{Value, json};
 use sha2::{Digest, Sha256};
 use std::fmt::Write;
 
@@ -19,6 +20,7 @@ pub const HOLDING_SCOPE: &str = "holding";
 
 pub const PUBLISH_OPERATION: &str = "technology.position-gpo.publish";
 pub const UNMAP_OPERATION: &str = "technology.position-gpo.unmap";
+pub const NOT_REQUIRED_OPERATION: &str = "technology.position-gpo.not-required";
 pub const JOB_RETRY_OPERATION: &str = "technology.position-gpo.retry";
 pub const CONFIG_RETRY_OPERATION: &str = "technology.position-gpo.config-retry";
 pub const INTERRUPTED_AFTER_MS: i64 = 900_000;
@@ -48,6 +50,18 @@ pub fn it_authority_required() -> BusinessError {
     forbidden(
         "IT_AUTHORITY_REQUIRED",
         "Choose an active Company IT assignment to publish GPO mappings.",
+    )
+}
+pub fn gpo_read_required() -> BusinessError {
+    forbidden(
+        "GPO_READ_REQUIRED",
+        "Organization or Directory read access is required.",
+    )
+}
+pub fn task_changed() -> BusinessError {
+    conflict(
+        "GPO_TASK_CHANGED",
+        "Reload the Position task before closing it; active mappings must be removed first.",
     )
 }
 pub fn fresh_mfa_required() -> BusinessError {
@@ -305,6 +319,34 @@ impl UnmapPublishInput {
         Ok(Self {
             input,
             preview_token: parsed.preview_token,
+        })
+    }
+}
+
+/// A reviewed decision that a Position task needs no Policy mapping.
+#[derive(Clone, Debug, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct NotRequiredInput {
+    pub position_id: String,
+    pub expected_version: i64,
+    pub reason: String,
+}
+
+impl NotRequiredInput {
+    pub fn parse(raw: &Value) -> Result<Self, BusinessError> {
+        let mut input: Self = parse(raw)?;
+        if !valid_id(&input.position_id) || input.expected_version < 1 {
+            return Err(request_invalid());
+        }
+        input.reason = valid_reason(&input.reason).ok_or_else(request_invalid)?;
+        Ok(input)
+    }
+
+    pub fn to_json(&self) -> Value {
+        json!({
+            "positionId": self.position_id,
+            "expectedVersion": self.expected_version,
+            "reason": self.reason,
         })
     }
 }
@@ -603,6 +645,75 @@ pub fn revision_id(prefix: &str, key: &str) -> String {
 
 pub fn same_ids(left: &[String], right: &[String]) -> bool {
     left.len() == right.len() && left.iter().all(|value| right.contains(value))
+}
+
+/// Read parity with the Organization GPO overview: any Organization or
+/// Directory read permission may inspect the payload.
+pub fn gpo_read_allowed(actor: &IamRoleActor) -> bool {
+    ["iam.read", "people.read", "people.manage", "organization.manage"]
+        .iter()
+        .any(|permission| actor.has(permission))
+}
+
+pub fn require_gpo_read(actor: &IamRoleActor) -> Result<(), BusinessError> {
+    if gpo_read_allowed(actor) {
+        Ok(())
+    } else {
+        Err(gpo_read_required())
+    }
+}
+
+/// Whether the actor holds current Company IT authority in a Holding scope.
+pub fn can_manage_gpo_rules(actor: &IamRoleActor) -> bool {
+    actor.role.as_deref() == Some(IT_ROLE)
+        && actor.scope_kind == HOLDING_SCOPE
+        && actor.branch_id.is_none()
+        && actor.department_id.is_none()
+        && actor.has(DIRECTORY_APPLY_PERMISSION)
+}
+
+/// Status projection shared by the native overview and its unit oracle.
+pub fn task_status(
+    disposition: Option<&str>,
+    blocked_count: i64,
+    mapping_count: i64,
+    verified_count: i64,
+) -> &'static str {
+    if disposition == Some("not_required") {
+        "not_required"
+    } else if blocked_count > 0 {
+        "blocked"
+    } else if mapping_count > 0 && mapping_count == verified_count {
+        "completed"
+    } else {
+        "pending"
+    }
+}
+
+/// Present one raw task-progress row into the overview `tasks` shape.
+pub fn present_gpo_task(row: &Value) -> Value {
+    let disposition = row.get("disposition").and_then(Value::as_str);
+    let blocked = row
+        .get("blockedCount")
+        .and_then(Value::as_i64)
+        .unwrap_or_default();
+    let mapping = row
+        .get("mappingCount")
+        .and_then(Value::as_i64)
+        .unwrap_or_default();
+    let verified = row
+        .get("verifiedCount")
+        .and_then(Value::as_i64)
+        .unwrap_or_default();
+    json!({
+        "positionId": row.get("positionId").cloned().unwrap_or(Value::Null),
+        "positionName": row.get("positionName").cloned().unwrap_or(Value::Null),
+        "version": row.get("version").cloned().unwrap_or(Value::Null),
+        "reason": row.get("reason").cloned().unwrap_or(Value::Null),
+        "mappingCount": mapping,
+        "verifiedCount": verified,
+        "status": task_status(disposition, blocked, mapping, verified),
+    })
 }
 
 /// Directory evidence after a targeted write must contain the effect.

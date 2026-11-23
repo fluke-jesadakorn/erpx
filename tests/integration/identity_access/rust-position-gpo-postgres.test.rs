@@ -9,8 +9,9 @@ mod fixture;
 
 use erpx_server_identity_access::public::position_gpo::{
     ConfigRetryInput, ConnectionRow, FreshMfa, GpoAction, GpoFuture, IamRoleActor, Inventory,
-    InventoryObject, JobRetryInput, PgPositionGpo, PositionGpoDirectory, PositionGpoInput,
-    PublishInput, UnmapInput, UnmapPublishInput, drain_position_gpo_locked, preview_position_gpo,
+    InventoryObject, JobRetryInput, NotRequiredInput, PgPositionGpo, PositionGpoDirectory,
+    PositionGpoInput, PublishInput, UnmapInput, UnmapPublishInput, drain_position_gpo_locked,
+    mark_position_gpo_not_required, position_gpo_overview, preview_position_gpo,
     preview_unmap_position_gpo, publish_position_gpo, reconcile_position_gpo, retry_position_gpo,
     retry_position_gpo_config, unmap_position_gpo,
 };
@@ -919,6 +920,217 @@ async fn departure_queues_the_native_removal_job() {
         .await
         .unwrap();
         assert_eq!(removal, ("remove".to_owned(), "queued".to_owned()));
+    })
+    .await;
+}
+
+async fn gpo_overview(pool: &DatabasePool, actor: &IamRoleActor) -> Value {
+    let mut tx = pool
+        .raw()
+        .begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE")
+        .await
+        .unwrap();
+    let value = {
+        let mut repository = PgPositionGpo::new(&mut tx);
+        position_gpo_overview(&mut repository, actor, NOW)
+            .await
+            .unwrap()
+    };
+    tx.rollback().await.unwrap();
+    value
+}
+
+async fn mark_not_required(
+    pool: &DatabasePool,
+    key: &str,
+    actor: &IamRoleActor,
+    input: &NotRequiredInput,
+) -> Result<Value, PgTransactionError<BusinessError>> {
+    let mut tx = pool
+        .raw()
+        .begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE")
+        .await
+        .unwrap();
+    let result = {
+        let mut repository = PgPositionGpo::new(&mut tx);
+        mark_position_gpo_not_required(&mut repository, actor, key, input, NOW).await
+    };
+    match result {
+        Ok(value) => {
+            tx.commit().await.unwrap();
+            Ok(value)
+        }
+        Err(error) => {
+            tx.rollback().await.unwrap();
+            Err(error)
+        }
+    }
+}
+
+fn not_required_input(position_id: &str, expected_version: i64) -> NotRequiredInput {
+    NotRequiredInput::parse(&json!({
+        "positionId": position_id,
+        "expectedVersion": expected_version,
+        "reason": "No Windows policy needed",
+    }))
+    .unwrap()
+}
+
+#[tokio::test]
+async fn overview_emits_oracle_fields_with_branch_department_scope_and_read_parity() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        for (position, branch, department) in [
+            ("position-2", "branch-1", "dept-1"),
+            ("position-3", "branch-2", "dept-2"),
+        ] {
+            sqlx::query(
+                "INSERT INTO organization_positions(id,company_id,title,level_id,branch_id,department_id,active,version,created_by,created_at,updated_at) \
+                 VALUES($1,'company',$2,'level-1',$3,$4,1,1,'system',0,0)",
+            )
+            .bind(position)
+            .bind(format!("Scoped {position}"))
+            .bind(branch)
+            .bind(department)
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        }
+        for (rule, position, status) in [
+            ("rule-1", "position-1", "directory_applied"),
+            ("rule-2", "position-2", "pending"),
+        ] {
+            sqlx::query(
+                "INSERT INTO organization_gpo_rules(id,company_id,target_kind,target_id,version,revision,\
+                 connection_id,gpo_id,user_filter_group_id,computer_target_ou_id,active,directory_config_status,\
+                 last_actor_id,last_reason,updated_at) \
+                 VALUES($1,'company','position',$2,1,1,'connection-1','gpo-1','group-1','ou-1',true,$3,'actor','Scoped rule',0)",
+            )
+            .bind(rule)
+            .bind(position)
+            .bind(status)
+            .execute(pool.raw())
+            .await
+            .unwrap();
+        }
+
+        let it = gpo_overview(&pool, &it_actor()).await;
+        assert_eq!(it["canManage"], json!(true));
+        assert_eq!(it["rules"].as_array().unwrap().len(), 2);
+        assert_eq!(it["effectiveByPosition"]["position-1"][0]["id"], json!("rule-1"));
+        assert_eq!(it["effectiveByPosition"]["position-1"][0]["inherited"], json!(false));
+        assert_eq!(it["effectiveByPosition"]["position-3"].as_array().unwrap().len(), 0);
+        assert_eq!(it["tasks"].as_array().unwrap().len(), 3);
+        let head = it["tasks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|task| task["positionId"] == json!("position-1"))
+            .unwrap()
+            .clone();
+        assert_eq!(head["status"], json!("completed"));
+        assert_eq!(head["mappingCount"], json!(1));
+        assert_eq!(head["verifiedCount"], json!(1));
+        assert!(it["jobs"].is_array());
+
+        let mut scoped = actor("hr_admin", &["people.read"]);
+        scoped.branch_id = Some(id("branch-1"));
+        scoped.scope_kind = "branch".into();
+        let hr = gpo_overview(&pool, &scoped).await;
+        assert_eq!(hr["canManage"], json!(false));
+        assert_eq!(hr["rules"].as_array().unwrap().len(), 1);
+        assert_eq!(hr["rules"][0]["id"], json!("rule-2"));
+        assert_eq!(hr["effectiveByPosition"].as_object().unwrap().len(), 1);
+        assert_eq!(hr["effectiveByPosition"]["position-2"][0]["id"], json!("rule-2"));
+        assert_eq!(hr["tasks"].as_array().unwrap().len(), 1);
+        assert_eq!(hr["tasks"][0]["positionId"], json!("position-2"));
+
+        let unprivileged = actor("employee", &["iam.self"]);
+        let mut tx = pool
+            .raw()
+            .begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE")
+            .await
+            .unwrap();
+        let denied = {
+            let mut repository = PgPositionGpo::new(&mut tx);
+            position_gpo_overview(&mut repository, &unprivileged, NOW)
+                .await
+                .err()
+                .map(business)
+        };
+        tx.rollback().await.unwrap();
+        assert_eq!(denied.unwrap().code, "GPO_READ_REQUIRED");
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn not_required_command_guards_task_version_and_replays_exactly() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        let task = sqlx::query(
+            "SELECT version,disposition FROM position_gpo_tasks WHERE company_id='company' AND position_id='position-1'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        let version: i32 = task.get("version");
+        assert_eq!(version, 1);
+
+        let input = not_required_input("position-1", 1);
+        let first = mark_not_required(&pool, "not-required-1", &it_actor(), &input)
+            .await
+            .unwrap();
+        assert_eq!(
+            first,
+            json!({"positionId": "position-1", "version": 2, "status": "not_required"})
+        );
+        assert_eq!(
+            mark_not_required(&pool, "not-required-1", &it_actor(), &input)
+                .await
+                .unwrap(),
+            first
+        );
+
+        let stored = sqlx::query(
+            "SELECT version,disposition,reason FROM position_gpo_tasks WHERE company_id='company' AND position_id='position-1'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(stored.get::<i32, _>("version"), 2);
+        assert_eq!(stored.get::<String, _>("disposition"), "not_required");
+        assert_eq!(stored.get::<String, _>("reason"), "No Windows policy needed");
+
+        let stale = mark_not_required(&pool, "not-required-stale", &it_actor(), &input)
+            .await
+            .err()
+            .map(business);
+        assert_eq!(stale.unwrap().code, "GPO_TASK_CHANGED");
+
+        sqlx::query(
+            "INSERT INTO organization_gpo_rules(id,company_id,target_kind,target_id,version,revision,\
+             connection_id,gpo_id,user_filter_group_id,computer_target_ou_id,active,directory_config_status,\
+             last_actor_id,last_reason,updated_at) \
+             VALUES('rule-reopen','company','position','position-1',1,1,'connection-1','gpo-1','group-1','ou-1',true,'pending','actor','Reopen task',0)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
+        let overview = gpo_overview(&pool, &it_actor()).await;
+        let reopened = overview["tasks"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .find(|task| task["positionId"] == json!("position-1"))
+            .unwrap()
+            .clone();
+        assert_eq!(reopened["status"], json!("pending"));
+        let blocked = mark_not_required(&pool, "not-required-blocked", &it_actor(), &not_required_input("position-1", 3))
+            .await
+            .err()
+            .map(business);
+        assert_eq!(blocked.unwrap().code, "GPO_TASK_CHANGED");
     })
     .await;
 }

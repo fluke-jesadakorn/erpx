@@ -16,15 +16,17 @@ pub use crate::adapters::position_gpo_http::{
 pub use crate::adapters::position_gpo_postgres::PgPositionGpo;
 pub use crate::application::position_gpo::{
     EffectiveRule, GpoFuture, PositionGpoDirectory, PositionGpoRepository, PublishPlan, UnmapPlan,
-    configure_gpos, drain_position_gpo_locked, position_gpo_overview, preview_position_gpo,
-    preview_unmap_position_gpo, publish_position_gpo, reconcile_position_gpo, retry_position_gpo,
-    retry_position_gpo_config, unmap_position_gpo,
+    configure_gpos, drain_position_gpo_locked, mark_position_gpo_not_required,
+    position_gpo_overview, preview_position_gpo, preview_unmap_position_gpo, publish_position_gpo,
+    reconcile_position_gpo, retry_position_gpo, retry_position_gpo_config, unmap_position_gpo,
 };
 pub use crate::domain::iam_roles::IamRoleActor;
 pub use crate::domain::position_gpo::{
     CONFIG_RETRY_OPERATION, ConfigRetryInput, ConnectionRow, DesiredRow, FreshMfa, GpoAction,
     GpoAuthority, HolderRow, Inventory, InventoryObject, JOB_RETRY_OPERATION, JobRetryInput,
-    JobRow, MappingRow, PUBLISH_OPERATION, PositionGpoInput, PublishInput, UNMAP_OPERATION,
-    UnmapInput, UnmapPublishInput, delivery_id, inventory_filters, inventory_links,
-    inventory_object, membership_key, preview_token, rule_source_id, sha256_hex, waiting_key,
+    JobRow, MappingRow, NOT_REQUIRED_OPERATION, PUBLISH_OPERATION, PositionGpoInput, PublishInput,
+    UNMAP_OPERATION, UnmapInput, UnmapPublishInput, can_manage_gpo_rules, delivery_id,
+    gpo_read_allowed, inventory_filters, inventory_links, inventory_object, membership_key,
+    present_gpo_task, preview_token, require_gpo_read, rule_source_id, sha256_hex, task_status,
+    waiting_key, NotRequiredInput,
 };

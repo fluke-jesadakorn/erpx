@@ -38,8 +38,9 @@ use erpx_server_identity_access::public::permission_catalog::permission_catalog;
 use erpx_server_identity_access::public::position_gpo::{
     FreshMfa, PgPositionGpo, PgPositionGpoDirectory, PositionGpoHttpBackend,
     PositionGpoHttpCommand, PositionGpoHttpFuture, PositionGpoHttpRequest, PositionGpoHttpResponse,
-    ReqwestConnector, position_gpo_overview, preview_position_gpo, preview_unmap_position_gpo,
-    publish_position_gpo, retry_position_gpo, retry_position_gpo_config, unmap_position_gpo,
+    ReqwestConnector, mark_position_gpo_not_required, position_gpo_overview, preview_position_gpo,
+    preview_unmap_position_gpo, publish_position_gpo, retry_position_gpo, retry_position_gpo_config,
+    unmap_position_gpo,
 };
 use erpx_server_identity_access::public::user_management::{
     UserManagementActor, UserManagementHttpBackend, UserManagementHttpCommand,
@@ -1150,6 +1151,7 @@ impl<C: Clock + Send + Sync + 'static> IdentityAccessService<C> {
                 | PositionGpoHttpCommand::Unmap { .. }
                 | PositionGpoHttpCommand::Retry { .. }
                 | PositionGpoHttpCommand::RetryConfig { .. }
+                | PositionGpoHttpCommand::NotRequired { .. }
         );
         let expected = company.clone();
         let input = move || {
@@ -1168,6 +1170,9 @@ impl<C: Clock + Send + Sync + 'static> IdentityAccessService<C> {
                 WorkAuthorizationRequest {
                     permission: WorkPermissionRequirement::AnyOf(vec![
                         "iam.read".into(),
+                        "people.read".into(),
+                        "people.manage".into(),
+                        "organization.manage".into(),
                         "iam.directory.apply".into(),
                     ]),
                     module: Some("iam".into()),
@@ -1211,6 +1216,9 @@ impl<C: Clock + Send + Sync + 'static> IdentityAccessService<C> {
                                 idempotency_key, ..
                             }
                             | PositionGpoHttpCommand::RetryConfig {
+                                idempotency_key, ..
+                            }
+                            | PositionGpoHttpCommand::NotRequired {
                                 idempotency_key, ..
                             } => Some(
                                 CommandKey::new(idempotency_key.clone())
@@ -1280,6 +1288,16 @@ impl<C: Clock + Send + Sync + 'static> IdentityAccessService<C> {
                                     &mut repository,
                                     &actor,
                                     FreshMfa(fresh),
+                                    key,
+                                    &input,
+                                    now,
+                                )
+                                .await
+                            }
+                            PositionGpoHttpCommand::NotRequired { input, .. } => {
+                                mark_position_gpo_not_required(
+                                    &mut repository,
+                                    &actor,
                                     key,
                                     &input,
                                     now,
