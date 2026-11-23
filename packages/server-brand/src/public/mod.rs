@@ -3,3 +3,4 @@
 pub mod branding;
 pub mod identity;
 pub mod branding_http;
+pub mod brand_attachment_read;
