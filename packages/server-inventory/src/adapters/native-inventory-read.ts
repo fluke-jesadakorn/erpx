@@ -16,8 +16,9 @@ import type { SqlDatabase, SqlResult } from '@erpx/server-runtime/public/runtime
 type Holding = Readonly<{ origin: string; holdingSlug: string; holdingId: string; companyId: string }>;
 type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: readonly Holding[] }>;
 
-/** Read-kind id shared with the Rust registry `RD_LEDGER_SUPPLEMENT_ROWS`. */
+/** Read-kind ids shared with the Rust read registry in `native_command_sql.rs`. */
 export const INVENTORY_RD_LEDGER_SUPPLEMENT_ROWS = 'inventory_rd_ledger_supplement_rows';
+export const INVENTORY_RD_LOT_BALANCE_SUPPLEMENT_ROWS = 'inventory_rd_lot_balance_supplement_rows';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'INVENTORY_NATIVE_READ_UNAVAILABLE', 'The native Inventory read service is unavailable.');

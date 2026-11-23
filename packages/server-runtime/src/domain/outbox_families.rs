@@ -10,6 +10,17 @@ use std::fmt;
 
 const MAX_EVENT_TYPE_BYTES: usize = 256;
 
+/// Exact, reviewed customer-notification outbox labels. The native projection
+/// handler already owns their queue/retry side effects (`project_event`), and
+/// the native `sales-notification-worker` owns delivery; only the supervisor
+/// claim predicate kept them with the TypeScript `runOne` loop. Both this
+/// partition and composition must use these literals so the two predicates
+/// cannot drift and no event is claimed by both supervisors.
+pub const CUSTOMER_NOTIFICATION_QUEUE: &str = "commerce.customer-notification.queue";
+pub const CUSTOMER_NOTIFICATION_RETRY: &str = "commerce.customer-notification.retry";
+const CUSTOMER_NOTIFICATION_LABELS: [&str; 2] =
+    [CUSTOMER_NOTIFICATION_QUEUE, CUSTOMER_NOTIFICATION_RETRY];
+
 /// A projection family with a native implementation ready for the supervisor.
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum NativeFamily {
@@ -19,17 +30,19 @@ pub enum NativeFamily {
     Overtime,
     Payroll,
     PmsSocial,
+    CustomerNotification,
 }
 
 impl NativeFamily {
     /// Every native-ready family, in stable predicate order.
-    pub const ALL: [NativeFamily; 6] = [
+    pub const ALL: [NativeFamily; 7] = [
         Self::Task,
         Self::Routine,
         Self::Leave,
         Self::Overtime,
         Self::Payroll,
         Self::PmsSocial,
+        Self::CustomerNotification,
     ];
 
     pub const fn as_str(self) -> &'static str {
@@ -40,6 +53,7 @@ impl NativeFamily {
             Self::Overtime => "overtime",
             Self::Payroll => "people.payroll",
             Self::PmsSocial => "pms.social",
+            Self::CustomerNotification => "commerce.customer-notification",
         }
     }
 }
@@ -76,7 +90,10 @@ fn valid_label(value: &str) -> bool {
 /// Classify a durable `event_type`. Prefix families match the reviewed claim
 /// predicate exactly, including the leave-policy and overtime-eligibility
 /// exclusions retained by the TypeScript projector. PMS social events are
-/// exact reviewed labels supplied by the workflow owner, not a prefix.
+/// exact reviewed labels supplied by the workflow owner, not a prefix. The
+/// customer-notification queue and retry labels are exact and static; the
+/// sibling reconcile label is deliberately not native-ready and stays with
+/// the TypeScript loop.
 pub fn classify(event_type: &str, pms_social: &[&str]) -> FamilyClass {
     if !valid_label(event_type) {
         return FamilyClass::RetainedTs;
@@ -99,6 +116,9 @@ pub fn classify(event_type: &str, pms_social: &[&str]) -> FamilyClass {
     if pms_social.iter().any(|known| *known == event_type) {
         return FamilyClass::Native(NativeFamily::PmsSocial);
     }
+    if CUSTOMER_NOTIFICATION_LABELS.contains(&event_type) {
+        return FamilyClass::Native(NativeFamily::CustomerNotification);
+    }
     FamilyClass::RetainedTs
 }
 
@@ -119,9 +139,10 @@ impl std::error::Error for FamilyPredicateError {}
 ///
 /// `pms_social` are the exact, reviewed event labels from the workflow owner.
 /// Each is validated as a safe SQL literal; an empty, oversized or punctuated
-/// label is rejected so request data can never widen the claim set. The result
-/// is byte-for-byte the family clause of the composition-owned predicate, with
-/// the quarantine exclusion applied by the caller.
+/// label is rejected so request data can never widen the claim set. This is the
+/// canonical family clause: composition must mount it verbatim as its `owned`
+/// predicate and apply the quarantine exclusion around it, so the native
+/// supervisor and the TypeScript `runOne` loop never claim the same family.
 pub fn owned_predicate(pms_social: &[&str]) -> Result<String, FamilyPredicateError> {
     for label in pms_social {
         if !valid_label(label) {
@@ -145,5 +166,9 @@ pub fn owned_predicate(pms_social: &[&str]) -> Result<String, FamilyPredicateErr
             .join(",");
         parts.push(format!("e.event_type IN ({labels})"));
     }
+    parts.push(format!(
+        "e.event_type IN ('{}','{}')",
+        CUSTOMER_NOTIFICATION_QUEUE, CUSTOMER_NOTIFICATION_RETRY
+    ));
     Ok(format!("({})", parts.join(" OR ")))
 }

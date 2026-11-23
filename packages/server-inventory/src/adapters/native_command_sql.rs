@@ -127,15 +127,26 @@ const READ_LEDGER_SUPPLEMENT: NativeStatement = NativeStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `readRecordSupplementDataRows` read.
+/// Same owner statement, planned here and executed on the caller's unit.
+pub const RD_LOT_BALANCE_SUPPLEMENT_ROWS: &str = "inventory_rd_lot_balance_supplement_rows";
+const SQL_RD_LOT_BALANCE_SUPPLEMENT_ROWS: &str = r#"SELECT b.*,w.name warehouse_name FROM inventory_lot_balances b JOIN (SELECT "id","company_id","branch_id","code","name","status","version" FROM commerce_warehouses) w ON w.id=b.warehouse_id WHERE b.lot_id=? AND w.company_id=? AND (?::text IS NULL OR w.branch_id=?) ORDER BY w.name LIMIT 31 OFFSET ?"#;
+const READ_LOT_BALANCE_SUPPLEMENT: NativeStatement = NativeStatement {
+    kind: RD_LOT_BALANCE_SUPPLEMENT_ROWS,
+    sql: SQL_RD_LOT_BALANCE_SUPPLEMENT_ROWS,
+    bind_count: 5,
+    scope: "holding",
+};
+
 pub fn is_read(kind: &str) -> bool {
-    kind == RD_LEDGER_SUPPLEMENT_ROWS
+    kind == RD_LEDGER_SUPPLEMENT_ROWS || kind == RD_LOT_BALANCE_SUPPLEMENT_ROWS
 }
 
 pub fn read_statement(kind: &str) -> Option<&'static NativeStatement> {
-    if kind == RD_LEDGER_SUPPLEMENT_ROWS {
-        Some(&READ_LEDGER_SUPPLEMENT)
-    } else {
-        None
+    match kind {
+        RD_LEDGER_SUPPLEMENT_ROWS => Some(&READ_LEDGER_SUPPLEMENT),
+        RD_LOT_BALANCE_SUPPLEMENT_ROWS => Some(&READ_LOT_BALANCE_SUPPLEMENT),
+        _ => None,
     }
 }
 
@@ -176,11 +187,27 @@ mod tests {
     #[test]
     fn read_plan_is_call_unit_and_ledger_free() {
         assert!(is_read(RD_LEDGER_SUPPLEMENT_ROWS));
+        assert!(is_read(RD_LOT_BALANCE_SUPPLEMENT_ROWS));
         assert!(!is_read("inventory_stmt_1"));
         let read = read_statement(RD_LEDGER_SUPPLEMENT_ROWS).expect("read kind");
         assert!(read.sql.trim_start().starts_with("SELECT"));
         assert_eq!(read.bind_count, 3);
         assert_eq!(read.sql.matches('?').count(), read.bind_count);
         assert!(read_statement("inventory_stmt_1").is_none());
+    }
+
+    /// Parity witness: the native plan for the lot-balance supplement is the
+    /// exact statement the retired TypeScript `readRecordSupplementDataRows`
+    /// bound (with the commerce warehouse projection inlined). The owner owns
+    /// this SQL, so the TS adapter emits none of it.
+    #[test]
+    fn lot_balance_read_plan_matches_retired_owner_statement() {
+        let read = read_statement(RD_LOT_BALANCE_SUPPLEMENT_ROWS).expect("read kind");
+        assert_eq!(read.bind_count, 5);
+        assert_eq!(read.sql.matches('?').count(), read.bind_count);
+        assert_eq!(
+            read.sql,
+            r#"SELECT b.*,w.name warehouse_name FROM inventory_lot_balances b JOIN (SELECT "id","company_id","branch_id","code","name","status","version" FROM commerce_warehouses) w ON w.id=b.warehouse_id WHERE b.lot_id=? AND w.company_id=? AND (?::text IS NULL OR w.branch_id=?) ORDER BY w.name LIMIT 31 OFFSET ?"#
+        );
     }
 }

@@ -34,7 +34,8 @@ pub use crate::domain::jobs::{
     retry_schedule, truncate_error_code,
 };
 pub use crate::domain::outbox_families::{
-    FamilyClass, FamilyPredicateError, NativeFamily, classify, owned_predicate,
+    CUSTOMER_NOTIFICATION_QUEUE, CUSTOMER_NOTIFICATION_RETRY, FamilyClass, FamilyPredicateError,
+    NativeFamily, classify, owned_predicate,
 };
 
 pub use crate::adapters::postgres::development_lease::LeasedDevelopmentDatabase;
