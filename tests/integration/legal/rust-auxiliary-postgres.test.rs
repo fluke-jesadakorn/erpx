@@ -520,6 +520,13 @@ async fn auxiliary_reads_keep_company_membership_and_requester_scope() {
         assert!(governance_list["authorities"].as_array().unwrap().is_empty());
         assert_eq!(governance_list["settings"]["enabled"], true);
 
+        sqlx::raw_sql(
+            "INSERT INTO legal_native_references(item_id,target_module,target_id,ordinal,created_by,created_at)
+             VALUES('matter-open','commerce_order','order-one',0,'user-one',1000)",
+        )
+        .execute(pool.raw())
+        .await
+        .unwrap();
         let references = read(
             &pool,
             manager(),
@@ -529,7 +536,13 @@ async fn auxiliary_reads_keep_company_membership_and_requester_scope() {
         )
         .await
         .unwrap();
-        assert!(references.as_array().unwrap().is_empty());
+        // The native `references` read is the authoritative projection for the
+        // TypeScript `legalReferences` adapter. Pin its exact field set so the
+        // view TS SELECT can be deleted byte-identically.
+        assert_eq!(references.as_array().unwrap().len(), 1);
+        assert_eq!(references[0].as_object().unwrap().len(), 2);
+        assert_eq!(references[0]["target_module"], "commerce_order");
+        assert_eq!(references[0]["target_id"], "order-one");
 
         assert!(read(&pool, manager(), LegalAuxiliaryRead::Trust)
             .await
