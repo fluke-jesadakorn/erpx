@@ -21,11 +21,12 @@ import { requestActorNameSql } from '@erpx/server-people_payroll/public/records-
 
 import{createEmployeeRequestRead,type createEmployeeRequestReadPorts}from '@erpx/server-records/application/employee-requests';
 
-export function nativeEmployeeRequestReadRepository(database:SqlDatabase):createEmployeeRequestReadPorts<SqlStatement>['repository']{return{readReadRequestForOverrideRow(id: string, companyId: string) { return database.prepare("SELECT * FROM employee_requests WHERE id=? AND company_id=?").bind(id, companyId).first<EmployeeRequest>(); },readReadEmployeeRequestRow(id: string, companyId: string) {
-            return database.prepare("SELECT * FROM employee_requests WHERE id=? AND company_id=?")
-                .bind(id, companyId)
-                .first<EmployeeRequest>();
-        },readRequestAttachmentsEffect(...args) { return EmployeeRequestsFilesOwnedFacts(database).readRequestAttachmentsEffect(...args); },readEmployeeRequestDetailEvents(id: string, companyId: string) {
+/** Records-owned canonical native employee-request read. The single-row
+ * selection is fixed SQL admitted once and shared by both caller-named ports;
+ * no duplicate TypeScript SQL is retained. */
+export function nativeEmployeeRequestReadRepository(database:SqlDatabase):createEmployeeRequestReadPorts<SqlStatement>['repository']{
+    const readRow = (id: string, companyId: string) => database.prepare("SELECT * FROM employee_requests WHERE id=? AND company_id=?").bind(id, companyId).first<EmployeeRequest>();
+    return{readReadRequestForOverrideRow: readRow,readReadEmployeeRequestRow: readRow,readRequestAttachmentsEffect(...args) { return EmployeeRequestsFilesOwnedFacts(database).readRequestAttachmentsEffect(...args); },readEmployeeRequestDetailEvents(id: string, companyId: string) {
             return database.prepare(`SELECT e.id,e.action,e.actor_id,${requestActorNameSql} actor_name,e.note,e.evidence_json,e.request_version,e.created_at FROM employee_request_events e WHERE request_id=? AND company_id=? ORDER BY created_at,id LIMIT 250`)
                 .bind(id, companyId)
                 .all<{
