@@ -1,6 +1,6 @@
 import {BusinessRuleError,type Clock} from '@erpx/server-shared/index';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-import type {GpoRuleRow} from '@erpx/server-identity_access/public/gpo-rules';
+import type {GpoRuleRow} from '@erpx/server-identity_access/public/gpo-contract';
 import type {OrganizationPerson,OrganizationPosition} from "@erpx/server-organization/public/rules/organization-domain";
 import {positionMoveDate,type PositionMoveInput,type PositionMovePreview,type PositionMoveRecord,type PositionMovePolicyImpact} from "@erpx/feature-people_payroll/lib/position-moves";
 import {decode,scoped,positionGpoMatches,positionMoveGraphIssues,positionMoveLeaveImpact,type Leave,type LeaveDefault} from '@erpx/server-organization/domain/position-moves';

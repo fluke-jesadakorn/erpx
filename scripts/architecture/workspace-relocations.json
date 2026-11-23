@@ -20022,13 +20022,6 @@
       "sha256": "015547f68c41236a81c1d565ec1b079c45f015501cdccdc7293b1d49b59b7e52"
     },
     {
-      "from": "src/server/modules/identity_access/adapters/gpo-rules.ts",
-      "to": "packages/server-identity_access/src/adapters/gpo-rules.ts",
-      "package": "@erpx/server-identity_access",
-      "key": "adapters/gpo-rules",
-      "sha256": "ee13ac90bca0b297624d836a19bf3f54664d77dc1babad75b4eff41240576e20"
-    },
-    {
       "from": "src/server/modules/identity_access/adapters/legal-processing-authority.ts",
       "to": "packages/server-identity_access/src/adapters/legal-processing-authority.ts",
       "package": "@erpx/server-identity_access",
@@ -21317,13 +21310,6 @@
       "sha256": "eba106bfba43276387f1f2795962b1d206fc17e6e0cc59a940d54083e648228f"
     },
     {
-      "from": "src/server/modules/identity_access/public/gpo-rules.ts",
-      "to": "packages/server-identity_access/src/public/gpo-rules.ts",
-      "package": "@erpx/server-identity_access",
-      "key": "public/gpo-rules",
-      "sha256": "ba78225d9cc81a6cc9b1f92c574c71215404b2d2f9dae4762dc3ac2f5603bd0d"
-    },
-    {
       "from": "src/server/modules/identity_access/public/legal-processing-authority.ts",
       "to": "packages/server-identity_access/src/public/legal-processing-authority.ts",
       "package": "@erpx/server-identity_access",
@@ -21791,13 +21777,6 @@
       "package": "@erpx/server-identity_access",
       "key": "application/directory-field-mapping",
       "sha256": "6c56fc4a9da0ad3de91f2131f0dd0503992e41e3a04b0fcea3ced273acbda412"
-    },
-    {
-      "from": "src/server/modules/identity_access/application/gpo-rules.ts",
-      "to": "packages/server-identity_access/src/application/gpo-rules.ts",
-      "package": "@erpx/server-identity_access",
-      "key": "application/gpo-rules",
-      "sha256": "bba7240505323a4dd55ca80b235765c66046241e28d17de8e93aa131031a100b"
     },
     {
       "from": "src/server/modules/identity_access/application/recovery.ts",

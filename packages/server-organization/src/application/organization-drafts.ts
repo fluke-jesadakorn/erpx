@@ -1,7 +1,7 @@
 import {z} from 'zod';
 import {BusinessRuleError,type Clock} from '@erpx/server-shared/index';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-import type {GpoRuleRow} from '@erpx/server-identity_access/public/gpo-rules';
+import type {GpoRuleRow} from '@erpx/server-identity_access/public/gpo-contract';
 import {draftDefinitionSchema,draftKey,emptyDraft,projectOrganization,changedPeople,organizationDraftDiff,draftGraphBlockers,personPlacement,type DraftDefinition,type OrganizationDraft,type DraftRequest} from "@erpx/feature-organization/lib/organization-draft-domain";
 import type {OrganizationAccessData} from "@erpx/feature-organization/lib/organization-access";
 import {positionMoveDate} from "@erpx/feature-people_payroll/lib/position-moves";

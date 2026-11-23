@@ -14,8 +14,17 @@ import {
 } from "@erpx/server-identity_access/public/technology";
 import { provisioningInput } from "@erpx/server-identity_access/public/rules/technology";
 import { directoryOperationsApi } from "@erpx/server-identity_access/public/directory-operations-api";
-import { nativePositionGpoCommand, nativePositionGpoOverview } from "@erpx/server-identity_access/public/native-position-gpo";
-import { gpoRulesOverview, previewGpoRule, publishGpoRule, previewRemoveGpoRule, removeGpoRule, retryGpoRuleConfig, markPositionGpoNotRequired } from "@erpx/server-identity_access/public/gpo-rules";
+import {
+  nativePositionGpoCommand,
+  nativePositionGpoOverview,
+  nativeGpoRulesOverview,
+  nativePreviewGpoRule,
+  nativePublishGpoRule,
+  nativePreviewRemoveGpoRule,
+  nativeRemoveGpoRule,
+  nativeRetryGpoRuleConfig,
+  nativeMarkPositionGpoNotRequired,
+} from "@erpx/server-identity_access/public/native-position-gpo";
 import { organizationAccessData } from "@erpx/server-organization/public/organization-access";
 import { readAdminOrganization } from "@erpx/workplace/lib/native-admin-organization";
 import {bindProvisioningEvidence} from "@erpx/server-platform_administration/public/system-evidence";
@@ -31,7 +40,7 @@ export async function GET(request: Request, context: Context) {
     return Response.json(
       canonicalDestinationLinks({
         data: path[0] === "organization" ? await organization()
-          : path[0] === "gpo-rules" ? await gpoRulesOverview(write as PostgresDatabase, actor)
+          : path[0] === "gpo-rules" ? await nativeGpoRulesOverview(request, holdingSlug)
           : path[0]==="position-gpo" ? await nativePositionGpoOverview(request, holdingSlug) : await technologyData(
           write as PostgresDatabase,
           iamActorFromWork(actor),
@@ -79,12 +88,12 @@ export async function POST(request: Request, context: Context) {
         ),
       }));
     if (path[0] === "gpo-rules") {
-      if (path[1] === "not-required") return Response.json(canonicalDestinationLinks({ data: await markPositionGpoNotRequired(db, contextActor, raw, key) }));
-      if (path[1] === "preview") return Response.json(canonicalDestinationLinks({ data: await previewGpoRule(db, contextActor, raw) }));
-      if (path[1] === "publish") return Response.json(canonicalDestinationLinks({ data: await publishGpoRule(db, contextActor, raw, key) }));
-      if (path[1] === "remove-preview") return Response.json(canonicalDestinationLinks({ data: await previewRemoveGpoRule(db, contextActor, raw) }));
-      if (path[1] === "remove") return Response.json(canonicalDestinationLinks({ data: await removeGpoRule(db, contextActor, raw, key) }));
-      if (path[1] === "retry-config") return Response.json(canonicalDestinationLinks({ data: await retryGpoRuleConfig(db, contextActor, raw, key) }));
+      if (path[1] === "not-required") return Response.json(canonicalDestinationLinks({ data: await nativeMarkPositionGpoNotRequired(request, holdingSlug, raw, key) }));
+      if (path[1] === "preview") return Response.json(canonicalDestinationLinks({ data: await nativePreviewGpoRule(request, holdingSlug, raw) }));
+      if (path[1] === "publish") return Response.json(canonicalDestinationLinks({ data: await nativePublishGpoRule(request, holdingSlug, raw, key) }));
+      if (path[1] === "remove-preview") return Response.json(canonicalDestinationLinks({ data: await nativePreviewRemoveGpoRule(request, holdingSlug, raw) }));
+      if (path[1] === "remove") return Response.json(canonicalDestinationLinks({ data: await nativeRemoveGpoRule(request, holdingSlug, raw, key) }));
+      if (path[1] === "retry-config") return Response.json(canonicalDestinationLinks({ data: await nativeRetryGpoRuleConfig(request, holdingSlug, raw, key) }));
       throw new ApiError(404, "NOT_FOUND", "GPO rule operation not found.");
     }
     if(path[0]==="position-gpo" && path[1]==="preview")return Response.json(canonicalDestinationLinks({data:await nativePositionGpoCommand(request, holdingSlug, "preview", raw, key)}));

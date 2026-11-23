@@ -7,8 +7,8 @@ import { iamContext } from "@erpx/server-identity_access/public/iam-context";
 import { organizationAccessData } from "@erpx/server-organization/public/organization-access";
 import { peopleLifecycleData } from "@erpx/server-people_payroll/public/people-lifecycle";
 import { nativeDirectoryOperationsAvailable, nativeDirectoryOperationsRead } from "@erpx/server-identity_access/adapters/native-directory-operations";
+import { nativePositionGpoOverviewForHolding } from "@erpx/server-identity_access/public/native-position-gpo";
 import { technologyData } from "@erpx/server-identity_access/public/technology";
-import { gpoRulesOverview } from "@erpx/server-identity_access/public/gpo-rules";
 import { peopleAccessData } from "@erpx/server-people_payroll/public/people-access";
 import { readManagement } from "@erpx/server-identity_access/public/user-management";
 
@@ -96,7 +96,11 @@ export async function iamPresentationQueries(holdingSlug: string | null) {
       return nativeDirectoryOperationsRead(await headers(), holdingSlug);
     },
     technologyData: (...args: ReadArguments<typeof technologyData>) => technologyData(db, ...args),
-    gpoRulesOverview: (...args: ReadArguments<typeof gpoRulesOverview>) => gpoRulesOverview(db, ...args),
+    gpoRulesOverview: async (_actor: IamActor) => {
+      if (!actor.holdingId)
+        throw new ApiError(503, "NATIVE_POSITION_GPO_REQUIRED", "GPO overview requires a Holding context.");
+      return nativePositionGpoOverviewForHolding(await headers(), actor.holdingId);
+    },
     peopleAccessData: (...args: ReadArguments<typeof peopleAccessData>) => peopleAccessData(db, ...args),
     readManagement: async (_actor: IamActor) => {
       return readManagement(db, _actor);
