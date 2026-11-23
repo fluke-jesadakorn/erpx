@@ -10,7 +10,7 @@ use crate::domain::refund::PmsRefundContextSelection;
 use crate::domain::room_board::{PmsBoardSection, PmsBoardSelection, cp_len};
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
-    StatusCode, body::to_bytes, header, routing::get, serde_json,
+    StatusCode, body::to_bytes, header, routing::{get, post}, serde_json,
 };
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use std::{collections::BTreeMap, future::Future, pin::Pin, sync::Arc};
@@ -38,6 +38,20 @@ pub struct PmsHttpRefundContextRequest<'a> {
     pub holding_slug: &'a str,
     pub headers: &'a HeaderMap,
     pub selection: PmsRefundContextSelection,
+}
+
+/// One native booking-refund command. Transport facts only: the registered
+/// Holding target, the validated action name and the bounded JSON command.
+/// Composition resolves the Account session, Company scope, actor, purchase
+/// guard, verified provider transport, mail queue and Finance journal/document
+/// effect port; this owner mints none of them. The action allow-list here is a
+/// transport guard, not an authority decision.
+pub struct PmsHttpRefundRequest<'a> {
+    pub host: &'a str,
+    pub holding_slug: &'a str,
+    pub headers: &'a HeaderMap,
+    pub action: &'a str,
+    pub command: serde_json::Value,
 }
 
 #[derive(Clone, Debug)]
@@ -83,6 +97,22 @@ pub trait PmsHttpBackend: Send + Sync {
                 FailureKind::Unavailable,
                 "PMS_REFUND_CONTEXT_UNAVAILABLE",
                 "The native refund request context is unavailable.",
+            ))
+        })
+    }
+    /// Booking-refund commands (request/approve/settle/retry/recover/finance)
+    /// run the native refund orchestration. Composition posts the returned
+    /// declarative Finance postings and refund documents after the owner unit
+    /// commits. The default fails closed until a backend opts in explicitly.
+    fn refund<'a>(
+        &'a self,
+        _request: PmsHttpRefundRequest<'a>,
+    ) -> PmsHttpFuture<'a, PmsHttpResponse> {
+        Box::pin(async {
+            Err(BusinessError::new(
+                FailureKind::Unavailable,
+                "PMS_REFUND_UNAVAILABLE",
+                "The native booking refund is unavailable.",
             ))
         })
     }
@@ -320,6 +350,41 @@ fn refund_context_selection(request: &Request) -> Result<PmsRefundContextSelecti
     Ok(parsed)
 }
 
+const BODY_LIMIT: usize = 256 * 1024;
+/// Actions accepted by the native refund command ingress. This is a transport
+/// allow-list; the actor's permission and Company scope are composition-owned.
+const REFUND_ACTIONS: &[&str] = &[
+    "request",
+    "approve",
+    "settle",
+    "retry",
+    "recover-receipt",
+    "finance",
+];
+
+fn refund_command_malformed() -> BusinessError {
+    BusinessError::invalid(
+        "PMS_REFUND_COMMAND_INVALID",
+        "Use one bounded booking refund command.",
+    )
+}
+
+fn refund_command_body(bytes: &[u8]) -> Result<(String, serde_json::Value), BusinessError> {
+    if bytes.is_empty() || bytes.len() > BODY_LIMIT {
+        return Err(refund_command_malformed());
+    }
+    let value: serde_json::Value =
+        serde_json::from_slice(bytes).map_err(|_| refund_command_malformed())?;
+    let action = value
+        .get("action")
+        .and_then(serde_json::Value::as_str)
+        .ok_or_else(refund_command_malformed)?;
+    if !REFUND_ACTIONS.contains(&action) {
+        return Err(refund_command_malformed());
+    }
+    Ok((action.to_owned(), value))
+}
+
 fn front_desk_selection(request: &Request) -> Result<PmsFrontDeskSelection, BusinessError> {
     let Some(query) = request.uri().query() else {
         return Ok(PmsFrontDeskSelection::default());
@@ -388,6 +453,10 @@ pub fn pms_http_router(targets: Vec<PmsHttpTarget>) -> Result<Router, BusinessEr
         .route(
             "/api/v1/holdings/{holding_slug}/pms/booking-refunds/context",
             get(read_refund_context),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/pms/booking-refunds",
+            post(refund_command),
         )
         .with_state(Arc::new(PmsHttpState {
             targets: configured,
@@ -471,6 +540,36 @@ async fn read_refund_context(
                 holding_slug: &target.holding_slug,
                 headers: &headers,
                 selection,
+            })
+            .await
+    }
+    .await;
+    match result {
+        Ok(reply) => bounded(reply.value()),
+        Err(error) => error_response(error),
+    }
+}
+
+async fn refund_command(
+    State(state): State<Arc<PmsHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async move {
+        let target = target(&state, request.headers(), &slug)?;
+        let headers = request.headers().clone();
+        let bytes = to_bytes(request.into_body(), BODY_LIMIT)
+            .await
+            .map_err(|_| refund_command_malformed())?;
+        let (action, command) = refund_command_body(&bytes)?;
+        target
+            .backend
+            .refund(PmsHttpRefundRequest {
+                host: &target.host,
+                holding_slug: &target.holding_slug,
+                headers: &headers,
+                action: &action,
+                command,
             })
             .await
     }

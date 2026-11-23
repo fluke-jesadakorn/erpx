@@ -61,6 +61,7 @@
     "./adapters/package-obligations": "./src/adapters/package-obligations.ts",
     "./adapters/executive-main-evidence-sources": "./src/adapters/executive-main-evidence-sources.ts",
     "./adapters/pms-booking-refunds": "./src/adapters/pms-booking-refunds.ts",
+    "./adapters/native-refund-command": "./src/adapters/native-refund-command.ts",
     "./adapters/native-refund-context": "./src/adapters/native-refund-context.ts",
     "./adapters/finance-snapshot-sources": "./src/adapters/finance-snapshot-sources.ts",
     "./public/attachment-read-sources": "./src/public/attachment-read-sources.ts",
