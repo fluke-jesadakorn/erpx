@@ -1,4 +1,5 @@
 import 'server-only';
+import { Agent, request as httpRequest } from 'node:http';
 import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 
@@ -109,6 +110,47 @@ const isRecord = (value: unknown): value is Record<string, unknown> =>
   value !== null && typeof value === 'object' && !Array.isArray(value);
 
 /** Send one typed owner write to the native owner and return its acknowledgement. */
+/** Post with an explicit Host header; fetch forbids overriding Host. */
+function post(
+  url: URL,
+  headers: Record<string, string>,
+  body: string,
+  timeoutMs: number,
+): Promise<{ status: number; value: unknown }> {
+  return new Promise((resolve, reject) => {
+    const agent = new Agent({
+      keepAlive: false,
+      maxSockets: 1,
+      maxTotalSockets: 1,
+      proxyEnv: {} as import('node:http').ProxyEnv,
+    });
+    const outgoing = httpRequest(
+      url,
+      {
+        method: 'POST',
+        agent,
+        headers: { ...headers, 'content-length': String(Buffer.byteLength(body)) },
+        signal: AbortSignal.timeout(timeoutMs),
+        maxHeaderSize: 8192,
+      },
+      incoming => {
+        const chunks: Buffer[] = [];
+        incoming.on('data', chunk => chunks.push(Buffer.from(chunk)));
+        incoming.on('end', () => {
+          agent.destroy();
+          const text = Buffer.concat(chunks).toString('utf8');
+          let value: unknown = null;
+          try { value = text ? JSON.parse(text) : null; } catch { value = null; }
+          resolve({ status: incoming.statusCode ?? 502, value });
+        });
+        incoming.on('error', error => { agent.destroy(); reject(error); });
+      },
+    );
+    outgoing.on('error', error => { agent.destroy(); reject(error); });
+    outgoing.end(body);
+  });
+}
+
 export async function nativeManufacturingOwnerWrite(
   kind: ManufacturingOwnerWriteKind,
   values: readonly unknown[],
@@ -118,25 +160,20 @@ export async function nativeManufacturingOwnerWrite(
   companyId: string,
 ): Promise<{ id: string; kind: string }> {
   const cfg = config();
-  const headers = new Headers({
-    host: cfg.host,
-    origin: cfg.origin,
-    accept: 'application/json',
-    'content-type': 'application/json',
-    'idempotency-key': idempotencyKey,
-    'x-erpx-context-user': actorId,
-  });
-  let response: Response;
+  let response: { status: number; value: unknown };
   try {
-    response = await fetch(
-      `${cfg.base}/api/v1/holdings/${encodeURIComponent(cfg.holdingSlug)}/manufacturing/owner-write`,
+    response = await post(
+      new URL(`/api/v1/holdings/${encodeURIComponent(cfg.holdingSlug)}/manufacturing/owner-write`, cfg.base),
       {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({ kind, values, recordId, companyId }),
-        cache: 'no-store',
-        signal: AbortSignal.timeout(cfg.timeoutMs),
+        host: cfg.host,
+        origin: cfg.origin,
+        accept: 'application/json',
+        'content-type': 'application/json',
+        'idempotency-key': idempotencyKey,
+        'x-erpx-context-user': actorId,
       },
+      JSON.stringify({ kind, values, recordId, companyId }),
+      cfg.timeoutMs,
     );
   } catch {
     throw new NativeManufacturingOwnerWriteError(
@@ -145,8 +182,8 @@ export async function nativeManufacturingOwnerWrite(
       'The native Manufacturing service is unavailable.',
     );
   }
-  const value: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
+  const value: unknown = response.value;
+  if (response.status !== 200) {
     const error = isRecord(value) && isRecord(value.error) ? value.error : {};
     throw new NativeManufacturingOwnerWriteError(
       typeof error.code === 'string' ? error.code : 'MANUFACTURING_OWNER_WRITE_FAILED',
@@ -202,7 +239,7 @@ export function isOwnerWrite(value: unknown): value is NativeOwnerWriteMarker {
  */
 export async function flushOwnerWrites(
   effects: readonly unknown[],
-  actor: WorkContext,
+  actor: Pick<WorkContext, 'userId' | 'companyId'>,
   commandKey: string,
 ): Promise<SqlStatement[]> {
   const markers = effects.filter(isOwnerWrite);

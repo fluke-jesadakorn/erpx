@@ -222,7 +222,7 @@ async fn write(
     }
     .await;
     match result {
-        Ok(reply) => bounded(reply.value()),
+        Ok(reply) => bounded(serde_json::json!({"data": reply.value()})),
         Err(error) => error_response(error),
     }
 }

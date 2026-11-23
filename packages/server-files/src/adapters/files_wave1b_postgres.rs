@@ -71,7 +71,7 @@ impl PostgresFilesCommandPort {
         let id = format!("files-{}", key);
         sqlx::query(
             "INSERT INTO command_receipts(command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) \
-             VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(command_id) DO NOTHING",
+             VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8::jsonb) ON CONFLICT(command_id) DO NOTHING",
         )
         .bind(&id)
         .bind(operation)
@@ -103,7 +103,7 @@ impl PostgresFilesCommandPort {
         .await?;
         sqlx::query(
             "INSERT INTO outbox_events(id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,payload_json,created_at) \
-             VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(id) DO NOTHING",
+             VALUES($1,$2,$3,$4,$5,$6,$7::jsonb,$8) ON CONFLICT(id) DO NOTHING",
         )
         .bind(format!("files-outbox-{}", key))
         .bind(&id)

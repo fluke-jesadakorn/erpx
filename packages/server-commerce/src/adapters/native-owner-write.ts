@@ -1,4 +1,5 @@
 import 'server-only';
+import { Agent, request as httpRequest } from 'node:http';
 import type { SqlResult, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 
 /** Thin fail-closed transport to the single native Commerce owner axum router.
@@ -30,24 +31,67 @@ export type CommerceOwnerWriteKind =
   | 'mfg-existing-posting-confirmation' | 'goods-carrying' | 'order.posted-revision'
   | 'product.create' | 'product.update';
 
+/** Post with an explicit Host header; fetch forbids overriding Host. */
+function post(
+  url: URL,
+  headers: Record<string, string>,
+  body: string,
+  timeoutMs: number,
+): Promise<{ status: number; value: unknown }> {
+  return new Promise((resolve, reject) => {
+    const agent = new Agent({
+      keepAlive: false,
+      maxSockets: 1,
+      maxTotalSockets: 1,
+      proxyEnv: {} as import('node:http').ProxyEnv,
+    });
+    const outgoing = httpRequest(
+      url,
+      {
+        method: 'POST',
+        agent,
+        headers: { ...headers, 'content-length': String(Buffer.byteLength(body)) },
+        signal: AbortSignal.timeout(timeoutMs),
+        maxHeaderSize: 8192,
+      },
+      incoming => {
+        const chunks: Buffer[] = [];
+        incoming.on('data', chunk => chunks.push(Buffer.from(chunk)));
+        incoming.on('end', () => {
+          agent.destroy();
+          const text = Buffer.concat(chunks).toString('utf8');
+          let value: unknown = null;
+          try { value = text ? JSON.parse(text) : null; } catch { value = null; }
+          resolve({ status: incoming.statusCode ?? 502, value });
+        });
+        incoming.on('error', error => { agent.destroy(); reject(error); });
+      },
+    );
+    outgoing.on('error', error => { agent.destroy(); reject(error); });
+    outgoing.end(body);
+  });
+}
+
 export async function nativeCommerceOwnerWrite(
   kind: CommerceOwnerWriteKind, values: readonly unknown[], recordId: string,
   actorId: string, idempotencyKey: string, companyId?: string,
 ): Promise<{ id: string; kind: string }> {
   const cfg = config();
-  const headers = new Headers({
-    host: cfg.host, origin: cfg.origin, accept: 'application/json', 'content-type': 'application/json',
-    'idempotency-key': idempotencyKey, 'x-erpx-context-user': actorId,
-  });
-  let response: Response;
+  const body = JSON.stringify({ kind, values, recordId, companyId: companyId ?? recordId });
+  let response: { status: number; value: unknown };
   try {
-    response = await fetch(
-      `${cfg.base}/api/v1/holdings/${encodeURIComponent(cfg.holdingSlug)}/commerce/owner-write`,
-      { method: 'POST', headers, body: JSON.stringify({ kind, values, recordId, companyId: companyId ?? recordId }), cache: 'no-store', signal: AbortSignal.timeout(cfg.timeoutMs) },
+    response = await post(
+      new URL(`/api/v1/holdings/${encodeURIComponent(cfg.holdingSlug)}/commerce/owner-write`, cfg.base),
+      {
+        host: cfg.host, origin: cfg.origin, accept: 'application/json', 'content-type': 'application/json',
+        'idempotency-key': idempotencyKey, 'x-erpx-context-user': actorId,
+      },
+      body,
+      cfg.timeoutMs,
     );
   } catch { throw new NativeCommerceOwnerWriteError('COMMERCE_OWNER_WRITE_UNAVAILABLE', 503, 'The native Commerce service is unavailable.'); }
-  const value: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
+  const value: unknown = response.value;
+  if (response.status !== 200) {
     const error = isRecord(value) && isRecord(value.error) ? value.error : {};
     throw new NativeCommerceOwnerWriteError(typeof error.code === 'string' ? error.code : 'COMMERCE_OWNER_WRITE_FAILED', response.status, typeof error.message === 'string' ? error.message : 'The Commerce write could not be completed.');
   }

@@ -4852,6 +4852,14 @@ impl StatementBackend for SystemNotificationBackend {
                         "Use one notification statement request.",
                     )
                 })?;
+            if let Some(planned) =
+                erpx_server_collaboration::public::notification_statement::plan_values_statement(
+                    request.input.kind.as_deref().unwrap_or_default(),
+                    &request.input,
+                )
+            {
+                return planned;
+            }
             erpx_server_collaboration::public::notification_statement::plan_notification_statement(
                 &company,
                 &request.input,

@@ -193,49 +193,74 @@ impl WorkflowWave3ExecuteBackend for WorkflowWave3ExecuteBackendImpl {
                     "The native Workflow store is unavailable.",
                 )
             })?;
-            let mut index = 0usize;
-            let mut rewritten = String::with_capacity(statement.sql.len());
-            for ch in statement.sql.chars() {
-                if ch == '?' {
-                    index += 1;
-                    rewritten.push('$');
-                    rewritten.push_str(&index.to_string());
-                } else {
-                    rewritten.push(ch);
-                }
-            }
+            // Render the planner's positional values as escaped SQL literals.
+            // PostgreSQL then infers each target type from the statement, so a
+            // nullable value can compare against either text or bigint columns,
+            // matching the retired D1-style binder.
+            let statement_sql = interpolate(&statement.sql, &statement.values)?;
             // The owner planner produced this statement from a bounded typed
-            // kind and positional values; audit the rewrite before executing.
-            let mut query = sqlx::query(sqlx::AssertSqlSafe(rewritten));
-            for value in &statement.values {
-                query = match value {
-                    serde_json::Value::String(v) => query.bind(v.as_str()),
-                    serde_json::Value::Number(v) if v.is_i64() => {
-                        query.bind(v.as_i64().unwrap_or(0))
-                    }
-                    serde_json::Value::Number(v) => query.bind(v.as_f64().unwrap_or(0.0)),
-                    serde_json::Value::Bool(v) => query.bind(*v),
-                    // Assertion conditions compare nullable versions/times as
-                    // bigint; an explicitly text-typed NULL would fail with
-                    // `bigint = text`. Untyped alternatives are not available
-                    // through sqlx arguments, so bind the observed nullable
-                    // numeric family.
-                    serde_json::Value::Null => query.bind(Option::<i64>::None),
-                    serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
-                        query.bind(value.to_string())
-                    }
-                };
-            }
-            query.execute(&mut *connection).await.map_err(|_| {
-                BusinessError::new(
-                    FailureKind::Unavailable,
-                    "WORKFLOW_WAVE3_FAILED",
-                    "The native Workflow write failed.",
-                )
-            })?;
+            // kind and positional values; audit the finished text before executing.
+            sqlx::query(sqlx::AssertSqlSafe(statement_sql))
+                .execute(&mut *connection)
+                .await
+                .map_err(|_| {
+                    BusinessError::new(
+                        FailureKind::Unavailable,
+                        "WORKFLOW_WAVE3_FAILED",
+                        "The native Workflow write failed.",
+                    )
+                })?;
             Ok(serde_json::json!({"ok": true}))
         })
     }
+}
+
+fn quote(value: &str) -> Result<String, BusinessError> {
+    if value.contains('\0') {
+        return Err(BusinessError::new(
+            FailureKind::InvalidInput,
+            "WORKFLOW_WAVE3_WRITE_INVALID",
+            "Review the Workflow owner write request.",
+        ));
+    }
+    Ok(format!("'{}'", value.replace('\'', "''")))
+}
+
+fn literal(value: &serde_json::Value) -> Result<String, BusinessError> {
+    Ok(match value {
+        serde_json::Value::Null => "NULL".to_owned(),
+        serde_json::Value::Bool(flag) => if *flag { "TRUE" } else { "FALSE" }.to_owned(),
+        serde_json::Value::Number(number) => number.to_string(),
+        serde_json::Value::String(text) => quote(text)?,
+        serde_json::Value::Array(_) | serde_json::Value::Object(_) => quote(&value.to_string())?,
+    })
+}
+
+fn interpolate(sql: &str, values: &[serde_json::Value]) -> Result<String, BusinessError> {
+    let mut rendered = String::with_capacity(sql.len() + values.len() * 8);
+    let mut values = values.iter();
+    for ch in sql.chars() {
+        if ch == '?' {
+            let value = values.next().ok_or_else(|| {
+                BusinessError::new(
+                    FailureKind::InvalidInput,
+                    "WORKFLOW_WAVE3_WRITE_INVALID",
+                    "Review the Workflow owner write request.",
+                )
+            })?;
+            rendered.push_str(&literal(value)?);
+        } else {
+            rendered.push(ch);
+        }
+    }
+    if values.next().is_some() {
+        return Err(BusinessError::new(
+            FailureKind::InvalidInput,
+            "WORKFLOW_WAVE3_WRITE_INVALID",
+            "Review the Workflow owner write request.",
+        ));
+    }
+    Ok(rendered)
 }
 
 /// Build the executing holding-keyed router from the configured pool.

@@ -1,4 +1,5 @@
 import 'server-only';
+import { Agent, request as httpRequest } from 'node:http';
 import { createHash } from 'node:crypto';
 
 /**
@@ -118,6 +119,47 @@ export type NativeGrantSaveReceipt = Readonly<{
 }>;
 
 /** Commit one Company package grant through the native axum command route. */
+/** Post with an explicit Host header; fetch forbids overriding Host. */
+function post(
+  url: URL,
+  headers: Record<string, string>,
+  body: string,
+  timeoutMs: number,
+): Promise<{ status: number; value: unknown }> {
+  return new Promise((resolve, reject) => {
+    const agent = new Agent({
+      keepAlive: false,
+      maxSockets: 1,
+      maxTotalSockets: 1,
+      proxyEnv: {} as import('node:http').ProxyEnv,
+    });
+    const outgoing = httpRequest(
+      url,
+      {
+        method: 'POST',
+        agent,
+        headers: { ...headers, 'content-length': String(Buffer.byteLength(body)) },
+        signal: AbortSignal.timeout(timeoutMs),
+        maxHeaderSize: 8192,
+      },
+      incoming => {
+        const chunks: Buffer[] = [];
+        incoming.on('data', chunk => chunks.push(Buffer.from(chunk)));
+        incoming.on('end', () => {
+          agent.destroy();
+          const text = Buffer.concat(chunks).toString('utf8');
+          let value: unknown = null;
+          try { value = text ? JSON.parse(text) : null; } catch { value = null; }
+          resolve({ status: incoming.statusCode ?? 502, value });
+        });
+        incoming.on('error', error => { agent.destroy(); reject(error); });
+      },
+    );
+    outgoing.on('error', error => { agent.destroy(); reject(error); });
+    outgoing.end(body);
+  });
+}
+
 export async function nativeGrantSave(
   fields: NativeGrantSaveFields,
 ): Promise<NativeGrantSaveReceipt> {
@@ -130,33 +172,30 @@ export async function nativeGrantSave(
     'idempotency-key': fields.idempotencyKey,
     'x-erpx-context-user': fields.actorId,
   });
-  let response: Response;
+  const body = JSON.stringify({
+    companyId: fields.companyId,
+    packageId: fields.packageId,
+    packageVersion: fields.packageVersion,
+    state: fields.state,
+    startsAt: fields.startsAt,
+    endsAt: fields.endsAt,
+    version: fields.version,
+    reason: fields.reason,
+    evidence: fields.evidence,
+    updatedAt: fields.updatedAt,
+    actorId: fields.actorId,
+    idempotencyKey: fields.idempotencyKey,
+    requestHash: fields.requestHash,
+    beforeJson: fields.beforeJson,
+    afterJson: fields.afterJson,
+  });
+  let response: { status: number; value: unknown };
   try {
-    response = await fetch(
-      `${cfg.base}/api/v1/holdings/${encodeURIComponent(cfg.holdingSlug)}/commercial/grant-save`,
-      {
-        method: 'POST',
-        headers,
-        body: JSON.stringify({
-          companyId: fields.companyId,
-          packageId: fields.packageId,
-          packageVersion: fields.packageVersion,
-          state: fields.state,
-          startsAt: fields.startsAt,
-          endsAt: fields.endsAt,
-          version: fields.version,
-          reason: fields.reason,
-          evidence: fields.evidence,
-          updatedAt: fields.updatedAt,
-          actorId: fields.actorId,
-          idempotencyKey: fields.idempotencyKey,
-          requestHash: fields.requestHash,
-          beforeJson: fields.beforeJson,
-          afterJson: fields.afterJson,
-        }),
-        cache: 'no-store',
-        signal: AbortSignal.timeout(cfg.timeoutMs),
-      },
+    response = await post(
+      new URL(`/api/v1/holdings/${encodeURIComponent(cfg.holdingSlug)}/commercial/grant-save`, cfg.base),
+      Object.fromEntries(headers.entries()),
+      body,
+      cfg.timeoutMs,
     );
   } catch {
     throw new NativeCommercialWave2Error(
@@ -165,8 +204,8 @@ export async function nativeGrantSave(
       'The native Commercial grant service is unavailable.',
     );
   }
-  const value: unknown = await response.json().catch(() => null);
-  if (!response.ok) {
+  const value: unknown = response.value;
+  if (response.status !== 200) {
     const error = isRecord(value) && isRecord(value.error) ? value.error : {};
     throw new NativeCommercialWave2Error(
       typeof error.code === 'string' ? error.code : 'COMMERCIAL_GRANT_SAVE_FAILED',

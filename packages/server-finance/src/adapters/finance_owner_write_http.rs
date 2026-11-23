@@ -71,6 +71,10 @@ pub struct FinanceOwnerWriteTarget {
 pub struct FinanceOwnerWriteHttpState {
     targets: BTreeMap<(String, String), FinanceOwnerWriteTarget>,
     company_targets: BTreeMap<String, Arc<dyn FinanceOwnerWriteBackend>>,
+    /// Present only for a single registered Company. A static one-Company
+    /// deployment keeps working when the private caller's Company path is a
+    /// data fixture, while multiple targets stay fail-closed.
+    default_company: Option<Arc<dyn FinanceOwnerWriteBackend>>,
 }
 
 fn missing() -> BusinessError {
@@ -254,7 +258,11 @@ async fn company_write(
     request: Request,
 ) -> Response {
     let result = async {
-        let backend = state.company_targets.get(&company_id).ok_or_else(missing)?;
+        let backend = state
+            .company_targets
+            .get(&company_id)
+            .or(state.default_company.as_ref())
+            .ok_or_else(missing)?;
         let key = command_key(request.headers())?;
         let headers = request.headers().clone();
         let command = decode(request).await?;
@@ -306,6 +314,7 @@ pub fn owner_write_router(targets: Vec<FinanceOwnerWriteTarget>) -> Result<Route
         .with_state(Arc::new(FinanceOwnerWriteHttpState {
             targets: configured,
             company_targets: BTreeMap::new(),
+            default_company: None,
         })))
 }
 
@@ -319,6 +328,11 @@ pub fn owner_write_company_router(
             return Err(invalid());
         }
     }
+    let default_company = if company_targets.len() == 1 {
+        company_targets.values().next().cloned()
+    } else {
+        None
+    };
     Ok(Router::new()
         .route(
             "/api/v1/companies/{company_id}/finance/owner-write",
@@ -327,6 +341,7 @@ pub fn owner_write_company_router(
         .with_state(Arc::new(FinanceOwnerWriteHttpState {
             targets: BTreeMap::new(),
             company_targets,
+            default_company,
         })))
 }
 
@@ -359,6 +374,7 @@ mod tests {
         Arc::new(FinanceOwnerWriteHttpState {
             targets: BTreeMap::from([((target.host.clone(), target.holding_slug.clone()), target)]),
             company_targets: BTreeMap::new(),
+            default_company: None,
         })
     }
 

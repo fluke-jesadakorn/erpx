@@ -324,11 +324,34 @@ export async function startNativeAccountSsoProxy(): Promise<void> {
     timeoutMs: 10_000,
   });
   process.env.ERPX_NATIVE_COMMERCE_WAVE2_CONFIG = ownerWrite;
+  process.env.ERPX_NATIVE_COMMERCE_OWNER_WRITE_CONFIG = ownerWrite;
+  process.env.ERPX_NATIVE_COMMERCIAL_WAVE2_CONFIG = ownerWrite;
+  process.env.ERPX_NATIVE_COMMERCIAL_OWNER_WRITE_CONFIG = ownerWrite;
   process.env.ERPX_NATIVE_MANUFACTURING_OWNER_WRITE_CONFIG = ownerWrite;
   process.env.ERPX_NATIVE_MANUFACTURING_ACCOUNTING_CONFIG = ownerWrite;
   process.env.ERPX_NATIVE_FINANCE_COMPANY_MONEY_CONFIG = JSON.stringify({
     privateBaseUrl: proxyBaseUrl,
     timeoutMs: 10_000,
+  });
+  process.env.ERPX_NATIVE_FILES_CONFIG = JSON.stringify({
+    privateBaseUrl: proxyBaseUrl,
+    timeoutMs: 10_000,
+    holdings: holdings.map(slot => ({
+      holdingId: slot.id,
+      holdingSlug: slot.id === 'h003' ? 'erpx' : slot.id === 'h002' ? 'northstar' : 'acme',
+      origin: `https://${HOLDING_HOSTS[slot.id]}`,
+      companyId: 'acme-co',
+    })),
+  });
+  process.env.ERPX_NATIVE_INVENTORY_CONFIG = JSON.stringify({
+    privateBaseUrl: proxyBaseUrl,
+    timeoutMs: 10_000,
+    holdings: holdings.map(slot => ({
+      holdingId: slot.id,
+      holdingSlug: slot.id === 'h003' ? 'erpx' : slot.id === 'h002' ? 'northstar' : 'acme',
+      origin: `https://${HOLDING_HOSTS[slot.id]}`,
+      companyId: 'acme-co',
+    })),
   });
   process.env.ERPX_NATIVE_COLLABORATION_CONFIG = JSON.stringify({
     privateBaseUrl: proxyBaseUrl,

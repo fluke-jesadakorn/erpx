@@ -57,7 +57,8 @@ export function createCommandApplication<Effect>(ports:CommandPorts<Effect>) {
     effects=await ports.prepareOwnerStatements(actor,id,operation,input,recordId,version,effects);
     const now=ports.clock.now(),state=typeof result==='object'&&result!==null?((result as Record<string,unknown>).state??(result as Record<string,unknown>).status):undefined;
     try{
-      await ports.batch([...(boundary?.before??[]),...ports.workContextGuards(actor,id),...ports.iamMutationGuards(actor,id),await repository.insertReceipt(actor,id,operation,digest,recordId,result,now),ports.assignmentGuard(actor,id),await repository.captureAssignmentAuthority(actor,id),...effects,await repository.audit(actor,id,operation,recordId,version,now,ports.identifiers.next()),await repository.outbox(actor,id,operation,recordId,version,state,eventScope,now,ports.identifiers.next()),...(boundary?.after??[]),await repository.clearAssertions(id, actor.companyId)]);
+      await ports.batch([...(boundary?.before??[]),...ports.workContextGuards(actor,id),...ports.iamMutationGuards(actor,id),ports.assignmentGuard(actor,id),await repository.captureAssignmentAuthority(actor,id)]);
+      await ports.batch([await repository.insertReceipt(actor,id,operation,digest,recordId,result,now),...effects,await repository.audit(actor,id,operation,recordId,version,now,ports.identifiers.next()),await repository.outbox(actor,id,operation,recordId,version,state,eventScope,now,ports.identifiers.next()),...(boundary?.after??[]),await repository.clearAssertions(id, actor.companyId)]);
       return result;
     }catch(error){
       // The owning transaction retries the whole handoff for these failures.

@@ -47,7 +47,7 @@ impl<'c> PgGrantSave<'c> {
         let changed = sqlx::query(
             "INSERT INTO command_receipts\
              (command_id,operation,actor_id,request_hash,record_id,result_json,created_at,authority_json) \
-             VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(command_id) DO NOTHING",
+             VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8::jsonb) ON CONFLICT(command_id) DO NOTHING",
         )
         .bind(format!("wave2:{}", entry.key))
         .bind(entry.operation)
@@ -72,7 +72,7 @@ impl<'c> PgGrantSave<'c> {
             "INSERT INTO audit_events\
              (id,command_id,actor_id,assignment_id,action,record_type,record_id,\
              record_version,purpose,created_at,authority_json) \
-             VALUES(gen_random_uuid()::text,$1,$2,$2,$3,$4,$5,$6,$3,$7,$8)",
+             VALUES(gen_random_uuid()::text,$1,$2,$2,$3,$4,$5,$6,$3,$7,$8::jsonb)",
         )
         .bind(entry.key)
         .bind(entry.actor_id)
@@ -93,7 +93,7 @@ impl<'c> PgGrantSave<'c> {
         sqlx::query(
             "INSERT INTO outbox_events\
              (id,command_id,event_type,aggregate_type,aggregate_id,aggregate_version,\
-             payload_json,created_at) VALUES(gen_random_uuid()::text,$1,$2,$3,$4,$5,$6,$7)",
+             payload_json,created_at) VALUES(gen_random_uuid()::text,$1,$2,$3,$4,$5,$6::jsonb,$7)",
         )
         .bind(entry.key)
         .bind(entry.operation)
@@ -205,7 +205,7 @@ impl GrantSaveRepository for PgGrantSave<'_> {
             sqlx::query(
                 "INSERT INTO company_package_grant_events\
                  (id,company_id,package_id,actor_id,request_hash,before_json,after_json,created_at) \
-                 VALUES($1,$2,$3,$4,$5,$6,$7,$8) ON CONFLICT(id) DO NOTHING",
+                 VALUES($1,$2,$3,$4,$5,$6::jsonb,$7::jsonb,$8) ON CONFLICT(id) DO NOTHING",
             )
             .bind(&input.idempotency_key)
             .bind(&input.company_id)

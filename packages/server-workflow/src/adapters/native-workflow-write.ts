@@ -17,8 +17,10 @@ type Settings = Readonly<{
 
 export type NativeWorkflowContext = {
   holdingId?: string;
+  companyId?: string;
   key?: string;
   now?: number;
+  db?: SqlDatabase;
 };
 
 export type NativeWorkflowWrite = SqlStatement & {
@@ -42,6 +44,39 @@ async function executeNative(
 ): Promise<{ row?: unknown; changes: number }> {
   const config = configuration();
   const ctx = descriptor.context ?? {};
+  // Assertions are pre-write guards: they must observe the caller's open
+  // unit, so plan the owner SQL natively and execute it on the caller's
+  // connection instead of a separate server transaction.
+  if (descriptor.kind === 'wf_native_command_assertions_3' && ctx.companyId && ctx.db) {
+    const now = ctx.now || Date.now();
+    const key = ctx.key || `wf-owner-${descriptor.kind}-${now}`;
+    let response: Response;
+    try {
+      response = await fetch(
+        `${config.privateBaseUrl}/api/v1/companies/${encodeURIComponent(ctx.companyId)}/workflow/wave3-command`,
+        {
+          method: 'POST',
+          headers: {
+            'content-type': 'application/json',
+            'idempotency-key': key,
+            'x-erpx-context-company': ctx.companyId,
+          },
+          body: JSON.stringify({ kind: descriptor.kind, values: descriptor.values, now }),
+          cache: 'no-store',
+          signal: AbortSignal.timeout(config.timeoutMs),
+        },
+      );
+    } catch {
+      throw new ApiError(503, 'NATIVE_WORKFLOW_WAVE3_UNAVAILABLE', 'The native Workflow service is unavailable.');
+    }
+    const payload = (await response.json().catch(() => null)) as
+      | { data?: { sql?: unknown; values?: unknown }; error?: { code?: string; message?: string } }
+      | null;
+    if (!response.ok || !payload?.data || typeof payload.data.sql !== 'string' || !Array.isArray(payload.data.values))
+      throw new ApiError(response.status, payload?.error?.code ?? 'NATIVE_WORKFLOW_WAVE3_FAILED', payload?.error?.message ?? 'The native Workflow write failed.');
+    const result = await ctx.db.prepare(payload.data.sql).bind(...payload.data.values).run();
+    return { changes: Number(result.meta?.changes ?? 1) };
+  }
   const holdingId = ctx.holdingId || config.systemHoldingId;
   if (!holdingId)
     throw new ApiError(503, 'NATIVE_WORKFLOW_WAVE3_AUTHORITY_INVALID', 'No native Workflow authority is configured.');

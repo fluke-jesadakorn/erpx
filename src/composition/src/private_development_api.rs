@@ -3275,6 +3275,14 @@ async fn assemble_checked(
             String,
             erpx_server_runtime::public::postgres::DatabasePool,
         > = std::collections::BTreeMap::new();
+        let mut company_money_pools: std::collections::BTreeMap<
+            String,
+            erpx_server_runtime::public::postgres::DatabasePool,
+        > = std::collections::BTreeMap::new();
+        let mut finance_owner_write_pools: std::collections::BTreeMap<
+            String,
+            erpx_server_runtime::public::postgres::DatabasePool,
+        > = std::collections::BTreeMap::new();
         let mut commerce_native_routers: Vec<Router> = Vec::new();
         let mut records_native_routers: Vec<Router> = Vec::new();
         let mut records_company_pools: std::collections::BTreeMap<
@@ -3788,7 +3796,10 @@ async fn assemble_checked(
                     by_company.insert(company.as_str().to_owned(), pools[i + 1].clone());
                 }
             }
-            Arc::new(crate::files_wave1b::FilesCommandPools::new(by_company))
+            Arc::new(
+                crate::files_wave1b::FilesCommandPools::new(by_company)
+                    .with_default(pools.get(1).cloned().unwrap_or_else(|| pools[0].clone())),
+            )
         };
         for (i, holding) in config.holdings.iter().enumerate() {
             let Some(companies) = config
@@ -4119,6 +4130,10 @@ async fn assemble_checked(
                     crm_company_pools.insert(company.as_str().to_owned(), pools[i + 1].clone());
                     inventory_company_pools
                         .insert(company.as_str().to_owned(), pools[i + 1].clone());
+                    company_money_pools
+                        .insert(company.as_str().to_owned(), pools[i + 1].clone());
+                    finance_owner_write_pools
+                        .insert(company.as_str().to_owned(), pools[i + 1].clone());
                     records_company_pools
                         .insert(company.as_str().to_owned(), pools[i + 1].clone());
                     records_native_routers.push(
@@ -4280,6 +4295,20 @@ async fn assemble_checked(
                         format!("https://{}", holding.host),
                         false,
                     ));
+                    commerce_native_routers.push(
+                        crate::commerce_owner_write::commerce_owner_write_composed_router(
+                            holding.host.clone(),
+                            holding.registration.slug.clone(),
+                            format!("https://{}", holding.host),
+                            Arc::new(
+                                crate::commerce_owner_write::CommerceOwnerWriteBackend::new(
+                                    pools[i + 1].clone(),
+                                    Arc::new(SharedClock(clock.clone())),
+                                ),
+                            ),
+                        )
+                        .map_err(|_| "PRIVATE_API_COMMERCE_OWNER_WRITE_CONFIGURATION_INVALID")?,
+                    );
                     commerce_native_routers.push(
                         crate::commerce_wave2::commerce_warehouse_save_composed_router(
                             holding.host.clone(),
@@ -7068,6 +7097,24 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_MANAGE_ERPX_CONFIGURATION_INVALID")?,
             );
         }
+        if !finance_owner_write_pools.is_empty() {
+            router = router.merge(
+                crate::finance_owner_write::finance_owner_write_companies(
+                    pools.get(1).cloned().unwrap_or_else(|| pools[0].clone()),
+                    finance_owner_write_pools.clone(),
+                )
+                .map_err(|_| "PRIVATE_API_FINANCE_OWNER_WRITE_CONFIGURATION_INVALID")?,
+            );
+        }
+        if !company_money_pools.is_empty() {
+            router = router.merge(
+                crate::company_money::company_money_reads(
+                    pools.get(1).cloned().unwrap_or_else(|| pools[0].clone()),
+                    company_money_pools.clone(),
+                )
+                .map_err(|_| "PRIVATE_API_COMPANY_MONEY_CONFIGURATION_INVALID")?,
+            );
+        }
         if !inventory_company_pools.is_empty() {
             let inventory_companies: Vec<String> =
                 inventory_company_pools.keys().cloned().collect();
@@ -9201,6 +9248,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             && (path.ends_with("/native-command")
                 || path.ends_with("/workflow/wave3-command")
                 || path.ends_with("/collaboration/notification-statement")
+                || path.ends_with("/finance/owner-write")
                 || path.contains("/finance/company-money/"))
             || path.starts_with("/api/v1/holdings/")
                 && path.ends_with("/workflow/wave3-execute"));
@@ -12194,9 +12242,9 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             || service_initial_count
             || field_files
             || field_attachment
-            || field_attachment_bind
-            || request.method() == axum::http::Method::GET
-            || request.method() == axum::http::Method::HEAD);
+            || field_attachment_bind)
+        || request.method() == axum::http::Method::GET
+        || request.method() == axum::http::Method::HEAD;
     if !allowed {
         return Err(BoundaryDenial::NotFound);
     }

@@ -117,13 +117,24 @@ pub fn mounted_router(targets: Vec<FilesCommandTarget>) -> Result<Router, Busine
 /// Pool-per-Company executor used by the private development assembly.
 pub struct FilesCommandPools {
     pools: std::collections::BTreeMap<String, erpx_server_runtime::public::postgres::DatabasePool>,
+    /// Single-target fallback for system callers whose Company is not in the
+    /// configured owner map.
+    default: Option<erpx_server_runtime::public::postgres::DatabasePool>,
 }
 
 impl FilesCommandPools {
     pub fn new(
         pools: std::collections::BTreeMap<String, erpx_server_runtime::public::postgres::DatabasePool>,
     ) -> Self {
-        Self { pools }
+        Self { pools, default: None }
+    }
+
+    pub fn with_default(
+        mut self,
+        default: erpx_server_runtime::public::postgres::DatabasePool,
+    ) -> Self {
+        self.default = Some(default);
+        self
     }
 }
 
@@ -137,7 +148,11 @@ impl FilesCommandExecutor for FilesCommandPools {
         use erpx_server_runtime::public::postgres::{
             PgTransactionError, PgUnitOfWork, TransactionOptions,
         };
-        let pool = self.pools.get(company_id).cloned();
+        let pool = self
+            .pools
+            .get(company_id)
+            .cloned()
+            .or_else(|| self.default.clone());
         let company_id = company_id.to_owned();
         let input = FilesCommandInput {
             kind: input.kind.clone(),

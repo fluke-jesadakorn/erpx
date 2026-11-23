@@ -1,4 +1,5 @@
 import 'server-only';
+import { Agent, request as httpRequest } from 'node:http';
 import { createHash } from 'node:crypto';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import type { SqlResult, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
@@ -72,6 +73,47 @@ function effective(kind: string, values: unknown[], context?: NativeContext) {
   };
 }
 
+/** POST with an explicit Host header; fetch forbids overriding Host. */
+function post(
+  url: URL,
+  headers: Record<string, string>,
+  body: string,
+  timeoutMs: number,
+): Promise<{ status: number; value: unknown }> {
+  return new Promise((resolve, reject) => {
+    const agent = new Agent({
+      keepAlive: false,
+      maxSockets: 1,
+      maxTotalSockets: 1,
+      proxyEnv: {} as import('node:http').ProxyEnv,
+    });
+    const outgoing = httpRequest(
+      url,
+      {
+        method: 'POST',
+        agent,
+        headers: { ...headers, 'content-length': String(Buffer.byteLength(body)) },
+        signal: AbortSignal.timeout(timeoutMs),
+        maxHeaderSize: 8192,
+      },
+      incoming => {
+        const chunks: Buffer[] = [];
+        incoming.on('data', chunk => chunks.push(Buffer.from(chunk)));
+        incoming.on('end', () => {
+          agent.destroy();
+          const text = Buffer.concat(chunks).toString('utf8');
+          let value: unknown = null;
+          try { value = text ? JSON.parse(text) : null; } catch { value = null; }
+          resolve({ status: incoming.statusCode ?? 502, value });
+        });
+        incoming.on('error', error => { agent.destroy(); reject(error); });
+      },
+    );
+    outgoing.on('error', error => { agent.destroy(); reject(error); });
+    outgoing.end(body);
+  });
+}
+
 async function dispatch(kind: string, values: unknown[], context?: NativeContext): Promise<NativeResult> {
   const { config, holding, companyId, key, now } = effective(kind, values, context);
   if (!/^[a-zA-Z0-9:_-]{1,180}$/.test(key)) throw new ApiError(503, 'NATIVE_FILES_COMMAND_INVALID', 'The native Files command key is invalid.');
@@ -81,20 +123,20 @@ async function dispatch(kind: string, values: unknown[], context?: NativeContext
     'idempotency-key': key,
     'x-erpx-context-company': companyId,
   };
-  let response: Response;
+  const body = JSON.stringify({ kind, values, now, companyId });
+  let response: { status: number; value: unknown };
   try {
-    response = await fetch(`${config.privateBaseUrl}/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/files/commands`, {
-      method: 'POST',
+    response = await post(
+      new URL(`/api/v1/holdings/${encodeURIComponent(holding.holdingSlug)}/files/commands`, config.privateBaseUrl),
       headers,
-      body: JSON.stringify({ kind, values, now, companyId }),
-      cache: 'no-store',
-      signal: AbortSignal.timeout(config.timeoutMs),
-    });
+      body,
+      config.timeoutMs,
+    );
   } catch { throw new ApiError(503, 'NATIVE_FILES_UNAVAILABLE', 'The native Files service is unavailable.'); }
-  const payload = (await response.json().catch(() => null)) as
+  const payload = response.value as
     | { data?: NativeResult; error?: { code?: string; message?: string } }
     | null;
-  if (!response.ok || !payload?.data || typeof payload.data.rows !== 'number')
+  if (response.status !== 200 || !payload?.data || typeof payload.data.rows !== 'number')
     throw new ApiError(response.status, payload?.error?.code ?? 'NATIVE_FILES_FAILED', payload?.error?.message ?? 'The native Files request failed.');
   const data = payload.data;
   if (data.rows < 0 || (data.row !== undefined && (typeof data.row !== 'object' || data.row === null))
