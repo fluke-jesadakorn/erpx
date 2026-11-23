@@ -8,15 +8,20 @@ import { BusinessRuleError } from '@erpx/server-shared/index';
 export { templateSchema } from '@erpx/server-operations/domain/routines';
 export type { TemplateRow } from '@erpx/server-operations/domain/routines';
 export type { ScheduleRow } from '@erpx/server-operations/domain/routines';
+/** Canonical owner-local fixed selection for the Operations routine-template
+ * reads. Both owner reads build their predicate on this one admitted literal;
+ * no duplicate TS literal remains. Caller-supplied scope predicates are appended
+ * unchanged, so the executed SQL is byte-identical to the retired literals. */
+const templateSelect = `SELECT t.* FROM routine_templates t WHERE`;
 function application(provided?: SqlDatabase,readScope={where:'TRUE',args:[] as SqlValue[]}) {
     let database = provided!;
     const repository: RoutinesRepository<SqlStatement> = { readListTemplatesEffect(companyId: string, userId: string, value: 0 | 1) {
-            return database.prepare(`SELECT t.* FROM routine_templates t WHERE t.company_id=? AND (t.published=1 OR t.creator_user_id=? OR ?=1) AND (${readScope.where}) ORDER BY t.updated_at DESC,t.id`)
+            return database.prepare(`${templateSelect} t.company_id=? AND (t.published=1 OR t.creator_user_id=? OR ?=1) AND (${readScope.where}) ORDER BY t.updated_at DESC,t.id`)
                 .bind(companyId, userId, value,...readScope.args)
                 .all<TemplateRow>();
         },
         readGetTemplateRow(id: string, companyId: string) {
-            return database.prepare(`SELECT t.* FROM routine_templates t WHERE t.id=? AND t.company_id=? AND (${readScope.where})`)
+            return database.prepare(`${templateSelect} t.id=? AND t.company_id=? AND (${readScope.where})`)
                 .bind(id, companyId,...readScope.args)
                 .first<TemplateRow>();
         } };
