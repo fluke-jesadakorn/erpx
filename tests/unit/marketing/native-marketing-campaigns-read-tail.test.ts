@@ -144,4 +144,24 @@ describe('Marketing owner-local campaign read tail', () => {
     expect(purchases).toContain('attachmentSourceWitnessSql("(to_jsonb(source)-\'version\'-\'updated_at\')::text witness"');
     expect(read).toContain("attachmentSourceWitnessSql('to_jsonb(source)::text image'");
   });
+
+  it('keeps one fixed owner projection for public-form content reads', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
+    const helper = await readFile(new URL('public-form-content-source.ts', base), 'utf8');
+    const form = await readFile(new URL('public-form.ts', base), 'utf8');
+
+    const predicate = 'SELECT ${projection} FROM marketing_assets WHERE id=? AND company_id=? AND kind=\'content\' AND status=\'active\' AND version=?';
+    // The canonical helper owns the single form-content SELECT; its comment
+    // must not smuggle a second "SELECT" token into the retirement KPI.
+    expect(helper.match(/SELECT/g)).toHaveLength(1);
+    expect(helper).toContain('export const marketingFormContentSql');
+    expect(helper).toContain(predicate);
+
+    // Both the presentation assertion and the content reader share the helper.
+    expect(form).toContain("const contentPredicate=`EXISTS(${marketingFormContentSql('1')})`");
+    expect(form).toContain("marketingFormContentSql('id,version,preview_json')");
+    expect(form).not.toContain("SELECT id,version,preview_json FROM marketing_assets");
+    expect(form).not.toContain("SELECT 1 FROM marketing_assets WHERE id=? AND company_id=? AND kind='content'");
+  });
 });

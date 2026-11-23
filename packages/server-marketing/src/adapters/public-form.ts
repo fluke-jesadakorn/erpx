@@ -10,16 +10,17 @@ import {commercePackageEnforcementMode,checkPurchasedCapability} from "@erpx/ser
 import {publicSubmissionReceiptWitness} from "@erpx/server-marketing/adapters/crm-purchase-sources";
 import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-availability";
 import {withPublicMarketingFormRead} from '@erpx/server-marketing/adapters/public-form-read';
+import {marketingFormContentSql} from './public-form-content-source';
 function translate(error:unknown):never{if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}
 export function marketingPresentationReferences(configuration:unknown){try{return references(configuration);}catch(error){return translate(error);}}
-const contentPredicate="EXISTS(SELECT 1 FROM marketing_assets WHERE id=? AND company_id=? AND kind='content' AND status='active' AND version=?)";
+const contentPredicate=`EXISTS(${marketingFormContentSql('1')})`;
 export function marketingPresentationAssertions(db:SqlDatabase,key:string,companyId:string,configuration:unknown):SqlStatement[]{
  const refs=marketingPresentationReferences(configuration),steps:SqlStatement[]=[];
  if(refs.contentAssetId)steps.push(db.prepare('SELECT id FROM marketing_assets WHERE id=? AND company_id=? FOR SHARE').bind(refs.contentAssetId,companyId),assertion(db,key,'form-content',contentPredicate,[refs.contentAssetId,companyId,refs.contentVersion!]));
  if(refs.mediaPublicationId)steps.push(...prepareMarketingCreativeGuards(db,key,companyId,refs.mediaPublicationId,refs.contentAssetId!));return steps;
 }
 function application(db:SqlDatabase){return createMarketingPresentationApplication({
-content:(companyId,refs)=>db.prepare("SELECT id,version,preview_json FROM marketing_assets WHERE id=? AND company_id=? AND kind='content' AND status='active' AND version=?").bind(refs.contentAssetId!,companyId,refs.contentVersion!).first<MarketingContent>(),
+content:(companyId,refs)=>db.prepare(marketingFormContentSql('id,version,preview_json')).bind(refs.contentAssetId!,companyId,refs.contentVersion!).first<MarketingContent>(),
 media:(companyId,refs)=>approvedMarketingCreative(db,companyId,refs.mediaPublicationId!,refs.contentAssetId!),
 form:id=>db.prepare("SELECT id,company_id,name,version,preview_json,configuration_json FROM marketing_assets WHERE id=? AND kind='form' AND status='active'").bind(id).first<PublicMarketingForm>(),
 });}
