@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6438,
+    "revision": 6439,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -114068,6 +114068,41 @@
         "nextAction": "Export PmsHttpRefundRequest + bounded refund command parser; add HTTP tests for six actions; verify repository parity incl FOR UPDATE/locks. Composition backend remains lead.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "repair.marketing.public-limit-returning",
+        "goalId": "G3",
+        "owner": "marketing",
+        "title": "Restore public submission rate limit: return RETURNING rows through native command",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/adapters/native_command_postgres.rs",
+          "packages/server-marketing/src/application/native_command.rs",
+          "packages/server-marketing/src/adapters/native_command_http.rs",
+          "packages/server-marketing/src/public/native_command.rs",
+          "packages/feature-marketing/src/adapters/server/native-marketing-command.ts",
+          "src/composition/src/marketing_wave2_native.rs",
+          "tests/integration/marketing/public-marketing-form.test.ts",
+          "tests/unit/marketing/native-marketing-campaign-transport.test.ts"
+        ],
+        "resources": [
+          "owner:marketing",
+          "resource:composition"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Plumb statement RETURNING rows through NativeCommandOutcome/HTTP {kind,rows}/TS client; marketing_stmt_1 count reaches rate limiter; add 7th-submission 429 integration case",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -114076,10 +114111,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 478,
+      "totalPackets": 479,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 23,
+        "pending": 24,
         "in_progress": 9,
         "ready_for_integration": 0,
         "integrating": 0,
@@ -114090,7 +114125,7 @@
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T18:10:15.951Z",
+    "updatedAt": "2026-11-23T18:10:42.470Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
