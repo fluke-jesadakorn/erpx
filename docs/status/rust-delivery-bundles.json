@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6499,
+    "revision": 6503,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -50814,11 +50814,35 @@
             "command": "vitest inventory native-inventory-attachments-operational-facts (2)",
             "result": "passed",
             "sourceSha": "11b87eff8"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a88c72aa6",
+            "owner": "inventory",
+            "before": 573,
+            "after": 572,
+            "note": "wN01: RD_TRANSIT_ATTACHMENT_DESCRIPTOR + nativeInventoryReadFirst."
+          },
+          {
+            "command": "cargo check -p erpx-server-inventory",
+            "result": "passed",
+            "sourceSha": "a88c72aa6"
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --lib (43)",
+            "result": "passed",
+            "sourceSha": "a88c72aa6"
+          },
+          {
+            "command": "vitest inventory native-inventory-attachments-policy-facts (2)",
+            "result": "passed",
+            "sourceSha": "a88c72aa6"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "573 recorded; next single-consumer inventory RD_KIND",
+        "nextAction": "572 recorded; next single-consumer fixed-SQL read",
         "handoff": {
           "runId": "run-20261123-f",
           "agentId": "wL05",
@@ -110155,6 +110179,25 @@
             "command": "tsc server-files + server-workflow",
             "result": "passed",
             "sourceSha": "ac4e3daec"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a88c72aa6",
+            "owner": "files",
+            "before": 297,
+            "after": 296,
+            "note": "wP01: RD_FRONT_LOGO_PUBLICATION + nativeFilesRead."
+          },
+          {
+            "command": "cargo test -p erpx-server-files --test files_wave1b_plan (15)",
+            "result": "passed",
+            "sourceSha": "a88c72aa6"
+          },
+          {
+            "command": "tsc server-files + server-work_projection",
+            "result": "passed",
+            "sourceSha": "a88c72aa6"
           }
         ],
         "retainedLegacy": [],
@@ -110167,7 +110210,7 @@
           "reason": "handoff",
           "nextAction": "Integrated; claim released"
         },
-        "nextAction": "297 recorded; remaining: front-logo/legal-corpus (3 binds), records-evidence/pms-publications (array binds)",
+        "nextAction": "296 recorded; next legal-corpus after wN02 release, then array-bind families",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -114609,7 +114652,7 @@
         "owner": "platform_administration",
         "title": "Platform executive native-only switch + TS read tail (5 SELECT -> 1)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -114629,22 +114672,46 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wR03",
-          "claimedAt": "2026-11-23T18:22:30.005Z",
-          "heartbeatAt": "2026-11-23T18:35:24.663Z",
-          "expiresAt": "2026-11-23T19:05:24.663Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "retainedLegacy": [],
-        "checks": [],
-        "blocker": null,
-        "nextAction": "Make helpers fail-closed, switch feature-admin route + workplace presenter to native-only, delete TS executive reads/presentation barrels, itemize residual generation lock (1) under expire task",
-        "handoff": null,
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-platform_administration/src/adapters/platform-executive.ts'",
+            "result": "passed",
+            "sourceSha": "619f52eed",
+            "owner": "platform_administration",
+            "before": 4,
+            "after": 0
+          },
+          {
+            "command": "cargo check -p erpx-server-platform-administration",
+            "result": "passed",
+            "sourceSha": "619f52eed"
+          },
+          {
+            "command": "vitest platform administration (36)",
+            "result": "passed",
+            "sourceSha": "619f52eed"
+          },
+          {
+            "command": "tsc server-platform_administration + feature-platform_administration",
+            "result": "passed",
+            "sourceSha": "619f52eed"
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Integrated at 619f52eed; run full cargo check after finance WIP lands",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wR03",
+          "at": "2026-11-23T18:40:16.656Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated at 619f52eed; run full cargo check after finance WIP lands"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -114803,17 +114870,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 22,
-        "in_progress": 15,
+        "in_progress": 14,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 123,
+        "blocked": 124,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T18:38:48.647Z",
+    "updatedAt": "2026-11-23T18:41:57.315Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
