@@ -41,7 +41,7 @@ export interface StaffNotificationPorts {
     payrollAdvanceAlertTarget(...args: Tail<Parameters<typeof import("@erpx/server-people_payroll/public/people-payroll").payrollAdvanceAlertTarget>>): ReturnType<typeof import("@erpx/server-people_payroll/public/people-payroll").payrollAdvanceAlertTarget>;
     getTask(...args: Tail<Parameters<typeof import("@erpx/server-operations/public/staff-task-read").getTask>>): ReturnType<typeof import("@erpx/server-operations/public/staff-task-read").getTask>;
     maintenanceDetail(...args: Parameters<typeof import("@erpx/server-maintenance/public/asset-maintenance").maintenanceDetail>): ReturnType<typeof import("@erpx/server-maintenance/public/asset-maintenance").maintenanceDetail>;
-    preventivePlanDetail(...args: Parameters<typeof import("@erpx/server-maintenance/public/maintenance-preventive").preventivePlanDetail>): ReturnType<typeof import("@erpx/server-maintenance/public/maintenance-preventive").preventivePlanDetail>;
+    preventivePlanDetail(...args: Parameters<typeof import("../../../server-maintenance/src/public/native-preventive-read").preventivePlanDetail>): ReturnType<typeof import("../../../server-maintenance/src/public/native-preventive-read").preventivePlanDetail>;
     projectHandoffTarget(...args: Tail<Parameters<typeof import("@erpx/server-projects/public/project-structure").projectHandoffTarget>>): ReturnType<typeof import("@erpx/server-projects/public/project-structure").projectHandoffTarget>;
     fieldServiceDetail(actor:WorkContext,id:string):Promise<unknown>;
     getOrder(...args: Parameters<typeof import("@erpx/server-commerce/public/commerce").getOrder>): ReturnType<typeof import("@erpx/server-commerce/public/commerce").getOrder>;

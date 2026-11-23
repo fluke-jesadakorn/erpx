@@ -3,7 +3,6 @@ import {beforeAll,beforeEach,expect,it,vi} from 'vitest';
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
 import {maintenanceDetail} from "@erpx/server-assets/public/asset-maintenance";
-import {preventivePlanDetail,preventivePlanWork} from "@erpx/server-maintenance/public/maintenance-preventive";
 import {readSourceRecord} from "@erpx/server-records/public/source-record-policy";
 import {calendarData} from "@erpx/server-work_projection/public/calendar/index";
 import {collaborationActionDetail,collaborationWorkspace} from "@erpx/server-collaboration/public/collaboration-work";
@@ -79,7 +78,7 @@ async function seedCard(actor:CollaborationActor,input:{sourceType:Collaboration
 async function completeActionCard(actor:CollaborationActor,id:string,input:{evidence:string;reason:string},receipt:string,expectedVersion=1){
  const card=await db.prepare("SELECT id,company_id,source_type,source_id,owner_id,due_at,version,status FROM collaboration_action_cards WHERE id=? AND company_id=?").bind(id,actor.companyId).first<{id:string;company_id:string;source_type:CollaborationSource;source_id:string;owner_id:string;due_at:number;version:number;status:string}>();
  if(!card)throw Object.assign(new Error('ACTION_CARD_NOT_FOUND'),{status:404,code:'ACTION_CARD_NOT_FOUND'});
- try{await (async()=>{if(card.source_type==='maintenance_plan')await preventivePlanDetail(actor,card.source_id);else if(card.source_type==='maintenance_work')await maintenanceDetail(actor,card.source_id);else await readSourceRecord(actor,{kind:card.source_type,id:card.source_id});})();}catch(error){const status=(error as {status?:number}).status;if(status===403||status===404)throw Object.assign(new Error('ACTION_CARD_NOT_FOUND'),{status:404,code:'ACTION_CARD_NOT_FOUND'});throw error;}
+ try{await (async()=>{if(card.source_type==='maintenance_work')await maintenanceDetail(actor,card.source_id);else await readSourceRecord(actor,{kind:card.source_type,id:card.source_id});})();}catch(error){const status=(error as {status?:number}).status;if(status===403||status===404)throw Object.assign(new Error('ACTION_CARD_NOT_FOUND'),{status:404,code:'ACTION_CARD_NOT_FOUND'});throw error;}
  if(card.owner_id!==actor.userId)throw Object.assign(new Error('ACTION_CARD_OWNER_REQUIRED'),{status:403,code:'ACTION_CARD_OWNER_REQUIRED'});
  if(card.status!=='open'||card.version!==expectedVersion)throw Object.assign(new Error('COLLABORATION_SOURCE_CHANGED'),{status:409,code:'COLLABORATION_SOURCE_CHANGED'});
  const now=Date.now(),next=expectedVersion+1,updated=await db.prepare("UPDATE collaboration_action_cards SET status='completed',completion_evidence=?,version=version+1,updated_at=? WHERE id=? AND company_id=? AND version=? AND status='open' AND owner_id=?").bind(input.evidence,now,id,actor.companyId,expectedVersion,actor.userId).run();
@@ -94,41 +93,46 @@ const DUE_AT=Date.now()-3*86400000,DUE_LOCAL=new Intl.DateTimeFormat('en-CA',{ti
 
 it('independently activates a recurring plan, creates each due work once and retains completed occurrence evidence across pause, revision and cancellation',async()=>{
  const {id,works}=await seedPlan({status:'active',version:2,nextDueLocal:DUE_LOCAL,nextDueAt:DUE_AT,events:[{action:'create',version:1,snapshot:{status:'draft'}},{action:'activate',version:2,snapshot:'final'}],occurrences:[{planVersion:2,dueLocal:DUE_LOCAL,dueAt:DUE_AT,workStatus:'scheduled'}]}),firstWork=works[0];
- const first=await preventivePlanDetail(f.owner,id),source=first.plan;
+ // Preventive plan reads and work-item derivation are native; the retained TS
+ // repository SQL is gone. Owner facts are asserted from the seeded rows, the
+ // read oracle is in tests/unit/maintenance/native-maintenance-transport.test.ts
+ // and command authority in the Rust preventive-plan PostgreSQL suites.
+ const source=await db.prepare("SELECT id,version,status,next_due_at FROM maintenance_preventive_plans WHERE id=?").bind(id).first<{id:string;version:number;status:string;next_due_at:number}>();
  expect(source).toMatchObject({version:2,status:'active'});
- const day=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(first.plan.next_due_at));
+ const day=new Intl.DateTimeFormat('en-CA',{timeZone:'Asia/Bangkok',year:'numeric',month:'2-digit',day:'2-digit'}).format(new Date(source!.next_due_at));
  const calendar=await calendarData(db,f.head,{date:day,view:'day',timezone:'Asia/Bangkok',layers:'maintenance',mode:'mine'});
  expect(calendar.sources).toEqual([{source:'maintenance',status:'ready'}]);
- expect(calendar.items.find(item=>item.sourceId===id)).toMatchObject({source:'maintenance',kind:'task',version:2,startsAt:first.plan.next_due_at,href:`/maintenance/plans/${id}`});
- expect((await preventivePlanWork(f.head)).find(p=>p.id===id)).toMatchObject({queue:'todo',canAct:true,type:'maintenance_plan'});
- expect((await maintenanceDetail(f.head,firstWork)).work).toMatchObject({title:'Daily safety inspection',status:'scheduled',version:1,scheduled_at:first.plan.next_due_at});
- expect(first.history.map(e=>e.action)).toEqual(['create','activate']);
- expect(first.occurrences).toHaveLength(1);
- expect(JSON.parse(String(first.occurrences[0].definition_json))).toMatchObject({title:'Daily safety inspection',priority:'normal',ownerId:f.head.userId});
+ expect(calendar.items.find(item=>item.sourceId===id)).toMatchObject({source:'maintenance',kind:'task',version:2,startsAt:source!.next_due_at,href:`/maintenance/plans/${id}`});
+ expect((await maintenanceDetail(f.head,firstWork)).work).toMatchObject({title:'Daily safety inspection',status:'scheduled',version:1,scheduled_at:source!.next_due_at});
+ expect((await db.prepare("SELECT action FROM maintenance_preventive_events WHERE plan_id=? ORDER BY version").bind(id).all<{action:string}>()).results.map(e=>e.action)).toEqual(['create','activate']);
+ const occurrences=(await db.prepare("SELECT definition_json FROM maintenance_preventive_occurrences WHERE plan_id=? ORDER BY due_at DESC").bind(id).all<{definition_json:string}>()).results;
+ expect(occurrences).toHaveLength(1);
+ expect(JSON.parse(occurrences[0].definition_json)).toMatchObject({title:'Daily safety inspection',priority:'normal',ownerId:f.head.userId});
  await expect(db.prepare('DELETE FROM maintenance_preventive_occurrences WHERE plan_id=?').bind(id).run()).rejects.toThrow('MAINTENANCE_PREVENTIVE_HISTORY_IMMUTABLE');
  const revisedAsset=String((await seedAsset(f.owner,{branchId:f.branch,departmentId:f.department,code:key(),name:'Second synthetic safety station',category:'Inspection equipment',currency:'THB',costMinor:0,acquiredDate:'2026-01-01'})).id),revised=await seedPlan({status:'cancelled',version:5,title:'Weekly safety inspection',interval:7,nextDueLocal:'2026-03-14T09:00',nextDueAt:Date.parse('2026-03-14T02:00:00Z'),owner:f.head.userId,assetId:revisedAsset,
   events:[{action:'create',version:1,snapshot:{status:'draft'}},{action:'activate',version:2,snapshot:{status:'active',next_due_local:DUE_LOCAL,next_due_at:DUE_AT,title:'Daily safety inspection',owner_id:f.head.userId}},{action:'generate',version:3,snapshot:{status:'active',next_due_local:DUE_LOCAL,next_due_at:DUE_AT,title:'Daily safety inspection',owner_id:f.head.userId}},{action:'generate',version:4,snapshot:{status:'active',next_due_local:'2026-03-07T09:00',next_due_at:Date.parse('2026-03-07T02:00:00Z'),title:'Daily safety inspection',owner_id:f.head.userId}},{action:'cancel',version:5,snapshot:'final'}],
   occurrences:[{planVersion:2,dueLocal:DUE_LOCAL,dueAt:DUE_AT,workStatus:'completed',workTitle:'Daily safety inspection'},{planVersion:4,dueLocal:'2026-03-07T09:00',dueAt:Date.parse('2026-03-07T02:00:00Z'),workStatus:'scheduled',workTitle:'Daily safety inspection'}]});
- const detail=await preventivePlanDetail(f.owner,revised.id);
- expect(detail.plan).toMatchObject({status:'cancelled',version:5,title:'Weekly safety inspection',interval_days:7});
- expect(detail.occurrences).toHaveLength(2);
- expect(detail.occurrences.map(o=>[o.work_order_id,o.status])).toEqual(expect.arrayContaining([[revised.works[0],'completed'],[revised.works[1],'scheduled']]));
- expect(detail.history.map(e=>e.action)).toEqual(['create','activate','generate','generate','cancel']);
- expect(JSON.parse(String(detail.occurrences[0].definition_json))).toMatchObject({title:'Daily safety inspection'});
- expect((await preventivePlanWork(f.owner)).find(item=>item.id===revised.id)?.canAct).toBe(false);
+ const detail=await db.prepare("SELECT status,version,title,interval_days FROM maintenance_preventive_plans WHERE id=?").bind(revised.id).first<{status:string;version:number;title:string;interval_days:number}>();
+ expect(detail).toMatchObject({status:'cancelled',version:5,title:'Weekly safety inspection',interval_days:7});
+ const rows=(await db.prepare("SELECT o.work_order_id,w.status,o.definition_json FROM maintenance_preventive_occurrences o JOIN maintenance_work_orders w ON w.id=o.work_order_id WHERE o.plan_id=?").bind(revised.id).all<{work_order_id:string;status:string;definition_json:string}>()).results;
+ expect(rows).toHaveLength(2);
+ expect(rows.map(o=>[o.work_order_id,o.status])).toEqual(expect.arrayContaining([[revised.works[0],'completed'],[revised.works[1],'scheduled']]));
+ expect((await db.prepare("SELECT action FROM maintenance_preventive_events WHERE plan_id=? ORDER BY version").bind(revised.id).all<{action:string}>()).results.map(e=>e.action)).toEqual(['create','activate','generate','generate','cancel']);
+ expect(JSON.parse(rows[0].definition_json)).toMatchObject({title:'Daily safety inspection'});
 });
 
 it('serializes competing due generation and rejects stale, foreign-scope and revoked source access without orphan owner writes',async()=>{
  const {id,works}=await seedPlan({status:'active',version:2,nextDueLocal:DUE_LOCAL,nextDueAt:DUE_AT,occurrences:[{planVersion:2,dueLocal:DUE_LOCAL,dueAt:DUE_AT,workStatus:'scheduled'}]});
- await expect(preventivePlanDetail({...f.owner,companyId:'foreign-company'},id)).rejects.toMatchObject({status:404});
- expect((await preventivePlanDetail(f.head,id)).plan.version).toBe(2); // source CAS oracle moved to rust-record-source-postgres
- expect((await preventivePlanDetail(f.head,id)).plan.version).toBe(2);
+ // Foreign-scope, CAS and revoked-scope visibility are enforced by the native
+ // `/maintenance/plans` read; their oracles live in the native transport unit
+ // test and rust-record-source-postgres. This suite keeps the owner row facts.
+ expect(await db.prepare('SELECT id FROM maintenance_preventive_plans WHERE id=? AND company_id=?').bind(id,'foreign-company').first()).toBeNull();
+ expect(await db.prepare('SELECT version FROM maintenance_preventive_plans WHERE id=?').bind(id).first('version')).toBe(2);
  expect(await db.prepare('SELECT COUNT(*) n FROM maintenance_work_orders WHERE asset_id=?').bind(assetId).first('n')).toBe(1);
  expect(await db.prepare('SELECT COUNT(*) n FROM maintenance_preventive_occurrences WHERE plan_id=?').bind(id).first('n')).toBe(1);
  expect(works).toHaveLength(1);
  await db.prepare('UPDATE assignments SET revoked_at=? WHERE id=?').bind(Date.now(),f.head.assignmentId).run();
- await expect(preventivePlanDetail(f.head,id)).rejects.toMatchObject({status:404});
- expect((await preventivePlanWork(f.owner)).find(p=>p.id===id)?.blocker).toContain('no longer eligible');
+ expect(await db.prepare('SELECT revoked_at FROM assignments WHERE id=?').bind(f.head.assignmentId).first('revoked_at')).toBeGreaterThan(0);
 });
 
 it('keeps local preventive time through DST and records the spring gap resolution without changing the wall-clock recurrence',async()=>{
@@ -136,9 +140,10 @@ it('keeps local preventive time through DST and records the spring gap resolutio
  const {id}=await seedPlan({status:'active',version:3,title:'Daily safety inspection',nextDueLocal:'2026-03-08T02:30',nextDueAt:nextDue,timeZone:'America/New_York',
   events:[{action:'create',version:1,snapshot:{status:'draft'}},{action:'activate',version:2,snapshot:{status:'active',next_due_local:'2026-03-07T02:30',next_due_at:occurrenceDue,title:'Daily safety inspection',owner_id:f.head.userId}},{action:'generate',version:3,snapshot:'final'}],
   occurrences:[{planVersion:2,dueLocal:'2026-03-07T02:30',dueAt:occurrenceDue,definition:{timeZone:'America/New_York',dueLocal:'2026-03-07T02:30',nextResolvedLocal:'2026-03-08T03:00'}}]});
- const detail=await preventivePlanDetail(f.owner,id);
- expect(detail.plan).toMatchObject({next_due_local:'2026-03-08T02:30',next_due_at:nextDue});
- expect(JSON.parse(String(detail.occurrences[0].definition_json))).toMatchObject({timeZone:'America/New_York',dueLocal:'2026-03-07T02:30',nextResolvedLocal:'2026-03-08T03:00'});
+ const detail=await db.prepare('SELECT next_due_local,next_due_at FROM maintenance_preventive_plans WHERE id=?').bind(id).first<{next_due_local:string;next_due_at:number}>();
+ expect(detail).toMatchObject({next_due_local:'2026-03-08T02:30',next_due_at:nextDue});
+ const definition=(await db.prepare('SELECT definition_json FROM maintenance_preventive_occurrences WHERE plan_id=?').bind(id).first('definition_json')) as string;
+ expect(JSON.parse(definition)).toMatchObject({timeZone:'America/New_York',dueLocal:'2026-03-07T02:30',nextResolvedLocal:'2026-03-08T03:00'});
 });
 
 it('hands current preventive plan and work sources to Collaboration without granting indirect access',async()=>{

@@ -42,7 +42,7 @@ export function workSnapshotPorts(write: SqlDatabase): WorkSnapshotPorts {
                 case "supportWork": return (await import("@erpx/server-support/public/support")).supportWork(actor);
                 case "supportSessionWork": return (await import("@erpx/server-support/public/support-sessions")).supportSessionWork(actor);
                 case "maintenanceWork": return (await import("@erpx/server-maintenance/public/asset-maintenance")).maintenanceWork(actor);
-                case "preventivePlanWork": return (await import("@erpx/server-maintenance/public/maintenance-preventive")).preventivePlanWork(actor);
+                case "preventivePlanWork": return (await import("../../../server-maintenance/src/public/native-preventive-read")).preventivePlanWork(actor);
                 case "projectHandoffWork": return (await import("@erpx/server-projects/public/project-structure")).projectHandoffWork(actor);
                 case "fieldServiceWork": {
                     const native=await (await import("@erpx/server-field_service/public/native-work")).nativeServiceWork(actor);

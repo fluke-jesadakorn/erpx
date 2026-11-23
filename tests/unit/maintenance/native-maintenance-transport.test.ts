@@ -1,4 +1,4 @@
-import {describe,it,expect,vi,beforeEach} from 'vitest';
+import {describe,it,expect,vi,beforeEach,afterEach} from 'vitest';
 import {
   createNativeMaintenanceClient,
   nativeMaintenanceConfiguration,
@@ -351,5 +351,65 @@ describe('Maintenance source-record policy is native-only',()=>{
    vi.unstubAllEnvs();delete process.env[key];
    await expect(p.readSourceRecord(actor,{kind:'maintenance_plan',id:'source'})).rejects.toMatchObject({status:503,code:'MAINTENANCE_RECORD_SOURCE_NATIVE_UNAVAILABLE'});
   }finally{fetchSpy?.mockRestore();vi.unstubAllEnvs();}
+ });
+});
+
+/** Preventive read-tail oracle. The eight TypeScript SELECTs were removed;
+ * plan list/detail now come from the mounted native `/maintenance/plans` read.
+ * These cases own the work-item derivation and closed failure policy that the
+ * retired repository SQL exercised, with no owner SQL available to fall back
+ * to (a `prepare` that throws proves no SELECT is built). */
+describe('native preventive-plan read transport',()=>{
+ const key='ERPX_NATIVE_MAINTENANCE_CONFIG';
+ const cfg=()=>JSON.stringify({privateBaseUrl:'http://127.0.0.1:44992',timeoutMs:1000,holdings:[{origin:'https://acme.example.com',holdingSlug:'acme',holdingId:'holding'}]});
+ const actor={
+  userId:'user',holdingId:'holding',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,
+  assignmentId:'assignment',role:'owner',assignmentScope:'holding',scope:{kind:'holding'},
+  authority:{revision:7,assignmentVersion:3,sessionId:'session'},modules:['maintenance'],
+  iam:{permissions:['records.read','records.write','records.review']},
+ } as unknown as import('@erpx/server-identity_access/public/authorization').WorkContext;
+ const context={companyId:'company',assignmentId:'assignment',revision:7,assignmentVersion:3,permissions:['records.read','records.write','records.review']};
+ const duePlan={...plan,status:'active',version:2,next_due_at:Date.now()-1000,owner_id:'user',owner_eligible:1};
+ const ineligible={...plan,id:'ineligible',status:'active',version:1,next_due_at:Date.now()-1000,owner_id:'other',owner_eligible:0};
+ const cancelled={...plan,id:'cancelled',status:'cancelled',version:3,owner_id:'user',owner_eligible:1};
+ const detailPayload={plan:duePlan,actorId:'user',canWrite:true,canReview:true,assetVersion:1,people:[{id:'user',name:'Owner'}],history:[],occurrences:[]};
+ const okJson=(data:unknown)=>new Response(JSON.stringify({data,context}),{status:200,headers:{'content-type':'application/json'}});
+ const load=()=>import('../../../packages/server-maintenance/src/public/native-preventive-read');
+ let spy:ReturnType<typeof vi.spyOn>;
+ beforeEach(()=>{vi.stubEnv(key,cfg());});
+ afterEach(()=>{vi.unstubAllEnvs();vi.restoreAllMocks();});
+
+ it('derives work items from the mounted plan list and never builds owner SQL',async()=>{
+  spy=vi.spyOn(globalThis,'fetch').mockResolvedValue(okJson([duePlan,ineligible,cancelled]));
+  const {preventivePlanWork}=await load();
+  const db={prepare:vi.fn(()=>{throw Error('preventive read must not build SQL');})} as unknown as import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
+  const items=await preventivePlanWork(actor);
+  expect(items.find(i=>i.id==='plan')).toMatchObject({queue:'todo',canAct:true,type:'maintenance_plan',blocker:null});
+  expect(items.find(i=>i.id==='ineligible')).toMatchObject({blocker:expect.stringContaining('no longer eligible')});
+  expect(items.find(i=>i.id==='cancelled')).toMatchObject({queue:'completed',canAct:false});
+  expect(String(spy.mock.calls[0][0])).toBe('http://127.0.0.1:44992/api/v1/holdings/acme/maintenance/plans');
+  expect(db.prepare).not.toHaveBeenCalled();
+ });
+
+ it('reads plan detail by id from the native route for notification existence checks',async()=>{
+  spy=vi.spyOn(globalThis,'fetch').mockResolvedValue(okJson(detailPayload));
+  const {preventivePlanDetail}=await load();
+  const detail=await preventivePlanDetail(actor,'plan');
+  expect(detail.plan).toMatchObject({id:'plan',status:'active',version:2});
+  const url=new URL(String(spy.mock.calls[0][0]));
+  expect(url.pathname).toBe('/api/v1/holdings/acme/maintenance/plans');
+  expect(url.searchParams.get('id')).toBe('plan');
+ });
+
+ it('fails closed for missing config, 403/404 and a changed context',async()=>{
+  const {preventivePlanDetail,preventivePlanWork}=await load();
+  vi.unstubAllEnvs();delete process.env[key];
+  await expect(preventivePlanDetail(actor,'plan')).rejects.toMatchObject({status:503,code:'NATIVE_MAINTENANCE_UNAVAILABLE'});
+  expect(await preventivePlanWork(actor)).toEqual([]);
+  vi.stubEnv(key,cfg());
+  spy=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response('{}',{status:404}));
+  await expect(preventivePlanDetail(actor,'plan')).rejects.toMatchObject({status:404,code:'MAINTENANCE_PLAN_NOT_FOUND'});
+  spy.mockResolvedValue(new Response(JSON.stringify({data:detailPayload,context:{...context,revision:8}}),{status:200,headers:{'content-type':'application/json'}}));
+  await expect(preventivePlanDetail(actor,'plan')).rejects.toMatchObject({status:409,code:'WORK_CONTEXT_CHANGED'});
  });
 });
