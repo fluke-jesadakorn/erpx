@@ -72,6 +72,29 @@ describe('App upload task state native read',()=>{
   }
  });
 });
+describe('Collaboration home task state native read dedupe',()=>{
+ test('trackingState reuses the registered task-state plan and keeps no local SQL',async()=>{
+  const prepare=vi.fn(()=>({bind:vi.fn()}));
+  const batch=vi.fn(async()=>[{results:[{state:'ready'}],success:true,meta:{changes:0,duration:0}}]);
+  const db={prepare,batch} as unknown as SqlDatabase;
+  process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG=JSON.stringify({privateBaseUrl:'http://127.0.0.1:3999',timeoutMs:1000,holdings:[{origin:'https://acme.jesadakorn.com',holdingSlug:'acme',holdingId:'h1',companyId:'company'}]});
+  const plannedSql='SELECT state FROM staff_tasks WHERE id=? AND company_id=?';
+  const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response(JSON.stringify({data:{statements:[{sql:plannedSql,values:['task','company']}]}}),{status:200,headers:{'content-type':'application/json'}}));
+  try{
+   const {collaborationHomeSources}=await import('@erpx/server-operations/adapters/collaboration-home-sources');
+   await expect(collaborationHomeSources(db).trackingState('task','company')).resolves.toBe('ready');
+   expect(fetchMock).toHaveBeenCalledTimes(1);
+   const call=fetchMock.mock.calls[0]!;
+   expect(String(call[0])).toContain('/operations/command-plan');
+   expect(JSON.parse(String(call[1]!.body))).toMatchObject({kind:'operations_rd_app_upload_task_state',values:['task','company']});
+   expect(prepare).toHaveBeenCalledWith(plannedSql);
+   expect(prepare).toHaveBeenCalledTimes(1);
+  }finally{
+   fetchMock.mockRestore();
+   delete process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG;
+  }
+ });
+});
 describe('Flow routing delegation native read',()=>{
   test('delegation reads delegate to the native owner plan and keep no local SQL',async()=>{
    const prepare=vi.fn(()=>({bind:vi.fn()}));
