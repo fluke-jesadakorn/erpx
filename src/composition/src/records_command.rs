@@ -1,6 +1,6 @@
-//! Native generic Records create command. Support is the first bounded module;
-//! current Identity authority, Company/workspace scope, command receipt,
-//! version CAS, audit and outbox all live in the caller's serializable unit.
+//! Native generic Records command for all modules. Current Identity authority,
+//! Company/workspace scope, module membership, command receipt, version CAS,
+//! audit and outbox all live in the caller's serializable unit.
 use crate::records::RecordsConfiguration;
 use erpx_server_identity_access::public::{
     DeviceProof,
@@ -1027,13 +1027,6 @@ impl<C: Clock + Send + Sync + 'static> RecordsCommandService<C> {
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
-        if module_id != "support" {
-            return Err(BusinessError::invalid(
-                "RECORD_MODULE_UNSUPPORTED",
-                "This record module is not available in the native workbench yet.",
-            )
-            .into());
-        }
         if !valid_record_id(&record_id) {
             return Err(record_not_found().into());
         }
@@ -1173,13 +1166,6 @@ impl<C: Clock + Send + Sync + 'static> RecordsCommandService<C> {
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
-        if module_id != "support" {
-            return Err(BusinessError::invalid(
-                "RECORD_MODULE_UNSUPPORTED",
-                "This record module is not available in the native workbench yet.",
-            )
-            .into());
-        }
         if !valid_record_id(&record_id) {
             return Err(record_not_found().into());
         }
@@ -1406,13 +1392,6 @@ impl<C: Clock + Send + Sync + 'static> RecordsCommandService<C> {
     where
         Input: FnOnce() -> Result<HoldingWorkspaceRequest, BusinessError> + Send + 'static,
     {
-        if module_id != "support" {
-            return Err(BusinessError::invalid(
-                "RECORD_MODULE_UNSUPPORTED",
-                "This record module is not available in the native workbench yet.",
-            )
-            .into());
-        }
         if !valid_record_id(&record_id)
             || !(1..=MAX_SAFE).contains(&transition.expected_version)
             || !TRANSITION_ACTIONS.contains(&transition.action.as_str())

@@ -155,6 +155,7 @@ export function createRecordsApplication<Effect>(ports: RecordsPorts<Effect>) {
     async function recordMutation(actor: WorkContext, moduleId: string, id: string, version: number, operation: string, input: unknown, statements: Effect[], key = ports.identifiers.next()) {
         return ports.commands.commit(actor, key, operation, { moduleId, ...(input as object) }, id, version, { id }, [recordGuard(key, moduleId, id, version), ...statements]);
     }
+    /** Retained as a pure decision oracle; the production writer is the native command route. */
     async function createRecord(actor: WorkContext, moduleId: string, input: z.infer<typeof createRecordSchema>, key = ports.identifiers.next()) {
         assertGenericRecordOwner(moduleId, actor);
         assertModule(actor, moduleId);

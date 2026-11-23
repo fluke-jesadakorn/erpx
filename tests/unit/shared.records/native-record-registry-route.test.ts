@@ -53,9 +53,6 @@ vi.mock('@erpx/server-records/adapters/records', () => ({
   transitionSchema: { safeParse: (value: unknown) => ({ success: true, data: value }) },
   recordContext: state.retainedContext,
 }));
-vi.mock('@erpx/server-records/public/mention-display', () => ({
-  recordMentionDisplay: vi.fn(),
-}));
 vi.mock('@erpx/server-records/public/native-record-context', () => ({
   createNativeRecordContextClient: () => ({ context: state.context }),
   nativeRecordContextConfiguration: () => ({}),
@@ -187,6 +184,49 @@ it('reads the ordinary record detail only through the native context reader', as
   expect(state.retainedContext).not.toHaveBeenCalled();
 });
 
+it('projects the mention view from the native context without the retained TS reader', async () => {
+  state.context.mockResolvedValue({
+    record: {
+      moduleId: 'operations',
+      id: 'rec-1',
+      sectionId: 'overview',
+      title: 'Mentioned record',
+      description: 'A description',
+      status: 'approved',
+      fields: [
+        { key: 'total', label: 'Total', type: 'number', value: 3, options: ['a'] },
+      ],
+      version: 4,
+      createdBy: 'actor',
+      updatedAt: 7,
+    },
+    references: [],
+    backlinks: [],
+    mentions: [],
+    suggestions: [],
+    history: [],
+  });
+  const response = await GET_RECORD(
+    new Request('https://acme.example.com/api/v1/holdings/acme/records/operations/rec-1?view=mention'),
+    { params: Promise.resolve({ holdingSlug: 'acme', module: 'operations', id: 'rec-1' }) },
+  );
+  expect(response.status).toBe(200);
+  expect((await response.json()).data).toEqual({
+    record: {
+      title: 'Mentioned record',
+      description: 'A description',
+      status: 'approved',
+      version: 4,
+      fields: [{ key: 'total', label: 'Total', value: 3 }],
+    },
+  });
+  expect(state.context).toHaveBeenCalledWith(
+    expect.any(Headers),
+    expect.objectContaining({ holdingId: 'h001' }),
+    { holdingSlug: 'acme', moduleId: 'operations', recordId: 'rec-1' },
+  );
+});
+
 it('fails the record detail closed with 503 instead of running retained SQL when native configuration is absent', async () => {
   delete process.env.ERPX_NATIVE_RECORDS_CONFIG;
   const response = await GET_RECORD(
@@ -240,6 +280,47 @@ it('uses native create with the current authority then reads back the created re
   );
   expect(state.list).not.toHaveBeenCalled();
   expect((await response.json()).data).toEqual(record);
+});
+
+it('uses native create for every module and fails closed when configuration is absent', async () => {
+  state.create.mockResolvedValue({
+    moduleId: 'operations',
+    id: 'rec-operations-records:http-1',
+    sectionId: 'overview',
+    title: 'Native record',
+    description: '',
+    status: 'draft',
+    fields: [{ key: 'total', label: 'Total', type: 'number', value: 3 }],
+    version: 1,
+    createdBy: 'actor',
+    updatedAt: 1,
+  });
+  const input = {
+    sectionId: 'overview',
+    title: 'Native record',
+    description: '',
+    fields: [{ key: 'total', label: 'Total', type: 'number', value: 3 }],
+  };
+  const make = (key: string) =>
+    new Request('https://acme.example.com/api/v1/holdings/acme/records/operations', {
+      method: 'POST',
+      headers: { origin: 'https://acme.example.com', 'idempotency-key': key, 'content-type': 'application/json' },
+      body: JSON.stringify(input),
+    });
+  const params = { params: Promise.resolve({ holdingSlug: 'acme', module: 'operations' }) };
+  const response = await POST(make('records:http-create-ops'), params);
+  expect(response.status).toBe(201);
+  expect(state.create).toHaveBeenCalledWith(
+    expect.any(Headers),
+    expect.objectContaining({ userId: 'actor', holdingSlug: 'acme' }),
+    { holdingSlug: 'acme', moduleId: 'operations', ...input },
+    'records:http-create-ops',
+  );
+  delete process.env.ERPX_NATIVE_RECORDS_CONFIG;
+  const closed = await POST(make('records:http-create-closed'), params);
+  expect(closed.status).toBe(503);
+  expect((await closed.json()).error.code).toBe('NATIVE_RECORD_REGISTRY_UNAVAILABLE');
+  expect(state.create).toHaveBeenCalledTimes(1);
 });
 
 it('uses native update for support with the current authority and never reads the retained writer', async () => {
@@ -310,41 +391,54 @@ it('uses native update for support with the current authority and never reads th
   expect(state.update).toHaveBeenCalledTimes(1);
 });
 
-it('keeps the retained update path outside the bounded support module', async () => {
-  const retainedRecord = { id: 'retained', version: 2 };
-  state.retainedUpdate.mockResolvedValue(retainedRecord);
-  const response = await PATCH(
-    new Request(
-      'https://acme.example.com/api/v1/holdings/acme/records/operations/rec-1',
-      {
-        method: 'PATCH',
-        headers: {
-          origin: 'https://acme.example.com',
-          'idempotency-key': 'records:http-retained',
-          'content-type': 'application/json',
-        },
-        body: JSON.stringify({ expectedVersion: 1, fields: { total: 3 } }),
+it('uses native update for every module and fails closed when configuration is absent', async () => {
+  const updated = {
+    moduleId: 'operations',
+    id: 'rec-1',
+    sectionId: 'overview',
+    title: 'Native record',
+    description: '',
+    status: 'draft',
+    fields: [{ key: 'total', label: 'Total', type: 'number', value: 3 }],
+    version: 2,
+    createdBy: 'actor',
+    updatedAt: 2,
+  };
+  state.update.mockResolvedValue(updated);
+  const params = {
+    params: Promise.resolve({ holdingSlug: 'acme', module: 'operations', id: 'rec-1' }),
+  };
+  const make = (key: string) =>
+    new Request('https://acme.example.com/api/v1/holdings/acme/records/operations/rec-1', {
+      method: 'PATCH',
+      headers: {
+        origin: 'https://acme.example.com',
+        'idempotency-key': key,
+        'content-type': 'application/json',
       },
-    ),
-    {
-      params: Promise.resolve({
-        holdingSlug: 'acme',
-        module: 'operations',
-        id: 'rec-1',
-      }),
-    },
-  );
+      body: JSON.stringify({ expectedVersion: 1, fields: { total: 3 } }),
+    });
+  const response = await PATCH(make('records:http-update-ops'), params);
   expect(response.status).toBe(200);
-  expect(state.retainedGet).toHaveBeenCalledWith(state.actor, 'operations', 'rec-1');
-  expect(state.retainedUpdate).toHaveBeenCalledWith(
-    state.actor,
-    'operations',
-    'rec-1',
-    { expectedVersion: 1, fields: { total: 3 } },
-    'records:http-retained',
+  expect(state.update).toHaveBeenCalledWith(
+    expect.any(Headers),
+    expect.objectContaining({ userId: 'actor', holdingSlug: 'acme' }),
+    {
+      holdingSlug: 'acme',
+      moduleId: 'operations',
+      recordId: 'rec-1',
+      expectedVersion: 1,
+      fields: { total: 3 },
+    },
+    'records:http-update-ops',
   );
-  expect(state.update).not.toHaveBeenCalled();
-  expect((await response.json()).data).toEqual(retainedRecord);
+  expect(state.retainedGet).not.toHaveBeenCalled();
+  expect(state.retainedUpdate).not.toHaveBeenCalled();
+  delete process.env.ERPX_NATIVE_RECORDS_CONFIG;
+  const closed = await PATCH(make('records:http-update-closed'), params);
+  expect(closed.status).toBe(503);
+  expect((await closed.json()).error.code).toBe('NATIVE_RECORD_REGISTRY_UNAVAILABLE');
+  expect(state.update).toHaveBeenCalledTimes(1);
 });
 
 it('uses native archive for support with the current authority and never reads the retained writer', async () => {
@@ -405,38 +499,30 @@ it('uses native archive for support with the current authority and never reads t
   expect(state.archive).toHaveBeenCalledTimes(1);
 });
 
-it('keeps the retained archive path outside the bounded support module', async () => {
-  const retained = { id: 'rec-1', moduleId: 'operations', archived: true };
-  state.retainedArchive.mockResolvedValue(retained);
-  const response = await DELETE(
+it('uses native archive for every module and fails closed when configuration is absent', async () => {
+  state.archive.mockResolvedValue({ id: 'rec-1', moduleId: 'operations', archived: true });
+  const params = {
+    params: Promise.resolve({ holdingSlug: 'acme', module: 'operations', id: 'rec-1' }),
+  };
+  const make = (key: string) =>
     new Request(
       'https://acme.example.com/api/v1/holdings/acme/records/operations/rec-1?expectedVersion=2',
-      {
-        method: 'DELETE',
-        headers: {
-          origin: 'https://acme.example.com',
-          'idempotency-key': 'records:http-retained-archive',
-        },
-      },
-    ),
-    {
-      params: Promise.resolve({
-        holdingSlug: 'acme',
-        module: 'operations',
-        id: 'rec-1',
-      }),
-    },
-  );
+      { method: 'DELETE', headers: { origin: 'https://acme.example.com', 'idempotency-key': key } },
+    );
+  const response = await DELETE(make('records:http-archive-ops'), params);
   expect(response.status).toBe(200);
-  expect(state.retainedArchive).toHaveBeenCalledWith(
-    state.actor,
-    'operations',
-    'rec-1',
-    2,
-    'records:http-retained-archive',
+  expect(state.archive).toHaveBeenCalledWith(
+    expect.any(Headers),
+    expect.objectContaining({ userId: 'actor', holdingSlug: 'acme' }),
+    { holdingSlug: 'acme', moduleId: 'operations', recordId: 'rec-1', expectedVersion: 2 },
+    'records:http-archive-ops',
   );
-  expect(state.archive).not.toHaveBeenCalled();
-  expect((await response.json()).data).toEqual(retained);
+  expect(state.retainedArchive).not.toHaveBeenCalled();
+  delete process.env.ERPX_NATIVE_RECORDS_CONFIG;
+  const closed = await DELETE(make('records:http-archive-closed'), params);
+  expect(closed.status).toBe(503);
+  expect((await closed.json()).error.code).toBe('NATIVE_RECORD_REGISTRY_UNAVAILABLE');
+  expect(state.archive).toHaveBeenCalledTimes(1);
 });
 
 it('uses native reference for support then reads the updated native context', async () => {

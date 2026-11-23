@@ -745,8 +745,7 @@ function referenceCall(
     return Promise.reject(new NativeRecordRegistryError('ORIGIN_FORBIDDEN', 403));
   if (
     !/^[a-z0-9_-]{1,64}$/.test(input.moduleId) ||
-    input.moduleId !== 'support' ||
-    input.targetModule !== 'support' ||
+    !/^[a-z0-9_-]{1,64}$/.test(input.targetModule) ||
     !boundedId(input.recordId) ||
     !boundedId(input.targetId) ||
     input.recordId === input.targetId ||
@@ -818,7 +817,6 @@ function transitionCall(
     return Promise.reject(new NativeRecordRegistryError('ORIGIN_FORBIDDEN', 403));
   const note = input.note ?? '';
   if (
-    input.moduleId !== 'support' ||
     !boundedId(input.recordId) ||
     !integer(input.expectedVersion, 1) ||
     !transitionActions.has(input.action) ||

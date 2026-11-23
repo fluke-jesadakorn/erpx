@@ -166,7 +166,7 @@ async fn creates_one_record_with_receipt_audit_outbox_and_replay() {
 }
 
 #[tokio::test]
-async fn rejects_changed_replay_unauthorized_scope_and_invalid_module() {
+async fn rejects_changed_replay_unauthorized_scope_and_invalid_section() {
     review::account::with_system(|system| async move {
         let (p, service, _) = records_setup(system).await;
         let pool = &p.system.holdings[0];
@@ -210,19 +210,20 @@ async fn rejects_changed_replay_unauthorized_scope_and_invalid_module() {
             .await
             .unwrap_err();
         assert_eq!(business(denied).kind, erpx_server_shared::public::FailureKind::Forbidden);
-        // Only the bounded support module is accepted by this first slice.
-        let unsupported = service
+        // Every module is accepted by the native route; access still requires
+        // the actor's current work context to contain it.
+        let without_access = service
             .create(
                 "acme.example.test",
                 p.maker.clone(),
                 { let selection = p.maker_selection.clone(); move || Ok(selection) },
                 "crm".into(),
-                input("Unsupported module"),
+                input("Module without access"),
                 key("records:create-4"),
             )
             .await
             .unwrap_err();
-        assert_eq!(business(unsupported).code, "RECORD_MODULE_UNSUPPORTED");
+        assert_eq!(business(without_access).code, "RECORDS_MODULE_FORBIDDEN");
         let invalid_section = service
             .create(
                 "acme.example.test",
@@ -230,7 +231,7 @@ async fn rejects_changed_replay_unauthorized_scope_and_invalid_module() {
                 { let selection = p.maker_selection.clone(); move || Ok(selection) },
                 "support".into(),
                 CreateRecordInput {
-                    section_id: "not-a-section".into(),
+                    section_id: "".into(),
                     title: "Invalid section".into(),
                     description: String::new(),
                     fields: vec![RecordFieldInput {

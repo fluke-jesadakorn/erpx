@@ -76,9 +76,8 @@ function application(provided?: SqlDatabase,actor?:WorkContext) {
     FROM workspace_records WHERE archived_at IS NULL AND module_id=? AND id=? AND ${scope.sql}`).bind(moduleId, id, ...args).first<RecordRow>();
         },
         guard3(key: string, value: "record-version", moduleId: string, id: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM workspace_records WHERE module_id=? AND id=? AND version=? AND archived_at IS NULL)", [moduleId, id, version]); },
-        /** Retired: record creation executes in the native Rust records command route. */
+        /** Retired: creation, archive and update execute in the native Rust records command route. */
         stageCreateRecordEffect() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records command is unavailable.'); },
-        /** Retired: archive and update execute in the native Rust records command route. */
         stageArchiveRecordEffect() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records command is unavailable.'); },
         stageUpdateRecordEffect() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records command is unavailable.'); },
         /** Retired: transition state and history execute in the native Rust records command route. */
@@ -167,9 +166,6 @@ async function invoke<Result>(run: () => Promise<Result>) {
 }
 export async function listRecords(actor: WorkContext, moduleId: string, sectionId: string) { return invoke(() => application(undefined,actor).listRecords(actor, moduleId, sectionId)); }
 export async function getRecord(actor: WorkContext, moduleId: string, id: string, provided?: SqlDatabase) { return invoke(() => application(provided,actor).getRecord(actor, moduleId, id)); }
-export async function createRecord(actor: WorkContext, moduleId: string, input: z.infer<typeof createRecordSchema>, key = crypto.randomUUID()) { return invoke(() => application(undefined,actor).createRecord(actor, moduleId, input, key)); }
-export async function archiveRecord(actor: WorkContext, moduleId: string, id: string, expectedVersion: number, key = crypto.randomUUID()) { return invoke(() => application(undefined,actor).archiveRecord(actor, moduleId, id, expectedVersion, key)); }
-export async function updateRecord(actor: WorkContext, moduleId: string, id: string, input: z.infer<typeof updateRecordSchema>, key = crypto.randomUUID()) { return invoke(() => application(undefined,actor).updateRecord(actor, moduleId, id, input, key)); }
 export async function transitionRecord(actor: WorkContext, moduleId: string, id: string, input: z.infer<typeof transitionSchema>, key: string = crypto.randomUUID()) { return invoke(() => application(undefined,actor).transitionRecord(actor, moduleId, id, input, key)); }
 export async function recordContext(actor: WorkContext, moduleId: string, id: string) { return invoke(() => application(undefined,actor).recordContext(actor, moduleId, id)); }
 export async function searchReferences(actor: WorkContext, query: string) { return invoke(() => application(undefined,actor).searchReferences(actor, query)); }

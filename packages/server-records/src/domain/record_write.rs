@@ -1,9 +1,9 @@
 //! Bounded native generic-record write facts.
 //!
-//! This first slice intentionally supports only the `support` module and its
-//! registered sections. The composition still resolves the current actor,
-//! Company scope, module access, command receipt, audit and outbox. The module
-//! list is checked against the installed catalogue registry by a test oracle.
+//! Every module is available through the native command route. The composition
+//! resolves the current actor, Company scope, module access, command receipt,
+//! audit and outbox; module membership is checked against the actor's current
+//! work context rather than a hard-coded allowlist.
 use erpx_server_shared::public::BusinessError;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -19,17 +19,6 @@ pub const MAX_FIELD_OPTIONS: usize = 50;
 pub const MAX_FIELD_OPTION: usize = 120;
 pub const MAX_FIELD_STRING: usize = 4_000;
 pub const MAX_SAFE: i64 = 9_007_199_254_740_991;
-pub const SUPPORT_SECTIONS: &[&str] = &[
-    "tickets",
-    "sla-watch",
-    "incidents",
-    "feature-support-sessions",
-    "feature-capabilities",
-    "feature-attachments",
-    "overview",
-    "records",
-    "activity",
-];
 
 #[derive(Clone, Debug, Eq, PartialEq, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase", deny_unknown_fields)]
@@ -145,6 +134,14 @@ fn text_units(value: &str) -> usize {
     value.encode_utf16().count()
 }
 
+/// A section is an opaque, bounded identifier chosen by the owning module.
+pub fn valid_section(value: &str) -> bool {
+    !value.is_empty()
+        && value.chars().count() <= MAX_SECTION_ID
+        && value.trim() == value
+        && !value.chars().any(char::is_control)
+}
+
 fn valid_field_value(value: &Value) -> bool {
     match value {
         Value::String(value) => text_units(value) <= MAX_FIELD_STRING,
@@ -159,13 +156,7 @@ pub fn validate_create(
     key: &str,
     input: &CreateRecordInput,
 ) -> Result<ValidatedRecord, BusinessError> {
-    if module_id != "support" {
-        return Err(invalid(
-            "RECORD_MODULE_UNSUPPORTED",
-            "This record module is not available in the native workbench yet.",
-        ));
-    }
-    if !SUPPORT_SECTIONS.contains(&input.section_id.as_str()) {
+    if !valid_section(&input.section_id) {
         return Err(invalid("INVALID_SECTION", "Choose a valid module section."));
     }
     let title = input.title.trim();
@@ -237,17 +228,11 @@ pub fn version_conflict() -> BusinessError {
 }
 
 pub fn validate_update(
-    module_id: &str,
+    _module_id: &str,
     input: &UpdateRecordInput,
     current_fields: &[RecordFieldInput],
     current_version: i64,
 ) -> Result<ValidatedRecordUpdate, BusinessError> {
-    if module_id != "support" {
-        return Err(invalid(
-            "RECORD_MODULE_UNSUPPORTED",
-            "This record module is not available in the native workbench yet.",
-        ));
-    }
     if !(1..=MAX_SAFE).contains(&input.expected_version) {
         return Err(invalid(
             "RECORD_VERSION_INVALID",
@@ -294,16 +279,10 @@ pub fn validate_update(
 }
 
 pub fn validate_archive(
-    module_id: &str,
+    _module_id: &str,
     input: &ArchiveRecordInput,
     current_version: i64,
 ) -> Result<(), BusinessError> {
-    if module_id != "support" {
-        return Err(invalid(
-            "RECORD_MODULE_UNSUPPORTED",
-            "This record module is not available in the native workbench yet.",
-        ));
-    }
     if !(1..=MAX_SAFE).contains(&input.expected_version) {
         return Err(invalid(
             "RECORD_VERSION_INVALID",
@@ -333,12 +312,6 @@ pub fn validate_reference(
     record_id: &str,
     input: &ReferenceRecordInput,
 ) -> Result<(), BusinessError> {
-    if module_id != "support" || input.target_module != "support" {
-        return Err(invalid(
-            "RECORD_MODULE_UNSUPPORTED",
-            "This record module is not available in the native workbench yet.",
-        ));
-    }
     if record_id.is_empty()
         || record_id.len() > 180
         || record_id.contains('\0')
@@ -359,7 +332,7 @@ pub fn validate_reference(
 }
 
 pub fn validate_transition(
-    module_id: &str,
+    _module_id: &str,
     input: &TransitionRecordInput,
     current_status: &str,
     current_version: i64,
@@ -367,12 +340,6 @@ pub fn validate_transition(
     created_by: &str,
     actor_id: &str,
 ) -> Result<&'static str, BusinessError> {
-    if module_id != "support" {
-        return Err(invalid(
-            "RECORD_MODULE_UNSUPPORTED",
-            "This record module is not available in the native workbench yet.",
-        ));
-    }
     if !(1..=MAX_SAFE).contains(&input.expected_version)
         || !TRANSITION_ACTIONS.contains(&input.action.as_str())
         || text_units(&input.note) > MAX_NOTE
