@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6488,
+    "revision": 6495,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-f",
       "agentId": "lead",
       "startedAt": "2026-11-23T16:54:33.142Z",
-      "heartbeatAt": "2026-11-23T18:23:08.492Z",
-      "expiresAt": "2026-11-23T18:53:08.492Z",
+      "heartbeatAt": "2026-11-23T18:35:24.663Z",
+      "expiresAt": "2026-11-23T19:05:24.663Z",
       "generation": 158,
       "tokenHash": "786b04e6db95d7a97c392a0b212dc2cfdd563bbd8cc6545681f5e6ff248eceaa"
     },
@@ -50671,8 +50671,8 @@
           "runId": "run-20261123-f",
           "agentId": "wN01",
           "claimedAt": "2026-11-23T18:15:53.634Z",
-          "heartbeatAt": "2026-11-23T18:23:08.492Z",
-          "expiresAt": "2026-11-23T18:53:08.492Z",
+          "heartbeatAt": "2026-11-23T18:35:24.663Z",
+          "expiresAt": "2026-11-23T19:05:24.663Z",
           "generation": 158
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -50790,11 +50790,35 @@
             "command": "tsc server-inventory + vitest 2/2",
             "result": "passed",
             "sourceSha": "91d4dc5ce"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "11b87eff8",
+            "owner": "inventory",
+            "before": 574,
+            "after": 573,
+            "note": "wN01: RD_ATTACHMENT_OPERATIONAL_TRANSFER + nativeInventoryReadFirst."
+          },
+          {
+            "command": "cargo check -p erpx-server-inventory",
+            "result": "passed",
+            "sourceSha": "11b87eff8"
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --lib (42)",
+            "result": "passed",
+            "sourceSha": "11b87eff8"
+          },
+          {
+            "command": "vitest inventory native-inventory-attachments-operational-facts (2)",
+            "result": "passed",
+            "sourceSha": "11b87eff8"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Integrated; claim released",
+        "nextAction": "573 recorded; next single-consumer inventory RD_KIND",
         "handoff": {
           "runId": "run-20261123-f",
           "agentId": "wL05",
@@ -51225,8 +51249,8 @@
           "runId": "run-20261123-f",
           "agentId": "wM02",
           "claimedAt": "2026-11-23T18:11:26.006Z",
-          "heartbeatAt": "2026-11-23T18:23:08.492Z",
-          "expiresAt": "2026-11-23T18:53:08.492Z",
+          "heartbeatAt": "2026-11-23T18:35:24.663Z",
+          "expiresAt": "2026-11-23T19:05:24.663Z",
           "generation": 158
         },
         "baseSha": null,
@@ -109992,8 +110016,8 @@
           "runId": "run-20261123-f",
           "agentId": "wP01",
           "claimedAt": "2026-11-23T18:17:54.008Z",
-          "heartbeatAt": "2026-11-23T18:23:08.492Z",
-          "expiresAt": "2026-11-23T18:53:08.492Z",
+          "heartbeatAt": "2026-11-23T18:35:24.663Z",
+          "expiresAt": "2026-11-23T19:05:24.663Z",
           "generation": 158
         },
         "baseSha": "d15bbdf7095f86bedb5c69bd0f4b297c357f0061",
@@ -110322,8 +110346,8 @@
           "runId": "run-20261123-f",
           "agentId": "wN02",
           "claimedAt": "2026-11-23T18:15:53.708Z",
-          "heartbeatAt": "2026-11-23T18:23:08.492Z",
-          "expiresAt": "2026-11-23T18:53:08.492Z",
+          "heartbeatAt": "2026-11-23T18:35:24.663Z",
+          "expiresAt": "2026-11-23T19:05:24.663Z",
           "generation": 158
         },
         "baseSha": "dbb5267714fb222c1665428fc0b7c9aec613e926",
@@ -113788,7 +113812,7 @@
         "owner": "maintenance",
         "title": "Native maintenance preventive-plan reads (8 SELECT -> 0)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -113809,22 +113833,47 @@
         "resources": [
           "owner:maintenance"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wJ01",
-          "claimedAt": "2026-11-23T17:50:16.881Z",
-          "heartbeatAt": "2026-11-23T18:23:08.492Z",
-          "expiresAt": "2026-11-23T18:53:08.492Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-maintenance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f5b3b889b",
+            "owner": "maintenance",
+            "before": 59,
+            "after": 51,
+            "note": "wJ01: native preventive plan list/detail transport; deleted preventive-plan.ts reads."
+          },
+          {
+            "command": "cargo check -p erpx-server-maintenance",
+            "result": "passed",
+            "sourceSha": "f5b3b889b"
+          },
+          {
+            "command": "cargo test -p erpx-server-maintenance --lib (20)",
+            "result": "passed",
+            "sourceSha": "f5b3b889b"
+          },
+          {
+            "command": "tsc server-maintenance/work_projection/collaboration",
+            "result": "passed",
+            "sourceSha": "f5b3b889b"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Add native preventive read transport over /maintenance/plans (workspace+plan detail), switch work-items and staff-notifications consumers, delete 8 SELECTs",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wJ01",
+          "at": "2026-11-23T18:34:31.206Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -113889,8 +113938,8 @@
           "runId": "run-20261123-f",
           "agentId": "wS03",
           "claimedAt": "2026-11-23T18:25:28.719Z",
-          "heartbeatAt": "2026-11-23T18:25:28.719Z",
-          "expiresAt": "2026-11-23T18:55:28.719Z",
+          "heartbeatAt": "2026-11-23T18:35:24.663Z",
+          "expiresAt": "2026-11-23T19:05:24.663Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114094,7 +114143,7 @@
         "owner": "learning",
         "title": "Native learning work port + alias consumer cleanup (3 SELECT -> 0)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -114114,7 +114163,14 @@
         "resources": [
           "owner:learning"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wT03",
+          "claimedAt": "2026-11-23T18:35:05.893Z",
+          "heartbeatAt": "2026-11-23T18:35:24.663Z",
+          "expiresAt": "2026-11-23T19:05:24.663Z",
+          "generation": 158
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -114131,7 +114187,7 @@
         "owner": "commercial",
         "title": "Commercial owner-read SQL kinds route + billing switches (3 SELECT -> 0)",
         "kind": "integration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -114162,7 +114218,14 @@
           "owner:billing",
           "resource:composition"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wT01",
+          "claimedAt": "2026-11-23T18:35:05.722Z",
+          "heartbeatAt": "2026-11-23T18:35:24.663Z",
+          "expiresAt": "2026-11-23T19:05:24.663Z",
+          "generation": 158
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -114179,7 +114242,7 @@
         "owner": "crm",
         "title": "Native CRM activity workspace read port (owner-side prep)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [
@@ -114201,7 +114264,14 @@
         "resources": [
           "owner:crm"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wT02",
+          "claimedAt": "2026-11-23T18:35:05.813Z",
+          "heartbeatAt": "2026-11-23T18:35:24.663Z",
+          "expiresAt": "2026-11-23T19:05:24.663Z",
+          "generation": 158
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -114387,8 +114457,8 @@
           "runId": "run-20261123-f",
           "agentId": "wQ01",
           "claimedAt": "2026-11-23T18:19:54.104Z",
-          "heartbeatAt": "2026-11-23T18:23:08.492Z",
-          "expiresAt": "2026-11-23T18:53:08.492Z",
+          "heartbeatAt": "2026-11-23T18:35:24.663Z",
+          "expiresAt": "2026-11-23T19:05:24.663Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114427,8 +114497,8 @@
           "runId": "run-20261123-f",
           "agentId": "wQ02",
           "claimedAt": "2026-11-23T18:19:54.191Z",
-          "heartbeatAt": "2026-11-23T18:23:08.492Z",
-          "expiresAt": "2026-11-23T18:53:08.492Z",
+          "heartbeatAt": "2026-11-23T18:35:24.663Z",
+          "expiresAt": "2026-11-23T19:05:24.663Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114466,8 +114536,8 @@
           "runId": "run-20261123-f",
           "agentId": "wR01",
           "claimedAt": "2026-11-23T18:20:47.575Z",
-          "heartbeatAt": "2026-11-23T18:23:08.492Z",
-          "expiresAt": "2026-11-23T18:53:08.492Z",
+          "heartbeatAt": "2026-11-23T18:35:24.663Z",
+          "expiresAt": "2026-11-23T19:05:24.663Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114512,8 +114582,8 @@
           "runId": "run-20261123-f",
           "agentId": "wR02",
           "claimedAt": "2026-11-23T18:21:47.727Z",
-          "heartbeatAt": "2026-11-23T18:23:08.492Z",
-          "expiresAt": "2026-11-23T18:53:08.492Z",
+          "heartbeatAt": "2026-11-23T18:35:24.663Z",
+          "expiresAt": "2026-11-23T19:05:24.663Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114556,8 +114626,8 @@
           "runId": "run-20261123-f",
           "agentId": "wR03",
           "claimedAt": "2026-11-23T18:22:30.005Z",
-          "heartbeatAt": "2026-11-23T18:23:08.492Z",
-          "expiresAt": "2026-11-23T18:53:08.492Z",
+          "heartbeatAt": "2026-11-23T18:35:24.663Z",
+          "expiresAt": "2026-11-23T19:05:24.663Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114622,8 +114692,8 @@
           "runId": "run-20261123-f",
           "agentId": "wS01",
           "claimedAt": "2026-11-23T18:23:39.206Z",
-          "heartbeatAt": "2026-11-23T18:23:39.206Z",
-          "expiresAt": "2026-11-23T18:53:39.206Z",
+          "heartbeatAt": "2026-11-23T18:35:24.663Z",
+          "expiresAt": "2026-11-23T19:05:24.663Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114662,8 +114732,8 @@
           "runId": "run-20261123-f",
           "agentId": "wS02",
           "claimedAt": "2026-11-23T18:23:39.299Z",
-          "heartbeatAt": "2026-11-23T18:23:39.299Z",
-          "expiresAt": "2026-11-23T18:53:39.299Z",
+          "heartbeatAt": "2026-11-23T18:35:24.663Z",
+          "expiresAt": "2026-11-23T19:05:24.663Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114686,18 +114756,18 @@
       "totalPackets": 488,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 24,
-        "in_progress": 13,
+        "pending": 22,
+        "in_progress": 14,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 122,
+        "blocked": 123,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T18:30:49.755Z",
+    "updatedAt": "2026-11-23T18:35:24.669Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
