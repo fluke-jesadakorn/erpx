@@ -86,6 +86,18 @@ const READ_EXEC_APPLICATION: NativeTalentReadStatement = NativeTalentReadStateme
     bind_count: 8,
 };
 
+/// Native successor of the TypeScript `candidatePrivacyWorkspace` candidate
+/// privacy-event history read. The caller binds `[candidate_id, company_id]`
+/// on its open unit.
+pub const RD_PRIVACY_HISTORY: &str = "talent_rd_privacy_history";
+const SQL_RD_PRIVACY_HISTORY: &str =
+    "SELECT id,action,candidate_version,created_at FROM talent_candidate_privacy_events WHERE candidate_id=? AND company_id=? ORDER BY candidate_version,id";
+const READ_PRIVACY_HISTORY: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_PRIVACY_HISTORY,
+    sql: SQL_RD_PRIVACY_HISTORY,
+    bind_count: 2,
+};
+
 const STATEMENTS: &[NativeTalentReadStatement] = &[
     READ_APPLICATION_EVENTS,
     READ_PROPOSALS,
@@ -93,6 +105,7 @@ const STATEMENTS: &[NativeTalentReadStatement] = &[
     READ_HIRE_HANDOFFS,
     READ_EXEC_REQUISITION,
     READ_EXEC_APPLICATION,
+    READ_PRIVACY_HISTORY,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -127,7 +140,25 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), 1);
         }
-        assert_eq!(STATEMENTS.len(), 6);
+        assert_eq!(STATEMENTS.len(), 7);
+    }
+
+    #[test]
+    fn privacy_history_read_is_owner_authored_select_only() {
+        let statement = read_statement(RD_PRIVACY_HISTORY).expect("registered owner read kind");
+        assert_eq!(statement.kind, RD_PRIVACY_HISTORY);
+        assert_eq!(statement.sql, SQL_RD_PRIVACY_HISTORY);
+        assert_eq!(statement.bind_count, 2);
+        assert!(statement.sql.starts_with("SELECT "), "owner read must be SELECT-only: {sql}", sql = statement.sql);
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+            assert!(!statement.sql.contains(forbidden), "owner read must not mutate: {forbidden}");
+        }
+        assert!(
+            statement.sql.contains("talent_candidate_privacy_events"),
+            "privacy history must stay on the owner-local Talent table: {sql}",
+            sql = statement.sql
+        );
+        assert_eq!(statement.sql.matches('?').count(), 2);
     }
 
     #[test]

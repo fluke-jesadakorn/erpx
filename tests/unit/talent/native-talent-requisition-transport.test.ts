@@ -319,6 +319,41 @@ describe('native Talent detail read tail', () => {
     }
   });
 
+  it('plans the candidate privacy-history read through the mounted command-plan route', async () => {
+    const previous = process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+    process.env.ERPX_NATIVE_TALENT_READ_CONFIG = readConfig;
+    const plannedSql = 'SELECT id,action,candidate_version,created_at FROM talent_candidate_privacy_events WHERE candidate_id=? AND company_id=? ORDER BY candidate_version,id';
+    const fetchMock = vi.fn(async (_url: unknown, init: { body?: string }) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      expect(body.kind).toBe('talent_rd_privacy_history');
+      expect(body.values).toEqual(['cand-1', 'company']);
+      return ok({ data: { statements: [{ sql: plannedSql, values: body.values }] } });
+    });
+    vi.stubGlobal('fetch', fetchMock);
+    const seen: string[] = [];
+    const db = {
+      prepare(sql: string) {
+        seen.push(sql);
+        return {
+          bind(...values: unknown[]) {
+            expect(values).toEqual(['cand-1', 'company']);
+            return { all: async () => ({ results: [{ id: 'e1', action: 'hold', candidate_version: 1, created_at: 1 }] }) };
+          },
+        };
+      },
+    } as never;
+    try {
+      const rows = await nativeTalentReadAll<{ id: string; action: string }>('talent_rd_privacy_history', ['cand-1', 'company'], db);
+      expect(rows).toEqual([{ id: 'e1', action: 'hold', candidate_version: 1, created_at: 1 }]);
+      expect(seen).toEqual([plannedSql]);
+      expect(String(fetchMock.mock.calls[0][0])).toContain('/api/v1/holdings/acme/talent/command-plan');
+    } finally {
+      vi.unstubAllGlobals();
+      if (previous === undefined) delete process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
+      else process.env.ERPX_NATIVE_TALENT_READ_CONFIG = previous;
+    }
+  });
+
   it('fails closed without a native read config and never builds local SQL', async () => {
     const previous = process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
     delete process.env.ERPX_NATIVE_TALENT_READ_CONFIG;
