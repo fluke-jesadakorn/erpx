@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7125,
+    "revision": 7129,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -122236,7 +122236,7 @@
         "owner": "procurement",
         "title": "procurement TS read tail native cutover (round 5)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -122248,22 +122248,42 @@
         "resources": [
           "owner:procurement"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wBT1pro",
-          "claimedAt": "2026-11-23T22:21:38.898Z",
-          "heartbeatAt": "2026-11-23T22:29:18.693Z",
-          "expiresAt": "2026-11-23T22:59:18.693Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-procurement/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d7c2c7ffd",
+            "owner": "procurement",
+            "before": 223,
+            "after": 221,
+            "note": "Active quotation count kinds shared by RFQ act/handoff paths."
+          },
+          {
+            "command": "cargo check -p erpx-server-procurement + lib (15)",
+            "result": "passed",
+            "sourceSha": "d7c2c7ffd"
+          },
+          {
+            "command": "vitest procurement read-plan (9) + tsc owner/tests-config",
+            "result": "passed",
+            "sourceSha": "d7c2c7ffd"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family served by the procurement command-plan; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wBT1pro",
+          "at": "2026-11-23T22:46:42.456Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -123181,6 +123201,42 @@
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to the native inventory registry; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.procurement.read-tail-r6",
+        "goalId": "G4",
+        "owner": "procurement",
+        "title": "procurement TS read tail native cutover (round 6)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-procurement/src/**",
+          "tests/unit/procurement/**",
+          "tests/integration/procurement/**"
+        ],
+        "resources": [
+          "owner:procurement"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wCC1pro",
+          "claimedAt": "2026-11-23T22:46:42.617Z",
+          "heartbeatAt": "2026-11-23T22:46:42.617Z",
+          "expiresAt": "2026-11-23T23:16:42.617Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family served by the procurement command-plan; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -123189,7 +123245,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 623,
+      "totalPackets": 624,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -123197,13 +123253,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 259,
+        "blocked": 260,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T22:45:52.474Z",
+    "updatedAt": "2026-11-23T22:46:42.620Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
