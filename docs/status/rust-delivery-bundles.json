@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5257,
+    "revision": 5267,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261123-a",
+      "runId": "run-20261123-b",
       "agentId": "lead",
-      "startedAt": "2026-11-23T00:51:44.306Z",
-      "heartbeatAt": "2026-11-23T00:51:44.377Z",
-      "expiresAt": "2026-11-23T01:21:44.377Z",
-      "generation": 151,
-      "tokenHash": "96aa796e9b3768b740f1c573d07a2384c1990525c43d14e07c5f0fb89976e0a4"
+      "startedAt": "2026-11-23T02:13:49.719Z",
+      "heartbeatAt": "2026-11-23T02:13:49.788Z",
+      "expiresAt": "2026-11-23T02:43:49.788Z",
+      "generation": 152,
+      "tokenHash": "4ed58bb3f259f219159157fea6323002b2fd9a85500f384f067a474e862ae5a7"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -17228,14 +17228,14 @@
         ],
         "status": "in_progress",
         "claim": {
-          "runId": "run-20261123-a",
+          "runId": "run-20261123-b",
           "agentId": "lead",
-          "claimedAt": "2026-11-23T00:57:08.108Z",
-          "heartbeatAt": "2026-11-23T00:57:08.108Z",
-          "expiresAt": "2026-11-23T01:27:08.108Z",
-          "generation": 151
+          "claimedAt": "2026-11-23T02:14:41.095Z",
+          "heartbeatAt": "2026-11-23T02:14:41.095Z",
+          "expiresAt": "2026-11-23T02:44:41.095Z",
+          "generation": 152
         },
-        "baseSha": "1f4db9da073994347dc7ee14517d4a0c2739c2a0",
+        "baseSha": "ff52734b53252545461d2875db3e0f2f2c31c786",
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [
@@ -17346,14 +17346,14 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "TURN AT 1f4db9da0 (new coordinator run-20261123-a gen 151; run-20261122-d lease expired). Workflow assertion path is green after casting every IAM assertion parameter to its column type and binding nulls as bigint; the execute route is live with the sqlx 0.9 audited wrapper. The suite now fails at GET /api/v1/companies/{fixture}/finance/company-money/rates -> 404 because the finance company-money read router is not mounted in composition; the client config and loopback allowance are in place. Next: mount that router with the holding pool and rerun. Dev binary rebuilt; :3100 health 200. Decisions still needed: PG 18.6 vs 18.x; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1.",
+        "nextAction": "TURN ff52734b5 (run-20261123-b gen 152; run-20261123-a lease expired). Mounted the dead native routers the suite needed: finance company-money reads, finance owner-write (company + single-target fallback), commerce owner-write, manufacturing owner-write, commercial grant-save; fixed the private boundary so GET/HEAD (not just POST) can reach owner reads; gave Files commands a single-target pool fallback; added suite transport configs for commerce/commercial/inventory/files; rewrote Finance owner-write execution to escaped literals + explicit jsonb ledger casts to stop text/bigint/date/jsonb mismatches; moved workflow assertions onto the caller unit; interleaved native Manufacturing markers by contiguous run so receipts/idempotency stay ordered. The originally blocked manufacturing posts-material case is GREEN (1 passed/39 skipped) at ff52734b5. Full manufacturing.production.integration is still 6 passed / 34 failed: next is Files SR_058 persistence detail, then purchases.ts current() batching native guard markers (CROSS_DATABASE_TRANSACTION), then iterate remaining per-case native configs/routes. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready 1. Decisions still open: PG 18.6-vs-18.x; retire.workflow jobs.ts scope; landed-cost receipt-key; two stale zero-SQL retire tasks.",
         "handoff": {
-          "runId": "run-20261123-a",
+          "runId": "run-20261123-b",
           "agentId": "lead",
-          "at": "2026-11-23T00:57:07.823Z",
+          "at": "2026-11-23T02:14:40.825Z",
           "previousStatus": "in_progress",
           "reason": "released with work preserved",
-          "nextAction": "TURN AT 808ae203a. Mounted the workflow execute route with the sqlx 0.9 audited dynamic-SQL wrapper and restored the composition backend; added the wf_native_command_assertions_3 condition planner. manufacturing.production.integration now reaches the assertion INSERT and fails SQLSTATE 42883 bigint = text at the condition. Next: identify the assertion call whose arg is a string and pass a number (or cast in the condition), then rerun. Dev binary rebuilt; :3100 health 200. Decisions still needed: PG 18.6 vs 18.x; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1."
+          "nextAction": "TURN AT 1f4db9da0 (new coordinator run-20261123-a gen 151; run-20261122-d lease expired). Workflow assertion path is green after casting every IAM assertion parameter to its column type and binding nulls as bigint; the execute route is live with the sqlx 0.9 audited wrapper. The suite now fails at GET /api/v1/companies/{fixture}/finance/company-money/rates -> 404 because the finance company-money read router is not mounted in composition; the client config and loopback allowance are in place. Next: mount that router with the holding pool and rerun. Dev binary rebuilt; :3100 health 200. Decisions still needed: PG 18.6 vs 18.x; retire.workflow jobs.ts allowedPaths; landed-cost receipt-key; reclassify the two zero-SQL stale retire tasks. Counts unchanged: migrated 336, blocked 98, pending 13, in_progress 2, deferred 1, ready_for_integration 1."
         },
         "procedureRef": "executionPlan.sliceProcedure"
       },
@@ -52003,7 +52003,7 @@
         ],
         "status": "blocked",
         "claim": null,
-        "baseSha": "1f4db9da073994347dc7ee14517d4a0c2739c2a0",
+        "baseSha": "ff52734b53252545461d2875db3e0f2f2c31c786",
         "implementedCommit": "918c15726d473545dbfcd2946ff50a2844db7039",
         "lastPushedSha": "918c15726d473545dbfcd2946ff50a2844db7039",
         "checks": [
@@ -52086,14 +52086,14 @@
           }
         ],
         "blocker": "released with work preserved",
-        "nextAction": "WORKFLOW/ASSERTION PATH GREEN at 1f4db9da0; suite now at native Finance Company Money read. Fixed the execute route (audited AssertSqlSafe + pool.raw), the assertion kind planner, nullable numeric binds, and cast every IAM assertion parameter (session_id/company_id/user_id/scope_node_id::text; version/queued versions/published_revision::bigint). The suite now passes the assertion INSERT and fails at GET /api/v1/companies/{fixture}/finance/company-money/rates -> 404: the finance company-money read router is not mounted in composition (test proxy already publishes ERPX_NATIVE_FINANCE_COMPANY_MONEY_CONFIG and the loopback allowance is in place). Next: mount the finance company-money read router with the holding pool (find the dead module) and rerun. New coordinator run-20261123-a gen 151 after run-20261122-d lease expiry.",
+        "nextAction": "TARGET CASE GREEN at ff52734b5: the previously failing posts-material/conversion/output test now passes (1 passed, 39 skipped) after mounting finance company-money + finance owner-write + commerce/manufacturing owner-write + commercial grant-save routers, fixing the boundary GET/HEAD allowlist, executing workflow assertions on the caller unit, interleaving native Manufacturing markers by contiguous run, and casting jsonb ledger binds. FULL SUITE STILL RED: 6 passed / 34 failed. Remaining blockers in order: (1) files kind SR_058 returns FILES_COMMAND_PERSISTENCE after jsonb casts (need underlying sqlx error); (2) enforced purchase path batches raw WorkContext guard markers in packages/server-manufacturing/src/adapters/purchases.ts current() -> CROSS_DATABASE_TRANSACTION; (3) more native configs/routers may be missing per case. Do not close until all 40 pass.",
         "handoff": {
-          "runId": "run-20261123-a",
+          "runId": "run-20261123-b",
           "agentId": "lead",
-          "at": "2026-11-23T00:57:08.040Z",
+          "at": "2026-11-23T02:14:41.029Z",
           "previousStatus": "blocked",
           "reason": "released with work preserved",
-          "nextAction": "WORKFLOW/ASSERTION PATH GREEN at 1f4db9da0; suite now at native Finance Company Money read. Fixed the execute route (audited AssertSqlSafe + pool.raw), the assertion kind planner, nullable numeric binds, and cast every IAM assertion parameter (session_id/company_id/user_id/scope_node_id::text; version/queued versions/published_revision::bigint). The suite now passes the assertion INSERT and fails at GET /api/v1/companies/{fixture}/finance/company-money/rates -> 404: the finance company-money read router is not mounted in composition (test proxy already publishes ERPX_NATIVE_FINANCE_COMPANY_MONEY_CONFIG and the loopback allowance is in place). Next: mount the finance company-money read router with the holding pool (find the dead module) and rerun. New coordinator run-20261123-a gen 151 after run-20261122-d lease expiry."
+          "nextAction": "TARGET CASE GREEN at ff52734b5: the previously failing posts-material/conversion/output test now passes (1 passed, 39 skipped) after mounting finance company-money + finance owner-write + commerce/manufacturing owner-write + commercial grant-save routers, fixing the boundary GET/HEAD allowlist, executing workflow assertions on the caller unit, interleaving native Manufacturing markers by contiguous run, and casting jsonb ledger binds. FULL SUITE STILL RED: 6 passed / 34 failed. Remaining blockers in order: (1) files kind SR_058 returns FILES_COMMAND_PERSISTENCE after jsonb casts (need underlying sqlx error); (2) enforced purchase path batches raw WorkContext guard markers in packages/server-manufacturing/src/adapters/purchases.ts current() -> CROSS_DATABASE_TRANSACTION; (3) more native configs/routers may be missing per case. Do not close until all 40 pass."
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -107948,8 +107948,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 151,
-    "updatedAt": "2026-11-23T00:57:14.463Z",
+    "lastCoordinatorGeneration": 152,
+    "updatedAt": "2026-11-23T02:14:49.747Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -107984,10 +107984,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261122-d",
-      "runId": "run-20261123-a",
-      "at": "2026-11-23T00:51:44.307Z",
-      "reason": "New lead generation after run-20261122-d lease expiry; no other live lead; WIP reviewed, foreign finance/people_payroll WIP preserved",
+      "previousRunId": "run-20261123-a",
+      "runId": "run-20261123-b",
+      "at": "2026-11-23T02:13:49.719Z",
+      "reason": "New lead generation after run-20261123-a lease expiry; no other live lead; reviewed WIP, foreign finance/people_payroll WIP preserved and excluded from commit",
       "wipReviewed": true,
       "previousRunStopped": true
     },
