@@ -280,6 +280,7 @@ function transport_call(
   transport: NativeBrandIdentityTransport,
   base: URL,
   holdings: Map<string, { holdingId: string; holdingSlug: string }>,
+  timeout: number,
   incoming: Pick<Headers, 'get'>,
   holdingSlug: string,
   branchSlug: string | undefined,
@@ -337,7 +338,7 @@ function transport_call(
   const cancel = () => controller.abort();
   signal?.addEventListener('abort', cancel, { once: true });
   if (signal?.aborted) controller.abort();
-  const timer = setTimeout(cancel, 30000);
+  const timer = setTimeout(cancel, timeout);
   return transport(body === undefined ? 'GET' : 'POST', url, headers, body, controller.signal).finally(() => {
     clearTimeout(timer);
     signal?.removeEventListener('abort', cancel);
@@ -400,6 +401,7 @@ export function createNativeBrandIdentityClient(
       transport,
       config.base,
       config.holdings,
+      config.timeout,
       incoming,
       input.holdingSlug,
       input.branchSlug,
@@ -427,6 +429,7 @@ export function createNativeBrandIdentityClient(
       transport,
       config.base,
       config.holdings,
+      config.timeout,
       incoming,
       input.holdingSlug,
       input.branchSlug,
