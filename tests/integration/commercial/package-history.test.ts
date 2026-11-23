@@ -6,7 +6,6 @@ import { ownerPackageObligations, withOwnerPackageObligations } from "@erpx/serv
 import { purchasedCapability, type CompanyPackageGrant } from "@erpx/server-commercial/public/packages";
 import { readPurchasedAccess } from "@erpx/server-commercial/public/purchase-command-boundary";
 import { purchasedCapabilityPredicate } from "@erpx/server-commercial/public/purchased-capability-sql";
-import { readCommandCapability, readEffectiveCapability } from "@erpx/server-commercial/public/capability-decision";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 
 let f: Awaited<ReturnType<typeof expenseFixture>>;
@@ -29,7 +28,6 @@ async function applyIn(tx: SqlDatabase, grant: CompanyPackageGrant) {
 const apply = (grant: CompanyPackageGrant) => store().apply({ grant, expectedVersion: grant.version - 1, idempotencyKey: key() });
 const access = () => readPurchasedAccess(db, "enforced", { companyId: f.company, capability: "support.tickets" });
 const pauseUntil = async (instant: number) => { const left = instant - Date.now(); if (left > 0) await new Promise(resolve => setTimeout(resolve, left)); };
-const gate = { allowed: true, revision: "declared-current-owner-gate" };
 
 it("retains an audited started purchase through normal draining, inactivation and a future renewal", async () => {
   await apply(value(1, "active")); await apply(value(2, "draining"));
@@ -40,13 +38,11 @@ it("retains an audited started purchase through normal draining, inactivation an
   expect(facts.history).toHaveLength(1); expect(facts.history[0]).toMatchObject({ packageId: "support", sourceGrantVersion: 1 });
   const audit = await db.prepare("SELECT after_json FROM company_package_grant_events WHERE id=?").bind(facts.history[0].sourceEventId).first<{ after_json: CompanyPackageGrant | string }>();
   expect(typeof audit!.after_json === "string" ? JSON.parse(audit!.after_json) : audit!.after_json).toMatchObject({ companyId: f.company, packageId: "support", state: "active", version: 1 });
-  const query = { companyId: f.company, capability: "support.tickets", purpose: "history" as const, now: Date.now(), release: gate, authority: gate, record: gate };
-  expect((await readEffectiveCapability(db, query)).allowed).toBe(true);
-  expect((await readEffectiveCapability(db, { ...query, authority: { allowed: false, revision: "revoked" } })).code).toBe("AUTHORITY_REQUIRED");
-  expect((await readEffectiveCapability(db, { ...query, record: { allowed: false, revision: "private-record" } })).code).toBe("RECORD_DENIED");
-  await db.transaction(async tx => {
-    expect((await readCommandCapability(db, tx, query, async () => ({ release: gate, authority: gate, record: gate }))).allowed).toBe(true);
-  });
+  // Retired TS effective/command capability oracles. Native gate precedence
+  // and retained-history decisions are covered by
+  // tests/unit/commercial/rust-capability-decision.test.rs and
+  // tests/integration/commercial/rust-capability-decision-postgres.test.rs.
+  expect(await readPurchasedAccess(db, "enforced", { companyId: f.company, capability: "support.tickets" })).toMatchObject({ history: true, newWork: false, settleExisting: false });
 });
 
 it("does not turn a first future purchase or its pre-start cancellation into history", async () => {

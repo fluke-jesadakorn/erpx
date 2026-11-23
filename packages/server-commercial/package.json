@@ -18,7 +18,6 @@
     "./adapters/company-package-lifecycle": "./src/adapters/company-package-lifecycle.ts",
     "./adapters/purchased-capability-sql": "./src/adapters/purchased-capability-sql.ts",
     "./adapters/purchase-command-boundary": "./src/adapters/purchase-command-boundary.ts",
-    "./adapters/capability-decision": "./src/adapters/capability-decision.ts",
     "./adapters/provider-page-context": "./src/adapters/provider-page-context.ts",
     "./adapters/seats": "./src/adapters/seats.ts",
     "./adapters/last-audit-owner-projection-sources": "./src/adapters/last-audit-owner-projection-sources.ts",

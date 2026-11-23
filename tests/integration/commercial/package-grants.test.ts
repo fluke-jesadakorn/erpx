@@ -5,7 +5,7 @@ import { env, applyMigrations } from "../../support/runtime-env";
 import { packageGrantStore } from "@erpx/server-commercial/adapters/package-grants";
 import type { CompanyPackageGrant } from "@erpx/server-commercial/public/packages";
 import { randomUUID } from "node:crypto";
-import { readCommandCapability, readEffectiveCapability, capabilityRevisionSource } from "@erpx/server-commercial/public/capability-decision";
+import { capabilityRevisionSource } from "@erpx/server-commercial/public/capability-decision";
 import { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 const db = env.H001_DB;
@@ -29,51 +29,12 @@ it("preserves the JSONB purchase revision's JavaScript rounding and phase bounda
   expect(capabilityRevisionSource("revision-company", [grant], 9007199254740992)).toContain('9007199254740996,"current"');
   expect(capabilityRevisionSource("revision-company", [grant], 9007199254740996)).toContain('9007199254740996,"expired"');
 });
-it("reads the capability on the actual owner transaction, refuses a pool and rechecks expiry/owner gates", async () => {
-  const input = change(randomUUID(), "pos"); await store.apply(input);
-  const query = { companyId: input.grant.companyId, capability: "pos.sales", purpose: "new-work" as const, now: 1000 };
-  const gate = { allowed: true, revision: "owner-1" };
-  const gates = async () => ({ release: gate, authority: gate, record: gate });
-  await expect(readCommandCapability(db, db, query, gates)).rejects.toThrow("TRANSACTION_NOT_ACTIVE_OR_OWNED");
-  const first = await db.transaction(async tx => readCommandCapability(db, tx, query, async database => {
-    expect(database).toBe(tx); return gates();
-  }));
-  expect(first.allowed).toBe(true);
-  const draining = { expectedVersion: 1, idempotencyKey: randomUUID(), grant: { ...input.grant, version: 2, state: "draining" as const } };
-  await store.apply(draining);
-  const second = await db.transaction(tx => readCommandCapability(db, tx, query, gates));
-  expect(second.code).toBe("PACKAGE_DRAINING"); expect(second.revision).not.toBe(first.revision);
-  expect((await readEffectiveCapability(db, { ...query, purpose: "settle-existing", ...await gates() })).allowed).toBe(true);
-  expect((await readEffectiveCapability(db, { ...query, purpose: "history", ...await gates(), record: { allowed: false, revision: "owner-2" } })).code).toBe("RECORD_DENIED");
-});
-it("uses a fresh server time after the lock and owner gates even when the caller carries a pre-expiry timestamp", async () => {
-  const input = change(randomUUID(), "pos");
-  await store.apply({ ...input, grant: { ...input.grant, endsAt: Date.now() - 1000 } });
-  const query = { companyId: input.grant.companyId, capability: "pos.sales", purpose: "new-work" as const, now: 1000 };
-  const gate = { allowed: true, revision: "owner-1" };
-  const result = await db.transaction(tx => readCommandCapability(db, tx, query, async () => ({ release: gate, authority: gate, record: gate })));
-  expect(result.code).toBe("PACKAGE_DRAINING"); expect(result.allowed).toBe(false);
-});
-it("retries a pre-existing serializable snapshot instead of allowing a command after concurrent draining", async () => {
-  const input = change(randomUUID(), "pos"); await store.apply(input);
-  let snapshotReady!: () => void, resume!: () => void, attempts = 0;
-  const ready = new Promise<void>(resolve => { snapshotReady = resolve; });
-  const resumeOwner = new Promise<void>(resolve => { resume = resolve; });
-  const gate = { allowed: true, revision: "owner-1" };
-  const pending = db.transaction(async tx => {
-    attempts++;
-    if (attempts === 1) {
-      expect((await tx.prepare("SELECT state FROM company_package_grants WHERE company_id=?").bind(input.grant.companyId).first<{ state: string }>())!.state).toBe("active");
-      snapshotReady(); await resumeOwner;
-    }
-    return readCommandCapability(db, tx, { companyId: input.grant.companyId, capability: "pos.sales", purpose: "new-work" }, async () => ({ release: gate, authority: gate, record: gate }));
-  });
-  await ready;
-  try { await store.apply({ expectedVersion: 1, idempotencyKey: randomUUID(), grant: { ...input.grant, version: 2, state: "draining" } }); }
-  finally { resume(); }
-  const result = await pending;
-  expect(result.allowed).toBe(false); expect(result.code).toBe("PACKAGE_DRAINING"); expect(attempts).toBeGreaterThan(1);
-});
+// Retired oracle: the TS readCommandCapability / readEffectiveCapability
+// transaction + gate precedence cases now live in the native oracle
+// tests/unit/commercial/rust-capability-decision.test.rs
+// (effective_decision_precedence_uses_owner_gates_and_retained_codes and
+// revision_is_the_sha256_of_the_exact_retained_canonical_source). The command
+// boundary lock/retry contract is owned by rust-purchase-command-boundary.
 it("previews without writes and atomically applies a grant with one immutable audit receipt", async () => {
   const input = change();
   expect((await store.preview(input)).before).toBeNull();
