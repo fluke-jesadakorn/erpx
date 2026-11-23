@@ -3,8 +3,14 @@ vi.mock('server-only', () => ({}));
 import {
   nativePeoplePayrollReadAll,
   PEOPLE_PAYROLL_RD_RECORD_SUPPLEMENT_ROWS,
+  PEOPLE_PAYROLL_RD_ORG_ROSTER_EXIT_ENGAGEMENT_IDS,
+  PEOPLE_PAYROLL_RD_ORG_MONTHLY_PAY_GROUPS,
 } from '../../../packages/server-people_payroll/src/adapters/native-people-payroll-read';
 import { RecordDetailsPeoplePayrollOwnedFacts } from '../../../packages/server-people_payroll/src/adapters/records-record-details-owned-facts';
+import {
+  organizationRosterExitEngagementIds,
+  organizationMonthlyPayGroups,
+} from '../../../packages/server-people_payroll/src/adapters/organization-roster-facts';
 
 const envKey = 'ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG';
 const original = process.env[envKey];
@@ -71,6 +77,38 @@ describe('native People Payroll caller-unit read plan', () => {
     expect(url.toString()).toBe('http://127.0.0.1:44993/api/v1/holdings/acme/people-payroll/command-plan');
     expect((init.headers as Record<string, string>).origin).toBe('https://acme.example.com');
     expect((init.headers as Record<string, string>)['x-erpx-context-company']).toBe('company');
+  });
+
+  it('exposes organization roster read kinds with no SQL on the wire', () => {
+    expect(PEOPLE_PAYROLL_RD_ORG_ROSTER_EXIT_ENGAGEMENT_IDS).toBe('people_payroll_rd_org_roster_exit_engagement_ids');
+    expect(PEOPLE_PAYROLL_RD_ORG_MONTHLY_PAY_GROUPS).toBe('people_payroll_rd_org_monthly_pay_groups');
+    for (const kind of [PEOPLE_PAYROLL_RD_ORG_ROSTER_EXIT_ENGAGEMENT_IDS, PEOPLE_PAYROLL_RD_ORG_MONTHLY_PAY_GROUPS]) {
+      expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+    }
+  });
+
+  it('plans the organization roster read family on the caller unit with its binds', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push({ kind: body.kind, values: body.values });
+      return new Response(JSON.stringify({
+        data: { statements: [{ sql: 'SELECT 1 AS row', values: body.values }] },
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+    const { db, bound, prepared } = fakeDb();
+
+    const exits = await organizationRosterExitEngagementIds(db as never, 'company', 'position-1');
+    const groups = await organizationMonthlyPayGroups(db as never, 'company');
+    expect(exits).toEqual(['run-1']);
+    expect(groups).toEqual([{ id: 'run-1' }]);
+
+    expect(bodies).toEqual([
+      { kind: PEOPLE_PAYROLL_RD_ORG_ROSTER_EXIT_ENGAGEMENT_IDS, values: ['company', 'position-1'] },
+      { kind: PEOPLE_PAYROLL_RD_ORG_MONTHLY_PAY_GROUPS, values: ['company'] },
+    ]);
+    expect(bound).toEqual([['company', 'position-1'], ['company']]);
+    expect(prepared).toEqual(['SELECT 1 AS row', 'SELECT 1 AS row']);
   });
 
   it('fails closed when configuration is missing or the plan is malformed', async () => {

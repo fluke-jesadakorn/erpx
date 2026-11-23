@@ -18,6 +18,8 @@ type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: 
 
 /** Read-kind ids shared with the Rust read registry in `native_read_sql.rs`. */
 export const PEOPLE_PAYROLL_RD_RECORD_SUPPLEMENT_ROWS = 'people_payroll_rd_record_supplement_rows';
+export const PEOPLE_PAYROLL_RD_ORG_ROSTER_EXIT_ENGAGEMENT_IDS = 'people_payroll_rd_org_roster_exit_engagement_ids';
+export const PEOPLE_PAYROLL_RD_ORG_MONTHLY_PAY_GROUPS = 'people_payroll_rd_org_monthly_pay_groups';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PEOPLE_PAYROLL_NATIVE_READ_UNAVAILABLE', 'The native People Payroll read service is unavailable.');

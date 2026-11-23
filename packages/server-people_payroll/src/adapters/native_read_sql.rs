@@ -29,7 +29,31 @@ const READ_RECORD_SUPPLEMENT_ROWS: NativeReadStatement = NativeReadStatement {
     bind_count: 4,
 };
 
-const READS: &[NativeReadStatement] = &[READ_RECORD_SUPPLEMENT_ROWS];
+/// Native successor of the TypeScript `organization-roster-facts`
+/// active-exit-engagement-ids read: same literal and two positional binds.
+pub const RD_ORG_ROSTER_EXIT_ENGAGEMENT_IDS: &str = "people_payroll_rd_org_roster_exit_engagement_ids";
+const SQL_ORG_ROSTER_EXIT_ENGAGEMENT_IDS: &str = "SELECT id FROM hr_engagements WHERE company_id=? AND position_id=? AND status='active'";
+const READ_ORG_ROSTER_EXIT_ENGAGEMENT_IDS: NativeReadStatement = NativeReadStatement {
+    kind: RD_ORG_ROSTER_EXIT_ENGAGEMENT_IDS,
+    sql: SQL_ORG_ROSTER_EXIT_ENGAGEMENT_IDS,
+    bind_count: 2,
+};
+
+/// Native successor of the TypeScript `organization-roster-facts`
+/// active-monthly-pay-groups read: same literal and one positional bind.
+pub const RD_ORG_MONTHLY_PAY_GROUPS: &str = "people_payroll_rd_org_monthly_pay_groups";
+const SQL_ORG_MONTHLY_PAY_GROUPS: &str = "SELECT id,name,currency FROM hr_pay_groups WHERE company_id=? AND status='active' AND frequency='monthly' ORDER BY name";
+const READ_ORG_MONTHLY_PAY_GROUPS: NativeReadStatement = NativeReadStatement {
+    kind: RD_ORG_MONTHLY_PAY_GROUPS,
+    sql: SQL_ORG_MONTHLY_PAY_GROUPS,
+    bind_count: 1,
+};
+
+const READS: &[NativeReadStatement] = &[
+    READ_RECORD_SUPPLEMENT_ROWS,
+    READ_ORG_ROSTER_EXIT_ENGAGEMENT_IDS,
+    READ_ORG_MONTHLY_PAY_GROUPS,
+];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -55,5 +79,22 @@ mod tests {
         assert!(is_read(RD_RECORD_SUPPLEMENT_ROWS));
         assert!(!is_read("people_payroll_stmt_1"));
         assert!(read_statement("not_a_native_read").is_none());
+    }
+
+    #[test]
+    fn organization_roster_read_plans_are_ledger_free_and_bounded() {
+        for (kind, binds) in [
+            (RD_ORG_ROSTER_EXIT_ENGAGEMENT_IDS, 2usize),
+            (RD_ORG_MONTHLY_PAY_GROUPS, 1usize),
+        ] {
+            let read = read_statement(kind).expect("read kind");
+            assert!(read.sql.to_ascii_uppercase().starts_with("SELECT"));
+            assert!(!read.sql.to_ascii_uppercase().contains("INSERT"));
+            assert!(!read.sql.to_ascii_uppercase().contains("UPDATE"));
+            assert!(!read.sql.to_ascii_uppercase().contains("DELETE"));
+            assert_eq!(read.bind_count, binds);
+            assert_eq!(read.sql.matches('?').count(), binds);
+            assert!(is_read(kind));
+        }
     }
 }

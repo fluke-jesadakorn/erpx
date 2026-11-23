@@ -1,3 +1,16 @@
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-export async function organizationRosterExitEngagementIds(db:SqlDatabase,companyId:string,positionId:string){return (await db.prepare("SELECT id FROM hr_engagements WHERE company_id=? AND position_id=? AND status='active'").bind(companyId,positionId).all<{id:string}>()).results.map(x=>x.id);}
-export async function organizationMonthlyPayGroups(db:SqlDatabase,companyId:string){return (await db.prepare("SELECT id,name,currency FROM hr_pay_groups WHERE company_id=? AND status='active' AND frequency='monthly' ORDER BY name").bind(companyId).all<{id:string;name:string;currency:string}>()).results;}
+import {
+  nativePeoplePayrollReadAll,
+  PEOPLE_PAYROLL_RD_ORG_ROSTER_EXIT_ENGAGEMENT_IDS,
+  PEOPLE_PAYROLL_RD_ORG_MONTHLY_PAY_GROUPS,
+} from './native-people-payroll-read';
+
+/** Owner-native roster reads. SQL is planned by the People Payroll native read
+ * port (`RD_ORG_ROSTER_*`) and executed on the caller's open unit; this module
+ * carries no SQL for these reads. */
+export async function organizationRosterExitEngagementIds(db:SqlDatabase,companyId:string,positionId:string){
+  return (await nativePeoplePayrollReadAll<{id:string}>(PEOPLE_PAYROLL_RD_ORG_ROSTER_EXIT_ENGAGEMENT_IDS,[companyId,positionId],db)).results.map(x=>x.id);
+}
+export async function organizationMonthlyPayGroups(db:SqlDatabase,companyId:string){
+  return (await nativePeoplePayrollReadAll<{id:string;name:string;currency:string}>(PEOPLE_PAYROLL_RD_ORG_MONTHLY_PAY_GROUPS,[companyId],db)).results;
+}
