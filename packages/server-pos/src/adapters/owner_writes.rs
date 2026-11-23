@@ -196,6 +196,18 @@ pub const KINDS: &[&str] = &[
     POS_READPOSCASHMOVEMENTS2_242,
     POS_READPOSJOBS1_245,
     ATTACH_STAGEBACKFILLSPECIALIZEDATTACHMENTSEFFECT13_5,
+    // POS day-control read kinds: closed, SELECT-only owner statements that the
+    // TypeScript pms-day-control-facts bridge requests on the caller's unit.
+    crate::adapters::day_control_reads::OPEN_SHIFTS,
+    crate::adapters::day_control_reads::UNREVIEWED_VARIANCES,
+    crate::adapters::day_control_reads::OPEN_BILLS,
+    crate::adapters::day_control_reads::PENDING_PAYMENTS,
+    crate::adapters::day_control_reads::UNRESOLVED_REFUNDS,
+    crate::adapters::day_control_reads::FAILED_JOBS,
+    crate::adapters::day_control_reads::MISSING_ROOM_CHARGES,
+    crate::adapters::day_control_reads::TOTALS,
+    crate::adapters::day_control_reads::STOCK_MOVES,
+    crate::adapters::day_control_reads::PENDING_REVERSALS,
 ];
 
 pub fn supported(kind: &str) -> bool { KINDS.contains(&kind) }
@@ -291,6 +303,10 @@ fn sql(kind: &str) -> Option<&'static str> {
         POS_READPOSCASHMOVEMENTS2_242 => r#"SELECT m.* FROM pos_cash_movements m JOIN pos_shifts s ON s.id=m.shift_id WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND m.approved_by IS NULL AND m.created_by<>?"#,
         POS_READPOSJOBS1_245 => r#"SELECT * FROM pos_jobs WHERE company_id=? AND state='exception'"#,
         ATTACH_STAGEBACKFILLSPECIALIZEDATTACHMENTSEFFECT13_5 => r#"UPDATE pos_product_images SET attachment_set_id=?,attachment_link_id=?,attachment_source_id=?,thumbnail_checksum_sha256=? WHERE id=? AND attachment_source_id IS NULL"#,
+        // Day-control reads: authoritative owner SQL lives in the dedicated
+        // module and is shared with the integration parity oracle.
+        kind if crate::adapters::day_control_reads::supported(kind) =>
+            return crate::adapters::day_control_reads::sql(kind),
         _ => return None,
     })
 }
@@ -335,7 +351,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 83);
+        assert_eq!(KINDS.len(), 93);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));

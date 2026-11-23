@@ -8,6 +8,7 @@ pub mod record_source;
 
 pub mod day_close;
 pub mod day_close_http;
+pub mod day_control_reads;
 pub mod day_receipt;
 pub mod day_report;
 pub mod owner_writes_http;

@@ -13,6 +13,7 @@
 //! functions reconstruct the retained TypeScript strings verbatim and the
 //! parity tests assert byte equality, then execute the native statements on a
 //! seeded database so an invalid SQL shape cannot pass as "ported".
+use erpx_server_pos::public::day_control_reads as mounted;
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row, postgres::PgConnectOptions};
 use std::str::FromStr;
 
@@ -284,6 +285,40 @@ fn legacy_metric_projection(metric: &str, breakdown: &str) -> Option<MetricProje
 fn day_control_facts_match_retained_typescript() {
     assert_eq!(native_day_control_facts(), legacy_day_control_facts());
     assert_eq!(DAY_CONTROL_READ_KINDS.len(), 10);
+}
+
+/// The runtime owner registry is the authoritative SQL source. The day-control
+/// bridge sends these typed kinds and must resolve to the same statements the
+/// parity oracle reconstructed from the retired TypeScript literals. This test
+/// fails if a kind is not mounted or its SQL drifts.
+#[test]
+fn day_control_kinds_are_mounted_and_match_the_owner_statements() {
+    assert_eq!(mounted::KINDS.len(), DAY_CONTROL_READ_KINDS.len());
+    for kind in DAY_CONTROL_READ_KINDS {
+        assert!(mounted::supported(kind), "day-control kind must be mounted: {kind}");
+        let sql = mounted::sql(kind).unwrap_or_else(|| panic!("missing SQL for mounted kind {kind}"));
+        assert!(sql.starts_with("SELECT"), "kind must be SELECT-only: {kind}");
+    }
+    let facts = native_day_control_facts();
+    let expected: &[(&str, &str)] = &[
+        (mounted::OPEN_SHIFTS, &facts.open_shifts),
+        (mounted::UNREVIEWED_VARIANCES, &facts.unreviewed_variances),
+        (mounted::OPEN_BILLS, &facts.open_bills),
+        (mounted::PENDING_PAYMENTS, &facts.pending_payments),
+        (mounted::UNRESOLVED_REFUNDS, &facts.unresolved_refunds),
+        (mounted::FAILED_JOBS, &facts.failed_jobs),
+        (mounted::MISSING_ROOM_CHARGES, &facts.missing_room_charges),
+        (mounted::TOTALS, &facts.totals),
+        (mounted::STOCK_MOVES, &facts.stock_moves),
+        (mounted::PENDING_REVERSALS, &facts.pending_hotel_room_charge_reversals),
+    ];
+    for (kind, want) in expected {
+        assert_eq!(
+            mounted::sql(kind).unwrap(),
+            *want,
+            "mounted SQL drifted for {kind}"
+        );
+    }
 }
 
 #[test]
