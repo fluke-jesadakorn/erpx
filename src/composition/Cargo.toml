@@ -169,6 +169,11 @@ path = "../../tests/integration/marketing/rust-marketing-work-context-postgres.t
 required-features = ["existing-business"]
 
 [[test]]
+name = "customer_360_final_root_timeline_postgres"
+path = "../../tests/integration/customer_360/rust-customer-final-root-timeline-postgres.test.rs"
+required-features = ["existing-business"]
+
+[[test]]
 name = "portal_mode"
 path = "../../tests/integration/customer_360/rust-portal-mode.test.rs"
 required-features = ["existing-business"]

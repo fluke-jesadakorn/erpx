@@ -20,6 +20,22 @@ use sqlx::{Connection, PgConnection, Row};
 
 type Error = PgTransactionError<BusinessError>;
 
+/// Fixed Field projection statements supplied by the caller's current
+/// final-root witness. The strings are owner-authored constants; the caller
+/// cannot pass SQL or a relation name into the timeline source.
+#[derive(Clone, Copy)]
+pub struct FinalRootEventSources {
+    pub agreement_events: &'static str,
+    pub order_events: &'static str,
+}
+
+impl FinalRootEventSources {
+    pub(crate) const DEFAULT: Self = Self {
+        agreement_events: "SELECT * FROM field_service_agreement_events",
+        order_events: "SELECT * FROM field_service_order_events",
+    };
+}
+
 async fn serializable(connection: &mut PgConnection) -> Result<(), Error> {
     if !connection.is_in_transaction() {
         return Err(PersistenceError::new("CUSTOMER_TIMELINE_READ_TRANSACTION_REQUIRED").into());
@@ -36,11 +52,20 @@ async fn serializable(connection: &mut PgConnection) -> Result<(), Error> {
 
 pub struct PgCustomerTimelineRead<'a> {
     connection: &'a mut PgConnection,
+    sources: FinalRootEventSources,
 }
 
 impl<'a> PgCustomerTimelineRead<'a> {
     pub fn new(connection: &'a mut PgConnection) -> Self {
-        Self { connection }
+        Self::with_sources(connection, FinalRootEventSources::DEFAULT)
+    }
+
+    /// Use the fixed Field event statements from a current final-root witness.
+    pub fn with_sources(
+        connection: &'a mut PgConnection,
+        sources: FinalRootEventSources,
+    ) -> Self {
+        Self { connection, sources }
     }
 
     pub async fn customer(
@@ -368,24 +393,21 @@ impl<'a> PgCustomerTimelineRead<'a> {
         cursor: Option<&CustomerTimelineCursor>,
         limit: usize,
     ) -> Result<Vec<CustomerTimelineItem>, Error> {
-        self.read(
+        let sources = self.sources;
+        let sql = format!(
             "SELECT * FROM (\
                SELECT 'service-agreement:'||e.id id,g.id source_id,'field_service' source_type,\
                'Field service agreement · '||g.title title,e.action status,e.version,(e.created_at)::bigint at,\
                '/field-service' href \
-               FROM field_service_agreement_events e \
+               FROM ({}) e \
                JOIN field_service_agreements g ON g.id=e.agreement_id \
                WHERE g.company_id=$1 AND ($2::text IS NULL OR g.branch_id=$2) \
                AND ($3::text IS NULL OR g.department_id=$3) AND g.customer_id=$4\
              ) e WHERE ($5::bigint IS NULL OR e.at<$5 OR (e.at=$5 AND e.id<$6)) \
              ORDER BY e.at DESC,e.id DESC LIMIT $7",
-            actor,
-            customer_id,
-            cursor,
-            limit,
-            &[],
-        )
-        .await
+            sources.agreement_events
+        );
+        self.read(sql, actor, customer_id, cursor, limit, &[]).await
     }
 
     async fn service_orders(
@@ -395,12 +417,13 @@ impl<'a> PgCustomerTimelineRead<'a> {
         cursor: Option<&CustomerTimelineCursor>,
         limit: usize,
     ) -> Result<Vec<CustomerTimelineItem>, Error> {
-        self.read(
+        let sources = self.sources;
+        let sql = format!(
             "SELECT * FROM (\
                SELECT 'service-order:'||e.id id,o.id source_id,'field_service' source_type,\
                'Field service · '||t.title title,e.action status,e.version,(e.created_at)::bigint at,\
                '/field-service/'||o.id href \
-               FROM field_service_order_events e \
+               FROM ({}) e \
                JOIN field_service_orders o ON o.id=e.order_id \
                JOIN support_tickets t ON t.id=o.ticket_id \
                JOIN commerce_orders so ON so.id=t.order_id AND so.company_id=t.company_id \
@@ -409,13 +432,9 @@ impl<'a> PgCustomerTimelineRead<'a> {
                AND so.kind IN ('sales','quote') AND so.party_id=$4\
              ) e WHERE ($5::bigint IS NULL OR e.at<$5 OR (e.at=$5 AND e.id<$6)) \
              ORDER BY e.at DESC,e.id DESC LIMIT $7",
-            actor,
-            customer_id,
-            cursor,
-            limit,
-            &[],
-        )
-        .await
+            sources.order_events
+        );
+        self.read(sql, actor, customer_id, cursor, limit, &[]).await
     }
 
     async fn legal(
@@ -535,16 +554,16 @@ impl<'a> PgCustomerTimelineRead<'a> {
     }
 
     /// Extra bindings are appended after the common seven parameters.
-    async fn read(
+    async fn read<S: Into<String>>(
         &mut self,
-        sql: &'static str,
+        sql: S,
         actor: &CustomerTimelineActor,
         customer_id: &str,
         cursor: Option<&CustomerTimelineCursor>,
         limit: usize,
         extra: &[&str],
     ) -> Result<Vec<CustomerTimelineItem>, Error> {
-        let mut query = sqlx::query(sql)
+        let mut query = sqlx::query(sqlx::AssertSqlSafe(sql.into()))
             .bind(actor.company_id.as_str())
             .bind(actor.branch_id.as_ref().map(|value| value.as_str()))
             .bind(actor.department_id.as_ref().map(|value| value.as_str()))
@@ -587,7 +606,8 @@ impl PgCustomerTimelineRead<'_> {
         limit: usize,
     ) -> Result<Vec<ExecutiveCustomerActivityRow>, Error> {
         serializable(&mut *self.connection).await?;
-        let rows = sqlx::query(
+        let sources = self.sources;
+        let sql = format!(
             "WITH params AS (
                SELECT $1::text company_id,$2::text branch_id,$3::text department_id,
                $4::bigint from_at,$5::bigint to_at,$6::text query,$7::bigint cursor_at,
@@ -670,13 +690,13 @@ impl PgCustomerTimelineRead<'_> {
                SELECT 'service-agreement:'||e.id,g.id,'field_service',
                'Field service agreement · '||g.title,e.action,e.version,(e.created_at)::bigint,
                '/field-service',g.customer_id,c.name 
-               FROM field_service_agreement_events e JOIN field_service_agreements g ON g.id=e.agreement_id 
+               FROM ({}) e JOIN field_service_agreements g ON g.id=e.agreement_id 
                JOIN scoped_service sg ON sg.id=g.id JOIN customers c ON c.id=g.customer_id, params p 
                WHERE p.field_service
                UNION ALL 
                SELECT 'service-order:'||e.id,o.id,'field_service','Field service · '||t.title,
                e.action,e.version,(e.created_at)::bigint,'/field-service/'||o.id,so.party_id,c.name 
-               FROM field_service_order_events e JOIN field_service_orders o ON o.id=e.order_id 
+               FROM ({}) e JOIN field_service_orders o ON o.id=e.order_id 
                JOIN support_tickets t ON t.id=o.ticket_id 
                JOIN scoped_orders so ON so.id=t.order_id AND so.company_id=t.company_id 
                JOIN customers c ON c.id=so.party_id, params p 
@@ -712,7 +732,10 @@ impl PgCustomerTimelineRead<'_> {
              AND (p.query IS NULL OR p.query='' OR position(lower(p.query) in lower(concat_ws(' ',e.id,e.source_id,e.source_type,e.title,e.status,e.customer_name)))>0) 
              AND (p.cursor_at IS NULL OR e.at<p.cursor_at OR (e.at=p.cursor_at AND e.id<p.cursor_id)) 
              ORDER BY e.at DESC,e.id DESC LIMIT $9",
-        )
+            sources.agreement_events,
+            sources.order_events,
+        );
+        let rows = sqlx::query(sqlx::AssertSqlSafe(sql))
         .bind(actor.company_id.as_str())
         .bind(actor.branch_id.as_ref().map(|value| value.as_str()))
         .bind(actor.department_id.as_ref().map(|value| value.as_str()))

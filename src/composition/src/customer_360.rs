@@ -27,7 +27,7 @@ use erpx_server_customer_360::public::customer_directory_http::{
 };
 use erpx_server_customer_360::public::customer_timeline::{
     CustomerTimelineActor, CustomerTimelineQuery, CustomerTimelineSupportEntitlement,
-    PgCustomerTimelineRead, customer_timeline,
+    FinalRootEventSources, PgCustomerTimelineRead, customer_timeline,
 };
 use erpx_server_customer_360::public::customer_timeline_http::{
     CustomerTimelineHttpBackend, CustomerTimelineHttpFuture, CustomerTimelineHttpResponse,
@@ -35,6 +35,10 @@ use erpx_server_customer_360::public::customer_timeline_http::{
 };
 use erpx_server_customer_360::public::directory::{
     CustomerDirectoryPage, CustomerDirectoryQuery, PgCustomerDirectoryRead, customer_directory_page,
+};
+use erpx_server_field_service::public::final_root_consumer::final_root_event_sql;
+use erpx_server_field_service::public::final_root_projection::{
+    inspect_final_root_projection_sources, lock_final_root_projection_sources,
 };
 use erpx_server_identity_access::public::{
     AccountPolicy, DeviceProof, RequestAudience,
@@ -83,12 +87,18 @@ fn business(error: PgTransactionError<BusinessError>) -> BusinessError {
     }
 }
 
+/// Owner utility fence for the Field final-root sources embedded in the
+/// Customer 360 timeline. The lock is acquired before the Holding snapshot;
+/// no fact is read and no access is granted here.
 #[derive(Clone, Copy)]
-struct Customer360Sources;
+pub struct Customer360Sources;
 
 impl HoldingWorkSourcePreparation for Customer360Sources {
-    fn prepare<'c>(&'c self, _: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
-        Box::pin(async { Ok(()) })
+    fn prepare<'c>(&'c self, c: &'c mut PgConnection) -> PgWorkFuture<'c, (), BusinessError> {
+        Box::pin(async move {
+            lock_final_root_projection_sources(c).await?;
+            Ok(())
+        })
     }
 }
 
@@ -262,6 +272,12 @@ impl<C: Clock + Send + Sync + 'static> Customer360Service<C> {
                         }
                         current.require_permission("commerce.read")?;
                         let actor = customer_timeline_actor(current)?;
+                        let witness = inspect_final_root_projection_sources(connection).await?;
+                        let (agreement_events, order_events) = final_root_event_sql(&witness);
+                        let sources = FinalRootEventSources {
+                            agreement_events,
+                            order_events,
+                        };
                         let purchased = if current.has_permission("support.read") {
                             let catalogue = current_package_catalogue()
                                 .map_err(|_| PgTransactionError::Business(unavailable()))?;
@@ -293,25 +309,29 @@ impl<C: Clock + Send + Sync + 'static> Customer360Service<C> {
                         } else {
                             false
                         };
-                        let mut repository = PgCustomerTimelineRead::new(connection);
-                        let mut entitlement = SupportEntitlement { purchased };
-                        let page = customer_timeline(
-                            &actor,
-                            &customer_id,
-                            &query,
-                            &mut repository,
-                            &mut entitlement,
-                            clock.now(),
-                        )
-                        .await
-                        .map_err(|error| match error {
-                            PgTransactionError::Business(error) => {
-                                PgTransactionError::Business(error)
-                            }
-                            PgTransactionError::Persistence(_) => {
-                                PgTransactionError::Business(unavailable())
-                            }
-                        })?;
+                        let page = {
+                            let mut repository =
+                                PgCustomerTimelineRead::with_sources(connection, sources);
+                            let mut entitlement = SupportEntitlement { purchased };
+                            customer_timeline(
+                                &actor,
+                                &customer_id,
+                                &query,
+                                &mut repository,
+                                &mut entitlement,
+                                clock.now(),
+                            )
+                            .await
+                            .map_err(|error| match error {
+                                PgTransactionError::Business(error) => {
+                                    PgTransactionError::Business(error)
+                                }
+                                PgTransactionError::Persistence(_) => {
+                                    PgTransactionError::Business(unavailable())
+                                }
+                            })?
+                        };
+                        witness.require_current(connection).await?;
                         let data = serde_json::to_value(page)
                             .map_err(|_| PgTransactionError::Business(unavailable()))?;
                         Ok(CustomerTimelineHttpResponse {
@@ -353,6 +373,12 @@ impl<C: Clock + Send + Sync + 'static> Customer360Service<C> {
                         }
                         current.require_permission("commerce.read")?;
                         let actor = customer_timeline_actor(current)?;
+                        let witness = inspect_final_root_projection_sources(connection).await?;
+                        let (agreement_events, order_events) = final_root_event_sql(&witness);
+                        let sources = FinalRootEventSources {
+                            agreement_events,
+                            order_events,
+                        };
                         let purchased = if current.has_permission("support.read") {
                             let catalogue = current_package_catalogue()
                                 .map_err(|_| PgTransactionError::Business(unavailable()))?;
@@ -384,24 +410,29 @@ impl<C: Clock + Send + Sync + 'static> Customer360Service<C> {
                         } else {
                             false
                         };
-                        let mut repository = PgCustomerTimelineRead::new(connection);
-                        let mut entitlement = SupportEntitlement { purchased };
-                        executive_customer_activity(
-                            &actor,
-                            &query,
-                            &mut repository,
-                            &mut entitlement,
-                            clock.now(),
-                        )
-                        .await
-                        .map_err(|error| match error {
-                            PgTransactionError::Business(error) => {
-                                PgTransactionError::Business(error)
-                            }
-                            PgTransactionError::Persistence(_) => {
-                                PgTransactionError::Business(unavailable())
-                            }
-                        })
+                        let rows = {
+                            let mut repository =
+                                PgCustomerTimelineRead::with_sources(connection, sources);
+                            let mut entitlement = SupportEntitlement { purchased };
+                            executive_customer_activity(
+                                &actor,
+                                &query,
+                                &mut repository,
+                                &mut entitlement,
+                                clock.now(),
+                            )
+                            .await
+                            .map_err(|error| match error {
+                                PgTransactionError::Business(error) => {
+                                    PgTransactionError::Business(error)
+                                }
+                                PgTransactionError::Persistence(_) => {
+                                    PgTransactionError::Business(unavailable())
+                                }
+                            })?
+                        };
+                        witness.require_current(connection).await?;
+                        Ok(rows)
                     })
                 },
             )
@@ -476,16 +507,27 @@ impl<C: Clock + Send + Sync + 'static> Customer360Service<C> {
                         }
                         current.require_permission("commerce.read")?;
                         let actor = customer_timeline_actor(current)?;
-                        let mut repository = PgCustomerActivityMetric::new(connection);
-                        let mut entitlement = SupportEntitlement { purchased: false };
-                        customer_activity_metric(
-                            &actor,
-                            &query,
-                            &mut repository,
-                            &mut entitlement,
-                            clock.now(),
-                        )
-                        .await
+                        let witness = inspect_final_root_projection_sources(connection).await?;
+                        let (agreement_events, order_events) = final_root_event_sql(&witness);
+                        let sources = FinalRootEventSources {
+                            agreement_events,
+                            order_events,
+                        };
+                        let groups = {
+                            let mut repository =
+                                PgCustomerActivityMetric::with_sources(connection, sources);
+                            let mut entitlement = SupportEntitlement { purchased: false };
+                            customer_activity_metric(
+                                &actor,
+                                &query,
+                                &mut repository,
+                                &mut entitlement,
+                                clock.now(),
+                            )
+                            .await?
+                        };
+                        witness.require_current(connection).await?;
+                        Ok(groups)
                     })
                 },
             )

@@ -105652,6 +105652,47 @@
         "tests/unit/people_payroll/native-people-payroll-read-plan.test.ts"
       ],
       "framework": "vitest"
+    },
+    {
+      "id": "customer_360.final-root-timeline-postgres.integration",
+      "lane": "integration",
+      "owner": "customer_360",
+      "modules": [
+        "customer_360",
+        "field_service"
+      ],
+      "files": [
+        "tests/integration/customer_360/rust-customer-final-root-timeline-postgres.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Customer timeline reads must lock and revalidate Field final-root sources inside the serializable unit."
+      },
+      "apps": [
+        "sales",
+        "portal"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-service",
+        "targets": [
+          "customer_360_final_root_timeline_postgres"
+        ],
+        "features": [
+          "existing-business"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-customer_360/Cargo.toml"
+      ]
     }
   ]
 }

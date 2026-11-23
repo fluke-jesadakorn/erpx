@@ -6,6 +6,7 @@
 //! CRM cases and CRM activities. It is read-only and returns only counted
 //! groups. Keep both copies in step until the Executive activity read is
 //! refactored onto this source.
+use crate::adapters::timeline::FinalRootEventSources;
 use crate::application::executive_timeline::{
     CustomerActivityMetricFuture, CustomerActivityMetricRepository,
 };
@@ -116,13 +117,13 @@ const SOURCE_CTE: &str = "WITH params AS (
    SELECT 'service-agreement:'||e.id,g.id,'field_service',
    'Field service agreement · '||g.title,e.action,e.version,(e.created_at)::bigint,
    '/field-service',g.customer_id,c.name 
-   FROM field_service_agreement_events e JOIN field_service_agreements g ON g.id=e.agreement_id 
+   FROM ({}) e JOIN field_service_agreements g ON g.id=e.agreement_id 
    JOIN scoped_service sg ON sg.id=g.id JOIN customers c ON c.id=g.customer_id, params p 
    WHERE p.field_service
    UNION ALL 
    SELECT 'service-order:'||e.id,o.id,'field_service','Field service · '||t.title,
    e.action,e.version,(e.created_at)::bigint,'/field-service/'||o.id,so.party_id,c.name 
-   FROM field_service_order_events e JOIN field_service_orders o ON o.id=e.order_id 
+   FROM ({}) e JOIN field_service_orders o ON o.id=e.order_id 
    JOIN support_tickets t ON t.id=o.ticket_id 
    JOIN scoped_orders so ON so.id=t.order_id AND so.company_id=t.company_id 
    JOIN customers c ON c.id=so.party_id, params p 
@@ -154,11 +155,20 @@ const SOURCE_CTE: &str = "WITH params AS (
 
 pub struct PgCustomerActivityMetric<'a> {
     connection: &'a mut PgConnection,
+    sources: FinalRootEventSources,
 }
 
 impl<'a> PgCustomerActivityMetric<'a> {
     pub fn new(connection: &'a mut PgConnection) -> Self {
-        Self { connection }
+        Self::with_sources(connection, FinalRootEventSources::DEFAULT)
+    }
+
+    /// Use the fixed Field event statements from a current final-root witness.
+    pub fn with_sources(
+        connection: &'a mut PgConnection,
+        sources: FinalRootEventSources,
+    ) -> Self {
+        Self { connection, sources }
     }
 
     pub async fn metric(
@@ -174,8 +184,12 @@ impl<'a> PgCustomerActivityMetric<'a> {
             }
             CustomerActivityBreakdown::SourceType => "e.source_type",
         };
+        let sources = self.sources;
+        let cte = SOURCE_CTE
+            .replacen("{}", sources.agreement_events, 1)
+            .replacen("{}", sources.order_events, 1);
         let sql = format!(
-            "{SOURCE_CTE} SELECT {label} label,count(*)::text value \
+            "{cte} SELECT {label} label,count(*)::text value \
              FROM events e, params p \
              WHERE e.at>=p.from_at AND e.at<p.to_at \
              GROUP BY 1 ORDER BY 1"

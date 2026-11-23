@@ -11,7 +11,9 @@
 //! both cross-owner imports are switched to this port and the TS export is
 //! deleted by lead integration.
 
-use crate::adapters::final_root_projection::FinalRootProjectionSource;
+use crate::adapters::final_root_projection::{
+    CurrentFinalRootProjectionSources, FinalRootProjectionSource,
+};
 use erpx_server_shared::public::CompanyId;
 
 /// A Field-owned Company scope for the shared customer projections.
@@ -70,4 +72,16 @@ impl FinalRootConsumerScope {
             department,
         ]
     }
+}
+
+/// The fixed Field event statements a composed consumer may inject, read only
+/// from a current final-root witness. The returned strings are Field-owned
+/// constants: a caller cannot supply SQL or a relation name.
+pub fn final_root_event_sql(
+    witness: &CurrentFinalRootProjectionSources,
+) -> (&'static str, &'static str) {
+    (
+        witness.sql(FinalRootProjectionSource::AgreementEvents),
+        witness.sql(FinalRootProjectionSource::OrderEvents),
+    )
 }

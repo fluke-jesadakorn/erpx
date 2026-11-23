@@ -1,6 +1,6 @@
 //! Native Customer 360 federated timeline read ports and the PostgreSQL owner
 //! adapter.
-pub use crate::adapters::timeline::PgCustomerTimelineRead;
+pub use crate::adapters::timeline::{FinalRootEventSources, PgCustomerTimelineRead};
 pub use crate::application::timeline::{
     CustomerTimelineFuture, CustomerTimelineRepository, CustomerTimelineSupportEntitlement,
     customer_timeline,
