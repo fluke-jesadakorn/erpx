@@ -4,11 +4,10 @@ import {createQualityAlertApplication,type QualityAlertRepository} from "@erpx/s
 import type {QualityRow} from "@erpx/server-quality/domain/quality";
 import type {QualityAlert} from "@erpx/server-quality/domain/alerts";
 
-const baseHold:QualityRow={id:'hold',status:'held',created_by:'creator',last_inspector:'inspector',last_result:null,held_quantity_milli:2000,warehouse_id:'warehouse',product_id:'product',branch_id:'branch',version:1,spec_id:null,updated_at:42,due_date:'2026-10-06',eligible_count:1};
 function fixture(overrides:Partial<QualityRepository<string[]>>={}){
  const calls:string[]=[];
  const repository:QualityRepository<string[]>={
-  async holds(){return [baseHold];},async receiptHold(input,now){return [JSON.stringify({input,now})];},...overrides,
+  async receiptHold(input,now){return [JSON.stringify({input,now})];},...overrides,
  };
  const ports={departmentScope:false,companyScope:true,userId:'manager',authorize(permission:string){calls.push(permission);},can:(permission:string)=>Boolean(permission),samePerson:(id:string|number|null)=>id==='manager',clock:{now:()=>42},hash:async()=> '1234567890abcdef',async repository(){return repository;}};
  return {ports,repository,calls,app:createQualityApplication(ports)};
@@ -19,10 +18,6 @@ describe('Quality receipt-sourced quarantine',()=>{
 // The independent-inspector and active-status evidence assertions formerly in
 // this block are covered by the native Quality owner decisions
 // (tests/unit/quality/rust-quality-decisions.test.rs), not by a TS read branch.
-describe('Quality retained read work',()=>{
- test('a missing hold is a scoped not-found after the retained read',async()=>{const f=fixture({async holds(){return [];}});await expect(f.app.getQualityHold('hold')).rejects.toMatchObject({code:'QUALITY_HOLD_NOT_FOUND'});});
- test('revoked independent recipients leave work waiting with an actionable blocker',async()=>{const f=fixture({async holds(){return [{...baseHold,eligible_count:0}];}});f.ports.can=()=>false;expect(await f.app.qualityWork()).toEqual([]);f.ports.can=permission=>permission==='quality.read';expect(await f.app.qualityWork()).toEqual([expect.objectContaining({queue:'waiting',canAct:false,blocker:'No eligible independent recipient; Company administrator must assign quality authority'})]);});
-});
 const alert:QualityAlert={id:'alert',hold_id:'hold',phase:'overdue',source_version:1,hold_version:2,due_date:'2026-10-06',detected_at:42,version:1,acknowledged_by:null,acknowledged_at:null,reason:null,company_id:'company',branch_id:'branch',status:'held',product_name:'Product',warehouse_name:'Warehouse',can_ack:1,recipients:1};
 describe('Quality alert recovery',()=>{
  test('completed and recipient-revoked escalations retain their source but cannot act',async()=>{const repository:QualityAlertRepository={async alerts(){return [{...alert,can_ack:0,recipients:0},{...alert,id:'released',status:'released'}];}};const app=createQualityAlertApplication({departmentScope:false,authorizeRead(){},can:()=>true,async repository(){return repository;}});expect(await app.qualityAlertWork()).toEqual([expect.objectContaining({queue:'waiting',canAct:false,blocker:expect.stringContaining('No eligible Quality recipient'),source:expect.objectContaining({id:'hold',version:2})}),expect.objectContaining({queue:'completed',canAct:false,status:'acknowledged'})]);});
@@ -117,8 +112,8 @@ describe('retired Quality dead read branch',()=>{
   expect(adapter).not.toContain('inventory_quality_specs');
   expect(adapter).not.toContain('quality-evidence-version');
   expect(adapter).not.toContain('SELECT');
-  expect(adapter).toContain('reader.workspace(incoming,actor.holdingSlug)');
-  expect(adapter).toContain('reader.detailCore(incoming,actor.holdingSlug,id)');
+  expect(adapter).toContain('nativeQualityWork');
+  expect(adapter).toContain('nativeQualityHoldDetail');
   expect(adapter).toContain('getQualityHold');
   expect(adapter).toContain('qualityWork');
  });
