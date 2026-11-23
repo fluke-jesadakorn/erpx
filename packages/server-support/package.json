@@ -5,6 +5,7 @@
   "type": "module",
   "exports": {
     "./adapters/service-access": "./src/adapters/service-access.ts",
+    "./adapters/native-support-read": "./src/adapters/native-support-read.ts",
     "./adapters/service-team-options": "./src/adapters/service-team-options.ts",
     "./adapters/ticket-portal-unit": "./src/adapters/ticket-portal-unit.ts",
     "./adapters/incident-attachment-read-sources": "./src/adapters/incident-attachment-read-sources.ts",
