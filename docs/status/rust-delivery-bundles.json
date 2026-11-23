@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7355,
+    "revision": 7359,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -125541,7 +125541,7 @@
         "owner": "operations",
         "title": "operations TS read tail native cutover (round 14)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -125553,28 +125553,41 @@
         "resources": [
           "owner:operations"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wDD1ope",
-          "claimedAt": "2026-11-23T23:30:58.101Z",
-          "heartbeatAt": "2026-11-23T23:30:58.574Z",
-          "expiresAt": "2026-11-24T00:00:58.574Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-operations/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "38a97a155",
+            "owner": "operations",
+            "before": 190,
+            "after": 188,
+            "note": "Field exception/policy owner reads via native operations registry."
+          },
+          {
+            "command": "cargo check -p erpx-server-operations + lib field owner (2) + field exceptions (13)",
+            "result": "passed",
+            "sourceSha": "38a97a155"
+          },
+          {
+            "command": "vitest operations services/transport (97) + tsc operations",
+            "result": "passed",
+            "sourceSha": "38a97a155"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Candidates: field-command-owner two fixed owner-table reads, or executive-metric-projections label pair; record a strictly lower count.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-h",
+          "runId": "run-20261123-i",
           "agentId": "wDD1ope",
-          "at": "2026-11-23T23:30:50.417Z",
+          "at": "2026-11-23T23:38:18.461Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired at 23:30 during active read-tail and composition mounts; WIP reviewed, slices integrated continuously",
-          "nextAction": "Candidates: field-command-owner two fixed owner-table reads, or executive-metric-projections label pair; record a strictly lower count."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -125942,6 +125955,42 @@
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to a mounted native read; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.operations.read-tail-r15",
+        "goalId": "G4",
+        "owner": "operations",
+        "title": "operations TS read tail native cutover (round 15)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-operations/src/**",
+          "tests/unit/operations/**",
+          "tests/integration/operations/**"
+        ],
+        "resources": [
+          "owner:operations"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wDM1ope",
+          "claimedAt": "2026-11-23T23:38:18.629Z",
+          "heartbeatAt": "2026-11-23T23:38:18.629Z",
+          "expiresAt": "2026-11-24T00:08:18.629Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to the native operations registry; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -125950,7 +125999,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 670,
+      "totalPackets": 671,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -125958,13 +126007,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 307,
+        "blocked": 308,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-23T23:37:55.344Z",
+    "updatedAt": "2026-11-23T23:38:18.631Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
