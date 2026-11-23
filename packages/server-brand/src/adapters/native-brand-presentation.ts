@@ -442,7 +442,7 @@ export function createNativeBrandPresentationClient(
   const read = async (
     actor: WorkContext,
     incoming: Pick<Headers, "get">,
-    kind: "workspace" | "document" | "profiles" | "evidence",
+    kind: "workspace" | "document" | "profiles" | "storefront" | "evidence",
     query: Readonly<{ branch?: string; mode?: string }> = {},
   ) => {
     const target = selectedHolding(config, actor, incoming);
@@ -502,6 +502,9 @@ export function createNativeBrandPresentationClient(
     async profiles(actor: WorkContext, incoming: Pick<Headers, "get">) {
       return toProfiles(await read(actor, incoming, "profiles"));
     },
+    async storefront(actor: WorkContext, incoming: Pick<Headers, "get">) {
+      return toStorefrontBrand(await read(actor, incoming, "storefront"));
+    },
     async evidence(actor: WorkContext, incoming: Pick<Headers, "get">, branchId: string) {
       if (!identifier(branchId)) return failure("NATIVE_BRAND_PRESENTATION_REQUEST_INVALID", 422);
       return toEvidence(await read(actor, incoming, "evidence", { branch: branchId }));
@@ -555,6 +558,15 @@ export async function nativeResolveDocumentBrand(
 export async function nativeListBrandProfiles(actor: WorkContext): Promise<NativeBrandProfiles> {
   try {
     return await client().profiles(actor, await incoming());
+  } catch (error) {
+    return translate(error);
+  }
+}
+
+/** Native Company storefront overlay for the selected Holding context. */
+export async function nativeReadStorefrontAppBrand(actor: WorkContext): Promise<StorefrontAppBrand> {
+  try {
+    return await client().storefront(actor, await incoming());
   } catch (error) {
     return translate(error);
   }

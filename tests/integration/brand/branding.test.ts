@@ -161,7 +161,7 @@ it("allows the Holding owner to manage brands and rejects ordinary staff", async
 it("retires every TypeScript Branding writer from the public entrypoint", () => {
   for (const writer of ["completeBrandUpload", "completeStorefrontBrandUpload", "updateStorefrontAppBrand", "updateBrandProfile"])
     expect(Object.hasOwn(brandingPublic, writer)).toBe(false);
-  for (const read of ["resolveWorkspaceBrand", "resolveDocumentBrand", "listBrandProfiles", "readBrandProfileEvidence", "readStorefrontAppBrand", "nativeListBrandProfiles"])
+  for (const read of ["resolveWorkspaceBrand", "resolveDocumentBrand", "listBrandProfiles", "readBrandProfileEvidence", "readStorefrontAppBrand", "nativeListBrandProfiles", "nativeReadStorefrontAppBrand"])
     expect(typeof (brandingPublic as unknown as Record<string, unknown>)[read]).toBe("function");
   expect(typeof brandingPublic.normalizeBrandImage).toBe("function");
 });
@@ -229,6 +229,19 @@ describe("native Brand presentation reads", () => {
       storefront: storefrontRow,
     });
     expect(calls[0].url.searchParams.get("kind")).toBe("profiles");
+  });
+
+  it("maps the native storefront overlay and requests the storefront kind", async () => {
+    const { client, calls } = stub(() => storefrontRow);
+    expect(await client.storefront(actor, incoming)).toEqual(storefrontRow);
+    expect(calls).toHaveLength(1);
+    expect(calls[0].url.pathname).toBe("/api/v1/holdings/erpx/branding/presentation");
+    expect(calls[0].url.searchParams.get("kind")).toBe("storefront");
+    expect(calls[0].headers.get("cookie")).toBe("erpx_session=abc");
+    expect(calls[0].headers.get("x-erpx-context-company")).toBe("erpx-co");
+    await expect(stub(() => ({ ...storefrontRow, accentColor: "blue" })).client.storefront(actor, incoming))
+      .rejects.toMatchObject({ code: "NATIVE_BRAND_PRESENTATION_RESPONSE_INVALID", status: 502 });
+    await expect(failing(409, "COMPANY_REQUIRED").storefront(actor, incoming)).rejects.toMatchObject({ code: "COMPANY_REQUIRED", status: 409 });
   });
 
   it("maps the native evidence row and keeps the retained null row", async () => {
