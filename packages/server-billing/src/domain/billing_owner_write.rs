@@ -13,6 +13,7 @@ pub const BETA_IGNORE_EVENT: &str = "beta_ignore_event";
 pub const BETA_APPLY_SUBSCRIPTION: &str = "beta_apply_subscription";
 pub const BETA_APPLY_EVENT: &str = "beta_apply_event";
 pub const BETA_PREPARE_BILLING: &str = "beta_prepare_billing";
+pub const BETA_MANAGEMENT_BILLING_STATUS: &str = "beta_management_billing_status";
 pub const EVIDENCE_RETAIN: &str = "evidence_retain";
 pub const EVIDENCE_STORAGE_LEDGER: &str = "evidence_storage_ledger";
 pub const EVIDENCE_SCAN_ATTEMPT: &str = "evidence_scan_attempt";
@@ -88,6 +89,7 @@ pub const OWNER_WRITE_KINDS: &[&str] = &[
     BETA_APPLY_SUBSCRIPTION,
     BETA_APPLY_EVENT,
     BETA_PREPARE_BILLING,
+    BETA_MANAGEMENT_BILLING_STATUS,
     EVIDENCE_RETAIN,
     EVIDENCE_STORAGE_LEDGER,
     EVIDENCE_SCAN_ATTEMPT,

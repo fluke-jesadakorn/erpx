@@ -41,6 +41,7 @@ fn sql(kind: &str) -> Option<&'static str> {
         BETA_APPLY_SUBSCRIPTION => r####"UPDATE beta_billing SET subscription_id=?,status=?,current_period_end=?,last_event_at=?,updated_at=? WHERE holding_id=? AND last_event_at<=?"####,
         BETA_APPLY_EVENT => r####"UPDATE stripe_inbox SET state='applied',applied_at=? WHERE id=?"####,
         BETA_PREPARE_BILLING => r####"INSERT INTO beta_billing(holding_id,updated_at) VALUES(?,?) ON CONFLICT DO NOTHING"####,
+        BETA_MANAGEMENT_BILLING_STATUS => r####"SELECT status FROM beta_billing WHERE holding_id=?"####,
         EVIDENCE_RETAIN => r####"INSERT INTO billing_evidence(id,holding_id,filename,mime,size,sha256,actor,created_at,object_key,detected_mime,source_state) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(id) DO NOTHING"####,
         EVIDENCE_STORAGE_LEDGER => r####"INSERT INTO billing_evidence_storage_ledger(id,evidence_id,holding_id,object_key,bytes,state,created_at,updated_at) SELECT $1,id,holding_id,object_key,size,'stored',$2,$2 FROM billing_evidence WHERE id=$3 ON CONFLICT(object_key) DO NOTHING"####,
         EVIDENCE_SCAN_ATTEMPT => r####"INSERT INTO billing_evidence_scan_attempts(id,evidence_id,attempt,state,created_at) VALUES($1,$2,1,'pending',$3) ON CONFLICT(evidence_id,attempt) DO NOTHING"####,
@@ -232,6 +233,25 @@ mod tests {
         assert!(billing_owner_statement(&holding, &BillingOwnerWriteInput {
             kind: BETA_PREPARE_BILLING.into(), values: vec![serde_json::json!(1)], now: 1,
         }).is_err());
+    }
+    #[test]
+    fn beta_management_billing_status_read_is_owner_authored_and_single_bound() {
+        let holding = HoldingId::new("h001").unwrap();
+        let statement = billing_owner_statement(&holding, &BillingOwnerWriteInput {
+            kind: BETA_MANAGEMENT_BILLING_STATUS.into(),
+            values: vec![serde_json::json!("h001")],
+            now: 1,
+        })
+        .expect("beta_management_billing_status is an allow-listed owner read kind");
+        assert_eq!(statement.sql, "SELECT status FROM beta_billing WHERE holding_id=?");
+        assert_eq!(statement.values, vec![serde_json::json!("h001")]);
+        // The holding is the only bind; a missing bind cannot widen this read.
+        assert!(billing_owner_statement(&holding, &BillingOwnerWriteInput {
+            kind: BETA_MANAGEMENT_BILLING_STATUS.into(),
+            values: vec![],
+            now: 1,
+        })
+        .is_err());
     }
     #[test]
     fn scan_source_read_is_owner_authored_and_single_bound() {
