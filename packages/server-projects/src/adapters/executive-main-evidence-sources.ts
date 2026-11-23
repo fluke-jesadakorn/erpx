@@ -11,6 +11,16 @@ function projectActualScope() {
     AND (iam_same_person(p.owner_user_id,?,p.company_id) OR EXISTS(
       SELECT 1 FROM staff_project_members member WHERE member.project_id=p.id AND iam_same_person(member.user_id,?,p.company_id)))`;
 }
+/** Owner-local fixed projections for Projects executive evidence. The search
+ * and by-id readers of each metric execute the identical projection column
+ * list; one definition removes the redundant query text and stops the two
+ * call sites from drifting apart. */
+const milestoneEvidenceSelect =
+    `SELECT m.id,m.project_id,p.title project_title,m.title,m.due_at,m.owner_user_id,
+      COALESCE(h.legal_name,m.owner_user_id) owner_name,m.state,m.version`;
+const dependencyEvidenceSelect =
+    `SELECT m.id,m.project_id,p.title project_title,m.title,m.due_at,m.state,m.version,
+      COALESCE(blockers.items,'[]'::jsonb)::text blockers_json`;
 export function executiveMainEvidenceSources(db: SqlDatabase) {
     return { async factsSearchProjectMilestoneEvidence(actor: WorkContext, input: {
             filters: {
@@ -40,8 +50,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 conditions.push("(m.due_at,m.id)>(?,?)");
                 values.push(cursor.dueAt, cursor.id);
             }
-            const rows = (await db.prepare(`SELECT m.id,m.project_id,p.title project_title,m.title,m.due_at,m.owner_user_id,
-      COALESCE(h.legal_name,m.owner_user_id) owner_name,m.state,m.version
+            const rows = (await db.prepare(`${milestoneEvidenceSelect}
     FROM staff_project_milestones m JOIN (${projectSource.sql}) p ON p.id=m.project_id AND p.company_id=m.company_id
     LEFT JOIN (${people_payrollProjectionSources.hr_people}) h ON h.company_id=m.company_id AND h.user_id=m.owner_user_id AND h.merged_into_id IS NULL
     WHERE ${conditions.join(" AND ")} ORDER BY m.due_at,m.id LIMIT ?`)
@@ -56,8 +65,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         }> {
             const projectSource=await projectMetricSource(db,actor,"overdue-project-milestones");
             const cohort = projectMilestoneOverdueCohort(actor, filters, referenceAt);
-            const row = await db.prepare(`SELECT m.id,m.project_id,p.title project_title,m.title,m.due_at,m.owner_user_id,
-      COALESCE(h.legal_name,m.owner_user_id) owner_name,m.state,m.version
+            const row = await db.prepare(`${milestoneEvidenceSelect}
     FROM staff_project_milestones m JOIN (${projectSource.sql}) p ON p.id=m.project_id AND p.company_id=m.company_id
     LEFT JOIN (${people_payrollProjectionSources.hr_people}) h ON h.company_id=m.company_id AND h.user_id=m.owner_user_id AND h.merged_into_id IS NULL
     WHERE ${cohort.sql} AND m.id=? LIMIT 1`).bind(...projectSource.args,...cohort.values, id).first<ProjectMilestoneEvidenceRow>();
@@ -95,8 +103,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 conditions.push("(m.due_at,m.id)>(?,?)");
                 values.push(cursor.dueAt, cursor.id);
             }
-            const rows = (await db.prepare(`SELECT m.id,m.project_id,p.title project_title,m.title,m.due_at,m.state,m.version,
-      COALESCE(blockers.items,'[]'::jsonb)::text blockers_json
+            const rows = (await db.prepare(`${dependencyEvidenceSelect}
     FROM staff_project_milestones m JOIN (${projectSource.sql}) p ON p.id=m.project_id AND p.company_id=m.company_id
     LEFT JOIN LATERAL (
       SELECT jsonb_agg(jsonb_build_object('id',pr.id,'title',pr.title,'state',pr.state,'version',pr.version) ORDER BY pr.due_at,pr.title) items
@@ -116,8 +123,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         }> {
             const projectSource=await projectMetricSource(db,actor,"project-dependency-blockers");
             const cohort = projectDependencyBlockerCohort(actor, filters);
-            const row = await db.prepare(`SELECT m.id,m.project_id,p.title project_title,m.title,m.due_at,m.state,m.version,
-      COALESCE(blockers.items,'[]'::jsonb)::text blockers_json
+            const row = await db.prepare(`${dependencyEvidenceSelect}
     FROM staff_project_milestones m JOIN (${projectSource.sql}) p ON p.id=m.project_id AND p.company_id=m.company_id
     LEFT JOIN LATERAL (
       SELECT jsonb_agg(jsonb_build_object('id',pr.id,'title',pr.title,'state',pr.state,'version',pr.version) ORDER BY pr.due_at,pr.title) items

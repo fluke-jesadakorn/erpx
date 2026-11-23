@@ -614,3 +614,13 @@ describe('Native Projects command transport',()=>{
   await expect(nativeProjectCommand(projectRequest(),'acme',{operation:'work-log.save',projectId:'project',key:'short',body:{}})).rejects.toMatchObject({code:'PROJECTS_REQUEST_INVALID',status:422});
  });
 });
+it('keeps one fixed Projects executive-evidence projection for the search and by-id readers',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const source=await readFile(new URL('../../../packages/server-projects/src/adapters/executive-main-evidence-sources.ts',import.meta.url),'utf8');
+ expect(source).toContain('const milestoneEvidenceSelect');
+ expect(source).toContain('const dependencyEvidenceSelect');
+ expect(source.match(/SELECT m\.id,m\.project_id,p\.title project_title,m\.title,m\.due_at,m\.owner_user_id/g)).toHaveLength(1);
+ expect(source.match(/SELECT m\.id,m\.project_id,p\.title project_title,m\.title,m\.due_at,m\.state,m\.version/g)).toHaveLength(1);
+ expect(source.match(/\$\{milestoneEvidenceSelect\}/g)).toHaveLength(2);
+ expect(source.match(/\$\{dependencyEvidenceSelect\}/g)).toHaveLength(2);
+});
