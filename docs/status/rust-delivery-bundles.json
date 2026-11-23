@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6857,
+    "revision": 6861,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -118924,7 +118924,7 @@
         "owner": "pos",
         "title": "pos TS read tail native cutover (round 3)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -118936,22 +118936,42 @@
         "resources": [
           "owner:pos"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wAJpos",
-          "claimedAt": "2026-11-23T20:57:20.066Z",
-          "heartbeatAt": "2026-11-23T21:04:42.332Z",
-          "expiresAt": "2026-11-23T21:34:42.332Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "afb16333f",
+            "owner": "pos",
+            "before": 291,
+            "after": 290,
+            "note": "pos_tables read via existing nativePosTablesStatement registry."
+          },
+          {
+            "command": "cargo check -p erpx-server-pos + lib (16)",
+            "result": "passed",
+            "sourceSha": "afb16333f"
+          },
+          {
+            "command": "vitest pos.native-pos-core-statement (5) + tsc pos/tests-config",
+            "result": "passed",
+            "sourceSha": "afb16333f"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wAJpos",
+          "at": "2026-11-23T21:15:51.267Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -119539,6 +119559,42 @@
         "nextAction": "Pick the smallest owner-local fixed-SQL read family not covered by the read-plan registry; switch and delete redundant TS SQL; record a strictly lower count. Do not replace live planning/records reads with fail-closed markers.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pos.read-tail-r4",
+        "goalId": "G4",
+        "owner": "pos",
+        "title": "pos TS read tail native cutover (round 4)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pos/src/**",
+          "tests/unit/pos/**",
+          "tests/integration/pos/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wATpos",
+          "claimedAt": "2026-11-23T21:15:51.445Z",
+          "heartbeatAt": "2026-11-23T21:15:51.445Z",
+          "expiresAt": "2026-11-23T21:45:51.445Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family served by the native POS owner statement registry; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -119547,7 +119603,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 560,
+      "totalPackets": 561,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -119555,13 +119611,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 191,
+        "blocked": 192,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T21:14:34.919Z",
+    "updatedAt": "2026-11-23T21:15:51.448Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
