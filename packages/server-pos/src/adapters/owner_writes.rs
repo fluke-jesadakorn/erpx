@@ -76,6 +76,11 @@ pub const CORE_WRITEPOSSALES21_518: &str = "core_writepossales21_518";
 /// resolves this owner statement and the dead `readPosSales4` copy was deleted. Read-only
 /// caller-transaction `SELECT` with fixed Company/branch/currency/date scope.
 pub const CORE_READPOSSALES3_520: &str = "core_readpossales3_520";
+/// Plain by-id `pos_sales` row read retired from the three byte-identical
+/// `readPosSales1`/`readPosSales2`/`readPosSales5` literals in `pos-daily.ts`,
+/// `pos-stripe.ts` and `pos-core.ts`. Read-only caller-transaction `SELECT`
+/// scoped by sale id only; no actor/Company threading is required.
+pub const CORE_READPOSSALESBYID_521: &str = "core_readpossalesbyid_521";
 pub const STRIPE_WRITEPOSSTRIPEEVENTS1_49: &str = "stripe_writeposstripeevents1_49";
 pub const STRIPE_WRITEPOSSTRIPEEVENTS2_53: &str = "stripe_writeposstripeevents2_53";
 pub const STRIPE_WRITEPOSCONNECTIONHISTORY1_58: &str = "stripe_writeposconnectionhistory1_58";
@@ -168,6 +173,7 @@ pub const KINDS: &[&str] = &[
     CORE_WRITEPOSFULFILLMENTS12_515,
     CORE_WRITEPOSSALES21_518,
     CORE_READPOSSALES3_520,
+    CORE_READPOSSALESBYID_521,
     STRIPE_WRITEPOSSTRIPEEVENTS1_49,
     STRIPE_WRITEPOSSTRIPEEVENTS2_53,
     STRIPE_WRITEPOSCONNECTIONHISTORY1_58,
@@ -307,6 +313,7 @@ fn sql(kind: &str) -> Option<&'static str> {
      '0'::text refunded_minor,s.version revision,s.version sale_version,s.branch_id
    FROM pos_sales s WHERE s.id=? AND s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND s.currency=?
      AND s.business_date BETWEEN ? AND ? AND s.state='completed' LIMIT 1"#,
+        CORE_READPOSSALESBYID_521 => r#"SELECT * FROM pos_sales WHERE id=?"#,
         STRIPE_WRITEPOSSTRIPEEVENTS1_49 => r#"INSERT INTO pos_stripe_events(id,account_id,livemode,company_id,event_type,payload_json,received_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING"#,
         STRIPE_WRITEPOSSTRIPEEVENTS2_53 => r#"UPDATE pos_stripe_events SET provider_created_at=COALESCE(provider_created_at,?) WHERE id=?"#,
         STRIPE_WRITEPOSCONNECTIONHISTORY1_58 => r#"INSERT INTO pos_connection_history VALUES(?,?,?) ON CONFLICT DO NOTHING"#,
@@ -406,7 +413,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 113);
+        assert_eq!(KINDS.len(), 114);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -478,6 +485,22 @@ mod tests {
             stmt,
             "SELECT s.id source_id,s.id sale_id,'sale' source_type,s.number receipt_number,s.business_date,\n     NULL::text accounting_date,s.currency,s.state,s.total_minor::text amount_minor,s.total_minor::text contribution_minor,\n     '0'::text refunded_minor,s.version revision,s.version sale_version,s.branch_id\n   FROM pos_sales s WHERE s.id=? AND s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND s.currency=?\n     AND s.business_date BETWEEN ? AND ? AND s.state='completed' LIMIT 1"
         );
+    }
+
+    /// The retired plain by-id sale row is a SELECT-only owner statement. Its
+    /// SQL is byte-identical to the three deleted `SELECT * FROM pos_sales
+    /// WHERE id=?` literals in `pos-core.ts`/`pos-daily.ts`/`pos-stripe.ts`;
+    /// this kind is the sole authority and every TypeScript copy was removed.
+    #[test]
+    fn sale_by_id_read_kind_is_select_only() {
+        assert!(supported(CORE_READPOSSALESBYID_521));
+        let stmt = sql(CORE_READPOSSALESBYID_521).unwrap();
+        assert!(stmt.starts_with("SELECT "), "by-id sale read kind must be SELECT-only");
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+            assert!(!stmt.contains(forbidden), "by-id sale read kind must not mutate: {forbidden}");
+        }
+        assert_eq!(stmt.matches('?').count(), 1, "by-id sale read carries only the sale id");
+        assert_eq!(stmt, "SELECT * FROM pos_sales WHERE id=?");
     }
 
     /// The retired purchase-boundary reads are SELECT-only owner statements.

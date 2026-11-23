@@ -1,4 +1,5 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
+import { nativePosSaleByIdStatement } from './native-pos-core-statement';
 import{secret,stripeRequest}from '@erpx/server-pos/adapters/stripe-provider';
 import {posStripeBindingFacts} from "@erpx/server-runtime/public/pos-stripe-binding-facts";
 import 'server-only';
@@ -269,7 +270,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
         }) => nativePosRun(db, '', 'stripe_writepospayments5_268', [facts.id, facts.qr, facts.fact2, facts.fact3, facts.id2]),
         readPosSales2: (facts: {
             sale_id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_sales WHERE id=?', facts.sale_id),
+        }) => nativePosSaleByIdStatement(db, facts.sale_id),
         writePosPayments6: (facts: {
             id: string;
             url: unknown;

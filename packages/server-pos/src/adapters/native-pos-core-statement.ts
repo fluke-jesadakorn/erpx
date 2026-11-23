@@ -50,3 +50,16 @@ export async function nativePosSalesEvidenceStatement(db: SqlDatabase, facts: Po
     facts.id, facts.company, facts.branch, facts.branch2, facts.currency, facts.from, facts.to,
   ]);
 }
+
+/**
+ * Owner-issued plain by-id sale row. The SQL lives in the native POS owner
+ * registry (`erpx-server-pos::adapters::owner_writes`, kind
+ * `core_readpossalesbyid_521`); this bridge sends only the typed kind and the
+ * sale id. It replaces the three byte-identical by-id `pos_sales` row literals
+ * in `pos-core.ts`, `pos-daily.ts` and `pos-stripe.ts`, so no
+ * local SQL, mirror or fallback remains. The read is scoped by sale id alone;
+ * no actor/Company threading is required.
+ */
+export async function nativePosSaleByIdStatement(db: SqlDatabase, saleId: unknown): Promise<SqlValueRow | null> {
+  return nativePosOne(db, '', 'core_readpossalesbyid_521', [saleId]);
+}

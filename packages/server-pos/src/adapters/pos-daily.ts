@@ -1,4 +1,5 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
+import { nativePosSaleByIdStatement } from './native-pos-core-statement';
 import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as pmsProjectionSources } from "@erpx/server-pms/public/hospitality-owner-projection-sources";
 import 'server-only';
@@ -24,7 +25,7 @@ function unit(db: SqlDatabase): PosDayUnit<SqlStatement> {
     return {
         readPosSales1: (facts: {
             saleId: string;
-        }) => one(db, 'SELECT * FROM pos_sales WHERE id=?', facts.saleId),
+        }) => nativePosSaleByIdStatement(db, facts.saleId),
         readFinanceParties1: facts => PosDayFinanceFacts(db).readFinanceParties1(facts),
         readPosLines1: (facts: {
             saleId: string;

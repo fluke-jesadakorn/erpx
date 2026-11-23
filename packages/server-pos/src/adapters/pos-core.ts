@@ -1,4 +1,5 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
+import { nativePosSaleByIdStatement } from './native-pos-core-statement';
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
 import { hospitalityOwnerProjectionSources as pmsProjectionSources } from "@erpx/server-pms/public/hospitality-owner-projection-sources";
 import 'server-only';
@@ -493,7 +494,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => one(db, 'SELECT * FROM pos_payments WHERE id=?', facts.payment_id),
         readPosSales5: (facts: {
             sale_id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_sales WHERE id=?', facts.sale_id),
+        }) => nativePosSaleByIdStatement(db, facts.sale_id),
         writeFinancePayments3: facts => posCoreFinanceFacts(db).writeFinancePayments3(facts),
         writePosRefundPayments2: (facts: {
             id: string | number | boolean | null;

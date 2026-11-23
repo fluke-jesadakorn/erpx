@@ -5,6 +5,7 @@ import {
   nativePosTablesStatement,
   nativePosCashMovementsStatement,
   nativePosSalesEvidenceStatement,
+  nativePosSaleByIdStatement,
 } from '../../../packages/server-pos/src/adapters/native-pos-core-statement';
 import { pmsHospitalitySetupPosFacts } from '../../../packages/server-pos/src/adapters/pms-hospitality-setup-facts';
 
@@ -140,6 +141,48 @@ describe('native POS core workspace read bridge (shifts family)', () => {
       currency: 'THB', from: '2026-01-01', to: '2026-01-31',
     };
     await expect(nativePosSalesEvidenceStatement({} as never, facts)).rejects.toMatchObject({
+      code: 'NATIVE_POS_OWNER_UNAVAILABLE',
+      status: 503,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('requests the by-id sale row from the native owner registry only', async () => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const sql = 'SELECT * FROM pos_sales WHERE id=?';
+    const values = ['sale-1'];
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { sql, values } }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const seen: { sql?: string; values?: unknown[] } = {};
+    const row = { id: 'sale-1', number: 'S-1', state: 'completed' };
+    const db = {
+      prepare: (text: string) => ({
+        bind: (...bound: unknown[]) => {
+          seen.sql = text;
+          seen.values = bound;
+          return { first: async () => row };
+        },
+      }),
+    };
+    const result = await nativePosSaleByIdStatement(db as never, 'sale-1');
+    expect(result).toEqual(row);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({
+      company: '',
+      kind: 'core_readpossalesbyid_521',
+      values,
+    });
+    expect(seen.sql).toBe(sql);
+    expect(seen.values).toEqual(values);
+  });
+
+  it('fails closed for the by-id sale read when the native owner service is unconfigured', async () => {
+    delete process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    await expect(nativePosSaleByIdStatement({} as never, 'sale-1')).rejects.toMatchObject({
       code: 'NATIVE_POS_OWNER_UNAVAILABLE',
       status: 503,
     });
