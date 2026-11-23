@@ -41,6 +41,12 @@ const STATEMENTS: &[NativeStatement] = &[
         bind_count: 7,
         scope: "holding",
     }, // campaigns.ts cost link
+    NativeStatement {
+        kind: "marketing_campaigns_read",
+        sql: r#"SELECT id,code,name,version FROM marketing_campaigns WHERE company_id=$1 ORDER BY code"#,
+        bind_count: 1,
+        scope: "holding",
+    }, // campaigns.ts workspace campaign list
 ];
 
 pub fn statement(kind: &str) -> Option<&'static NativeStatement> {
@@ -68,12 +74,25 @@ mod tests {
     }
 
     #[test]
+    fn campaigns_read_is_owner_authored_and_single_bound() {
+        let read = statement("marketing_campaigns_read").expect("campaign list read");
+        assert_eq!(
+            read.sql,
+            "SELECT id,code,name,version FROM marketing_campaigns WHERE company_id=$1 ORDER BY code"
+        );
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.scope, "holding");
+        assert!(statement("marketing_stmt_5").is_none());
+    }
+
+    #[test]
     fn every_statement_is_well_formed() {
         for s in STATEMENTS {
             assert!(
                 s.sql.trim_start().starts_with("INSERT")
                     || s.sql.trim_start().starts_with("UPDATE")
                     || s.sql.trim_start().starts_with("DELETE")
+                    || s.sql.trim_start().starts_with("SELECT")
             );
             let max = s
                 .sql
