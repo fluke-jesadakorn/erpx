@@ -15,7 +15,7 @@ export interface CollaborationWorkRepository {
     eligiblePeople(companyId: string): Promise<{
         results: Row[];
     }>;
-    actionHistory(id: string): Promise<{
+    actionHistory(actor: WorkContext, id: string): Promise<{
         results: Row[];
     }>;
 }
@@ -164,7 +164,7 @@ export function createCollaborationWorkApplication<Effect>(ports: CollaborationW
         return {
             ...data,
             card,
-            history: (await r.actionHistory(id)).results,
+            history: (await r.actionHistory(a, id)).results,
         };
     }
     async function collaborationActionWork(a: WorkContext): Promise<WorkItem[]> {

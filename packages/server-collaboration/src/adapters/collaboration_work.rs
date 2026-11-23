@@ -237,6 +237,46 @@ pub async fn read_card_history(
         .collect()
 }
 
+/// Owner-issued card-history read statement for caller-owned transactions.
+///
+/// Pure constructor: no connection is needed. The SQL is the retained
+/// `actionHistory` read (`collaboration_action_events` by card, version
+/// order) plus an inline card-scope guard, so the caller executes it in its
+/// own serializable unit and a cross-company or out-of-branch/department
+/// card yields no rows instead of leaking foreign events. The scope binds
+/// must come from the authorized selection, never from caller input.
+pub fn card_history_statement(
+    company: &str,
+    branch: Option<&str>,
+    department: Option<&str>,
+    card_id: &str,
+) -> Result<crate::adapters::notification_statement::NotificationStatement, BusinessError> {
+    use crate::adapters::notification_statement::NotificationStatement;
+    if company.is_empty() || card_id.is_empty() {
+        return Err(BusinessError::new(
+            FailureKind::InvalidInput,
+            "COLLABORATION_CARD_HISTORY_INVALID",
+            "A Company scope and card are required.",
+        ));
+    }
+    let value = |slot: Option<&str>| match slot {
+        Some(text) => Value::String(text.to_owned()),
+        None => Value::Null,
+    };
+    Ok(NotificationStatement {
+        sql: "SELECT to_jsonb(s)::text FROM (SELECT * FROM collaboration_action_events WHERE card_id=? AND EXISTS (SELECT 1 FROM collaboration_action_cards c WHERE c.id=? AND c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?)) ORDER BY version) s".to_owned(),
+        values: vec![
+            Value::String(card_id.to_owned()),
+            Value::String(card_id.to_owned()),
+            Value::String(company.to_owned()),
+            value(branch),
+            value(branch),
+            value(department),
+            value(department),
+        ],
+    })
+}
+
 /// Stage only Collaboration-owned effects in the existing owner transaction.
 /// Workflow owns the receipt/audit/outbox; callers must retain these effects,
 /// source witnesses, assignee authority and selected IAM after deferred flush.

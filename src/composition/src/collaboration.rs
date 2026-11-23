@@ -4343,6 +4343,15 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
                             )
                             .await
                             .map_err(Into::into)
+                        } else if input.kind.as_deref() == Some("collaboration_card_history") {
+                            let workspace = current.selection().workspace();
+                            erpx_server_collaboration::public::collaboration_work::card_history_statement(
+                                company_id.as_str(),
+                                workspace.branch_id.as_ref().map(|id| id.as_str()),
+                                workspace.department_id.as_ref().map(|id| id.as_str()),
+                                input.record_id.as_str(),
+                            )
+                            .map_err(Into::into)
                         } else {
                             notification_statement(connection, &company_id, &input)
                                 .await

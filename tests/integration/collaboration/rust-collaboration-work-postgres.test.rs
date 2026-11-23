@@ -186,3 +186,65 @@ async fn card_history_returns_versioned_events_with_scope_authority() {
         })).await.unwrap();
     }).await;
 }
+
+#[tokio::test]
+async fn card_history_statement_matches_retained_read_with_scope_guard() {
+    fixture::with_database(2, |pool| async move {
+        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
+        migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
+        PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
+            lock_collaboration_work_sources(c).await?;
+            let key = CommandKey::new("collaboration-statement-card")?;
+            let receipt = apply_plan(c, &actor(), &key, &plan(), 100).await?;
+            // Pure constructor: owner-issued text with fixed bind order.
+            let statement = card_history_statement("company", None, None, &receipt.id)?;
+            assert!(statement.sql.contains("collaboration_action_events"));
+            assert!(statement.sql.contains("EXISTS"));
+            assert_eq!(statement.values.len(), 7);
+            assert!(card_history_statement("", None, None, &receipt.id).is_err());
+            assert!(card_history_statement("company", None, None, "").is_err());
+            // Execute the issued statement on the caller transaction: same
+            // rows as the retained read, in version order.
+            let rows = run_statement(c, &statement).await?;
+            assert_eq!(rows.len(), 1);
+            assert_eq!(rows[0].get("action").and_then(|v| v.as_str()), Some("create"));
+            // Scope guard: foreign company and out-of-scope branch/department
+            // selections yield no rows instead of leaking events.
+            let foreign = card_history_statement("other", None, None, &receipt.id)?;
+            assert!(run_statement(c, &foreign).await?.is_empty());
+            let scoped = card_history_statement("company", Some("other-branch"), None, &receipt.id)?;
+            assert!(run_statement(c, &scoped).await?.is_empty());
+            Ok(())
+        })).await.unwrap();
+    }).await;
+}
+
+async fn run_statement(
+    c: &mut sqlx::PgConnection,
+    statement: &erpx_server_collaboration::public::notification_statement::NotificationStatement,
+) -> Result<Vec<serde_json::Value>, PgTransactionError<BusinessError>> {
+    // The bridge carries `?` binds like every caller-executed statement; the
+    // TypeScript runtime numbers them, so the parity probe does the same.
+    let mut numbered = String::with_capacity(statement.sql.len() + 8);
+    let mut index = 0;
+    for part in statement.sql.split('?') {
+        numbered.push_str(part);
+        index += 1;
+        if index <= statement.values.len() {
+            numbered.push_str(&format!("${index}"));
+        }
+    }
+    let mut query = sqlx::query_scalar::<_, String>(sqlx::AssertSqlSafe(numbered));
+    for value in &statement.values {
+        let text = match value {
+            serde_json::Value::String(text) => Some(text.clone()),
+            serde_json::Value::Null => None,
+            other => Some(other.to_string()),
+        };
+        query = query.bind(text);
+    }
+    let raws: Vec<String> = query.fetch_all(&mut *c).await?;
+    raws.into_iter()
+        .map(|raw| serde_json::from_str(&raw).map_err(|_| PgTransactionError::Business(BusinessError::new(erpx_server_shared::public::FailureKind::InvalidInput, "COLLABORATION_CARD_HISTORY_INVALID", "The card history could not be read."))))
+        .collect()
+}
