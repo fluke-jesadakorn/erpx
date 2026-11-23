@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6783,
+    "revision": 6789,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -50666,15 +50666,8 @@
         "resources": [
           "owner:inventory"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wN01",
-          "claimedAt": "2026-11-23T20:25:10.521Z",
-          "heartbeatAt": "2026-11-23T20:46:16.114Z",
-          "expiresAt": "2026-11-23T21:16:16.114Z",
-          "generation": 159
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
         "implementedCommit": "3949130da1e0021b4d72ac43c0e21d225f75b9c4",
         "lastPushedSha": null,
@@ -50937,15 +50930,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "558 recorded; remaining inventory reads are cross-owner/dynamic",
+        "blocker": "handoff",
+        "nextAction": "Claim cleared as stale; 555 at HEAD, remaining reads cross-owner/dynamic",
         "handoff": {
-          "runId": "run-20261123-f",
+          "runId": "run-20261123-g",
           "agentId": "wN01",
-          "at": "2026-11-23T20:25:05.022Z",
+          "at": "2026-11-23T20:56:27.512Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during active read-tail r2 wave; WIP reviewed with 19 workers active",
-          "nextAction": "558 recorded; remaining inventory reads are cross-owner/dynamic"
+          "reason": "handoff",
+          "nextAction": "Claim cleared as stale; 555 at HEAD, remaining reads cross-owner/dynamic"
         },
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
@@ -110838,15 +110831,8 @@
         "resources": [
           "owner:pms"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wZ12",
-          "claimedAt": "2026-11-23T20:25:10.610Z",
-          "heartbeatAt": "2026-11-23T20:46:16.114Z",
-          "expiresAt": "2026-11-23T21:16:16.114Z",
-          "generation": 159
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "bf7891048d6a36fc7af1b366fc5166045ff1c98c",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -110920,16 +110906,16 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261123-f",
+          "runId": "run-20261123-g",
           "agentId": "wZ12",
-          "at": "2026-11-23T20:25:05.022Z",
+          "at": "2026-11-23T20:56:27.665Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during active read-tail r2 wave; WIP reviewed with 19 workers active",
-          "nextAction": "537 recorded; retry lock trade-off reviewed"
+          "reason": "handoff",
+          "nextAction": "Claim cleared as stale; 537 at HEAD, retry lock trade-off reviewed"
         },
-        "nextAction": "537 recorded; retry lock trade-off reviewed",
+        "nextAction": "Claim cleared as stale; 537 at HEAD, retry lock trade-off reviewed",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -118558,6 +118544,78 @@
         "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.inventory.read-tail-r2",
+        "goalId": "G4",
+        "owner": "inventory",
+        "title": "inventory TS read tail native cutover (round 2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "tests/unit/inventory/**",
+          "tests/integration/inventory/**"
+        ],
+        "resources": [
+          "owner:inventory"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wAHinv",
+          "claimedAt": "2026-11-23T20:56:27.843Z",
+          "heartbeatAt": "2026-11-23T20:56:27.843Z",
+          "expiresAt": "2026-11-23T21:26:27.843Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pms.read-tail-r2",
+        "goalId": "G4",
+        "owner": "pms",
+        "title": "pms TS read tail native cutover (round 2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pms/src/**",
+          "tests/unit/pms/**",
+          "tests/integration/pms/**"
+        ],
+        "resources": [
+          "owner:pms"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wAHpms",
+          "claimedAt": "2026-11-23T20:56:28.012Z",
+          "heartbeatAt": "2026-11-23T20:56:28.012Z",
+          "expiresAt": "2026-11-23T21:26:28.012Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -118566,7 +118624,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 541,
+      "totalPackets": 543,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -118574,13 +118632,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 172,
+        "blocked": 174,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T20:52:58.102Z",
+    "updatedAt": "2026-11-23T20:56:28.015Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
