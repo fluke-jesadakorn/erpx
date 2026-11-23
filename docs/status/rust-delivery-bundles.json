@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7169,
+    "revision": 7173,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -123516,7 +123516,7 @@
         "owner": "assets",
         "title": "assets TS read tail native cutover (round 4)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -123528,22 +123528,42 @@
         "resources": [
           "owner:assets"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wCF1ass",
-          "claimedAt": "2026-11-23T22:50:45.501Z",
-          "heartbeatAt": "2026-11-23T22:50:45.501Z",
-          "expiresAt": "2026-11-23T23:20:45.501Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-assets/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0ca75bc88",
+            "owner": "assets",
+            "before": 50,
+            "after": 49,
+            "note": "Department org-node label shares the parameterized node label helper."
+          },
+          {
+            "command": "cargo check -p erpx-server-assets",
+            "result": "passed",
+            "sourceSha": "0ca75bc88"
+          },
+          {
+            "command": "vitest assets transport (16) + tsc assets + structure",
+            "result": "passed",
+            "sourceSha": "0ca75bc88"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; department label or projection dedupe; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wCF1ass",
+          "at": "2026-11-23T22:56:02.052Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -123797,6 +123817,42 @@
         "nextAction": "Pick the smallest remaining fixed-SQL read family served by the pms command-plan; avoid refund retry and FOR UPDATE reads; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.assets.read-tail-r5",
+        "goalId": "G4",
+        "owner": "assets",
+        "title": "assets TS read tail native cutover (round 5)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-assets/src/**",
+          "tests/unit/assets/**",
+          "tests/integration/assets/**"
+        ],
+        "resources": [
+          "owner:assets"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wCN1ass",
+          "claimedAt": "2026-11-23T22:56:02.241Z",
+          "heartbeatAt": "2026-11-23T22:56:02.241Z",
+          "expiresAt": "2026-11-23T23:26:02.241Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -123805,7 +123861,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 634,
+      "totalPackets": 635,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -123813,13 +123869,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 270,
+        "blocked": 271,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T22:55:10.143Z",
+    "updatedAt": "2026-11-23T22:56:02.243Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
