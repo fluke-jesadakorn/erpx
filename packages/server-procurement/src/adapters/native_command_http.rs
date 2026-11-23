@@ -215,6 +215,59 @@ async fn company_write(
     }
 }
 
+/// Parse a caller-unit read request. Reads are allow-listed against the owner
+/// read registry, never the write statement registry, and carry no ledger key.
+fn read_command(value: Value) -> Result<NativeCommand, BusinessError> {
+    let c: NativeCommand = serde_json::from_value(value).map_err(|_| invalid())?;
+    if c.kind.is_empty()
+        || c.kind.len() > 120
+        || c.values.is_empty()
+        || c.values.len() > 64
+    {
+        return Err(invalid());
+    }
+    Ok(c)
+}
+
+/// Browser-facing caller-unit read plan. The kind is resolved against the
+/// Procurement native read registry; the exact SQL is returned for the caller
+/// to prepare and run on its own already-open unit. No SQL is accepted from the
+/// wire, no write ledger is touched and nothing is executed here.
+async fn plan_read(
+    State(state): State<Arc<AppState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async {
+        let _target = target(&state, &headers, &slug)?;
+        if request.uri().query().is_some() {
+            return Err(invalid());
+        }
+        let bytes = to_bytes(request.into_body(), BODY_LIMIT)
+            .await
+            .map_err(|_| invalid())?;
+        let value: serde_json::Value = serde_json::from_slice(&bytes).map_err(|_| invalid())?;
+        let command = read_command(value)?;
+        if !crate::adapters::native_read_sql::is_read(&command.kind) {
+            return Err(invalid());
+        }
+        let statement = crate::adapters::native_read_sql::read_statement(&command.kind)
+            .ok_or_else(invalid)?;
+        if command.values.len() != statement.bind_count {
+            return Err(invalid());
+        }
+        Ok(serde_json::json!({
+            "statements": [{ "sql": statement.sql, "values": command.values }]
+        }))
+    }
+    .await;
+    match result {
+        Ok(data) => bounded(serde_json::json!({ "data": data })),
+        Err(error) => error_response(error),
+    }
+}
+
 pub fn native_company_command_router(
     companies: Vec<String>,
     backend: Arc<dyn NativeCommandHttpBackend>,
@@ -269,8 +322,29 @@ pub fn native_command_router(
             "/api/v1/holdings/{holding_slug}/procurement/native-command",
             post(write),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/procurement/command-plan",
+            post(plan_read),
+        )
         .with_state(Arc::new(AppState {
             targets: cfg,
             companies: BTreeMap::new(),
         })))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    #[test]
+    fn read_command_admits_only_bounded_read_envelopes() {
+        assert!(read_command(json!({"kind":"procurement_rd_invoice_match_finance","values":["inv","co"],"now":1})).is_ok());
+        assert!(read_command(json!({"kind":"","values":[1]})).is_err());
+        assert!(read_command(json!({"kind":"x","values":[]})).is_err());
+        let mut too_many = serde_json::Map::new();
+        too_many.insert("kind".to_owned(), json!("x"));
+        too_many.insert("values".to_owned(), json!((0..65).collect::<Vec<_>>()));
+        assert!(read_command(Value::Object(too_many)).is_err());
+    }
 }
