@@ -164,4 +164,26 @@ describe('Marketing owner-local campaign read tail', () => {
     expect(form).not.toContain("SELECT id,version,preview_json FROM marketing_assets");
     expect(form).not.toContain("SELECT 1 FROM marketing_assets WHERE id=? AND company_id=? AND kind='content'");
   });
+
+  it('keeps one fixed owner predicate for campaign existence reads', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
+    const helper = await readFile(new URL('campaign-existence.ts', base), 'utf8');
+    const submission = await readFile(new URL('public-submission.ts', base), 'utf8');
+    const campaigns = await readFile(new URL('campaigns.ts', base), 'utf8');
+
+    const predicate = 'SELECT 1 FROM marketing_campaigns WHERE id=? AND company_id=?';
+    // The canonical helper owns the single existence SQL; its comment must not
+    // smuggle a second "SELECT" token into the retirement KPI.
+    expect(helper.match(/SELECT/g)).toHaveLength(1);
+    expect(helper).toContain('export const marketingCampaignExistsSql');
+    expect(helper).toContain(predicate);
+
+    for (const consumer of [submission, campaigns]) {
+      expect(consumer).toContain("import {marketingCampaignExistsSql} from './campaign-existence'");
+      expect(consumer).not.toContain(predicate);
+    }
+    expect(submission).toContain('db.prepare(marketingCampaignExistsSql).bind(id,companyId).first()');
+    expect(campaigns).toContain('`EXISTS(${marketingCampaignExistsSql})`');
+  });
 });

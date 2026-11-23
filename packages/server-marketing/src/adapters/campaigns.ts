@@ -15,6 +15,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {marketingExpenseSources,prepareMarketingExpenseGuard} from "@erpx/server-finance/public/marketing-expenses";
 import {createMarketingCampaignApplication,type MarketingCampaignMutation} from "@erpx/server-marketing/application/campaigns";
 import {marketingCampaignCommand} from "@erpx/server-marketing/domain/campaigns";
+import {marketingCampaignExistsSql} from './campaign-existence';
 import {requireMarketingPurchasedRead,marketingFinanceHistory,withMarketingPurchasedCommand} from "@erpx/server-marketing/adapters/purchases";
 export type {MarketingCostSource} from "@erpx/server-marketing/domain/campaigns";
 function access(a:WorkContext,write=false){requirePermission(a,write?'records.write':'records.read');if(!hasModuleAccess(a.modules,'marketing'))throw new ApiError(403,'MODULE_FORBIDDEN','Marketing access required.');}
@@ -26,7 +27,7 @@ async function commit<Result>(write:SqlDatabase,a:WorkContext,m:MarketingCampaig
   const {input:i,key,id,operation:op,now}=m;
   if(i.action==='create'){await nativeCreateCampaign(a,i,key);return result;}
   return executeCommand(write,a,key,op,i,id,1,result,[
-    assertion(write,key,'campaign','EXISTS(SELECT 1 FROM marketing_campaigns WHERE id=? AND company_id=?)',[i.campaignId,a.companyId]),
+    assertion(write,key,'campaign',`EXISTS(${marketingCampaignExistsSql})`,[i.campaignId,a.companyId]),
     prepareMarketingExpenseGuard(write,key,a.companyId,i.journalLineId),
     nativeCampaignCostLink(a,{id,companyId:a.companyId,campaignId:i.campaignId,journalLineId:i.journalLineId,evidence:i.evidence,reviewedBy:a.userId,now},key),
   ]);
