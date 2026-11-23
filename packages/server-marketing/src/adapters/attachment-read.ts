@@ -11,9 +11,10 @@ import {attachmentDeniedReadAudits} from '@erpx/server-files/public/attachment-d
 import {attachmentReadSource,attachmentPrivateReadSourceLocks,assertAttachmentReadRoute,requirePrivateAttachmentReaderCurrent,bufferedAttachmentRead,type AttachmentReadRoute,type AttachmentReadSource} from '@erpx/server-files/public/private-attachment-reads';
 import {isTransactionalSqlDatabase,type SqlDatabase,type StoredFile} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
+import {attachmentSourceWitnessSql} from './attachment-source-witness';
 type Target='marketing_asset'|'marketing_campaign';
 export function isMarketingAttachmentReadTarget(target:string):target is Target{return target==='marketing_asset'||target==='marketing_campaign';}
-function image(database:SqlDatabase,companyId:string,target:Target,id:string){const table=target==='marketing_asset'?'marketing_assets':'marketing_campaigns';return database.prepare(`SELECT to_jsonb(source)::text image FROM ${table} source WHERE source.id=? AND source.company_id=?`).bind(id,companyId).first<string>('image');}
+function image(database:SqlDatabase,companyId:string,target:Target,id:string){const table=target==='marketing_asset'?'marketing_assets':'marketing_campaigns';return database.prepare(attachmentSourceWitnessSql('to_jsonb(source)::text image',table)).bind(id,companyId).first<string>('image');}
 function changed(){return new ApiError(409,'MARKETING_FILE_READ_CHANGED','The original Marketing consent, creative source, private evidence or selected authority changed during its read.');}
 /** Actual native asset/campaign only. Original private source/consent and
  * publication policies stay distinct; no lead or public token is fabricated. */

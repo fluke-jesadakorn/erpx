@@ -13,13 +13,14 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {financeDeferredEffectStatements} from "@erpx/server-finance/public/finance-transactions";
 import {marketingPurchaseSourceReadLocks,requireMarketingCurrentAuthority} from "@erpx/server-marketing/adapters/purchases";
+import {attachmentSourceWitnessSql} from "./attachment-source-witness";
 
 type Target={kind:"asset"|"campaign";id:string};
 export type MarketingAttachmentPurchase={companyId:string;capability:"sales.marketing";purpose:CapabilityPurpose;actor:WorkContext;target:Target;witness:string;approverRequired:boolean};
-const sourceQuery=(kind:Target["kind"])=>`SELECT (to_jsonb(source)-'version'-'updated_at')::text FROM ${kind==="asset"?"marketing_assets":"marketing_campaigns"} source WHERE source.id=? AND source.company_id=?`;
+const sourceQuery=(kind:Target["kind"])=>attachmentSourceWitnessSql("(to_jsonb(source)-'version'-'updated_at')::text witness",kind==="asset"?"marketing_assets":"marketing_campaigns");
 export async function marketingAttachmentPurchaseScope(database:SqlDatabase,actor:WorkContext,policy:Pick<AttachmentPolicy,"targetType"|"purposeKey">,id:string,operation?:AttachmentOperation):Promise<MarketingAttachmentPurchase|null>{
  if(!["marketing_asset","marketing_campaign"].includes(policy.targetType)||await commercePackageEnforcementMode()==="disabled")return null;
- const target:Target={kind:policy.targetType==="marketing_asset"?"asset":"campaign",id},row=await database.prepare(`SELECT (${sourceQuery(target.kind)}) witness`).bind(id,actor.companyId).first<{witness:string|null}>();
+ const target:Target={kind:policy.targetType==="marketing_asset"?"asset":"campaign",id},row=await database.prepare(sourceQuery(target.kind)).bind(id,actor.companyId).first<{witness:string|null}>();
  if(!row?.witness)throw new ApiError(404,"ATTACHMENT_TARGET_NOT_FOUND","The original Marketing file source is unavailable in this Company.");
  return {companyId:actor.companyId,capability:"sales.marketing",purpose:operation==="read"||operation==="revoke-history"?"history":operation==="withdraw"||operation==="revoke"?"settle-existing":(target.kind==="asset"||policy.purposeKey==="creative"?"new-work":"settle-existing"),actor,target,witness:row.witness,approverRequired:operation==="revoke"||operation==="revoke-history"};
 }

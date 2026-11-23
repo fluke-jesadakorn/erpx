@@ -122,4 +122,26 @@ describe('Marketing owner-local campaign read tail', () => {
     expect(purchases.match(/database\.prepare\(publicSubmissionReceiptWitness\)/g)).toHaveLength(2);
     expect(form.match(/database\.prepare\(publicSubmissionReceiptWitness\)/g)).toHaveLength(1);
   });
+
+  it('keeps one fixed owner projection for attachment source-witness reads', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
+    const witness = await readFile(new URL('attachment-source-witness.ts', base), 'utf8');
+    const purchases = await readFile(new URL('attachment-purchases.ts', base), 'utf8');
+    const read = await readFile(new URL('attachment-read.ts', base), 'utf8');
+
+    const predicate = 'SELECT ${projection} FROM ${table} source WHERE source.id=? AND source.company_id=?';
+    // The canonical helper owns the single source-witness SELECT; its comment
+    // must not smuggle a second "SELECT" token into the retirement KPI.
+    expect(witness.match(/SELECT/g)).toHaveLength(1);
+    expect(witness).toContain('export const attachmentSourceWitnessSql');
+    expect(witness).toContain(predicate);
+
+    for (const consumer of [purchases, read]) {
+      expect(consumer).toContain('attachmentSourceWitnessSql(');
+      expect(consumer).not.toContain('FROM ${table} source WHERE source.id=?');
+    }
+    expect(purchases).toContain('attachmentSourceWitnessSql("(to_jsonb(source)-\'version\'-\'updated_at\')::text witness"');
+    expect(read).toContain("attachmentSourceWitnessSql('to_jsonb(source)::text image'");
+  });
 });
