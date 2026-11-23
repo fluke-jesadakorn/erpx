@@ -22,6 +22,7 @@ export const OPERATIONS_RD_APP_UPLOAD_TASK_STATE = 'operations_rd_app_upload_tas
 export const OPERATIONS_RD_FLOW_DEFINITIONS_DELEGATION = 'operations_rd_flow_definitions_delegation';
 export const OPERATIONS_RD_BETA_MANAGEMENT_TASK_COMPANY = 'operations_rd_beta_management_task_company';
 export const OPERATIONS_RD_BETA_MANAGEMENT_TASK_FILE_OWNER = 'operations_rd_beta_management_task_file_owner';
+export const OPERATIONS_RD_ROUTINE_TEMPLATE_SCHEDULES = 'operations_rd_routine_template_schedules';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'OPERATIONS_NATIVE_READ_UNAVAILABLE', 'The native Operations read service is unavailable.');

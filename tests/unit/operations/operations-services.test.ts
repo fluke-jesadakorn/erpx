@@ -151,6 +151,33 @@ describe('Beta management task owner native reads',()=>{
   }
  });
 });
+describe('Routine template schedules native read',()=>{
+ const nativeConfig=JSON.stringify({privateBaseUrl:'http://127.0.0.1:3999',timeoutMs:1000,holdings:[{origin:'https://acme.jesadakorn.com',holdingSlug:'acme',holdingId:'h1',companyId:'company'}]});
+ const plannedSql='SELECT * FROM routine_schedules WHERE template_id=? AND company_id=? ORDER BY created_at';
+ test('both owners delegate to the single native owner plan and keep no local SQL',async()=>{
+  const prepare=vi.fn(()=>({bind:vi.fn()}));
+  const batch=vi.fn(async()=>[{results:[{id:'schedule',template_id:'tpl'}],success:true,meta:{changes:0,duration:0}}]);
+  const db={prepare,batch} as unknown as SqlDatabase;
+  process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG=nativeConfig;
+  const fetchMock=vi.spyOn(globalThis,'fetch').mockImplementation(async()=>new Response(JSON.stringify({data:{statements:[{sql:plannedSql,values:['tpl','company']}]}}),{status:200,headers:{'content-type':'application/json'}}));
+  try{
+   const {routineTemplateSchedules}=await import('@erpx/server-operations/adapters/people-app-entrypoint-facts');
+   const {workUiStaffFacts}=await import('@erpx/server-operations/adapters/work-ui-staff-facts');
+   await expect(routineTemplateSchedules(db,'tpl','company')).resolves.toMatchObject({results:[{id:'schedule'}]});
+   await expect(workUiStaffFacts(db).templateSchedules('tpl','company')).resolves.toMatchObject({results:[{id:'schedule'}]});
+   expect(fetchMock).toHaveBeenCalledTimes(2);
+   for(const call of fetchMock.mock.calls){
+    expect(String(call[0])).toContain('/operations/command-plan');
+    expect(JSON.parse(String(call[1]!.body))).toMatchObject({kind:'operations_rd_routine_template_schedules',values:['tpl','company']});
+   }
+   expect(prepare).toHaveBeenCalledWith(plannedSql);
+   expect(prepare).toHaveBeenCalledTimes(2);
+  }finally{
+   fetchMock.mockRestore();
+   delete process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG;
+  }
+ });
+});
 describe('Handover source and colleague constraints',()=>{
  test('Bangkok day derives entirely from the supplied instant',()=>{expect(bangkokToday(Date.UTC(2026,0,1,20))).toBe('2026-01-02');});
  test('duplicate recipients and source references fail validation',()=>{const source={id:'task',sourceVersion:1,kind:'staff_task' as const},base={date:'2026-01-02',body:'Shift report',sources:[source],recipientIds:['colleague']};expect(handoverPublishSchema.safeParse({...base,sources:[source,source]}).success).toBe(false);expect(handoverPublishSchema.safeParse({...base,recipientIds:['colleague','colleague']}).success).toBe(false);});

@@ -87,12 +87,27 @@ const READ_BETA_MANAGEMENT_TASK_FILE_OWNER: NativeReadStatement = NativeReadStat
     scope: "holding",
 };
 
+/// Native successor of the duplicated TypeScript routine-template-schedules
+/// read. Both owners previously bound the same literal on their own unit; the
+/// owner plans it once here and each caller executes it on its open unit with
+/// the same `[template_id, company_id]` bind.
+pub const RD_ROUTINE_TEMPLATE_SCHEDULES: &str = "operations_rd_routine_template_schedules";
+const SQL_ROUTINE_TEMPLATE_SCHEDULES: &str =
+    "SELECT * FROM routine_schedules WHERE template_id=? AND company_id=? ORDER BY created_at";
+const READ_ROUTINE_TEMPLATE_SCHEDULES: NativeReadStatement = NativeReadStatement {
+    kind: RD_ROUTINE_TEMPLATE_SCHEDULES,
+    sql: SQL_ROUTINE_TEMPLATE_SCHEDULES,
+    bind_count: 2,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_TASK_PROJECTION_SOURCE,
     READ_APP_UPLOAD_TASK_STATE,
     READ_FLOW_DEFINITIONS_DELEGATION,
     READ_BETA_MANAGEMENT_TASK_COMPANY,
     READ_BETA_MANAGEMENT_TASK_FILE_OWNER,
+    READ_ROUTINE_TEMPLATE_SCHEDULES,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -221,6 +236,29 @@ mod tests {
         assert_eq!(
             read.sql,
             "EXISTS(SELECT 1 FROM staff_tasks t WHERE t.id=a.owner_id AND t.company_id=?)"
+        );
+    }
+
+    #[test]
+    fn routine_template_schedules_plan_is_holding_scoped_and_ledger_free() {
+        let read = read_statement(RD_ROUTINE_TEMPLATE_SCHEDULES).expect("read kind");
+        let upper = read.sql.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT"), "{}", read.kind);
+        assert!(!upper.contains("INSERT"));
+        assert!(!upper.contains("UPDATE"));
+        assert!(!upper.contains("DELETE"));
+        assert_eq!(read.bind_count, 2);
+        assert_eq!(read.sql.matches('?').count(), 2);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_ROUTINE_TEMPLATE_SCHEDULES));
+    }
+
+    #[test]
+    fn routine_template_schedules_sql_matches_retired_typescript_literal() {
+        let read = read_statement(RD_ROUTINE_TEMPLATE_SCHEDULES).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT * FROM routine_schedules WHERE template_id=? AND company_id=? ORDER BY created_at"
         );
     }
 }
