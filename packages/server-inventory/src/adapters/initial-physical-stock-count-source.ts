@@ -1,5 +1,5 @@
 import 'server-only';
-import {inventoryCountStatusSql} from './inventory-read-projections';
+import {inventoryCommandReplaySql,inventoryCountStatusSql} from './inventory-read-projections';
 import {randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {lockQueuedCommandAuthority,requireQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
@@ -45,7 +45,7 @@ export async function withInitialPhysicalStockCountUnit<Result>(owner:SqlDatabas
   const purchase=companyPurchaseReadLocks(database,actor.companyId);await lockPackageSettlementSources(database);await database.batch(initialPhysicalStockSourceLeases(database));
   await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);await database.batch(purchase.slice(1));
   const current=await requireInitialPhysicalStockAuthority(database,actor,command.permission);
-  const replay=!command.readOnly&&!!await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(command.key,command.operation,actor.userId,actor.companyId).first();
+  const replay=!command.readOnly&&!!await database.prepare(inventoryCommandReplaySql).bind(command.key,command.operation,actor.userId,actor.companyId).first();
   const before=command.id?await initialPhysicalStockCountSource(database,actor,command.id):null;
   if(command.id&&!before)throw new ApiError(404,'COUNT_NOT_FOUND','The original Initial Physical Stock Count is unavailable.');
   const flow=command.flowStep&&command.id?await database.prepare(inventoryCountStatusSql).bind(command.id,actor.companyId).first<{status:string}>():null;

@@ -12,6 +12,10 @@ export const inventoryCountStatusSql = "SELECT status FROM inventory_counts WHER
 /** Canonical owner-local fixed SQL for a purchase command-receipt replay probe.
  * Every purchase-source caller shares this one literal, so no duplicate TS SQL remains. */
 export const inventoryPurchaseReplaySql = "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
+/** Canonical owner-local fixed SQL for an initial Stock Count command-receipt replay
+ * probe (no record scope). Every initial-count source caller shares this one
+ * literal, so no duplicate TS SQL remains. */
+export const inventoryCommandReplaySql = "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
 /** Fixed owner facts used by native joined Inventory projections; application ports return typed rows. */
 export const inventoryReadProjection={
 reservedStock:"COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r WHERE r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id),0)",

@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { inventoryLedgerProjectionSql, inventoryCountStatusSql, inventoryPurchaseReplaySql } from '../../../packages/server-inventory/src/adapters/inventory-read-projections';
+import { inventoryLedgerProjectionSql, inventoryCountStatusSql, inventoryPurchaseReplaySql, inventoryCommandReplaySql } from '../../../packages/server-inventory/src/adapters/inventory-read-projections';
 import { commercialOwnerProjectionSources } from '../../../packages/server-inventory/src/adapters/commercial-owner-projection-sources';
 import { hospitalityOwnerProjectionSources } from '../../../packages/server-inventory/src/adapters/hospitality-owner-projection-sources';
 
@@ -43,6 +43,22 @@ describe('inventory owner projection dedupe', () => {
     for (const file of callers) {
       const text = src(file);
       expect(text).toContain('inventoryPurchaseReplaySql');
+      expect(text).not.toContain(replay);
+    }
+  });
+
+  it('shares one canonical initial-count command replay SQL with every initial-count source caller', () => {
+    const replay = "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
+    expect(inventoryCommandReplaySql).toBe(replay);
+    expect(inventoryCommandReplaySql).not.toBe(inventoryPurchaseReplaySql);
+    const callers = [
+      'initial-physical-stock-count-source.ts',
+      'pos-initial-physical-stock-count-source.ts',
+      'manufacturing-initial-physical-stock-count-source.ts',
+    ];
+    for (const file of callers) {
+      const text = src(file);
+      expect(text).toContain('inventoryCommandReplaySql');
       expect(text).not.toContain(replay);
     }
   });
