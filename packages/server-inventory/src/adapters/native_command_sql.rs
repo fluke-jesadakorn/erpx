@@ -335,6 +335,21 @@ const READ_IN_TRANSIT_CURRENCY_TOTALS: NativeStatement = NativeStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `commerce-facts`
+/// `readInventoryFulfillmentLotAllocations1` read. Owner-local: it touches only
+/// Inventory's own allocation and lot tables, and the caller executes it on its
+/// already-open unit with the same two binds (so it observes uncommitted
+/// effects in a fulfillment write flow).
+pub const RD_FULFILLMENT_LOT_ALLOCATION: &str = "inventory_rd_fulfillment_lot_allocation";
+const SQL_RD_FULFILLMENT_LOT_ALLOCATION: &str =
+    "SELECT a.*,l.tracking_mode FROM inventory_fulfillment_lot_allocations a JOIN inventory_lots l ON l.id=a.lot_id WHERE a.fulfillment_line_id=? AND a.lot_id=?";
+const READ_FULFILLMENT_LOT_ALLOCATION: NativeStatement = NativeStatement {
+    kind: RD_FULFILLMENT_LOT_ALLOCATION,
+    sql: SQL_RD_FULFILLMENT_LOT_ALLOCATION,
+    bind_count: 2,
+    scope: "holding",
+};
+
 pub fn is_read(kind: &str) -> bool {
     matches!(
         kind,
@@ -356,6 +371,7 @@ pub fn is_read(kind: &str) -> bool {
             | RD_ATTACHMENT_DESCRIPTOR_LOT
             | RD_COMMERCE_ATTACHMENT_STOCK_IMAGE
             | RD_IN_TRANSIT_CURRENCY_TOTALS
+            | RD_FULFILLMENT_LOT_ALLOCATION
     )
 }
 
@@ -379,6 +395,7 @@ pub fn read_statement(kind: &str) -> Option<&'static NativeStatement> {
         RD_ATTACHMENT_DESCRIPTOR_LOT => Some(&READ_ATTACHMENT_DESCRIPTOR_LOT),
         RD_COMMERCE_ATTACHMENT_STOCK_IMAGE => Some(&READ_COMMERCE_ATTACHMENT_STOCK_IMAGE),
         RD_IN_TRANSIT_CURRENCY_TOTALS => Some(&READ_IN_TRANSIT_CURRENCY_TOTALS),
+        RD_FULFILLMENT_LOT_ALLOCATION => Some(&READ_FULFILLMENT_LOT_ALLOCATION),
         _ => None,
     }
 }
@@ -438,6 +455,7 @@ mod tests {
             RD_ATTACHMENT_DESCRIPTOR_LOT,
             RD_COMMERCE_ATTACHMENT_STOCK_IMAGE,
             RD_IN_TRANSIT_CURRENCY_TOTALS,
+            RD_FULFILLMENT_LOT_ALLOCATION,
         ] {
             assert!(is_read(kind));
             let read = read_statement(kind).expect("read kind");
@@ -611,6 +629,22 @@ mod tests {
             "SELECT currency,count(*) line_count,SUM(value_minor) value_minor FROM inventory_in_transit WHERE company_id=? AND quantity_milli>0 AND (?::text IS NULL OR source_branch_id=? OR target_branch_id=?) GROUP BY currency ORDER BY currency"
         );
         assert_eq!(read.bind_count, 4);
+        assert_eq!(read.sql.matches('?').count(), read.bind_count);
+        assert_eq!(read.scope, "holding");
+    }
+
+    /// Parity witness for the owner-local `commerce-facts` fulfillment lot
+    /// allocation read: the native plan is the exact statement the retired
+    /// TypeScript literal bound on Inventory's own allocation and lot tables,
+    /// with the caller-unit binds intact and no cross-owner projection.
+    #[test]
+    fn fulfillment_lot_allocation_plan_matches_retired_owner_statement() {
+        let read = read_statement(RD_FULFILLMENT_LOT_ALLOCATION).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT a.*,l.tracking_mode FROM inventory_fulfillment_lot_allocations a JOIN inventory_lots l ON l.id=a.lot_id WHERE a.fulfillment_line_id=? AND a.lot_id=?"
+        );
+        assert_eq!(read.bind_count, 2);
         assert_eq!(read.sql.matches('?').count(), read.bind_count);
         assert_eq!(read.scope, "holding");
     }

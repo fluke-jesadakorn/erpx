@@ -1,9 +1,9 @@
 import {describe,it,expect,vi,beforeEach,afterEach} from 'vitest';
 vi.mock('server-only',()=>({}));
 import {CommerceInventoryFacts} from '../../../packages/server-inventory/src/adapters/commerce-facts';
-import {INVENTORY_RD_IN_TRANSIT_CURRENCY_TOTALS} from '../../../packages/server-inventory/src/adapters/native-inventory-read';
+import {INVENTORY_RD_IN_TRANSIT_CURRENCY_TOTALS,INVENTORY_RD_FULFILLMENT_LOT_ALLOCATION} from '../../../packages/server-inventory/src/adapters/native-inventory-read';
 
-describe('native Inventory commerce-facts in-transit totals caller-unit read',()=>{
+describe('native Inventory commerce-facts caller-unit reads',()=>{
   const envKey='ERPX_NATIVE_INVENTORY_CONFIG';
   const original=process.env[envKey];
   beforeEach(()=>{
@@ -45,5 +45,26 @@ describe('native Inventory commerce-facts in-transit totals caller-unit read',()
     vi.stubGlobal('fetch',vi.fn(async ()=>new Response('down',{status:503})));
     const {db}=fakeDb();
     await expect(CommerceInventoryFacts(db as never).readInventoryInTransit1(facts)).rejects.toMatchObject({status:503});
+  });
+
+  it('switches the fulfillment lot allocation read to the native kind with caller-unit binds',async()=>{
+    const bodies:{kind:string;values:unknown[]}[]=[];
+    vi.stubGlobal('fetch',vi.fn(async (_url:URL,init:RequestInit)=>{
+      const body=JSON.parse(String(init.body)) as {kind:string;values:unknown[]};
+      bodies.push(body);
+      return new Response(JSON.stringify({data:{statements:[{sql:'SELECT 1',values:body.values}]}}),{status:200,headers:{'content-type':'application/json'}});
+    }));
+    const {db,bound}=fakeDb();
+    const row=await CommerceInventoryFacts(db as never).readInventoryFulfillmentLotAllocations1({id:'line1',lotId:'lot1'});
+    expect(row).toEqual(rows[0]);
+    expect(bodies.map(x=>x.kind)).toEqual([INVENTORY_RD_FULFILLMENT_LOT_ALLOCATION]);
+    expect(bodies.map(x=>x.values)).toEqual([['line1','lot1']]);
+    expect(bound).toEqual([['line1','lot1']]);
+  });
+
+  it('fulfillment allocation read fails closed when the native read service is unavailable',async()=>{
+    vi.stubGlobal('fetch',vi.fn(async ()=>new Response('down',{status:503})));
+    const {db}=fakeDb();
+    await expect(CommerceInventoryFacts(db as never).readInventoryFulfillmentLotAllocations1({id:'line1',lotId:'lot1'})).rejects.toMatchObject({status:503});
   });
 });
