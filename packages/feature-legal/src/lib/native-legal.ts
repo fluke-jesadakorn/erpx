@@ -1,7 +1,7 @@
 import 'server-only';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import { ApiError } from '@erpx/server-runtime/public/http';
-import { dateSchema } from '@erpx/server-legal/domain/model';
+import { dateSchema } from '@erpx/server-legal/public/rules/model';
 import { z } from 'zod';
 import {
   createNativeLegalClient,

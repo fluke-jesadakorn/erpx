@@ -1,4 +1,4 @@
-import { nativeCrmExecute } from '@erpx/feature-crm/adapters/server/native-crm-command';
+import { nativeCrmExecute } from './native-crm-command';
 import { commercialOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/commercial-owner-projection-sources";
 import { commercialOwnerProjectionSources as pmsProjectionSources } from "@erpx/server-pms/public/commercial-owner-projection-sources";
 import 'server-only';

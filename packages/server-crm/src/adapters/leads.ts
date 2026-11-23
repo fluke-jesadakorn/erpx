@@ -1,4 +1,4 @@
-import { nativeCrmExecute } from '@erpx/feature-crm/adapters/server/native-crm-command';
+import { nativeCrmExecute } from './native-crm-command';
 import {filterCRMPurchasedWork} from "@erpx/server-crm/adapters/record-purchases";
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
 import { commercialOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/commercial-owner-projection-sources";
