@@ -5,6 +5,7 @@ import {
   nativePosTablesStatement,
   nativePosCashMovementsStatement,
 } from '../../../packages/server-pos/src/adapters/native-pos-core-statement';
+import { pmsHospitalitySetupPosFacts } from '../../../packages/server-pos/src/adapters/pms-hospitality-setup-facts';
 
 const config = () => JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:44994', timeoutMs: 1000 });
 const previous = process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
@@ -71,5 +72,26 @@ describe('native POS core workspace read bridge (shifts family)', () => {
       status: 503,
     });
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('serves the hospitality-setup tables read from the native registry, not local SQL', async () => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const sql = 'SELECT t.* FROM pos_tables t JOIN pos_registers r ON r.id=t.register_id';
+    const fetch = stubFetch(sql);
+    const seen: { sql?: string; values?: unknown[] } = {};
+    const db = mockDb(seen, [{ id: 'table' }]);
+    const prepare = vi.spyOn(db, 'prepare');
+    const rows = await pmsHospitalitySetupPosFacts(db as never).tables({ company: 'company', branch: 'branch' });
+    expect(rows).toEqual([{ id: 'table' }]);
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({
+      company: 'company',
+      kind: 'pos_core_tables',
+      values: ['company', 'branch', 'branch'],
+    });
+    // The only prepared SQL is the registry's authoritative statement returned
+    // by the native service; no inline pos_tables literal runs locally.
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(seen.sql).toBe(sql);
+    expect(seen.sql).not.toContain('r.branch_id=?');
   });
 });
