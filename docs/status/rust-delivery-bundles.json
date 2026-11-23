@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6615,
+    "revision": 6623,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -116522,6 +116522,154 @@
         "nextAction": "Pick the smallest people_payroll read family with a mounted native read port or single-consumer fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.marketing.read-tail-followup",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "Marketing TS read tail native cutover",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**",
+          "tests/integration/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wZ07",
+          "claimedAt": "2026-11-23T19:45:48.346Z",
+          "heartbeatAt": "2026-11-23T19:45:48.346Z",
+          "expiresAt": "2026-11-23T20:15:48.346Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local marketing read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record strictly lower from 131.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.support.read-tail-followup",
+        "goalId": "G4",
+        "owner": "support",
+        "title": "Support TS read tail native cutover",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wZ08",
+          "claimedAt": "2026-11-23T19:45:48.444Z",
+          "heartbeatAt": "2026-11-23T19:45:48.444Z",
+          "expiresAt": "2026-11-23T20:15:48.444Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local support read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record strictly lower from 153.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.commerce.read-tail-followup-2",
+        "goalId": "G4",
+        "owner": "commerce",
+        "title": "Commerce TS read tail native cutover (round 2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-commerce/src/**",
+          "tests/unit/commerce/**",
+          "tests/integration/commerce/**"
+        ],
+        "resources": [
+          "owner:commerce"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wZ09",
+          "claimedAt": "2026-11-23T19:45:48.523Z",
+          "heartbeatAt": "2026-11-23T19:45:48.523Z",
+          "expiresAt": "2026-11-23T20:15:48.523Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the next smallest owner-local commerce read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record strictly lower from 564.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.legal.ai-history-authority",
+        "goalId": "G4",
+        "owner": "legal",
+        "title": "Native legal AI history authority + jobs.ts read retirement",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-legal/src/domain/auxiliary.rs",
+          "packages/server-legal/src/application/auxiliary.rs",
+          "packages/server-legal/src/adapters/postgres_auxiliary_reads.rs",
+          "packages/server-legal/src/adapters/legal/jobs.ts",
+          "packages/server-legal/src/public/auxiliary.rs",
+          "tests/unit/legal/**",
+          "tests/integration/legal/**"
+        ],
+        "resources": [
+          "owner:legal"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wZ10",
+          "claimedAt": "2026-11-23T19:46:06.614Z",
+          "heartbeatAt": "2026-11-23T19:46:06.614Z",
+          "expiresAt": "2026-11-23T20:16:06.614Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Make native ai_history read enforce legal.ai permission + enabled Company + purchased item scope, switch jobs.ts history, delete the TS SELECT, add PG parity/denial tests; record 327->326. No composition.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -116530,11 +116678,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 504,
+      "totalPackets": 508,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 22,
-        "in_progress": 10,
+        "in_progress": 14,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -116544,7 +116692,7 @@
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T19:45:10.076Z",
+    "updatedAt": "2026-11-23T19:46:06.617Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
