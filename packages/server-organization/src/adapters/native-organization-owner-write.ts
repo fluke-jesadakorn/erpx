@@ -135,6 +135,64 @@ export async function nativeOrgAll<T = Record<string, unknown>>(
   return (await db.prepare(data.sql).bind(...data.values).all<T>()).results;
 }
 
+/** Execute a single-row read-only owner statement on the caller's unit
+ * (retired `first` parity). Same fail-closed native contract as `nativeOrgAll`. */
+export async function nativeOrgOne<T = Record<string, unknown>>(
+  db: SqlDatabase,
+  companyId: string,
+  kind: string,
+  values: unknown[],
+): Promise<T | null> {
+  if (!identifier(companyId))
+    throw new ApiError(503, 'NATIVE_ORGANIZATION_AUTHORITY_INVALID', 'The native Organization authority is unavailable.');
+  const config = configuration();
+  const key = randomUUID();
+  const payload = await post(
+    `${config.privateBaseUrl}/api/v1/companies/${encodeURIComponent(companyId)}/organization/owner-write`,
+    {
+      'content-type': 'application/json',
+      'idempotency-key': key,
+      'x-erpx-context-company': companyId,
+    },
+    command(kind, values, key, Date.now(), 'statement'),
+    config.timeoutMs,
+  );
+  const data = payload.data!;
+  if (typeof data.sql !== 'string' || !Array.isArray(data.values) || data.values.length > 64)
+    throw new ApiError(503, 'NATIVE_ORGANIZATION_RESPONSE_INVALID', 'The native owner statement was invalid.');
+  return (await db.prepare(data.sql).bind(...data.values).first<T>()) ?? null;
+}
+
+/** Return the authoritative owner SQL predicate and its positional values for
+ * a deferred cross-owner assertion (an approval-route check). The caller never
+ * supplies SQL text: the Rust owner registry selects the statement by typed
+ * `kind`. The predicate is stored verbatim by the cross-owner workflow layer. */
+export async function nativeOrgSql(
+  companyId: string,
+  kind: string,
+  values: unknown[],
+): Promise<{ query: string; args: (string | number | null)[] }> {
+  if (!identifier(companyId))
+    throw new ApiError(503, 'NATIVE_ORGANIZATION_AUTHORITY_INVALID', 'The native Organization authority is unavailable.');
+  const config = configuration();
+  const key = randomUUID();
+  const payload = await post(
+    `${config.privateBaseUrl}/api/v1/companies/${encodeURIComponent(companyId)}/organization/owner-write`,
+    {
+      'content-type': 'application/json',
+      'idempotency-key': key,
+      'x-erpx-context-company': companyId,
+    },
+    command(kind, values, key, Date.now(), 'statement'),
+    config.timeoutMs,
+  );
+  const data = payload.data!;
+  if (typeof data.sql !== 'string' || !Array.isArray(data.values) || data.values.length > 64 ||
+      !data.values.every(v => v === null || typeof v === 'string' || typeof v === 'number'))
+    throw new ApiError(503, 'NATIVE_ORGANIZATION_RESPONSE_INVALID', 'The native owner statement was invalid.');
+  return { query: data.sql, args: data.values as (string | number | null)[] };
+}
+
 /** Company-keyed system write executed by the native owner unit with receipt,
  * audit and outbox effects. */
 export async function nativeOrgExecute(

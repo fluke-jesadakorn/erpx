@@ -40,6 +40,27 @@ pub const AUTHORITY_APPOINTMENT_INSERT: &str = "authority_appointment_insert";
 pub const DEPARTMENT_HEAD_UPSERT: &str = "department_head_upsert";
 pub const DEPARTMENT_FLOW_VERSION_INSERT: &str = "department_flow_version_insert";
 
+// -- department-authority-reads: owner-local read kinds -----------------------
+// These ten `SELECT` predicates are the owner-local half of the retired
+// `department-authority-reads.ts` family. Their SQL is authoritative here and
+// reached only with a typed kind and positional values (statement mode) on the
+// caller's unit. The three cross-owner reads (hr_people/hr_engagements owned by
+// people_payroll) stay behind that owner's projection port and are deliberately
+// NOT duplicated in this registry.
+pub const DEPT_AUTH_READ_SEAT: &str = "dept_auth_read_seat";
+pub const DEPT_AUTH_READ_HISTORY: &str = "dept_auth_read_history";
+pub const DEPT_AUTH_READ_POLICIES: &str = "dept_auth_read_policies";
+pub const DEPT_AUTH_READ_DEPARTMENTS: &str = "dept_auth_read_departments";
+pub const DEPT_AUTH_READ_DEPARTMENT_ACTIVE: &str = "dept_auth_read_department_active";
+pub const DEPT_AUTH_READ_POSITION_VALID: &str = "dept_auth_read_position_valid";
+pub const DEPT_AUTH_READ_FLOW_VERSION: &str = "dept_auth_read_flow_version";
+pub const DEPT_AUTH_READ_POLICY: &str = "dept_auth_read_policy";
+pub const DEPT_AUTH_READ_LEGACY_HEAD: &str = "dept_auth_read_legacy_head";
+/// Deferred workflow assertion predicate for a published department policy.
+/// Stored verbatim as the owner's predicate; the cross-owner workflow layer
+/// evaluates it inside its own command transaction.
+pub const DEPT_AUTH_READ_POLICY_CHECK: &str = "dept_auth_read_policy_check";
+
 // -- operations-level-history-effects / people-placement-level-history -------
 pub const STAFF_LEVEL_HISTORY_INSERT: &str = "staff_level_history_insert";
 
@@ -155,6 +176,16 @@ pub const KINDS: &[&str] = &[
     AUTHORITY_APPOINTMENT_INSERT,
     DEPARTMENT_HEAD_UPSERT,
     DEPARTMENT_FLOW_VERSION_INSERT,
+    DEPT_AUTH_READ_SEAT,
+    DEPT_AUTH_READ_HISTORY,
+    DEPT_AUTH_READ_POLICIES,
+    DEPT_AUTH_READ_DEPARTMENTS,
+    DEPT_AUTH_READ_DEPARTMENT_ACTIVE,
+    DEPT_AUTH_READ_POSITION_VALID,
+    DEPT_AUTH_READ_FLOW_VERSION,
+    DEPT_AUTH_READ_POLICY,
+    DEPT_AUTH_READ_LEGACY_HEAD,
+    DEPT_AUTH_READ_POLICY_CHECK,
     STAFF_LEVEL_HISTORY_INSERT,
     STAFF_LEVEL_UPDATE,
     STAFF_LEVEL_INSERT,
@@ -287,6 +318,36 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         DEPARTMENT_FLOW_VERSION_INSERT => {
             "INSERT INTO department_flow_versions(id,company_id,department_id,version,steps_json,published_by,reason,command_id,created_at) VALUES(?,?,?,?,CAST(? AS text)::jsonb,?,?,?,?)"
+        }
+        DEPT_AUTH_READ_SEAT => {
+            "SELECT * FROM authority_seats WHERE company_id=? AND kind=? AND scope_id=?"
+        }
+        DEPT_AUTH_READ_HISTORY => {
+            "SELECT * FROM authority_appointments WHERE company_id=? ORDER BY created_at DESC,id DESC LIMIT 200"
+        }
+        DEPT_AUTH_READ_POLICIES => {
+            "SELECT DISTINCT ON (department_id) department_id,version,steps_json,published_by,reason,created_at FROM department_flow_versions WHERE company_id=? ORDER BY department_id,version DESC"
+        }
+        DEPT_AUTH_READ_DEPARTMENTS => {
+            "SELECT id,display_name FROM organization_nodes WHERE company_id=? AND kind='department' AND status='active' ORDER BY display_name"
+        }
+        DEPT_AUTH_READ_DEPARTMENT_ACTIVE => {
+            "SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='department' AND status='active'"
+        }
+        DEPT_AUTH_READ_POSITION_VALID => {
+            "SELECT id FROM organization_positions WHERE id=? AND company_id=? AND active=1 AND (?<>'ceo' OR is_ceo=1) AND (?<>'head' OR department_id=?)"
+        }
+        DEPT_AUTH_READ_FLOW_VERSION => {
+            "SELECT COALESCE(MAX(version),0) version FROM department_flow_versions WHERE company_id=? AND department_id=?"
+        }
+        DEPT_AUTH_READ_POLICY => {
+            "SELECT id,version,steps_json FROM department_flow_versions WHERE company_id=? AND department_id=? ORDER BY version DESC LIMIT 1"
+        }
+        DEPT_AUTH_READ_LEGACY_HEAD => {
+            "SELECT person_id FROM department_heads WHERE company_id=? AND department_id=?"
+        }
+        DEPT_AUTH_READ_POLICY_CHECK => {
+            "EXISTS(SELECT 1 FROM department_flow_versions WHERE id=? AND company_id=? AND version=?)"
         }
         STAFF_LEVEL_HISTORY_INSERT => {
             "INSERT INTO staff_level_history(id,engagement_id,previous_level_id,level_id,actor_id,reason,command_id,created_at) VALUES(?,?,?,?,?,?,?,?)"
@@ -899,5 +960,71 @@ mod tests {
         assert!(statement.contains("company_id=?"));
         assert!(owner_statement(ACCEPTANCE_READ_CURRENT, &[Value::from("company")]).is_ok());
         assert!(owner_statement(ACCEPTANCE_READ_CURRENT, &[]).is_err());
+    }
+
+    /// Owner-local reads retired from `department-authority-reads.ts`: ten
+    /// fixed, Company-keyed SELECT predicates, never a mutation. The three
+    /// cross-owner reads (hr_people/hr_engagements from people_payroll) are
+    /// deliberately absent: this owner must not duplicate that source.
+    #[test]
+    fn department_authority_read_kinds_are_select_only_and_company_scoped() {
+        let kinds = [
+            (DEPT_AUTH_READ_SEAT, 3usize),
+            (DEPT_AUTH_READ_HISTORY, 1),
+            (DEPT_AUTH_READ_POLICIES, 1),
+            (DEPT_AUTH_READ_DEPARTMENTS, 1),
+            (DEPT_AUTH_READ_DEPARTMENT_ACTIVE, 2),
+            (DEPT_AUTH_READ_POSITION_VALID, 5),
+            (DEPT_AUTH_READ_FLOW_VERSION, 2),
+            (DEPT_AUTH_READ_POLICY, 2),
+            (DEPT_AUTH_READ_LEGACY_HEAD, 2),
+            (DEPT_AUTH_READ_POLICY_CHECK, 3),
+        ];
+        assert_eq!(kinds.len(), 10);
+        for (kind, expected) in kinds {
+            assert!(supported(kind), "read kind must be allow listed: {kind}");
+            let statement = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
+            assert!(
+                statement.starts_with("SELECT ") || statement.starts_with("EXISTS(SELECT "),
+                "read kind must be SELECT-only: {kind}"
+            );
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+                assert!(
+                    !statement.contains(forbidden),
+                    "read kind must not mutate: {kind} contains {forbidden}"
+                );
+            }
+            assert!(
+                statement.contains("company_id=?"),
+                "read kind must be Company scoped: {kind}"
+            );
+            assert!(
+                !statement.contains("hr_people") && !statement.contains("hr_engagements"),
+                "owner-local read must not duplicate cross-owner people sources: {kind}"
+            );
+            assert_eq!(
+                statement.matches('?').count(),
+                expected,
+                "read kind parameter count: {kind}"
+            );
+        }
+        let (statement, values) = owner_statement(
+            DEPT_AUTH_READ_SEAT,
+            &[
+                Value::from("company"),
+                Value::from("head"),
+                Value::from("department"),
+            ],
+        )
+        .expect("seat statement");
+        assert_eq!(values.len(), 3);
+        assert!(statement.contains("company_id=?"));
+        assert!(owner_statement(DEPT_AUTH_READ_SEAT, &[Value::from("company")]).is_err());
+        // The deferred policy predicate keeps the exact EXISTS form the
+        // cross-owner workflow assertion wraps in CASE WHEN (<predicate>).
+        assert_eq!(
+            sql(DEPT_AUTH_READ_POLICY_CHECK).unwrap(),
+            "EXISTS(SELECT 1 FROM department_flow_versions WHERE id=? AND company_id=? AND version=?)"
+        );
     }
 }
