@@ -3309,6 +3309,11 @@ async fn assemble_checked(
             String,
             erpx_server_runtime::public::postgres::DatabasePool,
         > = std::collections::BTreeMap::new();
+        let mut organization_native_routers: Vec<Router> = Vec::new();
+        let mut organization_owner_write_company_pools: std::collections::BTreeMap<
+            String,
+            erpx_server_runtime::public::postgres::DatabasePool,
+        > = std::collections::BTreeMap::new();
         let mut ecommerce_native_routers: Vec<Router> = Vec::new();
         let mut marketing_native_routers: Vec<Router> = Vec::new();
         let mut marketing_company_pools: std::collections::BTreeMap<
@@ -4141,6 +4146,8 @@ async fn assemble_checked(
                         .insert(company.as_str().to_owned(), pools[i + 1].clone());
                     pos_owner_write_company_pools
                         .insert(company.as_str().to_owned(), pools[i + 1].clone());
+                    organization_owner_write_company_pools
+                        .insert(company.as_str().to_owned(), pools[i + 1].clone());
                     records_company_pools
                         .insert(company.as_str().to_owned(), pools[i + 1].clone());
                     records_native_routers.push(
@@ -4317,6 +4324,22 @@ async fn assemble_checked(
                             )],
                         )
                         .map_err(|_| "PRIVATE_API_POS_OWNER_WRITE_CONFIGURATION_INVALID")?,
+                    );
+                    organization_native_routers.push(
+                        crate::organization_owner_write::organization_owner_write_browser_router(
+                            Arc::new(
+                                crate::organization_owner_write::OrganizationOwnerWriteBackendImpl::new(
+                                    pools[i + 1].clone(),
+                                    Arc::new(SharedClock(clock.clone())),
+                                ),
+                            ),
+                            vec![(
+                                holding.host.clone(),
+                                holding.registration.slug.clone(),
+                                format!("https://{}", holding.host),
+                            )],
+                        )
+                        .map_err(|_| "PRIVATE_API_ORGANIZATION_OWNER_WRITE_CONFIGURATION_INVALID")?,
                     );
                     agent_quota_targets.push((
                         holding.host.clone(),
@@ -7153,6 +7176,26 @@ async fn assemble_checked(
                 .map_err(|_| "PRIVATE_API_POS_OWNER_WRITE_CONFIGURATION_INVALID")?,
             );
         }
+        if !organization_owner_write_company_pools.is_empty() {
+            router = router.merge(
+                crate::organization_owner_write::organization_owner_write_company_backend_router(
+                    Arc::new(
+                        crate::organization_owner_write::OrganizationOwnerWriteBackendImpl::new(
+                            pools.get(1).cloned().unwrap_or_else(|| pools[0].clone()),
+                            Arc::new(SharedClock(clock.clone())),
+                        ),
+                    ),
+                    organization_owner_write_company_pools
+                        .keys()
+                        .cloned()
+                        .collect(),
+                )
+                .map_err(|_| "PRIVATE_API_ORGANIZATION_OWNER_WRITE_CONFIGURATION_INVALID")?,
+            );
+        }
+        for organization_router in organization_native_routers {
+            router = router.merge(organization_router);
+        }
         for pos_router in pos_native_routers {
             router = router.merge(pos_router);
         }
@@ -9305,7 +9348,8 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 && path.ends_with("/workflow/wave3-execute")
             || path.starts_with("/api/v1/holdings/")
                 && path.ends_with("/commercial/owner-write")
-            || path.ends_with("/pos/owner-write"));
+            || path.ends_with("/pos/owner-write")
+            || path.ends_with("/organization/owner-write"));
     if state.policy.audience(host).is_none()
         && !(host == state.loopback
             && (matches!(request.uri().path(), "/api/health" | "/api/ready") || loopback_system_command))
@@ -11872,6 +11916,19 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .is_some_and(|_| !slug.is_empty()),
         _ => false,
     };
+    let organization_owner_write = match (
+        request.method(),
+        request.uri().path().split('/').collect::<Vec<_>>().as_slice(),
+    ) {
+        (
+            &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "organization", "owner-write"],
+        ) => state
+            .policy
+            .audience(host)
+            .is_some_and(|_| !slug.is_empty()),
+        _ => false,
+    };
     let commercial_owner_write = match (
         request.method(),
         request
@@ -12221,6 +12278,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || account_security
         || commerce
         || commercial_owner_write
+        || organization_owner_write
         || pos_owner_write
         || customer_access
         || service_packages

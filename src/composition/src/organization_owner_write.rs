@@ -8,9 +8,9 @@
 //! and ledger to the Organization owner executor. No SQL and no business rules
 //! live here.
 use erpx_server_organization::public::organization_owner_write::{
-    execute_owner_write, owner_statement, OrganizationOwnerWriteBackend,
-    OrganizationOwnerWriteFuture, OrganizationOwnerWriteRequest, OrganizationOwnerWriteResult,
-    OrganizationOwnerWriteTarget, OwnerWriteActor, organization_owner_write_router,
+    execute_owner_write, owner_statement, OrganizationOwnerWriteBackend, OwnerWriteFuture,
+    OwnerWriteRequest, OwnerWriteResult, OrganizationOwnerWriteTarget, OwnerWriteActor,
+    organization_owner_write_router, organization_owner_write_company_router,
 };
 use erpx_server_runtime::public::http_support::{HeaderMap, HeaderName, Router};
 use erpx_server_runtime::public::postgres::{
@@ -119,7 +119,7 @@ impl<C: Clock + Send + Sync + 'static> OrganizationOwnerWriteBackendImpl<C> {
 impl<C: Clock + Send + Sync + 'static> OrganizationOwnerWriteBackend
     for OrganizationOwnerWriteBackendImpl<C>
 {
-    fn write<'a>(&'a self, request: OrganizationOwnerWriteRequest<'a>) -> OrganizationOwnerWriteFuture<'a> {
+    fn write<'a>(&'a self, request: OwnerWriteRequest<'a>) -> OwnerWriteFuture<'a> {
         Box::pin(async move {
             let actor = Self::actor(request.headers)?;
             let company = actor.company_id.clone();
@@ -171,4 +171,39 @@ pub fn organization_owner_write_routes(
     targets: Vec<OrganizationOwnerWriteTarget>,
 ) -> Result<Router, BusinessError> {
     organization_owner_write_router(targets)
+}
+
+/// Build the browser-facing owner-write router with exact registered Holding
+/// targets. Mirrors the POS owner-write mount: one backend shared across the
+/// targets of this assembly batch.
+pub fn organization_owner_write_browser_router(
+    backend: Arc<dyn OrganizationOwnerWriteBackend>,
+    targets: Vec<(String, String, String)>,
+) -> Result<Router, BusinessError> {
+    let targets = targets
+        .into_iter()
+        .map(
+            |(host, holding_slug, origin)| OrganizationOwnerWriteTarget {
+                host,
+                holding_slug,
+                origin,
+                backend: backend.clone(),
+            },
+        )
+        .collect();
+    organization_owner_write_router(targets)
+}
+
+/// Build the Company-keyed system owner-write router for callers holding only
+/// a Company id (the TypeScript statement bridge). Mirrors the POS company
+/// backend mount.
+pub fn organization_owner_write_company_backend_router(
+    backend: Arc<dyn OrganizationOwnerWriteBackend>,
+    companies: Vec<String>,
+) -> Result<Router, BusinessError> {
+    let pairs = companies
+        .into_iter()
+        .map(|company| (company, backend.clone()))
+        .collect();
+    organization_owner_write_company_router(pairs)
 }

@@ -5,3 +5,4 @@ pub(crate) mod organization_nodes;
 pub(crate) mod organization_setup;
 pub(crate) mod position;
 pub(crate) mod position_moves;
+pub(crate) mod roster;

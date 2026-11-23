@@ -40,6 +40,7 @@ pub mod position;
 pub mod position_moves;
 pub mod records_request_department_head;
 pub mod rfq_request_scope;
+pub mod roster;
 pub mod staff_department_route;
 
 /// Organization-owned placement port composed into native People commands.

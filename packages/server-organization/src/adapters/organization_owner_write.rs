@@ -94,6 +94,15 @@ pub const SPENDING_TEMPLATE_PUBLISH: &str = "spending_template_publish";
 pub const POSITION_PAY_DEFAULT_INSERT: &str = "position_pay_default_insert";
 pub const LEVEL_LEAVE_DEFAULT_INSERT: &str = "level_leave_default_insert";
 
+// -- roster-reads ---------------------------------------------------------------
+/// Retired `organizationRoster` people read: non-ended employee people with
+/// their level projection. Read-only; the retained role gate stays in the
+/// TypeScript application and transport never substitutes for the check.
+pub const ORG_READROSTERPEOPLE: &str = "org_readrosterpeople";
+/// Retired `organizationRoster` positions read: Company positions with level
+/// numbers. Read-only; same gate/transport contract as the people read.
+pub const ORG_READROSTERPOSITIONS: &str = "org_readrosterpositions";
+
 /// Every kind this owner module accepts. Anything else is fail-closed.
 pub const KINDS: &[&str] = &[
     ORG_ATTACHMENT_NODE_VERSION_STEP,
@@ -148,6 +157,8 @@ pub const KINDS: &[&str] = &[
     SPENDING_TEMPLATE_PUBLISH,
     POSITION_PAY_DEFAULT_INSERT,
     LEVEL_LEAVE_DEFAULT_INSERT,
+    ORG_READROSTERPEOPLE,
+    ORG_READROSTERPOSITIONS,
 ];
 
 /// Tables admitted for the generic attachment owner version step. Column is
@@ -334,6 +345,12 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         LEVEL_LEAVE_DEFAULT_INSERT => {
             "INSERT INTO level_leave_defaults(id,company_id,level_id,version,policy_version_id,created_by,created_at) VALUES(?,?,?,?,?,?,?)"
+        }
+        ORG_READROSTERPEOPLE => {
+            "SELECT p.id person_id,p.user_id,p.legal_name,p.email,p.version person_version,p.status person_status,e.id engagement_id,e.version engagement_version,e.company_id,e.branch_id,e.department_id,e.position_id,e.manager_person_id,e.level_id,l.level_number,l.name level_name,e.status,e.start_date,e.end_date,e.job_title FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id LEFT JOIN (SELECT \"id\",\"company_id\",\"code\",\"name\",\"rank\",\"active\",\"version\",\"created_at\",\"updated_at\",\"level_number\" FROM staff_levels) l ON l.id=e.level_id AND l.company_id=e.company_id AND l.active=1 WHERE p.company_id=? AND p.merged_into_id IS NULL AND p.status!='archived' AND e.worker_type='employee' AND e.status!='ended' ORDER BY p.legal_name,e.id"
+        }
+        ORG_READROSTERPOSITIONS => {
+            "SELECT p.*,l.level_number FROM organization_positions p JOIN staff_levels l ON l.id=p.level_id AND l.company_id=p.company_id WHERE p.company_id=? ORDER BY l.level_number,p.title,p.id"
         }
         _ => return None,
     })
@@ -603,5 +620,33 @@ mod tests {
     fn attachment_table_is_allow_listed() {
         assert!(sql_for(ATTACHMENT_OWNER_VERSION_STEP, &[Value::from("organization_node_changes")]).is_some());
         assert!(sql_for(ATTACHMENT_OWNER_VERSION_STEP, &[Value::from("secret_table")]).is_none());
+    }
+
+    /// The retired roster read port is read-only: fixed `SELECT` statements
+    /// with Company scope, never a mutation. The retained `organizationRoster`
+    /// permission checks stay in the TypeScript application; transport only
+    /// selects the statement text.
+    #[test]
+    fn roster_read_kinds_are_select_only() {
+        for kind in [ORG_READROSTERPEOPLE, ORG_READROSTERPOSITIONS] {
+            assert!(supported(kind), "read kind must be allow listed: {kind}");
+            let statement =
+                sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
+            assert!(
+                statement.starts_with("SELECT "),
+                "read kind must be SELECT-only: {kind}"
+            );
+            for forbidden in ["INSERT", "UPDATE", "DELETE", "RETURNING", ";"] {
+                assert!(
+                    !statement.contains(forbidden),
+                    "read kind must not mutate: {kind} contains {forbidden}"
+                );
+            }
+            assert_eq!(
+                statement.matches('?').count(),
+                1,
+                "roster read binds exactly the Company: {kind}"
+            );
+        }
     }
 }

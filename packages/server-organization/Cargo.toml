@@ -102,3 +102,7 @@ path = "../../tests/integration/organization/rust-position-postgres.test.rs"
 [[test]]
 name = "staff_department_route_postgres"
 path = "../../tests/integration/organization/rust-staff-department-route-postgres.test.rs"
+
+[[test]]
+name = "roster_postgres"
+path = "../../tests/integration/organization/rust-roster-postgres.test.rs"

@@ -28,4 +28,5 @@ pub(crate) mod position_moves_http;
 pub(crate) mod postgres_access;
 pub(crate) mod postgres_position;
 pub(crate) mod postgres_position_moves;
+pub(crate) mod postgres_roster;
 pub(crate) mod rfq_request_scope;

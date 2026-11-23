@@ -152,6 +152,8 @@ pub mod organization_nodes;
 pub mod organization_nodes_http;
 pub mod organization_position;
 #[cfg(feature = "existing-business")]
+pub mod organization_owner_write;
+#[cfg(feature = "existing-business")]
 pub mod organization_setup;
 pub mod people_payroll;
 pub mod people_workforce;

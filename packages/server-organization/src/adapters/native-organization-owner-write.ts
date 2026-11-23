@@ -1,4 +1,5 @@
 import 'server-only';
+import { randomUUID } from 'node:crypto';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import type { SqlDatabase, SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 
@@ -99,6 +100,39 @@ export async function nativeOrgStatement(
   if (typeof data.sql !== 'string' || !Array.isArray(data.values) || data.values.length > 64)
     throw new ApiError(503, 'NATIVE_ORGANIZATION_RESPONSE_INVALID', 'The native owner write was invalid.');
   return db.prepare(data.sql).bind(...data.values);
+}
+
+/** Execute a read-only owner statement on the caller's unit (retired `all`
+ * parity for the roster reads). The SQL is owned by the Rust owner crate; this
+ * module sends only the typed kind and Company value. Read kinds are
+ * `SELECT`-only by owner-crate unit test; permission checks stay in the
+ * TypeScript application and transport never substitutes for the check. An
+ * unconfigured or failing native service fails closed; it never reads locally.
+ */
+export async function nativeOrgAll<T = Record<string, unknown>>(
+  db: SqlDatabase,
+  companyId: string,
+  kind: string,
+  values: unknown[],
+): Promise<T[]> {
+  if (!identifier(companyId))
+    throw new ApiError(503, 'NATIVE_ORGANIZATION_AUTHORITY_INVALID', 'The native Organization authority is unavailable.');
+  const config = configuration();
+  const key = randomUUID();
+  const payload = await post(
+    `${config.privateBaseUrl}/api/v1/companies/${encodeURIComponent(companyId)}/organization/owner-write`,
+    {
+      'content-type': 'application/json',
+      'idempotency-key': key,
+      'x-erpx-context-company': companyId,
+    },
+    command(kind, values, key, Date.now(), 'statement'),
+    config.timeoutMs,
+  );
+  const data = payload.data!;
+  if (typeof data.sql !== 'string' || !Array.isArray(data.values) || data.values.length > 64)
+    throw new ApiError(503, 'NATIVE_ORGANIZATION_RESPONSE_INVALID', 'The native owner write was invalid.');
+  return (await db.prepare(data.sql).bind(...data.values).all<T>()).results;
 }
 
 /** Company-keyed system write executed by the native owner unit with receipt,
