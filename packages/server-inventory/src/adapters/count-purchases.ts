@@ -5,6 +5,7 @@ import {manufacturingInitialPhysicalStockCountMarked,manufacturingInitialPhysica
 import "server-only";
 import {initialPhysicalStockCountMarked,initialPhysicalStockCapabilities,requireInitialPhysicalStockHistory,withInitialPhysicalStockCountUnit} from "@erpx/server-inventory/adapters/initial-physical-stock-count-source";
 import {qualityDisposalCountSource} from "@erpx/server-inventory/adapters/quality-count-purchases";
+import {inventoryCountStatusSql} from "@erpx/server-inventory/adapters/inventory-read-projections";
 import {qualityPurchaseSourceReadLocks} from "@erpx/server-quality/public/purchase-sources";
 import {randomUUID} from "node:crypto";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
@@ -102,7 +103,7 @@ export async function withCountPurchasedCommand<Result>(owner:SqlDatabase,actor:
   const replay=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?")
    .bind(command.key,command.operation,command.id,actor.userId,actor.companyId).first();
   const before=command.existing||replay?await source(database,actor,command.id):null;
-  const flow=command.flowStep?await database.prepare("SELECT status FROM inventory_counts WHERE id=? AND company_id=?").bind(command.id,actor.companyId).first<{status:string}>():null;
+  const flow=command.flowStep?await database.prepare(inventoryCountStatusSql).bind(command.id,actor.companyId).first<{status:string}>():null;
   const flowNewWork=command.flowStep&&(command.saveDefault||["draft","rejected"].includes(flow?.status??"")||command.flowStep==="draft");
   const purpose=replay?"history" as const:flowNewWork?"new-work" as const:command.purpose;
   const quality=before&&purpose!=="new-work"?await qualityDisposalCountSource(database,actor,command.id):null;

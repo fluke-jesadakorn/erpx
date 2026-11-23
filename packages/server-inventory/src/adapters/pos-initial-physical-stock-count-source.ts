@@ -1,4 +1,5 @@
 import 'server-only';
+import {inventoryCountStatusSql} from './inventory-read-projections';
 import {randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {lockQueuedCommandAuthority,requireQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
@@ -49,7 +50,7 @@ export async function withPosInitialPhysicalStockCountUnit<Result>(owner:SqlData
   const before=command.id?await posInitialPhysicalStockCountSource(database,actor,command.id):null;
   if(command.id&&!before)throw new ApiError(404,'COUNT_NOT_FOUND','The original Initial Physical Stock Count is unavailable.');
   const readImage=command.id&&command.readOnly?await posInitialPhysicalStockCountImage(database,actor,command.id):null;
-  const flow=command.flowStep&&command.id?await database.prepare('SELECT status FROM inventory_counts WHERE id=? AND company_id=?').bind(command.id,actor.companyId).first<{status:string}>():null;
+  const flow=command.flowStep&&command.id?await database.prepare(inventoryCountStatusSql).bind(command.id,actor.companyId).first<{status:string}>():null;
   const flowNewWork=!!command.flowStep&&(command.saveDefault||command.flowStep==='draft'||['draft','rejected'].includes(flow?.status??''));
   const purpose=replay?'history':flowNewWork?'new-work':command.purpose,key=`pos-initial-stock:${randomUUID()}`;
   for(const capability of posInitialPhysicalStockCapabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability,purpose});
