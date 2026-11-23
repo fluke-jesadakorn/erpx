@@ -968,3 +968,37 @@ describe("Native organization access and position-move transport", () => {
     }
   });
 });
+
+// The two `access.ts` scoped reads are native owner reads by typed kind; no
+// local SELECT is built. Mock the owner transport to assert the exact kinds
+// and positional values (company, branch x3, department x2; company for levels).
+const accessNativeAll = vi.hoisted(() => vi.fn(async (_db: unknown, _companyId: string, kind: string, _values: unknown[]) => {
+  if (kind === 'org_access_read_nodes') return [{ id: 'node', kind: 'company', slug: 'acme', display_name: 'Acme', branch_id: null, status: 'active', hierarchy_revision: 1 }];
+  if (kind === 'org_access_read_levels') return [{ id: 'level', name: 'CEO', level_number: 1 }];
+  return [];
+}));
+vi.mock('../../../packages/server-organization/src/adapters/native-organization-owner-write', () => ({ nativeOrgAll: accessNativeAll }));
+const { organizationAccessData } = await import('@erpx/server-organization/adapters/access');
+
+describe('Organization access scoped native reads', () => {
+  const accessActor = {
+    userId: 'user', holdingId: 'h001', holdingSlug: 'acme', companyId: 'company',
+    branchId: 'branch', departmentId: 'department', assignmentId: 'assignment', role: 'custom_people_manager',
+    assignmentScope: 'department', scope: { kind: 'department' },
+    iam: { permissions: ['iam.read', 'people.manage'] },
+  } as unknown as WorkContext;
+
+  it('reads scoped nodes and active levels by typed kind with exact positional values and no local SQL', async () => {
+    accessNativeAll.mockClear();
+    const prepare = vi.fn(() => { throw new Error('access.ts must not build local SQL'); });
+    const db = { prepare } as unknown as import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
+
+    const data = await organizationAccessData(db, accessActor);
+
+    expect(data.nodes).toEqual([{ id: 'node', kind: 'company', slug: 'acme', display_name: 'Acme', branch_id: null, status: 'active', hierarchy_revision: 1 }]);
+    expect(data.levels).toEqual([{ id: 'level', name: 'CEO', level_number: 1 }]);
+    expect(accessNativeAll).toHaveBeenCalledWith(db, 'company', 'org_access_read_nodes', ['company', 'branch', 'branch', 'branch', 'department', 'department']);
+    expect(accessNativeAll).toHaveBeenCalledWith(db, 'company', 'org_access_read_levels', ['company']);
+    expect(prepare).not.toHaveBeenCalled();
+  });
+});

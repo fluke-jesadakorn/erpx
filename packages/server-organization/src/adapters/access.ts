@@ -8,15 +8,17 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import {organizationRoster} from '@erpx/server-organization/public/organization-roster-read';
 import { BusinessRuleError } from "@erpx/server-shared/index";
 import { createOrganizationAccessApplication } from "@erpx/server-organization/application/access";
+import { nativeOrgAll } from './native-organization-owner-write';
+// Both reads are owner-local Company-keyed SELECTs over org-owned tables.
+// SQL is authoritative in erpx-server-organization::adapters::organization_owner_write
+// and reached only by typed kind with positional values on the caller's unit.
+// The `?::text IS NULL` branch/department windows keep their null-scope meaning.
 
 export async function organizationAccessData(db: SqlDatabase, actor: WorkContext): Promise<OrganizationAccessData> {
   const application = createOrganizationAccessApplication({ actorId: actor.userId, branchId: actor.branchId, departmentId: actor.departmentId, scopeKind: actor.scope.kind, assignmentScope: actor.assignmentScope, mayReadIam: hasPermission(actor, "iam.read"), mayManagePeople: hasPermission(actor, "people.manage"), mayManageOrganization: hasPermission(actor, "organization.manage") }, {
     roster: () => organizationRoster(db, actor.companyId),
-    async nodes() { return (await db.prepare(`SELECT id,kind,slug,display_name,branch_id,status,hierarchy_revision
-      FROM organization_nodes WHERE company_id=? AND kind IN ('company','branch','department')
-      AND (?::text IS NULL OR kind='company' OR id=? OR branch_id=?)
-      AND (?::text IS NULL OR kind!='department' OR id=?) ORDER BY display_name,id`).bind(actor.companyId, actor.branchId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId).all<OrganizationNode>()).results; },
-    async levels() { return (await db.prepare("SELECT id,name,level_number FROM staff_levels WHERE company_id=? AND active=1 AND level_number IS NOT NULL ORDER BY level_number").bind(actor.companyId).all<OrganizationAccessData["levels"][number]>()).results; },
+    nodes: () => nativeOrgAll<OrganizationNode>(db, actor.companyId, 'org_access_read_nodes', [actor.companyId, actor.branchId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId]),
+    levels: () => nativeOrgAll<OrganizationAccessData["levels"][number]>(db, actor.companyId, 'org_access_read_levels', [actor.companyId]),
   }, { now: () => Date.now() });
   try { return await application.read(); }
   catch (error) { if (error instanceof BusinessRuleError) throw new ApiError(error.status, error.code, error.message); throw error; }

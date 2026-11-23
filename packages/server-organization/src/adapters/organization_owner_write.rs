@@ -69,6 +69,16 @@ pub const DEPT_AUTH_READ_POLICY_CHECK: &str = "dept_auth_read_policy_check";
 pub const ORG_WORK_READ_CHANGE_EXISTS: &str = "org_work_read_change_exists";
 pub const ORG_WORK_READ_CHANGES: &str = "org_work_read_changes";
 
+// -- access.ts: owner-local access projection reads ---------------------------
+// The two `SELECT` reads retired from `adapters/access.ts`. Both are
+// Company-keyed reads of org-owned tables (`organization_nodes` and
+// `staff_levels`); no people_payroll hr_* source is needed for these scoped
+// node/level projections. The `?::text IS NULL` predicates are the branch and
+// department visibility windows and keep the exact `?` placeholder form the
+// caller binds on its own unit.
+pub const ORG_ACCESS_READ_NODES: &str = "org_access_read_nodes";
+pub const ORG_ACCESS_READ_LEVELS: &str = "org_access_read_levels";
+
 // -- operations-level-history-effects / people-placement-level-history -------
 pub const STAFF_LEVEL_HISTORY_INSERT: &str = "staff_level_history_insert";
 
@@ -196,6 +206,8 @@ pub const KINDS: &[&str] = &[
     DEPT_AUTH_READ_POLICY_CHECK,
     ORG_WORK_READ_CHANGE_EXISTS,
     ORG_WORK_READ_CHANGES,
+    ORG_ACCESS_READ_NODES,
+    ORG_ACCESS_READ_LEVELS,
     STAFF_LEVEL_HISTORY_INSERT,
     STAFF_LEVEL_UPDATE,
     STAFF_LEVEL_INSERT,
@@ -364,6 +376,12 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         ORG_WORK_READ_CHANGES => {
             "SELECT c.*,iam_same_person(c.requested_by,?,c.company_id) same_requester FROM organization_node_changes c WHERE c.company_id=? AND (c.requested_by=? OR c.state='submitted' OR c.reviewed_by=?) ORDER BY c.updated_at DESC,c.id"
+        }
+        ORG_ACCESS_READ_NODES => {
+            "SELECT id,kind,slug,display_name,branch_id,status,hierarchy_revision FROM organization_nodes WHERE company_id=? AND kind IN ('company','branch','department') AND (?::text IS NULL OR kind='company' OR id=? OR branch_id=?) AND (?::text IS NULL OR kind!='department' OR id=?) ORDER BY display_name,id"
+        }
+        ORG_ACCESS_READ_LEVELS => {
+            "SELECT id,name,level_number FROM staff_levels WHERE company_id=? AND active=1 AND level_number IS NOT NULL ORDER BY level_number"
         }
         STAFF_LEVEL_HISTORY_INSERT => {
             "INSERT INTO staff_level_history(id,engagement_id,previous_level_id,level_id,actor_id,reason,command_id,created_at) VALUES(?,?,?,?,?,?,?,?)"
@@ -1090,5 +1108,89 @@ mod tests {
         assert_eq!(values.len(), 2);
         assert!(statement.contains("company_id=?"));
         assert!(owner_statement(ORG_WORK_READ_CHANGE_EXISTS, &[Value::from("change")]).is_err());
+    }
+
+    /// Owner-local reads retired from `adapters/access.ts`: two fixed,
+    /// Company-keyed SELECT statements over the org-owned `organization_nodes`
+    /// and `staff_levels` tables. No people_payroll hr_* source is duplicated.
+    /// The `?::text IS NULL` predicates are the retained branch/department
+    /// visibility windows; the statement translation keeps the cast on the
+    /// numbered parameter so a null scope still means "no scope filter".
+    #[test]
+    fn organization_access_read_kinds_are_select_only_company_scoped_and_cast_safe() {
+        let kinds = [(ORG_ACCESS_READ_NODES, 6usize), (ORG_ACCESS_READ_LEVELS, 1)];
+        assert_eq!(kinds.len(), 2);
+        for (kind, expected) in kinds {
+            assert!(supported(kind), "read kind must be allow listed: {kind}");
+            let statement = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
+            assert!(
+                statement.starts_with("SELECT "),
+                "read kind must be SELECT-only: {kind}"
+            );
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+                assert!(
+                    !statement.contains(forbidden),
+                    "read kind must not mutate or lock: {kind} contains {forbidden}"
+                );
+            }
+            assert!(
+                statement.contains("company_id=?"),
+                "read kind must be Company scoped: {kind}"
+            );
+            assert!(
+                !statement.contains("hr_people") && !statement.contains("hr_engagements"),
+                "owner-local read must not duplicate cross-owner people sources: {kind}"
+            );
+            assert_eq!(
+                statement.matches('?').count(),
+                expected,
+                "read kind parameter count: {kind}"
+            );
+        }
+        // Exact owner SQL for the scoped node list, including both branch and
+        // department `?::text IS NULL` windows and the `!=` department guard.
+        let nodes = sql(ORG_ACCESS_READ_NODES).unwrap();
+        assert!(nodes.contains("organization_nodes"));
+        assert_eq!(nodes.matches("?::text IS NULL").count(), 2);
+        assert!(nodes.contains("kind!='department'"));
+        // ? placeholders translate to numbered parameters with the cast intact.
+        let positional_nodes = positional(nodes);
+        assert!(!positional_nodes.contains('?'));
+        assert!(positional_nodes.contains("company_id=$1"));
+        assert!(positional_nodes.contains("$2::text IS NULL"));
+        assert!(positional_nodes.contains("id=$3 OR branch_id=$4"));
+        assert!(positional_nodes.contains("$5::text IS NULL"));
+        assert!(positional_nodes.contains("id=$6"));
+        assert_eq!(
+            positional("SELECT 1 FROM organization_nodes WHERE (?::text IS NULL OR id=?)"),
+            "SELECT 1 FROM organization_nodes WHERE ($1::text IS NULL OR id=$2)"
+        );
+        // A null scope is bound as JSON null; the arity gate stays fail-closed.
+        let (statement, values) = owner_statement(
+            ORG_ACCESS_READ_NODES,
+            &[
+                Value::from("company"),
+                Value::Null,
+                Value::Null,
+                Value::Null,
+                Value::Null,
+                Value::Null,
+            ],
+        )
+        .expect("scoped nodes statement");
+        assert_eq!(values.len(), 6);
+        assert_eq!(values[0], Value::from("company"));
+        assert!(values[1..].iter().all(Value::is_null));
+        assert!(statement.contains("?::text IS NULL"));
+        assert!(owner_statement(
+            ORG_ACCESS_READ_NODES,
+            &[Value::from("company"), Value::Null],
+        )
+        .is_err());
+        let (levels, values) = owner_statement(ORG_ACCESS_READ_LEVELS, &[Value::from("company")])
+            .expect("active levels statement");
+        assert_eq!(values.len(), 1);
+        assert!(levels.contains("active=1"));
+        assert!(owner_statement(ORG_ACCESS_READ_LEVELS, &[]).is_err());
     }
 }
