@@ -232,7 +232,7 @@ pub mod notification_statement {
         pms_finance_allocation_insert_statement, pms_finance_bank_match_statement,
         pms_finance_invoice_statement, pms_finance_invoice_update_statement,
         pms_finance_party_statement, pms_finance_payment_statement, pos_registers_statement,
-        pos_sale_statement, pos_settings_statement,
+        pos_registers_front_statement, pos_sale_statement, pos_settings_statement,
         refund_bank_match_statement,
         refund_instruction_confirm_statement, refund_instruction_export_statement,
         refund_instruction_insert_statement, refund_instruction_resolve_statement,

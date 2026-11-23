@@ -633,3 +633,36 @@ async fn pos_settings_statement_matches_retained_read() {
     }).await;
 }
 
+
+#[tokio::test]
+async fn pos_registers_front_statement_matches_retained_read() {
+    use erpx_server_collaboration::public::notification_statement::pos_registers_front_statement;
+    fixture::with_database(2, |pool| async move {
+        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
+        migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
+        PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
+            sqlx::query("INSERT INTO organization_nodes(id,kind,slug,display_name,parent_id,company_id,branch_id,status) VALUES('company','company','company','Company',NULL,'company',NULL,'active'),('b1','branch','b1','Branch 1','company','company',NULL,'active')").execute(&mut *c).await?;
+            sqlx::query("INSERT INTO commerce_warehouses(id,company_id,branch_id,code,name,status) VALUES('pos-wh-1','company','b1','POSW1','Main','active')").execute(&mut *c).await?;
+            sqlx::query("INSERT INTO pms_properties(id,company_id,branch_id,name,business_date,state,config_json,created_by,updated_at) VALUES('prop-1','company','b1','Hotel One','2026-09-02','open','{\"approvedBy\":\"mgr\"}','fixture',0)").execute(&mut *c).await?;
+            sqlx::query("INSERT INTO pos_registers(id,company_id,branch_id,warehouse_id,name,mode,active,property_id) VALUES('pos-reg-1','company','b1','pos-wh-1','Alpha','restaurant',true,'prop-1'),('pos-reg-2','company','b1','pos-wh-1','Beta','retail',true,NULL)").execute(&mut *c).await?;
+            let statement = pos_registers_front_statement("company", None)?;
+            assert!(statement.sql.contains("hotel_name"));
+            assert!(statement.sql.contains("finance_approved"));
+            assert_eq!(statement.values.len(), 3);
+            assert!(pos_registers_front_statement("", None).is_err());
+            let retained = "SELECT r.id register_id,p.name hotel_name,p.state hotel_state,p.business_date,(p.config_json::jsonb->>'approvedBy' IS NOT NULL) finance_approved FROM pos_registers r LEFT JOIN (SELECT \"id\",\"company_id\",\"branch_id\",\"name\",\"business_date\",\"state\",\"config_json\",\"version\",\"created_by\",\"updated_at\" FROM pms_properties) p ON p.id=r.property_id AND p.company_id=r.company_id AND p.branch_id=r.branch_id WHERE r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND r.active=true";
+            let via_statement = run_rows_statement(c, &statement).await?;
+            let via_retained = run_rows_raw(c, retained, &[Some("company".to_owned()), None, None]).await?;
+            assert_eq!(via_statement.len(), 2);
+            assert_eq!(via_statement, via_retained);
+            let linked = via_statement.iter().find(|v| v.get("register_id").and_then(serde_json::Value::as_str) == Some("pos-reg-1")).unwrap();
+            assert_eq!(linked.get("hotel_name").and_then(serde_json::Value::as_str), Some("Hotel One"));
+            assert_eq!(linked.get("finance_approved"), Some(&serde_json::Value::Bool(true)));
+            let scoped = pos_registers_front_statement("company", Some("other-branch"))?;
+            assert!(run_rows_statement(c, &scoped).await?.is_empty());
+            let foreign = pos_registers_front_statement("other", None)?;
+            assert!(run_rows_statement(c, &foreign).await?.is_empty());
+            Ok(())
+        })).await.unwrap();
+    }).await;
+}

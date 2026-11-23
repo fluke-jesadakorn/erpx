@@ -3799,6 +3799,38 @@ pub fn pos_sale_statement(sale_id: &str) -> Result<NotificationStatement, Busine
     })
 }
 
+/// POS registers with hotel front-desk state for caller-owned POS workspace
+/// reads.
+///
+/// Pure constructor: the retained `readPosRegisters2` read byte-identically,
+/// including the inlined PMS properties projection (mirrors
+/// `pms_properties` in the PMS hospitality-owner projection sources).
+/// Scope comes from the authorized selection.
+pub fn pos_registers_front_statement(
+    company: &str,
+    branch: Option<&str>,
+) -> Result<NotificationStatement, BusinessError> {
+    if company.is_empty() {
+        return Err(BusinessError::new(
+            FailureKind::InvalidInput,
+            "POS_REGISTERS_FRONT_COMPANY_REQUIRED",
+            "A Company scope is required.",
+        ));
+    }
+    let value = |slot: Option<&str>| match slot {
+        Some(text) => serde_json::Value::String(text.to_owned()),
+        None => serde_json::Value::Null,
+    };
+    Ok(NotificationStatement {
+        sql: "SELECT r.id register_id,p.name hotel_name,p.state hotel_state,p.business_date,(p.config_json::jsonb->>'approvedBy' IS NOT NULL) finance_approved FROM pos_registers r LEFT JOIN (SELECT \"id\",\"company_id\",\"branch_id\",\"name\",\"business_date\",\"state\",\"config_json\",\"version\",\"created_by\",\"updated_at\" FROM pms_properties) p ON p.id=r.property_id AND p.company_id=r.company_id AND p.branch_id=r.branch_id WHERE r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND r.active=true".to_owned(),
+        values: vec![
+            serde_json::Value::String(company.to_owned()),
+            value(branch),
+            value(branch),
+        ],
+    })
+}
+
 /// POS settings row for caller-owned POS workspace reads.
 ///
 /// Pure constructor: the retained `readPosSettings1` read byte-identically

@@ -51,6 +51,27 @@ export async function nativePosSaleStatement(db: SqlDatabase, actor: WorkContext
   return statement.first<PosRow>();
 }
 
+/** Owner-issued POS registers with hotel front-desk state. Scope comes
+ * from the authorized selection. */
+export async function nativePosRegistersFrontStatement(db: SqlDatabase, actor: WorkContext): Promise<PosRow[]> {
+  const statement = await nativeNotificationStatement(
+    db,
+    actor,
+    {
+      companyId: actor.companyId,
+      userId: actor.userId,
+      recordType: 'pos_register',
+      recordId: 'registers-front',
+      recordVersion: 1,
+      message: 'pos registers front read',
+      kind: 'pos_registers_front',
+    },
+    randomUUID(),
+    Date.now(),
+  );
+  return (await statement.all<PosRow>()).results;
+}
+
 /** Owner-issued POS settings row. The caller already authorizes Company
  * scope before reading; the Company bind comes from the session. */
 export async function nativePosSettingsStatement(db: SqlDatabase, actor: WorkContext): Promise<PosRow | null> {

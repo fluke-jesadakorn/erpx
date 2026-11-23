@@ -1,5 +1,5 @@
 import { nativePosAll } from './native-owner-write';
-import { nativePosRegistersStatement, nativePosSaleStatement, nativePosSettingsStatement } from './native-pos-registers-statement';
+import { nativePosRegistersStatement, nativePosRegistersFrontStatement, nativePosSaleStatement, nativePosSettingsStatement } from './native-pos-registers-statement';
 import { roomChargeReversalWork } from "@erpx/server-pos/adapters/room-charge-reversal-queue";
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
 import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/hospitality-owner-projection-sources";
@@ -42,10 +42,7 @@ function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
             company: string;
             branch: string | null;
             branch2: string | null;
-        }) => all(db, `SELECT r.id register_id,p.name hotel_name,p.state hotel_state,p.business_date,
-   (p.config_json::jsonb->>'approvedBy' IS NOT NULL) finance_approved
-   FROM pos_registers r LEFT JOIN (${pmsProjectionSources.pms_properties}) p ON p.id=r.property_id AND p.company_id=r.company_id AND p.branch_id=r.branch_id
-   WHERE r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND r.active=true`, facts.company, facts.branch, facts.branch2),
+        }) => nativePosRegistersFrontStatement(db, actor),
         readCommerceSettings1: facts => PosReadCommerceFacts(db).readCommerceSettings1(facts),
         readCommerceSettings2: facts => PosReadCommerceFacts(db).readCommerceSettings2(facts),
         readPosRegisterCatalog1: (facts: {
