@@ -441,3 +441,54 @@ describe('workflow department approval queue read tail (native read plan)', () =
     }
   });
 });
+
+describe('workflow work report facts read tail (native read plan)', () => {
+  it('carries no retired owner SQL for the switched reads', async () => {
+    const source = await readFile(
+      new URL('../../../packages/server-workflow/src/adapters/work-report-facts.ts', import.meta.url),
+      'utf8',
+    );
+    expect(source).not.toContain('JOIN approval_decisions d ON d.instance_id=i.id');
+    expect(source).not.toContain('jsonb_array_elements_text(?::jsonb)');
+  });
+
+  it('plans both reads through the mounted native read with no local SQL', async () => {
+    const decisions = [{ record_id: 'record-1', id: 'd1' }];
+    const routes = [{ record_id: 'record-1', cycle: 1, ordinal: 0 }];
+    const all = vi.fn(async (kind: string) =>
+      kind === 'wf_native_work_report_decisions' ? decisions : routes,
+    );
+    vi.resetModules();
+    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+      nativeWorkflowReadAll: all,
+    }));
+    try {
+      const { workReportWorkflowFacts } = await import(
+        '../../../packages/server-workflow/src/adapters/work-report-facts'
+      );
+      const prepare = vi.fn();
+      const db = { prepare } as never;
+      const facts = workReportWorkflowFacts(db);
+      expect(await facts.decisions('company', '["record-1"]')).toEqual({ results: decisions });
+      expect(await facts.savedRoutes('company', '["record-1"]')).toEqual({ results: routes });
+      expect(all).toHaveBeenNthCalledWith(
+        1,
+        'wf_native_work_report_decisions',
+        ['company', '["record-1"]'],
+        'company',
+        db,
+      );
+      expect(all).toHaveBeenNthCalledWith(
+        2,
+        'wf_native_work_report_saved_routes',
+        ['company', '["record-1"]'],
+        'company',
+        db,
+      );
+      expect(prepare).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.resetModules();
+    }
+  });
+});

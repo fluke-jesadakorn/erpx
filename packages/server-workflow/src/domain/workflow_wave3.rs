@@ -117,6 +117,12 @@ pub const WF_NATIVE_STAFF_TASK_ALERT_APPROVERS: &str = "wf_native_staff_task_ale
 /// Workflow-owned approval tables; the TypeScript bridge executes it on the
 /// caller's open unit and carries no receipt/assertion semantics.
 pub const WF_NATIVE_DEPARTMENT_APPROVAL_QUEUE: &str = "wf_native_department_approval_queue";
+/// Owner-authored caller-unit reads for the work report facts family. The
+/// mounted wave3-command planner resolves each to one fixed SELECT on the
+/// Workflow-owned approval tables; the TypeScript bridge executes it on the
+/// caller's open unit and carries no receipt/assertion semantics.
+pub const WF_NATIVE_WORK_REPORT_DECISIONS: &str = "wf_native_work_report_decisions";
+pub const WF_NATIVE_WORK_REPORT_SAVED_ROUTES: &str = "wf_native_work_report_saved_routes";
 pub const KINDS: &[&str] = &[
     WF_OPENAPPROVAL,
     WF_OPENAPPROVAL2,
@@ -150,6 +156,8 @@ pub const KINDS: &[&str] = &[
     WF_NATIVE_SPENDING_SETTINGS_HISTORY,
     WF_NATIVE_STAFF_TASK_ALERT_APPROVERS,
     WF_NATIVE_DEPARTMENT_APPROVAL_QUEUE,
+    WF_NATIVE_WORK_REPORT_DECISIONS,
+    WF_NATIVE_WORK_REPORT_SAVED_ROUTES,
 ];
 
 fn statement(kind: &str) -> Option<(&'static str, usize)> {
@@ -383,6 +391,14 @@ fn statement(kind: &str) -> Option<(&'static str, usize)> {
         WF_NATIVE_DEPARTMENT_APPROVAL_QUEUE => (
             "SELECT i.record_type kind,i.record_id id,i.updated_at FROM approval_instances i JOIN approval_steps s ON s.instance_id=i.id AND s.ordinal=i.current_step WHERE i.company_id=? AND i.state='pending' AND s.state='pending' AND s.stage='department_approval' AND i.record_type IN ('expense','leave','overtime') ORDER BY i.updated_at DESC LIMIT 150",
             1,
+        ),
+        WF_NATIVE_WORK_REPORT_DECISIONS => (
+            "SELECT i.record_id,d.id,d.action,d.actor_user_id actor,d.created_at at,d.reason,COALESCE(s.stage,s.authority,'') step,i.cycle,s.route_snapshot_json policy FROM approval_instances i JOIN approval_decisions d ON d.instance_id=i.id LEFT JOIN approval_steps s ON s.id=d.step_id WHERE i.company_id=? AND i.record_id IN (SELECT jsonb_array_elements_text(?::jsonb)) ORDER BY d.created_at,d.id",
+            2,
+        ),
+        WF_NATIVE_WORK_REPORT_SAVED_ROUTES => (
+            "SELECT i.record_id,i.cycle,s.ordinal,s.approver_user_id,s.stage,s.authority,s.route_snapshot_json FROM approval_instances i JOIN approval_steps s ON s.instance_id=i.id WHERE i.company_id=? AND i.record_id IN (SELECT jsonb_array_elements_text(?::jsonb)) ORDER BY i.cycle,s.ordinal",
+            2,
         ),
 _ => return None,
     })
@@ -645,5 +661,38 @@ mod tests {
             plan(WF_NATIVE_DEPARTMENT_APPROVAL_QUEUE, vec![json!("company")]).is_ok()
         );
         assert!(plan(WF_NATIVE_DEPARTMENT_APPROVAL_QUEUE, vec![]).is_err());
+    }
+
+    /// The owner-local work report facts reads stay fixed, SELECT-only and on
+    /// the Workflow-owned approval tables; the bridge carries no receipt or
+    /// assertion semantics and the planner never accepts caller SQL or writes.
+    #[test]
+    fn work_report_facts_read_kinds_are_fixed_owner_local_selects() {
+        for (kind, company_predicate) in [
+            (WF_NATIVE_WORK_REPORT_DECISIONS, "i.company_id=?"),
+            (WF_NATIVE_WORK_REPORT_SAVED_ROUTES, "i.company_id=?"),
+        ] {
+            let (sql, expected) = statement(kind).expect("registered owner read kind");
+            assert!(sql.starts_with("SELECT "), "read must be SELECT-only: {sql}");
+            assert_eq!(expected, 2);
+            assert_eq!(sql.matches('?').count(), expected);
+            assert!(
+                sql.contains("approval_instances") && sql.contains("approval_steps"),
+                "read must stay owner-local: {sql}"
+            );
+            assert!(sql.contains(company_predicate), "read must stay company-scoped: {sql}");
+            assert!(
+                sql.contains("jsonb_array_elements_text(?::jsonb)"),
+                "read must keep the exact cohort bind: {sql}"
+            );
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+                assert!(!sql.contains(forbidden), "read must not mutate: {forbidden}");
+            }
+            assert!(supported(kind));
+            assert!(
+                plan(kind, vec![json!("company"), json!("[\"record-1\"]")]).is_ok()
+            );
+            assert!(plan(kind, vec![json!("company")]).is_err());
+        }
     }
 }
