@@ -252,6 +252,24 @@ describe('native People Payroll command transport',()=>{
     'runs',{},'command-key-1','https://acme.example.com'))
     .rejects.toMatchObject({code:'NATIVE_PEOPLE_PAYROLL_AUTHORITY_INVALID'});
  });
+ it('posts the mounted pay-group schedule command with the same bounded transport',async()=>{
+  const transport=vi.fn().mockResolvedValue(ok({data:{id:'group',version:2}}));
+  const client=createNativePeoplePayrollClient(nativePeoplePayrollConfiguration(config()),transport);
+  const result=await client.command(incoming(),actor,input,'groups/group-1/schedule',{expectedVersion:1,enabled:true},'command-key-1','https://acme.example.com');
+  expect(result).toEqual({id:'group',version:2});
+  const [method,url,headers,body]=transport.mock.calls[0];
+  expect(method).toBe('POST');
+  expect(url.toString()).toBe('http://127.0.0.1:44992/api/v1/holdings/acme/people/payroll/groups/group-1/schedule');
+  expect(headers.get('idempotency-key')).toBe('command-key-1');
+  expect(headers.get('origin')).toBe('https://acme.example.com');
+  expect(JSON.parse(body!)).toEqual({expectedVersion:1,enabled:true});
+ });
+ it('rejects a malformed schedule command path before any transport',async()=>{
+  const client=createNativePeoplePayrollClient(nativePeoplePayrollConfiguration(config()),vi.fn());
+  for(const path of ['groups','groups/','groups/../etc/schedule','groups/group-1/schedule/extra','groups/group-1/approve'])
+    await expect(client.command(incoming(),actor,input,path,{},'command-key-1','https://acme.example.com'))
+      .rejects.toMatchObject({code:'NATIVE_PEOPLE_PAYROLL_REQUEST_INVALID'});
+ });
  it('fails closed without the native configuration so the route returns 503 instead of a TS writer',async()=>{
   const previous=process.env.ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG;
   delete process.env.ERPX_NATIVE_PEOPLE_PAYROLL_CONFIG;

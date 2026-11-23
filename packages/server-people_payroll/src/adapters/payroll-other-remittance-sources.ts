@@ -13,5 +13,4 @@ export async function payrollOtherSource(database:SqlDatabase,companyId:string,r
  const items=(await database.prepare('SELECT to_jsonb(i)::text image FROM hr_payroll_items i WHERE i.run_id=? ORDER BY i.id').bind(runId).all<{image:string}>()).results;
  return {run,journalId:row.journal_id,postingCommandId:String(JSON.parse(row.receipt).command_id),image:JSON.stringify([row,items]),identity:createHash('sha256').update(JSON.stringify([companyId,runId,row.journal_id,row.posting,row.receipt])).digest('hex')};
 }
-export async function payrollOtherRemittances(database:SqlDatabase,companyId:string,runId:string){return (await database.prepare('SELECT to_jsonb(r)::text image FROM hr_payroll_statutory_remittances r WHERE r.company_id=? AND r.run_id=? ORDER BY r.id').bind(companyId,runId).all<{image:string}>()).results;}
 export async function payrollOtherSchemaAvailable(database:SqlDatabase){return !!await database.prepare("SELECT 1 FROM erpx_migration_receipts() WHERE name='1066_payroll_other_liability_remittances.sql'").first();}

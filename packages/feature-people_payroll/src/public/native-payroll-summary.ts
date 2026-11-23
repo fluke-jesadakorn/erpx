@@ -711,7 +711,11 @@ export function createNativePeoplePayrollClient(
       return Promise.reject(
         new NativePeoplePayrollError('NATIVE_PEOPLE_PAYROLL_CONTEXT_CHANGED'),
       );
-    if (!/^runs(?:\/[A-Za-z0-9_-]{1,120}(?:\/(?:calculate|cancel|post))?)?$/.test(commandPath))
+    // Both shapes are mounted on the owner command router: run commands and
+    // the pay-group schedule save. Reject anything else, including traversal.
+    const runPath = /^runs(?:\/[A-Za-z0-9_-]{1,120}(?:\/(?:calculate|cancel|post))?)?$/;
+    const schedulePath = /^groups\/[A-Za-z0-9_-]{1,120}\/schedule$/;
+    if (!runPath.test(commandPath) && !schedulePath.test(commandPath))
       return Promise.reject(
         new NativePeoplePayrollError('NATIVE_PEOPLE_PAYROLL_REQUEST_INVALID'),
       );
