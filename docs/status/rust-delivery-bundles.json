@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6495,
+    "revision": 6499,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -112309,8 +112309,15 @@
         "resources": [
           "owner:pos"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wU02",
+          "claimedAt": "2026-11-23T18:38:16.118Z",
+          "heartbeatAt": "2026-11-23T18:38:16.118Z",
+          "expiresAt": "2026-11-23T19:08:16.118Z",
+          "generation": 158
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -112327,7 +112334,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Worker source review at be30e2e27; runtime gates not rerun. Scope native add-on obligation repo and Finance/Commercial consumers together.",
         "handoff": {
           "runId": "run-20261123-codex",
@@ -114712,7 +114719,7 @@
         "owner": "manufacturing",
         "title": "Switch BOM-covered specification register reads to mounted native port",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -114728,12 +114735,51 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "claim": {
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Blocked: planning scenarios + product GET + records still require the TS specification repository; native BOM is presenter-only. Needs a caller-unit native manufacturing read port before deletion.",
+        "handoff": {
           "runId": "run-20261123-f",
           "agentId": "wS02",
-          "claimedAt": "2026-11-23T18:23:39.299Z",
-          "heartbeatAt": "2026-11-23T18:35:24.663Z",
-          "expiresAt": "2026-11-23T19:05:24.663Z",
+          "at": "2026-11-23T18:38:48.643Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Blocked: planning scenarios + product GET + records still require the TS specification repository; native BOM is presenter-only. Needs a caller-unit native manufacturing read port before deletion."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.collaboration.handover-authority",
+        "goalId": "G3",
+        "owner": "collaboration",
+        "title": "Native social handover authority port (owner-side)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/application/social.rs",
+          "packages/server-collaboration/src/adapters/social.rs",
+          "packages/server-collaboration/src/adapters/social_pg.rs",
+          "packages/server-collaboration/src/domain/social.rs",
+          "packages/server-collaboration/src/public/social.rs",
+          "tests/integration/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wU01",
+          "claimedAt": "2026-11-23T18:38:16.034Z",
+          "heartbeatAt": "2026-11-23T18:38:16.034Z",
+          "expiresAt": "2026-11-23T19:08:16.034Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114742,7 +114788,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Cut the BOM-register-covered spec reads to native Manufacturing BOM read; delete redundant TS SQL; retain purchase/witness SQL with removalTaskId; record strictly lower count",
+        "nextAction": "Remove HANDOVER_AUTHORITY_PORT_UNAVAILABLE; add SocialUnit handover authority witness (Bangkok date, per-source current versions, recipient eligibility/access, deferred recheck) and real PublishHandoverPost planning; PG impl + drift-rollback tests. No composition.",
         "handoff": null,
         "scopeRefinementRequired": false
       }
@@ -114753,11 +114799,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 488,
+      "totalPackets": 489,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 22,
-        "in_progress": 14,
+        "in_progress": 15,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -114767,7 +114813,7 @@
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T18:35:24.669Z",
+    "updatedAt": "2026-11-23T18:38:48.647Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
