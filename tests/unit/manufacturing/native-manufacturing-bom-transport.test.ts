@@ -162,10 +162,10 @@ describe('native Manufacturing BOM register transport',()=>{
 describe('Manufacturing finance-close read retirement',()=>{
   const src=new URL('../../../packages/server-manufacturing/src/',import.meta.url).pathname;
   const files=(dir:string):string[]=>nodeFs.readdirSync(dir).flatMap(name=>{const path=nodePath.join(dir,name);return nodeFs.statSync(path).isDirectory()?files(path):path.endsWith('.ts')?[path]:[];});
-  it('removed the four close-source SELECT modules and keeps the owner SELECT KPI at 152',()=>{
+  it('removed the four close-source SELECT modules and keeps the owner SELECT KPI at 151',()=>{
     const paths=files(src);
     expect(paths.some(path=>path.includes('finance-close-source'))).toBe(false);
-    expect(paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0)).toBe(152);
+    expect(paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0)).toBe(151);
   });
 });
 describe('Manufacturing owner-local report-actor read dedupe',()=>{
@@ -202,5 +202,37 @@ describe('Manufacturing owner-local report-actor read dedupe',()=>{
     expect(await sources.lastOutputReportActor('order-1')).toBe('reporter');
     expect(prepares).toEqual([sql,sql]);
     expect(binds).toEqual([['order-1'],['order-1']]);
+  });
+});
+describe('Manufacturing command-receipt replay read dedupe',()=>{
+  const purchases=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/purchases.ts',import.meta.url),'utf8');
+  const posting=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/posting-profiles.ts',import.meta.url),'utf8');
+  const registry=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/public/native_command.rs',import.meta.url),'utf8');
+  const sql="SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
+  it('keeps one fixed-SQL definition and switches both command paths to it',()=>{
+    expect(purchases).toContain('export const commandReceiptSelect');
+    expect(purchases.split(sql)).toHaveLength(2);
+    expect(posting.split(sql)).toHaveLength(1);
+    expect(posting).toContain("commandReceiptSelect} from '@erpx/server-manufacturing/adapters/purchases'");
+    for(const source of [purchases,posting]){
+      expect(source).toContain('.prepare(commandReceiptSelect)');
+      expect(source).not.toContain('.prepare("SELECT 1 FROM command_receipts');
+      expect(source).not.toContain(".prepare('SELECT 1 FROM command_receipts");
+    }
+  });
+  it('stays owner-local, outside the RD_* registry and free of fail-closed markers',()=>{
+    expect(sql).toContain('FROM command_receipts');
+    expect(sql).not.toContain('JOIN');
+    expect(registry).not.toContain(sql);
+    for(const [source,method] of [[purchases,'withManufacturingPurchasedCommand'],[posting,'withManufacturingPostingProfileCommand']] as const){
+      const at=source.indexOf(method);
+      expect(source.slice(at,at+900)).not.toMatch(/fail closed/i);
+    }
+  });
+  it('keeps the identical live statement and binds on both command paths',async()=>{
+    const {commandReceiptSelect}=await import('../../../packages/server-manufacturing/src/adapters/purchases');
+    expect(commandReceiptSelect).toBe(sql);
+    expect(purchases).toContain('.bind(command.key,command.operation,command.target.id,actor.userId,actor.companyId)');
+    expect(posting).toContain('.bind(key,operation,target,actor.userId,actor.companyId)');
   });
 });

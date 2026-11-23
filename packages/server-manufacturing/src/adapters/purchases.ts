@@ -16,6 +16,13 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import {planningPurchaseScenarioRows,planningPurchaseRecommendationRows,planningPurchaseResourceRows,planningPurchaseSourceReadLocks} from "@erpx/server-planning/public/purchase-sources";
 import {manufacturingWarehouseSources,manufacturingProductSources,manufacturingCommerceSourceReadLocks} from "@erpx/server-commerce/public/manufacturing-purchase-sources";
 export type ManufacturingPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
+/** Owner-local fixed read: one command receipt on the caller transaction. This
+ * idempotency/replay witness is identical in the purchased-command and
+ * accounting-profile command paths; a single definition keeps both atomic
+ * guards from drifting and removes the redundant TypeScript SQL. It stays a
+ * live TypeScript read on the same transaction and snapshot, and is deliberately
+ * outside the RD_* read-plan registry (an atomic witness, not a projection). */
+export const commandReceiptSelect = "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
 /** Transient guard rows are keyed by the command that staged them. Every
  * purchase/attachment/posting boundary cleans them in the same before/after
  * batch, so the statement lives in one place instead of being copied. The
@@ -102,7 +109,7 @@ export async function withManufacturingPurchasedCommand<Result>(owner:SqlDatabas
  const mode=await manufacturingPackageEnforcementMode();if(mode==="disabled")return run(owner);if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,"PRODUCTION_TRANSACTION_REQUIRED","Production requires its original owned Holding transaction.");
  try{return await owner.transaction(async database=>{
  const locks=companyPurchaseReadLocks(database,actor.companyId);await database.batch([locks[0],...manufacturingPurchaseSourceReadLocks(database,true),...locks.slice(1)]);const key=`production-purchase:${randomUUID()}`;await current(database,actor,key,command.permission,command.module);
- const replay=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(command.key,command.operation,command.target.id,actor.userId,actor.companyId).first(),purpose=replay?"history" as const:command.purpose,before=command.existing||replay?await source(database,actor,command.target):null;
+ const replay=await database.prepare(commandReceiptSelect).bind(command.key,command.operation,command.target.id,actor.userId,actor.companyId).first(),purpose=replay?"history" as const:command.purpose,before=command.existing||replay?await source(database,actor,command.target):null;
  const sources=await Promise.all((command.sources??[]).map(async target=>({target,value:await source(database,actor,target)}))),advanced=before?.advanced||sources.some(item=>item.value.advanced)||command.advanced,
  capabilities=[...new Set([...(command.capabilities??base(command.target.kind)),...(advanced?["planning.advanced-mrp"]:[])])],scopes=capabilities.map(capability=>({companyId:actor.companyId,capability,purpose})),boundaries=scopes.map((scope,index)=>({key:`${key}:${index}`,boundary:purchaseCommandBoundary(database,mode,`${key}:${index}`,scope)!}));
  for(const scope of scopes)await checkPurchasedCapability(database,mode,scope);await runOwnerUnitEffects(database,actor.companyId,key,boundaries.flatMap(item=>item.boundary.before));const result=await run(database);await flushFinanceDeferredEffects(database);

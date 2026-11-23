@@ -16,7 +16,7 @@ import {manufacturingPostingInventorySourceLocks} from '@erpx/server-inventory/p
 import {requireManufacturingPostingFinanceAuthority,manufacturingPostingFinanceReadLocks,manufacturingPostingProfileReferenceSnapshot} from '@erpx/server-finance/public/manufacturing-posting-setup';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {manufacturingPostingSourceReadLocks} from '@erpx/server-manufacturing/adapters/posting-setup-sources';
-import {clearCommandAssertions,runOwnerUnitEffects} from '@erpx/server-manufacturing/adapters/purchases';
+import {clearCommandAssertions,runOwnerUnitEffects,commandReceiptSelect} from '@erpx/server-manufacturing/adapters/purchases';
 import type {ManufacturingPostingProfilesView,ManufacturingPostingProfileInput,ManufacturingPostingProfileDecisionInput} from '@erpx/server-manufacturing/domain/posting-profiles';
 type NativeProfile={id:string;company_id:string;chart_id:string;currency:string;inventory_account_id:string;wip_account_id:string;labor_account_id:string;overhead_account_id:string;scrap_account_id:string;status:'draft'|'approved'|'rejected'|'retired';version:number;created_by:string;source:string};
 type Request=ManufacturingPostingProfileInput|ManufacturingPostingProfileDecisionInput;
@@ -50,7 +50,7 @@ export async function manufacturingPostingProfiles(actor:WorkContext):Promise<Ma
 export async function withManufacturingPostingProfileCommand<Result>(actor:WorkContext,id:string|null,request:Request,key:string,run:(database:SqlDatabase)=>Promise<Result>):Promise<Result>{
  const decision='action' in request.input?request.input:null,operation=decision?`manufacturing.accounting.${decision.action}`:'manufacturing.accounting.create',target=id??`mfg-accounting-${key}`,permission=decision?'finance.approve':'finance.write';
  try{return await (await owner(actor)).transaction(async database=>{
-  await leases(database,actor.companyId,true);const current=await requireManufacturingPostingFinanceAuthority(database,actor,permission),receipt=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(key,operation,target,actor.userId,actor.companyId).first(),purpose=receipt?'history' as const:decision&&decision.action!=='approve'?'settle-existing' as const:'new-work' as const;
+  await leases(database,actor.companyId,true);const current=await requireManufacturingPostingFinanceAuthority(database,actor,permission),receipt=await database.prepare(commandReceiptSelect).bind(key,operation,target,actor.userId,actor.companyId).first(),purpose=receipt?'history' as const:decision&&decision.action!=='approve'?'settle-existing' as const:'new-work' as const;
   for(const capability of capabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability,purpose});
   const guard=`manufacturing-profile:${randomUUID()}`,boundaries=capabilities.map((capability,index)=>({key:`${guard}:${index}`,boundary:purchaseCommandBoundary(database,'enforced',`${guard}:${index}`,{companyId:actor.companyId,capability,purpose})!}));await runOwnerUnitEffects(database,actor.companyId,guard,boundaries.flatMap(item=>item.boundary.before));
   const before=await profiles(database,actor.companyId),refs=await manufacturingPostingProfileReferenceSnapshot(database,actor);let result:Result;
