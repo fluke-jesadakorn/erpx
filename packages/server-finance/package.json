@@ -566,7 +566,7 @@
     "./domain/withholding": "./src/domain/withholding.ts",
     "./public/field-outbox-predicate": "./src/public/field-outbox-predicate.generated.ts",
     "./public/native-field-work": "./src/public/native-field-work.ts",
-    "./adapters/native-refund-notification": "./src/adapters/native-refund-notification.ts"
+    "./public/refund-notifications": "./src/public/refund-notifications.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",

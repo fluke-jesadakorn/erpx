@@ -23,7 +23,7 @@ import { commerceFinancePageSources } from "@erpx/server-finance/public/commerce
 
 import { commerceFinanceJoinedFacts } from "@erpx/server-finance/public/commerce-joined-facts";
 import { commerceInventoryJoinedFacts } from "@erpx/server-inventory/public/commerce-joined-facts";
-import { nativeRefundNotification } from "@erpx/server-finance/adapters/native-refund-notification";
+import { nativeRefundNotification } from "@erpx/server-finance/public/refund-notifications";
 
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";

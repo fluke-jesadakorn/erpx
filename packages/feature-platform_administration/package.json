@@ -4,6 +4,7 @@
   "private": true,
   "type": "module",
   "exports": {
+    "./public/native-agent-ai-providers": "./src/public/native-agent-ai-providers.ts",
     "./public/native-manage-erpx": "./src/public/native-manage-erpx.ts",
     "./components/ai-providers": "./src/components/ai-providers.tsx",
     "./components/platform-migration-run": "./src/components/platform-migration-run.tsx",
@@ -17,7 +18,6 @@
     "./components/platform-holding-provisioning": "./src/components/platform-holding-provisioning.tsx",
     "./components/platform-job-recovery": "./src/components/platform-job-recovery.tsx",
     "./adapters/server/native-platform-administration": "./src/adapters/server/native-platform-administration.ts",
-    "./adapters/server/native-agent-ai-providers": "./src/adapters/server/native-agent-ai-providers.ts",
     "./lib/native-platform-administration": "./src/lib/native-platform-administration.ts",
     "./adapters/server/native-manage-erpx": "./src/adapters/server/native-manage-erpx.ts"
   },

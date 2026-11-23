@@ -5,7 +5,7 @@ import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import {
   createNativeAgentAiProviders,
   nativeAgentAiProvidersAvailable,
-} from "@erpx/feature-platform_administration/adapters/server/native-agent-ai-providers";
+} from "@erpx/feature-platform_administration/public/native-agent-ai-providers";
 type Context = { params: Promise<{ holdingSlug: string; path?: string[] }> };
 const headers = { "Cache-Control": "private, no-store" };
 function nativeClient() {

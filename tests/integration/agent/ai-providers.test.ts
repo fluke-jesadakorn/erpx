@@ -20,7 +20,7 @@ import {
   sealAiKey,
 } from "@erpx/server-agent/public/ai-transport";
 import { seedAiProvider, seedAiSelection } from "./ai-provider-seed";
-import { createNativeAgentAiProviders } from "@erpx/feature-platform_administration/adapters/server/native-agent-ai-providers";
+import { createNativeAgentAiProviders } from "@erpx/feature-platform_administration/public/native-agent-ai-providers";
 import { administrationAccess } from "@erpx/server-runtime/public/administration";
 import {
   grantPersonAccess,
