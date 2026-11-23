@@ -131,6 +131,7 @@ struct Harness<'a> {
     retained: Option<CurrentSocialEffects>,
     uploads: TestUploads,
     tamper: bool,
+    handover: Option<(String, Vec<String>, Vec<HandoverSource>, HandoverAuthority)>,
 }
 
 /// Composition's Files owner double: it proves the port receives exactly the
@@ -322,6 +323,97 @@ impl SocialUnit for Harness<'_> {
         .fetch_optional(&mut *self.c)
         .await?)
     }
+    async fn handover_authority(
+        &mut self,
+        date: &str,
+        recipient_ids: &[String],
+        sources: &[HandoverSource],
+    ) -> Result<HandoverAuthority, Error> {
+        let bangkok_date: String = sqlx::query_scalar(
+            "SELECT date FROM social_test_handover_date WHERE company_id=$1",
+        )
+        .bind(&self.company)
+        .fetch_one(&mut *self.c)
+        .await?;
+        let pms_only = sources.iter().all(|source| source.kind == "pms_record");
+        let mut source_facts = Vec::with_capacity(sources.len());
+        for source in sources {
+            let row = sqlx::query(
+                "SELECT version,available,private FROM social_test_handover_source \
+                 WHERE company_id=$1 AND kind=$2 AND id=$3",
+            )
+            .bind(&self.company)
+            .bind(source.kind.as_str())
+            .bind(source.id.as_str())
+            .fetch_optional(&mut *self.c)
+            .await?;
+            source_facts.push(match row {
+                Some(row) => HandoverSourceAuthority {
+                    kind: source.kind.clone(),
+                    id: source.id.clone(),
+                    current_version: row.try_get(0)?,
+                    available: row.try_get::<i64, _>(1)? == 1,
+                    private: row.try_get::<i64, _>(2)? == 1,
+                },
+                None => HandoverSourceAuthority {
+                    kind: source.kind.clone(),
+                    id: source.id.clone(),
+                    current_version: 0,
+                    available: false,
+                    private: false,
+                },
+            });
+        }
+        let mut recipient_facts = Vec::with_capacity(recipient_ids.len());
+        for id in recipient_ids {
+            let row = sqlx::query(
+                "SELECT eligible,pms FROM social_test_handover_recipient \
+                 WHERE company_id=$1 AND user_id=$2",
+            )
+            .bind(&self.company)
+            .bind(id.as_str())
+            .fetch_optional(&mut *self.c)
+            .await?;
+            let (eligible, pms) = match row {
+                Some(row) => (row.try_get::<i64, _>(0)? == 1, row.try_get::<i64, _>(1)? == 1),
+                None => (false, false),
+            };
+            let mut access = true;
+            for source in &source_facts {
+                let allowed = sqlx::query_scalar::<_, i64>(
+                    "SELECT allowed FROM social_test_handover_access \
+                     WHERE company_id=$1 AND user_id=$2 AND kind=$3 AND source_id=$4",
+                )
+                .bind(&self.company)
+                .bind(id.as_str())
+                .bind(source.kind.as_str())
+                .bind(source.id.as_str())
+                .fetch_optional(&mut *self.c)
+                .await?;
+                if allowed != Some(1) {
+                    access = false;
+                    break;
+                }
+            }
+            recipient_facts.push(HandoverRecipientAuthority {
+                user_id: id.clone(),
+                eligible: if pms_only { pms } else { eligible || pms },
+                access,
+            });
+        }
+        let authority = HandoverAuthority {
+            bangkok_date,
+            sources: source_facts,
+            recipients: recipient_facts,
+        };
+        self.handover = Some((
+            date.to_owned(),
+            recipient_ids.to_vec(),
+            sources.to_vec(),
+            authority.clone(),
+        ));
+        Ok(authority)
+    }
     async fn apply(
         &mut self,
         actor: &SocialActor,
@@ -349,6 +441,14 @@ impl SocialUnit for Harness<'_> {
     }
     async fn require_unit_current(&mut self) -> Result<(), Error> {
         authority(self.c, &self.user, &self.company).await?;
+        if let Some((request_date, recipients, sources, expected)) = self.handover.clone() {
+            let current = self
+                .handover_authority(&request_date, &recipients, &sources)
+                .await?;
+            if current != expected {
+                return Err(changed());
+            }
+        }
         if let Some(retained) = &self.retained {
             retained.require_current(self.c).await?;
         }
@@ -436,6 +536,7 @@ async fn run_observed(
                     retained: None,
                     uploads: TestUploads,
                     tamper,
+                    handover: None,
                 };
                 execute(&mut harness, &key, change).await
             })
@@ -478,6 +579,93 @@ async fn setup(pool: &DatabasePool) {
     .execute(pool.raw())
     .await
     .unwrap();
+    sqlx::raw_sql(
+        "CREATE TABLE social_test_handover_date(company_id text NOT NULL,date text NOT NULL,PRIMARY KEY(company_id));
+         CREATE TABLE social_test_handover_source(company_id text NOT NULL,kind text NOT NULL,id text NOT NULL,
+           version bigint NOT NULL,available bigint NOT NULL,private bigint NOT NULL,
+           PRIMARY KEY(company_id,kind,id));
+         CREATE TABLE social_test_handover_recipient(company_id text NOT NULL,user_id text NOT NULL,
+           eligible bigint NOT NULL,pms bigint NOT NULL,PRIMARY KEY(company_id,user_id));
+         CREATE TABLE social_test_handover_access(company_id text NOT NULL,user_id text NOT NULL,
+           kind text NOT NULL,source_id text NOT NULL,allowed bigint NOT NULL,
+           PRIMARY KEY(company_id,user_id,kind,source_id));
+         CREATE FUNCTION social_test_handover_drift() RETURNS trigger AS $$
+         BEGIN
+           IF NEW.command_id LIKE 'social-handover-drift-%' THEN
+             UPDATE social_test_handover_source SET version=version+1
+               WHERE company_id='company' AND id='task-drift';
+           END IF;
+           RETURN NEW;
+         END; $$ LANGUAGE plpgsql;
+         CREATE TRIGGER social_test_handover_drift_trg AFTER INSERT ON command_receipts
+           FOR EACH ROW EXECUTE FUNCTION social_test_handover_drift();",
+    )
+    .execute(pool.raw())
+    .await
+    .unwrap();
+}
+
+async fn seed_handover_authority(
+    pool: &DatabasePool,
+    date: &str,
+    source_id: &str,
+    version: i64,
+    available: i64,
+    private: i64,
+    access: i64,
+) {
+    sqlx::query(
+        "INSERT INTO social_test_handover_date(company_id,date) VALUES('company',$1) \
+         ON CONFLICT(company_id) DO UPDATE SET date=EXCLUDED.date",
+    )
+    .bind(date)
+    .execute(pool.raw())
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO social_test_handover_source(company_id,kind,id,version,available,private) \
+         VALUES('company','staff_task',$1,$2,$3,$4) \
+         ON CONFLICT(company_id,kind,id) DO UPDATE SET version=EXCLUDED.version, \
+         available=EXCLUDED.available,private=EXCLUDED.private",
+    )
+    .bind(source_id)
+    .bind(version)
+    .bind(available)
+    .bind(private)
+    .execute(pool.raw())
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO social_test_handover_recipient(company_id,user_id,eligible,pms) \
+         VALUES('company','person-1',1,1) \
+         ON CONFLICT(company_id,user_id) DO UPDATE SET eligible=EXCLUDED.eligible,pms=EXCLUDED.pms",
+    )
+    .execute(pool.raw())
+    .await
+    .unwrap();
+    sqlx::query(
+        "INSERT INTO social_test_handover_access(company_id,user_id,kind,source_id,allowed) \
+         VALUES('company','person-1','staff_task',$1,$2) \
+         ON CONFLICT(company_id,user_id,kind,source_id) DO UPDATE SET allowed=EXCLUDED.allowed",
+    )
+    .bind(source_id)
+    .bind(access)
+    .execute(pool.raw())
+    .await
+    .unwrap();
+}
+
+fn handover_change(date: &str, source_id: &str, version: i64) -> Change {
+    Change::PublishHandoverPost {
+        date: date.into(),
+        body: "Night handover".into(),
+        recipient_ids: vec!["person-1".into()],
+        sources: vec![HandoverSource {
+            kind: "staff_task".into(),
+            id: source_id.into(),
+            source_version: version,
+        }],
+    }
 }
 
 fn post_change(body: &str, audience: Audience) -> Change {
@@ -1506,19 +1694,186 @@ async fn moderators_hide_posts_but_other_roles_cannot() {
 }
 
 #[tokio::test]
-async fn handover_without_operations_authority_creates_no_post_or_receipt() {
-    fixture::with_database(10, |pool| async move {
+async fn handover_publishes_from_current_authority_and_replays() {
+    fixture::with_database(3, |pool| async move {
         setup(&pool).await;
-        let error = run(&pool, "author", "company", "social-handover-0901", Change::PublishHandoverPost {
-            date: "2026-11-15".into(), body: "Night handover".into(), recipient_ids: vec!["person-1".into()],
-            sources: vec![HandoverSource { kind: "staff_task".into(), id: "task-1".into(), source_version: 3 }],
-        }).await.unwrap_err();
-        assert!(matches!(error, PgTransactionError::Business(ref e) if e.code == "HANDOVER_AUTHORITY_PORT_UNAVAILABLE"));
-        let counts: (i64, i64) = sqlx::query_as("SELECT (SELECT count(*) FROM social_posts WHERE id=$1), (SELECT count(*) FROM command_receipts WHERE command_id IN ($2,$3))")
-            .bind("post-post-draft-social-handover-0901").bind("social-handover-0901").bind("social-handover-0901-operations")
-            .fetch_one(pool.raw()).await.unwrap();
+        seed_handover_authority(&pool, "2026-11-24", "task-1", 3, 1, 0, 1).await;
+        let key = "social-handover-0901";
+        let change = handover_change("2026-11-24", "task-1", 3);
+        let receipt = run(&pool, "author", "company", key, change.clone())
+            .await
+            .unwrap();
+        assert_eq!(receipt.id, format!("post-post-draft-{key}"));
+        assert_eq!((receipt.version, receipt.status), (1, "published"));
+        assert_eq!(run(&pool, "author", "company", key, change).await.unwrap(), receipt);
+        let rows: (String, String, String) = sqlx::query_as(
+            "SELECT audience_kind,purpose,body FROM social_posts WHERE id=$1",
+        )
+        .bind(receipt.id.as_str())
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(rows, ("participants".into(), "handover".into(), "Night handover".into()));
+        let participants: i64 = sqlx::query_scalar(
+            "SELECT count(*) FROM social_post_participants WHERE post_id=$1 AND user_id IN ('author','person-1')",
+        )
+        .bind(receipt.id.as_str())
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(participants, 2);
+        let sources: (String, String) = sqlx::query_as(
+            "SELECT source_kind,source_id FROM social_post_sources WHERE post_id=$1",
+        )
+        .bind(receipt.id.as_str())
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(sources, ("staff_task".into(), "task-1".into()));
+        let ledgers: (i64, i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM command_receipts),(SELECT count(*) FROM audit_events),(SELECT count(*) FROM outbox_events)",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        // The handover plan also emits the Operations binding receipt.
+        assert_eq!(ledgers, (2, 1, 1));
+        let operations: String = sqlx::query_scalar(
+            "SELECT operation FROM command_receipts WHERE command_id=$1",
+        )
+        .bind(format!("{key}-operations"))
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(operations, "work.handover.publish");
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn handover_source_version_drift_rolls_back() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        seed_handover_authority(&pool, "2026-11-24", "task-1", 4, 1, 0, 1).await;
+        let before: (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM social_posts),(SELECT count(*) FROM command_receipts)",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        let error = run(
+            &pool,
+            "author",
+            "company",
+            "social-handover-0902",
+            handover_change("2026-11-24", "task-1", 3),
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(error, PgTransactionError::Business(ref e) if e.code == "HANDOVER_SOURCE_CHANGED"));
+        let after: (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM social_posts),(SELECT count(*) FROM command_receipts)",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(before, after);
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn handover_recipient_access_drift_rolls_back() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        seed_handover_authority(&pool, "2026-11-24", "task-1", 3, 1, 0, 0).await;
+        let error = run(
+            &pool,
+            "author",
+            "company",
+            "social-handover-0903",
+            handover_change("2026-11-24", "task-1", 3),
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(error, PgTransactionError::Business(ref e) if e.code == "HANDOVER_RECIPIENT_ACCESS"));
+        let counts: (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM social_posts),(SELECT count(*) FROM command_receipts)",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
         assert_eq!(counts, (0, 0));
-    }).await;
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn handover_date_change_rolls_back() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        seed_handover_authority(&pool, "2026-11-24", "task-1", 3, 1, 0, 1).await;
+        let error = run(
+            &pool,
+            "author",
+            "company",
+            "social-handover-0904",
+            handover_change("2026-11-25", "task-1", 3),
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(error, PgTransactionError::Business(ref e) if e.code == "HANDOVER_DATE_CHANGED"));
+        let counts: (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM social_posts),(SELECT count(*) FROM command_receipts)",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(counts, (0, 0));
+    })
+    .await;
+}
+
+#[tokio::test]
+async fn handover_deferred_authority_drift_rolls_back_after_apply() {
+    fixture::with_database(3, |pool| async move {
+        setup(&pool).await;
+        // The witness is captured and the owner rows staged with version 3;
+        // the receipt trigger then drifts the source to version 4 before the
+        // deferred recheck, so the whole unit must roll back.
+        seed_handover_authority(&pool, "2026-11-24", "task-drift", 3, 1, 0, 1).await;
+        let before: (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM social_posts),(SELECT count(*) FROM command_receipts)",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        let error = run(
+            &pool,
+            "author",
+            "company",
+            "social-handover-drift-0905",
+            handover_change("2026-11-24", "task-drift", 3),
+        )
+        .await
+        .unwrap_err();
+        assert!(matches!(error, PgTransactionError::Business(ref e) if e.code == "SOCIAL_SOURCE_CHANGED"));
+        let after: (i64, i64) = sqlx::query_as(
+            "SELECT (SELECT count(*) FROM social_posts),(SELECT count(*) FROM command_receipts)",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(before, after);
+        let version: i64 = sqlx::query_scalar(
+            "SELECT version FROM social_test_handover_source WHERE company_id='company' AND id='task-drift'",
+        )
+        .fetch_one(pool.raw())
+        .await
+        .unwrap();
+        assert_eq!(version, 3);
+    })
+    .await;
 }
 
 #[tokio::test(flavor = "multi_thread")]

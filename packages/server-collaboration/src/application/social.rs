@@ -4,8 +4,8 @@
 //! exact readable person/record targets. This module never opens, commits or
 //! retries a transaction and never invents an access result or mention label.
 use crate::domain::social::{
-    Change, CommentSnapshot, CommentState, DraftSnapshot, FollowTarget, MAX_COMMENT_BODY,
-    MAX_DRAFT_BODY, MAX_DRAFT_PARTICIPANTS, MAX_POST_BODY,
+    Change, CommentSnapshot, CommentState, DraftSnapshot, FollowTarget, HandoverAuthority,
+    HandoverSource, MAX_COMMENT_BODY, MAX_DRAFT_BODY, MAX_DRAFT_PARTICIPANTS, MAX_POST_BODY,
     MAX_REPORT_REASON, Mention, MentionInput, MentionKind, OwnerPlan, PostSnapshot, PostSource, Receipt, SocialActor, comment_not_found,
     draft_not_found, normalize_tags, plan_receipt, post_not_found, post_tags, require_audience, require_comment_edit,
     require_comment_removal, require_published_post, text, validate_expected_version,
@@ -60,6 +60,15 @@ pub trait SocialUnit: Send {
         plan: OwnerPlan,
     ) -> impl Future<Output = Result<Receipt, Self::Error>> + Send;
     fn flush_deferred(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send;
+    /// Resolve current Operations/PMS authority for one handover publish on the
+    /// caller's unit: Bangkok date, exact source versions and recipient
+    /// eligibility/access. Stored by the unit and rechecked after staging.
+    fn handover_authority(
+        &mut self,
+        date: &str,
+        recipient_ids: &[String],
+        sources: &[HandoverSource],
+    ) -> impl Future<Output = Result<HandoverAuthority, Self::Error>> + Send;
     /// Revalidate selected IAM/purchase and every retained owner row.
     fn require_unit_current(&mut self) -> impl Future<Output = Result<(), Self::Error>> + Send;
 }
@@ -134,18 +143,6 @@ pub async fn execute<P: SocialUnit>(
     change: Change,
 ) -> Result<Receipt, P::Error> {
     let actor = p.authorize(Access::Write).await?;
-    // Handover publication also requires current Operations source versions,
-    // recipient visibility and purchase witnesses. They are not yet available
-    // to this owner unit; refuse both new work and replay before ledger access
-    // rather than issue an Operations receipt without those checks.
-    if matches!(&change, Change::PublishHandoverPost { .. }) {
-        return Err(BusinessError::new(
-            FailureKind::Unavailable,
-            "HANDOVER_AUTHORITY_PORT_UNAVAILABLE",
-            "Handover publication is temporarily unavailable.",
-        )
-        .into());
-    }
     if matches!(&change, Change::ModeratePost { .. }) && !actor.can_hide_posts {
         return Err(BusinessError::new(
             FailureKind::Forbidden,
@@ -472,10 +469,96 @@ pub async fn execute<P: SocialUnit>(
                     edit_post_version: Some(expected_version),
                 });
             }
-            // The pre-replay gate above keeps this path unreachable until
-            // Operations supplies the same-unit handover authority witness.
-            Change::PublishHandoverPost { .. } => {
-                return Err(BusinessError::new(FailureKind::Unavailable, "HANDOVER_AUTHORITY_PORT_UNAVAILABLE", "Handover publication is temporarily unavailable.").into());
+            Change::PublishHandoverPost {
+                date,
+                body,
+                recipient_ids,
+                sources,
+            } => {
+                let authority = p
+                    .handover_authority(&date, &recipient_ids, &sources)
+                    .await?;
+                if date != authority.bangkok_date {
+                    return Err(BusinessError::new(
+                        FailureKind::Conflict,
+                        "HANDOVER_DATE_CHANGED",
+                        "Refresh your handover for today.",
+                    )
+                    .into());
+                }
+                if authority.sources.len() != sources.len()
+                    || authority.recipients.len() != recipient_ids.len()
+                {
+                    return Err(invalid().into());
+                }
+                let mut post_sources = Vec::with_capacity(authority.sources.len());
+                for current in &authority.sources {
+                    if !current.available {
+                        return Err(BusinessError::new(
+                            match current.kind.as_str() {
+                                "staff_task" => FailureKind::Unavailable,
+                                _ => FailureKind::NotFound,
+                            },
+                            "HANDOVER_SOURCE_UNAVAILABLE",
+                            "A selected handover source is no longer available.",
+                        )
+                        .into());
+                    }
+                    if current.private {
+                        return Err(BusinessError::new(
+                            FailureKind::Forbidden,
+                            "HANDOVER_SOURCE_PRIVATE",
+                            "This task comes from a conversation and cannot be included in a handover.",
+                        )
+                        .into());
+                    }
+                    let selected = sources
+                        .iter()
+                        .find(|source| source.kind == current.kind && source.id == current.id)
+                        .ok_or_else(invalid)?;
+                    if selected.source_version != current.current_version {
+                        return Err(BusinessError::new(
+                            FailureKind::Conflict,
+                            "HANDOVER_SOURCE_CHANGED",
+                            "A selected source changed. Refresh the handover before publishing.",
+                        )
+                        .into());
+                    }
+                    post_sources.push(PostSource {
+                        kind: current.kind.clone(),
+                        id: current.id.clone(),
+                    });
+                }
+                for recipient in &authority.recipients {
+                    if !recipient.eligible {
+                        return Err(BusinessError::new(
+                            FailureKind::Forbidden,
+                            "HANDOVER_RECIPIENT_UNAVAILABLE",
+                            "Choose current colleagues within your work scope.",
+                        )
+                        .into());
+                    }
+                    if !recipient.access {
+                        return Err(BusinessError::new(
+                            FailureKind::Forbidden,
+                            "HANDOVER_RECIPIENT_ACCESS",
+                            "A colleague cannot open every linked handover item.",
+                        )
+                        .into());
+                    }
+                }
+                let body = text(&body, 1, MAX_POST_BODY)?;
+                plan = Some(OwnerPlan::PublishHandoverPost {
+                    post_id: format!("post-post-draft-{}", key.as_str()),
+                    author_id: actor.user_id.clone(),
+                    author_name: actor.display_name.clone(),
+                    company_id: actor.company_id.clone(),
+                    branch_id: actor.branch_id.clone(),
+                    department_id: actor.department_id.clone(),
+                    body,
+                    participants: recipient_ids,
+                    sources: post_sources,
+                });
             }
             Change::ModeratePost { id } => {
                 let post = p.post(&id).await?;

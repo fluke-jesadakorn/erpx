@@ -2,9 +2,9 @@
 //! persistence, Company isolation and readback live in the integration target.
 use erpx_server_collaboration::public::social::{
     Access, Audience, Change, CommentSnapshot, CommentState, DraftSnapshot, FollowTarget,
-    MentionInput, MentionKind, OwnerPlan, PostSnapshot, HandoverSource, PostState, Receipt,
-    SocialActor, SocialUnit, execute, hashtags, normalize_tag, normalize_tags, post_not_found,
-    post_tags, text,
+    HandoverAuthority, HandoverRecipientAuthority, HandoverSource, HandoverSourceAuthority,
+    MentionInput, MentionKind, OwnerPlan, PostSnapshot, PostState, Receipt, SocialActor, SocialUnit,
+    execute, hashtags, normalize_tag, normalize_tags, post_not_found, post_tags, text,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
 use std::collections::BTreeMap;
@@ -19,6 +19,12 @@ struct Unit {
     records: BTreeMap<String, String>,
     applied: Option<OwnerPlan>,
     drift: bool,
+    handover_date: String,
+    handover_version: i64,
+    handover_access: bool,
+    handover_drift: bool,
+    handover_calls: usize,
+    handover: Option<(String, Vec<String>, Vec<HandoverSource>, HandoverAuthority)>,
 }
 impl Unit {
     fn new() -> Self {
@@ -70,6 +76,12 @@ impl Unit {
             )]),
             applied: None,
             drift: false,
+            handover_date: "2026-11-24".into(),
+            handover_version: 3,
+            handover_access: true,
+            handover_drift: false,
+            handover_calls: 0,
+            handover: None,
         }
     }
 }
@@ -114,6 +126,43 @@ impl SocialUnit for Unit {
     ) -> Result<Option<String>, BusinessError> {
         Ok(self.records.get(&format!("{module}/{id}")).cloned())
     }
+    async fn handover_authority(
+        &mut self,
+        date: &str,
+        recipient_ids: &[String],
+        sources: &[HandoverSource],
+    ) -> Result<HandoverAuthority, BusinessError> {
+        self.handover_calls += 1;
+        let drifted = self.handover_drift && self.handover_calls > 1;
+        let authority = HandoverAuthority {
+            bangkok_date: self.handover_date.clone(),
+            sources: sources
+                .iter()
+                .map(|source| HandoverSourceAuthority {
+                    kind: source.kind.clone(),
+                    id: source.id.clone(),
+                    current_version: self.handover_version + i64::from(drifted),
+                    available: true,
+                    private: false,
+                })
+                .collect(),
+            recipients: recipient_ids
+                .iter()
+                .map(|id| HandoverRecipientAuthority {
+                    user_id: id.clone(),
+                    eligible: true,
+                    access: self.handover_access,
+                })
+                .collect(),
+        };
+        self.handover = Some((
+            date.to_owned(),
+            recipient_ids.to_vec(),
+            sources.to_vec(),
+            authority.clone(),
+        ));
+        Ok(authority)
+    }
     async fn apply(
         &mut self,
         _: &SocialActor,
@@ -128,6 +177,16 @@ impl SocialUnit for Unit {
         Ok(())
     }
     async fn require_unit_current(&mut self) -> Result<(), BusinessError> {
+        if let Some((date, recipients, sources, expected)) = self.handover.clone() {
+            let current = self.handover_authority(&date, &recipients, &sources).await?;
+            if current != expected {
+                return Err(BusinessError::new(
+                    FailureKind::Conflict,
+                    "SOCIAL_SOURCE_CHANGED",
+                    "Handover authority changed",
+                ));
+            }
+        }
         if self.drift {
             return Err(BusinessError::new(
                 FailureKind::Conflict,
@@ -950,16 +1009,83 @@ async fn only_a_company_moderator_may_hide_a_post() {
     );
 }
 
+fn handover_change(date: &str, version: i64) -> Change {
+    Change::PublishHandoverPost {
+        date: date.into(),
+        body: "Handover".into(),
+        recipient_ids: vec!["person-1".into()],
+        sources: vec![HandoverSource {
+            kind: "staff_task".into(),
+            id: "task-1".into(),
+            source_version: version,
+        }],
+    }
+}
+
 #[tokio::test]
-async fn handover_without_operations_authority_fails_before_apply_or_replay() {
+async fn handover_authority_plans_publish_and_exact_replay() {
     let mut unit = Unit::new();
-    unit.replay = Some(Receipt { id: "post-old".into(), version: 1, status: "published" });
-    let error = execute(&mut unit, &key(), Change::PublishHandoverPost {
-        date: "2026-11-15".into(), body: "Handover".into(), recipient_ids: vec!["person-1".into()],
-        sources: vec![HandoverSource { kind: "staff_task".into(), id: "task-1".into(), source_version: 3 }],
-    }).await.unwrap_err();
-    assert_eq!(error.code, "HANDOVER_AUTHORITY_PORT_UNAVAILABLE");
+    let receipt = execute(&mut unit, &key(), handover_change("2026-11-24", 3))
+        .await
+        .unwrap();
+    assert_eq!((receipt.id.as_str(), receipt.version, receipt.status), ("post-post-draft-social-command-0001", 1, "published"));
+    match unit.applied.as_ref().unwrap() {
+        OwnerPlan::PublishHandoverPost { post_id, participants, sources, .. } => {
+            assert_eq!(post_id, &receipt.id);
+            assert_eq!(participants, &vec!["person-1".to_owned()]);
+            assert_eq!((sources[0].kind.as_str(), sources[0].id.as_str()), ("staff_task", "task-1"));
+        }
+        other => panic!("unexpected plan {other:?}"),
+    }
+    let mut replayed = Unit::new();
+    replayed.replay = Some(receipt.clone());
+    assert_eq!(
+        execute(&mut replayed, &key(), handover_change("2026-11-24", 3))
+            .await
+            .unwrap(),
+        receipt
+    );
+    assert!(replayed.applied.is_none());
+}
+
+#[tokio::test]
+async fn handover_date_and_source_version_drift_reject_before_apply() {
+    let mut date_unit = Unit::new();
+    let error = execute(&mut date_unit, &key(), handover_change("2026-11-25", 3))
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "HANDOVER_DATE_CHANGED");
+    assert!(date_unit.applied.is_none());
+
+    let mut version_unit = Unit::new();
+    version_unit.handover_version = 4;
+    let error = execute(&mut version_unit, &key(), handover_change("2026-11-24", 3))
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "HANDOVER_SOURCE_CHANGED");
+    assert!(version_unit.applied.is_none());
+}
+
+#[tokio::test]
+async fn handover_recipient_access_reject_before_apply() {
+    let mut unit = Unit::new();
+    unit.handover_access = false;
+    let error = execute(&mut unit, &key(), handover_change("2026-11-24", 3))
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "HANDOVER_RECIPIENT_ACCESS");
     assert!(unit.applied.is_none());
+}
+
+#[tokio::test]
+async fn handover_deferred_authority_drift_fails_recheck() {
+    let mut unit = Unit::new();
+    unit.handover_drift = true;
+    let error = execute(&mut unit, &key(), handover_change("2026-11-24", 3))
+        .await
+        .unwrap_err();
+    assert_eq!(error.code, "SOCIAL_SOURCE_CHANGED");
+    assert!(unit.applied.is_some());
 }
 
 #[tokio::test]

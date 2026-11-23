@@ -13,8 +13,9 @@ use crate::adapters::social::{
 use crate::adapters::social_upload_files::{SocialUploadFilesPort, UnavailableSocialUploadFiles};
 use crate::application::social::{Access, SocialUnit};
 use crate::domain::social::{
-    Change, CommentSnapshot, DraftSnapshot, FeedCursor, FollowTarget, OwnerPlan, PostSnapshot,
-    Receipt, SocialActor, comment_not_found, post_not_found,
+    Change, CommentSnapshot, DraftSnapshot, FeedCursor, FollowTarget, HandoverAuthority,
+    HandoverRecipientAuthority, HandoverSource, HandoverSourceAuthority, OwnerPlan, PostSnapshot,
+    Receipt, SocialActor, comment_not_found, handover_bangkok_date, post_not_found,
 };
 use erpx_server_shared::public::{
     AssignmentId, BusinessError, CommandKey, CompanyId, FailureKind, UserId,
@@ -163,6 +164,7 @@ pub struct PgSocialUnit<'c> {
     change: Option<Change>,
     request_fingerprint: Option<String>,
     receipt: Option<Receipt>,
+    handover: Option<(String, Vec<String>, Vec<HandoverSource>, HandoverAuthority)>,
     before_apply: bool,
 }
 
@@ -188,6 +190,7 @@ impl<'c> PgSocialUnit<'c> {
             change: None,
             request_fingerprint: None,
             receipt: None,
+            handover: None,
             before_apply: true,
         }
     }
@@ -407,6 +410,164 @@ impl<'c> PgSocialUnit<'c> {
     pub async fn post(&mut self, id: &str) -> Result<Option<PostSnapshot>, Error> {
         read_post(&mut *self.connection, &self.scope.company_id, id).await
     }
+
+    /// Resolve the current Operations/PMS authority facts on the caller's
+    /// serializable connection. Every read is scoped to the selected Company
+    /// and clock; no answer is inferred from a missing or foreign row.
+    async fn resolve_handover_authority(
+        &mut self,
+        recipient_ids: &[String],
+        sources: &[HandoverSource],
+    ) -> Result<HandoverAuthority, Error> {
+        self.unit().await?;
+        let company = self.scope.company_id.as_str();
+        let now = self.scope.now;
+        let mut resolved_sources = Vec::with_capacity(sources.len());
+        for source in sources {
+            let (current_version, available, private) = match source.kind.as_str() {
+                "staff_task" => {
+                    let row = sqlx::query(
+                        "SELECT t.version, \
+                            CASE WHEN t.state NOT IN ('draft','cancelled') THEN 1 ELSE 0 END, \
+                            CASE WHEN EXISTS(SELECT 1 FROM social_task_origins o WHERE o.task_id=t.id) THEN 1 ELSE 0 END \
+                         FROM staff_tasks t WHERE t.id=$1 AND t.company_id=$2",
+                    )
+                    .bind(source.id.as_str())
+                    .bind(company)
+                    .fetch_optional(&mut *self.connection)
+                    .await?;
+                    match row {
+                        Some(row) => (
+                            row.try_get::<i64, _>(0)?,
+                            row.try_get::<i32, _>(1)? == 1,
+                            row.try_get::<i32, _>(2)? == 1,
+                        ),
+                        None => (0, false, false),
+                    }
+                }
+                "pms_record" => {
+                    let row = sqlx::query(
+                        "SELECT r.version FROM pms_records r \
+                         JOIN pms_properties p ON p.id=r.property_id \
+                         WHERE r.id=$1 AND p.company_id=$2",
+                    )
+                    .bind(source.id.as_str())
+                    .bind(company)
+                    .fetch_optional(&mut *self.connection)
+                    .await?;
+                    match row {
+                        Some(row) => (row.try_get::<i64, _>(0)?, true, false),
+                        None => (0, false, false),
+                    }
+                }
+                _ => {
+                    return Err(BusinessError::invalid(
+                        "SOCIAL_INPUT_INVALID",
+                        "Provide a valid collaboration value.",
+                    )
+                    .into());
+                }
+            };
+            resolved_sources.push(HandoverSourceAuthority {
+                kind: source.kind.clone(),
+                id: source.id.clone(),
+                current_version,
+                available,
+                private,
+            });
+        }
+        let pms_only = sources.iter().all(|source| source.kind == "pms_record");
+        let mut resolved_recipients = Vec::with_capacity(recipient_ids.len());
+        for recipient_id in recipient_ids {
+            let staff = sqlx::query(
+                "SELECT 1 FROM assignments a WHERE a.company_id=$1 AND a.user_id=$2 \
+                 AND a.revoked_at IS NULL AND a.valid_from<=$3 AND a.valid_until>$3 \
+                 AND iam_assignment_active(a.id,$3) AND iam_principal_active(a.user_id,a.company_id,$3) \
+                 LIMIT 1",
+            )
+            .bind(company)
+            .bind(recipient_id.as_str())
+            .bind(now)
+            .fetch_optional(&mut *self.connection)
+            .await?
+            .is_some();
+            let pms = sqlx::query(
+                "SELECT 1 FROM assignments a WHERE a.company_id=$1 AND a.user_id=$2 \
+                 AND a.revoked_at IS NULL AND a.valid_from<=$3 AND a.valid_until>$3 \
+                 AND iam_assignment_active(a.id,$3) AND iam_principal_active(a.user_id,a.company_id,$3) \
+                 AND a.scope_kind IN ('holding','branch') \
+                 AND (a.scope_kind='holding' OR a.scope_node_id IS NOT DISTINCT FROM $4) \
+                 AND iam_role_allows(a.role,a.company_id,'pms.read') LIMIT 1",
+            )
+            .bind(company)
+            .bind(recipient_id.as_str())
+            .bind(now)
+            .bind(self.scope.branch_id.as_deref())
+            .fetch_optional(&mut *self.connection)
+            .await?
+            .is_some();
+            let eligible = if pms_only { pms } else { staff || pms };
+            let mut access = true;
+            for source in &resolved_sources {
+                if !source.available || source.private {
+                    access = false;
+                    break;
+                }
+                let readable = match source.kind.as_str() {
+                    "pms_record" => sqlx::query(
+                        "SELECT 1 FROM pms_records r JOIN pms_properties p ON p.id=r.property_id \
+                         JOIN assignments a ON a.company_id=p.company_id AND a.user_id=$3 \
+                         WHERE r.id=$1 AND p.company_id=$2 AND p.state='open' \
+                         AND a.revoked_at IS NULL AND a.valid_from<=$4 AND a.valid_until>$4 \
+                         AND iam_assignment_active(a.id,$4) AND iam_principal_active(a.user_id,a.company_id,$4) \
+                         AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=p.branch_id)) \
+                         AND iam_role_allows(a.role,a.company_id,'pms.read') LIMIT 1",
+                    )
+                    .bind(source.id.as_str())
+                    .bind(company)
+                    .bind(recipient_id.as_str())
+                    .bind(now)
+                    .fetch_optional(&mut *self.connection)
+                    .await?
+                    .is_some(),
+                    "staff_task" => sqlx::query(
+                        "SELECT 1 FROM staff_tasks t WHERE t.id=$1 AND t.company_id=$2 \
+                         AND (iam_same_person(t.creator_user_id,$3,t.company_id) \
+                           OR iam_same_person(t.assignee_user_id,$3,t.company_id) \
+                           OR EXISTS(SELECT 1 FROM staff_task_delegations d WHERE d.task_id=t.id \
+                             AND d.company_id=t.company_id AND d.status='active' \
+                             AND d.starts_at<=$4 AND d.expires_at>$4 \
+                             AND iam_same_person(d.delegate_user_id,$3,t.company_id)) \
+                           OR EXISTS(SELECT 1 FROM erpx_json_each(t.start_approvers_json) WHERE value=$3) \
+                           OR EXISTS(SELECT 1 FROM erpx_json_each(t.completion_approvers_json) WHERE value=$3)) \
+                         LIMIT 1",
+                    )
+                    .bind(source.id.as_str())
+                    .bind(company)
+                    .bind(recipient_id.as_str())
+                    .bind(now)
+                    .fetch_optional(&mut *self.connection)
+                    .await?
+                    .is_some(),
+                    _ => false,
+                };
+                if !readable {
+                    access = false;
+                    break;
+                }
+            }
+            resolved_recipients.push(HandoverRecipientAuthority {
+                user_id: recipient_id.clone(),
+                eligible,
+                access,
+            });
+        }
+        Ok(HandoverAuthority {
+            bangkok_date: handover_bangkok_date(now),
+            sources: resolved_sources,
+            recipients: resolved_recipients,
+        })
+    }
 }
 
 fn decode_receipt(value: &Value) -> Result<Receipt, Error> {
@@ -554,6 +715,24 @@ impl SocialUnit for PgSocialUnit<'_> {
             .resolve_record(&mut *self.connection, module, id)
             .await
             .map_err(Into::into)
+    }
+
+    async fn handover_authority(
+        &mut self,
+        date: &str,
+        recipient_ids: &[String],
+        sources: &[HandoverSource],
+    ) -> Result<HandoverAuthority, Error> {
+        let authority = self.resolve_handover_authority(recipient_ids, sources).await?;
+        // Storing the exact request lets the deferred recheck detect
+        // source/recipient drift after the owner rows have been staged.
+        self.handover = Some((
+            date.to_owned(),
+            recipient_ids.to_vec(),
+            sources.to_vec(),
+            authority.clone(),
+        ));
+        Ok(authority)
     }
 
     async fn apply(
@@ -749,6 +928,17 @@ impl SocialUnit for PgSocialUnit<'_> {
     async fn require_unit_current(&mut self) -> Result<(), Error> {
         self.actor = None;
         self.verify_authority().await?;
+        if let Some((_date, recipients, sources, expected)) = self.handover.clone() {
+            // Date is fixed for the command; only the source/recipient facts
+            // are re-resolved so late Operations/PMS drift rolls the unit back.
+            let current = self.resolve_handover_authority(&recipients, &sources).await?;
+            if current != expected {
+                return Err(source_changed(
+                    "HANDOVER_SOURCE_CHANGED",
+                    "Selected handover authority changed inside the command unit.",
+                ));
+            }
+        }
         if let Some(current) = &self.current {
             current.require_current(&mut *self.connection).await?;
         }
