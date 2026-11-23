@@ -15,6 +15,7 @@ const {publicMarketingReceivingBranch} = await import('@erpx/server-organization
 const {workReportOrganizationFacts} = await import('@erpx/server-organization/public/work-report-facts');
 const {activeSpendingPosition} = await import('@erpx/server-organization/adapters/spending-position');
 const {pmsRolloutOrganizationFacts} = await import('@erpx/server-organization/adapters/pms-rollout-facts');
+const {calendarAccessOrganizationFacts} = await import('@erpx/server-organization/adapters/calendar-access-facts');
 
 function db(): SqlDatabase {
   return {prepare: vi.fn(() => {throw new Error('owner-local reader must not build local SQL');})} as unknown as SqlDatabase;
@@ -76,6 +77,15 @@ describe('Organization owner-local read tail', () => {
     one.mockResolvedValueOnce(null as never);
     await expect(pmsRolloutOrganizationFacts(handle).organization('company')).resolves.toBeNull();
     expect(one).toHaveBeenCalledWith(handle, 'company', 'pms_rollout_active_branch', ['company']);
+  });
+
+  it('reads calendar-access organization nodes by typed kind and keeps the row-list shape', async () => {
+    all.mockClear();
+    const handle = db();
+    const rows = [{id: 'node', parentId: null, name: 'Node', kind: 'branch', branchId: null}] as never[];
+    all.mockResolvedValueOnce(rows);
+    await expect(calendarAccessOrganizationFacts(handle).organizationNodes('company')).resolves.toBe(rows);
+    expect(all).toHaveBeenCalledWith(handle, 'company', 'calendar_access_organization_nodes', ['company']);
   });
 
 });

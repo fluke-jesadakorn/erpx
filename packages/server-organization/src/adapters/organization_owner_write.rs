@@ -226,6 +226,13 @@ pub const SPENDING_ACTIVE_POSITION: &str = "spending_active_position";
 /// in the TypeScript consumer.
 pub const PMS_ROLLOUT_ACTIVE_BRANCH: &str = "pms_rollout_active_branch";
 
+// -- calendar-access-facts ----------------------------------------------------
+/// Native-owned calendar-access organization-node list. SELECT-only and
+/// Company keyed over the org-owned `organization_nodes` table; the
+/// work_projection consumer keeps its own access checks and receives the same
+/// `CalendarNode[]` row-list shape through the typed kind.
+pub const CALENDAR_ACCESS_ORGANIZATION_NODES: &str = "calendar_access_organization_nodes";
+
 /// Every kind this owner module accepts. Anything else is fail-closed.
 pub const KINDS: &[&str] = &[
     ORG_ATTACHMENT_NODE_VERSION_STEP,
@@ -324,6 +331,7 @@ pub const KINDS: &[&str] = &[
     WORK_REPORT_ORGANIZATION_NODES,
     SPENDING_ACTIVE_POSITION,
     PMS_ROLLOUT_ACTIVE_BRANCH,
+    CALENDAR_ACCESS_ORGANIZATION_NODES,
 ];
 
 /// Tables admitted for the generic attachment owner version step. Column is
@@ -642,6 +650,9 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         PMS_ROLLOUT_ACTIVE_BRANCH => {
             "SELECT 1 FROM organization_nodes WHERE company_id=? AND kind='branch' AND status='active' LIMIT 1"
+        }
+        CALENDAR_ACCESS_ORGANIZATION_NODES => {
+            "SELECT id,parent_id \"parentId\",display_name name,kind,branch_id \"branchId\" FROM organization_nodes WHERE company_id=? ORDER BY id LIMIT 5001"
         }
         _ => return None,
     })
@@ -1347,6 +1358,37 @@ mod tests {
         assert_eq!(values.len(), 1);
         assert_eq!(positional(expected), "SELECT 1 FROM organization_nodes WHERE company_id=$1 AND kind='branch' AND status='active' LIMIT 1");
         assert!(owner_statement(PMS_ROLLOUT_ACTIVE_BRANCH, &[]).is_err());
+    }
+
+    /// The calendar-access organization-node list retired from
+    /// `calendar-access-facts.ts` is native-owned, SELECT-only and Company
+    /// keyed over the org-owned `organization_nodes` table. The work_projection
+    /// consumer keeps its own access checks and receives the same `CalendarNode[]`
+    /// row-list shape through the typed kind.
+    #[test]
+    fn calendar_access_organization_nodes_kind_is_select_only_and_company_scoped() {
+        let expected = "SELECT id,parent_id \"parentId\",display_name name,kind,branch_id \"branchId\" FROM organization_nodes WHERE company_id=? ORDER BY id LIMIT 5001";
+        assert!(supported(CALENDAR_ACCESS_ORGANIZATION_NODES));
+        assert_eq!(
+            sql(CALENDAR_ACCESS_ORGANIZATION_NODES).unwrap(),
+            expected,
+            "calendar-access nodes SQL must match the retired literal"
+        );
+        assert!(expected.starts_with("SELECT "));
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+            assert!(!expected.contains(forbidden), "calendar-access nodes read must not mutate: {forbidden}");
+        }
+        assert!(expected.contains("company_id=?"), "calendar-access nodes read must be Company scoped");
+        assert!(expected.contains("organization_nodes"), "calendar-access nodes read must stay owner-local");
+        assert!(expected.contains("ORDER BY id LIMIT 5001"), "calendar-access nodes read must keep its order and bound");
+        assert_eq!(expected.matches('?').count(), 1);
+        let (statement, values) =
+            owner_statement(CALENDAR_ACCESS_ORGANIZATION_NODES, &[Value::from("company")])
+                .expect("calendar-access nodes statement");
+        assert_eq!(statement, expected);
+        assert_eq!(values.len(), 1);
+        assert_eq!(positional(expected), "SELECT id,parent_id \"parentId\",display_name name,kind,branch_id \"branchId\" FROM organization_nodes WHERE company_id=$1 ORDER BY id LIMIT 5001");
+        assert!(owner_statement(CALENDAR_ACCESS_ORGANIZATION_NODES, &[]).is_err());
     }
 
     /// Owner-local reads retired from `department-authority-reads.ts`: ten
