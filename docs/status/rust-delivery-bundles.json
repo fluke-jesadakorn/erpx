@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5509,
+    "revision": 5514,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-d",
       "agentId": "lead",
       "startedAt": "2026-11-23T06:45:08.420Z",
-      "heartbeatAt": "2026-11-23T08:26:23.060Z",
-      "expiresAt": "2026-11-23T08:56:23.060Z",
+      "heartbeatAt": "2026-11-23T08:43:18.939Z",
+      "expiresAt": "2026-11-23T09:13:18.939Z",
       "generation": 154,
       "tokenHash": "01e24ba69c801ba69506f7381436bc3415092da31ab33204c519241e628cd4c9"
     },
@@ -15563,8 +15563,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:46:29.180Z",
-          "heartbeatAt": "2026-11-23T08:26:23.060Z",
-          "expiresAt": "2026-11-23T08:56:23.060Z",
+          "heartbeatAt": "2026-11-23T08:43:18.939Z",
+          "expiresAt": "2026-11-23T09:13:18.939Z",
           "generation": 154
         },
         "baseSha": "473b198f4838943261a63a1ca44b167d347fc4c4",
@@ -17495,8 +17495,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:26:32.057Z",
-          "heartbeatAt": "2026-11-23T08:26:32.057Z",
-          "expiresAt": "2026-11-23T08:56:32.057Z",
+          "heartbeatAt": "2026-11-23T08:43:18.939Z",
+          "expiresAt": "2026-11-23T09:13:18.939Z",
           "generation": 154
         },
         "baseSha": "f901987c8bcb88a080e9beb9d2b87892bc462eea",
@@ -27285,13 +27285,13 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:04:51.894Z",
-          "heartbeatAt": "2026-11-23T08:26:23.060Z",
-          "expiresAt": "2026-11-23T08:56:23.060Z",
+          "heartbeatAt": "2026-11-23T08:43:18.939Z",
+          "expiresAt": "2026-11-23T09:13:18.939Z",
           "generation": 154
         },
-        "baseSha": null,
-        "implementedCommit": "d0067f253fd960ab6945c5622e360e2cceeaffe7",
-        "lastPushedSha": "321242f3b220b494cd6ae416c77ca05ded260b09",
+        "baseSha": "d0067f253fd960ab6945c5622e360e2cceeaffe7",
+        "implementedCommit": "0dd8a12f366f3f734c49ba2e9e45594870e02b4a",
+        "lastPushedSha": "0dd8a12f366f3f734c49ba2e9e45594870e02b4a",
         "checks": [
           {
             "command": "retirement:ts-writes -- ':(glob)packages/server-finance/src/**/*.ts'",
@@ -27429,32 +27429,80 @@
             "result": "passed",
             "sourceSha": "d0067f253fd960ab6945c5622e360e2cceeaffe7",
             "note": "no deletion: TS schedule/decide stays authoritative until the composition command mount lands; mount is the recorded follow-up with re-measure at deletion"
+          },
+          {
+            "command": "cargo check -p erpx-server-finance",
+            "result": "passed",
+            "sourceSha": "0dd8a12f366f3f734c49ba2e9e45594870e02b4a",
+            "note": "lead re-ran at pushed SHA; 0 errors, pre-existing warnings only"
+          },
+          {
+            "command": "cargo check -p erpx-service",
+            "result": "passed",
+            "sourceSha": "0dd8a12f366f3f734c49ba2e9e45594870e02b4a",
+            "note": "lead re-ran at pushed SHA; 0 errors (worker-fixed Send issues included)"
+          },
+          {
+            "command": "cargo test -p erpx-server-finance --lib due_draft",
+            "result": "passed",
+            "sourceSha": "0dd8a12f366f3f734c49ba2e9e45594870e02b4a",
+            "note": "lead re-ran at pushed SHA; 12/12 port + domain unit tests"
+          },
+          {
+            "command": "cargo test -p erpx-server-finance --test due_draft_schedule_postgres",
+            "result": "passed",
+            "sourceSha": "0dd8a12f366f3f734c49ba2e9e45594870e02b4a",
+            "note": "lead re-ran at pushed SHA with ERPX_TEST_ADMIN_URL; 8/8 (worker lane run was env-blocked, semantics untouched)"
+          },
+          {
+            "command": "bunx tsc --noEmit finance + workplace",
+            "result": "passed",
+            "sourceSha": "0dd8a12f366f3f734c49ba2e9e45594870e02b4a",
+            "note": "lead; finance clean, touched workplace route 0 errors (package has pre-existing unrelated errors)"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "0dd8a12f366f3f734c49ba2e9e45594870e02b4a",
+            "note": "lead; repository layout passed"
+          },
+          {
+            "command": "git grep write-KPI packages/server-finance HEAD vs worktree",
+            "result": "passed",
+            "sourceSha": "0dd8a12f366f3f734c49ba2e9e45594870e02b4a",
+            "note": "lead; 0->0 (TS path never carried uppercase writer literals)"
+          },
+          {
+            "command": "native mount probes on rebuilt 3198",
+            "result": "passed",
+            "sourceSha": "0dd8a12f366f3f734c49ba2e9e45594870e02b4a",
+            "note": "lead; schedule+decide UNAUTHENTICATED (resolved, session-gated), wrong-origin ORIGIN_FORBIDDEN, unknown-holding NOT_FOUND"
+          },
+          {
+            "command": "restart v4/v5/dev on fresh build + wire config",
+            "result": "passed",
+            "sourceSha": "0dd8a12f366f3f734c49ba2e9e45594870e02b4a",
+            "note": "lead; cargo build ok 63s; 3198/3199/3100 health 200; ERPX_NATIVE_FINANCE_DUE_DRAFT_CONFIG wired acme-only; dev due-draft route UNAUTHENTICATED (reachable)"
           }
         ],
         "retainedLegacy": [
           {
-            "path": "packages/server-finance/src/application/manual-drafts.ts",
+            "path": "packages/server-finance/src/adapters/finance-due-drafts.ts",
+            "writes": 0,
+            "reads": 2,
             "removalTaskId": "retire.finance.finance",
-            "removalCondition": "Delete when the native manual-draft application replacement is complete and the retained unit test moves to Rust seeding."
+            "removalCondition": "Migrate finance-business-contracts, finance-instruments and assets/asset-maintenance test callers off scheduleFinanceDraft/decideFinanceDueDraft to the native transport, then delete both functions."
           },
           {
-            "path": "packages/server-finance/src/domain/manual-drafts.ts",
+            "path": "packages/server-finance/src/application/due-drafts.ts",
+            "writes": 0,
+            "reads": 0,
             "removalTaskId": "retire.finance.finance",
-            "removalCondition": "Delete with the retained manual-draft application layer once the native domain owns the same invariants."
-          },
-          {
-            "path": "packages/server-finance/package.json",
-            "removalTaskId": "retire.finance.finance",
-            "removalCondition": "Remove the remaining ./application/manual-drafts and ./domain/manual-drafts exports when those files are deleted."
-          },
-          {
-            "path": "tests/unit/finance/finance-manual-draft-services.test.ts",
-            "removalTaskId": "retire.finance.finance",
-            "removalCondition": "Move the retained application-layer cases to native Rust seeding, then delete this test and its catalogue entry."
+            "removalCondition": "After the above test migration, delete commitSchedule/commitDecision port members + implementations + dead effect imports; keep schemas, workspace, drain, worker, prepare* and reads."
           }
         ],
         "blocker": null,
-        "nextAction": "Lead landed port at d0067f25 (pushed, remote verified): compiles, PG 8/8, catalogue registered. Next: composition due-draft route + purchase boundary + feature client + workplace switch + TS deletion with re-measure.",
+        "nextAction": "Mount landed at 0dd8a12f (pushed, remote verified): composition ingress + TS transport + route cutover live on rebuilt 3198 (probes: UNAUTHENTICATED/ORIGIN_FORBIDDEN/NOT_FOUND), PG 8/8, tsc/structure clean, KPI 0->0. Tail: migrate 3 test callers (business-contracts, instruments, asset-maintenance) to native transport, then delete TS orchestration writers.",
         "handoff": {
           "runId": "run-20261123-b",
           "agentId": "worker-fin",
@@ -28313,8 +28361,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:19:17.835Z",
-          "heartbeatAt": "2026-11-23T08:26:23.060Z",
-          "expiresAt": "2026-11-23T08:56:23.060Z",
+          "heartbeatAt": "2026-11-23T08:43:18.939Z",
+          "expiresAt": "2026-11-23T09:13:18.939Z",
           "generation": 154
         },
         "baseSha": null,
@@ -39817,8 +39865,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:59:53.885Z",
-          "heartbeatAt": "2026-11-23T08:26:23.060Z",
-          "expiresAt": "2026-11-23T08:56:23.060Z",
+          "heartbeatAt": "2026-11-23T08:43:18.939Z",
+          "expiresAt": "2026-11-23T09:13:18.939Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45186,8 +45234,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:03:09.640Z",
-          "heartbeatAt": "2026-11-23T08:26:23.060Z",
-          "expiresAt": "2026-11-23T08:56:23.060Z",
+          "heartbeatAt": "2026-11-23T08:43:18.939Z",
+          "expiresAt": "2026-11-23T09:13:18.939Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45718,8 +45766,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:55:34.675Z",
-          "heartbeatAt": "2026-11-23T08:26:23.060Z",
-          "expiresAt": "2026-11-23T08:56:23.060Z",
+          "heartbeatAt": "2026-11-23T08:43:18.939Z",
+          "expiresAt": "2026-11-23T09:13:18.939Z",
           "generation": 154
         },
         "baseSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
@@ -49120,8 +49168,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:31:10.408Z",
-          "heartbeatAt": "2026-11-23T08:26:23.060Z",
-          "expiresAt": "2026-11-23T08:56:23.060Z",
+          "heartbeatAt": "2026-11-23T08:43:18.939Z",
+          "expiresAt": "2026-11-23T09:13:18.939Z",
           "generation": 154
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -50335,8 +50383,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T06:47:05.965Z",
-          "heartbeatAt": "2026-11-23T08:26:23.060Z",
-          "expiresAt": "2026-11-23T08:56:23.060Z",
+          "heartbeatAt": "2026-11-23T08:43:18.939Z",
+          "expiresAt": "2026-11-23T09:13:18.939Z",
           "generation": 154
         },
         "baseSha": null,
@@ -50424,11 +50472,35 @@
             "before": 399,
             "after": 395,
             "note": "lead-measured literal SELECT occurrences in packages/server-pos/src/**/*.ts (HEAD 399 -> staged slice 395); pos.ts 51->47, 4 queue reads switched to native owner-write statements; residual 395 classified to retire.pos.residual follow-ups (write-path guards, cross-owner sources, register/shift portable reads)"
+          },
+          {
+            "command": "cargo check -p erpx-server-brand",
+            "result": "passed",
+            "sourceSha": "d5da90169a6cbe4a97ad757a2af1b537db56614c",
+            "note": "lead re-ran at pushed SHA; clean apart from 2 pre-existing branding_use_cases warnings"
+          },
+          {
+            "command": "cargo test -p erpx-server-brand --test brand_attachment_read_postgres",
+            "result": "passed",
+            "sourceSha": "d5da90169a6cbe4a97ad757a2af1b537db56614c",
+            "note": "lead re-ran at pushed SHA; 2/2 pass on leased PG: holding/branch/storefront parity, unknown-target fail-closed, caller-transaction required"
+          },
+          {
+            "command": "python3 load tests/catalogue/suite-manifest.json",
+            "result": "passed",
+            "sourceSha": "d5da90169a6cbe4a97ad757a2af1b537db56614c",
+            "note": "lead; 1302 suites incl. brand.rust-brand-attachment-read-postgres.integration"
+          },
+          {
+            "command": "git grep write-KPI packages/server-brand HEAD vs worktree",
+            "result": "passed",
+            "sourceSha": "d5da90169a6cbe4a97ad757a2af1b537db56614c",
+            "note": "lead; 0/0 TS write statements (publication writers already 503 stubs); TS read retained by live Files consumer"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lead integrated at 51254cbfc (pushed, remote verified): 4 queue SELECTs retired behind native owner-write, mount + 2 suites landed, gates green at pushed SHA. Tail remains (literal-SELECT 395); further read-tail slices via retire.pos.residual.",
+        "nextAction": "Lead integrated at 51254cbfc (pushed, remote verified): 4 queue SELECTs retired behind native owner-write, mount + 2 suites landed, gates green at pushed SHA. Residual 395 literal SELECTs split for follow-ups: (a) core pos reads pos-core(58)+pos(47)+pos-stripe(33)+pos-daily(18); (b) obligations addon-package-obligations(57)+package-obligations(22)+pms-package-obligations(17); (c) pms-day-control-facts(33)+snapshots/executive/startup/purchase-boundary remainder. Due-draft mount slice running under retire.finance.finance.",
         "handoff": {
           "runId": "run-20261123-b",
           "agentId": "worker-pos",
@@ -109649,7 +109721,7 @@
       }
     },
     "lastCoordinatorGeneration": 154,
-    "updatedAt": "2026-11-23T08:26:32.059Z",
+    "updatedAt": "2026-11-23T08:48:30.403Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
