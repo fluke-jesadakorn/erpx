@@ -346,4 +346,35 @@ describe('support service-team coverage native read', () => {
       delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
     }
   });
+
+  it('carries no retired incident ticket candidate SQL in the switched adapter', async () => {
+    const adapter = await source('packages/server-support/src/adapters/support-incidents.ts');
+    expect(adapter).not.toContain('source_kind=\'sales_order\' AND id NOT IN(SELECT ticket_id FROM support_incident_tickets');
+    expect(adapter).toContain('SUPPORT_RD_INCIDENT_TICKET_CANDIDATES');
+  });
+
+  it('plans the incident ticket candidate read in Rust with owner-scoped binds', async () => {
+    const values = ['company', 'branch-1', null, 'incident-1'];
+    const batch = vi.fn(async () => [{ results: [{ id: 'ticket-1', title: 'Ticket', version: 3 }], success: true, meta: { changes: 0, duration: 0 } }]);
+    const db = { prepare: vi.fn(() => ({ bind: vi.fn() })), batch } as unknown as SqlDatabase;
+    process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      ok("SELECT id,title,version FROM support_tickets WHERE company_id=? AND branch_id=? AND department_id IS NOT DISTINCT FROM ?::text AND source_kind='sales_order' AND id NOT IN(SELECT ticket_id FROM support_incident_tickets WHERE incident_id=? AND active) ORDER BY updated_at DESC LIMIT 200", values),
+    );
+    try {
+      const { nativeSupportReadAll, SUPPORT_RD_INCIDENT_TICKET_CANDIDATES } =
+        await import('@erpx/server-support/adapters/native-support-read');
+      await expect(nativeSupportReadAll<{ id: string; title: string; version: number }>(SUPPORT_RD_INCIDENT_TICKET_CANDIDATES, values, db)
+        .then((result: { results: unknown[] }) => result.results)).resolves.toEqual([{ id: 'ticket-1', title: 'Ticket', version: 3 }]);
+      const call = fetchMock.mock.calls[0]!;
+      expect(String(call[0])).toContain('/support/command-plan');
+      expect(JSON.parse(String(call[1]!.body))).toMatchObject({
+        kind: 'support_rd_incident_ticket_candidates',
+        values,
+      });
+    } finally {
+      fetchMock.mockRestore();
+      delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
+    }
+  });
 });

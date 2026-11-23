@@ -14,7 +14,9 @@
 //! and portal-preview consistency witnesses. It also plans the owner-local
 //! attachment-migration scope read on `support_tickets` consumed by Files and
 //! the service-team option reads on `service_teams`, `service_team_revisions`,
-//! `service_team_members` and `service_team_coverage`.
+//! `service_team_members` and `service_team_coverage`. It also plans the
+//! incident-detail ticket candidate read on `support_tickets` and
+//! `support_incident_tickets`.
 //! Reads carry no receipt/audit/outbox ledger: the caller executes them on the
 //! same unit as the surrounding command. No SQL is ever accepted from the wire
 //! and no TypeScript SQL remains for these kinds.
@@ -133,6 +135,18 @@ const READ_INCIDENT_TICKET_LINKS: NativeSupportReadStatement = NativeSupportRead
     bind_count: 1,
 };
 
+/// Native successor of the TypeScript incident-detail ticket candidate read.
+/// The caller binds `[company_id, branch_id, department_id, incident_id]` and
+/// receives the linkable sales-order tickets not already linked to the incident.
+pub const RD_INCIDENT_TICKET_CANDIDATES: &str = "support_rd_incident_ticket_candidates";
+const SQL_INCIDENT_TICKET_CANDIDATES: &str =
+    "SELECT id,title,version FROM support_tickets WHERE company_id=? AND branch_id=? AND department_id IS NOT DISTINCT FROM ?::text AND source_kind='sales_order' AND id NOT IN(SELECT ticket_id FROM support_incident_tickets WHERE incident_id=? AND active) ORDER BY updated_at DESC LIMIT 200";
+const READ_INCIDENT_TICKET_CANDIDATES: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_INCIDENT_TICKET_CANDIDATES,
+    sql: SQL_INCIDENT_TICKET_CANDIDATES,
+    bind_count: 4,
+};
+
 /// Native successor of the TypeScript portal-preview ticket source image read.
 /// The caller binds `[ticket_id, company_id]` and receives the owned snapshot
 /// used as the before/after consistency witness.
@@ -219,6 +233,7 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_INCIDENT_EVENT_HISTORY,
     READ_TICKET_INCIDENT_LINKS,
     READ_INCIDENT_TICKET_LINKS,
+    READ_INCIDENT_TICKET_CANDIDATES,
     READ_TICKET_SOURCE_IMAGE,
     READ_TICKET_ATTACHMENT_SOURCE_IMAGE,
     READ_ATTACHMENT_MIGRATION_SCOPE,
@@ -285,6 +300,11 @@ mod tests {
                 SQL_INCIDENT_TICKET_LINKS,
                 1usize,
             ),
+            (
+                RD_INCIDENT_TICKET_CANDIDATES,
+                SQL_INCIDENT_TICKET_CANDIDATES,
+                4usize,
+            ),
             (RD_TICKET_SOURCE_IMAGE, SQL_TICKET_SOURCE_IMAGE, 2usize),
             (
                 RD_TICKET_ATTACHMENT_SOURCE_IMAGE,
@@ -334,7 +354,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 16);
+        assert_eq!(STATEMENTS.len(), 17);
     }
 
     #[test]
@@ -359,6 +379,8 @@ mod tests {
         assert_eq!(ticket_links.bind_count, 1);
         let incident_links = read_statement(RD_INCIDENT_TICKET_LINKS).expect("incident ticket links");
         assert_eq!(incident_links.bind_count, 1);
+        let candidates = read_statement(RD_INCIDENT_TICKET_CANDIDATES).expect("incident ticket candidates");
+        assert_eq!(candidates.bind_count, 4);
         let source_image = read_statement(RD_TICKET_SOURCE_IMAGE).expect("ticket source image");
         assert_eq!(source_image.bind_count, 2);
         let attachment_image = read_statement(RD_TICKET_ATTACHMENT_SOURCE_IMAGE).expect("ticket attachment source image");

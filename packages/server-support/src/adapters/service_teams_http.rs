@@ -616,6 +616,11 @@ mod tests {
             ("support_rd_incident_event_history", json!(["incident-1"]), 200),
             ("support_rd_ticket_incident_links", json!(["ticket-1"]), 200),
             ("support_rd_incident_ticket_links", json!(["incident-1"]), 200),
+            (
+                "support_rd_incident_ticket_candidates",
+                json!(["company", "branch-1", null, "incident-1"]),
+                200,
+            ),
             ("support_rd_ticket_source_image", json!(["ticket-1", "company"]), 200),
             (
                 "support_rd_ticket_attachment_source_image",
@@ -655,6 +660,7 @@ mod tests {
             ("support_rd_incident_event_history", json!([]), 422),
             ("support_rd_ticket_incident_links", json!([]), 422),
             ("support_rd_incident_ticket_links", json!([]), 422),
+            ("support_rd_incident_ticket_candidates", json!(["company"]), 422),
             ("support_rd_ticket_source_image", json!(["ticket-1"]), 422),
             ("support_rd_ticket_attachment_source_image", json!(["ticket-1"]), 422),
             ("support_rd_attachment_migration_scope", json!([]), 422),
