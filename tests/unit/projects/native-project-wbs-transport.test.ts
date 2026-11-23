@@ -1,5 +1,7 @@
-import {describe,it,expect,vi} from 'vitest';
+import {describe,it,expect,vi,afterEach} from 'vitest';
 vi.mock('server-only',()=>({}));
+vi.mock('next/headers',()=>({headers:async()=>new Headers()}));
+import {createNativeProjectGraphReader} from '../../../packages/server-projects/src/adapters/native-project-graph';
 import {
   createNativeProjectsClient,
   nativeProjectsAvailable,
@@ -379,6 +381,72 @@ describe('native Projects structure command transport',()=>{
     .rejects.toMatchObject({code:'NATIVE_PROJECTS_UNAVAILABLE',status:503});
   }finally{
    if(previous!==undefined)process.env.ERPX_NATIVE_PROJECTS_CONFIG=previous;
+  }
+ });
+});
+
+
+describe('native Projects graph read (retire.projects.read-tail-followup)',()=>{
+ const readerHeaders=()=>new Headers({
+  host:'acme.example.com',origin:'https://acme.example.com',cookie:'__Host-erpx-product=session',
+  'x-erpx-context-company':'company','x-erpx-context-assignment':'assignment',
+  'x-erpx-context-revision':'7','x-erpx-context-assignment-version':'3',
+ });
+ const graphActor=()=>({
+  userId:'user',holdingId:'h001',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,
+  assignmentId:'assignment',role:'owner',assignmentScope:'holding',scope:{kind:'holding'},
+  authority:{revision:7,assignmentVersion:3},modules:['projects'],iam:{permissions:['records.read']},
+ }) as any;
+ const graph=()=>({project:{id:'project',company_id:'company',title:'A project',version:1},packages:[],tasks:[],actuals:[],edges:[],unassignedTasks:[],canReadCosts:false,isProjectOwner:true,totals:{approvedMinutes:0,costByCurrency:{}}});
+ const ctx=(overrides:Record<string,unknown>={})=>({userId:'user',holdingId:'h001',companyId:'company',assignmentId:'assignment',assignmentVersion:3,revision:7,role:'owner',assignmentScopeKind:'holding',...overrides});
+ afterEach(()=>{delete process.env.ERPX_NATIVE_PROJECTS_CONFIG;});
+
+ it('forwards the exact mounted graph path and returns the native graph',async()=>{
+  process.env.ERPX_NATIVE_PROJECTS_CONFIG=config();
+  let path:string|undefined,revision:string|undefined;
+  const transport=async(target:URL,outgoing:Readonly<Record<string,string>>)=>{
+   path=target.pathname;revision=outgoing['x-erpx-context-revision'];
+   return new Response(JSON.stringify({data:graph(),context:ctx()}),{status:200,headers:{'content-type':'application/json'}});
+  };
+  const result=await createNativeProjectGraphReader(readerHeaders(),transport)(graphActor(),'project');
+  expect(result).toMatchObject({project:{id:'project'},packages:[],canReadCosts:false});
+  expect(path).toBe('/api/v1/holdings/acme/projects/project/graph');
+  expect(revision).toBe('7');
+ });
+
+ it('rejects a changed native context with WORK_CONTEXT_CHANGED',async()=>{
+  process.env.ERPX_NATIVE_PROJECTS_CONFIG=config();
+  const transport=async()=>new Response(JSON.stringify({data:graph(),context:ctx({revision:8})}),{status:200,headers:{'content-type':'application/json'}});
+  await expect(createNativeProjectGraphReader(readerHeaders(),transport)(graphActor(),'project'))
+   .rejects.toMatchObject({code:'WORK_CONTEXT_CHANGED',status:409});
+ });
+
+ it('fails closed when native configuration is absent without issuing a request',async()=>{
+  delete process.env.ERPX_NATIVE_PROJECTS_CONFIG;
+  const transport=vi.fn();
+  await expect(createNativeProjectGraphReader(readerHeaders(),transport)(graphActor(),'project'))
+   .rejects.toMatchObject({code:'NATIVE_PROJECTS_UNAVAILABLE',status:503});
+  expect(transport).not.toHaveBeenCalled();
+ });
+});
+
+describe('native Projects graph read over loopback',()=>{
+ it('reads the mounted path from a real bounded native socket',async()=>{
+  const {createServer}=await import('node:http');
+  let path:string|undefined;
+  const server=createServer((req,res)=>{path=req.url;res.writeHead(200,{'content-type':'application/json'});res.end(JSON.stringify({data:{project:{id:'project',company_id:'company',title:'A project',version:1},packages:[],tasks:[],actuals:[],edges:[],unassignedTasks:[],canReadCosts:false,isProjectOwner:true,totals:{approvedMinutes:0,costByCurrency:{}}},context:{userId:'user',holdingId:'h001',companyId:'company',assignmentId:'assignment',assignmentVersion:3,revision:7,role:'owner',assignmentScopeKind:'holding'}}));});
+  await new Promise<void>(resolve=>server.listen(0,'127.0.0.1',resolve));
+  const port=(server.address() as any).port;
+  if(port===44992){await new Promise<void>(resolve=>server.close(()=>resolve()));return;}
+  process.env.ERPX_NATIVE_PROJECTS_CONFIG=JSON.stringify({privateBaseUrl:`http://127.0.0.1:${port}`,timeoutMs:1000,holdings:[{origin:'https://acme.example.com',holdingSlug:'acme',holdingId:'h001'}]});
+  try{
+   const headers=new Headers({host:'acme.example.com',origin:'https://acme.example.com','x-erpx-context-company':'company','x-erpx-context-assignment':'assignment','x-erpx-context-revision':'7','x-erpx-context-assignment-version':'3'});
+   const result=await createNativeProjectGraphReader(headers)({userId:'user',holdingId:'h001',holdingSlug:'acme',companyId:'company',assignmentId:'assignment',role:'owner',assignmentScope:'holding',scope:{kind:'holding'},authority:{revision:7,assignmentVersion:3},modules:['projects'],iam:{permissions:['records.read']}} as any,'project');
+   expect(result).toMatchObject({project:{id:'project'},packages:[]});
+   expect(path).toBe('/api/v1/holdings/acme/projects/project/graph');
+  }finally{
+   delete process.env.ERPX_NATIVE_PROJECTS_CONFIG;
+   await new Promise<void>(resolve=>server.close(()=>resolve()));
   }
  });
 });

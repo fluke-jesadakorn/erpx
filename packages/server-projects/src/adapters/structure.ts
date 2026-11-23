@@ -6,6 +6,7 @@ import { requirePermission } from '@erpx/server-identity_access/public/iam-permi
 import { activeStaff } from '@erpx/server-operations/public/staff-policy';
 import { getProject } from '@erpx/server-projects/public/staff-projects';
 import { nativeProjectMilestones } from '@erpx/server-projects/public/project-milestones';
+import { nativeProjectGraph } from './native-project-graph';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { createProjectStructureApplication, type ProjectStructureRepository } from '@erpx/server-projects/application/structure';
@@ -33,7 +34,11 @@ function application(db: SqlDatabase, purchasedCostHistory = true) { const repos
 async function purchasedApplication(db:SqlDatabase,a:WorkContext){
  const access=await projectPurchaseControls(db,a);return application(db,!access||access['projects.costs'].history);
 }
-export async function projectGraph(a: WorkContext, projectId: string, providedWrite?: SqlDatabase) { const db = providedWrite ?? (await holdingResources(a.holdingId)).write;await requireProjectPurchasedRead(db,a,projectId);const owner=await purchasedApplication(db,a);return exposed(() => owner.projectGraph(a, projectId)); }
+/** Native Projects graph read. The mounted owner route performs the
+ * Company/membership, purchase, context and serializable-boundary checks and
+ * returns the complete graph; there is no TypeScript graph query or fallback.
+ * The retained `providedWrite` parameter keeps the shared port signature. */
+export async function projectGraph(a: WorkContext, projectId: string, providedWrite?: SqlDatabase) { const db = providedWrite ?? (await holdingResources(a.holdingId)).write;await requireProjectPurchasedRead(db,a,projectId);return exposed(() => nativeProjectGraph(a, projectId)); }
 export async function projectHandoffs(a: WorkContext, projectId: string) { const { write: db } = await holdingResources(a.holdingId);await requireProjectPurchasedRead(db,a,projectId,'projects.handover');const owner=await purchasedApplication(db,a);return exposed(() => owner.projectHandoffs(a, projectId)); }
 export async function projectHandoffTarget(db: SqlDatabase, a: WorkContext, id: string) { await requireProjectPurchasedRead(db,a,undefined,'projects.handover');return exposed(() => application(db).projectHandoffTarget(a, id)); }
 export async function projectHandoffWork(a: WorkContext) {
