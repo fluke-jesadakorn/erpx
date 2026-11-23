@@ -1,4 +1,6 @@
 pub mod capacity;
+pub mod evidence_http;
+pub mod evidence_postgres;
 pub mod manufacturing_release;
 pub mod planning_command_http;
 pub mod planning_http;

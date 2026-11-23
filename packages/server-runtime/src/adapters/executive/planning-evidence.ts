@@ -9,10 +9,10 @@ import { sha256 } from "@erpx/server-runtime/public/crypto";
 import { currentAuthority } from "@erpx/server-runtime/public/executive/access";
 import { metricCatalogFor } from "@erpx/server-runtime/public/executive/metrics";
 import { createPlanningEvidenceApplication, type PlanningEvidenceRepository } from '@erpx/server-runtime/application/executive/planning-evidence';
-import { executiveEvidenceSources } from '@erpx/server-planning/public/executive-evidence-sources';
+import { nativePlanningEvidenceSources } from '@erpx/server-planning/public/executive-evidence-sources';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 function application(database: SqlDatabase) {
-    const repository: PlanningEvidenceRepository = { ...executiveEvidenceSources(database), async source0(companyId: string, userId: string, assignmentId: string, providerId: "planning-scenarios-recommendations", metric: "planning-shortage-scenarios" | "proposed-planning-recommendations" | "capacity-feasible-recommendations", action: "search" | "open", value: string, queryHash: string, now: number, value2: string) {
+    const repository: PlanningEvidenceRepository = { ...nativePlanningEvidenceSources(database), async source0(companyId: string, userId: string, assignmentId: string, providerId: "planning-scenarios-recommendations", metric: "planning-shortage-scenarios" | "proposed-planning-recommendations" | "capacity-feasible-recommendations", action: "search" | "open", value: string, queryHash: string, now: number, value2: string) {
             const rows = JSON.parse(value2) as Array<{ record_id: string; record_version: number | null }>;
             await recordExecutiveEvidenceAccess({
                 userId, companyId, assignmentId,
