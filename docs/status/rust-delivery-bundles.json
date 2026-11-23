@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6839,
+    "revision": 6848,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -118718,7 +118718,7 @@
         "owner": "finance",
         "title": "finance TS read tail native cutover (round 3)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -118730,22 +118730,42 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wAGfin",
-          "claimedAt": "2026-11-23T20:52:57.938Z",
-          "heartbeatAt": "2026-11-23T21:04:42.332Z",
-          "expiresAt": "2026-11-23T21:34:42.332Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "6b6821d0b",
+            "owner": "finance",
+            "before": 2273,
+            "after": 2271,
+            "note": "RD instrument edition/runs read kinds."
+          },
+          {
+            "command": "cargo check -p erpx-server-finance + lib (50)",
+            "result": "passed",
+            "sourceSha": "6b6821d0b"
+          },
+          {
+            "command": "vitest native-finance-read-plan/entrypoint/record-projection (30) + tsc finance",
+            "result": "passed",
+            "sourceSha": "6b6821d0b"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wAGfin",
+          "at": "2026-11-23T21:10:51.196Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -119006,7 +119026,7 @@
         "owner": "field_service",
         "title": "Field finance-lineage TS source cutover to native finance port",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -119024,7 +119044,14 @@
           "owner:field_service",
           "owner:finance"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wARfie",
+          "claimedAt": "2026-11-23T21:10:51.277Z",
+          "heartbeatAt": "2026-11-23T21:10:51.277Z",
+          "expiresAt": "2026-11-23T21:40:51.277Z",
+          "generation": 159
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -119250,6 +119277,114 @@
         "nextAction": "Pick the smallest non-portal owner-local read family served by the customer-access command-plan registry; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.support.read-tail-r4",
+        "goalId": "G4",
+        "owner": "support",
+        "title": "support TS read tail native cutover (r4)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wAQsup",
+          "claimedAt": "2026-11-23T21:08:17.450Z",
+          "heartbeatAt": "2026-11-23T21:08:17.450Z",
+          "expiresAt": "2026-11-23T21:38:17.450Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.talent.read-tail-r4",
+        "goalId": "G4",
+        "owner": "talent",
+        "title": "talent TS read tail native cutover (r4)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-talent/src/**",
+          "tests/unit/talent/**",
+          "tests/integration/talent/**"
+        ],
+        "resources": [
+          "owner:talent"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wAQtal",
+          "claimedAt": "2026-11-23T21:08:17.651Z",
+          "heartbeatAt": "2026-11-23T21:08:17.651Z",
+          "expiresAt": "2026-11-23T21:38:17.651Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.procurement.read-tail-r2",
+        "goalId": "G4",
+        "owner": "procurement",
+        "title": "procurement TS read tail native cutover (r2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-procurement/src/**",
+          "tests/unit/procurement/**",
+          "tests/integration/procurement/**"
+        ],
+        "resources": [
+          "owner:procurement"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wAQpro",
+          "claimedAt": "2026-11-23T21:08:17.819Z",
+          "heartbeatAt": "2026-11-23T21:08:17.819Z",
+          "expiresAt": "2026-11-23T21:38:17.819Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -119258,21 +119393,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 554,
+      "totalPackets": 557,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 19,
-        "in_progress": 18,
+        "pending": 18,
+        "in_progress": 21,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 188,
+        "blocked": 189,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T21:08:07.697Z",
+    "updatedAt": "2026-11-23T21:10:51.281Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
