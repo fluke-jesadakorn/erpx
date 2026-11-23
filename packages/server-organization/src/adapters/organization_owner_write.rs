@@ -210,6 +210,11 @@ pub const WORKSPACE_ROUTE_COMPANY: &str = "workspace_route_company";
 /// check and the transport never substitutes for it.
 pub const PUBLIC_MARKETING_RECEIVING_BRANCH: &str = "public_marketing_receiving_branch";
 
+// -- work-report-facts ---------------------------------------------------------
+/// Native-owned work-report node list. SELECT-only and Company keyed; the
+/// single work_projection consumer keeps its own report authority checks.
+pub const WORK_REPORT_ORGANIZATION_NODES: &str = "work_report_organization_nodes";
+
 /// Every kind this owner module accepts. Anything else is fail-closed.
 pub const KINDS: &[&str] = &[
     ORG_ATTACHMENT_NODE_VERSION_STEP,
@@ -305,6 +310,7 @@ pub const KINDS: &[&str] = &[
     PROFILE_ACTIVE_DEPARTMENT,
     WORKSPACE_ROUTE_COMPANY,
     PUBLIC_MARKETING_RECEIVING_BRANCH,
+    WORK_REPORT_ORGANIZATION_NODES,
 ];
 
 /// Tables admitted for the generic attachment owner version step. Column is
@@ -614,6 +620,9 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         PUBLIC_MARKETING_RECEIVING_BRANCH => {
             "SELECT id FROM organization_nodes WHERE company_id=? AND kind IN ('branch','headquarters') AND status='active' ORDER BY id LIMIT 1"
+        }
+        WORK_REPORT_ORGANIZATION_NODES => {
+            "SELECT id,display_name FROM organization_nodes WHERE company_id=?"
         }
         _ => return None,
     })
@@ -1228,6 +1237,35 @@ mod tests {
         assert_eq!(values.len(), 1);
         assert_eq!(positional(expected), "SELECT id FROM organization_nodes WHERE company_id=$1 AND kind IN ('branch','headquarters') AND status='active' ORDER BY id LIMIT 1");
         assert!(owner_statement(PUBLIC_MARKETING_RECEIVING_BRANCH, &[]).is_err());
+    }
+
+    /// The work-report node list retired from `work-report-facts.ts` is
+    /// native-owned, SELECT-only and Company keyed. Its single work_projection
+    /// consumer keeps its own report authority checks and receives the same
+    /// `{results}` shape through the typed kind.
+    #[test]
+    fn work_report_organization_nodes_kind_is_select_only_and_company_scoped() {
+        let expected = "SELECT id,display_name FROM organization_nodes WHERE company_id=?";
+        assert!(supported(WORK_REPORT_ORGANIZATION_NODES));
+        assert_eq!(
+            sql(WORK_REPORT_ORGANIZATION_NODES).unwrap(),
+            expected,
+            "work-report nodes SQL must match the retired literal"
+        );
+        assert!(expected.starts_with("SELECT "));
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+            assert!(!expected.contains(forbidden), "work-report nodes read must not mutate: {forbidden}");
+        }
+        assert!(expected.contains("company_id=?"), "work-report nodes read must be Company scoped");
+        assert!(expected.contains("organization_nodes"), "work-report nodes read must stay owner-local");
+        assert_eq!(expected.matches('?').count(), 1);
+        let (statement, values) =
+            owner_statement(WORK_REPORT_ORGANIZATION_NODES, &[Value::from("company")])
+                .expect("work-report nodes statement");
+        assert_eq!(statement, expected);
+        assert_eq!(values.len(), 1);
+        assert_eq!(positional(expected), "SELECT id,display_name FROM organization_nodes WHERE company_id=$1");
+        assert!(owner_statement(WORK_REPORT_ORGANIZATION_NODES, &[]).is_err());
     }
 
     /// Owner-local reads retired from `department-authority-reads.ts`: ten

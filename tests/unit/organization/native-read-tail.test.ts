@@ -12,6 +12,7 @@ vi.mock('../../../packages/server-organization/src/adapters/native-organization-
 const {companyAcceptanceResultProjection} = await import('@erpx/server-organization/adapters/company-acceptance-result-projection');
 const {activeDepartmentFact} = await import('@erpx/server-organization/adapters/profile-facts');
 const {publicMarketingReceivingBranch} = await import('@erpx/server-organization/adapters/public-marketing-receiving-branch');
+const {workReportOrganizationFacts} = await import('@erpx/server-organization/public/work-report-facts');
 
 function db(): SqlDatabase {
   return {prepare: vi.fn(() => {throw new Error('owner-local reader must not build local SQL');})} as unknown as SqlDatabase;
@@ -43,6 +44,15 @@ describe('Organization owner-local read tail', () => {
     one.mockResolvedValueOnce({id: 'branch'} as never);
     await expect(publicMarketingReceivingBranch(handle, 'company')).resolves.toEqual({id: 'branch'});
     expect(one).toHaveBeenCalledWith(handle, 'company', 'public_marketing_receiving_branch', ['company']);
+  });
+
+  it('reads work-report nodes by typed kind and keeps the retained results shape', async () => {
+    all.mockClear();
+    const handle = db();
+    const rows = [{id: 'node', display_name: 'Node'}] as never[];
+    all.mockResolvedValueOnce(rows);
+    await expect(workReportOrganizationFacts(handle).nodes('company')).resolves.toEqual({results: rows});
+    expect(all).toHaveBeenCalledWith(handle, 'company', 'work_report_organization_nodes', ['company']);
   });
 
 });
