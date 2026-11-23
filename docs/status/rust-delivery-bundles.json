@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7298,
+    "revision": 7302,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -124863,7 +124863,7 @@
         "owner": "talent",
         "title": "talent TS read tail native cutover (round 8)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -124875,22 +124875,42 @@
         "resources": [
           "owner:talent"
         ],
-        "claim": {
-          "runId": "run-20261123-h",
-          "agentId": "wD03tal",
-          "claimedAt": "2026-11-23T23:15:37.162Z",
-          "heartbeatAt": "2026-11-23T23:15:37.162Z",
-          "expiresAt": "2026-11-23T23:45:37.162Z",
-          "generation": 160
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-talent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f230fb013",
+            "owner": "talent",
+            "before": 93,
+            "after": 91,
+            "note": "Hire-source row and handoff queue kinds on the talent command-plan."
+          },
+          {
+            "command": "cargo check -p erpx-server-talent + lib (8)",
+            "result": "passed",
+            "sourceSha": "f230fb013"
+          },
+          {
+            "command": "vitest talent transport (19) + HTTP (9) + tsc root/tests-config",
+            "result": "passed",
+            "sourceSha": "f230fb013"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: readTalentApplications1 (cross-owner server-files consumer needs lead path grant) or another safe owner-local family; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-h",
+          "agentId": "wD03tal",
+          "at": "2026-11-23T23:25:54.583Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -125364,6 +125384,42 @@
         "nextAction": "Candidates: field-command-owner two fixed owner-table reads, or executive-metric-projections label pair; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.talent.read-tail-r9",
+        "goalId": "G4",
+        "owner": "talent",
+        "title": "talent TS read tail native cutover (round 9)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-talent/src/**",
+          "tests/unit/talent/**",
+          "tests/integration/talent/**"
+        ],
+        "resources": [
+          "owner:talent"
+        ],
+        "claim": {
+          "runId": "run-20261123-h",
+          "agentId": "wDE1tal",
+          "claimedAt": "2026-11-23T23:25:54.746Z",
+          "heartbeatAt": "2026-11-23T23:25:54.746Z",
+          "expiresAt": "2026-11-23T23:55:54.746Z",
+          "generation": 160
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Remaining owner-local candidates contain cross-owner IAM helpers or need server-files grants; if none is safe, report the scope blocker instead of forcing a cutover.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -125372,7 +125428,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 661,
+      "totalPackets": 662,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -125380,13 +125436,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 298,
+        "blocked": 299,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 160,
-    "updatedAt": "2026-11-23T23:25:32.593Z",
+    "updatedAt": "2026-11-23T23:25:54.748Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
