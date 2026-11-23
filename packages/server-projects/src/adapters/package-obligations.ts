@@ -17,8 +17,9 @@ export async function lockProjectPackageObligationSources(owner:PostgresDatabase
 export function assertProjectPackageObligationSources(owner:PostgresDatabase,database:SqlDatabase,companyId:string){
  owner.assertActiveTransaction(database);if(sources.get(database)!==companyId)throw Error("PROJECT_PACKAGE_OBLIGATION_SOURCE_REQUIRED");
 }
+export const projectRowsSql="SELECT * FROM staff_projects";
 export const projectPackageSettlementSources={
- projects:"SELECT * FROM staff_projects",members:"SELECT * FROM staff_project_members",milestones:"SELECT * FROM staff_project_milestones",
+ projects:projectRowsSql,members:"SELECT * FROM staff_project_members",milestones:"SELECT * FROM staff_project_milestones",
  workLogs:"SELECT * FROM staff_project_work_logs",costs:"SELECT * FROM staff_project_cost_allocations",actuals:"SELECT * FROM staff_project_package_actuals",handoffs:"SELECT * FROM staff_project_handoffs",
 } as const;
 export async function projectPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
