@@ -6,6 +6,9 @@ import {
 } from '../../../packages/feature-assets/src/adapters/server/native-maintenance';
 import { nativeMaintenanceAvailable } from '../../../packages/feature-assets/src/adapters/server/native-maintenance-page';
 vi.mock('server-only',()=>({}));
+vi.mock('next/headers',()=>({headers:async()=>new Headers({host:'acme.example.com',cookie:'__Host-erpx-product=session'})}));
+vi.mock('@erpx/server-identity_access/public/iam-permissions',()=>({requirePermission:()=>{}}));
+vi.mock('../../../packages/server-runtime/src/public/runtime',()=>({holdingResources:async()=>({write:{prepare:()=>{throw Error('Legacy Maintenance source SQL must not execute');}}})}));
 /** Exercise the Next route with its server dependencies replaced, so the
  * native-only selection and closed failure policy are directly observable. */
 const routeMocks=vi.hoisted(()=>({
@@ -286,5 +289,67 @@ describe('Maintenance work command route selection',()=>{
   const response=await maintenanceRoute.POST(workRequest({id:'work',action:'cancel',expectedVersion:1,reason:'No longer required'},null),routeContext);
   expect(response.status).toBe(422);
   expect(routeMocks.nativeCommand).not.toHaveBeenCalled();
+ });
+});
+
+/** Records source cutover oracle: Maintenance plans and work are read only
+ * through the native record_source port; no owner SQL remains in TypeScript. */
+describe('Maintenance source-record policy is native-only',()=>{
+ const key='ERPX_NATIVE_MAINTENANCE_CONFIG';
+ const config=()=>JSON.stringify({privateBaseUrl:'http://127.0.0.1:44992',timeoutMs:1000,holdings:[{origin:'https://acme.example.com',holdingSlug:'acme',holdingId:'holding'}]});
+ const actor={
+  userId:'owner',holdingId:'holding',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,
+  assignmentId:'assignment',role:'owner',assignmentScope:'holding',scope:{kind:'holding'},
+  authority:{revision:7,assignmentVersion:3},modules:['maintenance'],iam:{permissions:['records.read']},
+ } as unknown as import('@erpx/server-identity_access/public/authorization').WorkContext;
+ const context={userId:'owner',holdingId:'holding',companyId:'company',branchId:null,departmentId:null,
+  branchSlug:null,departmentSlug:null,assignmentId:'assignment',revision:7,assignmentVersion:3,
+  role:'owner',assignmentScopeKind:'holding',modules:['maintenance'],permissions:['records.read']};
+ const row=(version=3)=>({id:'source',company_id:'company',branch_id:null,department_id:null,version,title:'Synthetic maintenance source',status:'active'});
+ const payload=(kind:'maintenance_plan'|'maintenance_work',value:unknown)=>new Response(JSON.stringify({data:kind==='maintenance_plan'?{plan:value}:{work:value},context}),{status:200,headers:{'content-type':'application/json'}});
+ const policy=async()=>await import('../../../packages/server-records/src/adapters/source-record-policy');
+ let fetchSpy:ReturnType<typeof vi.spyOn>;
+ beforeEach(()=>{vi.stubEnv(key,config());});
+ it('reads plan and work sources from the native owner with no TypeScript SQL',async()=>{
+  fetchSpy=vi.spyOn(globalThis,'fetch').mockImplementation(async(input)=>{
+   const url=String(input);
+   return payload(url.includes('/maintenance/plans')?'maintenance_plan':'maintenance_work',row());
+  });
+  try{
+   const p=await policy();
+   const plan=await p.readSourceRecord(actor,{kind:'maintenance_plan',id:'source',version:3});
+   expect(plan).toMatchObject({id:'source',version:3,title:'Synthetic maintenance source',status:'active'});
+   const work=await p.readSourceRecord(actor,{kind:'maintenance_work',id:'source'});
+   expect(work).toMatchObject({id:'source',version:3});
+   expect(fetchSpy).toHaveBeenCalledTimes(2);
+   expect(String(fetchSpy.mock.calls[0][0])).toBe('http://127.0.0.1:44992/api/v1/holdings/acme/maintenance/plans?id=source');
+   expect(String(fetchSpy.mock.calls[1][0])).toBe('http://127.0.0.1:44992/api/v1/holdings/acme/maintenance?id=source');
+  }finally{fetchSpy.mockRestore();vi.unstubAllEnvs();}
+ });
+ it('fails closed for same-unit callers and source guards',async()=>{
+  fetchSpy=vi.spyOn(globalThis,'fetch');
+  try{
+   const p=await policy(),db={prepare:vi.fn()} as unknown as import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
+   for(const kind of ['maintenance_plan','maintenance_work'] as const){
+    await expect(p.readSourceRecord(actor,{kind,id:'source'},db)).rejects.toMatchObject({status:503,code:'MAINTENANCE_RECORD_SOURCE_NATIVE_UNIT_REQUIRED'});
+    await expect(p.sourceRecordGuards(db,actor,'key',{kind,id:'source',version:3,href:'/maintenance/'} as never)).rejects.toMatchObject({status:503,code:'MAINTENANCE_RECORD_SOURCE_NATIVE_UNIT_REQUIRED'});
+   }
+   expect(fetchSpy).not.toHaveBeenCalled();
+  }finally{fetchSpy.mockRestore();vi.unstubAllEnvs();}
+ });
+ it('masks 403/404, preserves version conflicts and fails closed without configuration',async()=>{
+  const p=await policy();
+  try{
+   for(const status of [403,404]){
+    fetchSpy=vi.spyOn(globalThis,'fetch').mockResolvedValue(new Response('{}',{status}));
+    expect(await p.visibleSourceRecord(actor,{kind:'maintenance_plan',id:'source'})).toBeNull();
+    fetchSpy.mockRestore();
+   }
+   fetchSpy=vi.spyOn(globalThis,'fetch').mockResolvedValue(payload('maintenance_plan',row(2)));
+   await expect(p.readSourceRecord(actor,{kind:'maintenance_plan',id:'source',version:3})).rejects.toMatchObject({status:409,code:'SOURCE_RECORD_CHANGED'});
+   fetchSpy.mockRestore();
+   vi.unstubAllEnvs();delete process.env[key];
+   await expect(p.readSourceRecord(actor,{kind:'maintenance_plan',id:'source'})).rejects.toMatchObject({status:503,code:'MAINTENANCE_RECORD_SOURCE_NATIVE_UNAVAILABLE'});
+  }finally{fetchSpy?.mockRestore();vi.unstubAllEnvs();}
  });
 });

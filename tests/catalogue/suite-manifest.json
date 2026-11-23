@@ -103863,6 +103863,48 @@
       ]
     },
     {
+      "id": "shared.work.work_report_composition.unit",
+      "lane": "unit",
+      "owner": "shared.work",
+      "modules": [
+        "operations"
+      ],
+      "files": [
+        "tests/unit/shared.work/rust-work-report-composition.test.rs"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Work report targets assembled from configured Holdings retain exact Host/Holding routing, origin validation and projection forwarding before owner authorization."
+      },
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-work-projection",
+        "targets": [
+          "work_report_composition"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-work_projection/Cargo.toml"
+      ],
+      "apps": [
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-work-projection",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
       "id": "work_projection.work_projection_calendar_read_spec.unit",
       "lane": "unit",
       "owner": "work_projection",
@@ -104238,6 +104280,34 @@
       "packages": [
         "@erpx/feature-sales",
         "@erpx/feature-support"
+      ]
+    },
+    {
+      "id": "inventory.native-inventory-document-posting-preview.unit",
+      "lane": "unit",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "files": [
+        "tests/unit/inventory/native-inventory-document-posting-preview.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Inventory document-posting preview reads must use native caller-unit kinds and fail closed."
+      },
+      "framework": "vitest",
+      "apps": [
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-inventory"
       ]
     }
   ]

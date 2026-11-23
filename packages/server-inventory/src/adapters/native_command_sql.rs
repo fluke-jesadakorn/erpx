@@ -172,6 +172,31 @@ const READ_STOCK_SUPPLEMENT_ROW: NativeStatement = NativeStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript document-posting preview `stockCount`
+/// single-row read. The owner plans this literal and the caller executes it on
+/// its own already-open unit; this crate carries no TypeScript SQL for it.
+pub const RD_STOCK_COUNT_ROW: &str = "inventory_rd_stock_count_row";
+const SQL_RD_STOCK_COUNT_ROW: &str = "SELECT * FROM inventory_counts WHERE company_id=? AND id=?";
+const READ_STOCK_COUNT_ROW: NativeStatement = NativeStatement {
+    kind: RD_STOCK_COUNT_ROW,
+    sql: SQL_RD_STOCK_COUNT_ROW,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript document-posting preview `stockDeltas`
+/// array read. The owner plans this literal and the caller executes it on its
+/// own already-open unit; this crate carries no TypeScript SQL for it.
+pub const RD_STOCK_COUNT_DELTAS: &str = "inventory_rd_stock_count_deltas";
+const SQL_RD_STOCK_COUNT_DELTAS: &str =
+    "SELECT counted_value_minor-snapshot_value_minor delta FROM inventory_count_lines WHERE count_id=?";
+const READ_STOCK_COUNT_DELTAS: NativeStatement = NativeStatement {
+    kind: RD_STOCK_COUNT_DELTAS,
+    sql: SQL_RD_STOCK_COUNT_DELTAS,
+    bind_count: 1,
+    scope: "holding",
+};
+
 pub fn is_read(kind: &str) -> bool {
     matches!(
         kind,
@@ -180,6 +205,8 @@ pub fn is_read(kind: &str) -> bool {
             | RD_LEDGER_SUPPLEMENT_ROW
             | RD_LOT_SUPPLEMENT_ROW
             | RD_STOCK_SUPPLEMENT_ROW
+            | RD_STOCK_COUNT_ROW
+            | RD_STOCK_COUNT_DELTAS
     )
 }
 
@@ -190,6 +217,8 @@ pub fn read_statement(kind: &str) -> Option<&'static NativeStatement> {
         RD_LEDGER_SUPPLEMENT_ROW => Some(&READ_LEDGER_SUPPLEMENT_ROW),
         RD_LOT_SUPPLEMENT_ROW => Some(&READ_LOT_SUPPLEMENT_ROW),
         RD_STOCK_SUPPLEMENT_ROW => Some(&READ_STOCK_SUPPLEMENT_ROW),
+        RD_STOCK_COUNT_ROW => Some(&READ_STOCK_COUNT_ROW),
+        RD_STOCK_COUNT_DELTAS => Some(&READ_STOCK_COUNT_DELTAS),
         _ => None,
     }
 }
@@ -236,6 +265,8 @@ mod tests {
             RD_LEDGER_SUPPLEMENT_ROW,
             RD_LOT_SUPPLEMENT_ROW,
             RD_STOCK_SUPPLEMENT_ROW,
+            RD_STOCK_COUNT_ROW,
+            RD_STOCK_COUNT_DELTAS,
         ] {
             assert!(is_read(kind));
             let read = read_statement(kind).expect("read kind");
@@ -271,6 +302,23 @@ mod tests {
         assert!(stock.sql.contains("COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r WHERE r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id),0) reserved_milli"));
         assert!(stock.sql.contains("inventory_quarantined_quantity(s.warehouse_id,s.product_id) quarantined_milli"));
         assert!(stock.sql.ends_with("WHERE s.product_id=? AND s.warehouse_id=? AND w.company_id=? AND (?::text IS NULL OR w.branch_id=?)"));
+    }
+
+    /// Parity witness for the `document-posting-preview-facts` read family: the
+    /// single-row stock-count plan and the delta array plan are the exact
+    /// statements the retired TypeScript literals bound, with caller-unit binds.
+    #[test]
+    fn document_posting_preview_read_plans_match_retired_owner_statements() {
+        let count = read_statement(RD_STOCK_COUNT_ROW).expect("read kind");
+        assert_eq!(count.bind_count, 2);
+        assert_eq!(count.sql, "SELECT * FROM inventory_counts WHERE company_id=? AND id=?");
+
+        let deltas = read_statement(RD_STOCK_COUNT_DELTAS).expect("read kind");
+        assert_eq!(deltas.bind_count, 1);
+        assert_eq!(
+            deltas.sql,
+            "SELECT counted_value_minor-snapshot_value_minor delta FROM inventory_count_lines WHERE count_id=?"
+        );
     }
 
     /// Parity witness: the native plan for the lot-balance supplement is the
