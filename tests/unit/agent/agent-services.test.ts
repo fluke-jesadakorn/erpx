@@ -10,6 +10,8 @@ import {BusinessRuleError} from "@erpx/server-shared/index";
 import {agentHomeAiNameSql,collaborationHomeSources} from '@erpx/server-agent/adapters/collaboration-home-sources';
 import {collaborationTextSources} from '@erpx/server-agent/adapters/collaboration-text-sources';
 import {collaborationAgentSources} from '@erpx/server-agent/adapters/collaboration-agent-sources';
+import {collaborationAiSources} from '@erpx/server-agent/adapters/collaboration-ai-sources';
+import {agentWorkspaceMonthlyUsageSql,recordsAiQuota} from '@erpx/server-agent/adapters/records-ai-quota';
 const actor:WorkContext={userId:'author',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['agent','collaboration'],assignments:[],workspaces:[]};
 const policy:AiPolicyFacts={platform_enabled:true,monthly_request_limit:10,monthly_spend_cap_satang:100,reservation_satang:10,updated_by:'owner',updated_at:42,monthly_requests:1,monthly_reserved_or_verified_satang:0,pending_platform_cost_requests:0};
 const scope:AiGatewayFacts={holdingId:'holding',companyId:'company',branchId:null,connectionId:null,fundingSource:'erpx',feature:'assistant',requestId:'request'};
@@ -83,5 +85,33 @@ describe('Agent home AI name fixed-SQL read family',()=>{
   const {db,calls}=fakeDb();
   await collaborationTextSources(db).previousAssistantName('company','Guide');
   expect(calls).toEqual([{sql:'SELECT 1 FROM ai_home_name_history WHERE company_id=? AND name=?',values:['company','Guide']}]);
+ });
+});
+describe('Agent workspace-turns monthly usage fixed-SQL read family',()=>{
+ const sql="SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') AS month FROM ai_workspace_turns";
+ function fakeDb(){const calls:{sql:string;values:unknown[]}[]=[];const db={prepare(source:string){const statement={bind(...values:unknown[]){calls.push({sql:source,values});return statement;},async first(){return {used:1,allowance:10};},async all(){return {results:[]};}};return statement;}};return {db:db as never,calls};}
+ test('the canonical owner fixed SQL is the only authored monthly usage literal',async()=>{
+  expect(agentWorkspaceMonthlyUsageSql).toBe(sql);
+  const {readFile}=await import('node:fs/promises');
+  const base=new URL('../../../packages/server-agent/src/adapters/',import.meta.url);
+  for(const name of ['records-ai-quota.ts','collaboration-agent-sources.ts','collaboration-ai-sources.ts']){
+   const source=await readFile(new URL(name,base),'utf8');
+   const literals=source.match(/SELECT company_id,to_char\(to_timestamp\(created_at\/1000\.0\) AT TIME ZONE 'UTC','YYYY-MM'\) AS month FROM ai_workspace_turns/g)??[];
+   expect(literals,name).toHaveLength(name==='records-ai-quota.ts'?1:0);
+   if(name!=='records-ai-quota.ts')expect(source,name).toContain('agentWorkspaceMonthlyUsageSql');
+  }
+ });
+ test('quota reads compose the one fixed SQL with unchanged binds',async()=>{
+  const reads:[(db:never)=>Promise<unknown>,unknown[]][]=[
+   [db=>recordsAiQuota(db).read([],'company'),['company']],
+   [db=>collaborationAgentSources(db).quotaAllowed('company','2026-11','c2','m2','c3','m3','c4','c5',42,'user',1,2,3),['company','2026-11','c2','m2','c3','m3','c4','c5',42,2,'user',1,3]],
+  ];
+  for(const [read,values] of reads){
+   const {db,calls}=fakeDb();
+   await expect(read(db)).resolves.toBeDefined();
+   expect(calls).toHaveLength(1);
+   expect(calls[0]!.sql).toContain(agentWorkspaceMonthlyUsageSql);
+   expect(calls[0]!.values).toEqual(values);
+  }
  });
 });
