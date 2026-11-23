@@ -30116,13 +30116,6 @@
       "sha256": "78e86a7124a085a030a981ecf5d4c9aa3c7b2658265612b8e5a2bd452b75e31e"
     },
     {
-      "from": "src/server/modules/work_projection/adapters/work-card-preferences.ts",
-      "to": "packages/server-work_projection/src/adapters/work-card-preferences.ts",
-      "package": "@erpx/server-work_projection",
-      "key": "adapters/work-card-preferences",
-      "sha256": "74e204b4488eb3d443e9640fd1e82ced5af61cc09f67c9748a53d22ac8e8dcee"
-    },
-    {
       "from": "src/server/modules/work_projection/adapters/work.ts",
       "to": "packages/server-work_projection/src/adapters/work.ts",
       "package": "@erpx/server-work_projection",
@@ -31066,13 +31059,6 @@
       "package": "@erpx/server-work_projection",
       "key": "application/product-launcher",
       "sha256": "517726bb30f1ec55849a4765466c2bd4b28e1e0baa1e445a063983e2aac2a079"
-    },
-    {
-      "from": "src/server/modules/work_projection/application/work-card-preferences.ts",
-      "to": "packages/server-work_projection/src/application/work-card-preferences.ts",
-      "package": "@erpx/server-work_projection",
-      "key": "application/work-card-preferences",
-      "sha256": "33e4a737523a296c20fcb6558c7dbbd11936eb25ebbe660807b17a88e1bf26cf"
     },
     {
       "from": "src/server/modules/work_projection/application/work.ts",
