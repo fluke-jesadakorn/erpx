@@ -7,6 +7,9 @@ import type {AssistantGovernance} from "@erpx/server-agent/domain/governance";
 import {scopeKey} from "@erpx/server-agent/domain/assistant";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {BusinessRuleError} from "@erpx/server-shared/index";
+import {agentHomeAiNameSql,collaborationHomeSources} from '@erpx/server-agent/adapters/collaboration-home-sources';
+import {collaborationTextSources} from '@erpx/server-agent/adapters/collaboration-text-sources';
+import {collaborationAgentSources} from '@erpx/server-agent/adapters/collaboration-agent-sources';
 const actor:WorkContext={userId:'author',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['agent','collaboration'],assignments:[],workspaces:[]};
 const policy:AiPolicyFacts={platform_enabled:true,monthly_request_limit:10,monthly_spend_cap_satang:100,reservation_satang:10,updated_by:'owner',updated_at:42,monthly_requests:1,monthly_reserved_or_verified_satang:0,pending_platform_cost_requests:0};
 const scope:AiGatewayFacts={holdingId:'holding',companyId:'company',branchId:null,connectionId:null,fundingSource:'erpx',feature:'assistant',requestId:'request'};
@@ -49,4 +52,36 @@ describe('Workspace assistant authorization and evidence',()=>{
  test('a changed source after provider response never commits a ready answer',async()=>{const f=assistant();f.ports.generate=async()=>{f.posts.push({id:'changed',version:2});return {result:{answer:'Answer',sourceIds:[],followUps:[]},inputTokens:1,outputTokens:1};};await expect(createWorkspaceAssistantApplication(f.ports).askAssistant(actor,ask,'key')).rejects.toMatchObject({code:'AI_SOURCE_CHANGED'});expect(f.calls.some(c=>c.startsWith('assistant.message.complete'))).toBe(false);expect(f.calls).toContain('evidence:failed');expect(f.calls).toContain('batch:prepareFailedTurn,usage:failed');});
  test('completion includes governance, provider snapshot and usage in the same staged command',async()=>{const f=assistant();expect(await f.app.askAssistant(actor,ask,'key')).toEqual({id:'key'});expect(f.calls).toContain('assistant.message.complete:governance,snapshot,prepareAnswer,usage:succeeded');expect(f.calls.at(-1)).toBe('evidence:succeeded');});
  test('late completion failure records failed usage and does not return success',async()=>{const f=assistant();f.ports.repository.commit=async(_actor,_key,op,_input,_id,_version,result)=>{if(op==='assistant.message.complete')throw new Error('late outbox failure');return result;};await expect(createWorkspaceAssistantApplication(f.ports).askAssistant(actor,ask,'key')).rejects.toThrow('late outbox failure');expect(f.calls).toContain('batch:prepareFailedTurn,usage:failed');expect(f.calls.at(-1)).toBe('evidence:failed');});
+});
+describe('Agent home AI name fixed-SQL read family',()=>{
+ const sql='SELECT home_ai_name FROM ai_company_settings WHERE company_id=?';
+ function fakeDb(){const calls:{sql:string;values:unknown[]}[]=[];const db={prepare(source:string){const statement={bind(...values:unknown[]){calls.push({sql:source,values});return statement;},async first(){return {home_ai_name:'Guide'};}};return statement;}};return {db:db as never,calls};}
+ test('the canonical owner fixed SQL is the only authored home AI name literal',async()=>{
+  expect(agentHomeAiNameSql).toBe(sql);
+  const {readFile}=await import('node:fs/promises');
+  const base=new URL('../../../packages/server-agent/src/adapters/',import.meta.url);
+  for(const name of ['collaboration-home-sources.ts','collaboration-text-sources.ts','collaboration-agent-sources.ts']){
+   const source=await readFile(new URL(name,base),'utf8');
+   const literals=source.match(/SELECT home_ai_name FROM ai_company_settings/g)??[];
+   expect(literals,name).toHaveLength(name==='collaboration-home-sources.ts'?1:0);
+   if(name!=='collaboration-home-sources.ts')expect(source,name).toContain('agentHomeAiNameSql');
+  }
+ });
+ test('all home-source callers reuse the one fixed SQL with only the company bind',async()=>{
+  for(const read of [
+   (db:never)=>collaborationHomeSources(db).aiName('company'),
+   (db:never)=>collaborationTextSources(db).assistantName('company'),
+   (db:never)=>collaborationTextSources(db).currentAssistantName('company'),
+   (db:never)=>collaborationAgentSources(db).assistantName('company'),
+  ]){
+   const {db,calls}=fakeDb();
+   await expect(read(db)).resolves.toEqual({home_ai_name:'Guide'});
+   expect(calls).toEqual([{sql:agentHomeAiNameSql,values:['company']}]);
+  }
+ });
+ test('the history read keeps its own bounded statement',async()=>{
+  const {db,calls}=fakeDb();
+  await collaborationTextSources(db).previousAssistantName('company','Guide');
+  expect(calls).toEqual([{sql:'SELECT 1 FROM ai_home_name_history WHERE company_id=? AND name=?',values:['company','Guide']}]);
+ });
 });
