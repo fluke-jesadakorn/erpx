@@ -11,7 +11,7 @@ import {financeOwnedSnapshotSources as commerceSnapshotSources} from "@erpx/serv
 import { refundCashAccounts, refundCashAccountGuard, refundForeignCreditGuard } from '@erpx/server-commerce/public/finance-refund-source';
 import { createRefunds } from '@erpx/server-finance/application/refunds';
 import { refundApprovalSchema, refundInstructionSchema, refundExportSchema, refundConfirmationSchema, refundExceptionSchema, type Row } from '@erpx/server-finance/domain/refunds';
-import { refundProofSets } from '@erpx/server-files/public/finance-refund-proof-sources';
+import { financeRefundProofFacts } from '@erpx/server-files/public/finance-refund-proof-sources';
 import 'server-only';
 import { nativeRefundNotification } from "./native-refund-notification";
 import { z } from 'zod';
@@ -91,7 +91,7 @@ function refundService(provided?:SqlDatabase,presentation?:{historyOnly:boolean;
                 await nativeFinanceRefunds(write, actor.companyId).obligationBump2([now, owner.id]),
                 await nativeRefundNotification(write, actor, key, String(owner.id), input.outcome === 'unknown' ? 'review' : 'treasury', 'Refund bank exception updated: review source evidence before retrying', actor.userId),
             ]);
-        }, bank: async (facts) => { const { input, actor } = facts; const write = await db(actor); return write.prepare('SELECT t.*,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=?').bind(input.bankTransactionId, actor.companyId).first<Row>(); }, proofSets: async (facts) => { const { actor, input } = facts; const write = await db(actor); return refundProofSets(write, actor, input.attachmentSetIds); }, commitConfirmRefundInstruction: async (facts) => {
+        }, bank: async (facts) => { const { input, actor } = facts; const write = await db(actor); return write.prepare('SELECT t.*,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=?').bind(input.bankTransactionId, actor.companyId).first<Row>(); }, proofSets: async (facts) => { const { actor, input } = facts; const write = await db(actor); return (await financeRefundProofFacts(write).readRefundProofSets(actor.companyId, input.attachmentSetIds)).results; }, commitConfirmRefundInstruction: async (facts) => {
             const { actor, key, input, id, paymentId, journal: journalPlan, fxJournal: fxJournalPlan, carrying, cashBase, gain, loss, owner, amount, foreignSource, sourceBase, outgoing, row, bank, now } = facts;
             const write = await db(actor);
             const journal = journals.get(journalPlan.result.id)!, fxJournal = fxJournalPlan ? journals.get(fxJournalPlan.result.id)! : null, snapshot = { statement: stagedMoney! }, attachmentBinding = proofBinding;

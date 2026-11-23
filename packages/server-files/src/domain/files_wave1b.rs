@@ -254,6 +254,14 @@ const SQL_RD_PMS_UPLOAD_FACT: &str = "SELECT attachment_set_id,declared_bytes,me
 pub const RD_OVERTIME_EVIDENCE_SETS: &str = "RD_OVERTIME_EVIDENCE_SETS";
 const SQL_RD_OVERTIME_EVIDENCE_SETS: &str = "SELECT id,purpose_key,component_kind FROM attachment_sets WHERE company_id=$1 AND id = ANY(ARRAY(SELECT jsonb_array_elements_text($2::jsonb)))"; // binds=2
 
+/// Owner-owned array read: the finance refund-proof attachment-set facts.
+/// Native successor of the retired TypeScript `refundProofSets` read. The set
+/// IDs arrive as one JSON-array bind so owner arity stays static for any caller
+/// cardinality; `component_ref` is carried back to the caller; no
+/// receipt/audit/outbox write ledger is planned.
+pub const RD_FINANCE_REFUND_PROOF_SETS: &str = "RD_FINANCE_REFUND_PROOF_SETS";
+const SQL_RD_FINANCE_REFUND_PROOF_SETS: &str = "SELECT id,purpose_key,component_kind,component_ref FROM attachment_sets WHERE company_id=$1 AND id = ANY(ARRAY(SELECT jsonb_array_elements_text($2::jsonb)))"; // binds=2
+
 /// Read kinds plan the owner SQL only; no receipt/audit/outbox write ledger.
 pub fn is_read(kind: &str) -> bool {
     kind == RD_PROJECT_ATTACHMENT_TARGET
@@ -261,6 +269,7 @@ pub fn is_read(kind: &str) -> bool {
         || kind == RD_PMS_ATTACHMENT_LINK_SET
         || kind == RD_PMS_UPLOAD_FACT
         || kind == RD_OVERTIME_EVIDENCE_SETS
+        || kind == RD_FINANCE_REFUND_PROOF_SETS
 }
 
 /// Every kind this owner module accepts. Anything else is fail-closed.
@@ -375,6 +384,7 @@ const KINDS: &[&str] = &[
     RD_PMS_ATTACHMENT_LINK_SET,
     RD_PMS_UPLOAD_FACT,
     RD_OVERTIME_EVIDENCE_SETS,
+    RD_FINANCE_REFUND_PROOF_SETS,
 ];
 pub fn supported(kind: &str) -> bool { KINDS.contains(&kind) }
 pub fn sql(kind: &str) -> Option<&'static str> { Some(match kind {
@@ -488,6 +498,7 @@ pub fn sql(kind: &str) -> Option<&'static str> { Some(match kind {
     RD_PMS_ATTACHMENT_LINK_SET => SQL_RD_PMS_ATTACHMENT_LINK_SET,
     RD_PMS_UPLOAD_FACT => SQL_RD_PMS_UPLOAD_FACT,
     RD_OVERTIME_EVIDENCE_SETS => SQL_RD_OVERTIME_EVIDENCE_SETS,
+    RD_FINANCE_REFUND_PROOF_SETS => SQL_RD_FINANCE_REFUND_PROOF_SETS,
     _ => return None,
 }) }
 pub fn invalid() -> BusinessError { BusinessError::new(FailureKind::InvalidInput, "FILES_COMMAND_INVALID", "Use one bounded Files command.") }

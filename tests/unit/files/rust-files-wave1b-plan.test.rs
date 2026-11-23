@@ -6,8 +6,9 @@
 //! the caller's already-open unit, so the files command never opens a second
 //! transaction while the caller holds attachment row locks.
 use erpx_server_files::public::files_wave1b::{
-    FilesCommandInput, RD_OVERTIME_EVIDENCE_SETS, RD_PMS_ATTACHMENT_LINK_SET, RD_PMS_UPLOAD_FACT,
-    RD_PROJECT_ATTACHMENT_TARGET, RD_SUPPORT_ATTACHMENT_TARGET, is_read, plan,
+    FilesCommandInput, RD_FINANCE_REFUND_PROOF_SETS, RD_OVERTIME_EVIDENCE_SETS,
+    RD_PMS_ATTACHMENT_LINK_SET, RD_PMS_UPLOAD_FACT, RD_PROJECT_ATTACHMENT_TARGET,
+    RD_SUPPORT_ATTACHMENT_TARGET, is_read, plan,
 };
 use erpx_server_files::public::files_wave1b_http::{
     FilesCommandBackend, FilesCommandFuture, FilesCommandPlanFuture, FilesCommandRequest,
@@ -319,6 +320,60 @@ fn rd_overtime_evidence_sets_plans_array_read_without_write_ledger() {
         &company(),
         "test-key-overtime-evidence-arity",
         &input(RD_OVERTIME_EVIDENCE_SETS, serde_json::json!(["company"]), now),
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "FILES_COMMAND_INVALID");
+}
+
+#[test]
+fn rd_finance_refund_proof_sets_plans_array_read_without_write_ledger() {
+    // Native successor of the retired TypeScript `refundProofSets` read. The
+    // set IDs travel as one JSON-array bind so owner arity is static for any
+    // caller cardinality; `component_ref` is carried back to the caller; owner
+    // SQL lives here, not in server-files TS.
+    let now = 1_700_000_000_000i64;
+    assert!(is_read(RD_FINANCE_REFUND_PROOF_SETS));
+    let ids = serde_json::json!("[\"set-1\",\"set-2\"]");
+    let statements = plan(
+        &company(),
+        "test-key-finance-refund-proof",
+        &input(
+            RD_FINANCE_REFUND_PROOF_SETS,
+            serde_json::json!(["company", ids.clone()]),
+            now,
+        ),
+    )
+    .unwrap();
+    assert_eq!(statements.len(), 1);
+    assert_eq!(
+        statements[0].sql,
+        "SELECT id,purpose_key,component_kind,component_ref FROM attachment_sets WHERE company_id=? AND id = ANY(ARRAY(SELECT jsonb_array_elements_text(?::jsonb)))"
+    );
+    assert_eq!(
+        statements[0].values,
+        vec![serde_json::json!("company"), ids]
+    );
+    let upper = statements[0].sql.to_ascii_uppercase();
+    assert!(!upper.contains("INSERT"));
+    assert!(!upper.contains("UPDATE"));
+    assert!(!upper.contains("DELETE"));
+
+    // A single-ID array and an empty array keep the same two-bind shape.
+    for ids in [serde_json::json!("[\"set-1\"]"), serde_json::json!("[]")] {
+        let statements = plan(
+            &company(),
+            "test-key-finance-refund-proof-cardinality",
+            &input(RD_FINANCE_REFUND_PROOF_SETS, serde_json::json!(["company", ids]), now),
+        )
+        .unwrap();
+        assert_eq!(statements[0].values.len(), 2);
+    }
+
+    // Wrong arity fails closed.
+    let error = plan(
+        &company(),
+        "test-key-finance-refund-proof-arity",
+        &input(RD_FINANCE_REFUND_PROOF_SETS, serde_json::json!(["company"]), now),
     )
     .unwrap_err();
     assert_eq!(error.code, "FILES_COMMAND_INVALID");
