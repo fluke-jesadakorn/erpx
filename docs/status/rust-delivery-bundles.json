@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6574,
+    "revision": 6583,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-f",
       "agentId": "lead",
       "startedAt": "2026-11-23T16:54:33.142Z",
-      "heartbeatAt": "2026-11-23T19:24:31.574Z",
-      "expiresAt": "2026-11-23T19:54:31.574Z",
+      "heartbeatAt": "2026-11-23T19:25:47.785Z",
+      "expiresAt": "2026-11-23T19:55:47.785Z",
       "generation": 158,
       "tokenHash": "786b04e6db95d7a97c392a0b212dc2cfdd563bbd8cc6545681f5e6ff248eceaa"
     },
@@ -50671,8 +50671,8 @@
           "runId": "run-20261123-f",
           "agentId": "wN01",
           "claimedAt": "2026-11-23T18:15:53.634Z",
-          "heartbeatAt": "2026-11-23T19:24:31.574Z",
-          "expiresAt": "2026-11-23T19:54:31.574Z",
+          "heartbeatAt": "2026-11-23T19:25:47.785Z",
+          "expiresAt": "2026-11-23T19:55:47.785Z",
           "generation": 158
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -50886,11 +50886,35 @@
             "command": "vitest inventory commerce attachment source (3)",
             "result": "passed",
             "sourceSha": "97ba350e7"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "87b840200",
+            "owner": "inventory",
+            "before": 560,
+            "after": 559,
+            "note": "wN01: RD_IN_TRANSIT_CURRENCY_TOTALS + nativeInventoryReadAll."
+          },
+          {
+            "command": "cargo check -p erpx-server-inventory",
+            "result": "passed",
+            "sourceSha": "87b840200"
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --lib (46)",
+            "result": "passed",
+            "sourceSha": "87b840200"
+          },
+          {
+            "command": "vitest inventory commerce-facts in-transit (2)",
+            "result": "passed",
+            "sourceSha": "87b840200"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "560 recorded; next inventory read family",
+        "nextAction": "559 recorded; remaining inventory reads are dynamic/cross-owner/pairs",
         "handoff": {
           "runId": "run-20261123-f",
           "agentId": "wL05",
@@ -110055,8 +110079,8 @@
           "runId": "run-20261123-f",
           "agentId": "wX05",
           "claimedAt": "2026-11-23T19:14:25.430Z",
-          "heartbeatAt": "2026-11-23T19:24:31.574Z",
-          "expiresAt": "2026-11-23T19:54:31.574Z",
+          "heartbeatAt": "2026-11-23T19:25:47.785Z",
+          "expiresAt": "2026-11-23T19:55:47.785Z",
           "generation": 158
         },
         "baseSha": "89cf1fc2547a1bad396f281fe620266bf9914034",
@@ -110155,15 +110179,8 @@
         "resources": [
           "owner:files"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wP01",
-          "claimedAt": "2026-11-23T18:17:54.008Z",
-          "heartbeatAt": "2026-11-23T19:24:31.574Z",
-          "expiresAt": "2026-11-23T19:54:31.574Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "d15bbdf7095f86bedb5c69bd0f4b297c357f0061",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -110356,19 +110373,38 @@
             "command": "tsc server-files + records",
             "result": "passed",
             "sourceSha": "109612544"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "343e9babe",
+            "owner": "files",
+            "before": 294,
+            "after": 293,
+            "note": "wP01: RD_LEGAL_CORPUS_SOURCE_LINK + nativeFilesRead with NULL link normalization."
+          },
+          {
+            "command": "cargo test -p erpx-server-files --test files_wave1b_plan (18)",
+            "result": "passed",
+            "sourceSha": "343e9babe"
+          },
+          {
+            "command": "tsc server-files + server-legal",
+            "result": "passed",
+            "sourceSha": "343e9babe"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "handoff",
         "handoff": {
           "runId": "run-20261123-f",
-          "agentId": "wM01",
-          "at": "2026-11-23T18:17:53.846Z",
+          "agentId": "wP01",
+          "at": "2026-11-23T19:24:42.920Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Integrated; claim released"
+          "nextAction": "Paused at 293; single-read queue exhausted"
         },
-        "nextAction": "294 recorded; legal-corpus-source-facts is the last single-read candidate",
+        "nextAction": "Paused at 293; single-read queue exhausted",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -112532,8 +112568,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU02",
           "claimedAt": "2026-11-23T18:38:16.118Z",
-          "heartbeatAt": "2026-11-23T19:24:31.574Z",
-          "expiresAt": "2026-11-23T19:54:31.574Z",
+          "heartbeatAt": "2026-11-23T19:25:47.785Z",
+          "expiresAt": "2026-11-23T19:55:47.785Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113066,8 +113102,15 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "status": "blocked",
-        "claim": null,
+        "status": "in_progress",
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wY03",
+          "claimedAt": "2026-11-23T19:24:53.559Z",
+          "heartbeatAt": "2026-11-23T19:25:47.785Z",
+          "expiresAt": "2026-11-23T19:55:47.785Z",
+          "generation": 158
+        },
         "baseSha": "da6bb709d97625f2d522fbabb98b9489cfca1fb3",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -113102,7 +113145,7 @@
             "removalCondition": "After runtime generation native statement lands"
           }
         ],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Worker source review at be30e2e27; runtime gates not rerun. Record explicit expiry tasks for two executive read consumers.",
         "handoff": {
           "runId": "run-20261123-codex",
@@ -114128,8 +114171,8 @@
           "runId": "run-20261123-f",
           "agentId": "wW02",
           "claimedAt": "2026-11-23T19:05:51.389Z",
-          "heartbeatAt": "2026-11-23T19:24:31.574Z",
-          "expiresAt": "2026-11-23T19:54:31.574Z",
+          "heartbeatAt": "2026-11-23T19:25:47.785Z",
+          "expiresAt": "2026-11-23T19:55:47.785Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114742,8 +114785,8 @@
           "runId": "run-20261123-f",
           "agentId": "wX01",
           "claimedAt": "2026-11-23T19:09:59.338Z",
-          "heartbeatAt": "2026-11-23T19:24:31.574Z",
-          "expiresAt": "2026-11-23T19:54:31.574Z",
+          "heartbeatAt": "2026-11-23T19:25:47.785Z",
+          "expiresAt": "2026-11-23T19:55:47.785Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115326,8 +115369,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU01",
           "claimedAt": "2026-11-23T18:38:16.034Z",
-          "heartbeatAt": "2026-11-23T19:24:31.574Z",
-          "expiresAt": "2026-11-23T19:54:31.574Z",
+          "heartbeatAt": "2026-11-23T19:25:47.785Z",
+          "expiresAt": "2026-11-23T19:55:47.785Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115365,8 +115408,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU03",
           "claimedAt": "2026-11-23T18:42:45.943Z",
-          "heartbeatAt": "2026-11-23T19:24:31.574Z",
-          "expiresAt": "2026-11-23T19:54:31.574Z",
+          "heartbeatAt": "2026-11-23T19:25:47.785Z",
+          "expiresAt": "2026-11-23T19:55:47.785Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115405,8 +115448,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU05",
           "claimedAt": "2026-11-23T18:47:54.577Z",
-          "heartbeatAt": "2026-11-23T19:24:31.574Z",
-          "expiresAt": "2026-11-23T19:54:31.574Z",
+          "heartbeatAt": "2026-11-23T19:25:47.785Z",
+          "expiresAt": "2026-11-23T19:55:47.785Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115457,8 +115500,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU06",
           "claimedAt": "2026-11-23T18:48:10.751Z",
-          "heartbeatAt": "2026-11-23T19:24:31.574Z",
-          "expiresAt": "2026-11-23T19:54:31.574Z",
+          "heartbeatAt": "2026-11-23T19:25:47.785Z",
+          "expiresAt": "2026-11-23T19:55:47.785Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115571,8 +115614,8 @@
           "runId": "run-20261123-f",
           "agentId": "wX02",
           "claimedAt": "2026-11-23T19:13:39.854Z",
-          "heartbeatAt": "2026-11-23T19:24:31.574Z",
-          "expiresAt": "2026-11-23T19:54:31.574Z",
+          "heartbeatAt": "2026-11-23T19:25:47.785Z",
+          "expiresAt": "2026-11-23T19:55:47.785Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115649,8 +115692,8 @@
           "runId": "run-20261123-f",
           "agentId": "wX03",
           "claimedAt": "2026-11-23T19:14:25.266Z",
-          "heartbeatAt": "2026-11-23T19:24:31.574Z",
-          "expiresAt": "2026-11-23T19:54:31.574Z",
+          "heartbeatAt": "2026-11-23T19:25:47.785Z",
+          "expiresAt": "2026-11-23T19:55:47.785Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115912,8 +115955,8 @@
           "runId": "run-20261123-f",
           "agentId": "wY01",
           "claimedAt": "2026-11-23T19:23:02.111Z",
-          "heartbeatAt": "2026-11-23T19:24:31.574Z",
-          "expiresAt": "2026-11-23T19:54:31.574Z",
+          "heartbeatAt": "2026-11-23T19:25:47.785Z",
+          "expiresAt": "2026-11-23T19:55:47.785Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115993,8 +116036,8 @@
           "runId": "run-20261123-f",
           "agentId": "wY02",
           "claimedAt": "2026-11-23T19:23:26.256Z",
-          "heartbeatAt": "2026-11-23T19:24:31.574Z",
-          "expiresAt": "2026-11-23T19:54:31.574Z",
+          "heartbeatAt": "2026-11-23T19:25:47.785Z",
+          "expiresAt": "2026-11-23T19:55:47.785Z",
           "generation": 158
         },
         "baseSha": null,
@@ -116006,6 +116049,86 @@
         "nextAction": "Pick the smallest owner-local billing read family with a mounted native port or fixed SQL; switch it and delete the redundant TS SELECT; record strictly lower from 123.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.record-details-read-plan",
+        "goalId": "G4",
+        "owner": "finance",
+        "title": "Finance record-details caller-unit read plan (asset/invoice kinds)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/adapters/native_finance_read_sql.rs",
+          "packages/server-finance/src/adapters/native-finance-read.ts",
+          "packages/server-finance/src/adapters/finance_owner_write_http.rs",
+          "packages/server-finance/src/adapters/finance-expansion-records.ts",
+          "packages/server-finance/src/adapters/finance-record-details.ts",
+          "packages/server-finance/src/adapters/mod.rs",
+          "packages/server-finance/src/public/mod.rs",
+          "packages/server-finance/src/public/native_finance_read.rs",
+          "packages/server-finance/Cargo.toml",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wY04",
+          "claimedAt": "2026-11-23T19:25:03.898Z",
+          "heartbeatAt": "2026-11-23T19:25:47.785Z",
+          "expiresAt": "2026-11-23T19:55:47.785Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Add FINANCE_RD_* registry + /command-plan owner route + strict TS caller-unit client; switch finance-expansion-records asset-policy reads and finance-record-details bill/collection rows; record strictly lower finance count. No composition.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.records.read-tail-followup",
+        "goalId": "G4",
+        "owner": "records",
+        "title": "Records TS read tail native cutover",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-records/src/**",
+          "tests/unit/records/**",
+          "tests/integration/records/**"
+        ],
+        "resources": [
+          "owner:records"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wY05",
+          "claimedAt": "2026-11-23T19:25:03.994Z",
+          "heartbeatAt": "2026-11-23T19:25:47.785Z",
+          "expiresAt": "2026-11-23T19:55:47.785Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local records read family with a mounted native port or single-consumer fixed SQL; switch and delete redundant TS SQL; record strictly lower from 57.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -116014,11 +116137,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 500,
+      "totalPackets": 502,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 21,
-        "in_progress": 14,
+        "in_progress": 16,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -116028,7 +116151,7 @@
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T19:24:31.578Z",
+    "updatedAt": "2026-11-23T19:25:47.789Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
