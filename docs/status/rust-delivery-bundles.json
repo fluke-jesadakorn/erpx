@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6775,
+    "revision": 6783,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -117304,7 +117304,7 @@
         "owner": "finance",
         "title": "finance TS read tail native cutover (round 2)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -117316,28 +117316,41 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wAAfin",
-          "claimedAt": "2026-11-23T20:25:10.834Z",
-          "heartbeatAt": "2026-11-23T20:46:16.114Z",
-          "expiresAt": "2026-11-23T21:16:16.114Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "5fbfe2b83",
+            "owner": "finance",
+            "before": 2275,
+            "after": 2273,
+            "note": "finance_rd_period_end_dates and finance_rd_all_periods read kinds."
+          },
+          {
+            "command": "cargo check -p erpx-server-finance + lib (50)",
+            "result": "passed",
+            "sourceSha": "5fbfe2b83"
+          },
+          {
+            "command": "vitest entrypoint-period-reads-native + native-finance-read-plan (6) + tsc finance",
+            "result": "passed",
+            "sourceSha": "5fbfe2b83"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-f",
+          "runId": "run-20261123-g",
           "agentId": "wAAfin",
-          "at": "2026-11-23T20:25:05.022Z",
+          "at": "2026-11-23T20:52:48.663Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during active read-tail r2 wave; WIP reviewed with 19 workers active",
-          "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -118028,7 +118041,7 @@
         "owner": "workflow",
         "title": "workflow TS read tail native cutover (round 2)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -118040,28 +118053,41 @@
         "resources": [
           "owner:workflow"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wAAwor",
-          "claimedAt": "2026-11-23T20:25:12.012Z",
-          "heartbeatAt": "2026-11-23T20:46:16.114Z",
-          "expiresAt": "2026-11-23T21:16:16.114Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-workflow/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "5fbfe2b83",
+            "owner": "workflow",
+            "before": 106,
+            "after": 104,
+            "note": "Two work UI approval queue reads via wave3-command read kinds."
+          },
+          {
+            "command": "cargo check -p erpx-server-workflow + lib (32)",
+            "result": "passed",
+            "sourceSha": "5fbfe2b83"
+          },
+          {
+            "command": "vitest workflow.native-workflow-evidence-transport (6) + tsc workflow",
+            "result": "passed",
+            "sourceSha": "5fbfe2b83"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-f",
+          "runId": "run-20261123-g",
           "agentId": "wAAwor",
-          "at": "2026-11-23T20:25:05.022Z",
+          "at": "2026-11-23T20:51:46.768Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during active read-tail r2 wave; WIP reviewed with 19 workers active",
-          "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -118460,6 +118486,78 @@
         "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.read-tail-r3",
+        "goalId": "G4",
+        "owner": "finance",
+        "title": "finance TS read tail native cutover (round 3)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wAGfin",
+          "claimedAt": "2026-11-23T20:52:57.938Z",
+          "heartbeatAt": "2026-11-23T20:52:57.938Z",
+          "expiresAt": "2026-11-23T21:22:57.938Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.workflow.read-tail-r3",
+        "goalId": "G4",
+        "owner": "workflow",
+        "title": "workflow TS read tail native cutover (round 3)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/**",
+          "tests/unit/workflow/**",
+          "tests/integration/workflow/**"
+        ],
+        "resources": [
+          "owner:workflow"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wAGwor",
+          "claimedAt": "2026-11-23T20:52:58.099Z",
+          "heartbeatAt": "2026-11-23T20:52:58.099Z",
+          "expiresAt": "2026-11-23T21:22:58.099Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -118468,7 +118566,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 539,
+      "totalPackets": 541,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -118476,13 +118574,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 170,
+        "blocked": 172,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T20:51:28.770Z",
+    "updatedAt": "2026-11-23T20:52:58.102Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
