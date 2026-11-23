@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7395,
+    "revision": 7399,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -125804,7 +125804,7 @@
         "owner": "pos",
         "title": "pos TS read tail native cutover (round 12)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -125816,28 +125816,41 @@
         "resources": [
           "owner:pos"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wDH1pos",
-          "claimedAt": "2026-11-23T23:30:58.475Z",
-          "heartbeatAt": "2026-11-23T23:30:58.574Z",
-          "expiresAt": "2026-11-24T00:00:58.574Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "3bdc0e29d",
+            "owner": "pos",
+            "before": 270,
+            "after": 266,
+            "note": "Four by-id FOR UPDATE payment reads via stripe_readpospaymentsbyid_527; live lock test 55P03."
+          },
+          {
+            "command": "cargo check -p erpx-server-pos + lib (25) + pos_work PG (4)",
+            "result": "passed",
+            "sourceSha": "3bdc0e29d"
+          },
+          {
+            "command": "vitest pos units (236) + tsc pos/tests-config",
+            "result": "passed",
+            "sourceSha": "3bdc0e29d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Migrate the four pos_payments by-id FOR UPDATE copies through a caller-unit registry statement preserving lock semantics; record a strictly lower count.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-h",
+          "runId": "run-20261123-i",
           "agentId": "wDH1pos",
-          "at": "2026-11-23T23:30:50.417Z",
+          "at": "2026-11-23T23:54:43.538Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired at 23:30 during active read-tail and composition mounts; WIP reviewed, slices integrated continuously",
-          "nextAction": "Migrate the four pos_payments by-id FOR UPDATE copies through a caller-unit registry statement preserving lock semantics; record a strictly lower count."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -126444,6 +126457,42 @@
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to the native operations registry; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pos.read-tail-r13",
+        "goalId": "G4",
+        "owner": "pos",
+        "title": "pos TS read tail native cutover (round 13)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pos/src/**",
+          "tests/unit/pos/**",
+          "tests/integration/pos/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wDV1pos",
+          "claimedAt": "2026-11-23T23:54:43.716Z",
+          "heartbeatAt": "2026-11-23T23:54:43.716Z",
+          "expiresAt": "2026-11-24T00:24:43.716Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family served by the native POS registry; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -126452,7 +126501,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 679,
+      "totalPackets": 680,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -126460,13 +126509,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 318,
+        "blocked": 319,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-23T23:53:37.406Z",
+    "updatedAt": "2026-11-23T23:54:43.718Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
