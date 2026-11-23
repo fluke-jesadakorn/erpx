@@ -45,9 +45,23 @@ const READ_REQUEST_QUOTATION: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `attachments-operational-facts` bill
+/// match read. Same owner literal and `[targetId, companyId]` binds.
+pub const RD_OPERATIONAL_ATTACHMENT_BILL_MATCH: &str =
+    "procurement_rd_operational_attachment_bill_match";
+const SQL_OPERATIONAL_ATTACHMENT_BILL_MATCH: &str =
+    "SELECT company_id,branch_id,department_id,version FROM procurement_bill_matches WHERE id=? AND company_id=?";
+const READ_OPERATIONAL_ATTACHMENT_BILL_MATCH: NativeReadStatement = NativeReadStatement {
+    kind: RD_OPERATIONAL_ATTACHMENT_BILL_MATCH,
+    sql: SQL_OPERATIONAL_ATTACHMENT_BILL_MATCH,
+    bind_count: 2,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_INVOICE_MATCH_FOR_FINANCE,
     READ_REQUEST_QUOTATION,
+    READ_OPERATIONAL_ATTACHMENT_BILL_MATCH,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -68,6 +82,7 @@ mod tests {
     fn read_kinds_are_distinct_from_write_kinds() {
         assert!(is_read(RD_INVOICE_MATCH_FOR_FINANCE));
         assert!(is_read(RD_REQUEST_QUOTATION));
+        assert!(is_read(RD_OPERATIONAL_ATTACHMENT_BILL_MATCH));
         assert!(!is_read("procurement_stmt_1"));
         assert!(read_statement("not_a_native_read").is_none());
     }
@@ -75,8 +90,17 @@ mod tests {
     #[test]
     fn entrypoint_read_plans_are_ledger_free_and_bounded() {
         for (kind, binds, table) in [
-            (RD_INVOICE_MATCH_FOR_FINANCE, 2usize, "procurement_bill_matches"),
+            (
+                RD_INVOICE_MATCH_FOR_FINANCE,
+                2usize,
+                "procurement_bill_matches",
+            ),
             (RD_REQUEST_QUOTATION, 2usize, "procurement_rfqs"),
+            (
+                RD_OPERATIONAL_ATTACHMENT_BILL_MATCH,
+                2usize,
+                "procurement_bill_matches",
+            ),
         ] {
             let read = read_statement(kind).expect("read kind");
             let upper = read.sql.to_ascii_uppercase();
@@ -89,5 +113,18 @@ mod tests {
             assert!(read.sql.contains(table));
             assert!(is_read(kind));
         }
+    }
+
+    #[test]
+    fn operational_attachment_bill_match_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_OPERATIONAL_ATTACHMENT_BILL_MATCH).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT company_id,branch_id,department_id,version FROM procurement_bill_matches WHERE id=? AND company_id=?"
+        );
+        assert_eq!(read.bind_count, 2);
+        assert_eq!(read.sql.matches('?').count(), 2);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_OPERATIONAL_ATTACHMENT_BILL_MATCH));
     }
 }

@@ -5,15 +5,18 @@ import {
   nativeProcurementReadFirst,
   PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE,
   PROCUREMENT_RD_REQUEST_QUOTATION,
+  PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH,
 } from '../../../packages/server-procurement/src/adapters/native-procurement-read';
 import { procurementInvoiceMatchForFinance } from '../../../packages/server-procurement/src/adapters/finance-entrypoint-queries';
 import { requestQuotation } from '../../../packages/server-procurement/src/adapters/people-app-entrypoint-facts';
+import { OperationalAttachmentProcurementFacts } from '../../../packages/server-procurement/src/adapters/attachments-operational-facts';
 
 const envKey = 'ERPX_NATIVE_PROCUREMENT_CONFIG';
 const original = process.env[envKey];
 const planned = {
   [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE]: 'SELECT id,reference FROM procurement_bill_matches WHERE invoice_id=? AND company_id=?',
   [PROCUREMENT_RD_REQUEST_QUOTATION]: "SELECT id FROM procurement_rfqs WHERE request_id=? AND company_id=? AND status<>'cancelled'",
+  [PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH]: 'SELECT company_id,branch_id,department_id,version FROM procurement_bill_matches WHERE id=? AND company_id=?',
 };
 const stubFetch = (payload: unknown, status = 200) => {
   const fetchMock = vi.fn(async () => ({
@@ -62,7 +65,8 @@ describe('native Procurement caller-unit read plan', () => {
   it('exposes allow-listed PROCUREMENT_RD_* kinds with no SQL on the wire', () => {
     expect(PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE).toBe('procurement_rd_invoice_match_finance');
     expect(PROCUREMENT_RD_REQUEST_QUOTATION).toBe('procurement_rd_request_quotation');
-    for (const kind of [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE, PROCUREMENT_RD_REQUEST_QUOTATION]) {
+    expect(PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH).toBe('procurement_rd_operational_attachment_bill_match');
+    for (const kind of [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE, PROCUREMENT_RD_REQUEST_QUOTATION, PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH]) {
       expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
     }
   });
@@ -98,6 +102,17 @@ describe('native Procurement caller-unit read plan', () => {
     expect(row).toEqual({ id: 'rfq-1' });
     expect(prepared).toEqual([planned[PROCUREMENT_RD_REQUEST_QUOTATION]]);
     expect(bound).toEqual([['req-1', 'company']]);
+  });
+
+  it('switched attachments-operational facts adapter carries no SQL and returns the planned row', async () => {
+    const row = { company_id: 'company', branch_id: null, department_id: null, version: 3 };
+    stubFetch({ data: { statements: [{ sql: planned[PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH], values: ['bill-1', 'company'] }] } });
+    const { db, prepared, bound } = fakeDb([row]);
+    const facts = OperationalAttachmentProcurementFacts(db as never);
+    const result = await facts.readProcurementBillMatches1({ targetId: 'bill-1', companyId: 'company' });
+    expect(result).toEqual(row);
+    expect(prepared).toEqual([planned[PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH]]);
+    expect(bound).toEqual([['bill-1', 'company']]);
   });
 
   it('fails closed when the native transport is not configured', async () => {

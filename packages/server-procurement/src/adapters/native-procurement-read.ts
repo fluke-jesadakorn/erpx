@@ -19,6 +19,7 @@ type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: 
 /** Read-kind ids shared with the Rust read registry in `native_read_sql.rs`. */
 export const PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE = 'procurement_rd_invoice_match_finance';
 export const PROCUREMENT_RD_REQUEST_QUOTATION = 'procurement_rd_request_quotation';
+export const PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH = 'procurement_rd_operational_attachment_bill_match';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PROCUREMENT_NATIVE_READ_UNAVAILABLE', 'The native Procurement read service is unavailable.');
