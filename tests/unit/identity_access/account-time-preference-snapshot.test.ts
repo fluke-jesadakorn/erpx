@@ -2,12 +2,9 @@ import { beforeEach, expect, it, vi } from "vitest";
 vi.mock("server-only", () => ({}));
 const mocks = vi.hoisted(() => ({ session: vi.fn(), read: vi.fn() }));
 vi.mock("@erpx/server-identity_access/adapters/authorization", () => ({ currentSession: mocks.session }));
-vi.mock("@erpx/server-runtime/public/runtime", () => ({ runtimeEnv: async () => ({ CONTROL_DB: {
-  prepare: () => ({ bind: (id: string) => ({ first: () => mocks.read(id) }) }),
-} }) }));
-import { accountTimePreferenceSnapshot } from "@erpx/server-identity_access/public/account-time-preference";
+import { accountTimePreferenceSnapshot, setTimePreferenceReadForTest } from "@erpx/server-identity_access/public/account-time-preference";
 
-beforeEach(() => { mocks.session.mockReset(); mocks.read.mockReset(); });
+beforeEach(() => { mocks.session.mockReset(); mocks.read.mockReset(); setTimePreferenceReadForTest(id => mocks.read(id)); });
 it("seeds only the current authenticated account's preference without serializing identity or session facts", async () => {
   mocks.session.mockResolvedValue({ session: { user: { id: "account-one", email: "private@example.test" }, session: { id: "private-session", token: "private-token" } } });
   mocks.read.mockResolvedValue({ mode: "manual", timeZone: "Asia/Bangkok", hourCycle: "h12", version: 4 });

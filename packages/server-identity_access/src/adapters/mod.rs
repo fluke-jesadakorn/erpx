@@ -15,6 +15,7 @@ pub(crate) mod account_sso_http;
 pub(crate) mod account_sso_postgres;
 pub(crate) mod account_time_preference_http;
 pub(crate) mod account_time_preference_postgres;
+pub(crate) mod account_time_preference_read;
 pub(crate) mod identity_write;
 pub(crate) mod identity_write_generated;
 pub(crate) mod identity_write_http;
