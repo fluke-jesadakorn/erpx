@@ -6,7 +6,7 @@
 //! and never writes another owner's rows. All SQL lives here, inside the owner
 //! crate.
 use crate::application::executive_evidence::{
-    EvidenceAccessRepository, EvidenceActor, EvidenceFuture, EvidenceInsert, EvidenceLedgerEntry,
+    EvidenceAccessRepository, EvidenceFuture, EvidenceInsert, EvidenceLedgerEntry,
     StoredEvidenceReceipt,
 };
 use crate::domain::executive_evidence::unavailable;
