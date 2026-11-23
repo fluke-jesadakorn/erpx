@@ -2,7 +2,19 @@ import {productionReadProjection as productioncommerceProjection} from '@erpx/se
 import {productionReadProjection as productionfinanceProjection} from '@erpx/server-finance/public/production-read-projections';
 import {productionReadProjection as productionplanningProjection} from '@erpx/server-planning/public/production-read-projections';
 import {productionReadProjection as productioninventoryProjection} from '@erpx/server-inventory/public/production-read-projections';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {ownerWrite} from '@erpx/server-manufacturing/adapters/native-owner-write';export function productionCommandSources(db:SqlDatabase){return {async specification(value:(string | number)[],v:number|undefined){return db
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {ownerWrite} from '@erpx/server-manufacturing/adapters/native-owner-write';
+
+/** Owner-local fixed read: the latest output-report actor on a production
+ * order. `lastReportActor` (QC pass) and `lastOutputReportActor` (scrap approval)
+ * execute the identical statement on the caller's open production unit; one
+ * definition keeps those two atomic QC witnesses from drifting and removes the
+ * redundant TypeScript SQL. This read is deliberately outside the RD_*
+ * read-plan registry (it is an atomic witness, not a projection) and stays
+ * live TypeScript on the same transaction and snapshot as before. */
+const latestReportActorSelect =
+  "SELECT actor_id FROM manufacturing_order_events WHERE order_id=? AND action='report' ORDER BY version DESC LIMIT 1";
+
+export function productionCommandSources(db:SqlDatabase){return {async specification(value:(string | number)[],v:number|undefined){return db
     .prepare(
       `SELECT * FROM manufacturing_specifications WHERE id=? AND company_id=? ${v ? "AND version=?" : ""}`,
     )
@@ -60,16 +72,14 @@ guardCompleteRouting(key:string,value:"completed-routing",value2:string,id:strin
       AND NOT EXISTS(SELECT 1 FROM manufacturing_operation_events e WHERE e.order_id=? AND e.operation_id=op.id))`, [value2, id]);},
  prepareOutputReport(value:number,value2:number,value3:number,value4:number,id:string){return ownerWrite('order.output-report',[value,value2,value3,value4,id],String(id));},
 async lastReportActor(id:string){return db
-      .prepare(
-        "SELECT actor_id FROM manufacturing_order_events WHERE order_id=? AND action='report' ORDER BY version DESC LIMIT 1",
-      )
+      .prepare(latestReportActorSelect)
       .bind(id)
       .first<string>("actor_id");},
 guardIndependentPass(key:string,value:"independent-qc",id:string,expectedVersion:number,userId:string){return assertion(db, key, value, "EXISTS(SELECT 1 FROM manufacturing_order_events WHERE order_id=? AND action='report' AND version=? AND actor_id<>?)", [id, expectedVersion, userId]);},
 async currentReportActor(id:string,expectedVersion:number){return db.prepare("SELECT actor_id FROM manufacturing_order_events WHERE order_id=? AND action='report' AND version=?")
       .bind(id, expectedVersion).first<string>("actor_id");},
 guardIndependentFail(key:string,value:"independent-qc",id:string,expectedVersion:number,userId:string){return assertion(db, key, value, "EXISTS(SELECT 1 FROM manufacturing_order_events WHERE order_id=? AND action='report' AND version=? AND actor_id<>?)", [id, expectedVersion, userId]);},
-async lastOutputReportActor(id:string){return db.prepare("SELECT actor_id FROM manufacturing_order_events WHERE order_id=? AND action='report' ORDER BY version DESC LIMIT 1").bind(id).first<string>("actor_id");},
+async lastOutputReportActor(id:string){return db.prepare(latestReportActorSelect).bind(id).first<string>("actor_id");},
 async operation(operationId:string,specification_id:string | number | null){return db.prepare("SELECT * FROM manufacturing_specification_operations WHERE id=? AND specification_id=?")
       .bind(operationId, specification_id).first<Row>();},
 guardOperationSequence(key:string,value:"routing-sequence",value2:string,value3:number,id:string){return assertion(db, key, value, `NOT EXISTS(SELECT 1 FROM manufacturing_specification_operations op WHERE op.specification_id=? AND op.ordinal<?

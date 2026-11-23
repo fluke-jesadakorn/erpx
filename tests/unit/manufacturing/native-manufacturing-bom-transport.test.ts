@@ -162,9 +162,45 @@ describe('native Manufacturing BOM register transport',()=>{
 describe('Manufacturing finance-close read retirement',()=>{
   const src=new URL('../../../packages/server-manufacturing/src/',import.meta.url).pathname;
   const files=(dir:string):string[]=>nodeFs.readdirSync(dir).flatMap(name=>{const path=nodePath.join(dir,name);return nodeFs.statSync(path).isDirectory()?files(path):path.endsWith('.ts')?[path]:[];});
-  it('removed the four close-source SELECT modules and keeps the owner SELECT KPI at 153',()=>{
+  it('removed the four close-source SELECT modules and keeps the owner SELECT KPI at 152',()=>{
     const paths=files(src);
     expect(paths.some(path=>path.includes('finance-close-source'))).toBe(false);
-    expect(paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0)).toBe(153);
+    expect(paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0)).toBe(152);
+  });
+});
+describe('Manufacturing owner-local report-actor read dedupe',()=>{
+  const source=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/production-command-sources.ts',import.meta.url),'utf8');
+  const registry=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/public/native_command.rs',import.meta.url),'utf8');
+  const sql="SELECT actor_id FROM manufacturing_order_events WHERE order_id=? AND action='report' ORDER BY version DESC LIMIT 1";
+  it('keeps one fixed-SQL definition and switches both QC callers to it',()=>{
+    expect(source).toContain('const latestReportActorSelect');
+    expect(source.split(sql)).toHaveLength(2);
+    for(const method of ['lastReportActor','lastOutputReportActor']){
+      const at=source.indexOf(`async ${method}`);
+      const body=source.slice(at,at+260);
+      expect(body).toContain('.prepare(latestReportActorSelect)');
+      expect(body).toContain('.bind(id)');
+      expect(body).toContain('.first<string>("actor_id")');
+    }
+  });
+  it('stays owner-local, outside the RD_* registry and free of fail-closed markers',()=>{
+    expect(sql).toContain('FROM manufacturing_order_events');
+    expect(sql).not.toContain('JOIN');
+    expect(registry).not.toContain(sql);
+    expect(registry).not.toContain('report-actor');
+    for(const method of ['lastReportActor','lastOutputReportActor']){
+      const at=source.indexOf(`async ${method}`);
+      expect(source.slice(at,at+260)).not.toMatch(/503|UNAVAILABLE|fail closed/i);
+    }
+  });
+  it('runs the identical live statement and binds on both QC callers',async()=>{
+    const {productionCommandSources}=await import('../../../packages/server-manufacturing/src/adapters/production-command-sources');
+    const prepares:string[]=[],binds:unknown[][]=[];
+    const db={prepare(statement:string){prepares.push(statement);return {bind(...values:unknown[]){binds.push(values);return {first:async()=>'reporter'};}};}} as never;
+    const sources=productionCommandSources(db);
+    expect(await sources.lastReportActor('order-1')).toBe('reporter');
+    expect(await sources.lastOutputReportActor('order-1')).toBe('reporter');
+    expect(prepares).toEqual([sql,sql]);
+    expect(binds).toEqual([['order-1'],['order-1']]);
   });
 });
