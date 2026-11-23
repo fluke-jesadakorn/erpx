@@ -105882,6 +105882,33 @@
         "tests/unit/procurement/native-procurement-read-plan.test.ts"
       ],
       "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Inventory POS startup state read must use the native read-plan kind and fail closed without native transport."
+      },
+      "apps": [
+        "supply"
+      ],
+      "packages": [
+        "@erpx/server-inventory"
+      ],
+      "id": "inventory.native-inventory-pos-startup-state.unit",
+      "files": [
+        "tests/unit/inventory/native-inventory-pos-startup-state.test.ts"
+      ],
+      "framework": "vitest"
     }
   ]
 }

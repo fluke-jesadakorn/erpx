@@ -36,6 +36,7 @@ export const INVENTORY_RD_ATTACHMENT_DESCRIPTOR_LOT = 'inventory_rd_attachment_d
 export const INVENTORY_RD_COMMERCE_ATTACHMENT_STOCK_IMAGE = 'inventory_rd_commerce_attachment_stock_image';
 export const INVENTORY_RD_IN_TRANSIT_CURRENCY_TOTALS = 'inventory_rd_in_transit_currency_totals';
 export const INVENTORY_RD_FULFILLMENT_LOT_ALLOCATION = 'inventory_rd_fulfillment_lot_allocation';
+export const INVENTORY_RD_POS_STARTUP_INVENTORY_STATE = 'inventory_rd_pos_startup_inventory_state';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'INVENTORY_NATIVE_READ_UNAVAILABLE', 'The native Inventory read service is unavailable.');

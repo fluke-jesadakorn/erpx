@@ -350,10 +350,25 @@ const READ_FULFILLMENT_LOT_ALLOCATION: NativeStatement = NativeStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `pos-startup-sources` posting-state
+/// read. Owner-local: the statement touches only Inventory's own
+/// `inventory_counts` table and the caller executes it on its already-open
+/// unit with the same two binds, taking `economics`/`image` exactly as the
+/// retired `.first()` literal did.
+pub const RD_POS_STARTUP_INVENTORY_STATE: &str = "inventory_rd_pos_startup_inventory_state";
+const SQL_RD_POS_STARTUP_INVENTORY_STATE: &str = "SELECT EXISTS(SELECT 1 FROM inventory_counts WHERE company_id=? AND status='posted') economics,COALESCE((SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM inventory_counts c WHERE c.company_id=?),'[]'::jsonb)::text image";
+const READ_POS_STARTUP_INVENTORY_STATE: NativeStatement = NativeStatement {
+    kind: RD_POS_STARTUP_INVENTORY_STATE,
+    sql: SQL_RD_POS_STARTUP_INVENTORY_STATE,
+    bind_count: 2,
+    scope: "holding",
+};
+
 pub fn is_read(kind: &str) -> bool {
     matches!(
         kind,
-        RD_LEDGER_SUPPLEMENT_ROWS
+        RD_POS_STARTUP_INVENTORY_STATE
+            | RD_LEDGER_SUPPLEMENT_ROWS
             | RD_LOT_BALANCE_SUPPLEMENT_ROWS
             | RD_LEDGER_SUPPLEMENT_ROW
             | RD_LOT_SUPPLEMENT_ROW
@@ -377,6 +392,7 @@ pub fn is_read(kind: &str) -> bool {
 
 pub fn read_statement(kind: &str) -> Option<&'static NativeStatement> {
     match kind {
+        RD_POS_STARTUP_INVENTORY_STATE => Some(&READ_POS_STARTUP_INVENTORY_STATE),
         RD_LEDGER_SUPPLEMENT_ROWS => Some(&READ_LEDGER_SUPPLEMENT),
         RD_LOT_BALANCE_SUPPLEMENT_ROWS => Some(&READ_LOT_BALANCE_SUPPLEMENT),
         RD_LEDGER_SUPPLEMENT_ROW => Some(&READ_LEDGER_SUPPLEMENT_ROW),
@@ -437,6 +453,7 @@ mod tests {
     #[test]
     fn read_plan_is_call_unit_and_ledger_free() {
         for kind in [
+            RD_POS_STARTUP_INVENTORY_STATE,
             RD_LEDGER_SUPPLEMENT_ROWS,
             RD_LOT_BALANCE_SUPPLEMENT_ROWS,
             RD_LEDGER_SUPPLEMENT_ROW,
@@ -529,6 +546,23 @@ mod tests {
             "SELECT id FROM inventory_ledger WHERE warehouse_id=? AND product_id=? AND movement_date>? LIMIT 1"
         );
         assert_eq!(movement.bind_count, 3);
+    }
+
+    /// Parity witness for the owner-local `pos-startup-sources` posting-state
+    /// read: the native plan is the exact statement the retired TypeScript
+    /// literal bound on Inventory's `inventory_counts` table, with the caller's
+    /// two company binds intact and no cross-owner projection.
+    #[test]
+    fn pos_startup_inventory_state_read_plan_matches_retired_owner_statement() {
+        let read = read_statement(RD_POS_STARTUP_INVENTORY_STATE).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT EXISTS(SELECT 1 FROM inventory_counts WHERE company_id=? AND status='posted') economics,COALESCE((SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM inventory_counts c WHERE c.company_id=?),'[]'::jsonb)::text image"
+        );
+        assert_eq!(read.bind_count, 2);
+        assert_eq!(read.sql.matches('?').count(), read.bind_count);
+        assert_eq!(read.scope, "holding");
+        assert!(!read.sql.contains("commerce_"));
     }
 
     /// Parity witness for the owner-local `attachments-operational-facts` read:
