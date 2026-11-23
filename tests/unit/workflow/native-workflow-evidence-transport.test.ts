@@ -604,3 +604,46 @@ describe('workflow legal decision history read tail (native read plan)', () => {
     }
   });
 });
+
+describe('workflow flow planning definitions instance read tail (native read plan)', () => {
+  it('carries no retired owner SQL for the switched read', async () => {
+    const source = await readFile(
+      new URL(
+        '../../../packages/server-workflow/src/adapters/flow-planning-ports.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    expect(source).not.toContain('SELECT * FROM approval_instances WHERE company_id=? AND record_type=? AND record_id=?');
+    expect(source).not.toContain('ORDER BY insertion_order DESC LIMIT 1").bind(company_id, approvalKind, id)');
+  });
+
+  it('plans the definitions instance read through the mounted native read with no local SQL', async () => {
+    const row = { id: 'instance-1', record_type: 'expense' };
+    const first = vi.fn(async () => row);
+    vi.resetModules();
+    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+      nativeWorkflowReadFirst: first,
+    }));
+    try {
+      const { nativeFlowPlanningPorts } = await import(
+        '../../../packages/server-workflow/src/adapters/flow-planning-ports'
+      );
+      const prepare = vi.fn();
+      const db = { prepare } as never;
+      const ports = nativeFlowPlanningPorts(db);
+      expect(await ports.repository.readDefinitionsInstance('company', 'expense', 'record-1'))
+        .toEqual(row);
+      expect(first).toHaveBeenCalledWith(
+        'wf_native_flow_definitions_instance',
+        ['company', 'expense', 'record-1'],
+        'company',
+        db,
+      );
+      expect(prepare).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.resetModules();
+    }
+  });
+});
