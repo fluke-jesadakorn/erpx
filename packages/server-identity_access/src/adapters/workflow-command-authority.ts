@@ -19,7 +19,7 @@ function workflowWorkContextGuards(db:SqlDatabase,actor:CommandActor,id:string):
          [actor.assignmentId,actor.authority.assignmentVersion,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId]),
       ]:[]);
 }
-function workflowAssignmentGuard(db:SqlDatabase,actor:CommandActor,id:string){return assertion(db,id,"assignment", "EXISTS(SELECT 1 FROM assignments WHERE id=? AND user_id=? AND role=? AND company_id=? AND (scope_kind='holding' OR (scope_kind='branch' AND scope_node_id=?) OR (scope_kind='department' AND scope_node_id=?)) AND revoked_at IS NULL AND valid_from<=(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_until>(floor(extract(epoch FROM clock_timestamp())*1000)::bigint))", [actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId]);}
+function workflowAssignmentGuard(db:SqlDatabase,actor:CommandActor,id:string){return assertion(db,id,"assignment", "EXISTS(SELECT 1 FROM assignments WHERE id=? AND user_id=? AND role=? AND company_id=? AND (scope_kind='holding' OR (scope_kind='branch' AND scope_node_id=?::text) OR (scope_kind='department' AND scope_node_id=?::text)) AND revoked_at IS NULL AND valid_from<=(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_until>(floor(extract(epoch FROM clock_timestamp())*1000)::bigint))", [actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId]);}
  return Object.freeze({workflowWorkContextGuards,workflowAssignmentGuard});
 }
 export function workflowAssignmentAuthorityProjection(){return "(SELECT jsonb_build_object('scopeKind',scope_kind,'scopeNodeId',scope_node_id) FROM assignments WHERE id=?)";}

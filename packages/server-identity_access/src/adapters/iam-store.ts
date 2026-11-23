@@ -159,13 +159,13 @@ export function iamMutationGuards(db: SqlDatabase, actor: PermissionActor & {
     const iam = actor.iam;
     return [
         assertion(db,key,"iam-current-authority",`
- NOT EXISTS(SELECT 1 FROM iam_revoked_sessions WHERE session_id=? AND company_id=? AND user_id=?)
- AND (?::integer IS NULL OR EXISTS(SELECT 1 FROM assignments WHERE id=? AND version=?))
- AND iam_assignment_active(?,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
- AND NOT EXISTS(SELECT 1 FROM iam_members m LEFT JOIN iam_identities i ON i.id=m.identity_id LEFT JOIN iam_connections c ON c.id=m.connection_id WHERE m.company_id=? AND m.user_id=? AND (m.status!='active' OR (?::integer IS NOT NULL AND m.version!=?) OR (m.login_policy='directory' AND (i.enabled IS DISTINCT FROM true OR c.status IS DISTINCT FROM 'active' OR i.observed_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint-300000))))
+ NOT EXISTS(SELECT 1 FROM iam_revoked_sessions WHERE session_id=?::text AND company_id=?::text AND user_id=?::text)
+ AND (?::integer IS NULL OR EXISTS(SELECT 1 FROM assignments WHERE id=?::text AND version=?::bigint))
+ AND iam_assignment_active(?::text,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
+ AND NOT EXISTS(SELECT 1 FROM iam_members m LEFT JOIN iam_identities i ON i.id=m.identity_id LEFT JOIN iam_connections c ON c.id=m.connection_id WHERE m.company_id=?::text AND m.user_id=?::text AND (m.status!='active' OR (?::integer IS NOT NULL AND m.version!=?::bigint) OR (m.login_policy='directory' AND (i.enabled IS DISTINCT FROM true OR c.status IS DISTINCT FROM 'active' OR i.observed_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint-300000))))
  AND (?::bigint IS NULL OR ?::bigint>floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
- AND (?::integer IS NULL OR COALESCE((SELECT version FROM iam_members WHERE company_id=? AND user_id=?),0)=?)
- AND EXISTS(SELECT 1 FROM iam_roles WHERE id=? AND company_id IN ('*',?) AND status='active' AND (?::integer IS NULL OR published_revision=?))
+ AND (?::integer IS NULL OR COALESCE((SELECT version FROM iam_members WHERE company_id=?::text AND user_id=?::text),0)=?::bigint)
+ AND EXISTS(SELECT 1 FROM iam_roles WHERE id=?::text AND company_id IN ('*',?::text) AND status='active' AND (?::integer IS NULL OR published_revision=?::bigint))
 `,[actor.authority?.sessionId ?? null,actor.companyId,actor.userId,iam?.queuedAssignmentVersion ?? null,actor.assignmentId,iam?.queuedAssignmentVersion ?? null,actor.assignmentId,actor.companyId,actor.userId,iam?.identityVersion ?? null,iam?.identityVersion ?? null,iam?.emergencyUntil ?? null,iam?.emergencyUntil ?? null,iam?.identityVersion ?? null,actor.companyId,actor.userId,iam?.identityVersion ?? null,actor.role,actor.companyId,iam?.roleRevision ?? null,iam?.roleRevision ?? null]),
         ...(iam?.hrAppointmentVersion === undefined ? [] : [assertion(db,key,"hr-appointment-current",` EXISTS(
       SELECT 1 ${organizationFinalSources.iam_store_authority_seats_s_from} ${peoplepayrollSources.iam_store_hr_people_p_join} ON p.id=s.person_id AND p.company_id=s.company_id AND p.status='active' AND p.merged_into_id IS NULL

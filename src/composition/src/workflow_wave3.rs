@@ -215,7 +215,12 @@ impl WorkflowWave3ExecuteBackend for WorkflowWave3ExecuteBackendImpl {
                     }
                     serde_json::Value::Number(v) => query.bind(v.as_f64().unwrap_or(0.0)),
                     serde_json::Value::Bool(v) => query.bind(*v),
-                    serde_json::Value::Null => query.bind(Option::<String>::None),
+                    // Assertion conditions compare nullable versions/times as
+                    // bigint; an explicitly text-typed NULL would fail with
+                    // `bigint = text`. Untyped alternatives are not available
+                    // through sqlx arguments, so bind the observed nullable
+                    // numeric family.
+                    serde_json::Value::Null => query.bind(Option::<i64>::None),
                     serde_json::Value::Array(_) | serde_json::Value::Object(_) => {
                         query.bind(value.to_string())
                     }

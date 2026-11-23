@@ -326,6 +326,10 @@ export async function startNativeAccountSsoProxy(): Promise<void> {
   process.env.ERPX_NATIVE_COMMERCE_WAVE2_CONFIG = ownerWrite;
   process.env.ERPX_NATIVE_MANUFACTURING_OWNER_WRITE_CONFIG = ownerWrite;
   process.env.ERPX_NATIVE_MANUFACTURING_ACCOUNTING_CONFIG = ownerWrite;
+  process.env.ERPX_NATIVE_FINANCE_COMPANY_MONEY_CONFIG = JSON.stringify({
+    privateBaseUrl: proxyBaseUrl,
+    timeoutMs: 10_000,
+  });
   process.env.ERPX_NATIVE_COLLABORATION_CONFIG = JSON.stringify({
     privateBaseUrl: proxyBaseUrl,
     timeoutMs: 10_000,

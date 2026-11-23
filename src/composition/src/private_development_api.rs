@@ -9200,7 +9200,8 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         && (path.starts_with("/api/v1/companies/")
             && (path.ends_with("/native-command")
                 || path.ends_with("/workflow/wave3-command")
-                || path.ends_with("/collaboration/notification-statement"))
+                || path.ends_with("/collaboration/notification-statement")
+                || path.contains("/finance/company-money/"))
             || path.starts_with("/api/v1/holdings/")
                 && path.ends_with("/workflow/wave3-execute"));
     if state.policy.audience(host).is_none()
