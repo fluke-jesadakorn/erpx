@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7385,
+    "revision": 7389,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -125939,7 +125939,7 @@
         "owner": "assets",
         "title": "assets TS read tail native cutover (round 9)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -125951,22 +125951,42 @@
         "resources": [
           "owner:assets"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wDK1ass",
-          "claimedAt": "2026-11-23T23:35:36.049Z",
-          "heartbeatAt": "2026-11-23T23:35:36.049Z",
-          "expiresAt": "2026-11-24T00:05:36.049Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-assets/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e05bf282f",
+            "owner": "assets",
+            "before": 44,
+            "after": 42,
+            "note": "Three package-settlement source-existence probes share one helper; byte-identical."
+          },
+          {
+            "command": "cargo check -p erpx-server-assets + maintenance/register (16)",
+            "result": "passed",
+            "sourceSha": "e05bf282f"
+          },
+          {
+            "command": "vitest assets transport (21) + tsc root/tests-config",
+            "result": "passed",
+            "sourceSha": "e05bf282f"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "package-obligations (11 SELECTs) remains; pick the smallest safe sub-family or another owner-local dedupe; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wDK1ass",
+          "at": "2026-11-23T23:51:38.433Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -126312,6 +126332,42 @@
         "nextAction": "Next: matchingRequired invoice-policy existence or two record-purchases existence checks; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.assets.read-tail-r10",
+        "goalId": "G4",
+        "owner": "assets",
+        "title": "assets TS read tail native cutover (round 10)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-assets/src/**",
+          "tests/unit/assets/**",
+          "tests/integration/assets/**"
+        ],
+        "resources": [
+          "owner:assets"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wDT1ass",
+          "claimedAt": "2026-11-23T23:51:38.599Z",
+          "heartbeatAt": "2026-11-23T23:51:38.599Z",
+          "expiresAt": "2026-11-24T00:21:38.599Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "financial-workflow-sources (9 SELECTs) and small families remain; pick the smallest safe sub-family; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -126320,7 +126376,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 677,
+      "totalPackets": 678,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -126328,13 +126384,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 315,
+        "blocked": 316,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-23T23:51:16.206Z",
+    "updatedAt": "2026-11-23T23:51:38.601Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
