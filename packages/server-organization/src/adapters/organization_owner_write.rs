@@ -177,6 +177,13 @@ pub const ACCEPTANCE_READ_BRANCHES: &str = "acceptance_read_branches";
 pub const ACCEPTANCE_READ_CEO: &str = "acceptance_read_ceo";
 pub const ACCEPTANCE_READ_CURRENT: &str = "acceptance_read_current";
 pub const ACCEPTANCE_READ_EVENTS: &str = "acceptance_read_events";
+/// Native-owned Company-acceptance version assertion predicates. SELECT-only
+/// and Company keyed; these are the exact `EXISTS(SELECT ...)` predicates that
+/// the retired `company-business-acceptance.ts` version checks inlined. The
+/// cross-owner workflow layer stores them verbatim as command assertions.
+pub const ACCEPTANCE_SUBMIT_VERSION_CHECK: &str = "acceptance_submit_version_check";
+pub const ACCEPTANCE_REVIEW_VERSION_CHECK: &str = "acceptance_review_version_check";
+pub const ACCEPTANCE_REVOKE_VERSION_CHECK: &str = "acceptance_revoke_version_check";
 
 /// Every kind this owner module accepts. Anything else is fail-closed.
 pub const KINDS: &[&str] = &[
@@ -266,6 +273,9 @@ pub const KINDS: &[&str] = &[
     ACCEPTANCE_READ_CEO,
     ACCEPTANCE_READ_CURRENT,
     ACCEPTANCE_READ_EVENTS,
+    ACCEPTANCE_SUBMIT_VERSION_CHECK,
+    ACCEPTANCE_REVIEW_VERSION_CHECK,
+    ACCEPTANCE_REVOKE_VERSION_CHECK,
 ];
 
 /// Tables admitted for the generic attachment owner version step. Column is
@@ -554,6 +564,15 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         ACCEPTANCE_READ_EVENTS => {
             "SELECT id,action,actor_id,version,reason,created_at FROM company_business_acceptance_events WHERE company_id=? ORDER BY version,created_at,id"
+        }
+        ACCEPTANCE_SUBMIT_VERSION_CHECK => {
+            "EXISTS(SELECT 1 FROM company_business_acceptance WHERE company_id=? AND version=? AND status IN ('draft','rejected','revoked'))"
+        }
+        ACCEPTANCE_REVIEW_VERSION_CHECK => {
+            "EXISTS(SELECT 1 FROM company_business_acceptance WHERE company_id=? AND version=? AND status='submitted')"
+        }
+        ACCEPTANCE_REVOKE_VERSION_CHECK => {
+            "EXISTS(SELECT 1 FROM company_business_acceptance WHERE company_id=? AND version=? AND status='accepted')"
         }
         _ => return None,
     })
@@ -994,6 +1013,44 @@ mod tests {
         assert!(statement.contains("company_id=?"));
         assert!(owner_statement(ACCEPTANCE_READ_CURRENT, &[Value::from("company")]).is_ok());
         assert!(owner_statement(ACCEPTANCE_READ_CURRENT, &[]).is_err());
+    }
+
+    /// The three version assertion predicates retired from
+    /// `company-business-acceptance.ts` are native-owned, SELECT-only,
+    /// Company-keyed and carry the exact `EXISTS(SELECT ...)` text the workflow
+    /// command-assertion layer stores verbatim. They must not mutate, lock, or
+    /// duplicate any cross-owner source.
+    #[test]
+    fn acceptance_version_check_kinds_are_select_only_company_scoped_and_cast_safe() {
+        let kinds = [
+            (
+                ACCEPTANCE_SUBMIT_VERSION_CHECK,
+                "EXISTS(SELECT 1 FROM company_business_acceptance WHERE company_id=? AND version=? AND status IN ('draft','rejected','revoked'))",
+            ),
+            (
+                ACCEPTANCE_REVIEW_VERSION_CHECK,
+                "EXISTS(SELECT 1 FROM company_business_acceptance WHERE company_id=? AND version=? AND status='submitted')",
+            ),
+            (
+                ACCEPTANCE_REVOKE_VERSION_CHECK,
+                "EXISTS(SELECT 1 FROM company_business_acceptance WHERE company_id=? AND version=? AND status='accepted')",
+            ),
+        ];
+        assert_eq!(kinds.len(), 3);
+        for (kind, expected) in kinds {
+            assert!(supported(kind), "version check kind must be allow listed: {kind}");
+            let statement = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
+            assert_eq!(statement, expected, "version check SQL must match the retired literal: {kind}");
+            assert!(statement.starts_with("EXISTS(SELECT "), "version check must be SELECT-only: {kind}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+                assert!(!statement.contains(forbidden), "version check must not mutate: {kind} contains {forbidden}");
+            }
+            assert!(statement.contains("company_id=?"), "version check must be Company scoped: {kind}");
+            assert_eq!(statement.matches('?').count(), 2, "version check parameter count: {kind}");
+            assert!(owner_statement(kind, &[Value::from("company"), Value::from(1_i64)]).is_ok());
+            assert!(owner_statement(kind, &[Value::from("company")]).is_err());
+            assert!(owner_statement(kind, &[]).is_err());
+        }
     }
 
     /// Owner-local reads retired from `department-authority-reads.ts`: ten

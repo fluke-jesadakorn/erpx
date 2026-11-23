@@ -13,18 +13,18 @@ incompletePlacement(companyId:string):Promise<{ count: number }|null>;
 acceptance(companyId:string):Promise<AcceptanceRow|null>;
 events(companyId:string):Promise<{results:EventRow[]}>;
 submitCurrent(companyId:string):Promise<AcceptanceRow|null>;
-submitVersion(key:string,value:"acceptance-version",companyId:string,version:number):Effect;
+submitVersion(key:string,value:"acceptance-version",companyId:string,version:number):Promise<Effect>;
 submitAcceptance(companyId:string,recordVersion:number,userId:string,now:number,reason:string,now2:number):Promise<Effect>;
 submittedEvent(value:string,companyId:string,userId:string,recordVersion:number,reason:string,now:number):Promise<Effect>;
 reviewerNotifications(key:string,companyId:string,companyId2:string,recordVersion:number,now:number,companyId3:string,userId:string,now2:number,now3:number):Promise<Effect>;
 reviewCurrent(companyId:string):Promise<AcceptanceRow|null>;
-reviewVersion(key:string,value:"acceptance-version",companyId:string,expectedVersion:number):Effect;
+reviewVersion(key:string,value:"acceptance-version",companyId:string,expectedVersion:number):Promise<Effect>;
 independentReview(key:string,value:"independent-review",userId:string,requested_by:string,companyId:string):Effect;
 reviewAcceptance(status:"rejected" | "accepted",version:number,userId:string,now:number,reason:string,now2:number,companyId:string):Promise<Effect>;
 reviewEvent(value:string,companyId:string,status:"rejected" | "accepted",userId:string,version:number,reason:string,now:number):Promise<Effect>;
 resultNotifications(key:string,value:"Company setup acceptance was approved" | "Company setup acceptance was returned for correction",now:number,companyId:string):Promise<Effect>;
 revokeCurrent(companyId:string):Promise<AcceptanceRow|null>;
-revokeVersion(key:string,value:"acceptance-version",companyId:string,expectedVersion:number):Effect;
+revokeVersion(key:string,value:"acceptance-version",companyId:string,expectedVersion:number):Promise<Effect>;
 revokeAcceptance(version:number,now:number,reason:string,now2:number,companyId:string):Promise<Effect>;
 revokeEvent(value:string,companyId:string,userId:string,version:number,reason:string,now:number):Promise<Effect>;
 workCurrent(companyId:string):Promise<AcceptanceRow|null>;};
@@ -90,7 +90,7 @@ async function submitCompanyBusinessAcceptance(actor: WorkContext, input: z.infe
   const recordVersion = (current?.version ?? 0) + 1, now = ports.now();
   const result = { companyId: actor.companyId, status: "submitted" as const, version: recordVersion };
   return ports.commands.commit(actor, key, operation, input, recordId, recordVersion, result, [
-    ...(current ? [ports.repository.submitVersion(key,"acceptance-version",actor.companyId,current.version)] : []),
+    ...(current ? [await ports.repository.submitVersion(key,"acceptance-version",actor.companyId,current.version)] : []),
     await ports.repository.submitAcceptance(actor.companyId,recordVersion,actor.userId,now,input.reason,now),
     await ports.repository.submittedEvent(`company-acceptance-event-${key}`,actor.companyId,actor.userId,recordVersion,input.reason,now),
     await ports.repository.reviewerNotifications(key,actor.companyId,actor.companyId,recordVersion,now,actor.companyId,actor.userId,now,now),
@@ -109,7 +109,7 @@ async function decideCompanyBusinessAcceptance(actor: WorkContext, input: z.infe
   const now = ports.now(), version = current.version + 1, status = input.decision === "accept" ? "accepted" : "rejected";
   const result = { companyId: actor.companyId, status, version };
   return ports.commands.commit(actor, key, operation, input, actor.companyId, version, result, [
-    ports.repository.reviewVersion(key,"acceptance-version",actor.companyId,input.expectedVersion),
+    await ports.repository.reviewVersion(key,"acceptance-version",actor.companyId,input.expectedVersion),
     ports.repository.independentReview(key,"independent-review",actor.userId,current.requested_by,actor.companyId),
     await ports.repository.reviewAcceptance(status,version,actor.userId,now,input.reason,now,actor.companyId),
     await ports.repository.reviewEvent(`company-acceptance-event-${key}`,actor.companyId,status,actor.userId,version,input.reason,now),
@@ -127,7 +127,7 @@ async function revokeCompanyBusinessAcceptance(actor: WorkContext, input: z.infe
   if (current.version !== input.expectedVersion) throw ports.error(409, "STALE_VERSION", "Company acceptance changed. Reload and review it again.");
   const now = ports.now(), version = current.version + 1, result = { companyId: actor.companyId, status: "revoked" as const, version };
   return ports.commands.commit(actor, key, operation, input, actor.companyId, version, result, [
-    ports.repository.revokeVersion(key,"acceptance-version",actor.companyId,input.expectedVersion),
+    await ports.repository.revokeVersion(key,"acceptance-version",actor.companyId,input.expectedVersion),
     await ports.repository.revokeAcceptance(version,now,input.reason,now,actor.companyId),
     await ports.repository.revokeEvent(`company-acceptance-event-${key}`,actor.companyId,actor.userId,version,input.reason,now),
   ]);
