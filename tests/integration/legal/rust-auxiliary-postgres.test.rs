@@ -173,6 +173,63 @@ async fn trust_read_returns_full_authoritative_projection_and_isolates_company()
     }).await;
 }
 
+/// The native `workspace` auxiliary read is the authoritative projection for the
+/// TypeScript `legalWorkspaceView` adapter. The transport accepts every field it
+/// emits; this case pins the exact deadlines/assigned field set and their Company
+/// + requester isolation so both TS SELECTs can be deleted byte-identically.
+#[tokio::test]
+async fn workspace_read_returns_full_authoritative_projection_and_isolates_company() {
+    fixture::with_database(2, |pool| async move {
+        setup(&pool).await;
+        seed(&pool).await;
+        let actual = read(&pool, manager(), LegalAuxiliaryRead::Workspace).await.unwrap();
+
+        // manager() = user-one, company-a. Deadlines: visible, non-terminal, due-dated.
+        let deadlines = actual["deadlines"].as_array().unwrap();
+        assert_eq!(deadlines.len(), 3, "only the authorized Company's non-terminal due items are read");
+        let expected = [
+            ("matter-open", "matter", "Open matter", "open", "2026-01-10", "user-one"),
+            ("request-mine", "request", "My request", "submitted", "2026-02-01", "user-one"),
+            ("contract-secret", "contract", "Secret contract", "active", "2026-03-01", "user-two"),
+        ];
+        for (row, (id, kind, title, state, due, owner)) in deadlines.iter().zip(expected) {
+            assert_eq!(row["id"], id);
+            assert_eq!(row["kind"], kind);
+            assert_eq!(row["title"], title);
+            assert_eq!(row["state"], state);
+            assert_eq!(row["due_date"], due);
+            assert_eq!(row["owner_id"], owner);
+            assert_eq!(row["version"], 1);
+            assert_eq!(row.as_object().unwrap().len(), 7, "transport accepts every authoritative workspace field");
+        }
+        assert!(!deadlines.iter().any(|r| r["id"] == "matter-other"), "other Company is isolated");
+
+        // Assigned: requester-owned, non-terminal, ordered by due date with NULLS LAST.
+        let assigned = actual["assigned"].as_array().unwrap();
+        let ids: Vec<&str> = assigned.iter().map(|r| r["id"].as_str().unwrap()).collect();
+        assert_eq!(ids, vec!["matter-open", "request-mine", "rule-law"]);
+        assert!(!assigned.iter().any(|r| r["id"] == "contract-secret"), "another owner's item is not assigned");
+        assert_eq!(assigned[2]["due_date"], Value::Null);
+        assert_eq!(assigned[0]["owner_id"], "user-one");
+
+        // A lower-privilege requester sees only their own due item in deadlines.
+        let requester = read(
+            &pool,
+            actor("user-one", "legal_requester", &["legal.read"]),
+            LegalAuxiliaryRead::Workspace,
+        )
+        .await
+        .unwrap();
+        let requester_ids: Vec<&str> = requester["deadlines"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|r| r["id"].as_str().unwrap())
+            .collect();
+        assert_eq!(requester_ids, vec!["request-mine"]);
+    }).await;
+}
+
 #[tokio::test]
 async fn document_citation_returns_full_source_and_audits_each_read() {
     fixture::with_database(2, |pool| async move {
