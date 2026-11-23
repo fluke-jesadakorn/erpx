@@ -12,6 +12,7 @@ import {collaborationTextSources} from '@erpx/server-agent/adapters/collaboratio
 import {collaborationAgentSources} from '@erpx/server-agent/adapters/collaboration-agent-sources';
 import {collaborationAiSources} from '@erpx/server-agent/adapters/collaboration-ai-sources';
 import {agentWorkspaceMonthlyUsageSql,recordsAiQuota} from '@erpx/server-agent/adapters/records-ai-quota';
+import {agentAssistantRateGuardSql,GuidedIntakeAgentFacts} from '@erpx/server-agent/adapters/operations-guided-intake-facts';
 const actor:WorkContext={userId:'author',name:'Owner',email:'owner@example.test',assignmentId:'assignment',role:'holding_owner',companyId:'company',branchId:null,departmentId:null,holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',scope:{kind:'holding',holdingId:'holding',holdingSlug:'holding',holdingName:'Holding',companyId:'company'},assignmentScope:'holding',inherited:false,modules:['agent','collaboration'],assignments:[],workspaces:[]};
 const policy:AiPolicyFacts={platform_enabled:true,monthly_request_limit:10,monthly_spend_cap_satang:100,reservation_satang:10,updated_by:'owner',updated_at:42,monthly_requests:1,monthly_reserved_or_verified_satang:0,pending_platform_cost_requests:0};
 const scope:AiGatewayFacts={holdingId:'holding',companyId:'company',branchId:null,connectionId:null,fundingSource:'erpx',feature:'assistant',requestId:'request'};
@@ -113,5 +114,23 @@ describe('Agent workspace-turns monthly usage fixed-SQL read family',()=>{
    expect(calls[0]!.sql).toContain(agentWorkspaceMonthlyUsageSql);
    expect(calls[0]!.values).toEqual(values);
   }
+ });
+});
+describe('Agent assistant-rate fixed-SQL read family',()=>{
+ const sql="(SELECT count(*) FROM ai_workspace_turns WHERE company_id=? AND created_at>?)<20";
+ test('the canonical owner fixed SQL is the only authored rate-guard literal',async()=>{
+  expect(agentAssistantRateGuardSql).toBe(sql);
+  const {readFile}=await import('node:fs/promises');
+  const base=new URL('../../../packages/server-agent/src/adapters/',import.meta.url);
+  const owner=await readFile(new URL('operations-guided-intake-facts.ts',base),'utf8');
+  const consumer=await readFile(new URL('workspace-assistant.ts',base),'utf8');
+  expect(owner.match(/\(SELECT count\(\*\) FROM ai_workspace_turns WHERE company_id=\? AND created_at>\?\)<20/g)??[]).toHaveLength(1);
+  expect(consumer.match(/\(SELECT count\(\*\) FROM ai_workspace_turns WHERE company_id=\? AND created_at>\?\)<20/g)??[]).toHaveLength(0);
+  expect(consumer).toContain('agentAssistantRateGuardSql');
+ });
+ test('guided-intake guard composes the one fixed SQL with unchanged args',()=>{
+  const descriptor=GuidedIntakeAgentFacts({} as never).guard3('id','assistant-rate','company',42) as unknown as {__nativeWrite:boolean;values:unknown[]};
+  expect(descriptor.__nativeWrite).toBe(true);
+  expect(descriptor.values).toEqual(['id','assistant-rate','company',42,agentAssistantRateGuardSql]);
  });
 });
