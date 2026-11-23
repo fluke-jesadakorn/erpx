@@ -2290,3 +2290,95 @@ process.stdout.write(JSON.stringify(predicate({},order,{settleExisting:true},{se
         assert_eq!(detail["canEditVisitFiles"],expected);
     }).await;
 }
+
+/// The native final-root projection sources must remain byte-identical to the
+/// retained TypeScript authority and produce the same real PostgreSQL rows,
+/// under the serializable fence, until Customer 360 / Customer Authority cut over.
+#[tokio::test]
+async fn final_root_projection_sources_match_ts_authority_under_postgres_fence() {
+    use erpx_server_field_service::public::final_root_projection::{
+        inspect_final_root_projection_sources, lock_final_root_projection_sources,
+        FinalRootProjectionSource,
+    };
+    // The retained TS authority is the oracle until lead integration cuts over.
+    const TS_AUTHORITY: &str = include_str!(
+        "../../../packages/server-field_service/src/adapters/final-root-owner-projection-sources.ts"
+    );
+    let ts_sql = |source: FinalRootProjectionSource| -> String {
+        let key = source.relation().trim_start_matches("public.");
+        let prefix = format!("{key}:");
+        let line = TS_AUTHORITY
+            .lines()
+            .find(|l| l.trim_start().starts_with(&prefix) && l.contains(": \""))
+            .unwrap_or_else(|| panic!("TS authority missing {key}"));
+        let start = line.find('"').unwrap() + 1;
+        let end = line.rfind('"').unwrap();
+        line[start..end].replace("\\\"", "\"")
+    };
+    account::with_system(move |system| async move {
+        let p = setup_workspace(system).await;
+        let mut tx = p
+            .pool()
+            .raw()
+            .begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE")
+            .await
+            .unwrap();
+        lock_final_root_projection_sources(&mut tx).await.unwrap();
+        let current = inspect_final_root_projection_sources(&mut tx).await.unwrap();
+        for source in FinalRootProjectionSource::ALL {
+            let native_sql = current.sql(source);
+            let authority_sql = ts_sql(source);
+            assert_eq!(native_sql, authority_sql, "statement drift for {source:?}");
+            let native_query = format!(
+                "SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.id)::text,'[]') FROM ({native_sql}) r"
+            );
+            let authority_query = format!(
+                "SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.id)::text,'[]') FROM ({authority_sql}) r"
+            );
+            let native_image: String = sqlx::query_scalar(sqlx::AssertSqlSafe(native_query.as_str()))
+                .fetch_one(&mut *tx)
+                .await
+                .unwrap();
+            let authority_image: String =
+                sqlx::query_scalar(sqlx::AssertSqlSafe(authority_query.as_str()))
+                    .fetch_one(&mut *tx)
+                    .await
+                    .unwrap();
+            assert_eq!(
+                native_image, authority_image,
+                "PG row-image drift for {source:?}"
+            );
+        }
+        current.require_current(&mut tx).await.unwrap();
+        // A witness cannot be reused from a different serializable transaction.
+        let mut other = p
+            .pool()
+            .raw()
+            .begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE")
+            .await
+            .unwrap();
+        assert!(current.require_current(&mut other).await.is_err());
+        other.rollback().await.unwrap();
+        tx.rollback().await.unwrap();
+        // Losing the utility locks invalidates the fenced snapshot.
+        let mut save = p
+            .pool()
+            .raw()
+            .begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE")
+            .await
+            .unwrap();
+        sqlx::query("SAVEPOINT field_root")
+            .execute(&mut *save)
+            .await
+            .unwrap();
+        lock_final_root_projection_sources(&mut save).await.unwrap();
+        let released = inspect_final_root_projection_sources(&mut save).await.unwrap();
+        sqlx::query("ROLLBACK TO SAVEPOINT field_root")
+            .execute(&mut *save)
+            .await
+            .unwrap();
+        assert!(released.require_current(&mut save).await.is_err());
+        save.rollback().await.unwrap();
+    })
+    .await;
+}
