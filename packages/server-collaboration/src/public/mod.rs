@@ -50,6 +50,8 @@ pub mod supplier_bill_match_notification;
 
 pub mod staff_facts;
 
+pub mod support_notification;
+
 pub mod roster_position_notifications;
 
 pub mod customer_portal_notification;
