@@ -11,6 +11,7 @@ import {
   nativePosRegisterCatalogStatement,
   nativePosSettingsAccountsStatement,
   nativePosConnectionsStatement,
+  nativePosPaymentByIdStatement,
 } from '../../../packages/server-pos/src/adapters/native-pos-core-statement';
 import { pmsHospitalitySetupPosFacts } from '../../../packages/server-pos/src/adapters/pms-hospitality-setup-facts';
 import { pmsBookingChangeFacts } from '../../../packages/server-pos/src/adapters/pms-booking-change-facts';
@@ -448,5 +449,57 @@ describe('native POS core workspace read bridge (shifts family)', () => {
     expect(prepare).toHaveBeenCalledTimes(1);
     expect(seen.sql).toBe(sql);
     expect(seen.values).toEqual(['company']);
+  });
+
+  it('requests the Stripe by-id payment row from the native registry with the FOR UPDATE lock', async () => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const sql = 'SELECT * FROM pos_payments WHERE id=? FOR UPDATE';
+    const values = ['payment-1'];
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { sql, values } }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const seen: { sql?: string; values?: unknown[] } = {};
+    const row = { id: 'payment-1', state: 'pending' };
+    const db = {
+      prepare: (text: string) => ({
+        bind: (...bound: unknown[]) => {
+          seen.sql = text;
+          seen.values = bound;
+          return { first: async () => row };
+        },
+      }),
+    };
+    const prepare = vi.spyOn(db, 'prepare');
+    const result = await nativePosPaymentByIdStatement(db as never, 'payment-1');
+    expect(result).toEqual(row);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({
+      company: '',
+      kind: 'stripe_readpospaymentsbyid_527',
+      values,
+    });
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(seen.sql).toBe(sql);
+    expect(seen.sql).toContain('FOR UPDATE');
+    expect(seen.values).toEqual(values);
+  });
+
+  it('fails closed for the by-id payment read when the native owner service is unconfigured', async () => {
+    delete process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    await expect(nativePosPaymentByIdStatement({} as never, 'payment-1')).rejects.toMatchObject({
+      code: 'NATIVE_POS_OWNER_UNAVAILABLE',
+      status: 503,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('keeps all four Stripe by-id payment reads on the native registry with no local SQL', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-stripe.ts', import.meta.url), 'utf8');
+    expect(source.match(/nativePosPaymentByIdStatement<PosRow>\(db, facts\.id\)/g)).toHaveLength(4);
+    expect(source).not.toContain('SELECT * FROM pos_payments WHERE id=? FOR UPDATE');
   });
 });

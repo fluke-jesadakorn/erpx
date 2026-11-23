@@ -1,5 +1,5 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
-import { nativePosConnectionsStatement, nativePosPostingJournalStatement, nativePosSaleByIdStatement, nativePosStripeRoutesStatement } from './native-pos-core-statement';
+import { nativePosConnectionsStatement, nativePosPaymentByIdStatement, nativePosPostingJournalStatement, nativePosSaleByIdStatement, nativePosStripeRoutesStatement } from './native-pos-core-statement';
 import{secret,stripeRequest}from '@erpx/server-pos/adapters/stripe-provider';
 import {posStripeBindingFacts} from "@erpx/server-runtime/public/pos-stripe-binding-facts";
 import 'server-only';
@@ -88,10 +88,10 @@ function unit(db: SqlDatabase): PosStripeUnit {
         }) => nativePosRun(db, '', 'stripe_writepospayments1_86', [facts.fact0, facts.id]),
         readPosPayments1: (facts: {
             id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_payments WHERE id=? FOR UPDATE', facts.id),
+        }) => nativePosPaymentByIdStatement<PosRow>(db, facts.id),
         readPosPayments2: (facts: {
             id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_payments WHERE id=? FOR UPDATE', facts.id),
+        }) => nativePosPaymentByIdStatement<PosRow>(db, facts.id),
         writePosPayments2: (facts: {
             fact0: number;
             id: string | number | boolean | null;
@@ -102,10 +102,10 @@ function unit(db: SqlDatabase): PosStripeUnit {
         }) => nativePosRun(db, '', 'stripe_writepospayments3_100', [facts.fact0, facts.id]),
         readPosPayments3: (facts: {
             id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_payments WHERE id=? FOR UPDATE', facts.id),
+        }) => nativePosPaymentByIdStatement<PosRow>(db, facts.id),
         readPosPayments4: (facts: {
             id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_payments WHERE id=? FOR UPDATE', facts.id),
+        }) => nativePosPaymentByIdStatement<PosRow>(db, facts.id),
         writePosPayments4: (facts: {
             fact0: number;
             id: string | number | boolean | null;

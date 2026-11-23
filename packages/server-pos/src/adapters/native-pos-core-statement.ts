@@ -155,3 +155,20 @@ export async function nativePosConnectionsStatement<T = SqlValueRow>(
 ): Promise<T | null> {
   return nativePosOne<T>(db, String(companyId ?? ''), 'stripe_readposconnections_526', [companyId]);
 }
+
+/**
+ * Owner-issued Stripe by-id payment row with the caller's row lock. The SQL lives
+ * in the native POS owner registry (`erpx-server-pos::adapters::owner_writes`,
+ * kind `stripe_readpospaymentsbyid_527`) and is byte-identical to the four
+ * deleted by-id payment row literals in `pos-stripe.ts`
+ * (`readPosPayments1`-`4`). The registry statement carries
+ * `FOR UPDATE`, which this bridge binds and executes on the caller's own
+ * serializable unit, so the Stripe transaction lock semantics are unchanged.
+ * No TypeScript SQL, mirror or fallback reader remains for this family.
+ */
+export async function nativePosPaymentByIdStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  paymentId: unknown,
+): Promise<T | null> {
+  return nativePosOne<T>(db, '', 'stripe_readpospaymentsbyid_527', [paymentId]);
+}

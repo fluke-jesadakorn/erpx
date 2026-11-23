@@ -106,6 +106,12 @@ pub const CORE_READPOSSETTINGSACCOUNTS_525: &str = "core_readpossettingsaccounts
 /// `pos-stripe.ts` (`readPosConnections1`/`3`/`4`). Read-only caller-transaction
 /// `SELECT` scoped by Company; no actor threading is required.
 pub const STRIPE_READPOSCONNECTIONS_526: &str = "stripe_readposconnections_526";
+/// Caller-unit by-id payment row with the original Stripe row lock. Byte-identical
+/// to the four `readPosPayments1`-`4` `SELECT * FROM pos_payments WHERE id=?
+/// FOR UPDATE` literals deleted from `pos-stripe.ts`. The `FOR UPDATE` clause is
+/// executed on the caller's serializable unit, so the lock is held by the caller
+/// exactly as before; no TypeScript copy or fallback reader exists for this kind.
+pub const STRIPE_READPOSPAYMENTSBYID_527: &str = "stripe_readpospaymentsbyid_527";
 pub const STRIPE_WRITEPOSSTRIPEEVENTS1_49: &str = "stripe_writeposstripeevents1_49";
 pub const STRIPE_WRITEPOSSTRIPEEVENTS2_53: &str = "stripe_writeposstripeevents2_53";
 pub const STRIPE_WRITEPOSCONNECTIONHISTORY1_58: &str = "stripe_writeposconnectionhistory1_58";
@@ -209,6 +215,7 @@ pub const KINDS: &[&str] = &[
     CORE_READPOSREGISTERCATALOG_524,
     CORE_READPOSSETTINGSACCOUNTS_525,
     STRIPE_READPOSCONNECTIONS_526,
+    STRIPE_READPOSPAYMENTSBYID_527,
     STRIPE_WRITEPOSSTRIPEEVENTS1_49,
     STRIPE_WRITEPOSSTRIPEEVENTS2_53,
     STRIPE_WRITEPOSCONNECTIONHISTORY1_58,
@@ -355,6 +362,7 @@ fn sql(kind: &str) -> Option<&'static str> {
         CORE_READPOSREGISTERCATALOG_524 => r#"SELECT rc.product_id FROM pos_register_catalog rc JOIN pos_registers r ON r.id=rc.register_id WHERE rc.product_id=? AND r.branch_id=? AND r.company_id=?"#,
         CORE_READPOSSETTINGSACCOUNTS_525 => r#"SELECT accounts_json FROM pos_settings WHERE company_id=?"#,
         STRIPE_READPOSCONNECTIONS_526 => r#"SELECT * FROM pos_connections WHERE company_id=?"#,
+        STRIPE_READPOSPAYMENTSBYID_527 => r#"SELECT * FROM pos_payments WHERE id=? FOR UPDATE"#,
         STRIPE_WRITEPOSSTRIPEEVENTS1_49 => r#"INSERT INTO pos_stripe_events(id,account_id,livemode,company_id,event_type,payload_json,received_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING"#,
         STRIPE_WRITEPOSSTRIPEEVENTS2_53 => r#"UPDATE pos_stripe_events SET provider_created_at=COALESCE(provider_created_at,?) WHERE id=?"#,
         STRIPE_WRITEPOSCONNECTIONHISTORY1_58 => r#"INSERT INTO pos_connection_history VALUES(?,?,?) ON CONFLICT DO NOTHING"#,
@@ -455,7 +463,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 120);
+        assert_eq!(KINDS.len(), 121);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -647,6 +655,25 @@ mod tests {
         }
         assert_eq!(stmt.matches('?').count(), 1, "connections read carries only the Company");
         assert_eq!(stmt, "SELECT * FROM pos_connections WHERE company_id=?");
+    }
+
+    /// The retired Stripe by-id payment read keeps the caller's row lock. Its
+    /// SQL is byte-identical to the four deleted `readPosPayments1`-`4`
+    /// `SELECT * FROM pos_payments WHERE id=? FOR UPDATE` literals in
+    /// `pos-stripe.ts`; this kind is the sole authority and every TypeScript
+    /// copy was removed. `FOR UPDATE` runs on the caller's serializable unit,
+    /// so the lock semantics of the retired reads are preserved.
+    #[test]
+    fn stripe_payment_by_id_read_preserves_for_update() {
+        assert!(supported(STRIPE_READPOSPAYMENTSBYID_527));
+        let stmt = sql(STRIPE_READPOSPAYMENTSBYID_527).unwrap();
+        assert!(stmt.starts_with("SELECT "), "payment read kind must be SELECT-only");
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+            assert!(!stmt.contains(forbidden), "payment read kind must not mutate: {forbidden}");
+        }
+        assert_eq!(stmt.matches('?').count(), 1, "payment read carries only the payment id");
+        assert!(stmt.ends_with(" FOR UPDATE"), "payment read must preserve the FOR UPDATE lock");
+        assert_eq!(stmt, "SELECT * FROM pos_payments WHERE id=? FOR UPDATE");
     }
 
     /// The retired purchase-boundary reads are SELECT-only owner statements.

@@ -7,10 +7,12 @@
 //! the retained `posWork` queue consumed: requested refunds, closed shifts and
 //! unapproved cash movements excluding the viewer's own requests, plus jobs in
 //! `exception` state. Company isolation, branch scope and the serializable
-//! guard fail closed.
+//! guard fail closed. The final test covers the Stripe by-id payment registry
+//! statement: its `FOR UPDATE` lock is taken on the caller's unit and blocks a
+//! second caller until the holder commits.
 use erpx_server_pos::public::owner_writes_http::{
     POS_READPOSCASHMOVEMENTS2_242, POS_READPOSJOBS1_245, POS_READPOSREFUNDS3_230,
-    POS_READPOSSHIFTS1_236, owner_write_statement,
+    POS_READPOSSHIFTS1_236, STRIPE_READPOSPAYMENTSBYID_527, owner_write_statement,
 };
 use erpx_server_runtime::public::postgres::{
     DatabaseConfig, DatabasePool, MigrationTrack, PgTransactionError, PoolLimits, connect_pool,
@@ -426,6 +428,109 @@ fn approval_queue_reads_fail_closed() {
                 other => panic!("expected serializable guard, got {other:?}"),
             }
             read_committed.rollback().await.unwrap();
+        })
+    });
+}
+
+#[test]
+fn stripe_payment_by_id_read_preserves_for_update_lock() {
+    with_database(|pool| {
+        Box::pin(async move {
+            setup(&pool).await;
+            sqlx::raw_sql(AssertSqlSafe(
+                "INSERT INTO pos_payments(id,sale_id,company_id,method,amount_minor,tendered_minor,state,created_by,created_at,updated_at) VALUES \
+                 ('payment-lock','sale-1','company','cash',100,100,'pending','alice',1,1)",
+            ))
+            .execute(pool.raw())
+            .await
+            .unwrap();
+            let company = CompanyId::new("company").unwrap();
+            let values = vec![Value::String("payment-lock".to_owned())];
+
+            // Caller A holds the registry statement's row lock on its own
+            // serializable unit, exactly like the retired TypeScript reads.
+            let mut holder = pool.raw().acquire().await.unwrap();
+            let mut holder_tx = holder
+                .begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE")
+                .await
+                .unwrap();
+            let statement = owner_write_statement(
+                &mut holder_tx,
+                &company,
+                STRIPE_READPOSPAYMENTSBYID_527,
+                values.clone(),
+            )
+            .await
+            .unwrap();
+            assert!(statement.sql.ends_with(" FOR UPDATE"));
+            let locked = bind_all(
+                sqlx::query(AssertSqlSafe(pg(&statement.sql))),
+                &statement.values,
+            )
+            .fetch_one(&mut *holder_tx)
+            .await
+            .unwrap();
+            assert_eq!(locked.try_get::<String, _>("id").unwrap(), "payment-lock");
+
+            // Caller B must block on the same row. A short lock_timeout makes
+            // the contention observable without an in-flight cancelled query.
+            let mut contender = pool.raw().acquire().await.unwrap();
+            let mut contender_tx = contender
+                .begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE")
+                .await
+                .unwrap();
+            sqlx::raw_sql(AssertSqlSafe("SET LOCAL lock_timeout='300ms'"))
+                .execute(&mut *contender_tx)
+                .await
+                .unwrap();
+            let statement = owner_write_statement(
+                &mut contender_tx,
+                &company,
+                STRIPE_READPOSPAYMENTSBYID_527,
+                values.clone(),
+            )
+            .await
+            .unwrap();
+            let blocked = bind_all(
+                sqlx::query(AssertSqlSafe(pg(&statement.sql))),
+                &statement.values,
+            )
+            .fetch_one(&mut *contender_tx)
+            .await;
+            let error = blocked.expect_err("FOR UPDATE must block the second caller");
+            assert_eq!(
+                error.as_database_error().and_then(|e| e.code()).as_deref(),
+                Some("55P03"),
+                "contention must be a lock timeout, got {error:?}"
+            );
+            contender_tx.rollback().await.unwrap();
+            drop(contender);
+
+            // Once the holder commits, the same registry statement succeeds.
+            holder_tx.commit().await.unwrap();
+            drop(holder);
+            let mut after = pool.raw().acquire().await.unwrap();
+            let mut after_tx = after
+                .begin_with("BEGIN ISOLATION LEVEL SERIALIZABLE")
+                .await
+                .unwrap();
+            let statement = owner_write_statement(
+                &mut after_tx,
+                &company,
+                STRIPE_READPOSPAYMENTSBYID_527,
+                values,
+            )
+            .await
+            .unwrap();
+            let row = bind_all(
+                sqlx::query(AssertSqlSafe(pg(&statement.sql))),
+                &statement.values,
+            )
+            .fetch_one(&mut *after_tx)
+            .await
+            .unwrap();
+            assert_eq!(row.try_get::<String, _>("id").unwrap(), "payment-lock");
+            after_tx.rollback().await.unwrap();
         })
     });
 }
