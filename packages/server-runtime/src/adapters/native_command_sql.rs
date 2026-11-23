@@ -146,6 +146,12 @@ const STATEMENTS: &[NativeStatement] = &[
         bind_count: 2,
         scope: "control",
     },
+    NativeStatement {
+        kind: "runtime_stmt_23",
+        sql: r#"SELECT company_id FROM engineering_verification_contexts WHERE company_id=$1 FOR SHARE"#,
+        bind_count: 1,
+        scope: "holding",
+    }, // generation.ts
 ];
 
 pub fn statement(kind: &str) -> Option<&'static NativeStatement> {
@@ -165,6 +171,7 @@ mod tests {
                 s.sql.trim_start().starts_with("INSERT")
                     || s.sql.trim_start().starts_with("UPDATE")
                     || s.sql.trim_start().starts_with("DELETE")
+                    || s.sql.trim_start().starts_with("SELECT")
             );
             let max = s
                 .sql
@@ -181,6 +188,17 @@ mod tests {
                 .unwrap_or(0);
             assert_eq!(max, s.bind_count, "{}", s.kind);
         }
+    }
+
+    #[test]
+    fn executive_generation_source_lock_is_native() {
+        let s = statement("runtime_stmt_23").expect("source-lock statement must be admitted");
+        assert_eq!(
+            s.sql,
+            "SELECT company_id FROM engineering_verification_contexts WHERE company_id=$1 FOR SHARE"
+        );
+        assert_eq!(s.bind_count, 1);
+        assert_eq!(s.scope, "holding");
     }
 
     #[test]

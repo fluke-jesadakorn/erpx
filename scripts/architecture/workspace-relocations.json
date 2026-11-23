@@ -46979,13 +46979,6 @@
       "sha256": "bed3e4911f4257f8045c44a490832aecf507f51517a4af67c611fc9b0da3ee13"
     },
     {
-      "from": "src/server/modules/platform_administration/adapters/executive-generation-source-lock.ts",
-      "to": "packages/server-platform_administration/src/adapters/executive-generation-source-lock.ts",
-      "package": "@erpx/server-platform_administration",
-      "key": "adapters/executive-generation-source-lock",
-      "sha256": "b2a59731e4b0fcc8f668bb38874453017034af753282c374b0a6835b81268991"
-    },
-    {
       "from": "src/server/modules/platform_administration/adapters/records-ai-usage-projection.ts",
       "to": "packages/server-platform_administration/src/adapters/records-ai-usage-projection.ts",
       "package": "@erpx/server-platform_administration",
@@ -47068,13 +47061,6 @@
       "package": "@erpx/server-platform_administration",
       "key": "public/release-acceptance",
       "sha256": "6967ca4521c2b7062100fe5a87e77f0a9bf03fdad77004261f96ba22cb1c18d9"
-    },
-    {
-      "from": "src/server/modules/platform_administration/public/executive-generation-source-lock.ts",
-      "to": "packages/server-platform_administration/src/public/executive-generation-source-lock.ts",
-      "package": "@erpx/server-platform_administration",
-      "key": "public/executive-generation-source-lock",
-      "sha256": "d70d3f9bf79410fecac4d9a6185af21dfac7042148e624f8f14f454f4437fe6c"
     },
     {
       "from": "src/server/modules/platform_administration/public/records-ai-usage-projection.ts",

@@ -1,7 +1,6 @@
 import { nativeRuntimeStatement } from '@erpx/feature-runtime/adapters/server/native-runtime-command';
 import { executiveGenerationQuota } from '@erpx/server-agent/public/executive-generation-quota';
 import { clearExecutiveGenerationAssertion } from '@erpx/server-workflow/public/executive-generation-assertions';
-import { executiveGenerationSourceLock } from '@erpx/server-platform_administration/public/executive-generation-source-lock';
 import { guardExecutiveGenerationWorkspace } from '@erpx/server-organization/public/executive-generation-workspace-guard';
 import { aiRequestQuotaLock } from "@erpx/server-agent/public/ai-quota";
 import "server-only";
@@ -26,7 +25,7 @@ import { createExecutiveGenerationApplication, type ExecutiveGenerationRepositor
 import { BusinessRuleError } from '@erpx/server-shared/index';
 const scheduledGeneration = (company: string) => `(${scheduledFeaturePredicate(company, "operations")} AND ${scheduledFeaturePredicate(company, "agent")})`;
 const generationFeatureGuards = (db: SqlDatabase, key: string, company: string) => process.env.NODE_ENV !== "production" ? [] : [
-    executiveGenerationSourceLock(db, company),
+    nativeRuntimeStatement('runtime_stmt_23', { companyId: company, now: Date.now(), actor: undefined }).bind(company),
     ...productionFeatureGuard(db, key, company, "agent"),
     guardExecutiveGenerationWorkspace(db, key, company),
 ];

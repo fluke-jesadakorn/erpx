@@ -1,1 +1,0 @@
-export {executiveGenerationSourceLock} from '@erpx/server-platform_administration/adapters/executive-generation-source-lock';

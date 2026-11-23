@@ -104712,6 +104712,138 @@
         "@erpx/server-work_projection",
         "@erpx/server-workflow"
       ]
+    },
+    {
+      "id": "commercial.rust-owner-read.unit",
+      "lane": "unit",
+      "owner": "commercial",
+      "modules": [
+        "commercial",
+        "billing"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Commercial owner-read registry must return the three exact retired usage SELECTs for closed kinds and keep caller filters and locks out of owner SQL."
+      },
+      "files": [
+        "tests/unit/commercial/rust-owner-read.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-commercial",
+        "targets": [
+          "owner_read"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-commercial/Cargo.toml"
+      ],
+      "apps": [
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-billing",
+        "@erpx/server-commercial",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
+      "id": "commercial.native-owner-read.unit",
+      "lane": "unit",
+      "owner": "commercial",
+      "modules": [
+        "commercial",
+        "billing"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Fail-closed Commercial owner-read client must return only owner-planned SELECTs and reject missing configuration, available failures and non-SELECT plans without a TypeScript fallback."
+      },
+      "files": [
+        "tests/unit/commercial/native-owner-read.test.ts"
+      ],
+      "framework": "vitest",
+      "apps": [
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-billing",
+        "@erpx/server-commercial"
+      ]
+    },
+    {
+      "id": "commercial.rust-owner-read-postgres.integration",
+      "lane": "integration",
+      "owner": "commercial",
+      "modules": [
+        "commercial",
+        "billing"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Commercial usage SELECTs must execute on the migrated Control schema and return the exact owner columns Billing consumes."
+      },
+      "files": [
+        "tests/integration/commercial/rust-owner-read-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-commercial",
+        "targets": [
+          "owner_read_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-commercial/Cargo.toml"
+      ],
+      "postgres": {
+        "mode": "raw",
+        "slots": [
+          "CONTROL_DB",
+          "CONTROL_READ_DB",
+          "H001_DB",
+          "H001_READ_DB",
+          "H002_DB",
+          "H002_READ_DB",
+          "H003_DB",
+          "H003_READ_DB"
+        ],
+        "migratedSlots": []
+      },
+      "apps": [
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-billing",
+        "@erpx/server-commercial",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
     }
   ]
 }
