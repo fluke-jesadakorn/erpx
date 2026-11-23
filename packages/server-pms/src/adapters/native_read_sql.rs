@@ -50,6 +50,12 @@ pub const PMS_RD_DOCUMENT_SNAPSHOT: &str = "pms_rd_document_snapshot";
 /// config point read. Fixed SQL with two positional binds, no ledger/receipt/outbox
 /// and no lock/refund path; the caller runs it on its already-open unit.
 pub const PMS_RD_PROPERTY_CONFIG: &str = "pms_rd_property_config";
+/// Native successors of the owner-local hospitality day-control count reads for
+/// pending hotel transfers and unposted booking receipts. Fixed SQL with no
+/// ledger/receipt/outbox and no lock/refund path; the caller runs them on its
+/// already-open unit.
+pub const PMS_RD_PENDING_HOTEL_TRANSFERS: &str = "pms_rd_pending_hotel_transfers";
+pub const PMS_RD_UNPOSTED_BOOKING_RECEIPTS: &str = "pms_rd_unposted_booking_receipts";
 const SQL_INVENTORY_COMMAND: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
 WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
 UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
@@ -142,8 +148,23 @@ const READ_PROPERTY_CONFIG: NativeReadStatement = NativeReadStatement {
     sql: SQL_PROPERTY_CONFIG,
     bind_count: 2,
 };
+/// `SELECT count(*) n FROM pms_transfer_requests WHERE company_id=? AND property_id=? AND business_date=? AND state='pending'`
+const SQL_PENDING_HOTEL_TRANSFERS: &str = "SELECT count(*) n FROM pms_transfer_requests WHERE company_id=? AND property_id=? AND business_date=? AND state='pending'";
+const READ_PENDING_HOTEL_TRANSFERS: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_PENDING_HOTEL_TRANSFERS,
+    sql: SQL_PENDING_HOTEL_TRANSFERS,
+    bind_count: 3,
+};
+/// Retired TypeScript literal (newline and four-space indentation preserved):
+/// `SELECT count(*) n FROM pms_booking_payments\n    WHERE property_id=? AND company_id=? AND paid_at IS NOT NULL AND status IN ('payment_pending','expired')\n    AND to_char(to_timestamp(paid_at/1000.0) AT TIME ZONE ?,'YYYY-MM-DD')<=?`
+const SQL_UNPOSTED_BOOKING_RECEIPTS: &str = "SELECT count(*) n FROM pms_booking_payments\n    WHERE property_id=? AND company_id=? AND paid_at IS NOT NULL AND status IN ('payment_pending','expired')\n    AND to_char(to_timestamp(paid_at/1000.0) AT TIME ZONE ?,'YYYY-MM-DD')<=?";
+const READ_UNPOSTED_BOOKING_RECEIPTS: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_UNPOSTED_BOOKING_RECEIPTS,
+    sql: SQL_UNPOSTED_BOOKING_RECEIPTS,
+    bind_count: 4,
+};
 
-const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG];
+const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -304,5 +325,28 @@ ORDER BY id"
         assert_eq!(read.sql.matches('?').count(), read.bind_count);
         assert_eq!(read.bind_count, 2);
         assert!(is_read(read.kind));
+    }
+
+    #[test]
+    fn day_control_count_reads_match_retired_typescript_literals() {
+        let transfers = read_statement(PMS_RD_PENDING_HOTEL_TRANSFERS).expect("pending transfers read");
+        assert_eq!(transfers.sql, "SELECT count(*) n FROM pms_transfer_requests WHERE company_id=? AND property_id=? AND business_date=? AND state='pending'");
+        let receipts = read_statement(PMS_RD_UNPOSTED_BOOKING_RECEIPTS).expect("unposted receipts read");
+        assert_eq!(receipts.sql, "SELECT count(*) n FROM pms_booking_payments\n    WHERE property_id=? AND company_id=? AND paid_at IS NOT NULL AND status IN ('payment_pending','expired')\n    AND to_char(to_timestamp(paid_at/1000.0) AT TIME ZONE ?,'YYYY-MM-DD')<=?");
+        for read in [transfers, receipts] {
+            let upper = read.sql.to_ascii_uppercase();
+            assert!(upper.starts_with("SELECT"));
+            assert!(!upper.contains("INSERT INTO"));
+            assert!(!upper.contains("UPDATE "));
+            assert!(!upper.contains("DELETE FROM"));
+            assert!(!upper.contains("FOR UPDATE"));
+            assert!(!upper.contains("FOR SHARE"));
+            assert!(!upper.contains("LOCK TABLE"));
+            assert_eq!(read.sql.matches('?').count(), read.bind_count);
+            assert!(is_read(read.kind));
+        }
+        assert_eq!(transfers.bind_count, 3);
+        assert_eq!(receipts.bind_count, 4);
+        assert!(!is_read("pms_rd_refund"));
     }
 }

@@ -16,6 +16,8 @@ import {
   PMS_RD_DOCUMENT_BY_ID,
   PMS_RD_DOCUMENT_SNAPSHOT,
   PMS_RD_PROPERTY_CONFIG,
+  PMS_RD_PENDING_HOTEL_TRANSFERS,
+  PMS_RD_UNPOSTED_BOOKING_RECEIPTS,
 } from '../../../packages/server-pms/src/adapters/native-pms-read';
 import { readPmsInventoryCommand } from '../../../packages/server-pms/src/adapters/pms/read-repository';
 
@@ -392,6 +394,55 @@ describe('native PMS property config read retirement', () => {
     expect(bodies.map(b => b.values)).toEqual([['property-1', 'company-1']]);
     expect(bound).toEqual([['property-1', 'company-1']]);
     expect(prepared).toEqual([propertyConfigSql]);
+    for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
+  });
+});
+
+const pendingTransfersSql = "SELECT count(*) n FROM pms_transfer_requests WHERE company_id=? AND property_id=? AND business_date=? AND state='pending'";
+const unpostedBookingReceiptsSql = "SELECT count(*) n FROM pms_booking_payments\n    WHERE property_id=? AND company_id=? AND paid_at IS NOT NULL AND status IN ('payment_pending','expired')\n    AND to_char(to_timestamp(paid_at/1000.0) AT TIME ZONE ?,'YYYY-MM-DD')<=?";
+
+describe('native PMS day-control count-read retirement', () => {
+  it('exposes fixed count read kinds with no SQL on the wire', () => {
+    expect(PMS_RD_PENDING_HOTEL_TRANSFERS).toBe('pms_rd_pending_hotel_transfers');
+    expect(PMS_RD_UNPOSTED_BOOKING_RECEIPTS).toBe('pms_rd_unposted_booking_receipts');
+    for (const kind of [PMS_RD_PENDING_HOTEL_TRANSFERS, PMS_RD_UNPOSTED_BOOKING_RECEIPTS]) {
+      expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+    }
+  });
+
+  it('removes both TypeScript day-control count SELECT literals', async () => {
+    const controls = await readFile(new URL('../../../packages/server-pms/src/adapters/hospitality-day-controls.ts', import.meta.url), 'utf8');
+    expect(controls).not.toContain('SELECT count(*) n FROM pms_transfer_requests');
+    expect(controls).not.toContain('FROM pms_booking_payments');
+    expect(controls).toContain('PMS_RD_PENDING_HOTEL_TRANSFERS');
+    expect(controls).toContain('PMS_RD_UNPOSTED_BOOKING_RECEIPTS');
+  });
+
+  it('plans both count reads in Rust and runs them on the caller unit', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push(body);
+      const sql = body.kind === PMS_RD_PENDING_HOTEL_TRANSFERS ? pendingTransfersSql : unpostedBookingReceiptsSql;
+      return new Response(JSON.stringify({ data: { statements: [{ sql, values: body.values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+    const prepared: string[] = [], bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) { prepared.push(sql); return { bind(...values: unknown[]) { bound.push(values); return this; } }; },
+      async batch<T>() { return [{ results: [{ n: 2 }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+    const transfers = await nativePmsReadFirst<{ n: number }>(PMS_RD_PENDING_HOTEL_TRANSFERS, ['company-1', 'property-1', '2026-11-24'], db as never);
+    const receipts = await nativePmsReadFirst<{ n: number }>(PMS_RD_UNPOSTED_BOOKING_RECEIPTS, ['property-1', 'company-1', 'Asia/Bangkok', '2026-11-24'], db as never);
+
+    expect(transfers).toMatchObject({ n: 2 });
+    expect(receipts).toMatchObject({ n: 2 });
+    expect(bodies.map(b => b.kind)).toEqual([PMS_RD_PENDING_HOTEL_TRANSFERS, PMS_RD_UNPOSTED_BOOKING_RECEIPTS]);
+    expect(bodies.map(b => b.values)).toEqual([['company-1', 'property-1', '2026-11-24'], ['property-1', 'company-1', 'Asia/Bangkok', '2026-11-24']]);
+    expect(bound).toEqual([['company-1', 'property-1', '2026-11-24'], ['property-1', 'company-1', 'Asia/Bangkok', '2026-11-24']]);
+    expect(prepared).toEqual([pendingTransfersSql, unpostedBookingReceiptsSql]);
     for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
   });
 });

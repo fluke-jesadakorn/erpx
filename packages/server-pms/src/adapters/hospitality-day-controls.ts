@@ -4,7 +4,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { hospitalityDayControls as control, type HospitalityDayControlRepository, type Count } from "@erpx/server-pms/application/hospitality-day-controls";
 import { pmsDayControlPosFacts } from "@erpx/server-pos/public/pms-day-control-facts";
 import { pmsDayControlFinanceFacts } from "@erpx/server-finance/public/pms-day-control-facts";
-import { nativePmsReadFirst, PMS_RD_CHARGE_CORRECTION_PENDING_COUNT, PMS_RD_PROPERTY_CONFIG } from "./native-pms-read";
+import { nativePmsReadFirst, PMS_RD_CHARGE_CORRECTION_PENDING_COUNT, PMS_RD_PROPERTY_CONFIG, PMS_RD_PENDING_HOTEL_TRANSFERS, PMS_RD_UNPOSTED_BOOKING_RECEIPTS } from "./native-pms-read";
 function repository(db: SqlDatabase): HospitalityDayControlRepository {
     const pos = pmsDayControlPosFacts(db), finance = pmsDayControlFinanceFacts(db);
     return {
@@ -16,7 +16,7 @@ function repository(db: SqlDatabase): HospitalityDayControlRepository {
             companyId: string;
             propertyId: string;
             businessDate: string;
-        }) => db.prepare("SELECT count(*) n FROM pms_transfer_requests WHERE company_id=? AND property_id=? AND business_date=? AND state='pending'").bind(facts.companyId, facts.propertyId, facts.businessDate).first<Count>().then(row => Number(row?.n ?? 0)),
+        }) => nativePmsReadFirst<Count>(PMS_RD_PENDING_HOTEL_TRANSFERS, [facts.companyId, facts.propertyId, facts.businessDate], db).then(row => Number(row?.n ?? 0)),
         pendingChargeCorrections: (facts: {
             companyId: string;
             propertyId: string;
@@ -30,9 +30,7 @@ function repository(db: SqlDatabase): HospitalityDayControlRepository {
             companyId: string;
             timezone: string;
             businessDate: string;
-        }) => db.prepare(`SELECT count(*) n FROM pms_booking_payments
-    WHERE property_id=? AND company_id=? AND paid_at IS NOT NULL AND status IN ('payment_pending','expired')
-    AND to_char(to_timestamp(paid_at/1000.0) AT TIME ZONE ?,'YYYY-MM-DD')<=?`).bind(facts.propertyId, facts.companyId, facts.timezone, facts.businessDate).first<Count>().then(row => Number(row?.n ?? 0)),
+        }) => nativePmsReadFirst<Count>(PMS_RD_UNPOSTED_BOOKING_RECEIPTS, [facts.propertyId, facts.companyId, facts.timezone, facts.businessDate], db).then(row => Number(row?.n ?? 0)),
         failedBookingRefunds: (facts: {
             propertyId: string;
             companyId: string;

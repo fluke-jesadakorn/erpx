@@ -742,6 +742,50 @@ async fn command_plan_resolves_property_config_read() {
 }
 
 #[tokio::test]
+async fn command_plan_resolves_day_control_count_reads() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    let (status, value, _) = call_post(
+        address,
+        "/api/v1/holdings/acme/pms/command-plan",
+        r#"{"kind":"pms_rd_pending_hotel_transfers","values":["company-1","property-1","2026-11-24"],"sql":"DELETE FROM pms_transfer_requests"}"#,
+    )
+    .await;
+    assert_eq!(status, 200);
+    let statement = &value["data"]["statements"][0];
+    assert_eq!(
+        statement["sql"].as_str().unwrap(),
+        "SELECT count(*) n FROM pms_transfer_requests WHERE company_id=? AND property_id=? AND business_date=? AND state='pending'"
+    );
+    assert!(!statement["sql"].as_str().unwrap().to_ascii_uppercase().contains("DELETE"));
+    assert_eq!(statement["values"], json!(["company-1", "property-1", "2026-11-24"]));
+
+    let (status, value, _) = call_post(
+        address,
+        "/api/v1/holdings/acme/pms/command-plan",
+        r#"{"kind":"pms_rd_unposted_booking_receipts","values":["property-1","company-1","Asia/Bangkok","2026-11-24"]}"#,
+    )
+    .await;
+    assert_eq!(status, 200);
+    let statement = &value["data"]["statements"][0];
+    assert_eq!(
+        statement["sql"].as_str().unwrap(),
+        "SELECT count(*) n FROM pms_booking_payments\n    WHERE property_id=? AND company_id=? AND paid_at IS NOT NULL AND status IN ('payment_pending','expired')\n    AND to_char(to_timestamp(paid_at/1000.0) AT TIME ZONE ?,'YYYY-MM-DD')<=?"
+    );
+    assert_eq!(statement["values"], json!(["property-1", "company-1", "Asia/Bangkok", "2026-11-24"]));
+
+    let (status, _, _) = call_post(
+        address,
+        "/api/v1/holdings/acme/pms/command-plan",
+        r#"{"kind":"pms_rd_pending_hotel_transfers","values":["company-1","property-1"]}"#,
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(backend.reads.load(Ordering::SeqCst), 0);
+    task.abort();
+}
+
+#[tokio::test]
 async fn command_plan_rejects_unregistered_kinds_and_wrong_bind_counts() {
     let backend = Arc::new(Backend::new());
     let (address, task) = start(backend.clone()).await;
