@@ -59,6 +59,9 @@ export async function nativeNotificationStatement(
     source_access_sql?: string;
     target_kind?: string;
     target_id?: string;
+    /** camelCase aliases for kind-routed reads (the ingress denies unknown fields). */
+    targetKind?: string;
+    targetId?: string;
   },
   key: string,
   now: number,
