@@ -1,4 +1,5 @@
 pub(crate) mod journal;
+pub(crate) mod journal_batch;
 pub(crate) mod journal_review;
 
 pub(crate) mod finance_owner_write;

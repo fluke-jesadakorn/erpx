@@ -12,6 +12,8 @@ pub mod field_history_money_lines;
 pub mod field_work;
 pub mod initial_history_marker_roots;
 pub mod journal_review;
+pub mod journal_batch;
+pub mod journal_batch_wire;
 pub mod money_snapshot;
 pub mod raw_field_invoice_marker;
 pub mod raw_field_journal_marker;

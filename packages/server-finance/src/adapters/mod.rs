@@ -33,6 +33,8 @@ pub(crate) mod supplier_bill;
 pub(crate) mod postgres_inventory_consumption;
 
 pub(crate) mod journal_review_wire;
+pub(crate) mod journal_batch_wire;
+pub(crate) mod postgres_journal_batch;
 
 pub(crate) mod postgres_journal_detail;
 

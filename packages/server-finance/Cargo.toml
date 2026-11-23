@@ -58,6 +58,14 @@ name = "journal_review"
 path = "../../tests/unit/finance/rust-journal-review.test.rs"
 
 [[test]]
+name = "journal_batch"
+path = "../../tests/unit/finance/rust-journal-batch.test.rs"
+
+[[test]]
+name = "journal_batch_postgres"
+path = "../../tests/integration/finance/rust-journal-batch-postgres.test.rs"
+
+[[test]]
 name = "journal_review_postgres"
 path = "../../tests/integration/finance/rust-journal-review-postgres.test.rs"
 
