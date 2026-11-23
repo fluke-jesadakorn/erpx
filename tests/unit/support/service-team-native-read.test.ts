@@ -222,4 +222,43 @@ describe('support service-team coverage native read', () => {
       delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
     }
   });
+
+  it('carries no retired ticket source-image SQL in the switched adapters', async () => {
+    const preview = await source('packages/server-support/src/adapters/portal-preview-sources.ts');
+    const attachment = await source('packages/server-support/src/adapters/attachment-read.ts');
+    expect(preview).not.toContain('to_jsonb(ticket)::text image FROM support_tickets');
+    expect(attachment).not.toContain('to_jsonb(t)::text image,t.source_record_json');
+    expect(preview).toContain('SUPPORT_RD_TICKET_SOURCE_IMAGE');
+    expect(attachment).toContain('SUPPORT_RD_TICKET_ATTACHMENT_SOURCE_IMAGE');
+  });
+
+  it('plans ticket source images in Rust with owner-scoped binds', async () => {
+    const batch = vi.fn(async () => [{ results: [{ image: '{"id":"ticket-1"}', source_record_json: null, order_id: null, customer_id: null }], success: true, meta: { changes: 0, duration: 0 } }]);
+    const db = { prepare: vi.fn(() => ({ bind: vi.fn() })), batch } as unknown as SqlDatabase;
+    process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      ok('SELECT to_jsonb(ticket)::text image FROM support_tickets ticket WHERE ticket.id=? AND ticket.company_id=?', ['ticket-1', 'company']),
+    );
+    try {
+      const { portalPreviewSupportSourceImage } = await import('@erpx/server-support/public/portal-preview-sources');
+      await expect(portalPreviewSupportSourceImage(db, 'company', 'ticket-1')).resolves.toBe('{"id":"ticket-1"}');
+      expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({
+        kind: 'support_rd_ticket_source_image',
+        values: ['ticket-1', 'company'],
+      });
+
+      fetchMock.mockClear();
+      const { nativeSupportReadAll, SUPPORT_RD_TICKET_ATTACHMENT_SOURCE_IMAGE } =
+        await import('@erpx/server-support/adapters/native-support-read');
+      await expect(nativeSupportReadAll<{ image: string }>(SUPPORT_RD_TICKET_ATTACHMENT_SOURCE_IMAGE, ['ticket-1', 'company'], db)
+        .then((result: { results: unknown[] }) => result.results)).resolves.toEqual([{ image: '{"id":"ticket-1"}', source_record_json: null, order_id: null, customer_id: null }]);
+      expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({
+        kind: 'support_rd_ticket_attachment_source_image',
+        values: ['ticket-1', 'company'],
+      });
+    } finally {
+      fetchMock.mockRestore();
+      delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
+    }
+  });
 });

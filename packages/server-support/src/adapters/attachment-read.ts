@@ -16,9 +16,10 @@ import {attachmentDeniedReadAudits} from '@erpx/server-files/public/attachment-d
 import {attachmentReadSource,attachmentPrivateReadSourceLocks,assertAttachmentReadRoute,requirePrivateAttachmentReaderCurrent,bufferedAttachmentRead,type AttachmentReadRoute,type AttachmentReadSource} from '@erpx/server-files/public/private-attachment-reads';
 import {isTransactionalSqlDatabase,type SqlDatabase,type StoredFile} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
+import {nativeSupportReadAll,SUPPORT_RD_TICKET_ATTACHMENT_SOURCE_IMAGE} from './native-support-read';
 
 async function image(database:SqlDatabase,companyId:string,id:string){
- const ticket=await database.prepare('SELECT to_jsonb(t)::text image,t.source_record_json,t.order_id,t.customer_id FROM support_tickets t WHERE t.id=? AND t.company_id=?').bind(id,companyId).first<{image:string;source_record_json:string|null;order_id:string|null;customer_id:string|null}>();if(!ticket)return null;
+ const ticket=(await nativeSupportReadAll<{image:string;source_record_json:string|null;order_id:string|null;customer_id:string|null}>(SUPPORT_RD_TICKET_ATTACHMENT_SOURCE_IMAGE,[id,companyId],database)).results[0]??null;if(!ticket)return null;
  let origin:string|null=null;
  if(ticket.source_record_json){const source:unknown=JSON.parse(ticket.source_record_json);if(source&&typeof source==='object'&&'id' in source&&typeof source.id==='string'&&'kind' in source){
   if(source.kind==='pos_sale')origin=await posAttachmentReadSourceImage(database,companyId,'pos_sale',source.id);

@@ -8,8 +8,10 @@
 //! `service_team_revisions`, ticket-portal response/acknowledgement reads on
 //! `support_ticket_portal_responses` and `support_ticket_portal_acknowledgements`,
 //! ticket/incident event history on `support_ticket_events` and
-//! `support_incident_events`, and incident-ticket link reads on
-//! `support_incident_tickets`, `support_tickets` and `support_incidents`.
+//! `support_incident_events`, incident-ticket link reads on
+//! `support_incident_tickets`, `support_tickets` and `support_incidents`, and
+//! ticket source-image snapshots on `support_tickets` used by the private-file
+//! and portal-preview consistency witnesses.
 //! Reads carry no receipt/audit/outbox ledger: the caller executes them on the
 //! same unit as the surrounding command. No SQL is ever accepted from the wire
 //! and no TypeScript SQL remains for these kinds.
@@ -128,6 +130,31 @@ const READ_INCIDENT_TICKET_LINKS: NativeSupportReadStatement = NativeSupportRead
     bind_count: 1,
 };
 
+/// Native successor of the TypeScript portal-preview ticket source image read.
+/// The caller binds `[ticket_id, company_id]` and receives the owned snapshot
+/// used as the before/after consistency witness.
+pub const RD_TICKET_SOURCE_IMAGE: &str = "support_rd_ticket_source_image";
+const SQL_TICKET_SOURCE_IMAGE: &str =
+    "SELECT to_jsonb(ticket)::text image FROM support_tickets ticket WHERE ticket.id=? AND ticket.company_id=?";
+const READ_TICKET_SOURCE_IMAGE: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_TICKET_SOURCE_IMAGE,
+    sql: SQL_TICKET_SOURCE_IMAGE,
+    bind_count: 2,
+};
+
+/// Native successor of the TypeScript private-file attachment ticket source
+/// image read. The caller binds `[ticket_id, company_id]` and receives the
+/// owned row snapshot plus the source/order/customer references needed by the
+/// attachment consistency witness.
+pub const RD_TICKET_ATTACHMENT_SOURCE_IMAGE: &str = "support_rd_ticket_attachment_source_image";
+const SQL_TICKET_ATTACHMENT_SOURCE_IMAGE: &str =
+    "SELECT to_jsonb(t)::text image,t.source_record_json,t.order_id,t.customer_id FROM support_tickets t WHERE t.id=? AND t.company_id=?";
+const READ_TICKET_ATTACHMENT_SOURCE_IMAGE: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_TICKET_ATTACHMENT_SOURCE_IMAGE,
+    sql: SQL_TICKET_ATTACHMENT_SOURCE_IMAGE,
+    bind_count: 2,
+};
+
 const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SERVICE_COVERAGE_HISTORY,
     READ_SERVICE_TEAM_COVERAGE,
@@ -138,6 +165,8 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_INCIDENT_EVENT_HISTORY,
     READ_TICKET_INCIDENT_LINKS,
     READ_INCIDENT_TICKET_LINKS,
+    READ_TICKET_SOURCE_IMAGE,
+    READ_TICKET_ATTACHMENT_SOURCE_IMAGE,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -197,6 +226,12 @@ mod tests {
                 SQL_INCIDENT_TICKET_LINKS,
                 1usize,
             ),
+            (RD_TICKET_SOURCE_IMAGE, SQL_TICKET_SOURCE_IMAGE, 2usize),
+            (
+                RD_TICKET_ATTACHMENT_SOURCE_IMAGE,
+                SQL_TICKET_ATTACHMENT_SOURCE_IMAGE,
+                2usize,
+            ),
         ];
         for (kind, sql, binds) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -210,12 +245,12 @@ mod tests {
             assert!(
                 sql.contains("service_team") || sql.contains("support_ticket_portal") ||
                     sql.contains("support_ticket_events") || sql.contains("support_incident_events") ||
-                    sql.contains("support_incident_tickets"),
+                    sql.contains("support_incident_tickets") || sql.contains("support_tickets"),
                 "owner read must stay on owner-local Support tables: {sql}"
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 9);
+        assert_eq!(STATEMENTS.len(), 11);
     }
 
     #[test]
@@ -240,5 +275,9 @@ mod tests {
         assert_eq!(ticket_links.bind_count, 1);
         let incident_links = read_statement(RD_INCIDENT_TICKET_LINKS).expect("incident ticket links");
         assert_eq!(incident_links.bind_count, 1);
+        let source_image = read_statement(RD_TICKET_SOURCE_IMAGE).expect("ticket source image");
+        assert_eq!(source_image.bind_count, 2);
+        let attachment_image = read_statement(RD_TICKET_ATTACHMENT_SOURCE_IMAGE).expect("ticket attachment source image");
+        assert_eq!(attachment_image.bind_count, 2);
     }
 }
