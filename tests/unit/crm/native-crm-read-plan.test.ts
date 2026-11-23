@@ -61,7 +61,7 @@ describe('native CRM caller-unit read plan', () => {
   it('plans the owner read in Rust and runs it on the caller unit', async () => {
     const fetchMock = stubFetch({ data: { statements: [{ sql: plannedSql, values: ['activity-1', 'company'] }] } });
     const { db } = fakeDb();
-    const row = await nativeCrmReadFirst<{ lead_id: string }>(CRM_RD_COLLAB_NOTIFICATION_LEAD, ['activity-1', 'company'], db);
+    const row = await nativeCrmReadFirst<{ lead_id: string }>(CRM_RD_COLLAB_NOTIFICATION_LEAD, ['activity-1', 'company'], db as never);
     expect(row).toEqual({ lead_id: 'lead-1' });
     const [url, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
     expect(String(url)).toContain('/api/v1/holdings/acme/crm/command-plan');
