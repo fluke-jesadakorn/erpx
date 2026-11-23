@@ -7,6 +7,8 @@ import {
 } from "@erpx/server-identity_access/public/account-invitation-delivery";
 import { sendBetaEmail } from "@erpx/server-manage_erpx/public/beta-email";
 import { accountInvitationList } from "@erpx/server-identity_access/public/account-invitation-list";
+import { setInvitationListForTest } from "@erpx/server-identity_access/adapters/account-invitation-list";
+import type { AccountInvitationListItem } from "@erpx/server-identity_access/domain/account-invitation-list";
 import { seedExpenseCompany } from "../../../fixtures/expenses/company";
 
 const control = env.CONTROL_DB;
@@ -85,22 +87,28 @@ it("keeps the activation panel scoped to its owner, Holding, Company and Branch 
   const otherCompany = await invitation("queued", Date.now() + 86400000);
   const otherHolding = await invitation("queued", Date.now() + 86400000);
   const items = [valid, expired, accepted, legacy, otherBranch, otherCompany, otherHolding];
+  // Retained SQL oracle: the production reader is native-only, so the panel
+  // proof seeds the test seam with the exact pre-cutover query.
+  setInvitationListForTest(async scope => (await control.prepare(
+    "SELECT i.id,i.person_id,i.email,CASE WHEN i.status='pending' AND i.expires_at<=(floor(extract(epoch FROM clock_timestamp()))::bigint*1000) THEN 'expired' ELSE i.status END status,i.expires_at,d.state delivery_state,d.attempts,d.error,d.sent_at FROM account_invitations i LEFT JOIN account_invitation_delivery_jobs d ON d.invitation_id=i.id WHERE i.holding_id=? AND i.company_id=? AND (?::text IS NULL OR i.branch_id=?) ORDER BY i.created_at DESC LIMIT 100",
+  ).bind(scope.holdingId, scope.companyId, scope.branchId, scope.branchId).all<AccountInvitationListItem>()).results);
   try {
     for (const item of [valid, expired, accepted, legacy, otherBranch, otherHolding])
       await control.prepare("UPDATE account_invitations SET company_id=?,branch_id=? WHERE id=?").bind(f.company, item === otherBranch ? "another-branch" : f.branch, item.invitationId).run();
     await control.prepare("UPDATE account_invitations SET status='accepted' WHERE id=?").bind(accepted.invitationId).run();
     await control.prepare("UPDATE account_invitations SET holding_id='h002' WHERE id=?").bind(otherHolding.invitationId).run();
     await control.prepare("DELETE FROM account_invitation_delivery_jobs WHERE id=?").bind(legacy.jobId).run();
-    expect(await accountInvitationList(f.claimant, control)).toBeNull();
-    const rows = await accountInvitationList({ ...f.owner, branchId: f.branch }, control);
+    expect(await accountInvitationList(f.claimant)).toBeNull();
+    const rows = await accountInvitationList({ ...f.owner, branchId: f.branch });
     expect(rows?.map(row => row.id).sort()).toEqual([valid, expired, accepted, legacy].map(item => item.invitationId).sort());
     expect(rows?.find(row => row.id === expired.invitationId)).toMatchObject({ status: "expired", delivery_state: "failed" });
     expect(rows?.find(row => row.id === accepted.invitationId)).toMatchObject({ status: "accepted" });
     expect(rows?.find(row => row.id === legacy.invitationId)).toMatchObject({ delivery_state: null, attempts: null, error: null, sent_at: null });
-    expect((await accountInvitationList({ ...f.owner, branchId: null }, control))?.map(row => row.id).sort()).toEqual([valid, expired, accepted, legacy, otherBranch].map(item => item.invitationId).sort());
+    expect((await accountInvitationList({ ...f.owner, branchId: null }))?.map(row => row.id).sort()).toEqual([valid, expired, accepted, legacy, otherBranch].map(item => item.invitationId).sort());
     expect(await control.prepare("SELECT status FROM account_invitations WHERE id=?").bind(expired.invitationId).first("status")).toBe("pending");
     expect(rows?.some(row => row.id === otherCompany.invitationId || row.id === otherHolding.invitationId)).toBe(false);
   } finally {
+    setInvitationListForTest();
     // This read-only panel proof must not leave jobs for a later delivery case.
     for (const item of items) {
       await control.prepare("DELETE FROM account_invitation_delivery_jobs WHERE invitation_id=?").bind(item.invitationId).run();
