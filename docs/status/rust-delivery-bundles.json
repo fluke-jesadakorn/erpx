@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6483,
+    "revision": 6484,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -110112,6 +110112,25 @@
             "command": "tsc server-files + server-pos",
             "result": "passed",
             "sourceSha": "064264c7b"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ac4e3daec",
+            "owner": "files",
+            "before": 298,
+            "after": 297,
+            "note": "wP01: RD_WORKFLOW_APPROVAL_EVIDENCE + nativeFilesReadAll."
+          },
+          {
+            "command": "cargo test -p erpx-server-files --test files_wave1b_plan (14)",
+            "result": "passed",
+            "sourceSha": "ac4e3daec"
+          },
+          {
+            "command": "tsc server-files + server-workflow",
+            "result": "passed",
+            "sourceSha": "ac4e3daec"
           }
         ],
         "retainedLegacy": [],
@@ -110124,7 +110143,7 @@
           "reason": "handoff",
           "nextAction": "Integrated; claim released"
         },
-        "nextAction": "Integrated; claim released",
+        "nextAction": "297 recorded; remaining: front-logo/legal-corpus (3 binds), records-evidence/pms-publications (array binds)",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -114638,7 +114657,7 @@
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T18:24:31.697Z",
+    "updatedAt": "2026-11-23T18:25:09.854Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
