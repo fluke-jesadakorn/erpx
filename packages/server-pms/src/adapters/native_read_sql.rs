@@ -37,6 +37,10 @@ pub const PMS_RD_POSTING_BY_RECORD: &str = "pms_rd_posting_by_record";
 /// the caller runs them on its already-open unit.
 pub const PMS_RD_CHARGE_CORRECTION_PENDING: &str = "pms_rd_charge_correction_pending";
 pub const PMS_RD_CHARGE_CORRECTION_PENDING_COUNT: &str = "pms_rd_charge_correction_pending_count";
+/// Native successor of the owner-local `readPmsGuestCommandRecord` fixed SQL.
+/// No ledger/receipt/outbox and no lock/refund path; the caller runs it on its
+/// already-open guest command unit with the same `[propertyId, guestId]` binds.
+pub const PMS_RD_GUEST_COMMAND_RECORD: &str = "pms_rd_guest_command_record";
 const SQL_INVENTORY_COMMAND: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
 WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
 UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
@@ -100,7 +104,15 @@ const READ_CHARGE_CORRECTION_PENDING_COUNT: NativeReadStatement = NativeReadStat
     bind_count: 2,
 };
 
-const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT];
+/// `SELECT id,kind,data_json,version,updated_at FROM pms_records WHERE property_id=? AND kind='guest' AND id=?`
+const SQL_GUEST_COMMAND_RECORD: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records WHERE property_id=? AND kind='guest' AND id=?";
+const READ_GUEST_COMMAND_RECORD: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_GUEST_COMMAND_RECORD,
+    sql: SQL_GUEST_COMMAND_RECORD,
+    bind_count: 2,
+};
+
+const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -208,5 +220,21 @@ ORDER BY id"
         }
         assert_eq!(pending.bind_count, 1);
         assert_eq!(count.bind_count, 2);
+    }
+
+    #[test]
+    fn guest_command_record_read_is_fixed_ledger_free_select() {
+        let read = read_statement(PMS_RD_GUEST_COMMAND_RECORD).expect("guest command record read");
+        assert_eq!(read.sql, "SELECT id,kind,data_json,version,updated_at FROM pms_records WHERE property_id=? AND kind='guest' AND id=?");
+        let upper = read.sql.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT"));
+        assert!(!upper.contains("INSERT INTO"));
+        assert!(!upper.contains("UPDATE "));
+        assert!(!upper.contains("DELETE FROM"));
+        assert!(!upper.contains("FOR UPDATE"));
+        assert!(!upper.contains("FOR SHARE"));
+        assert_eq!(read.sql.matches('?').count(), read.bind_count);
+        assert_eq!(read.bind_count, 2);
+        assert!(is_read(read.kind));
     }
 }

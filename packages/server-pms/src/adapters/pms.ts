@@ -46,7 +46,7 @@ import { pmsPosFacts } from "@erpx/server-pos/public/pms-command-facts";
 import { pmsWorkflowFacts } from "@erpx/server-workflow/public/pms-command-facts";
 import { pmsFilesFacts } from "@erpx/server-files/public/pms-command-facts";
 import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
-import { nativePmsReadFirst, PMS_RD_POSTING_CHARGE, PMS_RD_POSTING_BY_RECORD, PMS_RD_CHARGE_CORRECTION_PENDING } from "./native-pms-read";
+import { nativePmsReadAll, nativePmsReadFirst, PMS_RD_POSTING_CHARGE, PMS_RD_POSTING_BY_RECORD, PMS_RD_CHARGE_CORRECTION_PENDING, PMS_RD_GUEST_COMMAND_RECORD } from "./native-pms-read";
 function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
         const write = (kind: string, values: unknown[]): any => nativePmsOwnerWrite(companyId, kind, values);
     const identity_access = pmsIdentityAccessFacts(db);
@@ -656,7 +656,7 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
               AND r.data_json::jsonb->>'roomId' IN (SELECT data_json::jsonb->>'roomId' FROM stays)
         ) SELECT * FROM selected ORDER BY updated_at,id`).bind(propertyId,businessDate,targetId)
           .all<PmsStoredRecord>().then(rows=>rows.results.map(decodePmsRecord)),
-        readPmsGuestCommandRecord: (propertyId: string, guestId: string) => db.prepare("SELECT id,kind,data_json,version,updated_at FROM pms_records WHERE property_id=? AND kind='guest' AND id=?").bind(propertyId,guestId).all<PmsStoredRecord>().then(rows=>rows.results.map(decodePmsRecord)),
+        readPmsGuestCommandRecord: (propertyId: string, guestId: string) => nativePmsReadAll<PmsStoredRecord>(PMS_RD_GUEST_COMMAND_RECORD, [propertyId, guestId], db).then(rows => rows.results.map(decodePmsRecord)),
         readPmsChoices: (id,selection) => readPmsChoices(db,id,selection),
         readPmsSetupFacts: (arg0: string) => readPmsSetupFacts(db, arg0),
         hospitalityDayControls: (arg0: string, arg1: string, arg2: string, arg3: string) => hospitalityDayControls(db, arg0, arg1, arg2, arg3),
