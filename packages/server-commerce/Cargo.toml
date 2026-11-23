@@ -61,6 +61,10 @@ name = "commerce_currency_read"
 path = "../../tests/unit/commerce/rust-commerce-currency-read.test.rs"
 
 [[test]]
+name = "ecommerce_configuration_read"
+path = "../../tests/unit/commerce/rust-commerce-ecommerce-configuration-read.test.rs"
+
+[[test]]
 name = "portal_commerce_locks_postgres"
 path = "../../tests/integration/commerce/rust-portal-commerce-locks-postgres.test.rs"
 

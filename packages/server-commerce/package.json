@@ -36,6 +36,7 @@
     "./adapters/pos-core-facts": "./src/adapters/pos-core-facts.ts",
     "./adapters/finance-withholding-source": "./src/adapters/finance-withholding-source.ts",
     "./adapters/native-records-request-page-owned-facts": "./src/adapters/native-records-request-page-owned-facts.ts",
+    "./adapters/native-ecommerce-sources": "./src/adapters/native-ecommerce-sources.ts",
     "./adapters/pos-posting-setup-sources": "./src/adapters/pos-posting-setup-sources.ts",
     "./adapters/billing-test-finance-ready": "./src/adapters/billing-test-finance-ready.ts",
     "./adapters/sales-package-sources": "./src/adapters/sales-package-sources.ts",

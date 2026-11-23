@@ -17,6 +17,8 @@ use std::collections::BTreeMap;
 use std::{future::Future, pin::Pin, sync::Arc};
 
 const CONTEXT_COMPANY: HeaderName = HeaderName::from_static("x-erpx-context-company");
+const ECOMMERCE_CONFIGURATION: HeaderName =
+    HeaderName::from_static("x-erpx-ecommerce-configuration");
 
 pub type CommerceCurrencyReadFuture<'a, T> =
     Pin<Box<dyn Future<Output = Result<T, BusinessError>> + Send + 'a>>;
@@ -26,6 +28,16 @@ pub struct CommerceCurrencyFacts {
     pub currency: String,
 }
 
+/// Functional currency and Finance chart base for the Ecommerce listing read.
+/// This is the owner-local successor of the SELECT in
+/// `adapters/ecommerce-sources.ts`, served on the already-mounted currency
+/// route so no new native port or gateway allow-list entry is required.
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CommerceConfigurationFacts {
+    pub currency: String,
+    pub base_currency: String,
+}
+
 /// Composition injects the owner reader behind this port. The owner owns the
 /// SQL, the transaction and the projection; the router only transports facts.
 pub trait CommerceCurrencyRead: Send + Sync {
@@ -33,6 +45,17 @@ pub trait CommerceCurrencyRead: Send + Sync {
         &'a self,
         company: &'a str,
     ) -> CommerceCurrencyReadFuture<'a, Option<CommerceCurrencyFacts>>;
+
+    /// Optional Ecommerce configuration projection. A default fail-closed arm
+    /// keeps every other `CommerceCurrencyRead` implementor (test probes and
+    /// alternate bindings) source-compatible; the Pg owner overrides it.
+    fn configuration<'a>(
+        &'a self,
+        company: &'a str,
+    ) -> CommerceCurrencyReadFuture<'a, Option<CommerceConfigurationFacts>> {
+        let _ = company;
+        Box::pin(async { Err(unavailable()) })
+    }
 }
 
 fn unavailable() -> BusinessError {
@@ -77,6 +100,56 @@ impl CommerceCurrencyRead for PgCommerceCurrencyRead {
                         })
                     })
                     .transpose()
+                })
+            })
+            .await
+            .map_err(|error| match error {
+                erpx_server_runtime::public::postgres::PgTransactionError::Business(error) => error,
+                erpx_server_runtime::public::postgres::PgTransactionError::Persistence(_) => {
+                    unavailable()
+                }
+            })
+        })
+    }
+
+    fn configuration<'a>(
+        &'a self,
+        company: &'a str,
+    ) -> CommerceCurrencyReadFuture<'a, Option<CommerceConfigurationFacts>> {
+        let unit = PgUnitOfWork::new(self.pool.clone());
+        let company = company.to_owned();
+        Box::pin(async move {
+            unit.run::<_, BusinessError, _>(TransactionOptions::default(), move |connection| {
+                let company = company.clone();
+                Box::pin(async move {
+                    // Same fixed SQL as the native Ecommerce listing source and
+                    // the retired TS oracle: no new business rule is introduced.
+                    let row = sqlx::query(
+                        "SELECT s.currency,c.base_currency FROM commerce_settings s \
+                         JOIN finance_charts c ON c.id=s.chart_id AND c.company_id=s.company_id \
+                         WHERE s.company_id=$1",
+                    )
+                    .bind(company.as_str())
+                    .fetch_optional(&mut *connection)
+                    .await
+                    .map_err(|_| unavailable())?;
+                    row.map(|r| {
+                        let currency = r.try_get::<String, _>("currency").map_err(|_| unavailable())?;
+                        let base_currency =
+                            r.try_get::<String, _>("base_currency").map_err(|_| unavailable())?;
+                        let valid = |value: &str| {
+                            value.len() == 3 && value.bytes().all(|byte| byte.is_ascii_uppercase())
+                        };
+                        if !valid(&currency) || !valid(&base_currency) {
+                            return Ok(None);
+                        }
+                        Ok(Some(CommerceConfigurationFacts {
+                            currency,
+                            base_currency,
+                        }))
+                    })
+                    .transpose()
+                    .map(|value| value.flatten())
                 })
             })
             .await
@@ -227,6 +300,17 @@ async fn current(
         let company = unique_header(request.headers(), CONTEXT_COMPANY)?
             .filter(|value| valid_id(value))
             .ok_or_else(invalid)?;
+        let configuration = unique_header(request.headers(), ECOMMERCE_CONFIGURATION)?
+            == Some("1");
+        if configuration {
+            // Ecommerce functional-currency configuration on the same mounted
+            // route. The TS oracle is deleted; no second port is mounted.
+            let facts = reader.configuration(company).await?;
+            let configuration = facts.map(|facts| {
+                serde_json::json!({"currency": facts.currency, "base_currency": facts.base_currency})
+            });
+            return Ok::<_, BusinessError>(serde_json::json!({"configuration": configuration}));
+        }
         let facts = reader.currency(company).await?;
         let currency = facts.map(|facts| facts.currency);
         Ok::<_, BusinessError>(serde_json::json!({"currency": currency}))
