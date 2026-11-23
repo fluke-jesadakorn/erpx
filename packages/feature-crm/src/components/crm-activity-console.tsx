@@ -5,9 +5,9 @@ import {crmCommandAllowed} from "@erpx/feature-crm/lib/purchase-controls";
 
 import { Button, Field, Select, TextArea, TextInput } from "@erpx/ui/components/foundation";
 
-import type { crmActivityWorkspace } from "@erpx/server-crm/public/crm-activities";
+import type { NativeCrmActivityWorkspaceData } from "@erpx/server-crm/public/native-activity-workspace";
 import { Card } from "@erpx/ui/components/foundation";
-type Data = Awaited<ReturnType<typeof crmActivityWorkspace>>;
+type Data = NativeCrmActivityWorkspaceData;
 export function CRMActivityConsole({ base, data: currentData }: { base: string; data: Data }) {
   const {snapshot:data,rootProps}=useCRMSnapshot(currentData),purchase=currentData.purchase,active=purchase?.newWork!==false,settle=purchase?.settleExisting!==false;
   const command=useCRMCommand(base,'crm/activities',input=>{const body=input as Record<string,unknown>,item=currentData.items.find(row=>row.id===body.id);return crmCommandAllowed(purchase,input)&&(body.id?!!item&&(item.canComplete||item.canManage):currentData.canCreate);}),{send,busy}=command;

@@ -7,9 +7,9 @@
 //! View/work rules and the repository/directory use cases are exercised against
 //! in-memory fakes. No PostgreSQL, composition or purchase check here.
 use erpx_server_crm::public::activity_workspace::{
-    ACTIVITIES_SQL, ActivityActor, ActivityWorkspaceDirectory, ActivityWorkspaceFuture,
-    ActivityWorkspaceRepository, CrmActivityRow, CrmLeadRow, HISTORY_SQL, LEAD_SQL,
-    RECIPIENTS_SQL, WORK_ROWS_SQL, activity_can_change, activity_work, activity_workspace,
+    ACTIVITIES_SQL, ActivityActor, ActivityWorkspaceData, ActivityWorkspaceDirectory,
+    ActivityWorkspaceFuture, ActivityWorkspaceRepository, CrmActivityRow, CrmLeadRow, HISTORY_SQL,
+    LEAD_SQL, RECIPIENTS_SQL, WORK_ROWS_SQL, activity_can_change, activity_work, activity_workspace,
     due_date_millis, effective_manager, work_items, workspace_view,
 };
 use erpx_server_shared::public::BusinessError;
@@ -368,5 +368,58 @@ async fn workspace_and_work_use_cases_enforce_read_and_scope() {
             .unwrap_err()
             .code,
         "CRM_LEAD_NOT_FOUND"
+    );
+}
+
+/// The strict TypeScript client validates the exact key set of every payload.
+/// Keep the owner wire shape pinned here so adding a field is a deliberate
+/// client cutover rather than a silent transport mismatch.
+#[test]
+fn workspace_wire_shape_is_pinned_for_the_strict_client() {
+    let view = workspace_view(&lead(), &[activity()], &actor());
+    let data = ActivityWorkspaceData {
+        view,
+        history: vec![json!({"action": "create", "version": 1})],
+        recipients: vec![erpx_server_crm::public::activity_workspace::ActivityRecipient {
+            id: "owner".into(),
+            name: "Owner Name".into(),
+        }],
+    };
+    let value = serde_json::to_value(&data).unwrap();
+    let mut keys = value
+        .as_object()
+        .unwrap()
+        .keys()
+        .map(String::as_str)
+        .collect::<Vec<_>>();
+    keys.sort_unstable();
+    assert_eq!(
+        keys,
+        vec!["canCreate", "canManage", "history", "items", "lead", "recipients"]
+    );
+
+    let item = value["items"][0].as_object().unwrap();
+    let mut item_keys = item.keys().map(String::as_str).collect::<Vec<_>>();
+    item_keys.sort_unstable();
+    assert_eq!(
+        item_keys,
+        vec![
+            "activity_type", "branch_id", "canChange", "canComplete", "canManage", "company_id",
+            "created_at", "created_by", "department_id", "details", "due_date", "id",
+            "lead_id", "lead_stage", "lead_status", "lead_title", "outcome", "ownerEligible",
+            "owner_eligible", "owner_id", "owner_name", "status", "subject", "updated_at",
+            "version",
+        ]
+    );
+
+    let work = serde_json::to_value(work_items(&[activity()], &actor())).unwrap();
+    let mut work_keys = work[0].as_object().unwrap().keys().map(String::as_str).collect::<Vec<_>>();
+    work_keys.sort_unstable();
+    assert_eq!(
+        work_keys,
+        vec![
+            "blocker", "detail", "dueAt", "href", "id", "nextAction", "queue", "relationships",
+            "responsibleQueue", "status", "title", "type", "updatedAt",
+        ]
     );
 }

@@ -6,6 +6,12 @@ use erpx_server_crm::public::activities_http::{
     CrmActivityCommandHttpBackend, CrmActivityCommandHttpRequest, CrmActivityCommandHttpTarget,
     crm_activity_command_http_router,
 };
+use erpx_server_crm::public::activity_workspace_http::{
+    CrmActivityWorkspaceHttpBackend, CrmActivityWorkspaceHttpFuture,
+    CrmActivityWorkspaceHttpResponse, CrmActivityWorkspaceHttpTarget,
+    CrmActivityWorkspaceReadKind, CrmActivityWorkspaceReadRequest,
+    crm_activity_workspace_http_router,
+};
 use erpx_server_crm::public::commands_http::{CommandHttpFuture, CrmCommandHttpReply};
 use erpx_server_runtime::public::http_support::{serde_json, serve};
 use erpx_server_shared::public::{BusinessError, FailureKind};
@@ -321,4 +327,146 @@ async fn actual_router_forwards_create_change_and_reassign_separately() {
     assert_eq!(body["error"]["code"], "NOT_FOUND");
 
     server.abort();
+}
+
+// --- Native activity workspace/work GET ingress (owner-side facts only). ---
+
+struct WorkspaceProbe;
+
+impl CrmActivityWorkspaceHttpBackend for WorkspaceProbe {
+    fn read<'a>(
+        &'a self,
+        request: CrmActivityWorkspaceReadRequest<'a>,
+    ) -> CrmActivityWorkspaceHttpFuture<'a, CrmActivityWorkspaceHttpResponse> {
+        Box::pin(async move {
+            let data = match request.kind {
+                CrmActivityWorkspaceReadKind::Workspace { lead_id } => serde_json::json!({
+                    "lead": {"id": lead_id, "title": "Lead", "status": "open", "stage": null, "version": 1},
+                    "items": [],
+                    "canCreate": true,
+                    "canManage": false,
+                    "history": [],
+                    "recipients": [],
+                    "purchase": {"newWork": true, "settleExisting": true, "history": true, "revision": "7"},
+                }),
+                CrmActivityWorkspaceReadKind::Work => serde_json::json!([]),
+            };
+            Ok(CrmActivityWorkspaceHttpResponse {
+                data,
+                context: serde_json::json!({"userId": "owner", "companyId": "company"}),
+            })
+        })
+    }
+}
+
+fn get(path: &str, host: &str) -> String {
+    format!("GET {path} HTTP/1.1\r\nHost: {host}\r\nConnection: close\r\n\r\n")
+}
+
+#[tokio::test]
+async fn workspace_get_router_parses_one_lead_and_fails_closed() {
+    let router = crm_activity_workspace_http_router(vec![CrmActivityWorkspaceHttpTarget {
+        host: "acme.example.test".into(),
+        holding_slug: "acme".into(),
+        origin: "https://acme.example.test".into(),
+        backend: Arc::new(WorkspaceProbe),
+    }])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+
+    let (status, body, raw) = http(
+        addr,
+        get(
+            "/api/v1/holdings/acme/crm/activities?leadId=lead%2D1",
+            "acme.example.test",
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(body["data"]["lead"]["id"], "lead-1");
+    assert_eq!(body["data"]["purchase"]["revision"], "7");
+    assert_eq!(body["context"]["userId"], "owner");
+    assert!(raw.contains("cache-control: private, no-store"));
+
+    let (status, body, _) = http(
+        addr,
+        get(
+            "/api/v1/holdings/acme/crm/activities/work",
+            "acme.example.test",
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert!(body["data"].is_array());
+
+    for (path, expected_status, expected_code) in [
+        (
+            "/api/v1/holdings/acme/crm/activities",
+            422,
+            "CRM_ACTIVITY_REQUEST_INVALID",
+        ),
+        (
+            "/api/v1/holdings/acme/crm/activities?leadId=a&leadId=b",
+            422,
+            "CRM_ACTIVITY_REQUEST_INVALID",
+        ),
+        (
+            "/api/v1/holdings/acme/crm/activities?leadId=a&view=work",
+            422,
+            "CRM_ACTIVITY_REQUEST_INVALID",
+        ),
+        (
+            "/api/v1/holdings/acme/crm/activities/work?q=1",
+            422,
+            "CRM_ACTIVITY_REQUEST_INVALID",
+        ),
+        (
+            "/api/v1/holdings/other/crm/activities?leadId=a",
+            404,
+            "NOT_FOUND",
+        ),
+    ] {
+        let (status, body, _) = http(addr, get(path, "acme.example.test")).await;
+        assert_eq!(status, expected_status);
+        assert_eq!(body["error"]["code"], expected_code);
+    }
+
+    let (status, body, _) = http(
+        addr,
+        get(
+            "/api/v1/holdings/acme/crm/activities?leadId=a",
+            "unknown.example.test",
+        ),
+    )
+    .await;
+    assert_eq!(status, 404);
+    assert_eq!(body["error"]["code"], "NOT_FOUND");
+
+    server.abort();
+}
+
+#[test]
+fn workspace_router_rejects_invalid_configuration() {
+    assert!(crm_activity_workspace_http_router(Vec::new()).is_err());
+    let target = || CrmActivityWorkspaceHttpTarget {
+        host: "acme.example.test".into(),
+        holding_slug: "acme".into(),
+        origin: "https://acme.example.test".into(),
+        backend: Arc::new(WorkspaceProbe),
+    };
+    assert!(crm_activity_workspace_http_router(vec![
+        target(),
+        target(),
+    ])
+    .is_err());
+    let mut bad_origin = target();
+    bad_origin.origin = "http://acme.example.test".into();
+    assert!(crm_activity_workspace_http_router(vec![bad_origin]).is_err());
+    let mut bad_slug = target();
+    bad_slug.holding_slug = "Acme".into();
+    assert!(crm_activity_workspace_http_router(vec![bad_slug]).is_err());
 }

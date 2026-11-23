@@ -1,4 +1,5 @@
 import { nativeCrmExecute } from './native-crm-command';
+import { nativeCrmActivityWork } from './native-activity-workspace';
 import {filterCRMPurchasedWork} from "@erpx/server-crm/adapters/record-purchases";
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
 import { commercialOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/commercial-owner-projection-sources";
@@ -35,7 +36,7 @@ async function records(db:SqlDatabase,a:WorkContext,id?:string){return (await db
 function ownerGuard(db:SqlDatabase,a:WorkContext,id:string,key:string,v:number){return assertion(db,key,'crm-owner',`EXISTS(SELECT 1 FROM crm_leads l WHERE l.id=? AND l.version=? AND l.owner_id=? AND ${scope} AND ${eligible})`,[id,v,a.userId,...args(a)]);}
 
 function application(a:WorkContext,provided?:SqlDatabase){let resource:Promise<SqlDatabase>|null=provided?Promise.resolve(provided):null;const database=()=>resource??=holdingResources(a.holdingId).then(x=>x.write);
-return createCRMApplication({actorId:a.userId,canRead:hasPermission(a,'commerce.read'),canSales:hasPermission(a,'commerce.sales'),canApprove:hasPermission(a,'commerce.approve'),canPms:hasPermission(a,'pms.read'),canSupport:hasPermission(a,'support.read'),clock:{now:()=>Date.now()},authorize:permission=>{requirePermission(a,permission);},activityWork:async()=>{const {crmActivityWork}=await import("@erpx/server-crm/adapters/activities");return crmActivityWork(a);},async repository(){const write=await database();const repository:CRMRepository={
+return createCRMApplication({actorId:a.userId,canRead:hasPermission(a,'commerce.read'),canSales:hasPermission(a,'commerce.sales'),canApprove:hasPermission(a,'commerce.approve'),canPms:hasPermission(a,'pms.read'),canSupport:hasPermission(a,'support.read'),clock:{now:()=>Date.now()},authorize:permission=>{requirePermission(a,permission);},activityWork:async()=>nativeCrmActivityWork(a),async repository(){const write=await database();const repository:CRMRepository={
 records:(id)=>records(write,a,id),
 async branches(){return (await write.prepare(`SELECT id,display_name FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE company_id=? AND kind IN ('branch','headquarters') AND status='active' AND (?::text IS NULL OR id=?) ORDER BY display_name`).bind(a.companyId,a.branchId,a.branchId).all<Row>()).results;},
 async campaigns(){if(!await crmReferenceHistory(write,a,'sales.marketing'))return [];return (await write.prepare(`SELECT id,code,name FROM (${marketingProjectionSources.marketing_campaigns}) marketing_campaigns WHERE company_id=? ORDER BY code`).bind(a.companyId).all<Row>()).results;},
