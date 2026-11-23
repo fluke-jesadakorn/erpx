@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6583,
+    "revision": 6609,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-f",
       "agentId": "lead",
       "startedAt": "2026-11-23T16:54:33.142Z",
-      "heartbeatAt": "2026-11-23T19:25:47.785Z",
-      "expiresAt": "2026-11-23T19:55:47.785Z",
+      "heartbeatAt": "2026-11-23T19:44:05.560Z",
+      "expiresAt": "2026-11-23T20:14:05.560Z",
       "generation": 158,
       "tokenHash": "786b04e6db95d7a97c392a0b212dc2cfdd563bbd8cc6545681f5e6ff248eceaa"
     },
@@ -50671,8 +50671,8 @@
           "runId": "run-20261123-f",
           "agentId": "wN01",
           "claimedAt": "2026-11-23T18:15:53.634Z",
-          "heartbeatAt": "2026-11-23T19:25:47.785Z",
-          "expiresAt": "2026-11-23T19:55:47.785Z",
+          "heartbeatAt": "2026-11-23T19:44:05.560Z",
+          "expiresAt": "2026-11-23T20:14:05.560Z",
           "generation": 158
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -50910,11 +50910,35 @@
             "command": "vitest inventory commerce-facts in-transit (2)",
             "result": "passed",
             "sourceSha": "87b840200"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b6ae3759b",
+            "owner": "inventory",
+            "before": 559,
+            "after": 558,
+            "note": "wN01: RD_FULFILLMENT_LOT_ALLOCATION + nativeInventoryReadFirst."
+          },
+          {
+            "command": "cargo check -p erpx-server-inventory",
+            "result": "passed",
+            "sourceSha": "b6ae3759b"
+          },
+          {
+            "command": "cargo test -p erpx-server-inventory --lib (47)",
+            "result": "passed",
+            "sourceSha": "b6ae3759b"
+          },
+          {
+            "command": "vitest inventory commerce-facts (4)",
+            "result": "passed",
+            "sourceSha": "b6ae3759b"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "559 recorded; remaining inventory reads are dynamic/cross-owner/pairs",
+        "nextAction": "558 recorded; remaining inventory reads are cross-owner/dynamic",
         "handoff": {
           "runId": "run-20261123-f",
           "agentId": "wL05",
@@ -110074,15 +110098,8 @@
         "resources": [
           "owner:commerce"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wX05",
-          "claimedAt": "2026-11-23T19:14:25.430Z",
-          "heartbeatAt": "2026-11-23T19:25:47.785Z",
-          "expiresAt": "2026-11-23T19:55:47.785Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "89cf1fc2547a1bad396f281fe620266bf9914034",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -110141,19 +110158,43 @@
             "command": "cargo test -p erpx-server-commerce --test ecommerce_listing_source_postgres",
             "result": "passed",
             "sourceSha": "5a1ae32a5"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-commerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "47781b126",
+            "owner": "commerce",
+            "before": 566,
+            "after": 564,
+            "note": "wX05: request-page currency native port; deleted records-request-page-owned-facts SQL."
+          },
+          {
+            "command": "cargo check -p erpx-server-commerce",
+            "result": "passed",
+            "sourceSha": "47781b126"
+          },
+          {
+            "command": "cargo test -p erpx-server-commerce --test commerce_currency_read (5)",
+            "result": "passed",
+            "sourceSha": "47781b126"
+          },
+          {
+            "command": "vitest commerce application/record services/orders transport (156)",
+            "result": "passed",
+            "sourceSha": "47781b126"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "handoff",
         "handoff": {
           "runId": "run-20261123-f",
-          "agentId": "wE03",
-          "at": "2026-11-23T17:31:25.036Z",
+          "agentId": "wX05",
+          "at": "2026-11-23T19:32:12.645Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Integrated; mount is lead item"
+          "nextAction": "564 recorded; currency router mounted; next read family"
         },
-        "nextAction": "Integrated; mount is lead item",
+        "nextAction": "564 recorded; currency router mounted; next read family",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -112568,8 +112609,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU02",
           "claimedAt": "2026-11-23T18:38:16.118Z",
-          "heartbeatAt": "2026-11-23T19:25:47.785Z",
-          "expiresAt": "2026-11-23T19:55:47.785Z",
+          "heartbeatAt": "2026-11-23T19:44:05.560Z",
+          "expiresAt": "2026-11-23T20:14:05.560Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113102,15 +113143,8 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wY03",
-          "claimedAt": "2026-11-23T19:24:53.559Z",
-          "heartbeatAt": "2026-11-23T19:25:47.785Z",
-          "expiresAt": "2026-11-23T19:55:47.785Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": "da6bb709d97625f2d522fbabb98b9489cfca1fb3",
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -113131,6 +113165,25 @@
             "sourceSha": "da6bb709d97625f2d522fbabb98b9489cfca1fb3",
             "before": 8,
             "after": 0
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-platform_administration/src/**/*.ts'",
+            "result": "observed",
+            "sourceSha": "e021c610d",
+            "owner": "platform_administration",
+            "before": 58,
+            "after": 58,
+            "note": "Audit: no remaining owner-local read family has a mounted native read port; 58 residual classified."
+          },
+          {
+            "command": "cargo check -p erpx-server-platform-administration",
+            "result": "passed",
+            "sourceSha": "e021c610d"
+          },
+          {
+            "command": "vitest platform administration (32)",
+            "result": "passed",
+            "sourceSha": "e021c610d"
           }
         ],
         "retainedLegacy": [
@@ -113145,15 +113198,15 @@
             "removalCondition": "After runtime generation native statement lands"
           }
         ],
-        "blocker": null,
-        "nextAction": "Worker source review at be30e2e27; runtime gates not rerun. Record explicit expiry tasks for two executive read consumers.",
+        "blocker": "handoff",
+        "nextAction": "Audit complete; no further owner-local slice",
         "handoff": {
-          "runId": "run-20261123-codex",
-          "agentId": "hy4-platform",
-          "at": "2026-11-23T15:54:36.671Z",
-          "previousStatus": "integrating",
+          "runId": "run-20261123-f",
+          "agentId": "wY03",
+          "at": "2026-11-23T19:42:43.004Z",
+          "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Worker source review at be30e2e27; runtime gates not rerun. Record explicit expiry tasks for two executive read consumers."
+          "nextAction": "Audit complete; no further owner-local slice"
         },
         "scopeRefinementRequired": false
       },
@@ -114150,7 +114203,7 @@
         "owner": "support",
         "title": "Native support session reads (12 SELECT -> 0)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -114167,22 +114220,47 @@
         "resources": [
           "owner:support"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wW02",
-          "claimedAt": "2026-11-23T19:05:51.389Z",
-          "heartbeatAt": "2026-11-23T19:25:47.785Z",
-          "expiresAt": "2026-11-23T19:55:47.785Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ab8213d87",
+            "owner": "support",
+            "before": 165,
+            "after": 153,
+            "note": "12 session SELECTs retired; staff-notifications/work-items use native session detail."
+          },
+          {
+            "command": "cargo check support/collaboration/work_projection",
+            "result": "passed",
+            "sourceSha": "ab8213d87"
+          },
+          {
+            "command": "cargo test support_ticket_read_postgres (8) + inbox_support_postgres (11)",
+            "result": "passed",
+            "sourceSha": "ab8213d87"
+          },
+          {
+            "command": "tsc root + vitest session-read-retirement (4)",
+            "result": "passed",
+            "sourceSha": "ab8213d87"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Type-only barrel, rebind supportSessionDetail to native session detail/inbox target, drop work-items case, delete 12 SELECTs, record 165->153",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wW02",
+          "at": "2026-11-23T19:36:26.717Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -114763,7 +114841,7 @@
         "owner": "marketing",
         "title": "Restore public submission rate limit: return RETURNING rows through native command",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -114781,22 +114859,49 @@
           "owner:marketing",
           "resource:composition"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wX01",
-          "claimedAt": "2026-11-23T19:09:59.338Z",
-          "heartbeatAt": "2026-11-23T19:25:47.785Z",
-          "expiresAt": "2026-11-23T19:55:47.785Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-marketing",
+            "result": "passed",
+            "sourceSha": "f0b397b6f"
+          },
+          {
+            "command": "cargo check -p erpx-service",
+            "result": "passed",
+            "sourceSha": "f0b397b6f"
+          },
+          {
+            "command": "cargo test -p erpx-server-marketing (57)",
+            "result": "passed",
+            "sourceSha": "f0b397b6f"
+          },
+          {
+            "command": "vitest native-marketing-campaign-transport (16)",
+            "result": "passed",
+            "sourceSha": "f0b397b6f"
+          },
+          {
+            "command": "marketing public form integration 429",
+            "result": "observed",
+            "sourceSha": "f0b397b6f",
+            "note": "Case added and typechecked; end-to-end run needs a populated ERPX_NATIVE_MARKETING_WAVE2_CONFIG against the fixture DB."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Plumb statement RETURNING rows through NativeCommandOutcome/HTTP {kind,rows}/TS client; marketing_stmt_1 count reaches rate limiter; add 7th-submission 429 integration case",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim/composition released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wX01",
+          "at": "2026-11-23T19:43:58.102Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim/composition released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -115369,8 +115474,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU01",
           "claimedAt": "2026-11-23T18:38:16.034Z",
-          "heartbeatAt": "2026-11-23T19:25:47.785Z",
-          "expiresAt": "2026-11-23T19:55:47.785Z",
+          "heartbeatAt": "2026-11-23T19:44:05.560Z",
+          "expiresAt": "2026-11-23T20:14:05.560Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115408,8 +115513,8 @@
           "runId": "run-20261123-f",
           "agentId": "wU03",
           "claimedAt": "2026-11-23T18:42:45.943Z",
-          "heartbeatAt": "2026-11-23T19:25:47.785Z",
-          "expiresAt": "2026-11-23T19:55:47.785Z",
+          "heartbeatAt": "2026-11-23T19:44:05.560Z",
+          "expiresAt": "2026-11-23T20:14:05.560Z",
           "generation": 158
         },
         "baseSha": null,
@@ -115428,7 +115533,7 @@
         "owner": "maintenance",
         "title": "Native maintenance downtime evidence read + TS transport",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -115444,22 +115549,68 @@
         "resources": [
           "owner:maintenance"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wU05",
-          "claimedAt": "2026-11-23T18:47:54.577Z",
-          "heartbeatAt": "2026-11-23T19:25:47.785Z",
-          "expiresAt": "2026-11-23T19:55:47.785Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-maintenance",
+            "result": "passed",
+            "sourceSha": "87b840200"
+          },
+          {
+            "command": "cargo test -p erpx-server-maintenance --lib (22)",
+            "result": "passed",
+            "sourceSha": "87b840200"
+          },
+          {
+            "command": "cargo test -p erpx-server-maintenance --test maintenance_read_postgres downtime_evidence (2)",
+            "result": "passed",
+            "sourceSha": "87b840200"
+          },
+          {
+            "command": "tsc server-maintenance + vitest native-maintenance-transport (26)",
+            "result": "passed",
+            "sourceSha": "87b840200"
+          },
+          {
+            "command": "cargo check -p erpx-server-maintenance",
+            "result": "passed",
+            "sourceSha": "503575cbc"
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "503575cbc"
+          },
+          {
+            "command": "cargo test -p erpx-server-maintenance --lib (22)",
+            "result": "passed",
+            "sourceSha": "503575cbc"
+          },
+          {
+            "command": "cargo test -p erpx-server-maintenance --test maintenance_read_postgres downtime_evidence (2)",
+            "result": "passed",
+            "sourceSha": "503575cbc"
+          },
+          {
+            "command": "vitest native-maintenance-transport (26)",
+            "result": "passed",
+            "sourceSha": "503575cbc"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Add MaintenanceHttpReadKind::DowntimeEvidence dispatch reusing read_maintenance_downtime_evidence + strict TS client; owner tests only, no composition/runtime consumer switch.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; switch runtime executive consumer next",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wU05",
+          "at": "2026-11-23T19:32:12.566Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; switch runtime executive consumer next"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -115468,7 +115619,7 @@
         "owner": "planning",
         "title": "Native planning-evidence SEARCH port + consumer cutover (owner-side)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -115496,22 +115647,56 @@
         "resources": [
           "owner:planning"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wU06",
-          "claimedAt": "2026-11-23T18:48:10.751Z",
-          "heartbeatAt": "2026-11-23T19:25:47.785Z",
-          "expiresAt": "2026-11-23T19:55:47.785Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-planning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b6ae3759b",
+            "owner": "planning",
+            "before": 51,
+            "after": 48,
+            "note": "Native evidence search port; full EvidenceRow labels and cursor owned by Rust."
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-manufacturing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b6ae3759b",
+            "owner": "manufacturing",
+            "before": 156,
+            "after": 155,
+            "note": "Deleted the planning-only manufacturing projection source."
+          },
+          {
+            "command": "cargo test -p erpx-server-planning --lib (6) + planning_evidence (6) + planning_evidence_postgres (2)",
+            "result": "passed",
+            "sourceSha": "b6ae3759b"
+          },
+          {
+            "command": "tsc root + planning/runtime/manufacturing",
+            "result": "passed",
+            "sourceSha": "b6ae3759b"
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "e021c610d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement native planning evidence SEARCH owner port (full EvidenceRow incl spec/product/warehouse/branch labels) + HTTP adapter + strict TS client; switch runtime evidence consumers; delete planning/manufacturing TS source SQL. Composition mount is lead follow-up.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; enforced eligibility port follow-up",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wU06",
+          "at": "2026-11-23T19:42:01.038Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; enforced eligibility port follow-up"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -115585,7 +115770,7 @@
         "owner": "identity_access",
         "title": "GPO rules native consumer cutover (identity 607->593)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -115610,22 +115795,47 @@
           "owner:organization",
           "owner:people_payroll"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wX02",
-          "claimedAt": "2026-11-23T19:13:39.854Z",
-          "heartbeatAt": "2026-11-23T19:25:47.785Z",
-          "expiresAt": "2026-11-23T19:55:47.785Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b6ae3759b",
+            "owner": "identity_access",
+            "before": 607,
+            "after": 593,
+            "note": "GPO rules read/command consumers use native overview + not-required; 14 TS SELECTs deleted."
+          },
+          {
+            "command": "cargo check -p erpx-server-identity-access -p erpx-server-organization -p erpx-server-people-payroll",
+            "result": "passed",
+            "sourceSha": "b6ae3759b"
+          },
+          {
+            "command": "cargo test position_gpo (13) + position_gpo_http (4)",
+            "result": "passed",
+            "sourceSha": "b6ae3759b"
+          },
+          {
+            "command": "tsc root + rewritten position-gpo transport (8)",
+            "result": "passed",
+            "sourceSha": "b6ae3759b"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Switch feature-admin technology route, workplace presenter query, organization drafts, and people-lifecycle to native GPO overview; add not-required to native command set; delete gpo-rules.ts/application/public (14 SELECTs), record 607->593, move position-gpo oracle.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wX02",
+          "at": "2026-11-23T19:35:29.656Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -115634,7 +115844,7 @@
         "owner": "benefits",
         "title": "Switch benefits consumers to native read port and drop compatibility barrel",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -115653,7 +115863,14 @@
         "resources": [
           "owner:benefits"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wV01",
+          "claimedAt": "2026-11-23T19:42:35.368Z",
+          "heartbeatAt": "2026-11-23T19:44:05.560Z",
+          "expiresAt": "2026-11-23T20:14:05.560Z",
+          "generation": 158
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -115670,7 +115887,7 @@
         "owner": "brand",
         "title": "Native brand record-branch resolution (11 SELECTs)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -115688,22 +115905,67 @@
         "resources": [
           "owner:brand"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wX03",
-          "claimedAt": "2026-11-23T19:14:25.266Z",
-          "heartbeatAt": "2026-11-23T19:25:47.785Z",
-          "expiresAt": "2026-11-23T19:55:47.785Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Add native record-branch resolution kind (order/expense/invoice/payment/journal CASE paths) + HTTP/client parity; rebind business-document to it; delete the 11 TS SELECTs; record 18->7. Composition arm is lead follow-up.",
-        "handoff": null,
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-brand/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e021c610d",
+            "owner": "brand",
+            "before": 18,
+            "after": 7,
+            "note": "record-branch resolution native; branch/companyExists/executive/workspace-choice/attachment residual retained."
+          },
+          {
+            "command": "cargo test -p erpx-server-brand --test branding_http --test branding_postgres (12)",
+            "result": "passed",
+            "sourceSha": "e021c610d"
+          },
+          {
+            "command": "tsc root + vitest branding (17) + brand application (10)",
+            "result": "passed",
+            "sourceSha": "e021c610d"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-brand/src/adapters/branding.ts",
+            "statements": 2,
+            "removalTaskId": "retire.brand.presentation-read-tail",
+            "removalCondition": "After a mounted native branch/company management read replaces requireBrandManagement."
+          },
+          {
+            "path": "packages/server-brand/src/adapters/executive-metric-projections.ts",
+            "statements": 2,
+            "removalTaskId": "retire.brand.presentation-read-tail",
+            "removalCondition": "After the runtime executive metric/evidence engines feed native sources."
+          },
+          {
+            "path": "packages/server-brand/src/adapters/workspace-choice-brand.ts",
+            "statements": 1,
+            "removalTaskId": "retire.brand.presentation-read-tail",
+            "removalCondition": "After a native front-app projection port lands."
+          },
+          {
+            "path": "packages/server-brand/src/adapters/attachment-read.ts",
+            "statements": 2,
+            "removalTaskId": "retire.brand.attachment-facts",
+            "removalCondition": "After Files private attachment evidence and IAM scope port land."
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Integrated; residual tail classified",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wX03",
+          "at": "2026-11-23T19:42:08.757Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; residual tail classified"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -115758,7 +116020,7 @@
         "owner": "field_service",
         "title": "Wire Field final-root lock/witness into Customer 360 timeline",
         "kind": "integration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -115776,7 +116038,14 @@
           "owner:customer_360",
           "resource:composition"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wZ01",
+          "claimedAt": "2026-11-23T19:43:58.178Z",
+          "heartbeatAt": "2026-11-23T19:44:05.560Z",
+          "expiresAt": "2026-11-23T20:14:05.560Z",
+          "generation": 158
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -115955,8 +116224,8 @@
           "runId": "run-20261123-f",
           "agentId": "wY01",
           "claimedAt": "2026-11-23T19:23:02.111Z",
-          "heartbeatAt": "2026-11-23T19:25:47.785Z",
-          "expiresAt": "2026-11-23T19:55:47.785Z",
+          "heartbeatAt": "2026-11-23T19:44:05.560Z",
+          "expiresAt": "2026-11-23T20:14:05.560Z",
           "generation": 158
         },
         "baseSha": null,
@@ -116036,8 +116305,8 @@
           "runId": "run-20261123-f",
           "agentId": "wY02",
           "claimedAt": "2026-11-23T19:23:26.256Z",
-          "heartbeatAt": "2026-11-23T19:25:47.785Z",
-          "expiresAt": "2026-11-23T19:55:47.785Z",
+          "heartbeatAt": "2026-11-23T19:44:05.560Z",
+          "expiresAt": "2026-11-23T20:14:05.560Z",
           "generation": 158
         },
         "baseSha": null,
@@ -116056,7 +116325,7 @@
         "owner": "finance",
         "title": "Finance record-details caller-unit read plan (asset/invoice kinds)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116076,22 +116345,47 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wY04",
-          "claimedAt": "2026-11-23T19:25:03.898Z",
-          "heartbeatAt": "2026-11-23T19:25:47.785Z",
-          "expiresAt": "2026-11-23T19:55:47.785Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e021c610d",
+            "owner": "finance",
+            "before": 2294,
+            "after": 2288,
+            "note": "Finance caller-unit read-plan kinds for asset policy/runs, business bill, collection case."
+          },
+          {
+            "command": "cargo check -p erpx-server-finance",
+            "result": "passed",
+            "sourceSha": "e021c610d"
+          },
+          {
+            "command": "cargo test -p erpx-server-finance --lib (49)",
+            "result": "passed",
+            "sourceSha": "e021c610d"
+          },
+          {
+            "command": "vitest native-finance-read-plan (3) + tsc server-finance",
+            "result": "passed",
+            "sourceSha": "e021c610d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Add FINANCE_RD_* registry + /command-plan owner route + strict TS caller-unit client; switch finance-expansion-records asset-policy reads and finance-record-details bill/collection rows; record strictly lower finance count. No composition.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; mount/config follow-up",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wY04",
+          "at": "2026-11-23T19:42:28.020Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; mount/config follow-up"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -116100,7 +116394,7 @@
         "owner": "records",
         "title": "Records TS read tail native cutover",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116112,22 +116406,42 @@
         "resources": [
           "owner:records"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wY05",
-          "claimedAt": "2026-11-23T19:25:03.994Z",
-          "heartbeatAt": "2026-11-23T19:25:47.785Z",
-          "expiresAt": "2026-11-23T19:55:47.785Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-records/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e021c610d",
+            "owner": "records",
+            "before": 57,
+            "after": 55,
+            "note": "Three duplicate employee-request override SELECTs collapsed to the canonical native owner read."
+          },
+          {
+            "command": "cargo check -p erpx-server-records",
+            "result": "passed",
+            "sourceSha": "e021c610d"
+          },
+          {
+            "command": "vitest record-services/organization/native-read-tail/owner-projections (123)",
+            "result": "passed",
+            "sourceSha": "e021c610d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest owner-local records read family with a mounted native port or single-consumer fixed SQL; switch and delete redundant TS SQL; record strictly lower from 57.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Paused at 55; cross-owner cutovers next",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wY05",
+          "at": "2026-11-23T19:42:35.292Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Paused at 55; cross-owner cutovers next"
+        },
         "scopeRefinementRequired": false
       }
     ],
@@ -116140,18 +116454,18 @@
       "totalPackets": 502,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 21,
-        "in_progress": 16,
+        "pending": 20,
+        "in_progress": 7,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 136,
+        "blocked": 146,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T19:25:47.789Z",
+    "updatedAt": "2026-11-23T19:44:05.562Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
