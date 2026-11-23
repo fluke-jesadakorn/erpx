@@ -215,6 +215,80 @@ async fn company_write(
     }
 }
 
+/// Plan an owner-owned read on the caller's already-open unit. No SQL is
+/// accepted from the wire: the kind is resolved against the native read
+/// registry and the exact SQL is returned for the caller to prepare and run.
+/// Reads carry no write ledger and never execute here.
+async fn plan_read(
+    State(state): State<Arc<AppState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async {
+        let t = target(&state, &headers, &slug)?;
+        if unique(&headers, ORIGIN_HEADER)?.is_some_and(|v| v != t.origin) {
+            return Err(BusinessError::new(
+                FailureKind::Forbidden,
+                "ORIGIN_FORBIDDEN",
+                "Use the application origin.",
+            ));
+        }
+        if request.uri().query().is_some() {
+            return Err(invalid());
+        }
+        let body = to_bytes(request.into_body(), BODY_LIMIT)
+            .await
+            .map_err(|_| invalid())?;
+        let command: NativeCommand = serde_json::from_slice(&body).map_err(|_| invalid())?;
+        let statement = crate::adapters::native_command_sql::read_statement(&command.kind)
+            .ok_or_else(invalid)?;
+        if command.values.len() != statement.bind_count {
+            return Err(invalid());
+        }
+        Ok(serde_json::json!({
+            "statements": [{ "sql": statement.sql, "values": command.values }]
+        }))
+    }
+    .await;
+    match result {
+        Ok(data) => bounded(serde_json::json!({"data": data})),
+        Err(e) => error_response(e),
+    }
+}
+
+async fn company_plan_read(
+    State(state): State<Arc<AppState>>,
+    Path(company_id): Path<String>,
+    request: Request,
+) -> Response {
+    let result = async {
+        if !state.companies.contains_key(&company_id) {
+            return Err(missing());
+        }
+        if request.uri().query().is_some() {
+            return Err(invalid());
+        }
+        let body = to_bytes(request.into_body(), BODY_LIMIT)
+            .await
+            .map_err(|_| invalid())?;
+        let command: NativeCommand = serde_json::from_slice(&body).map_err(|_| invalid())?;
+        let statement = crate::adapters::native_command_sql::read_statement(&command.kind)
+            .ok_or_else(invalid)?;
+        if command.values.len() != statement.bind_count {
+            return Err(invalid());
+        }
+        Ok(serde_json::json!({
+            "statements": [{ "sql": statement.sql, "values": command.values }]
+        }))
+    }
+    .await;
+    match result {
+        Ok(data) => bounded(serde_json::json!({"data": data})),
+        Err(e) => error_response(e),
+    }
+}
+
 pub fn native_company_command_router(
     companies: Vec<String>,
     backend: Arc<dyn NativeCommandHttpBackend>,
@@ -233,6 +307,10 @@ pub fn native_company_command_router(
         .route(
             "/api/v1/companies/{company_id}/inventory/native-command",
             post(company_write),
+        )
+        .route(
+            "/api/v1/companies/{company_id}/inventory/command-plan",
+            post(company_plan_read),
         )
         .with_state(Arc::new(AppState {
             targets: BTreeMap::new(),
@@ -268,6 +346,10 @@ pub fn native_command_router(
         .route(
             "/api/v1/holdings/{holding_slug}/inventory/native-command",
             post(write),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/inventory/command-plan",
+            post(plan_read),
         )
         .with_state(Arc::new(AppState {
             targets: cfg,

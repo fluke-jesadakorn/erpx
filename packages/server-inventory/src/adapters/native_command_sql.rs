@@ -111,6 +111,34 @@ pub fn supported(kind: &str) -> bool {
     statement(kind).is_some()
 }
 
+/// Owner-owned read plans. A read statement carries no receipt/audit/outbox
+/// ledger: the native route plans the exact SQL and the caller executes it on
+/// its own already-open unit, so it observes uncommitted effects inside the
+/// caller's serializable transaction. This is the native successor of the
+/// retired TypeScript `readRecordSupplementDataRows2` SQL literal and mirrors
+/// the Files/Commerce caller-unit read port.
+pub const RD_LEDGER_SUPPLEMENT_ROWS: &str = "inventory_rd_ledger_supplement_rows";
+const SQL_RD_LEDGER_SUPPLEMENT_ROWS: &str =
+    "SELECT * FROM inventory_ledger WHERE warehouse_id=? AND product_id=? ORDER BY movement_date DESC,id DESC LIMIT 31 OFFSET ?";
+const READ_LEDGER_SUPPLEMENT: NativeStatement = NativeStatement {
+    kind: RD_LEDGER_SUPPLEMENT_ROWS,
+    sql: SQL_RD_LEDGER_SUPPLEMENT_ROWS,
+    bind_count: 3,
+    scope: "holding",
+};
+
+pub fn is_read(kind: &str) -> bool {
+    kind == RD_LEDGER_SUPPLEMENT_ROWS
+}
+
+pub fn read_statement(kind: &str) -> Option<&'static NativeStatement> {
+    if kind == RD_LEDGER_SUPPLEMENT_ROWS {
+        Some(&READ_LEDGER_SUPPLEMENT)
+    } else {
+        None
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -143,5 +171,16 @@ mod tests {
     #[test]
     fn covers_every_distinct_retired_statement() {
         assert_eq!(STATEMENTS.len(), 15);
+    }
+
+    #[test]
+    fn read_plan_is_call_unit_and_ledger_free() {
+        assert!(is_read(RD_LEDGER_SUPPLEMENT_ROWS));
+        assert!(!is_read("inventory_stmt_1"));
+        let read = read_statement(RD_LEDGER_SUPPLEMENT_ROWS).expect("read kind");
+        assert!(read.sql.trim_start().starts_with("SELECT"));
+        assert_eq!(read.bind_count, 3);
+        assert_eq!(read.sql.matches('?').count(), read.bind_count);
+        assert!(read_statement("inventory_stmt_1").is_none());
     }
 }
