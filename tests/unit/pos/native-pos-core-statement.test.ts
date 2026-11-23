@@ -9,8 +9,12 @@ import {
   nativePosSettingsCurrencyStatement,
   nativePosPostingJournalStatement,
   nativePosRegisterCatalogStatement,
+  nativePosSettingsAccountsStatement,
 } from '../../../packages/server-pos/src/adapters/native-pos-core-statement';
 import { pmsHospitalitySetupPosFacts } from '../../../packages/server-pos/src/adapters/pms-hospitality-setup-facts';
+import { pmsBookingChangeFacts } from '../../../packages/server-pos/src/adapters/pms-booking-change-facts';
+import { pmsBookingPosFacts } from '../../../packages/server-pos/src/adapters/pms-booking-facts';
+import { pmsCounterPaymentFacts } from '../../../packages/server-pos/src/adapters/pms-counter-payment-facts';
 
 const config = () => JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:44994', timeoutMs: 1000 });
 const previous = process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
@@ -318,5 +322,86 @@ describe('native POS core workspace read bridge (shifts family)', () => {
       status: 503,
     });
     expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('requests the settings accounts row from the native owner registry only', async () => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const sql = 'SELECT accounts_json FROM pos_settings WHERE company_id=?';
+    const values = ['company'];
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { sql, values } }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const seen: { sql?: string; values?: unknown[] } = {};
+    const row = { accounts_json: '{"bank":"bank-1"}' };
+    const db = {
+      prepare: (text: string) => ({
+        bind: (...bound: unknown[]) => {
+          seen.sql = text;
+          seen.values = bound;
+          return { first: async () => row };
+        },
+      }),
+    };
+    const result = await nativePosSettingsAccountsStatement(db as never, 'company');
+    expect(result).toEqual(row);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe('http://127.0.0.1:44994/api/v1/companies/company/pos/owner-write');
+    expect(JSON.parse(init.body)).toEqual({
+      company: 'company',
+      kind: 'core_readpossettingsaccounts_525',
+      values,
+    });
+    expect(seen.sql).toBe(sql);
+    expect(seen.values).toEqual(values);
+  });
+
+  it('fails closed for the settings accounts read when the native owner service is unconfigured', async () => {
+    delete process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    await expect(nativePosSettingsAccountsStatement({} as never, 'company')).rejects.toMatchObject({
+      code: 'NATIVE_POS_OWNER_UNAVAILABLE',
+      status: 503,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ['booking-change', () => pmsBookingChangeFacts, 'readPosSettings'],
+    ['booking', () => pmsBookingPosFacts, 'readPosSettings1'],
+    ['counter-payment', () => pmsCounterPaymentFacts, 'readPosSettings'],
+  ] as const)('serves the PMS %s accounts read from the native registry, not local SQL', async (_name, factory, method) => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const sql = 'SELECT accounts_json FROM pos_settings WHERE company_id=?';
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { sql, values: ['company'] } }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const seen: { sql?: string; values?: unknown[] } = {};
+    const row = { accounts_json: '{"bank":"bank-1"}' };
+    const db = {
+      prepare: (text: string) => ({
+        bind: (...bound: unknown[]) => {
+          seen.sql = text;
+          seen.values = bound;
+          return { first: async () => row };
+        },
+      }),
+    };
+    const prepare = vi.spyOn(db, 'prepare');
+    // Only the accounts read is exercised here; the sole prepared SQL is the
+    // registry statement returned by the native service, never a local literal.
+    const facts = (factory()(db as never) as Record<string, (arg: { companyId: string }) => Promise<unknown>>)[method];
+    await expect(facts({ companyId: 'company' })).resolves.toEqual(row);
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({
+      company: 'company',
+      kind: 'core_readpossettingsaccounts_525',
+      values: ['company'],
+    });
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(seen.sql).toBe(sql);
+    expect(seen.values).toEqual(['company']);
   });
 });

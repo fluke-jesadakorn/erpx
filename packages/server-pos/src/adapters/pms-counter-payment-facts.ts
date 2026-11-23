@@ -1,5 +1,6 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import { nativePosSettingsAccountsStatement } from "./native-pos-core-statement";
 export function pmsCounterPaymentFacts(db: SqlDatabase) {
     return {
         readPosConnections: (facts: {
@@ -8,10 +9,10 @@ export function pmsCounterPaymentFacts(db: SqlDatabase) {
             account_id: string;
             livemode: boolean;
         }>(),
+        /** Served by the native POS owner statement registry
+         * (`core_readpossettingsaccounts_525`); no local SQL mirror remains. */
         readPosSettings: (facts: {
             companyId: string;
-        }) => db.prepare('SELECT accounts_json FROM pos_settings WHERE company_id=?').bind(facts.companyId).first<{
-            accounts_json: string;
-        }>()
+        }) => nativePosSettingsAccountsStatement<{ accounts_json: string }>(db, facts.companyId)
     };
 }

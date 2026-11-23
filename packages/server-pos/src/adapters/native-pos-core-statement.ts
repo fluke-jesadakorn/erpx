@@ -106,3 +106,19 @@ export async function nativePosRegisterCatalogStatement(
 ): Promise<SqlValueRow | null> {
   return nativePosOne(db, company, 'core_readposregistercatalog_524', [productId, branchId, company]);
 }
+
+/**
+ * Owner-issued POS settings accounts read. The SQL lives in the native POS
+ * owner registry (`erpx-server-pos::adapters::owner_writes`, kind
+ * `core_readpossettingsaccounts_525`); this bridge sends only the typed kind and
+ * the Company value. It replaces the three byte-identical accounts-json row
+ * literals in `pms-booking-change-facts.ts`, `pms-booking-facts.ts` and
+ * `pms-counter-payment-facts.ts`, so no local SQL, mirror or fallback reader
+ * remains. Caller-transaction read scoped by Company.
+ */
+export async function nativePosSettingsAccountsStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  company: string,
+): Promise<T | null> {
+  return nativePosOne<T>(db, company, 'core_readpossettingsaccounts_525', [company]);
+}

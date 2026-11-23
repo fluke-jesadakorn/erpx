@@ -95,6 +95,12 @@ pub const CORE_READPOSPOSTINGSJOURNAL_523: &str = "core_readpospostingsjournal_5
 /// literals in `pos-core.ts` and `pos-images.ts`. Read-only caller-transaction
 /// `SELECT` scoped by product, branch and Company.
 pub const CORE_READPOSREGISTERCATALOG_524: &str = "core_readposregistercatalog_524";
+/// Plain accounts-json settings read retired from the three byte-identical
+/// `SELECT accounts_json FROM pos_settings WHERE company_id=?` literals in
+/// `pms-booking-change-facts.ts`, `pms-booking-facts.ts` and
+/// `pms-counter-payment-facts.ts`. Read-only caller-transaction `SELECT`
+/// scoped by Company.
+pub const CORE_READPOSSETTINGSACCOUNTS_525: &str = "core_readpossettingsaccounts_525";
 pub const STRIPE_WRITEPOSSTRIPEEVENTS1_49: &str = "stripe_writeposstripeevents1_49";
 pub const STRIPE_WRITEPOSSTRIPEEVENTS2_53: &str = "stripe_writeposstripeevents2_53";
 pub const STRIPE_WRITEPOSCONNECTIONHISTORY1_58: &str = "stripe_writeposconnectionhistory1_58";
@@ -191,6 +197,7 @@ pub const KINDS: &[&str] = &[
     CORE_READPOSSETTINGSCURRENCY_522,
     CORE_READPOSPOSTINGSJOURNAL_523,
     CORE_READPOSREGISTERCATALOG_524,
+    CORE_READPOSSETTINGSACCOUNTS_525,
     STRIPE_WRITEPOSSTRIPEEVENTS1_49,
     STRIPE_WRITEPOSSTRIPEEVENTS2_53,
     STRIPE_WRITEPOSCONNECTIONHISTORY1_58,
@@ -334,6 +341,7 @@ fn sql(kind: &str) -> Option<&'static str> {
         CORE_READPOSSETTINGSCURRENCY_522 => r#"SELECT currency FROM pos_settings WHERE company_id=?"#,
         CORE_READPOSPOSTINGSJOURNAL_523 => r#"SELECT journal_id FROM pos_postings WHERE source_key=?"#,
         CORE_READPOSREGISTERCATALOG_524 => r#"SELECT rc.product_id FROM pos_register_catalog rc JOIN pos_registers r ON r.id=rc.register_id WHERE rc.product_id=? AND r.branch_id=? AND r.company_id=?"#,
+        CORE_READPOSSETTINGSACCOUNTS_525 => r#"SELECT accounts_json FROM pos_settings WHERE company_id=?"#,
         STRIPE_WRITEPOSSTRIPEEVENTS1_49 => r#"INSERT INTO pos_stripe_events(id,account_id,livemode,company_id,event_type,payload_json,received_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING"#,
         STRIPE_WRITEPOSSTRIPEEVENTS2_53 => r#"UPDATE pos_stripe_events SET provider_created_at=COALESCE(provider_created_at,?) WHERE id=?"#,
         STRIPE_WRITEPOSCONNECTIONHISTORY1_58 => r#"INSERT INTO pos_connection_history VALUES(?,?,?) ON CONFLICT DO NOTHING"#,
@@ -433,7 +441,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 117);
+        assert_eq!(KINDS.len(), 118);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -573,6 +581,24 @@ mod tests {
             stmt,
             "SELECT rc.product_id FROM pos_register_catalog rc JOIN pos_registers r ON r.id=rc.register_id WHERE rc.product_id=? AND r.branch_id=? AND r.company_id=?"
         );
+    }
+
+    /// The retired accounts-json settings read is a SELECT-only owner
+    /// statement. Its SQL is byte-identical to the three deleted
+    /// `SELECT accounts_json FROM pos_settings WHERE company_id=?` literals in
+    /// `pms-booking-change-facts.ts`/`pms-booking-facts.ts`/
+    /// `pms-counter-payment-facts.ts`; this kind is the sole authority and
+    /// every TypeScript copy was removed.
+    #[test]
+    fn settings_accounts_read_kind_is_select_only() {
+        assert!(supported(CORE_READPOSSETTINGSACCOUNTS_525));
+        let stmt = sql(CORE_READPOSSETTINGSACCOUNTS_525).unwrap();
+        assert!(stmt.starts_with("SELECT "), "accounts read kind must be SELECT-only");
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+            assert!(!stmt.contains(forbidden), "accounts read kind must not mutate: {forbidden}");
+        }
+        assert_eq!(stmt.matches('?').count(), 1, "accounts read carries only the Company");
+        assert_eq!(stmt, "SELECT accounts_json FROM pos_settings WHERE company_id=?");
     }
 
     /// The retired purchase-boundary reads are SELECT-only owner statements.
