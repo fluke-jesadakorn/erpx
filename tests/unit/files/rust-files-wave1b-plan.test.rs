@@ -6,7 +6,8 @@
 //! the caller's already-open unit, so the files command never opens a second
 //! transaction while the caller holds attachment row locks.
 use erpx_server_files::public::files_wave1b::{
-    FilesCommandInput, RD_PROJECT_ATTACHMENT_TARGET, RD_SUPPORT_ATTACHMENT_TARGET, is_read, plan,
+    FilesCommandInput, RD_PMS_ATTACHMENT_LINK_SET, RD_PMS_UPLOAD_FACT,
+    RD_PROJECT_ATTACHMENT_TARGET, RD_SUPPORT_ATTACHMENT_TARGET, is_read, plan,
 };
 use erpx_server_files::public::files_wave1b_http::{
     FilesCommandBackend, FilesCommandFuture, FilesCommandPlanFuture, FilesCommandRequest,
@@ -163,6 +164,111 @@ fn rd_support_attachment_target_plans_owner_read_without_write_ledger() {
     assert!(!ledger.contains("INSERT"));
     assert!(!ledger.contains("UPDATE"));
     assert!(!ledger.contains("DELETE"));
+}
+
+#[test]
+fn pms_front_attachment_read_kinds_plan_owner_sql_without_write_ledger() {
+    // Native successors of the retired TypeScript `pmsFrontAttachmentFacts`
+    // SELECTs. Owner SQL lives here, not in server-files TS; the caller's unit
+    // is the read authority, so no receipt/audit/outbox statements are planned.
+    let now = 1_700_000_000_000i64;
+
+    // setTarget reuses the existing byte-identical target read kind.
+    assert!(is_read(RD_PROJECT_ATTACHMENT_TARGET));
+    let statements = plan(
+        &company(),
+        "test-key-pms-set-target",
+        &input(
+            RD_PROJECT_ATTACHMENT_TARGET,
+            serde_json::json!(["set-1", "company"]),
+            now,
+        ),
+    )
+    .unwrap();
+    assert_eq!(statements.len(), 1);
+    assert_eq!(
+        statements[0].sql,
+        "SELECT target_type FROM attachment_sets WHERE id=? AND company_id=?"
+    );
+
+    // linkSet reads the attachment link -> set routing fact.
+    assert!(is_read(RD_PMS_ATTACHMENT_LINK_SET));
+    let statements = plan(
+        &company(),
+        "test-key-pms-link-set",
+        &input(
+            RD_PMS_ATTACHMENT_LINK_SET,
+            serde_json::json!(["link-1", "company"]),
+            now,
+        ),
+    )
+    .unwrap();
+    assert_eq!(statements.len(), 1);
+    assert_eq!(
+        statements[0].sql,
+        "SELECT l.set_id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=? AND s.company_id=?"
+    );
+    assert_eq!(
+        statements[0].values,
+        vec![serde_json::json!("link-1"), serde_json::json!("company")]
+    );
+
+    // upload reads the scoped upload-intent fact.
+    assert!(is_read(RD_PMS_UPLOAD_FACT));
+    let statements = plan(
+        &company(),
+        "test-key-pms-upload",
+        &input(
+            RD_PMS_UPLOAD_FACT,
+            serde_json::json!(["upload-1", "company", "user-1"]),
+            now,
+        ),
+    )
+    .unwrap();
+    assert_eq!(statements.len(), 1);
+    assert_eq!(
+        statements[0].sql,
+        "SELECT attachment_set_id,declared_bytes,media_type FROM upload_intents WHERE id=? AND company_id=? AND created_by=?"
+    );
+    assert_eq!(
+        statements[0].values,
+        vec![
+            serde_json::json!("upload-1"),
+            serde_json::json!("company"),
+            serde_json::json!("user-1")
+        ]
+    );
+
+    // Neither read kind plans a write ledger.
+    for sql in [
+        "SELECT l.set_id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=? AND s.company_id=?",
+        "SELECT attachment_set_id,declared_bytes,media_type FROM upload_intents WHERE id=? AND company_id=? AND created_by=?",
+    ] {
+        let upper = sql.to_ascii_uppercase();
+        assert!(!upper.contains("INSERT"));
+        assert!(!upper.contains("UPDATE"));
+        assert!(!upper.contains("DELETE"));
+    }
+
+    // Wrong arity fails closed per kind.
+    let error = plan(
+        &company(),
+        "test-key-pms-link-arity",
+        &input(RD_PMS_ATTACHMENT_LINK_SET, serde_json::json!(["link-1"]), now),
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "FILES_COMMAND_INVALID");
+    let error = plan(
+        &company(),
+        "test-key-pms-upload-arity",
+        &input(
+            RD_PMS_UPLOAD_FACT,
+            serde_json::json!(["upload-1", "company"]),
+            now,
+        ),
+    )
+    .unwrap_err();
+    assert_eq!(error.code, "FILES_COMMAND_INVALID");
 }
 
 #[test]

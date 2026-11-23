@@ -233,8 +233,27 @@ const SQL_RD_PROJECT_ATTACHMENT_TARGET: &str = "SELECT target_type FROM attachme
 pub const RD_SUPPORT_ATTACHMENT_TARGET: &str = "RD_SUPPORT_ATTACHMENT_TARGET";
 const SQL_RD_SUPPORT_ATTACHMENT_TARGET: &str = "SELECT target_type FROM attachment_sets WHERE id=$1 AND company_id=$2"; // binds=2
 
+/// Owner-owned read: the PMS front attachment-link -> set fact. Native
+/// successor of the retired TypeScript `pmsFrontAttachmentFacts.linkSet`
+/// SELECT. It carries no write ledger: the caller's unit already holds the read
+/// scope. The `setTarget` fact reuses the existing `RD_PROJECT_ATTACHMENT_TARGET`
+/// kind because its SQL is byte-identical.
+pub const RD_PMS_ATTACHMENT_LINK_SET: &str = "RD_PMS_ATTACHMENT_LINK_SET";
+const SQL_RD_PMS_ATTACHMENT_LINK_SET: &str = "SELECT l.set_id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=$1 AND s.company_id=$2"; // binds=2
+
+/// Owner-owned read: the PMS front upload-intent fact. Native successor of the
+/// retired TypeScript `pmsFrontAttachmentFacts.upload` SELECT. It carries no
+/// write ledger: the caller's unit already holds the read scope.
+pub const RD_PMS_UPLOAD_FACT: &str = "RD_PMS_UPLOAD_FACT";
+const SQL_RD_PMS_UPLOAD_FACT: &str = "SELECT attachment_set_id,declared_bytes,media_type FROM upload_intents WHERE id=$1 AND company_id=$2 AND created_by=$3"; // binds=3
+
 /// Read kinds plan the owner SQL only; no receipt/audit/outbox write ledger.
-pub fn is_read(kind: &str) -> bool { kind == RD_PROJECT_ATTACHMENT_TARGET || kind == RD_SUPPORT_ATTACHMENT_TARGET }
+pub fn is_read(kind: &str) -> bool {
+    kind == RD_PROJECT_ATTACHMENT_TARGET
+        || kind == RD_SUPPORT_ATTACHMENT_TARGET
+        || kind == RD_PMS_ATTACHMENT_LINK_SET
+        || kind == RD_PMS_UPLOAD_FACT
+}
 
 /// Every kind this owner module accepts. Anything else is fail-closed.
 const KINDS: &[&str] = &[
@@ -345,6 +364,8 @@ const KINDS: &[&str] = &[
     MIG_024,
     RD_PROJECT_ATTACHMENT_TARGET,
     RD_SUPPORT_ATTACHMENT_TARGET,
+    RD_PMS_ATTACHMENT_LINK_SET,
+    RD_PMS_UPLOAD_FACT,
 ];
 pub fn supported(kind: &str) -> bool { KINDS.contains(&kind) }
 pub fn sql(kind: &str) -> Option<&'static str> { Some(match kind {
@@ -455,6 +476,8 @@ pub fn sql(kind: &str) -> Option<&'static str> { Some(match kind {
     MIG_024 => SQL_MIG_024,
     RD_PROJECT_ATTACHMENT_TARGET => SQL_RD_PROJECT_ATTACHMENT_TARGET,
     RD_SUPPORT_ATTACHMENT_TARGET => SQL_RD_SUPPORT_ATTACHMENT_TARGET,
+    RD_PMS_ATTACHMENT_LINK_SET => SQL_RD_PMS_ATTACHMENT_LINK_SET,
+    RD_PMS_UPLOAD_FACT => SQL_RD_PMS_UPLOAD_FACT,
     _ => return None,
 }) }
 pub fn invalid() -> BusinessError { BusinessError::new(FailureKind::InvalidInput, "FILES_COMMAND_INVALID", "Use one bounded Files command.") }

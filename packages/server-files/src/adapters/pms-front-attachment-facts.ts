@@ -1,17 +1,23 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import { nativeFilesRead } from "./native-files-command";
+
+/** PMS front attachment routing/upload facts. The three SELECTs are owned by
+ * native Files read kinds; this module carries no SQL and fails closed without
+ * the native transport. `setTarget` reuses the existing target read kind
+ * (`RD_PROJECT_ATTACHMENT_TARGET`) because its owner SQL is byte-identical. */
 export function pmsFrontAttachmentFacts(db: SqlDatabase) {
     return {
-        setTarget: (id: string, companyId: string) => db.prepare('SELECT target_type FROM attachment_sets WHERE id=? AND company_id=?').bind(id, companyId).first<{
+        setTarget: (id: string, companyId: string) => nativeFilesRead<{
             target_type: string;
-        }>(),
-        linkSet: (id: string, companyId: string) => db.prepare('SELECT l.set_id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=? AND s.company_id=?').bind(id, companyId).first<{
+        }>("RD_PROJECT_ATTACHMENT_TARGET", [id, companyId], db, companyId),
+        linkSet: (id: string, companyId: string) => nativeFilesRead<{
             set_id: string;
-        }>(),
-        upload: (id: string, companyId: string, userId: string) => db.prepare('SELECT attachment_set_id,declared_bytes,media_type FROM upload_intents WHERE id=? AND company_id=? AND created_by=?').bind(id, companyId, userId).first<{
+        }>("RD_PMS_ATTACHMENT_LINK_SET", [id, companyId], db, companyId),
+        upload: (id: string, companyId: string, userId: string) => nativeFilesRead<{
             attachment_set_id: string;
             declared_bytes: number;
             media_type: string;
-        }>()
+        }>("RD_PMS_UPLOAD_FACT", [id, companyId, userId], db, companyId)
     };
 }
