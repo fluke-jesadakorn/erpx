@@ -483,3 +483,25 @@ describe('native downtime-evidence read transport',()=>{
   await expect(nativeDowntimeEvidenceRows(foreign,input)).rejects.toMatchObject({status:409,code:'WORK_CONTEXT_CHANGED'});
  });
 });
+
+/** Fixed-SQL read-tail oracle for the Maintenance finance lineage source.
+ * The debit and credit journal-line balance witnesses are one owner-local fixed
+ * statement: both public consumers receive the identical composed SQL and no
+ * duplicate TS query literal for the second sum remains. */
+describe('Maintenance finance record source fixed SQL',()=>{
+ const file='../../../packages/server-maintenance/src/adapters/finance-record-sources.ts';
+ it('single-sources both journal-line balance witnesses and keeps composed SQL intact',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const source=await readFile(new URL(file,import.meta.url),'utf8');
+  expect(source.match(/const journalLineSum=/g)).toHaveLength(1);
+  expect(source).not.toContain('(SELECT sum(debit_minor) FROM finance_journal_lines');
+  expect(source).not.toContain('(SELECT sum(credit_minor) FROM finance_journal_lines');
+  expect(source.match(/SELECT/g)).toHaveLength(2);
+  const {maintenanceFinanceRecordSources}=await import('../../../packages/server-maintenance/src/adapters/finance-record-sources');
+  const journal=maintenanceFinanceRecordSources.journal;
+  expect(journal.startsWith("SELECT consumption.company_id,consumption.journal_id id")).toBe(true);
+  expect(journal).toContain("WHERE consumption.source_kind='maintenance' AND consumption.source_version<=work.version AND consumption.quantity_milli>0 AND consumption.value_minor>0");
+  expect(journal).toContain('(SELECT sum(debit_minor) FROM finance_journal_lines WHERE journal_id=journal.id)=consumption.value_minor');
+  expect(journal).toContain('(SELECT sum(credit_minor) FROM finance_journal_lines WHERE journal_id=journal.id)=consumption.value_minor');
+ });
+});
