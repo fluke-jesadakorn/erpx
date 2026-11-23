@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5514,
+    "revision": 5517,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-d",
       "agentId": "lead",
       "startedAt": "2026-11-23T06:45:08.420Z",
-      "heartbeatAt": "2026-11-23T08:43:18.939Z",
-      "expiresAt": "2026-11-23T09:13:18.939Z",
+      "heartbeatAt": "2026-11-23T08:49:02.921Z",
+      "expiresAt": "2026-11-23T09:19:02.921Z",
       "generation": 154,
       "tokenHash": "01e24ba69c801ba69506f7381436bc3415092da31ab33204c519241e628cd4c9"
     },
@@ -15563,8 +15563,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:46:29.180Z",
-          "heartbeatAt": "2026-11-23T08:43:18.939Z",
-          "expiresAt": "2026-11-23T09:13:18.939Z",
+          "heartbeatAt": "2026-11-23T08:49:02.921Z",
+          "expiresAt": "2026-11-23T09:19:02.921Z",
           "generation": 154
         },
         "baseSha": "473b198f4838943261a63a1ca44b167d347fc4c4",
@@ -17495,8 +17495,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:26:32.057Z",
-          "heartbeatAt": "2026-11-23T08:43:18.939Z",
-          "expiresAt": "2026-11-23T09:13:18.939Z",
+          "heartbeatAt": "2026-11-23T08:49:02.921Z",
+          "expiresAt": "2026-11-23T09:19:02.921Z",
           "generation": 154
         },
         "baseSha": "f901987c8bcb88a080e9beb9d2b87892bc462eea",
@@ -27285,8 +27285,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:04:51.894Z",
-          "heartbeatAt": "2026-11-23T08:43:18.939Z",
-          "expiresAt": "2026-11-23T09:13:18.939Z",
+          "heartbeatAt": "2026-11-23T08:49:02.921Z",
+          "expiresAt": "2026-11-23T09:19:02.921Z",
           "generation": 154
         },
         "baseSha": "d0067f253fd960ab6945c5622e360e2cceeaffe7",
@@ -28361,8 +28361,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:19:17.835Z",
-          "heartbeatAt": "2026-11-23T08:43:18.939Z",
-          "expiresAt": "2026-11-23T09:13:18.939Z",
+          "heartbeatAt": "2026-11-23T08:49:02.921Z",
+          "expiresAt": "2026-11-23T09:19:02.921Z",
           "generation": 154
         },
         "baseSha": null,
@@ -28466,6 +28466,18 @@
             "before": 60,
             "after": 58,
             "note": "lead literal SELECT recount in adapters/payroll-readiness.ts cf0ff0196->6480795a (readSave + guard45 retired to native kinds); stageSave native-bridge effect deleted with the application"
+          },
+          {
+            "command": "native payroll schedule triple on rebuilt 3198",
+            "result": "passed",
+            "sourceSha": "acad72b15b161a52899b699c5c460a81cea3e59d",
+            "note": "lead; POST groups/g1/schedule UNAUTHENTICATED (resolved, session-gated), wrong-origin ORIGIN_FORBIDDEN, unknown-holding NOT_FOUND — SaveSchedule mount live on the fresh build"
+          },
+          {
+            "command": "bun test lane people_payroll.core with full native env (27 keys)",
+            "result": "passed",
+            "sourceSha": "acad72b15b161a52899b699c5c460a81cea3e59d",
+            "note": "lead; lane still 22/22 red — key matrix now complete (added FINANCE_OWNER_WRITE, WORKFLOW_WAVE3) but composition serves dev DB while suites use leased DBs: fixture company unknown to 3198 backend (503->UNAVAILABLE) + PACKAGE_DEPENDENCY_REQUIRED in-lane. Needs per-suite composition harness epic, not more keys."
           }
         ],
         "retainedLegacy": [
@@ -28483,7 +28495,7 @@
           }
         ],
         "blocker": null,
-        "nextAction": "Lead integrated at 6480795a (pushed, remote verified): native SaveSchedule route live in composition, product caller switched, TS writer deleted, oracle moved to native seed. Tail: live-route proof on next dev rebuild; core-lane re-run when native configs exist.",
+        "nextAction": "Live-route proof DONE on fresh build (schedule triple: UNAUTH/ORIGIN_FORBIDDEN/NOT_FOUND). Lane re-run attempted with full 27-key native env: still red — root cause isolated to cross-database (3198 serves dev DB, suites use leased DBs), not config gaps. Next: per-suite composition harness epic (spawn composition on leased DB + inject env), shared with transit/manufacturing lanes. Smoke still user-blocked.",
         "handoff": {
           "runId": "run-20261123-b",
           "agentId": "worker-pay",
@@ -39865,8 +39877,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:59:53.885Z",
-          "heartbeatAt": "2026-11-23T08:43:18.939Z",
-          "expiresAt": "2026-11-23T09:13:18.939Z",
+          "heartbeatAt": "2026-11-23T08:49:02.921Z",
+          "expiresAt": "2026-11-23T09:19:02.921Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45234,8 +45246,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:03:09.640Z",
-          "heartbeatAt": "2026-11-23T08:43:18.939Z",
-          "expiresAt": "2026-11-23T09:13:18.939Z",
+          "heartbeatAt": "2026-11-23T08:49:02.921Z",
+          "expiresAt": "2026-11-23T09:19:02.921Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45766,8 +45778,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:55:34.675Z",
-          "heartbeatAt": "2026-11-23T08:43:18.939Z",
-          "expiresAt": "2026-11-23T09:13:18.939Z",
+          "heartbeatAt": "2026-11-23T08:49:02.921Z",
+          "expiresAt": "2026-11-23T09:19:02.921Z",
           "generation": 154
         },
         "baseSha": "8ed1df06274c71d2257729653ca58dc1fb188fb6",
@@ -49168,8 +49180,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:31:10.408Z",
-          "heartbeatAt": "2026-11-23T08:43:18.939Z",
-          "expiresAt": "2026-11-23T09:13:18.939Z",
+          "heartbeatAt": "2026-11-23T08:49:02.921Z",
+          "expiresAt": "2026-11-23T09:19:02.921Z",
           "generation": 154
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -50383,8 +50395,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T06:47:05.965Z",
-          "heartbeatAt": "2026-11-23T08:43:18.939Z",
-          "expiresAt": "2026-11-23T09:13:18.939Z",
+          "heartbeatAt": "2026-11-23T08:49:02.921Z",
+          "expiresAt": "2026-11-23T09:19:02.921Z",
           "generation": 154
         },
         "baseSha": null,
@@ -109721,7 +109733,7 @@
       }
     },
     "lastCoordinatorGeneration": 154,
-    "updatedAt": "2026-11-23T08:48:30.403Z",
+    "updatedAt": "2026-11-23T08:51:47.299Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
