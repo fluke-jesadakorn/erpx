@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6852,
+    "revision": 6857,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -116293,7 +116293,7 @@
         "owner": "manufacturing",
         "title": "Manufacturing caller-unit read-plan registry + TS bridge",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116313,22 +116313,44 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "claim": {
-          "runId": "run-20261123-g",
-          "agentId": "wAEman",
-          "claimedAt": "2026-11-23T20:46:16.029Z",
-          "heartbeatAt": "2026-11-23T21:04:42.332Z",
-          "expiresAt": "2026-11-23T21:34:42.332Z",
-          "generation": 159
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-manufacturing",
+            "result": "passed",
+            "sourceSha": "1e2e3f5fb"
+          },
+          {
+            "command": "cargo test -p erpx-server-manufacturing --lib (24)",
+            "result": "passed",
+            "sourceSha": "1e2e3f5fb"
+          },
+          {
+            "command": "tsc server-manufacturing + rustfmt",
+            "result": "passed",
+            "sourceSha": "1e2e3f5fb"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-manufacturing/src/**/*.ts'",
+            "result": "observed",
+            "sourceSha": "1e2e3f5fb",
+            "note": "Additive read-plan only; no consumer cutover or TS deletion. Per-caller parity gate remains."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Add RD_* registry (spec/spec-version/lines/orders/detail/reservations/events/posting/operations/lot/genealogy/accounting profiles) + /command-plan holding & company routes + strict TS read bridge; byte-parity tests per kind. No composition/consumer switch.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released; transport/cutover follow-up queued",
+        "handoff": {
+          "runId": "run-20261123-g",
+          "agentId": "wAEman",
+          "at": "2026-11-23T21:14:25.264Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released; transport/cutover follow-up queued"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -119441,6 +119463,82 @@
         "nextAction": "Pick the smallest owner-local read family with a mounted native port or fixed SQL; switch and delete redundant TS SQL; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.manufacturing.read-transport",
+        "goalId": "G4",
+        "owner": "manufacturing",
+        "title": "Manufacturing native read HTTP transport + per-caller parity harness",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-manufacturing/src/adapters/native_command_http.rs",
+          "packages/server-manufacturing/src/adapters/native-manufacturing-read.ts",
+          "packages/server-manufacturing/src/public/native_command.rs",
+          "packages/server-manufacturing/src/public/native_command_http.rs",
+          "packages/server-manufacturing/src/adapters/mod.rs",
+          "packages/server-manufacturing/src/public/mod.rs",
+          "packages/server-manufacturing/package.json",
+          "packages/server-manufacturing/Cargo.toml",
+          "src/composition/src/manufacturing_read.rs",
+          "src/composition/src/lib.rs",
+          "src/composition/src/private_development_api.rs",
+          "tests/unit/manufacturing/**",
+          "tests/integration/manufacturing/**"
+        ],
+        "resources": [
+          "owner:manufacturing",
+          "resource:composition"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Add exact Holding-target HTTP transport over the registered RD_* plans, mount it, build a live-vs-native same-transaction parity harness, then cut callers in order workspace -> records/production detail -> product.get -> planning scenarios.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.manufacturing.read-tail-r1",
+        "goalId": "G4",
+        "owner": "manufacturing",
+        "title": "manufacturing TS read tail native cutover (round 1)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-manufacturing/src/**",
+          "tests/unit/manufacturing/**",
+          "tests/integration/manufacturing/**"
+        ],
+        "resources": [
+          "owner:manufacturing"
+        ],
+        "claim": {
+          "runId": "run-20261123-g",
+          "agentId": "wATman",
+          "claimedAt": "2026-11-23T21:14:34.916Z",
+          "heartbeatAt": "2026-11-23T21:14:34.916Z",
+          "expiresAt": "2026-11-23T21:44:34.916Z",
+          "generation": 159
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest owner-local fixed-SQL read family not covered by the read-plan registry; switch and delete redundant TS SQL; record a strictly lower count. Do not replace live planning/records reads with fail-closed markers.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -119449,21 +119547,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 558,
+      "totalPackets": 560,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 18,
+        "pending": 19,
         "in_progress": 21,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 190,
+        "blocked": 191,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 159,
-    "updatedAt": "2026-11-23T21:12:35.799Z",
+    "updatedAt": "2026-11-23T21:14:34.919Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
