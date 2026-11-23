@@ -492,3 +492,72 @@ describe('workflow work report facts read tail (native read plan)', () => {
     }
   });
 });
+
+describe('workflow approval administration queue read tail (native read plan)', () => {
+  it('carries no retired owner SQL for the switched read', async () => {
+    const source = await readFile(
+      new URL(
+        '../../../packages/server-workflow/src/adapters/approval-administration.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    expect(source).not.toContain('SELECT record_type,record_id FROM approval_instances');
+    expect(source).not.toContain('?::text IS NULL OR (record_type=? AND record_id=?)');
+  });
+
+  it('plans the queue read through the mounted native read with no local SQL', async () => {
+    const all = vi.fn(async () => [] as { record_type: string; record_id: string }[]);
+    vi.resetModules();
+    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+      nativeWorkflowReadAll: all,
+    }));
+    // Force the non-evidence fallback branch that owns this read, without
+    // requiring the native evidence client configuration or other bundle imports.
+    vi.doMock('@erpx/server-workflow/public/native-workflow-evidence', () => ({
+      nativeWorkflowEvidenceAvailable: () => false,
+      nativeWorkflowEvidenceConfiguration: () => ({}),
+      nativeWorkflowEvidenceFailure: () => null,
+      createNativeWorkflowEvidenceClient: () => ({}),
+    }));
+    vi.doMock('@erpx/server-operations/public/staff-settings', () => ({
+      staffSettings: async () => ({ levels: [], people: [], departments: [], canManage: true }),
+    }));
+    vi.doMock('next/headers', () => ({ headers: async () => new Headers() }));
+    try {
+      const { approvalAdministrationData } = await import(
+        '../../../packages/server-workflow/src/adapters/approval-administration'
+      );
+      const prepare = vi.fn();
+      const db = { prepare } as never;
+      const actor = {
+        userId: 'actor',
+        holdingId: 'h001',
+        holdingSlug: 'acme',
+        companyId: 'company',
+        branchId: null,
+        departmentId: null,
+        assignmentId: 'assignment-actor',
+        role: 'organization_admin',
+        scopeKind: 'holding',
+        authority: { revision: 9, assignmentVersion: 3 },
+        iam: { permissions: [] },
+      } as never;
+      const result = await approvalAdministrationData(actor, undefined, undefined, db);
+      expect(result?.rows).toEqual([]);
+      expect(all).toHaveBeenCalledWith(
+        'wf_native_approval_administration_queue',
+        ['company', null, null, null],
+        'company',
+        db,
+      );
+      expect(prepare).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.doUnmock('@erpx/server-workflow/public/native-workflow-evidence');
+      vi.doUnmock('@erpx/server-operations/public/staff-settings');
+      vi.doUnmock('next/headers');
+      vi.resetModules();
+    }
+  });
+});

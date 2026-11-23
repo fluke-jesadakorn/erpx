@@ -1,4 +1,5 @@
 import { headers } from "next/headers";
+import { nativeWorkflowReadAll } from "./native-workflow-read";
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -78,6 +79,9 @@ export async function approvalAdministrationData(
   }
   const loaded = await createApprovalAdministrationApplication({
     settings: (context) => staffSettings(write, context),
+    /** Owner-native queue read: the statement is planned by the mounted Workflow
+     * wave3 command planner (WF_NATIVE_APPROVAL_ADMINISTRATION_QUEUE) and executed
+     * on the caller's open company unit. This fallback carries no SQL. */
     queue: nativeQueue
       ? async () =>
           nativeQueue!.approvals.map((row) => ({
@@ -85,14 +89,12 @@ export async function approvalAdministrationData(
             record_id: row.record_id,
           }))
       : async (companyId, recordKind, recordId) =>
-          (
-            await write
-              .prepare(
-                "SELECT record_type,record_id FROM approval_instances WHERE company_id=? AND state IN ('pending','blocked') AND (?::text IS NULL OR (record_type=? AND record_id=?)) ORDER BY created_at LIMIT 50",
-              )
-              .bind(companyId, recordId, recordKind, recordId)
-              .all<ApprovalAdministrationRecord>()
-          ).results,
+          nativeWorkflowReadAll<ApprovalAdministrationRecord>(
+            "wf_native_approval_administration_queue",
+            [companyId, recordId, recordKind, recordId],
+            companyId,
+            write,
+          ),
     record: async (context, recordKind, id) => {
       const current =
         recordKind === "leave"
