@@ -12,6 +12,19 @@ export function nativePosWorkspaceConfigured(): boolean {
   return process.env.ERPX_NATIVE_POS_CASH_CONFIG !== undefined;
 }
 
+/** Query parameters the bounded native workspace read cannot serve. History
+ * pagination (`cursor`) and finance-source mode (`finance`) stay on the
+ * retained work-projection read until their own native ports exist. The native
+ * cutover must never silently drop them and present a different payload. */
+const WORKSPACE_UNSUPPORTED_QUERY = ['cursor', 'finance'] as const;
+
+export function nativePosWorkspaceEligible(query: URLSearchParams): boolean {
+  return (
+    nativePosWorkspaceConfigured() &&
+    WORKSPACE_UNSUPPORTED_QUERY.every((key) => query.get(key) === null)
+  );
+}
+
 /** Bounded native POS workspace read. Returns `undefined` only when the native
  * transport is not configured; a configured failure never falls back. */
 export async function nativePosWorkspace(
@@ -22,6 +35,8 @@ export async function nativePosWorkspace(
 ): Promise<unknown | undefined> {
   const raw = process.env.ERPX_NATIVE_POS_CASH_CONFIG;
   if (raw === undefined) return undefined;
+  if (WORKSPACE_UNSUPPORTED_QUERY.some((key) => query.get(key) !== null))
+    throw new NativePosCashError('NATIVE_POS_WORKSPACE_UNSUPPORTED_QUERY', 422);
   const config = resolveNativePosCashConfiguration(nativePosCashConfiguration(raw));
   const host = incoming.get('host');
   const target = host ? config.holdings.get(host) : undefined;

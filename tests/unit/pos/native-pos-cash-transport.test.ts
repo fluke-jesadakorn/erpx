@@ -1,4 +1,4 @@
-import {describe,it,expect,vi} from 'vitest';
+import {describe,it,expect,vi,afterEach} from 'vitest';
 vi.mock('server-only',()=>({}));
 import {
   createNativePosCashClient,
@@ -7,6 +7,10 @@ import {
   NativePosCashError,
   type NativePosCashActor,
 } from '../../../packages/feature-pos/src/adapters/server/native-pos-cash';
+import {
+  nativePosWorkspace,
+  nativePosWorkspaceEligible,
+} from '../../../packages/feature-pos/src/adapters/server/native-pos-workspace';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44994',
@@ -273,5 +277,34 @@ describe('native POS cash command transport',()=>{
   expect(nativePosCommandScope('payment.retry')).toBeUndefined();
   if(previous!==undefined)process.env.ERPX_NATIVE_POS_CASH_CONFIG=previous;
   else delete process.env.ERPX_NATIVE_POS_CASH_CONFIG;
+ });
+});
+
+describe('native POS workspace cutover boundary',()=>{
+ const previous=process.env.ERPX_NATIVE_POS_CASH_CONFIG;
+ afterEach(()=>{
+  if(previous===undefined)delete process.env.ERPX_NATIVE_POS_CASH_CONFIG;
+  else process.env.ERPX_NATIVE_POS_CASH_CONFIG=previous;
+ });
+
+ it('selects native only for the workspace query shape it can serve',()=>{
+  process.env.ERPX_NATIVE_POS_CASH_CONFIG=config();
+  expect(nativePosWorkspaceEligible(new URLSearchParams('tab=sale&q=tea'))).toBe(true);
+  expect(nativePosWorkspaceEligible(new URLSearchParams('sale=sale-1'))).toBe(true);
+  expect(nativePosWorkspaceEligible(new URLSearchParams('tab=history&cursor=next'))).toBe(false);
+  expect(nativePosWorkspaceEligible(new URLSearchParams('tab=reports&finance=1'))).toBe(false);
+ });
+
+ it('never selects native when the transport is unconfigured',()=>{
+  delete process.env.ERPX_NATIVE_POS_CASH_CONFIG;
+  expect(nativePosWorkspaceEligible(new URLSearchParams('tab=sale'))).toBe(false);
+ });
+
+ it('fails closed if an unsupported pagination query reaches the native transport',async()=>{
+  process.env.ERPX_NATIVE_POS_CASH_CONFIG=config();
+  await expect(nativePosWorkspace(actor as never,incoming(),new URLSearchParams('cursor=next')))
+   .rejects.toMatchObject({code:'NATIVE_POS_WORKSPACE_UNSUPPORTED_QUERY',status:422});
+  await expect(nativePosWorkspace(actor as never,incoming(),new URLSearchParams('finance=1')))
+   .rejects.toMatchObject({code:'NATIVE_POS_WORKSPACE_UNSUPPORTED_QUERY',status:422});
  });
 });
