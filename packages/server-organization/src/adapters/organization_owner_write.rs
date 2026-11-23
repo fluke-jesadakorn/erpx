@@ -129,6 +129,16 @@ pub const ORG_READROSTERPEOPLE: &str = "org_readrosterpeople";
 /// numbers. Read-only; same gate/transport contract as the people read.
 pub const ORG_READROSTERPOSITIONS: &str = "org_readrosterpositions";
 
+// -- company-business-acceptance reads ----------------------------------------
+/// Native-owned Company setup acceptance readiness reads. SELECT-only and
+/// Company keyed; the retained authority/scope checks stay in the TypeScript
+/// application and transport never substitutes for those checks.
+pub const ACCEPTANCE_READ_COMPANY: &str = "acceptance_read_company";
+pub const ACCEPTANCE_READ_BRANCHES: &str = "acceptance_read_branches";
+pub const ACCEPTANCE_READ_CEO: &str = "acceptance_read_ceo";
+pub const ACCEPTANCE_READ_CURRENT: &str = "acceptance_read_current";
+pub const ACCEPTANCE_READ_EVENTS: &str = "acceptance_read_events";
+
 /// Every kind this owner module accepts. Anything else is fail-closed.
 pub const KINDS: &[&str] = &[
     ORG_ATTACHMENT_NODE_VERSION_STEP,
@@ -198,6 +208,11 @@ pub const KINDS: &[&str] = &[
     PRESENTATION_LEAVE_DEFAULT_LEVELS,
     ORG_READROSTERPEOPLE,
     ORG_READROSTERPOSITIONS,
+    ACCEPTANCE_READ_COMPANY,
+    ACCEPTANCE_READ_BRANCHES,
+    ACCEPTANCE_READ_CEO,
+    ACCEPTANCE_READ_CURRENT,
+    ACCEPTANCE_READ_EVENTS,
 ];
 
 /// Tables admitted for the generic attachment owner version step. Column is
@@ -429,6 +444,21 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         ORG_READROSTERPOSITIONS => {
             "SELECT p.*,l.level_number FROM organization_positions p JOIN staff_levels l ON l.id=p.level_id AND l.company_id=p.company_id WHERE p.company_id=? ORDER BY l.level_number,p.title,p.id"
+        }
+        ACCEPTANCE_READ_COMPANY => {
+            "SELECT id,display_name,status FROM organization_nodes WHERE id=? AND company_id=? AND kind='company'"
+        }
+        ACCEPTANCE_READ_BRANCHES => {
+            "SELECT count(*) count FROM organization_nodes WHERE company_id=? AND kind='branch' AND status='active'"
+        }
+        ACCEPTANCE_READ_CEO => {
+            "SELECT count(*) count FROM organization_positions WHERE company_id=? AND active=1 AND is_ceo=1"
+        }
+        ACCEPTANCE_READ_CURRENT => {
+            "SELECT * FROM company_business_acceptance WHERE company_id=?"
+        }
+        ACCEPTANCE_READ_EVENTS => {
+            "SELECT id,action,actor_id,version,reason,created_at FROM company_business_acceptance_events WHERE company_id=? ORDER BY version,created_at,id"
         }
         _ => return None,
     })
@@ -821,5 +851,53 @@ mod tests {
         assert_eq!(values.len(), 3);
         assert!(statement.contains("company_id=?"));
         assert!(owner_statement(DRAFT_READ_ACTIVE, &[Value::from("company")]).is_err());
+    }
+
+    /// Company setup acceptance reads are native-owned, SELECT-only and
+    /// Company keyed. The TypeScript application keeps every authority and
+    /// scope check; transport only selects the statement text and binds the
+    /// caller's Company values.
+    #[test]
+    fn acceptance_read_kinds_are_select_only_and_company_scoped() {
+        let kinds = [
+            (ACCEPTANCE_READ_COMPANY, 2usize),
+            (ACCEPTANCE_READ_BRANCHES, 1),
+            (ACCEPTANCE_READ_CEO, 1),
+            (ACCEPTANCE_READ_CURRENT, 1),
+            (ACCEPTANCE_READ_EVENTS, 1),
+        ];
+        for (kind, expected) in kinds {
+            assert!(supported(kind), "acceptance read kind must be allow listed: {kind}");
+            let statement =
+                sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
+            assert!(
+                statement.starts_with("SELECT "),
+                "acceptance read must be SELECT-only: {kind}"
+            );
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+                assert!(
+                    !statement.contains(forbidden),
+                    "acceptance read must not mutate or lock: {kind} contains {forbidden}"
+                );
+            }
+            assert!(
+                statement.contains("company_id=?"),
+                "acceptance read must be Company scoped: {kind}"
+            );
+            assert_eq!(
+                statement.matches('?').count(),
+                expected,
+                "acceptance read parameter count: {kind}"
+            );
+        }
+        let (statement, values) = owner_statement(
+            ACCEPTANCE_READ_COMPANY,
+            &[Value::from("company"), Value::from("company")],
+        )
+        .expect("acceptance company statement");
+        assert_eq!(values.len(), 2);
+        assert!(statement.contains("company_id=?"));
+        assert!(owner_statement(ACCEPTANCE_READ_CURRENT, &[Value::from("company")]).is_ok());
+        assert!(owner_statement(ACCEPTANCE_READ_CURRENT, &[]).is_err());
     }
 }
