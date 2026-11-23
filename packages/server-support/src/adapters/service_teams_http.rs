@@ -606,12 +606,24 @@ mod tests {
                 200,
             ),
             ("support_rd_service_team_name", json!(["team-1", "company"]), 200),
+            ("support_rd_ticket_portal_response", json!(["binding-1"]), 200),
+            (
+                "support_rd_ticket_portal_acknowledged_at",
+                json!(["binding-1", "response-1"]),
+                200,
+            ),
             (
                 "support_rd_service_coverage_history",
                 json!(["company", "extra"]),
                 422,
             ),
             ("support_rd_service_team_name", json!(["team-1"]), 422),
+            ("support_rd_ticket_portal_response", json!([]), 422),
+            (
+                "support_rd_ticket_portal_acknowledged_at",
+                json!(["binding-1"]),
+                422,
+            ),
             ("SELECT 1 FROM service_teams", json!([]), 422),
         ] {
             let response = block_on(plan_read(

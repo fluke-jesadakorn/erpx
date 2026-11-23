@@ -3,11 +3,13 @@
 //! `support/command-plan` route resolves the allow-listed kind here and returns
 //! the statement for the caller to prepare and execute on its own open unit.
 //!
-//! This family covers the small owner-local Support service-team coverage and
-//! settings-history reads on `service_teams`, `service_team_coverage` and
-//! `service_team_revisions`. Reads carry no receipt/audit/outbox ledger: the
-//! caller executes them on the same unit as the surrounding command. No SQL is
-//! ever accepted from the wire and no TypeScript SQL remains for these kinds.
+//! This family covers small owner-local Support read sets: service-team
+//! coverage/history/name on `service_teams`, `service_team_coverage` and
+//! `service_team_revisions`, and ticket-portal response/acknowledgement reads on
+//! `support_ticket_portal_responses` and `support_ticket_portal_acknowledgements`.
+//! Reads carry no receipt/audit/outbox ledger: the caller executes them on the
+//! same unit as the surrounding command. No SQL is ever accepted from the wire
+//! and no TypeScript SQL remains for these kinds.
 
 /// A planned owner read. `kind` is the allow-listed discriminator, `sql` the
 /// exact statement the retired owner literal bound and `bind_count` the number
@@ -52,10 +54,35 @@ const READ_SERVICE_TEAM_NAME: NativeSupportReadStatement = NativeSupportReadStat
     bind_count: 2,
 };
 
+/// Native successor of the TypeScript `ticketPortalResponse` read. The caller
+/// binds `[binding_id]` and receives the latest published response row.
+pub const RD_TICKET_PORTAL_RESPONSE: &str = "support_rd_ticket_portal_response";
+const SQL_TICKET_PORTAL_RESPONSE: &str =
+    "SELECT id,response_version,message,created_at FROM support_ticket_portal_responses WHERE binding_id=? ORDER BY response_version DESC LIMIT 1";
+const READ_TICKET_PORTAL_RESPONSE: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_TICKET_PORTAL_RESPONSE,
+    sql: SQL_TICKET_PORTAL_RESPONSE,
+    bind_count: 1,
+};
+
+/// Native successor of the TypeScript `ticketPortalAcknowledgedAt` read. The
+/// caller binds `[binding_id, response_id]` and receives the acknowledgement
+/// timestamp row.
+pub const RD_TICKET_PORTAL_ACKNOWLEDGED_AT: &str = "support_rd_ticket_portal_acknowledged_at";
+const SQL_TICKET_PORTAL_ACKNOWLEDGED_AT: &str =
+    "SELECT created_at FROM support_ticket_portal_acknowledgements WHERE binding_id=? AND response_id=?";
+const READ_TICKET_PORTAL_ACKNOWLEDGED_AT: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_TICKET_PORTAL_ACKNOWLEDGED_AT,
+    sql: SQL_TICKET_PORTAL_ACKNOWLEDGED_AT,
+    bind_count: 2,
+};
+
 const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SERVICE_COVERAGE_HISTORY,
     READ_SERVICE_TEAM_COVERAGE,
     READ_SERVICE_TEAM_NAME,
+    READ_TICKET_PORTAL_RESPONSE,
+    READ_TICKET_PORTAL_ACKNOWLEDGED_AT,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -85,6 +112,16 @@ mod tests {
                 SQL_SERVICE_TEAM_NAME,
                 2usize,
             ),
+            (
+                RD_TICKET_PORTAL_RESPONSE,
+                SQL_TICKET_PORTAL_RESPONSE,
+                1usize,
+            ),
+            (
+                RD_TICKET_PORTAL_ACKNOWLEDGED_AT,
+                SQL_TICKET_PORTAL_ACKNOWLEDGED_AT,
+                2usize,
+            ),
         ];
         for (kind, sql, binds) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -96,12 +133,12 @@ mod tests {
                 assert!(!sql.contains(forbidden), "owner read must not mutate: {forbidden}");
             }
             assert!(
-                sql.contains("service_team"),
-                "owner read must stay on owner-local Support team tables: {sql}"
+                sql.contains("service_team") || sql.contains("support_ticket_portal"),
+                "owner read must stay on owner-local Support tables: {sql}"
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 3);
+        assert_eq!(STATEMENTS.len(), 5);
     }
 
     #[test]
@@ -114,5 +151,9 @@ mod tests {
         assert!(statement.bind_count != 1);
         let name = read_statement(RD_SERVICE_TEAM_NAME).expect("team name read");
         assert_eq!(name.bind_count, 2);
+        let response = read_statement(RD_TICKET_PORTAL_RESPONSE).expect("portal response read");
+        assert_eq!(response.bind_count, 1);
+        let ack = read_statement(RD_TICKET_PORTAL_ACKNOWLEDGED_AT).expect("portal ack read");
+        assert_eq!(ack.bind_count, 2);
     }
 }

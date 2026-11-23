@@ -106,4 +106,42 @@ describe('support service-team coverage native read', () => {
       delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
     }
   });
+
+  it('carries no retired ticket-portal response/acknowledgement SQL in the switched adapter', async () => {
+    const portal = await source('packages/server-support/src/adapters/ticket-portal.ts');
+    expect(portal).not.toContain('FROM support_ticket_portal_responses WHERE binding_id=?');
+    expect(portal).not.toContain('FROM support_ticket_portal_acknowledgements WHERE binding_id=?');
+    expect(portal).toContain('SUPPORT_RD_TICKET_PORTAL_RESPONSE');
+    expect(portal).toContain('SUPPORT_RD_TICKET_PORTAL_ACKNOWLEDGED_AT');
+  });
+
+  it('plans the portal response and acknowledgement reads in Rust with owner-scoped binds', async () => {
+    const prepare = vi.fn(() => ({ bind: vi.fn() }));
+    const batch = vi.fn(async () => [
+      { results: [{ id: 'response-1', response_version: 3, message: 'hello', created_at: 42 }], success: true, meta: { changes: 0, duration: 0 } }]);
+    const db = { prepare, batch } as unknown as SqlDatabase;
+    process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      ok('SELECT id,response_version,message,created_at FROM support_ticket_portal_responses WHERE binding_id=?', ['binding-1']),
+    );
+    try {
+      const { ticketPortalResponse, ticketPortalAcknowledgedAt } = await import('@erpx/server-support/adapters/ticket-portal');
+      await expect(ticketPortalResponse(db, 'binding-1')).resolves.toEqual({ id: 'response-1', version: 3, message: 'hello', publishedAt: 42 });
+      const responseCall = fetchMock.mock.calls[0]!;
+      expect(String(responseCall[0])).toContain('/support/command-plan');
+      expect(JSON.parse(String(responseCall[1]!.body))).toMatchObject({ kind: 'support_rd_ticket_portal_response', values: ['binding-1'] });
+
+      fetchMock.mockClear();
+      const ackBatch = vi.fn(async () => [
+        { results: [{ created_at: 99 }], success: true, meta: { changes: 0, duration: 0 } }]);
+      const ackDb = { prepare, batch: ackBatch } as unknown as SqlDatabase;
+      await expect(ticketPortalAcknowledgedAt(ackDb, 'binding-1', 'response-1')).resolves.toBe(99);
+      const ackCall = fetchMock.mock.calls[0]!;
+      expect(JSON.parse(String(ackCall[1]!.body))).toMatchObject({ kind: 'support_rd_ticket_portal_acknowledged_at', values: ['binding-1', 'response-1'] });
+      await expect(ticketPortalAcknowledgedAt(ackDb, 'binding-1')).resolves.toBeNull();
+    } finally {
+      fetchMock.mockRestore();
+      delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
+    }
+  });
 });

@@ -20,6 +20,8 @@ type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: 
 export const SUPPORT_RD_SERVICE_COVERAGE_HISTORY = 'support_rd_service_coverage_history';
 export const SUPPORT_RD_SERVICE_TEAM_COVERAGE = 'support_rd_service_team_coverage';
 export const SUPPORT_RD_SERVICE_TEAM_NAME = 'support_rd_service_team_name';
+export const SUPPORT_RD_TICKET_PORTAL_RESPONSE = 'support_rd_ticket_portal_response';
+export const SUPPORT_RD_TICKET_PORTAL_ACKNOWLEDGED_AT = 'support_rd_ticket_portal_acknowledged_at';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'SUPPORT_NATIVE_READ_UNAVAILABLE', 'The native Support read service is unavailable.');
