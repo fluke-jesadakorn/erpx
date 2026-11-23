@@ -17,7 +17,6 @@
     "./adapters/attachments-finance-facts": "./src/adapters/attachments-finance-facts.ts",
     "./adapters/engineering-verification": "./src/adapters/engineering-verification.ts",
     "./public/release-source-locks": "./src/public/release-source-locks.ts",
-    "./public/platform-executive": "./src/public/platform_executive.rs",
     "./public/company-release-attachment-read": "./src/public/company-release-attachment-read.ts",
     "./public/pms-rollout-guards": "./src/public/pms-rollout-guards.ts",
     "./public/collaboration-reply-rollout": "./src/public/collaboration-reply-rollout.ts",
