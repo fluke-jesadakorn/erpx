@@ -14,6 +14,7 @@
 import sharp from "sharp";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { setPublishedBrandIdentityForTest } from "@erpx/server-brand/adapters/identity";
 import {
   createNativeBrandPresentationClient,
   listBrandProfiles,
@@ -180,12 +181,14 @@ it("reads the Branding-owned storefront through the published identity overlay",
     db.prepare("INSERT INTO organization_brand_profiles(scope_kind,scope_id,company_id,document_mode,updated_by,updated_at) VALUES('branch',?,?,'both',?,?)")
       .bind(fixture.branch, fixture.company, fixture.owner.userId, now),
   ]);
+  setPublishedBrandIdentityForTest(async () => ({ revision: 1, identity: { identity: { shortName: "Published storefront", tagline: "" }, visual: { accentColor: "#224488", logoPublicationId: null } } } as never));
   const storefront = await readStorefrontAppBrand(db, fixture.owner);
   expect(storefront).toMatchObject({ shortName: "Published storefront", accentColor: "#224488", identityRevision: 1, logoUrl: null });
   const profiles = await listBrandProfiles(db, fixture.owner);
   expect(profiles.holding.scopeKind).toBe("holding");
   expect(profiles.branches.find(row => row.scopeId === fixture.branch)?.documentMode).toBe("both");
   expect(profiles.storefront.shortName).toBe("Published storefront");
+  setPublishedBrandIdentityForTest();
 });
 
 describe("native Brand presentation reads", () => {

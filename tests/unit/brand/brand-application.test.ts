@@ -4,6 +4,7 @@ import { brandIdentitySchema, type ActiveBrandIdentity, type BrandCategoryLock, 
 import { readBrandIdentityWorkspace } from "@erpx/server-brand/application/identity-read";
 import * as brandPublic from "@erpx/server-brand/public/brand-identity";
 import * as brandIndex from "@erpx/server-brand/index";
+import { nativeBrandIdentityWorkspace } from "@erpx/feature-brand/lib/native-brand-identity";
 
 const identity = { identity: { shortName: "ERPX", tagline: "Approved identity" }, visual: { accentColor: "#224488", logoPublicationId: null } };
 const reason = "Independently review the identity";
@@ -49,11 +50,13 @@ describe("Retained Brand identity contract", () => {
     const output = await readBrandIdentityWorkspace({ actorId: "worker", canManage: false, canLock: false, async authorize() {}, async drafts(includeOthers) { expect(includeOthers).toBe(false); return []; }, async versions() { return []; }, async locks() { return []; }, async history() { return [{ id: "private" }] as never; }, async active() { return null; }, async legacy() { return { shortName: "Legacy", accentColor: "#123456" }; }, async media() { return []; } });
     expect(output).toMatchObject({ history: [], initial: { identity: { shortName: "Legacy", tagline: "" }, visual: { logoPublicationId: null } }, canManage: false });
   });
-  test("retires every TypeScript identity writer from the public entrypoints", () => {
+  test("retires every TypeScript identity writer and SQL reader from the public entrypoints", () => {
     for (const entrypoint of [brandPublic, brandIndex]) for (const writer of ["saveBrandIdentityDraft", "publishBrandIdentity", "rollbackBrandIdentity", "changeBrandCategoryLock", "cancelBrandDraft"])
       expect(Object.hasOwn(entrypoint, writer)).toBe(false);
+    // Remaining public readers are native-backed delegates, never TS SELECTs.
     expect(typeof brandPublic.publishedBrandIdentity).toBe("function");
     expect(typeof brandPublic.brandIdentityWorkspace).toBe("function");
+    expect(typeof nativeBrandIdentityWorkspace).toBe("function");
   });
 });
 

@@ -21,7 +21,7 @@ department(companyId:string,value:string):Promise<{ slug: string }|null>;
 branchDepartment(companyId:string,value:string,value2:string):Promise<{ slug: string; branch_slug: string }|null>;
 logoPublication(companyId:string,companyId2:string,logoPublicationId:string):Promise<{object_key:string;media_type:string}|null>;
 actorCompany(companyId:string,companyId2:string):Promise<{ slug: string }|null>;};
-export type FrontPorts={facts:FrontFacts;error(status:number,code:string,message:string):Error;isApiError(error:unknown):error is Error&{code:string};now():number;prepareSlug(slug:string):Promise<{id:string;slug:string}>;prepareHolding(id:string):Promise<void>;accountAccess(scope:HoldingWorkspaceScope,options?:{companyId:string}):Promise<AccountAccessContext>;roles(companyId:string,ids:string[]):Promise<Map<string,{permissions:string[]}>>;selection(sessionId:string,userId:string,companyId:string):ReturnType<typeof readWorkSelection>;restore?(access:AccountAccessContext):ReturnType<typeof readWorkSelection>;select(input:Parameters<typeof selectWorkRole>[1]):ReturnType<typeof selectWorkRole>;publishedBrand(companyId:string):ReturnType<typeof publishedBrandIdentity>;workspaces():Promise<(WorkspaceHoldingChoice|{kind:"platform"})[]>;currentUserId():Promise<string>;file(key:string):Promise<StoredFile|null>;origin(app:FrontAppKind):URL|null;};
+export type FrontPorts={facts:FrontFacts;error(status:number,code:string,message:string):Error;isApiError(error:unknown):error is Error&{code:string};now():number;prepareSlug(slug:string):Promise<{id:string;slug:string}>;prepareHolding(id:string):Promise<void>;accountAccess(scope:HoldingWorkspaceScope,options?:{companyId:string}):Promise<AccountAccessContext>;roles(companyId:string,ids:string[]):Promise<Map<string,{permissions:string[]}>>;selection(sessionId:string,userId:string,companyId:string):ReturnType<typeof readWorkSelection>;restore?(access:AccountAccessContext):ReturnType<typeof readWorkSelection>;select(input:Parameters<typeof selectWorkRole>[1]):ReturnType<typeof selectWorkRole>;publishedBrand(companyId:string,holdingSlug:string):ReturnType<typeof publishedBrandIdentity>;workspaces():Promise<(WorkspaceHoldingChoice|{kind:"platform"})[]>;currentUserId():Promise<string>;file(key:string):Promise<StoredFile|null>;origin(app:FrontAppKind):URL|null;};
 export function createFrontAppService(ports:FrontPorts){
 async function frontRoleState(holdingSlug: string, companyId: string, app: FrontAppKind, location: string) {
   const scope = await frontScopeFromLocation(holdingSlug, companyId, location);
@@ -76,7 +76,7 @@ async function frontCompanyBrand(holdingSlug: string, companySlug: string): Prom
   await ports.prepareHolding(binding.id);
   const company = await ports.facts.companyBrand(companySlug);
   if (!company) return null;
-  const published=await ports.publishedBrand(company.id);
+  const published=await ports.publishedBrand(company.id,holdingSlug);
 
   return {
     holdingId: binding.id,

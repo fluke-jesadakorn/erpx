@@ -1,7 +1,7 @@
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { brandIdentityWorkspace } from "@erpx/server-brand/public/brand-identity";
+import { nativeBrandIdentityWorkspace } from "@erpx/feature-brand/lib/native-brand-identity";
 import { agentWorkspace } from "@erpx/server-agent/public/agent-governance";
 import { productionWorkspace } from "@erpx/server-manufacturing/public/production";
 import { ecommerceWorkspace } from "@erpx/server-ecommerce/public/ecommerce";
@@ -24,7 +24,7 @@ function application(provided?: SqlDatabase) {
     return createRecordDomainDetailsApplication<SqlStatement>({repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, prepare: async (holding) => {
             if (!provided)
                 database = (await nativeHoldingResources(holding)).write;
-        }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, brandIdentityWorkspace: (...args) => fromNative(() => brandIdentityWorkspace(...args)), agentWorkspace: (...args) => fromNative(() => agentWorkspace(...args)), productionWorkspace: (...args) => fromNative(() => productionWorkspace(...args)), ecommerceWorkspace: (...args) => fromNative(() => ecommerceWorkspace(...args)), learningWorkspace: (...args) => fromNative(() => learningWorkspace(...args)), benefitsWorkspace: (...args) => fromNative(() => benefitsWorkspace(...args)), talentWorkspace: (...args) => fromNative(() => talentWorkspace(...args))});
+        }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, brandIdentityWorkspace: (...args) => fromNative(async () => { const [actor] = args, data = await nativeBrandIdentityWorkspace(actor, actor.holdingSlug); if (!data) throw new NativeApiError(503, 'NATIVE_BRAND_UNAVAILABLE', 'The native Brand identity reader is unavailable.'); return data; }), agentWorkspace: (...args) => fromNative(() => agentWorkspace(...args)), productionWorkspace: (...args) => fromNative(() => productionWorkspace(...args)), ecommerceWorkspace: (...args) => fromNative(() => ecommerceWorkspace(...args)), learningWorkspace: (...args) => fromNative(() => learningWorkspace(...args)), benefitsWorkspace: (...args) => fromNative(() => benefitsWorkspace(...args)), talentWorkspace: (...args) => fromNative(() => talentWorkspace(...args))});
 }
 async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> {
     try {

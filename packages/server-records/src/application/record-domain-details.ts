@@ -1,5 +1,5 @@
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import type { brandIdentityWorkspace } from "@erpx/server-brand/public/brand-identity";
+import type { nativeBrandIdentityWorkspace, NativeBrandIdentityWorkspace } from "@erpx/feature-brand/lib/native-brand-identity";
 import type { agentWorkspace } from "@erpx/server-agent/public/agent-governance";
 import type { productionWorkspace } from "@erpx/server-manufacturing/public/production";
 import type { ecommerceWorkspace } from "@erpx/server-ecommerce/public/ecommerce";
@@ -28,7 +28,7 @@ export interface RecordDomainDetailsPorts<Effect> {
     batch(effects: Effect[]): Promise<unknown>;
     policyRead<Result>(key: string, read: () => Promise<Result>): Promise<Result>;
     policyNow(): number;
-    brandIdentityWorkspace(...args: Parameters<typeof brandIdentityWorkspace>): PortResult<ReturnType<typeof brandIdentityWorkspace>, Effect>;
+    brandIdentityWorkspace(...args: Parameters<typeof nativeBrandIdentityWorkspace>): PortResult<Promise<NativeBrandIdentityWorkspace>, Effect>;
     agentWorkspace(...args: Parameters<typeof agentWorkspace>): PortResult<ReturnType<typeof agentWorkspace>, Effect>;
     productionWorkspace(...args: Parameters<typeof productionWorkspace>): PortResult<ReturnType<typeof productionWorkspace>, Effect>;
     ecommerceWorkspace(...args: Parameters<typeof ecommerceWorkspace>): PortResult<ReturnType<typeof ecommerceWorkspace>, Effect>;
@@ -44,7 +44,7 @@ export function createRecordDomainDetailsApplication<Effect>(ports: RecordDomain
     }
     async function recordDomainData(actor: WorkContext, kind: DomainRecordKind, id: string) {
         if (kind === 'brand_draft' || kind === 'brand_version') {
-            const data = await ports.brandIdentityWorkspace(actor), row = found(kind === 'brand_draft' ? data.drafts.find(r => r.id === id) : data.versions.find(r => r.id === id));
+            const data = await ports.brandIdentityWorkspace(actor, actor.holdingSlug), row = found(kind === 'brand_draft' ? data.drafts.find(r => r.id === id) : data.versions.find(r => r.id === id));
             return { domain: 'brand' as const, kind, row, data: { ...data, drafts: data.drafts.filter(r => r.id === id), versions: data.versions.filter(r => r.id === id) } };
         }
         if (kind === 'agent_pool') {

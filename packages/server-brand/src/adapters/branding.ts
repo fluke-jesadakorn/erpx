@@ -69,7 +69,7 @@ export async function listBrandProfiles(db:SqlDatabase,a:WorkContext){
 }
 async function storefront(db:SqlDatabase,a:WorkContext){
  const current=await storefrontRow(db,a);if(!current)throw new BusinessRuleError(409,"COMPANY_REQUIRED","The Company storefront is unavailable.");
- return storefrontPresentation(a,current,await publishedBrandIdentity(db,a.companyId),mediaUrls(a),attachmentsV2Readable());
+ return storefrontPresentation(a,current,await publishedBrandIdentity(a),mediaUrls(a),attachmentsV2Readable());
 }
 export async function readStorefrontAppBrand(db:SqlDatabase,a:WorkContext){return storefront(db,a);}
 async function companyExists(db:SqlDatabase,actor:WorkContext,id:string){return !!await db.prepare(`SELECT 1 FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE id=? AND kind='company' AND status='active'`).bind(id).first();}
