@@ -116,7 +116,9 @@ describe('retired Quality dead read branch',()=>{
   const adapter=readFileSync(source('packages/server-quality/src/adapters/quality.ts'),'utf8');
   expect(adapter).not.toContain('inventory_quality_specs');
   expect(adapter).not.toContain('quality-evidence-version');
-  expect(adapter).toContain('rows(write,actor,id)');
+  expect(adapter).not.toContain('SELECT');
+  expect(adapter).toContain('reader.workspace(incoming,actor.holdingSlug)');
+  expect(adapter).toContain('reader.detailCore(incoming,actor.holdingSlug,id)');
   expect(adapter).toContain('getQualityHold');
   expect(adapter).toContain('qualityWork');
  });
