@@ -321,6 +321,20 @@ const READ_COMMERCE_ATTACHMENT_STOCK_IMAGE: NativeStatement = NativeStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `commerce-facts` `readInventoryInTransit1`
+/// read. Owner-local: it aggregates only Inventory's own `inventory_in_transit`
+/// table and the caller executes it on its already-open unit with the same four
+/// binds, returning the full `SqlResult` array like the retired `.all()`.
+pub const RD_IN_TRANSIT_CURRENCY_TOTALS: &str = "inventory_rd_in_transit_currency_totals";
+const SQL_RD_IN_TRANSIT_CURRENCY_TOTALS: &str =
+    "SELECT currency,count(*) line_count,SUM(value_minor) value_minor FROM inventory_in_transit WHERE company_id=? AND quantity_milli>0 AND (?::text IS NULL OR source_branch_id=? OR target_branch_id=?) GROUP BY currency ORDER BY currency";
+const READ_IN_TRANSIT_CURRENCY_TOTALS: NativeStatement = NativeStatement {
+    kind: RD_IN_TRANSIT_CURRENCY_TOTALS,
+    sql: SQL_RD_IN_TRANSIT_CURRENCY_TOTALS,
+    bind_count: 4,
+    scope: "holding",
+};
+
 pub fn is_read(kind: &str) -> bool {
     matches!(
         kind,
@@ -341,6 +355,7 @@ pub fn is_read(kind: &str) -> bool {
             | RD_ATTACHMENT_DESCRIPTOR_TRANSIT
             | RD_ATTACHMENT_DESCRIPTOR_LOT
             | RD_COMMERCE_ATTACHMENT_STOCK_IMAGE
+            | RD_IN_TRANSIT_CURRENCY_TOTALS
     )
 }
 
@@ -363,6 +378,7 @@ pub fn read_statement(kind: &str) -> Option<&'static NativeStatement> {
         RD_ATTACHMENT_DESCRIPTOR_TRANSIT => Some(&READ_ATTACHMENT_DESCRIPTOR_TRANSIT),
         RD_ATTACHMENT_DESCRIPTOR_LOT => Some(&READ_ATTACHMENT_DESCRIPTOR_LOT),
         RD_COMMERCE_ATTACHMENT_STOCK_IMAGE => Some(&READ_COMMERCE_ATTACHMENT_STOCK_IMAGE),
+        RD_IN_TRANSIT_CURRENCY_TOTALS => Some(&READ_IN_TRANSIT_CURRENCY_TOTALS),
         _ => None,
     }
 }
@@ -421,6 +437,7 @@ mod tests {
             RD_ATTACHMENT_DESCRIPTOR_TRANSIT,
             RD_ATTACHMENT_DESCRIPTOR_LOT,
             RD_COMMERCE_ATTACHMENT_STOCK_IMAGE,
+            RD_IN_TRANSIT_CURRENCY_TOTALS,
         ] {
             assert!(is_read(kind));
             let read = read_statement(kind).expect("read kind");
@@ -580,6 +597,22 @@ mod tests {
         assert!(read.sql.contains("FROM inventory_order_reservations r WHERE r.order_line_id IN(SELECT jsonb_array_elements_text(?::jsonb))"));
         assert!(read.sql.contains("FROM inventory_lot_balances b JOIN lots l ON l.id=b.lot_id))::text image"));
         assert!(!read.sql.contains("commerce_"));
+    }
+
+    /// Parity witness for the owner-local `commerce-facts` in-transit totals
+    /// read: the native plan is the exact statement the retired TypeScript
+    /// literal bound on Inventory's `inventory_in_transit` table, with the same
+    /// four caller-unit binds and full array result shape.
+    #[test]
+    fn in_transit_currency_totals_plan_matches_retired_owner_statement() {
+        let read = read_statement(RD_IN_TRANSIT_CURRENCY_TOTALS).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT currency,count(*) line_count,SUM(value_minor) value_minor FROM inventory_in_transit WHERE company_id=? AND quantity_milli>0 AND (?::text IS NULL OR source_branch_id=? OR target_branch_id=?) GROUP BY currency ORDER BY currency"
+        );
+        assert_eq!(read.bind_count, 4);
+        assert_eq!(read.sql.matches('?').count(), read.bind_count);
+        assert_eq!(read.scope, "holding");
     }
 
     /// Parity witness: the native plan for the lot-balance supplement is the
