@@ -1,6 +1,7 @@
 pub(crate) mod order;
 pub(crate) mod order_http;
 pub(crate) mod quality_masters;
+pub(crate) mod quality_product_read;
 pub(crate) mod quality_receipt_origin;
 pub(crate) mod quality_return_join;
 pub(crate) mod quality_return_origin;

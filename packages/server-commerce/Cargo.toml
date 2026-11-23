@@ -49,6 +49,10 @@ name = "record_source"
 path = "../../tests/unit/commerce/rust-commerce-record-source.test.rs"
 
 [[test]]
+name = "quality_product_read"
+path = "../../tests/unit/commerce/rust-quality-product-read.test.rs"
+
+[[test]]
 name = "portal_commerce_locks_postgres"
 path = "../../tests/integration/commerce/rust-portal-commerce-locks-postgres.test.rs"
 

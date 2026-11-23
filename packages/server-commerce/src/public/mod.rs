@@ -1,6 +1,7 @@
 pub mod order;
 pub mod order_http;
 pub mod quality_masters;
+pub mod quality_product_read;
 pub mod quality_receipt_origin;
 pub mod quality_return_join;
 pub mod quality_return_origin;

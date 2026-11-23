@@ -17,7 +17,7 @@
     "./adapters/records-source-facts": "./src/adapters/records-source-facts.ts",
     "./adapters/pms-hospitality-setup-facts": "./src/adapters/pms-hospitality-setup-facts.ts",
     "./adapters/inventory-consumption-sources": "./src/adapters/inventory-consumption-sources.ts",
-    "./adapters/quality-product": "./src/adapters/quality-product.ts",
+    "./adapters/native-quality-product": "./src/adapters/native-quality-product.ts",
     "./adapters/landed-cost-purchase-sources": "./src/adapters/landed-cost-purchase-sources.ts",
     "./adapters/pms-command-facts": "./src/adapters/pms-command-facts.ts",
     "./adapters/inventory-read-projections": "./src/adapters/inventory-read-projections.ts",
