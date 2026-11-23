@@ -144,6 +144,11 @@ pub const WF_NATIVE_FLOW_DEFINITIONS_INSTANCE: &str = "wf_native_flow_definition
 /// it on the caller's open company unit and carries no receipt/assertion
 /// semantics.
 pub const WF_NATIVE_FINANCE_SALES_COMPLETION: &str = "wf_native_finance_sales_completion";
+/// Owner-authored caller-unit read for the finance AI source revision family.
+/// The mounted wave3-command planner resolves it to one fixed SELECT on the
+/// Workflow-owned command ledger; the TypeScript bridge executes it on the
+/// caller's open company unit and carries no receipt/assertion semantics.
+pub const WF_NATIVE_FINANCE_SOURCE_REVISION: &str = "wf_native_finance_source_revision";
 pub const KINDS: &[&str] = &[
     WF_OPENAPPROVAL,
     WF_OPENAPPROVAL2,
@@ -183,6 +188,7 @@ pub const KINDS: &[&str] = &[
     WF_NATIVE_LEGAL_DECISION_HISTORY,
     WF_NATIVE_FLOW_DEFINITIONS_INSTANCE,
     WF_NATIVE_FINANCE_SALES_COMPLETION,
+    WF_NATIVE_FINANCE_SOURCE_REVISION,
 ];
 
 fn statement(kind: &str) -> Option<(&'static str, usize)> {
@@ -440,6 +446,10 @@ fn statement(kind: &str) -> Option<(&'static str, usize)> {
         WF_NATIVE_FINANCE_SALES_COMPLETION => (
             "SELECT result_json FROM command_receipts WHERE record_id=? AND operation='finance.sales-invoice.prepare' AND authority_json::jsonb->>'companyId'=? ORDER BY created_at DESC LIMIT 1",
             2,
+        ),
+        WF_NATIVE_FINANCE_SOURCE_REVISION => (
+            "SELECT (SELECT count(*) FROM command_receipts WHERE authority_json::jsonb->>'companyId'=? AND (operation LIKE 'finance.%' OR operation LIKE 'commerce.%' OR operation LIKE 'expense.%' OR operation LIKE 'pms.%' OR operation LIKE 'people.payroll.%') AND operation NOT LIKE 'finance.ai.%' AND operation NOT LIKE 'expense.ai.%') AS revision",
+            1,
         ),
 _ => return None,
     })
@@ -880,5 +890,36 @@ mod tests {
         assert!(
             plan(WF_NATIVE_FINANCE_SALES_COMPLETION, vec![json!("invoice-1")]).is_err()
         );
+    }
+
+    /// The owner-local finance AI source revision read stays fixed, SELECT-only
+    /// and company-scoped on the Workflow-owned command ledger; the bridge
+    /// carries no receipt or assertion semantics and the planner never accepts
+    /// caller SQL or writes. The exact owner operation-kind predicate is kept.
+    #[test]
+    fn finance_source_revision_read_kind_is_fixed_company_scoped_select() {
+        let (sql, expected) = statement(WF_NATIVE_FINANCE_SOURCE_REVISION)
+            .expect("registered owner read kind");
+        assert!(sql.starts_with("SELECT "), "read must be SELECT-only: {sql}");
+        assert_eq!(expected, 1);
+        assert_eq!(sql.matches('?').count(), expected);
+        assert!(sql.contains("command_receipts"), "read must stay owner-local: {sql}");
+        assert!(
+            sql.contains("authority_json::jsonb->>'companyId'=?"),
+            "read must stay company-scoped: {sql}"
+        );
+        assert!(
+            sql.contains("operation LIKE 'finance.%'")
+                && sql.contains("operation LIKE 'people.payroll.%'")
+                && sql.contains("operation NOT LIKE 'finance.ai.%'")
+                && sql.contains("operation NOT LIKE 'expense.ai.%'"),
+            "read must keep the exact owner operation-kind predicate: {sql}"
+        );
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+            assert!(!sql.contains(forbidden), "read must not mutate: {forbidden}");
+        }
+        assert!(supported(WF_NATIVE_FINANCE_SOURCE_REVISION));
+        assert!(plan(WF_NATIVE_FINANCE_SOURCE_REVISION, vec![json!("company")]).is_ok());
+        assert!(plan(WF_NATIVE_FINANCE_SOURCE_REVISION, vec![]).is_err());
     }
 }

@@ -688,3 +688,43 @@ describe('workflow finance sales completion receipt read tail (native read plan)
     }
   });
 });
+
+describe('workflow finance AI source revision read tail (native read plan)', () => {
+  it('carries no retired owner read SQL in the switched adapter', async () => {
+    const source = await readFile(
+      new URL(
+        '../../../packages/server-workflow/src/adapters/finance-ai-revision-sources.ts',
+        import.meta.url,
+      ),
+      'utf8',
+    );
+    expect(source).not.toContain('AS revision');
+    expect(source).not.toContain('.prepare(');
+  });
+
+  it('plans the source revision read through the mounted native read with no local SQL', async () => {
+    const first = vi.fn(async () => ({ revision: 7 }));
+    vi.resetModules();
+    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+      nativeWorkflowReadFirst: first,
+    }));
+    try {
+      const { financeSourceRevision } = await import(
+        '../../../packages/server-workflow/src/adapters/finance-ai-revision-sources'
+      );
+      const prepare = vi.fn();
+      const db = { prepare } as never;
+      expect(await financeSourceRevision(db, 'company')).toBe(7);
+      expect(first).toHaveBeenCalledWith(
+        'wf_native_finance_source_revision',
+        ['company'],
+        'company',
+        db,
+      );
+      expect(prepare).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.resetModules();
+    }
+  });
+});
