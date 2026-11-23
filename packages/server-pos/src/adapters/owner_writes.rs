@@ -71,6 +71,11 @@ pub const CORE_WRITEPOSREFUNDS5_503: &str = "core_writeposrefunds5_503";
 pub const CORE_WRITEPOSRESERVATIONS6_512: &str = "core_writeposreservations6_512";
 pub const CORE_WRITEPOSFULFILLMENTS12_515: &str = "core_writeposfulfillments12_515";
 pub const CORE_WRITEPOSSALES21_518: &str = "core_writepossales21_518";
+/// Executive-evidence sale row retired from the duplicate `readPosSales3`/`readPosSales4`
+/// literals in `pos.ts`. Both literals were byte-identical; the live `readPosSales3` now
+/// resolves this owner statement and the dead `readPosSales4` copy was deleted. Read-only
+/// caller-transaction `SELECT` with fixed Company/branch/currency/date scope.
+pub const CORE_READPOSSALES3_520: &str = "core_readpossales3_520";
 pub const STRIPE_WRITEPOSSTRIPEEVENTS1_49: &str = "stripe_writeposstripeevents1_49";
 pub const STRIPE_WRITEPOSSTRIPEEVENTS2_53: &str = "stripe_writeposstripeevents2_53";
 pub const STRIPE_WRITEPOSCONNECTIONHISTORY1_58: &str = "stripe_writeposconnectionhistory1_58";
@@ -162,6 +167,7 @@ pub const KINDS: &[&str] = &[
     CORE_WRITEPOSRESERVATIONS6_512,
     CORE_WRITEPOSFULFILLMENTS12_515,
     CORE_WRITEPOSSALES21_518,
+    CORE_READPOSSALES3_520,
     STRIPE_WRITEPOSSTRIPEEVENTS1_49,
     STRIPE_WRITEPOSSTRIPEEVENTS2_53,
     STRIPE_WRITEPOSCONNECTIONHISTORY1_58,
@@ -296,6 +302,11 @@ fn sql(kind: &str) -> Option<&'static str> {
         CORE_WRITEPOSRESERVATIONS6_512 => r#"DELETE FROM pos_reservations WHERE fulfillment_id IN (SELECT f.id FROM pos_fulfillments f JOIN pos_lines l ON l.fulfillment_id=f.id WHERE l.sale_id=? AND f.state='draft')"#,
         CORE_WRITEPOSFULFILLMENTS12_515 => r#"UPDATE pos_fulfillments SET reserved=false WHERE state='draft' AND id IN (SELECT fulfillment_id FROM pos_lines WHERE sale_id=?)"#,
         CORE_WRITEPOSSALES21_518 => r#"UPDATE pos_sales SET state='open',version=version+1 WHERE id=? AND state='payment_pending'"#,
+        CORE_READPOSSALES3_520 => r#"SELECT s.id source_id,s.id sale_id,'sale' source_type,s.number receipt_number,s.business_date,
+     NULL::text accounting_date,s.currency,s.state,s.total_minor::text amount_minor,s.total_minor::text contribution_minor,
+     '0'::text refunded_minor,s.version revision,s.version sale_version,s.branch_id
+   FROM pos_sales s WHERE s.id=? AND s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND s.currency=?
+     AND s.business_date BETWEEN ? AND ? AND s.state='completed' LIMIT 1"#,
         STRIPE_WRITEPOSSTRIPEEVENTS1_49 => r#"INSERT INTO pos_stripe_events(id,account_id,livemode,company_id,event_type,payload_json,received_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING"#,
         STRIPE_WRITEPOSSTRIPEEVENTS2_53 => r#"UPDATE pos_stripe_events SET provider_created_at=COALESCE(provider_created_at,?) WHERE id=?"#,
         STRIPE_WRITEPOSCONNECTIONHISTORY1_58 => r#"INSERT INTO pos_connection_history VALUES(?,?,?) ON CONFLICT DO NOTHING"#,
@@ -395,7 +406,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 112);
+        assert_eq!(KINDS.len(), 113);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -447,6 +458,25 @@ mod tests {
         assert_eq!(
             sql(POS_READPOSJOBS1_245).unwrap(),
             "SELECT * FROM pos_jobs WHERE company_id=? AND state='exception'"
+        );
+    }
+
+    /// The retired executive-evidence sale row is a SELECT-only owner statement.
+    /// The SQL is byte-identical to the deleted byte-for-byte duplicate
+    /// `readPosSales3`/`readPosSales4` literals in `pos.ts`; the live kind is the
+    /// sole authority and the dead copy was removed with the TypeScript SQL.
+    #[test]
+    fn executive_evidence_sale_read_kind_is_select_only() {
+        assert!(supported(CORE_READPOSSALES3_520));
+        let stmt = sql(CORE_READPOSSALES3_520).unwrap();
+        assert!(stmt.starts_with("SELECT "), "evidence read kind must be SELECT-only");
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+            assert!(!stmt.contains(forbidden), "evidence read kind must not mutate: {forbidden}");
+        }
+        assert_eq!(stmt.matches('?').count(), 7, "evidence read carries id/company/branch/branch2/currency/from/to scope");
+        assert_eq!(
+            stmt,
+            "SELECT s.id source_id,s.id sale_id,'sale' source_type,s.number receipt_number,s.business_date,\n     NULL::text accounting_date,s.currency,s.state,s.total_minor::text amount_minor,s.total_minor::text contribution_minor,\n     '0'::text refunded_minor,s.version revision,s.version sale_version,s.branch_id\n   FROM pos_sales s WHERE s.id=? AND s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND s.currency=?\n     AND s.business_date BETWEEN ? AND ? AND s.state='completed' LIMIT 1"
         );
     }
 

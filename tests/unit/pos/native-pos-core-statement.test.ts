@@ -4,6 +4,7 @@ import {
   nativePosShiftsStatement,
   nativePosTablesStatement,
   nativePosCashMovementsStatement,
+  nativePosSalesEvidenceStatement,
 } from '../../../packages/server-pos/src/adapters/native-pos-core-statement';
 import { pmsHospitalitySetupPosFacts } from '../../../packages/server-pos/src/adapters/pms-hospitality-setup-facts';
 
@@ -93,5 +94,55 @@ describe('native POS core workspace read bridge (shifts family)', () => {
     expect(prepare).toHaveBeenCalledTimes(1);
     expect(seen.sql).toBe(sql);
     expect(seen.sql).not.toContain('r.branch_id=?');
+  });
+
+  it('requests the executive-evidence sale row from the native owner registry only', async () => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const sql = "SELECT s.id source_id,s.id sale_id,'sale' source_type,s.number receipt_number,s.business_date FROM pos_sales s WHERE s.id=? AND s.company_id=?";
+    const values = ['sale', 'company', 'branch', 'branch', 'THB', '2026-01-01', '2026-01-31'];
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { sql, values } }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const seen: { sql?: string; values?: unknown[] } = {};
+    const row = { sale_id: 'sale', amount_minor: '100' };
+    const db = {
+      prepare: (text: string) => ({
+        bind: (...bound: unknown[]) => {
+          seen.sql = text;
+          seen.values = bound;
+          return { first: async () => row };
+        },
+      }),
+    };
+    const facts = {
+      id: 'sale', company: 'company', branch: 'branch', branch2: 'branch',
+      currency: 'THB', from: '2026-01-01', to: '2026-01-31',
+    };
+    const result = await nativePosSalesEvidenceStatement(db as never, facts);
+    expect(result).toEqual(row);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({
+      company: 'company',
+      kind: 'core_readpossales3_520',
+      values,
+    });
+    expect(seen.sql).toBe(sql);
+    expect(seen.values).toEqual(values);
+  });
+
+  it('fails closed for the evidence read when the native owner service is unconfigured', async () => {
+    delete process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    const facts = {
+      id: 'sale', company: 'company', branch: null, branch2: null,
+      currency: 'THB', from: '2026-01-01', to: '2026-01-31',
+    };
+    await expect(nativePosSalesEvidenceStatement({} as never, facts)).rejects.toMatchObject({
+      code: 'NATIVE_POS_OWNER_UNAVAILABLE',
+      status: 503,
+    });
+    expect(fetch).not.toHaveBeenCalled();
   });
 });

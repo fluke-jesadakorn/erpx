@@ -1,5 +1,5 @@
 import { nativePosAll } from './native-owner-write';
-import { nativePosCashMovementsStatement, nativePosShiftsStatement, nativePosTablesStatement } from './native-pos-core-statement';
+import { nativePosCashMovementsStatement, nativePosSalesEvidenceStatement, nativePosShiftsStatement, nativePosTablesStatement } from './native-pos-core-statement';
 import { nativePosRegistersStatement, nativePosRegistersFrontStatement, nativePosSaleStatement, nativePosSettingsStatement } from './native-pos-registers-statement';
 import { roomChargeReversalWork } from "@erpx/server-pos/adapters/room-charge-reversal-queue";
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
@@ -168,24 +168,7 @@ function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
             currency: string;
             from: string;
             to: string;
-        }) => db.prepare(`SELECT s.id source_id,s.id sale_id,'sale' source_type,s.number receipt_number,s.business_date,
-     NULL::text accounting_date,s.currency,s.state,s.total_minor::text amount_minor,s.total_minor::text contribution_minor,
-     '0'::text refunded_minor,s.version revision,s.version sale_version,s.branch_id
-   FROM pos_sales s WHERE s.id=? AND s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND s.currency=?
-     AND s.business_date BETWEEN ? AND ? AND s.state='completed' LIMIT 1`).bind(facts.id, facts.company, facts.branch, facts.branch2, facts.currency, facts.from, facts.to).first(),
-        readPosSales4: (facts: {
-            id: string;
-            company: string;
-            branch: string | null;
-            branch2: string | null;
-            currency: string;
-            from: string;
-            to: string;
-        }) => db.prepare(`SELECT s.id source_id,s.id sale_id,'sale' source_type,s.number receipt_number,s.business_date,
-     NULL::text accounting_date,s.currency,s.state,s.total_minor::text amount_minor,s.total_minor::text contribution_minor,
-     '0'::text refunded_minor,s.version revision,s.version sale_version,s.branch_id
-   FROM pos_sales s WHERE s.id=? AND s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND s.currency=?
-     AND s.business_date BETWEEN ? AND ? AND s.state='completed' LIMIT 1`).bind(facts.id, facts.company, facts.branch, facts.branch2, facts.currency, facts.from, facts.to).first(),
+        }) => nativePosSalesEvidenceStatement(db, facts),
         readPosRefunds2: (facts: {
             id: string;
             company: string;

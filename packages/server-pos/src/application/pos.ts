@@ -186,15 +186,6 @@ export type PosReadUnit<Effect extends PosReadEffect> = {
         from: string;
         to: string;
     }): Promise<Record<string, unknown> | null>;
-    readPosSales4(facts: {
-        id: string;
-        company: string;
-        branch: string | null;
-        branch2: string | null;
-        currency: string;
-        from: string;
-        to: string;
-    }): Promise<Record<string, unknown> | null>;
     readPosRefunds2(facts: {
         id: string;
         company: string;
