@@ -1,6 +1,8 @@
-import {describe,it,expect,vi} from 'vitest';
+import {describe,it,expect,vi,beforeEach,afterEach} from 'vitest';
 vi.mock('server-only',()=>({}));
 import {createNativeInventoryAvailabilityReader,createNativeInventoryMovementsReader,type NativeAvailabilityContext} from '../../../packages/feature-inventory/src/adapters/server/native-availability';
+import {RecordDetailsInventoryOwnedFacts} from '../../../packages/server-inventory/src/adapters/records-record-details-owned-facts';
+import {INVENTORY_RD_LEDGER_SUPPLEMENT_ROW,INVENTORY_RD_LOT_SUPPLEMENT_ROW,INVENTORY_RD_STOCK_SUPPLEMENT_ROW} from '../../../packages/server-inventory/src/adapters/native-inventory-read';
 
 const config=(overrides:Record<string,unknown>={})=>JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:44991',
@@ -91,4 +93,49 @@ describe('native Inventory movement transport',()=>{
     .rejects.toMatchObject({code:'NATIVE_INVENTORY_MOVEMENT_CURSOR_INVALID'});
   expect(transport).not.toHaveBeenCalled();
  });
+});
+
+describe('native Inventory record-details caller-unit reads',()=>{
+  const envKey='ERPX_NATIVE_INVENTORY_CONFIG';
+  const original=process.env[envKey];
+  beforeEach(()=>{
+    process.env[envKey]=JSON.stringify({privateBaseUrl:'http://127.0.0.1:44991',timeoutMs:1000,
+      holdings:[{origin:'https://acme.example.com',holdingSlug:'acme',holdingId:'h001',companyId:'company'}]});
+  });
+  afterEach(()=>{
+    if(original===undefined)delete process.env[envKey]; else process.env[envKey]=original;
+    vi.unstubAllGlobals();
+  });
+  const plannedSql='SELECT 1 AS row';
+  const fakeDb=()=>{
+    const bound:unknown[][]=[];
+    const db={
+      prepare(_sql:string){return {bind(...values:unknown[]){bound.push(values);return this;},async all(){return {results:[{row:1}],success:true,meta:{changes:0,duration:0}};},async first(){return {row:1};}};},
+      async batch(){return [{results:[{row:1}],success:true,meta:{changes:0,duration:0}}];},
+      async exec(){return {count:0,duration:0};},
+    };
+    return {db,bound};
+  };
+
+  it('switches all single-row record-details reads to native kinds with caller-unit binds',async()=>{
+    const bodies:{kind:string;values:unknown[]}[]=[];
+    vi.stubGlobal('fetch',vi.fn(async (_url:URL,init:RequestInit)=>{
+      const body=JSON.parse(String(init.body)) as {kind:string;values:unknown[]};
+      bodies.push(body);
+      return new Response(JSON.stringify({data:{statements:[{sql:plannedSql,values:body.values}]}}),{status:200,headers:{'content-type':'application/json'}});
+    }));
+    const {db,bound}=fakeDb();
+    const facts=RecordDetailsInventoryOwnedFacts(db as never);
+    const a=await facts.readRecordSupplementDataRow('id','company',null,null);
+    const b=await facts.readRecordSupplementDataRow2('id','company','company',null,null);
+    const c=await facts.readRecordSupplementDataRow3('id','warehouse','company',null,null);
+    expect(a).toEqual({row:1});expect(b).toEqual({row:1});expect(c).toEqual({row:1});
+    expect(bodies.map(x=>x.kind)).toEqual([INVENTORY_RD_LEDGER_SUPPLEMENT_ROW,INVENTORY_RD_LOT_SUPPLEMENT_ROW,INVENTORY_RD_STOCK_SUPPLEMENT_ROW]);
+    expect(bodies.map(x=>x.values)).toEqual([
+      ['id','company',null,null],
+      ['id','company','company',null,null],
+      ['id','warehouse','company',null,null],
+    ]);
+    expect(bound).toHaveLength(3);
+  });
 });

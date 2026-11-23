@@ -138,14 +138,58 @@ const READ_LOT_BALANCE_SUPPLEMENT: NativeStatement = NativeStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `readRecordSupplementDataRow` ledger
+/// snapshot read. Projections are inlined exactly as the retired owner literal
+/// resolved them; the bridge executes this on the caller's unit.
+pub const RD_LEDGER_SUPPLEMENT_ROW: &str = "inventory_rd_ledger_supplement_row";
+const SQL_RD_LEDGER_SUPPLEMENT_ROW: &str = r#"SELECT m.*,p.sku,p.name,p.unit,w.name warehouse_name,c.base_currency currency FROM inventory_ledger m JOIN (SELECT "id","company_id","sku","name","unit","price_minor","tax_bps","status","version","tracking_mode","item_type" FROM commerce_products) p ON p.id=m.product_id JOIN (SELECT "id","company_id","branch_id","code","name","status","version" FROM commerce_warehouses) w ON w.id=m.warehouse_id LEFT JOIN (SELECT "company_id","chart_id","currency","receivable_account_id","payable_account_id","revenue_account_id","inventory_account_id","clearing_account_id","cogs_account_id","input_tax_account_id","output_tax_account_id","cash_account_id" FROM commerce_settings) s ON s.company_id=w.company_id LEFT JOIN (SELECT "id","company_id","name","base_currency","accounting_basis","status","version","created_by","created_at","updated_at" FROM finance_charts) c ON c.id=s.chart_id WHERE m.id=? AND w.company_id=? AND (?::text IS NULL OR w.branch_id=?)"#;
+const READ_LEDGER_SUPPLEMENT_ROW: NativeStatement = NativeStatement {
+    kind: RD_LEDGER_SUPPLEMENT_ROW,
+    sql: SQL_RD_LEDGER_SUPPLEMENT_ROW,
+    bind_count: 4,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript `readRecordSupplementDataRow2` lot
+/// snapshot read (EXISTS-scoped to an authorized lot balance).
+pub const RD_LOT_SUPPLEMENT_ROW: &str = "inventory_rd_lot_supplement_row";
+const SQL_RD_LOT_SUPPLEMENT_ROW: &str = r#"SELECT l.*,p.sku,p.name,p.unit FROM inventory_lots l JOIN (SELECT "id","company_id","sku","name","unit","price_minor","tax_bps","status","version","tracking_mode","item_type" FROM commerce_products) p ON p.id=l.product_id WHERE l.id=? AND l.company_id=? AND EXISTS(SELECT 1 FROM inventory_lot_balances b JOIN (SELECT "id","company_id","branch_id","code","name","status","version" FROM commerce_warehouses) w ON w.id=b.warehouse_id WHERE b.lot_id=l.id AND w.company_id=? AND (?::text IS NULL OR w.branch_id=?))"#;
+const READ_LOT_SUPPLEMENT_ROW: NativeStatement = NativeStatement {
+    kind: RD_LOT_SUPPLEMENT_ROW,
+    sql: SQL_RD_LOT_SUPPLEMENT_ROW,
+    bind_count: 5,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript `readRecordSupplementDataRow3` stock
+/// snapshot read (reserved/quarantined facts computed on the caller's unit).
+pub const RD_STOCK_SUPPLEMENT_ROW: &str = "inventory_rd_stock_supplement_row";
+const SQL_RD_STOCK_SUPPLEMENT_ROW: &str = r#"SELECT s.*,p.sku,p.name,p.unit,w.name warehouse_name, COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r WHERE r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id),0) reserved_milli, inventory_quarantined_quantity(s.warehouse_id,s.product_id) quarantined_milli FROM commerce_stock s JOIN (SELECT "id","company_id","sku","name","unit","price_minor","tax_bps","status","version","tracking_mode","item_type" FROM commerce_products) p ON p.id=s.product_id JOIN (SELECT "id","company_id","branch_id","code","name","status","version" FROM commerce_warehouses) w ON w.id=s.warehouse_id WHERE s.product_id=? AND s.warehouse_id=? AND w.company_id=? AND (?::text IS NULL OR w.branch_id=?)"#;
+const READ_STOCK_SUPPLEMENT_ROW: NativeStatement = NativeStatement {
+    kind: RD_STOCK_SUPPLEMENT_ROW,
+    sql: SQL_RD_STOCK_SUPPLEMENT_ROW,
+    bind_count: 5,
+    scope: "holding",
+};
+
 pub fn is_read(kind: &str) -> bool {
-    kind == RD_LEDGER_SUPPLEMENT_ROWS || kind == RD_LOT_BALANCE_SUPPLEMENT_ROWS
+    matches!(
+        kind,
+        RD_LEDGER_SUPPLEMENT_ROWS
+            | RD_LOT_BALANCE_SUPPLEMENT_ROWS
+            | RD_LEDGER_SUPPLEMENT_ROW
+            | RD_LOT_SUPPLEMENT_ROW
+            | RD_STOCK_SUPPLEMENT_ROW
+    )
 }
 
 pub fn read_statement(kind: &str) -> Option<&'static NativeStatement> {
     match kind {
         RD_LEDGER_SUPPLEMENT_ROWS => Some(&READ_LEDGER_SUPPLEMENT),
         RD_LOT_BALANCE_SUPPLEMENT_ROWS => Some(&READ_LOT_BALANCE_SUPPLEMENT),
+        RD_LEDGER_SUPPLEMENT_ROW => Some(&READ_LEDGER_SUPPLEMENT_ROW),
+        RD_LOT_SUPPLEMENT_ROW => Some(&READ_LOT_SUPPLEMENT_ROW),
+        RD_STOCK_SUPPLEMENT_ROW => Some(&READ_STOCK_SUPPLEMENT_ROW),
         _ => None,
     }
 }
@@ -186,14 +230,47 @@ mod tests {
 
     #[test]
     fn read_plan_is_call_unit_and_ledger_free() {
-        assert!(is_read(RD_LEDGER_SUPPLEMENT_ROWS));
-        assert!(is_read(RD_LOT_BALANCE_SUPPLEMENT_ROWS));
+        for kind in [
+            RD_LEDGER_SUPPLEMENT_ROWS,
+            RD_LOT_BALANCE_SUPPLEMENT_ROWS,
+            RD_LEDGER_SUPPLEMENT_ROW,
+            RD_LOT_SUPPLEMENT_ROW,
+            RD_STOCK_SUPPLEMENT_ROW,
+        ] {
+            assert!(is_read(kind));
+            let read = read_statement(kind).expect("read kind");
+            assert!(read.sql.trim_start().starts_with("SELECT"), "{kind}");
+            assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
+            assert_eq!(read.scope, "holding", "{kind}");
+        }
         assert!(!is_read("inventory_stmt_1"));
         let read = read_statement(RD_LEDGER_SUPPLEMENT_ROWS).expect("read kind");
-        assert!(read.sql.trim_start().starts_with("SELECT"));
         assert_eq!(read.bind_count, 3);
-        assert_eq!(read.sql.matches('?').count(), read.bind_count);
         assert!(read_statement("inventory_stmt_1").is_none());
+    }
+
+    /// Parity witness for the single-row `records-record-details-owned-facts`
+    /// reads: each native plan is the resolved retired owner literal with the
+    /// commerce/finance projections inlined and the caller's unit binds intact.
+    #[test]
+    fn single_row_read_plans_match_retired_owner_statements() {
+        let ledger = read_statement(RD_LEDGER_SUPPLEMENT_ROW).expect("read kind");
+        assert_eq!(ledger.bind_count, 4);
+        assert!(ledger.sql.contains("FROM inventory_ledger m"));
+        assert!(ledger.sql.contains("JOIN (SELECT \"id\",\"company_id\",\"sku\",\"name\",\"unit\",\"price_minor\",\"tax_bps\",\"status\",\"version\",\"tracking_mode\",\"item_type\" FROM commerce_products) p"));
+        assert!(ledger.sql.contains("LEFT JOIN (SELECT \"id\",\"company_id\",\"name\",\"base_currency\",\"accounting_basis\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\" FROM finance_charts) c"));
+        assert!(ledger.sql.ends_with("WHERE m.id=? AND w.company_id=? AND (?::text IS NULL OR w.branch_id=?)"));
+
+        let lot = read_statement(RD_LOT_SUPPLEMENT_ROW).expect("read kind");
+        assert_eq!(lot.bind_count, 5);
+        assert!(lot.sql.starts_with("SELECT l.*,p.sku,p.name,p.unit FROM inventory_lots l"));
+        assert!(lot.sql.contains("EXISTS(SELECT 1 FROM inventory_lot_balances b JOIN (SELECT \"id\",\"company_id\",\"branch_id\",\"code\",\"name\",\"status\",\"version\" FROM commerce_warehouses) w ON w.id=b.warehouse_id WHERE b.lot_id=l.id AND w.company_id=? AND (?::text IS NULL OR w.branch_id=?))"));
+
+        let stock = read_statement(RD_STOCK_SUPPLEMENT_ROW).expect("read kind");
+        assert_eq!(stock.bind_count, 5);
+        assert!(stock.sql.contains("COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r WHERE r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id),0) reserved_milli"));
+        assert!(stock.sql.contains("inventory_quarantined_quantity(s.warehouse_id,s.product_id) quarantined_milli"));
+        assert!(stock.sql.ends_with("WHERE s.product_id=? AND s.warehouse_id=? AND w.company_id=? AND (?::text IS NULL OR w.branch_id=?)"));
     }
 
     /// Parity witness: the native plan for the lot-balance supplement is the

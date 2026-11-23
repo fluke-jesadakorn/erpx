@@ -1,22 +1,29 @@
-import { inventoryExecutiveOwnerProjections as commerceProjectionSources } from "@erpx/server-commerce/public/inventory-executive-owner-projections";
-import { inventoryExecutiveOwnerProjections as financeProjectionSources } from "@erpx/server-finance/public/inventory-executive-owner-projections";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import "server-only";
 import {type Row} from '@erpx/server-commerce/public/commerce';
-import { nativeInventoryReadAll, INVENTORY_RD_LEDGER_SUPPLEMENT_ROWS, INVENTORY_RD_LOT_BALANCE_SUPPLEMENT_ROWS } from './native-inventory-read';
+import {
+  nativeInventoryReadAll,
+  nativeInventoryReadFirst,
+  INVENTORY_RD_LEDGER_SUPPLEMENT_ROWS,
+  INVENTORY_RD_LOT_BALANCE_SUPPLEMENT_ROWS,
+  INVENTORY_RD_LEDGER_SUPPLEMENT_ROW,
+  INVENTORY_RD_LOT_SUPPLEMENT_ROW,
+  INVENTORY_RD_STOCK_SUPPLEMENT_ROW,
+} from './native-inventory-read';
 export function RecordDetailsInventoryOwnedFacts(database: SqlDatabase) {
-    return { readRecordSupplementDataRow(id: string, companyId: string, branchId: string | null, branchId2: string | null) { return database.prepare(`SELECT m.*,p.sku,p.name,p.unit,w.name warehouse_name,c.base_currency currency FROM inventory_ledger m JOIN (${commerceProjectionSources.commerce_products}) p ON p.id=m.product_id JOIN (${commerceProjectionSources.commerce_warehouses}) w ON w.id=m.warehouse_id LEFT JOIN (${commerceProjectionSources.commerce_settings}) s ON s.company_id=w.company_id LEFT JOIN (${financeProjectionSources.finance_charts}) c ON c.id=s.chart_id WHERE m.id=? AND w.company_id=? AND (?::text IS NULL OR w.branch_id=?)`).bind(id, companyId, branchId, branchId2).first<Row>(); },
-        readRecordSupplementDataRow2(id: string, companyId: string, companyId2: string, branchId: string | null, branchId2: string | null) { return database.prepare(`SELECT l.*,p.sku,p.name,p.unit FROM inventory_lots l JOIN (${commerceProjectionSources.commerce_products}) p ON p.id=l.product_id WHERE l.id=? AND l.company_id=? AND EXISTS(SELECT 1 FROM inventory_lot_balances b JOIN (${commerceProjectionSources.commerce_warehouses}) w ON w.id=b.warehouse_id WHERE b.lot_id=l.id AND w.company_id=? AND (?::text IS NULL OR w.branch_id=?))`).bind(id, companyId, companyId2, branchId, branchId2).first<Row>(); },
+    return {
+        /** Owner-native read: planned by `RD_LEDGER_SUPPLEMENT_ROW` and executed
+         * on the caller's unit; this module carries no SQL for it. */
+        readRecordSupplementDataRow(id: string, companyId: string, branchId: string | null, branchId2: string | null) { return nativeInventoryReadFirst<Row>(INVENTORY_RD_LEDGER_SUPPLEMENT_ROW, [id, companyId, branchId, branchId2], database); },
+        /** Owner-native read: planned by `RD_LOT_SUPPLEMENT_ROW` and executed on
+         * the caller's unit; this module carries no SQL for it. */
+        readRecordSupplementDataRow2(id: string, companyId: string, companyId2: string, branchId: string | null, branchId2: string | null) { return nativeInventoryReadFirst<Row>(INVENTORY_RD_LOT_SUPPLEMENT_ROW, [id, companyId, companyId2, branchId, branchId2], database); },
         /** Owner-native read: planned by `RD_LOT_BALANCE_SUPPLEMENT_ROWS` and
          * executed on the caller's unit; this module carries no SQL for it. */
         readRecordSupplementDataRows(id: string, companyId: string, branchId: string | null, branchId2: string | null, offset: number) { return nativeInventoryReadAll<Row>(INVENTORY_RD_LOT_BALANCE_SUPPLEMENT_ROWS, [id, companyId, branchId, branchId2, offset], database); },
-        readRecordSupplementDataRow3(id: string, warehouseId: string, companyId: string, branchId: string | null, branchId2: string | null) {
-            return database.prepare(`SELECT s.*,p.sku,p.name,p.unit,w.name warehouse_name,
-      COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r WHERE r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id),0) reserved_milli,
-      inventory_quarantined_quantity(s.warehouse_id,s.product_id) quarantined_milli
-      FROM commerce_stock s JOIN (${commerceProjectionSources.commerce_products}) p ON p.id=s.product_id JOIN (${commerceProjectionSources.commerce_warehouses}) w ON w.id=s.warehouse_id
-      WHERE s.product_id=? AND s.warehouse_id=? AND w.company_id=? AND (?::text IS NULL OR w.branch_id=?)`).bind(id, warehouseId, companyId, branchId, branchId2).first<Row>();
-        },
+        /** Owner-native read: planned by `RD_STOCK_SUPPLEMENT_ROW` and executed
+         * on the caller's unit; this module carries no SQL for it. */
+        readRecordSupplementDataRow3(id: string, warehouseId: string, companyId: string, branchId: string | null, branchId2: string | null) { return nativeInventoryReadFirst<Row>(INVENTORY_RD_STOCK_SUPPLEMENT_ROW, [id, warehouseId, companyId, branchId, branchId2], database); },
         /** Owner-native read: the SQL is planned by the Inventory native read
          * port (`RD_LEDGER_SUPPLEMENT_ROWS`) and executed on the caller's unit;
          * this module carries no SQL for this read. */

@@ -19,6 +19,9 @@ type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: 
 /** Read-kind ids shared with the Rust read registry in `native_command_sql.rs`. */
 export const INVENTORY_RD_LEDGER_SUPPLEMENT_ROWS = 'inventory_rd_ledger_supplement_rows';
 export const INVENTORY_RD_LOT_BALANCE_SUPPLEMENT_ROWS = 'inventory_rd_lot_balance_supplement_rows';
+export const INVENTORY_RD_LEDGER_SUPPLEMENT_ROW = 'inventory_rd_ledger_supplement_row';
+export const INVENTORY_RD_LOT_SUPPLEMENT_ROW = 'inventory_rd_lot_supplement_row';
+export const INVENTORY_RD_STOCK_SUPPLEMENT_ROW = 'inventory_rd_stock_supplement_row';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'INVENTORY_NATIVE_READ_UNAVAILABLE', 'The native Inventory read service is unavailable.');
@@ -102,4 +105,17 @@ export async function nativeInventoryReadAll<T>(
   });
   const results = await db.batch<T>(planned);
   return results[0] ?? { results: [], success: true, meta: { changes: 0, duration: 0 } };
+}
+
+/** Planned owner read returning a single row. The retired TypeScript
+ * `.first()` ran the same statement on the caller's unit and took `rows[0]`;
+ * the native plan is executed the same way and the first row is returned (or
+ * null), so the shape and fail-closed behavior are unchanged. */
+export async function nativeInventoryReadFirst<T>(
+  kind: string,
+  values: readonly unknown[],
+  db: SqlDatabase,
+): Promise<T | null> {
+  const result = await nativeInventoryReadAll<T>(kind, values, db);
+  return result.results[0] ?? null;
 }

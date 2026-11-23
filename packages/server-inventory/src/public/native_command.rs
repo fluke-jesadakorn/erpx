@@ -1,7 +1,8 @@
 //! Public surface for the native Inventory command stack.
 pub use crate::adapters::native_command_postgres::PgNativeCommandRepository;
 pub use crate::adapters::native_command_sql::{
-    NativeStatement, RD_LEDGER_SUPPLEMENT_ROWS, RD_LOT_BALANCE_SUPPLEMENT_ROWS, is_read,
+    NativeStatement, RD_LEDGER_SUPPLEMENT_ROW, RD_LEDGER_SUPPLEMENT_ROWS,
+    RD_LOT_BALANCE_SUPPLEMENT_ROWS, RD_LOT_SUPPLEMENT_ROW, RD_STOCK_SUPPLEMENT_ROW, is_read,
     read_statement, statement, supported,
 };
 pub use crate::application::native_command::{
