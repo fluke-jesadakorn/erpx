@@ -32,7 +32,20 @@ const READ_TASK_PROJECTION_SOURCE: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
-const READS: &[NativeReadStatement] = &[READ_TASK_PROJECTION_SOURCE];
+/// Native successor of the TypeScript `app-upload-task-source` read. The owner
+/// plans this literal; the caller executes it on its open unit with the same
+/// `[id, company_id]` bind.
+pub const RD_APP_UPLOAD_TASK_STATE: &str = "operations_rd_app_upload_task_state";
+const SQL_APP_UPLOAD_TASK_STATE: &str =
+    "SELECT state FROM staff_tasks WHERE id=? AND company_id=?";
+const READ_APP_UPLOAD_TASK_STATE: NativeReadStatement = NativeReadStatement {
+    kind: RD_APP_UPLOAD_TASK_STATE,
+    sql: SQL_APP_UPLOAD_TASK_STATE,
+    bind_count: 2,
+    scope: "holding",
+};
+
+const READS: &[NativeReadStatement] = &[READ_TASK_PROJECTION_SOURCE, READ_APP_UPLOAD_TASK_STATE];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -71,5 +84,25 @@ mod tests {
             read.sql,
             "SELECT state,version,company_id,branch_id,department_id FROM staff_tasks WHERE id=?"
         );
+    }
+
+    #[test]
+    fn app_upload_task_state_plan_is_holding_scoped_and_ledger_free() {
+        let read = read_statement(RD_APP_UPLOAD_TASK_STATE).expect("read kind");
+        let upper = read.sql.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT"), "{}", read.kind);
+        assert!(!upper.contains("INSERT"));
+        assert!(!upper.contains("UPDATE"));
+        assert!(!upper.contains("DELETE"));
+        assert_eq!(read.bind_count, 2);
+        assert_eq!(read.sql.matches('?').count(), 2);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_APP_UPLOAD_TASK_STATE));
+    }
+
+    #[test]
+    fn app_upload_task_state_sql_matches_retired_typescript_literal() {
+        let read = read_statement(RD_APP_UPLOAD_TASK_STATE).expect("read kind");
+        assert_eq!(read.sql, "SELECT state FROM staff_tasks WHERE id=? AND company_id=?");
     }
 }

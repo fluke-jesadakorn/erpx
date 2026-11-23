@@ -18,6 +18,7 @@ type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: 
 
 /** Read-kind ids shared with the Rust read registry in `native_operations_read_sql.rs`. */
 export const OPERATIONS_RD_TASK_PROJECTION_SOURCE = 'operations_rd_task_projection_source';
+export const OPERATIONS_RD_APP_UPLOAD_TASK_STATE = 'operations_rd_app_upload_task_state';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'OPERATIONS_NATIVE_READ_UNAVAILABLE', 'The native Operations read service is unavailable.');
