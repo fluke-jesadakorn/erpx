@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6468,
+    "revision": 6471,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-f",
       "agentId": "lead",
       "startedAt": "2026-11-23T16:54:33.142Z",
-      "heartbeatAt": "2026-11-23T18:20:09.070Z",
-      "expiresAt": "2026-11-23T18:50:09.070Z",
+      "heartbeatAt": "2026-11-23T18:21:01.554Z",
+      "expiresAt": "2026-11-23T18:51:01.554Z",
       "generation": 158,
       "tokenHash": "786b04e6db95d7a97c392a0b212dc2cfdd563bbd8cc6545681f5e6ff248eceaa"
     },
@@ -50671,8 +50671,8 @@
           "runId": "run-20261123-f",
           "agentId": "wN01",
           "claimedAt": "2026-11-23T18:15:53.634Z",
-          "heartbeatAt": "2026-11-23T18:20:09.070Z",
-          "expiresAt": "2026-11-23T18:50:09.070Z",
+          "heartbeatAt": "2026-11-23T18:21:01.554Z",
+          "expiresAt": "2026-11-23T18:51:01.554Z",
           "generation": 158
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -51225,8 +51225,8 @@
           "runId": "run-20261123-f",
           "agentId": "wM02",
           "claimedAt": "2026-11-23T18:11:26.006Z",
-          "heartbeatAt": "2026-11-23T18:20:09.070Z",
-          "expiresAt": "2026-11-23T18:50:09.070Z",
+          "heartbeatAt": "2026-11-23T18:21:01.554Z",
+          "expiresAt": "2026-11-23T18:51:01.554Z",
           "generation": 158
         },
         "baseSha": null,
@@ -109992,8 +109992,8 @@
           "runId": "run-20261123-f",
           "agentId": "wP01",
           "claimedAt": "2026-11-23T18:17:54.008Z",
-          "heartbeatAt": "2026-11-23T18:20:09.070Z",
-          "expiresAt": "2026-11-23T18:50:09.070Z",
+          "heartbeatAt": "2026-11-23T18:21:01.554Z",
+          "expiresAt": "2026-11-23T18:51:01.554Z",
           "generation": 158
         },
         "baseSha": "d15bbdf7095f86bedb5c69bd0f4b297c357f0061",
@@ -110303,8 +110303,8 @@
           "runId": "run-20261123-f",
           "agentId": "wN02",
           "claimedAt": "2026-11-23T18:15:53.708Z",
-          "heartbeatAt": "2026-11-23T18:20:09.070Z",
-          "expiresAt": "2026-11-23T18:50:09.070Z",
+          "heartbeatAt": "2026-11-23T18:21:01.554Z",
+          "expiresAt": "2026-11-23T18:51:01.554Z",
           "generation": 158
         },
         "baseSha": "dbb5267714fb222c1665428fc0b7c9aec613e926",
@@ -113773,8 +113773,8 @@
           "runId": "run-20261123-f",
           "agentId": "wJ01",
           "claimedAt": "2026-11-23T17:50:16.881Z",
-          "heartbeatAt": "2026-11-23T18:20:09.070Z",
-          "expiresAt": "2026-11-23T18:50:09.070Z",
+          "heartbeatAt": "2026-11-23T18:21:01.554Z",
+          "expiresAt": "2026-11-23T18:51:01.554Z",
           "generation": 158
         },
         "baseSha": null,
@@ -113981,8 +113981,8 @@
           "runId": "run-20261123-f",
           "agentId": "wL01",
           "claimedAt": "2026-11-23T17:59:54.357Z",
-          "heartbeatAt": "2026-11-23T18:20:09.070Z",
-          "expiresAt": "2026-11-23T18:50:09.070Z",
+          "heartbeatAt": "2026-11-23T18:21:01.554Z",
+          "expiresAt": "2026-11-23T18:51:01.554Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114269,8 +114269,8 @@
           "runId": "run-20261123-f",
           "agentId": "wN03",
           "claimedAt": "2026-11-23T18:15:53.785Z",
-          "heartbeatAt": "2026-11-23T18:20:09.070Z",
-          "expiresAt": "2026-11-23T18:50:09.070Z",
+          "heartbeatAt": "2026-11-23T18:21:01.554Z",
+          "expiresAt": "2026-11-23T18:51:01.554Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114310,8 +114310,8 @@
           "runId": "run-20261123-f",
           "agentId": "wQ01",
           "claimedAt": "2026-11-23T18:19:54.104Z",
-          "heartbeatAt": "2026-11-23T18:20:09.070Z",
-          "expiresAt": "2026-11-23T18:50:09.070Z",
+          "heartbeatAt": "2026-11-23T18:21:01.554Z",
+          "expiresAt": "2026-11-23T18:51:01.554Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114350,8 +114350,8 @@
           "runId": "run-20261123-f",
           "agentId": "wQ02",
           "claimedAt": "2026-11-23T18:19:54.191Z",
-          "heartbeatAt": "2026-11-23T18:20:09.070Z",
-          "expiresAt": "2026-11-23T18:50:09.070Z",
+          "heartbeatAt": "2026-11-23T18:21:01.554Z",
+          "expiresAt": "2026-11-23T18:51:01.554Z",
           "generation": 158
         },
         "baseSha": null,
@@ -114363,6 +114363,45 @@
         "nextAction": "Expose native get_incident by-id read (hold fields for notifications/executive/work items) and a bounded TS client; tests. Consumer switches follow.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.work_projection.card-preferences-read",
+        "goalId": "G4",
+        "owner": "work_projection",
+        "title": "Native work-card preference read for summary (2 SELECT -> 0)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-work_projection/src/adapters/work-summary.ts",
+          "packages/server-work_projection/src/adapters/work-card-preferences.ts",
+          "packages/server-work_projection/src/application/work-card-preferences.ts",
+          "packages/server-work_projection/src/public/work-card-preferences.ts",
+          "tests/unit/shared.work/**",
+          "tests/integration/shared.work/**"
+        ],
+        "resources": [
+          "owner:work_projection"
+        ],
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wR01",
+          "claimedAt": "2026-11-23T18:20:47.575Z",
+          "heartbeatAt": "2026-11-23T18:21:01.554Z",
+          "expiresAt": "2026-11-23T18:51:01.554Z",
+          "generation": 158
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Switch work-summary preferences to readNativeWorkCardPreferences; delete TS reader/application; keep schema export; record 2-statement delta",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -114371,11 +114410,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 482,
+      "totalPackets": 483,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 24,
-        "in_progress": 8,
+        "in_progress": 9,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -114385,7 +114424,7 @@
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T18:20:09.072Z",
+    "updatedAt": "2026-11-23T18:21:01.557Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
