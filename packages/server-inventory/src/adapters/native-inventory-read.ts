@@ -27,6 +27,7 @@ export const INVENTORY_RD_STOCK_COUNT_DELTAS = 'inventory_rd_stock_count_deltas'
 export const INVENTORY_RD_ACTIVE_RESERVATIONS_TOTAL = 'inventory_rd_active_reservations_total';
 export const INVENTORY_RD_LEDGER_MOVEMENT_AFTER = 'inventory_rd_ledger_movement_after';
 export const INVENTORY_RD_ATTACHMENT_OPERATIONAL_TRANSFER = 'inventory_rd_attachment_operational_transfer';
+export const INVENTORY_RD_TRANSIT_ATTACHMENT_DESCRIPTOR = 'inventory_rd_transit_attachment_descriptor';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'INVENTORY_NATIVE_READ_UNAVAILABLE', 'The native Inventory read service is unavailable.');
