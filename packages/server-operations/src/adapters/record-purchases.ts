@@ -14,7 +14,33 @@ import {projectTaskReadScope} from '@erpx/server-projects/public/task-purchases'
 import {routineSourceReadScope} from '@erpx/server-operations/adapters/routine-source-read';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {workTaskSocialReadScope} from '@erpx/server-collaboration/public/work-task-read-policy';
-import {handbookSourceReadScope,requireHandbookWorkspaceRead} from '@erpx/server-collaboration/public/handbook-purchases';
+import {nativeHandbookReads} from '@erpx/feature-collaboration/lib/native-handbook-page';
+import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
+
+/**
+ * Operations-owned policy fragment for records that point at a handbook
+ * article. The native handbook service is the sole article reader; this
+ * predicate only confines the already-visible Work/Records/Inbox rows to the
+ * current assignment and purchase scope, and is owned here until a native
+ * scope-predicate port replaces it.
+ */
+async function handbookReadScope(actor:WorkContext){
+ if(await appsPackageEnforcementMode()!=='enforced')return {where:'TRUE',args:[] as (string|number|null)[]};
+ const current=currentAssignmentReadScope(actor,'workforce_actor_scope');
+ return {where:`EXISTS(WITH handbook_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms) SELECT 1 FROM handbook_clock CROSS JOIN LATERAL(SELECT a.company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${current.where} AND ${scheduledFeaturePredicate('a.company_id','collaboration')} AND ${purchasedCapabilityPredicate('a.company_id','work.handbook','history','handbook_clock.now_ms')})`,args:[actor.branchId,actor.departmentId,...current.args]};
+}
+async function handbookSourceReadScope(actor:WorkContext,surface:'records'|'staff'|'inbox'){
+ if(await appsPackageEnforcementMode()!=='enforced')return {where:'TRUE',args:[] as (string|number|null)[]};
+ const id=surface==='records'?'workspace_records.id':surface==='staff'?'staff_notifications.record_id':'e.source_id',company=surface==='records'?'workspace_records.company_id':surface==='staff'?'staff_notifications.company_id':'e.company_id',scope=await handbookReadScope(actor),actual=`EXISTS(SELECT 1 FROM handbook_articles original_handbook WHERE original_handbook.id=${id})`,visible=`EXISTS(SELECT 1 FROM handbook_articles a WHERE a.id=${id} AND a.company_id=${company} AND ${scope.where} AND ((a.archived=0 AND a.published_revision IS NOT NULL) OR ?::text='holding_owner' OR EXISTS(SELECT 1 FROM handbook_editors editor WHERE editor.company_id=a.company_id AND editor.user_id=?)))`;
+ const type=surface==='staff'?'staff_notifications.record_type':'e.source_type';
+ return {where:surface==='records'?`(NOT ${actual} OR ${visible})`:`(${type} NOT IN ('handbook','handbook_article') OR ${visible})`,args:[...scope.args,actor.role,actor.userId]};
+}
+/** Native handbook read guard for a single original source. */
+async function requireHandbookWorkspaceRead(actor:WorkContext,id:string){
+ if(await appsPackageEnforcementMode()==='disabled')return;
+ try{await (await nativeHandbookReads(actor,actor.holdingSlug)).handbookArticle(actor,id);}
+ catch(error){if(error instanceof ApiError&&[403,404].includes(error.status))throw new ApiError(404,'ARTICLE_NOT_FOUND','This original handbook source is unavailable.');throw error;}
+}
 
 /** Fixed completed-task reference alias; actual Project tasks use their named
  * Project reader instead of acquiring ordinary Work purchases. */
@@ -37,7 +63,7 @@ export async function workSourceReadScope(database:SqlDatabase,actor:WorkContext
 }
 export async function requireWorkWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,moduleId:string,id:string){
  const mode=await appsPackageEnforcementMode();if(mode==='disabled')return;
- if(moduleId==='collaboration')await requireHandbookWorkspaceRead(database,actor,id);
+ if(moduleId==='collaboration')await requireHandbookWorkspaceRead(actor,id);
  const task=await database.prepare('SELECT project_id FROM staff_tasks WHERE id=? AND company_id=?').bind(id,actor.companyId).first<{project_id:string|null}>();
  if(task?.project_id||!task&&moduleId!=='operations')return;
  if(mode==='shadow'){await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:'work.actions'});return;}

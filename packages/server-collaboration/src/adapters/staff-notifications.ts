@@ -27,6 +27,7 @@ import { BusinessRuleError } from '@erpx/server-shared/index';
 import type { StaffNotification,StaffNotificationCandidate } from '@erpx/server-collaboration/domain/staff-notifications';
 import { createStaffNotificationApplication, type StaffNotificationPorts } from '@erpx/server-collaboration/application/staff-notifications';
 import { collaborationNotificationLead } from '@erpx/server-crm/public/collaboration-notification-lead';
+import { nativeHandbookReads } from '@erpx/feature-collaboration/lib/native-handbook-page';
 async function inward<T>(action: () => Promise<T>) {
     try {
         return await action();
@@ -66,7 +67,7 @@ function application(db: SqlDatabase,context?:WorkContext) {
       const item=work.find(item=>item.id===id);
       if(!item)throw new ApiError(404,'RECORD_NOT_FOUND','The notification source is not available.');
       return {href:item.href};
-    }),handbookNotificationTarget:async(actor,id)=>inward(async()=>{const owner=await import('@erpx/server-collaboration/public/handbook'),access=await owner.handbookAccess(db,actor),record=await owner.handbookArticle(db,actor,id,access.editor);return {href:`/handbook/${encodeURIComponent(id)}${access.editor?'?edit=1':''}`,version:record.revision.revision};}),financeNotificationTarget:async(actor,kind,id)=>inward(async()=>{
+    }),handbookNotificationTarget:async(actor,id)=>inward(async()=>{const reads=await nativeHandbookReads(actor,actor.holdingSlug),access=await reads.handbookAccess(actor),record=await reads.handbookArticle(actor,id,access.editor);return {href:`/handbook/${encodeURIComponent(id)}${access.editor?'?edit=1':''}`,version:record.revision.revision};}),financeNotificationTarget:async(actor,kind,id)=>inward(async()=>{
       if(kind==="invoice"){const {invoice}=await (await import("@erpx/server-finance/public/finance-invoice-read")).getInvoice(actor,id,db);return {href:`/finance/invoices/${encodeURIComponent(id)}`,version:Number(invoice.version)};}
       const {journal}=await (await import("@erpx/server-finance/public/ledger")).journalDetail(actor,id,db);return {href:`/finance/journals/${encodeURIComponent(id)}`,version:Number(journal.version)};
     }),repository: { async notificationRows(companyId: string, userId: string) {

@@ -15,8 +15,6 @@ import {
 
 const headerState=vi.hoisted(()=>{const holder={current:new Headers()};return {holder,headers:vi.fn(async()=>holder.current)};});
 vi.mock('next/headers',()=>({headers:headerState.headers}));
-const retained=vi.hoisted(()=>({collaborationPresentationQueries:vi.fn()}));
-vi.mock('@erpx/server-collaboration/public/presentation-queries',()=>retained);
 
 const configuration=JSON.stringify({
   privateBaseUrl:'http://127.0.0.1:3105',
@@ -137,7 +135,6 @@ function nativePage(body:unknown,status=200){
 afterEach(()=>{
   delete process.env.ERPX_NATIVE_HANDBOOK_CONFIG;
   headerState.headers.mockClear();
-  retained.collaborationPresentationQueries.mockReset();
 });
 describe('native collaboration handbook page reads',()=>{
   it('resolves access through the bounded native list read',async()=>{
@@ -163,6 +160,25 @@ describe('native collaboration handbook page reads',()=>{
     const fake=nativePage({version:4,editors:[{user_id:'editor',granted_at:10}]});
     await expect(fake.reads.handbookEditorOptions(pageActor)).resolves.toEqual({version:4,editors:[{user_id:'editor',granted_at:10}]});
     expect(fake.calls[0].url?.href).toBe('http://127.0.0.1:3105/api/v1/holdings/acme/handbook/editors');
+  });
+  it('carries every retired TypeScript payload field through the native reader',async()=>{
+    const detail={
+      access:{owner:false,editor:true,purchase:{newWork:true,settleExisting:true,history:true,revision:'rev-1'}},
+      article:{id:'article-1',version:2,draft_revision:3,published_revision:1,archived:0},
+      revision:pageRevision,
+      history:[{revision:1,title:'Policy',category:'policy',created_by:'user',created_at:10,published_by:'user',published_at:10}],
+    };
+    const fake=nativePage(detail);
+    await expect(fake.reads.handbookArticle(pageActor,'article-1')).resolves.toEqual(detail);
+    const list={access:pageAccess,articles:[pageRow],previousCursor:'0:article-0',nextCursor:'1:article-1',hasMore:true};
+    await expect(nativePage(list).reads.handbookList(pageActor)).resolves.toEqual(list);
+    const options={version:4,editors:[{user_id:'editor',granted_at:10}]};
+    await expect(nativePage(options).reads.handbookEditorOptions(pageActor)).resolves.toEqual(options);
+  });
+  it('keeps the native owner wire fields identical to the retired TypeScript read shape',()=>{
+    const wire=readFileSync(new URL('../../../packages/server-collaboration/src/adapters/handbook.rs',import.meta.url),'utf8');
+    for(const field of ['id','page_key','version','archived','revision','title','category','excerpt','published_at','draft_revision','published_revision','body','created_by','created_at','published_by','user_id','granted_at'])
+      expect(wire,`native handbook wire is missing ${field}`).toContain(`pub ${field}:`);
   });
   it('rejects a malformed row instead of returning partial owner data',async()=>{
     const fake=nativePage({access:pageAccess,articles:[{...pageRow,version:'2'}],previousCursor:null,nextCursor:null,hasMore:false});
@@ -203,24 +219,19 @@ describe('native collaboration handbook page reads',()=>{
   });
 });
 describe('handbook read selection',()=>{
-  it('keeps the retained reader only when the native configuration is unset',async()=>{
+  it('fails closed when the native configuration is unset',async()=>{
     expect(nativeHandbookAvailable()).toBe(false);
-    const reader={handbookList:vi.fn()};
-    retained.collaborationPresentationQueries.mockResolvedValue(reader);
-    await expect(handbookReads(pageActor,'acme')).resolves.toBe(reader);
-    expect(retained.collaborationPresentationQueries).toHaveBeenCalledWith('h001');
+    await expect(handbookReads(pageActor,'acme')).rejects.toMatchObject({status:503,code:'NATIVE_HANDBOOK_UNAVAILABLE'});
     expect(headerState.headers).not.toHaveBeenCalled();
   });
-  it('never falls back to retained TypeScript after a configured native failure',async()=>{
+  it('never replaces a configured native failure with a TypeScript reader',async()=>{
     process.env.ERPX_NATIVE_HANDBOOK_CONFIG='{';
     expect(nativeHandbookAvailable()).toBe(true);
     await expect(handbookReads(pageActor,'acme')).rejects.toBeInstanceOf(ApiError);
-    expect(retained.collaborationPresentationQueries).not.toHaveBeenCalled();
   });
   it('rejects a mismatched actor before selecting a transport',async()=>{
     process.env.ERPX_NATIVE_HANDBOOK_CONFIG=configuration;
     await expect(nativeHandbookReads({...pageActor,holdingSlug:'northstar'},'acme')).rejects.toMatchObject({status:409,code:'NATIVE_HANDBOOK_CONTEXT_CHANGED'});
     expect(headerState.headers).not.toHaveBeenCalled();
-    expect(retained.collaborationPresentationQueries).not.toHaveBeenCalled();
   });
 });

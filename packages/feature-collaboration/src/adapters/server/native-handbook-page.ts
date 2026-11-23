@@ -2,9 +2,8 @@ import 'server-only';
 import {headers} from 'next/headers';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-import type {HandbookListRow, HandbookRevision} from '@erpx/server-collaboration/public/handbook';
-import type {HandbookPurchaseControls} from '@erpx/server-collaboration/public/handbook-purchases';
-import {collaborationPresentationQueries} from '@erpx/server-collaboration/public/presentation-queries';
+import type {HandbookListRow, HandbookRevision} from '@erpx/server-collaboration/domain/handbook';
+import type {HandbookPurchaseControls} from '@erpx/server-collaboration/domain/handbook-purchases';
 import {createNativeHandbookClient} from './native-handbook';
 
 export type HandbookAccess = {
@@ -58,7 +57,7 @@ export type HandbookReads = {
 
 type NativeClient = ReturnType<typeof createNativeHandbookClient>;
 
-/** Selector only; an absent configuration keeps the retained TypeScript read. */
+/** Selector only; the native service is the sole handbook authority. */
 export function nativeHandbookAvailable(): boolean {
   return process.env.ERPX_NATIVE_HANDBOOK_CONFIG !== undefined;
 }
@@ -283,13 +282,18 @@ export function createNativeHandbookReads(
   };
 }
 
-/** Native handbook reads, or undefined when the retained path is configured. */
+/** Native handbook reads. An unset configuration fails closed. */
 export async function nativeHandbookReads(
   actor: WorkContext,
   holdingSlug: string,
-): Promise<HandbookReads | undefined> {
+): Promise<HandbookReads> {
   const raw = process.env.ERPX_NATIVE_HANDBOOK_CONFIG;
-  if (raw === undefined) return undefined;
+  if (raw === undefined)
+    throw new ApiError(
+      503,
+      'NATIVE_HANDBOOK_UNAVAILABLE',
+      'The native handbook service is unavailable.',
+    );
   if (actor.holdingSlug !== holdingSlug)
     throw new ApiError(
       409,
@@ -304,16 +308,10 @@ export async function nativeHandbookReads(
   );
 }
 
-/**
- * The handbook page reader: native when configured, retained when unset. A
- * configured native failure is allowed to escape unchanged.
- */
+/** The handbook page reader: native only, with no TypeScript fallback. */
 export async function handbookReads(
   actor: WorkContext,
   holdingSlug: string,
 ): Promise<HandbookReads> {
-  return (
-    (await nativeHandbookReads(actor, holdingSlug)) ??
-    collaborationPresentationQueries(actor.holdingId)
-  );
+  return nativeHandbookReads(actor, holdingSlug);
 }

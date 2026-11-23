@@ -13,7 +13,7 @@ import {page,scopeKey,conversation,pick,sourceReference,type Row} from '@erpx/se
 import type {employeeRequestDetail} from '@erpx/server-records/public/employee-requests-read';
 import type {getExpense} from '@erpx/server-people_payroll/public/expense-read';
 import type {getTask} from '@erpx/server-operations/public/staff-task-read';
-import type {handbookArticle} from "@erpx/server-runtime/public/handbook";
+import type {HandbookArticleRead} from '@erpx/feature-collaboration/lib/native-handbook-page';
 import type {pmsWorkspace} from "../../../../packages/server-pms/src/public/pms";
 import type {posWorkspace} from "@erpx/server-pos/public/pos";
 import type {commercePage} from '@erpx/server-commerce/public/commerce';
@@ -28,7 +28,7 @@ type AssistantHomePost = Pick<Awaited<ReturnType<typeof homePosts>>[number], 'id
 export interface AssistantSourcePorts {employeeRequestDetail: WithoutDatabase<typeof employeeRequestDetail>;
 getExpense: typeof getExpense;
 getTask: WithoutDatabase<typeof getTask>;
-handbookArticle: WithoutDatabase<typeof handbookArticle>;
+handbookArticle: (actor: WorkContext, id: string) => Promise<HandbookArticleRead>;
 pmsWorkspace: typeof pmsWorkspace;
 posWorkspace: typeof posWorkspace;
 commercePage: typeof commercePage;
