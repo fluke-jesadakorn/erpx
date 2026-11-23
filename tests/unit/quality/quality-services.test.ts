@@ -8,17 +8,19 @@ const baseHold:QualityRow={id:'hold',status:'held',created_by:'creator',last_ins
 function fixture(overrides:Partial<QualityRepository<string[]>>={}){
  const calls:string[]=[];
  const repository:QualityRepository<string[]>={
-  async holds(){return [baseHold];},async activeSpec(){return {id:'spec',version:2};},evidenceVersionGuard:()=>['version-fence'],async receiptHold(input,spec,now){return [JSON.stringify({input,spec,now})];},...overrides,
+  async holds(){return [baseHold];},async receiptHold(input,now){return [JSON.stringify({input,now})];},...overrides,
  };
  const ports={departmentScope:false,companyScope:true,userId:'manager',authorize(permission:string){calls.push(permission);},can:(permission:string)=>Boolean(permission),samePerson:(id:string|number|null)=>id==='manager',clock:{now:()=>42},hash:async()=> '1234567890abcdef',async repository(){return repository;}};
  return {ports,repository,calls,app:createQualityApplication(ports)};
 }
 describe('Quality receipt-sourced quarantine',()=>{
- test('receipt-created partial quarantine stages on the supplied repository without a second receipt',async()=>{const f=fixture(),input={id:'hold',key:'key',branchId:'branch',warehouseId:'warehouse',productId:'product',quantityMilli:1000,reason:'Received product needs inspection',dueDate:'2026-10-07',sourceId:'receipt',sourceType:'customer_return' as const};expect(JSON.parse((await f.app.receiptQualityHoldSteps(input))[0])).toEqual({input,spec:{id:'spec',version:2},now:42});expect(f.calls).toEqual([]);});
+ test('receipt-created partial quarantine stages on the supplied repository without a second receipt',async()=>{const f=fixture(),input={id:'hold',key:'key',branchId:'branch',warehouseId:'warehouse',productId:'product',quantityMilli:1000,reason:'Received product needs inspection',dueDate:'2026-10-07',sourceId:'receipt',sourceType:'customer_return' as const};expect(JSON.parse((await f.app.receiptQualityHoldSteps(input))[0])).toEqual({input,now:42});expect(f.calls).toEqual([]);});
 });
-describe('Quality retained reads and evidence guards',()=>{
- test('the hold creator cannot stage inspection evidence',async()=>{const f=fixture({async holds(){return [{...baseHold,created_by:'manager'}];}});await expect(f.app.qualityEvidenceGuard('hold',1,'key')).rejects.toMatchObject({code:'INDEPENDENT_INSPECTOR_REQUIRED'});expect(f.calls).toEqual(['quality.read','quality.inspect']);});
- test('evidence staging requires an active hold and reports a missing hold',async()=>{const f=fixture({async holds(){return [{...baseHold,status:'released'}];}});await expect(f.app.qualityEvidenceGuard('hold',1,'key')).rejects.toMatchObject({code:'QUALITY_INSPECTION_LOCKED'});f.repository.holds=async()=>[];await expect(f.app.getQualityHold('hold')).rejects.toMatchObject({code:'QUALITY_HOLD_NOT_FOUND'});});
+// The independent-inspector and active-status evidence assertions formerly in
+// this block are covered by the native Quality owner decisions
+// (tests/unit/quality/rust-quality-decisions.test.rs), not by a TS read branch.
+describe('Quality retained read work',()=>{
+ test('a missing hold is a scoped not-found after the retained read',async()=>{const f=fixture({async holds(){return [];}});await expect(f.app.getQualityHold('hold')).rejects.toMatchObject({code:'QUALITY_HOLD_NOT_FOUND'});});
  test('revoked independent recipients leave work waiting with an actionable blocker',async()=>{const f=fixture({async holds(){return [{...baseHold,eligible_count:0}];}});f.ports.can=()=>false;expect(await f.app.qualityWork()).toEqual([]);f.ports.can=permission=>permission==='quality.read';expect(await f.app.qualityWork()).toEqual([expect.objectContaining({queue:'waiting',canAct:false,blocker:'No eligible independent recipient; Company administrator must assign quality authority'})]);});
 });
 const alert:QualityAlert={id:'alert',hold_id:'hold',phase:'overdue',source_version:1,hold_version:2,due_date:'2026-10-06',detected_at:42,version:1,acknowledged_by:null,acknowledged_at:null,reason:null,company_id:'company',branch_id:'branch',status:'held',product_name:'Product',warehouse_name:'Warehouse',can_ack:1,recipients:1};
@@ -100,5 +102,28 @@ describe('retired Quality stock new-work read branch',()=>{
   expect(purchases).not.toContain('qualityProductFacts');
   expect(purchases).not.toContain('new-work');
   expect(purchases).not.toContain('current warehouse policy changed');
+ });
+});
+describe('retired Quality dead read branch',()=>{
+ const source=(path:string)=>resolve(process.cwd(),path);
+ test('the active-spec and evidence-version reads are gone from the Quality application, adapter and public layers',()=>{
+  for(const path of ['packages/server-quality/src/application/quality.ts','packages/server-quality/src/adapters/quality.ts','packages/server-quality/src/public/quality.ts']){
+   const text=readFileSync(source(path),'utf8');
+   expect(text).not.toContain('activeSpec');
+   expect(text).not.toContain('evidenceVersionGuard');
+   expect(text).not.toContain('qualityEvidenceGuard');
+  }
+  const adapter=readFileSync(source('packages/server-quality/src/adapters/quality.ts'),'utf8');
+  expect(adapter).not.toContain('inventory_quality_specs');
+  expect(adapter).not.toContain('quality-evidence-version');
+  expect(adapter).toContain('rows(write,actor,id)');
+  expect(adapter).toContain('getQualityHold');
+  expect(adapter).toContain('qualityWork');
+ });
+ test('native Quality owner decisions own the retired guard assertions',()=>{
+  const decisions=readFileSync(source('tests/unit/quality/rust-quality-decisions.test.rs'),'utf8');
+  expect(decisions).toContain('identity_aliases_control_all_independent_quality_decisions');
+  expect(decisions).toContain('missing_detail_is_a_scoped_not_found_after_the_owner_read');
+  expect(decisions).toContain('QUALITY_HOLD_NOT_FOUND');
  });
 });
