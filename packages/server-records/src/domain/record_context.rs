@@ -371,6 +371,8 @@ pub(crate) fn valid_id(value: &str) -> bool {
     !value.is_empty()
         && value.len() <= MAX_RECORD_ID
         && !value.contains('\0')
+        && !value.contains('/')
+        && !value.contains('\\')
         && !value.bytes().any(|byte| byte.is_ascii_control())
 }
 
