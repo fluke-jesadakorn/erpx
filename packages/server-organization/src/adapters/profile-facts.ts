@@ -1,6 +1,7 @@
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {organizationRoster} from '@erpx/server-organization/public/organization-roster-read';
 import { reportingIssues, type OrganizationPerson } from "@erpx/feature-organization/lib/organization";
+import {nativeOrgOne} from './native-organization-owner-write';
 
 /** Native owner facts retain the exact current placement and reporting policy. */
 export async function reportingRosterFacts(db: SqlDatabase, companyId: string) {
@@ -8,5 +9,5 @@ export async function reportingRosterFacts(db: SqlDatabase, companyId: string) {
   return { people: roster.people, issues: (person: OrganizationPerson) => reportingIssues(person, roster.people, roster.positions) };
 }
 export async function activeDepartmentFact(db: SqlDatabase, companyId: string, departmentId: string) {
-  return Boolean(await db.prepare("SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='department' AND status='active'").bind(departmentId, companyId).first());
+  return Boolean(await nativeOrgOne(db, companyId, 'profile_active_department', [departmentId, companyId]));
 }

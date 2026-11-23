@@ -185,6 +185,25 @@ pub const ACCEPTANCE_SUBMIT_VERSION_CHECK: &str = "acceptance_submit_version_che
 pub const ACCEPTANCE_REVIEW_VERSION_CHECK: &str = "acceptance_review_version_check";
 pub const ACCEPTANCE_REVOKE_VERSION_CHECK: &str = "acceptance_revoke_version_check";
 
+// -- company-acceptance-result-projection -------------------------------------
+/// Native-owned Company-acceptance result projection. The retired TS module
+/// exported this `SELECT` as a string constant; the SQL and column order live
+/// here and are reached only by typed kind and positional values. SELECT-only
+/// and Company keyed.
+pub const COMPANY_ACCEPTANCE_RESULT_PROJECTION: &str = "company_acceptance_result_projection";
+
+// -- profile-facts -------------------------------------------------------------
+/// Native-owned active-department fact. SELECT-only and Company keyed; the
+/// boolean reduction stays in the TypeScript caller.
+pub const PROFILE_ACTIVE_DEPARTMENT: &str = "profile_active_department";
+
+// -- workspace-route-company ---------------------------------------------------
+/// Native-owned structural company-route read. SELECT-only and Company scoped
+/// via the caller's bound Company key; branch/department/company slugs are
+/// optional positional values (`NULL` means "no filter"). The caller keeps the
+/// current access check, and this owner never substitutes for that check.
+pub const WORKSPACE_ROUTE_COMPANY: &str = "workspace_route_company";
+
 /// Every kind this owner module accepts. Anything else is fail-closed.
 pub const KINDS: &[&str] = &[
     ORG_ATTACHMENT_NODE_VERSION_STEP,
@@ -276,6 +295,9 @@ pub const KINDS: &[&str] = &[
     ACCEPTANCE_SUBMIT_VERSION_CHECK,
     ACCEPTANCE_REVIEW_VERSION_CHECK,
     ACCEPTANCE_REVOKE_VERSION_CHECK,
+    COMPANY_ACCEPTANCE_RESULT_PROJECTION,
+    PROFILE_ACTIVE_DEPARTMENT,
+    WORKSPACE_ROUTE_COMPANY,
 ];
 
 /// Tables admitted for the generic attachment owner version step. Column is
@@ -573,6 +595,15 @@ fn sql(kind: &str) -> Option<&'static str> {
         }
         ACCEPTANCE_REVOKE_VERSION_CHECK => {
             "EXISTS(SELECT 1 FROM company_business_acceptance WHERE company_id=? AND version=? AND status='accepted')"
+        }
+        COMPANY_ACCEPTANCE_RESULT_PROJECTION => {
+            "SELECT 'company-acceptance-result-'||?||'-'||requested_by,company_id,requested_by,'company_business_acceptance',company_id,version,?,? FROM company_business_acceptance WHERE company_id=?"
+        }
+        PROFILE_ACTIVE_DEPARTMENT => {
+            "SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='department' AND status='active'"
+        }
+        WORKSPACE_ROUTE_COMPANY => {
+            "SELECT c.id,c.slug FROM organization_nodes c WHERE c.kind='company' AND c.status='active' AND (?::text IS NULL OR EXISTS(SELECT 1 FROM organization_nodes b WHERE b.company_id=c.id AND b.parent_id=c.id AND b.kind='branch' AND b.status='active' AND b.slug=?)) AND (?::text IS NULL OR EXISTS(SELECT 1 FROM organization_nodes d WHERE d.company_id=c.id AND d.kind='department' AND d.status='active' AND d.slug=? AND ((?::text IS NULL AND d.branch_id IS NULL AND d.parent_id=c.id) OR (?::text IS NOT NULL AND EXISTS(SELECT 1 FROM organization_nodes b2 WHERE b2.company_id=c.id AND b2.parent_id=c.id AND b2.kind='branch' AND b2.status='active' AND b2.slug=? AND d.branch_id=b2.id AND d.parent_id=b2.id))))) AND (?::text IS NULL OR c.slug=? OR c.id=?) LIMIT 1"
         }
         _ => return None,
     })
@@ -1051,6 +1082,110 @@ mod tests {
             assert!(owner_statement(kind, &[Value::from("company")]).is_err());
             assert!(owner_statement(kind, &[]).is_err());
         }
+    }
+
+    /// The projection retired from `company-acceptance-result-projection.ts`
+    /// is native-owned, SELECT-only and Company keyed. The TypeScript module
+    /// no longer exports SQL text; it sends only the typed kind and the
+    /// caller's positional values through `nativeOrgAll`.
+    #[test]
+    fn company_acceptance_result_projection_kind_is_select_only_and_company_scoped() {
+        let expected = "SELECT 'company-acceptance-result-'||?||'-'||requested_by,company_id,requested_by,'company_business_acceptance',company_id,version,?,? FROM company_business_acceptance WHERE company_id=?";
+        assert!(supported(COMPANY_ACCEPTANCE_RESULT_PROJECTION));
+        assert_eq!(
+            sql(COMPANY_ACCEPTANCE_RESULT_PROJECTION).unwrap(),
+            expected,
+            "projection SQL must match the retired literal"
+        );
+        assert!(expected.starts_with("SELECT "));
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+            assert!(!expected.contains(forbidden), "projection must not mutate: {forbidden}");
+        }
+        assert!(expected.contains("company_id=?"), "projection must be Company scoped");
+        assert_eq!(expected.matches('?').count(), 4);
+        let (statement, values) = owner_statement(
+            COMPANY_ACCEPTANCE_RESULT_PROJECTION,
+            &[
+                Value::from("key"),
+                Value::from(1_i64),
+                Value::from(2_i64),
+                Value::from("company"),
+            ],
+        )
+        .expect("projection statement");
+        assert_eq!(statement, expected);
+        assert_eq!(values.len(), 4);
+        assert!(positional(expected).contains("company_id=$4"));
+        assert!(owner_statement(
+            COMPANY_ACCEPTANCE_RESULT_PROJECTION,
+            &[Value::from("key")],
+        )
+        .is_err());
+    }
+
+    /// The active-department fact retired from `profile-facts.ts` is a
+    /// Company-keyed SELECT; the boolean reduction stays in the caller.
+    #[test]
+    fn profile_active_department_kind_is_select_only_and_company_scoped() {
+        let expected = "SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='department' AND status='active'";
+        assert!(supported(PROFILE_ACTIVE_DEPARTMENT));
+        assert_eq!(sql(PROFILE_ACTIVE_DEPARTMENT).unwrap(), expected);
+        assert!(expected.starts_with("SELECT "));
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+            assert!(!expected.contains(forbidden), "fact must not mutate: {forbidden}");
+        }
+        assert!(expected.contains("company_id=?"), "fact must be Company scoped");
+        assert_eq!(expected.matches('?').count(), 2);
+        let (statement, values) = owner_statement(
+            PROFILE_ACTIVE_DEPARTMENT,
+            &[Value::from("department"), Value::from("company")],
+        )
+        .expect("active department statement");
+        assert_eq!(statement, expected);
+        assert_eq!(values.len(), 2);
+        assert_eq!(positional(expected), "SELECT 1 FROM organization_nodes WHERE id=$1 AND company_id=$2 AND kind='department' AND status='active'");
+        assert!(owner_statement(PROFILE_ACTIVE_DEPARTMENT, &[Value::from("department")]).is_err());
+    }
+
+    /// The dynamic structural route retired from `workspace-route-company.ts`
+    /// is one fixed SELECT-only statement. Optional branch/department/company
+    /// slugs are bound as NULL, which disables the matching join window without
+    /// changing SQL text; the caller keeps the current access check.
+    #[test]
+    fn workspace_route_company_kind_is_select_only_company_scoped_and_null_safe() {
+        let expected = sql(WORKSPACE_ROUTE_COMPANY)
+            .unwrap_or_else(|| panic!("missing SQL for {WORKSPACE_ROUTE_COMPANY}"));
+        assert!(supported(WORKSPACE_ROUTE_COMPANY));
+        assert!(expected.starts_with("SELECT "));
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+            assert!(!expected.contains(forbidden), "route read must not mutate: {forbidden}");
+        }
+        assert!(expected.contains("company_id=c.id"), "route read must scope by Company");
+        assert!(!expected.contains("hr_people") && !expected.contains("hr_engagements"));
+        assert_eq!(expected.matches('?').count(), 10);
+        // Null optional slugs keep the same statement: the `?::text IS NULL`
+        // windows short-circuit each join without changing the SQL text.
+        let nulls: Vec<Value> = std::iter::repeat_with(|| Value::Null).take(10).collect();
+        let (statement, values) =
+            owner_statement(WORKSPACE_ROUTE_COMPANY, &nulls).expect("null-slug route statement");
+        assert_eq!(statement, expected);
+        assert_eq!(values.len(), 10);
+        assert!(positional(expected).contains("$1::text IS NULL"));
+        assert!(positional(expected).contains("$8::text IS NULL OR c.slug=$9 OR c.id=$10"));
+        let full = [
+            Value::from("branch"),
+            Value::from("branch"),
+            Value::from("department"),
+            Value::from("department"),
+            Value::from("branch"),
+            Value::from("branch"),
+            Value::from("branch"),
+            Value::from("company"),
+            Value::from("company"),
+            Value::from("company"),
+        ];
+        assert!(owner_statement(WORKSPACE_ROUTE_COMPANY, &full).is_ok());
+        assert!(owner_statement(WORKSPACE_ROUTE_COMPANY, &nulls[..9]).is_err());
     }
 
     /// Owner-local reads retired from `department-authority-reads.ts`: ten
