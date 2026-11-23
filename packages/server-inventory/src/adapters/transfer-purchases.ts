@@ -1,4 +1,5 @@
 import "server-only";
+import {inventoryPurchaseReplaySql} from "./inventory-read-projections";
 import {randomUUID} from "node:crypto";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import type {FlowView} from "@erpx/feature-shared/lib/flow";
@@ -68,7 +69,7 @@ export async function withTransferPurchasedCommand<Result>(owner:SqlDatabase,act
  if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,"TRANSFER_TRANSACTION_REQUIRED","Warehouse movement requires the original owned Holding transaction.");
  try{return await owner.transaction(async database=>{
   await database.batch(companyPurchaseReadLocks(database,actor.companyId));
-  const replay=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?")
+  const replay=await database.prepare(inventoryPurchaseReplaySql)
    .bind(command.key,command.operation,command.target.id,actor.userId,actor.companyId).first();
   const before=command.existing||replay?await source(database,actor,command.target):null;
   const flow=command.flowStep?await database.prepare("SELECT status FROM inventory_transfers WHERE id=? AND company_id=?").bind(command.target.id,actor.companyId).first<{status:string}>():null;

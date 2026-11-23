@@ -2,7 +2,7 @@ import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
-import { inventoryLedgerProjectionSql, inventoryCountStatusSql } from '../../../packages/server-inventory/src/adapters/inventory-read-projections';
+import { inventoryLedgerProjectionSql, inventoryCountStatusSql, inventoryPurchaseReplaySql } from '../../../packages/server-inventory/src/adapters/inventory-read-projections';
 import { commercialOwnerProjectionSources } from '../../../packages/server-inventory/src/adapters/commercial-owner-projection-sources';
 import { hospitalityOwnerProjectionSources } from '../../../packages/server-inventory/src/adapters/hospitality-owner-projection-sources';
 
@@ -29,6 +29,21 @@ describe('inventory owner projection dedupe', () => {
       const text = src(file);
       expect(text).toContain('inventoryCountStatusSql');
       expect(text).not.toContain('SELECT status FROM inventory_counts WHERE id=? AND company_id=?');
+    }
+  });
+
+  it('shares one canonical purchase replay SQL with every purchase-source caller', () => {
+    const replay = "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
+    expect(inventoryPurchaseReplaySql).toBe(replay);
+    const callers = [
+      'count-purchases.ts',
+      'landed-cost-purchases.ts',
+      'transfer-purchases.ts',
+    ];
+    for (const file of callers) {
+      const text = src(file);
+      expect(text).toContain('inventoryPurchaseReplaySql');
+      expect(text).not.toContain(replay);
     }
   });
 });

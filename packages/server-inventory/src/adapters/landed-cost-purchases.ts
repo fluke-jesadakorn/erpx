@@ -1,4 +1,5 @@
 import "server-only";
+import {inventoryPurchaseReplaySql} from "./inventory-read-projections";
 import {randomUUID} from "node:crypto";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -39,7 +40,7 @@ export async function withLandedCostPurchasedCommand<Result>(owner:SqlDatabase,a
  const mode=await commercePackageEnforcementMode();if(mode==="disabled")return run(owner);if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,"LANDED_COST_TRANSACTION_REQUIRED","Landed costs require their original owned Holding transaction.");
  try{return await owner.transaction(async database=>{
  const locks=companyPurchaseReadLocks(database,actor.companyId);await database.batch([locks[0],...landedCostSourceReadLocks(database),...locks.slice(1)]);const key=`landed-cost-purchase:${randomUUID()}`;await current(database,actor,key,command.permission);
- const replay=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(command.key,command.operation,command.id,actor.userId,actor.companyId).first(),purpose=replay?"history" as const:command.purpose,before=command.existing||replay?await source(database,actor,command.id):null;
+ const replay=await database.prepare(inventoryPurchaseReplaySql).bind(command.key,command.operation,command.id,actor.userId,actor.companyId).first(),purpose=replay?"history" as const:command.purpose,before=command.existing||replay?await source(database,actor,command.id):null;
  const receiptId=before?.fulfillment_id??command.fulfillmentId;if(!receiptId)throw new ApiError(404,"LANDED_COST_NOT_FOUND","The original landed-cost receipt is unavailable.");
  const receipt=await commerceLandedCostReceiptSource(database,actor,receiptId);if(!receipt)throw new ApiError(409,"LANDED_COST_SOURCE_CHANGED","The original purchase receipt or warehouse policy is unavailable.");const finance=await financeLandedCostReceiptSource(database,{companyId:actor.companyId,receiptId,journalId:receipt.journal_id});if(!finance||finance.status!=="posted")throw new ApiError(409,"LANDED_COST_SOURCE_CHANGED","The original receipt journal must remain posted in its legal Company.");if(purpose==="new-work"&&!receipt.warehouse_active)throw new ApiError(409,"LANDED_COST_SOURCE_CHANGED","The receiving warehouse is no longer active for new allocation.");
  const scopes=[...capabilities,...(command.financial?["finance.inventory-valuation"]:[])].map(capability=>({companyId:actor.companyId,capability,purpose})),boundaries=scopes.map((scope,index)=>({key:`${key}:${index}`,boundary:purchaseCommandBoundary(database,mode,`${key}:${index}`,scope)!}));
