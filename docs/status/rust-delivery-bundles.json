@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5585,
+    "revision": 5587,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-d",
       "agentId": "lead",
       "startedAt": "2026-11-23T06:45:08.420Z",
-      "heartbeatAt": "2026-11-23T10:29:20.271Z",
-      "expiresAt": "2026-11-23T10:59:20.271Z",
+      "heartbeatAt": "2026-11-23T10:30:37.847Z",
+      "expiresAt": "2026-11-23T11:00:37.847Z",
       "generation": 154,
       "tokenHash": "01e24ba69c801ba69506f7381436bc3415092da31ab33204c519241e628cd4c9"
     },
@@ -15563,8 +15563,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:46:29.180Z",
-          "heartbeatAt": "2026-11-23T10:29:20.271Z",
-          "expiresAt": "2026-11-23T10:59:20.271Z",
+          "heartbeatAt": "2026-11-23T10:30:37.847Z",
+          "expiresAt": "2026-11-23T11:00:37.847Z",
           "generation": 154
         },
         "baseSha": "473b198f4838943261a63a1ca44b167d347fc4c4",
@@ -17495,8 +17495,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T10:14:07.216Z",
-          "heartbeatAt": "2026-11-23T10:29:20.271Z",
-          "expiresAt": "2026-11-23T10:59:20.271Z",
+          "heartbeatAt": "2026-11-23T10:30:37.847Z",
+          "expiresAt": "2026-11-23T11:00:37.847Z",
           "generation": 154
         },
         "baseSha": "f901987c8bcb88a080e9beb9d2b87892bc462eea",
@@ -17838,7 +17838,7 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Harness step 1 landed; orphans reclaimed, census clean (only foreign pos_work DBs remain, untouched). Step 2: test.ts spawns boot-suite per integration suite + injects matrix; then transit oracle native seeding. Smoke still user-blocked.",
+        "nextAction": "Harness boot probe LANDED (worker final report reconciled with lead re-run; both green independently). Step 2 wiring spec from worker: (1) lease control+h001+h002 per suite (Development parser rejects single-holding); (2) config needs financeJournalReads + operationsCompanies or native routes do not mount; (3) substitute lane fixture companyId for probe-co in matrix; (4) lane wiring must mirror migrate_database semantics (lock 714928001, receipts, whole-file txns) — consider shared oracle; (5) add drop-only cleanup entrypoint + signal-forwarding for --keep children before lane adoption. Then transit oracle native seeding. Smoke still user-blocked.",
         "handoff": {
           "runId": "run-20261123-d",
           "agentId": "lead",
@@ -27345,8 +27345,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:04:51.894Z",
-          "heartbeatAt": "2026-11-23T10:29:20.271Z",
-          "expiresAt": "2026-11-23T10:59:20.271Z",
+          "heartbeatAt": "2026-11-23T10:30:37.847Z",
+          "expiresAt": "2026-11-23T11:00:37.847Z",
           "generation": 154
         },
         "baseSha": "d0067f253fd960ab6945c5622e360e2cceeaffe7",
@@ -28421,8 +28421,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:19:17.835Z",
-          "heartbeatAt": "2026-11-23T10:29:20.271Z",
-          "expiresAt": "2026-11-23T10:59:20.271Z",
+          "heartbeatAt": "2026-11-23T10:30:37.847Z",
+          "expiresAt": "2026-11-23T11:00:37.847Z",
           "generation": 154
         },
         "baseSha": null,
@@ -39937,8 +39937,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:59:53.885Z",
-          "heartbeatAt": "2026-11-23T10:29:20.271Z",
-          "expiresAt": "2026-11-23T10:59:20.271Z",
+          "heartbeatAt": "2026-11-23T10:30:37.847Z",
+          "expiresAt": "2026-11-23T11:00:37.847Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45306,8 +45306,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:03:09.640Z",
-          "heartbeatAt": "2026-11-23T10:29:20.271Z",
-          "expiresAt": "2026-11-23T10:59:20.271Z",
+          "heartbeatAt": "2026-11-23T10:30:37.847Z",
+          "expiresAt": "2026-11-23T11:00:37.847Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45838,8 +45838,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:55:34.675Z",
-          "heartbeatAt": "2026-11-23T10:29:20.271Z",
-          "expiresAt": "2026-11-23T10:59:20.271Z",
+          "heartbeatAt": "2026-11-23T10:30:37.847Z",
+          "expiresAt": "2026-11-23T11:00:37.847Z",
           "generation": 154
         },
         "baseSha": "57a1fd51ebacf5fa1ff712f6eaa176f390ad64a3",
@@ -49453,8 +49453,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:31:10.408Z",
-          "heartbeatAt": "2026-11-23T10:29:20.271Z",
-          "expiresAt": "2026-11-23T10:59:20.271Z",
+          "heartbeatAt": "2026-11-23T10:30:37.847Z",
+          "expiresAt": "2026-11-23T11:00:37.847Z",
           "generation": 154
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -50668,8 +50668,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T10:26:41.738Z",
-          "heartbeatAt": "2026-11-23T10:29:20.271Z",
-          "expiresAt": "2026-11-23T10:59:20.271Z",
+          "heartbeatAt": "2026-11-23T10:30:37.847Z",
+          "expiresAt": "2026-11-23T11:00:37.847Z",
           "generation": 154
         },
         "baseSha": null,
@@ -110306,7 +110306,7 @@
       }
     },
     "lastCoordinatorGeneration": 154,
-    "updatedAt": "2026-11-23T10:30:30.000Z",
+    "updatedAt": "2026-11-23T10:30:45.370Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
