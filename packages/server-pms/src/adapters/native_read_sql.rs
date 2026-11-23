@@ -46,6 +46,10 @@ pub const PMS_RD_GUEST_COMMAND_RECORD: &str = "pms_rd_guest_command_record";
 /// path; the caller runs them on its already-open unit.
 pub const PMS_RD_DOCUMENT_BY_ID: &str = "pms_rd_document_by_id";
 pub const PMS_RD_DOCUMENT_SNAPSHOT: &str = "pms_rd_document_snapshot";
+/// Native successor of the owner-local hospitality day-control `pms_properties`
+/// config point read. Fixed SQL with two positional binds, no ledger/receipt/outbox
+/// and no lock/refund path; the caller runs it on its already-open unit.
+pub const PMS_RD_PROPERTY_CONFIG: &str = "pms_rd_property_config";
 const SQL_INVENTORY_COMMAND: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
 WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
 UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
@@ -131,8 +135,15 @@ const READ_DOCUMENT_SNAPSHOT: NativeReadStatement = NativeReadStatement {
     sql: SQL_DOCUMENT_SNAPSHOT,
     bind_count: 1,
 };
+/// `SELECT config_json FROM pms_properties WHERE id=? AND company_id=?`
+const SQL_PROPERTY_CONFIG: &str = "SELECT config_json FROM pms_properties WHERE id=? AND company_id=?";
+const READ_PROPERTY_CONFIG: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_PROPERTY_CONFIG,
+    sql: SQL_PROPERTY_CONFIG,
+    bind_count: 2,
+};
 
-const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT];
+const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -276,5 +287,22 @@ ORDER BY id"
             assert_eq!(read.bind_count, 1);
             assert!(is_read(read.kind));
         }
+    }
+
+    #[test]
+    fn property_config_read_is_fixed_ledger_free_select() {
+        let read = read_statement(PMS_RD_PROPERTY_CONFIG).expect("property config read");
+        assert_eq!(read.sql, "SELECT config_json FROM pms_properties WHERE id=? AND company_id=?");
+        let upper = read.sql.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT"));
+        assert!(!upper.contains("INSERT INTO"));
+        assert!(!upper.contains("UPDATE "));
+        assert!(!upper.contains("DELETE FROM"));
+        assert!(!upper.contains("FOR UPDATE"));
+        assert!(!upper.contains("FOR SHARE"));
+        assert!(!upper.contains("LOCK TABLE"));
+        assert_eq!(read.sql.matches('?').count(), read.bind_count);
+        assert_eq!(read.bind_count, 2);
+        assert!(is_read(read.kind));
     }
 }

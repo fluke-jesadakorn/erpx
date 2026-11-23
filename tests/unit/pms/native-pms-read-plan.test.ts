@@ -15,6 +15,7 @@ import {
   PMS_RD_GUEST_COMMAND_RECORD,
   PMS_RD_DOCUMENT_BY_ID,
   PMS_RD_DOCUMENT_SNAPSHOT,
+  PMS_RD_PROPERTY_CONFIG,
 } from '../../../packages/server-pms/src/adapters/native-pms-read';
 import { readPmsInventoryCommand } from '../../../packages/server-pms/src/adapters/pms/read-repository';
 
@@ -350,6 +351,47 @@ describe('native PMS document point-read retirement', () => {
     expect(bodies.map(b => b.values)).toEqual([['doc-1'], ['doc-1']]);
     expect(bound).toEqual([['doc-1'], ['doc-1']]);
     expect(prepared).toEqual([documentByIdSql, documentSnapshotSql]);
+    for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
+  });
+});
+
+const propertyConfigSql = 'SELECT config_json FROM pms_properties WHERE id=? AND company_id=?';
+
+describe('native PMS property config read retirement', () => {
+  it('exposes a fixed property-config read kind with no SQL on the wire', () => {
+    expect(PMS_RD_PROPERTY_CONFIG).toBe('pms_rd_property_config');
+    expect(PMS_RD_PROPERTY_CONFIG).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+  });
+
+  it('removes the TypeScript pms_properties config SELECT literal', async () => {
+    const controls = await readFile(new URL('../../../packages/server-pms/src/adapters/hospitality-day-controls.ts', import.meta.url), 'utf8');
+    expect(controls).not.toContain(propertyConfigSql);
+    expect(controls).toContain('nativePmsReadFirst');
+    expect(controls).toContain('PMS_RD_PROPERTY_CONFIG');
+  });
+
+  it('plans the property config read in Rust and runs it on the caller unit', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push(body);
+      return new Response(JSON.stringify({ data: { statements: [{ sql: propertyConfigSql, values: body.values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+    const prepared: string[] = [], bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) { prepared.push(sql); return { bind(...values: unknown[]) { bound.push(values); return this; } }; },
+      async batch<T>() { return [{ results: [{ config_json: '{}' }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+    const row = await nativePmsReadFirst<{ config_json: string }>(PMS_RD_PROPERTY_CONFIG, ['property-1', 'company-1'], db as never);
+
+    expect(row).toMatchObject({ config_json: '{}' });
+    expect(bodies.map(b => b.kind)).toEqual([PMS_RD_PROPERTY_CONFIG]);
+    expect(bodies.map(b => b.values)).toEqual([['property-1', 'company-1']]);
+    expect(bound).toEqual([['property-1', 'company-1']]);
+    expect(prepared).toEqual([propertyConfigSql]);
     for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
   });
 });

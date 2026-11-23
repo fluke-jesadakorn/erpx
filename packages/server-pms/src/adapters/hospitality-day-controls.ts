@@ -4,7 +4,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { hospitalityDayControls as control, type HospitalityDayControlRepository, type Count } from "@erpx/server-pms/application/hospitality-day-controls";
 import { pmsDayControlPosFacts } from "@erpx/server-pos/public/pms-day-control-facts";
 import { pmsDayControlFinanceFacts } from "@erpx/server-finance/public/pms-day-control-facts";
-import { nativePmsReadFirst, PMS_RD_CHARGE_CORRECTION_PENDING_COUNT } from "./native-pms-read";
+import { nativePmsReadFirst, PMS_RD_CHARGE_CORRECTION_PENDING_COUNT, PMS_RD_PROPERTY_CONFIG } from "./native-pms-read";
 function repository(db: SqlDatabase): HospitalityDayControlRepository {
     const pos = pmsDayControlPosFacts(db), finance = pmsDayControlFinanceFacts(db);
     return {
@@ -24,9 +24,7 @@ function repository(db: SqlDatabase): HospitalityDayControlRepository {
         property: (facts: {
             propertyId: string;
             companyId: string;
-        }) => db.prepare('SELECT config_json FROM pms_properties WHERE id=? AND company_id=?').bind(facts.propertyId, facts.companyId).first<{
-            config_json: string;
-        }>(),
+        }) => nativePmsReadFirst<{ config_json: string }>(PMS_RD_PROPERTY_CONFIG, [facts.propertyId, facts.companyId], db),
         unpostedBookingReceipts: (facts: {
             propertyId: string;
             companyId: string;

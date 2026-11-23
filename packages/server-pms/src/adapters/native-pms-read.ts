@@ -28,6 +28,7 @@ export const PMS_RD_CHARGE_CORRECTION_PENDING_COUNT = 'pms_rd_charge_correction_
 export const PMS_RD_GUEST_COMMAND_RECORD = 'pms_rd_guest_command_record';
 export const PMS_RD_DOCUMENT_BY_ID = 'pms_rd_document_by_id';
 export const PMS_RD_DOCUMENT_SNAPSHOT = 'pms_rd_document_snapshot';
+export const PMS_RD_PROPERTY_CONFIG = 'pms_rd_property_config';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');

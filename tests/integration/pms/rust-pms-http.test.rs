@@ -712,6 +712,36 @@ async fn command_plan_resolves_charge_correction_pending_reads() {
 }
 
 #[tokio::test]
+async fn command_plan_resolves_property_config_read() {
+    let backend = Arc::new(Backend::new());
+    let (address, task) = start(backend.clone()).await;
+    let (status, value, _) = call_post(
+        address,
+        "/api/v1/holdings/acme/pms/command-plan",
+        r#"{"kind":"pms_rd_property_config","values":["property-1","company-1"],"sql":"DELETE FROM pms_properties"}"#,
+    )
+    .await;
+    assert_eq!(status, 200);
+    let statement = &value["data"]["statements"][0];
+    assert_eq!(
+        statement["sql"].as_str().unwrap(),
+        "SELECT config_json FROM pms_properties WHERE id=? AND company_id=?"
+    );
+    assert!(!statement["sql"].as_str().unwrap().to_ascii_uppercase().contains("DELETE"));
+    assert_eq!(statement["values"], json!(["property-1", "company-1"]));
+
+    let (status, _, _) = call_post(
+        address,
+        "/api/v1/holdings/acme/pms/command-plan",
+        r#"{"kind":"pms_rd_property_config","values":["property-1"]}"#,
+    )
+    .await;
+    assert_eq!(status, 422);
+    assert_eq!(backend.reads.load(Ordering::SeqCst), 0);
+    task.abort();
+}
+
+#[tokio::test]
 async fn command_plan_rejects_unregistered_kinds_and_wrong_bind_counts() {
     let backend = Arc::new(Backend::new());
     let (address, task) = start(backend.clone()).await;
