@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 5525,
+    "revision": 5528,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-d",
       "agentId": "lead",
       "startedAt": "2026-11-23T06:45:08.420Z",
-      "heartbeatAt": "2026-11-23T09:09:55.335Z",
-      "expiresAt": "2026-11-23T09:39:55.335Z",
+      "heartbeatAt": "2026-11-23T09:11:01.648Z",
+      "expiresAt": "2026-11-23T09:41:01.648Z",
       "generation": 154,
       "tokenHash": "01e24ba69c801ba69506f7381436bc3415092da31ab33204c519241e628cd4c9"
     },
@@ -15563,8 +15563,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:46:29.180Z",
-          "heartbeatAt": "2026-11-23T09:09:55.335Z",
-          "expiresAt": "2026-11-23T09:39:55.335Z",
+          "heartbeatAt": "2026-11-23T09:11:01.648Z",
+          "expiresAt": "2026-11-23T09:41:01.648Z",
           "generation": 154
         },
         "baseSha": "473b198f4838943261a63a1ca44b167d347fc4c4",
@@ -17495,8 +17495,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:26:32.057Z",
-          "heartbeatAt": "2026-11-23T09:09:55.335Z",
-          "expiresAt": "2026-11-23T09:39:55.335Z",
+          "heartbeatAt": "2026-11-23T09:11:01.648Z",
+          "expiresAt": "2026-11-23T09:41:01.648Z",
           "generation": 154
         },
         "baseSha": "f901987c8bcb88a080e9beb9d2b87892bc462eea",
@@ -17774,11 +17774,41 @@
             "result": "passed",
             "sourceSha": "d0067f253fd960ab6945c5622e360e2cceeaffe7",
             "note": "lead; UNAUTHENTICATED (route reachable, auth-gated)"
+          },
+          {
+            "command": "regex unit probe (24 keys)",
+            "result": "passed",
+            "sourceSha": "8757695688d3ff09d98f6920f8a4a586774141b0",
+            "note": "lead; standalone bun probe over .env.local finds all 24 ERPX_NATIVE_* keys incl newly wired COLLABORATION; shell exports keep precedence"
+          },
+          {
+            "command": "clean-shell transit lane",
+            "result": "passed",
+            "sourceSha": "8757695688d3ff09d98f6920f8a4a586774141b0",
+            "note": "lead; no manual exports: lane now resolves all wired keys and fails only at unwired COMMERCE_WAVE2 — identical stage to manual-matrix runs"
+          },
+          {
+            "command": "green-lane regression audit",
+            "result": "passed",
+            "sourceSha": "8757695688d3ff09d98f6920f8a4a586774141b0",
+            "note": "lead; UNAVAILABLE-asserting tests use offline/stub clients or unwired keys (MANUFACTURING/DIRECTORY absent) or target-miss codes — loader backfill cannot flip them"
+          },
+          {
+            "command": "bunx tsc --noEmit (root)",
+            "result": "passed",
+            "sourceSha": "8757695688d3ff09d98f6920f8a4a586774141b0",
+            "note": "lead; no errors in scripts/testing/test.ts"
+          },
+          {
+            "command": "bun run structure:check",
+            "result": "passed",
+            "sourceSha": "8757695688d3ff09d98f6920f8a4a586774141b0",
+            "note": "lead; repository layout passed"
           }
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Lane finding: exporting all 26 ERPX_NATIVE_* configs unblocks test discovery but transit still fails — composition backends are dev-DB-bound while suites use leased DBs, so native HTTP calls cross databases. Lane needs per-suite composition on leased DBs (harness epic). Transit oracle seed epic remains the viable path; smoke still user-blocked.",
+        "nextAction": "Harness step 1 landed at 87576956 (pushed, remote verified): lanes backfill 24 wired ERPX_NATIVE_* keys; green-lane audit clean. Step 2 (worker-sized): per-suite composition on leased DBs + 5-key matrix (COMMERCE_WAVE2, COMMERCIAL_WAVE2, COMMERCE_OWNER_WRITE, FINANCE_OWNER_WRITE, WORKFLOW_WAVE3) — unblocks transit/payroll-core/manufacturing lanes. Smoke still user-blocked.",
         "handoff": {
           "runId": "run-20261123-d",
           "agentId": "lead",
@@ -27285,8 +27315,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:04:51.894Z",
-          "heartbeatAt": "2026-11-23T09:09:55.335Z",
-          "expiresAt": "2026-11-23T09:39:55.335Z",
+          "heartbeatAt": "2026-11-23T09:11:01.648Z",
+          "expiresAt": "2026-11-23T09:41:01.648Z",
           "generation": 154
         },
         "baseSha": "d0067f253fd960ab6945c5622e360e2cceeaffe7",
@@ -28361,8 +28391,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:19:17.835Z",
-          "heartbeatAt": "2026-11-23T09:09:55.335Z",
-          "expiresAt": "2026-11-23T09:39:55.335Z",
+          "heartbeatAt": "2026-11-23T09:11:01.648Z",
+          "expiresAt": "2026-11-23T09:41:01.648Z",
           "generation": 154
         },
         "baseSha": null,
@@ -39877,8 +39907,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:59:53.885Z",
-          "heartbeatAt": "2026-11-23T09:09:55.335Z",
-          "expiresAt": "2026-11-23T09:39:55.335Z",
+          "heartbeatAt": "2026-11-23T09:11:01.648Z",
+          "expiresAt": "2026-11-23T09:41:01.648Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45246,8 +45276,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T08:03:09.640Z",
-          "heartbeatAt": "2026-11-23T09:09:55.335Z",
-          "expiresAt": "2026-11-23T09:39:55.335Z",
+          "heartbeatAt": "2026-11-23T09:11:01.648Z",
+          "expiresAt": "2026-11-23T09:41:01.648Z",
           "generation": 154
         },
         "baseSha": null,
@@ -45778,8 +45808,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:55:34.675Z",
-          "heartbeatAt": "2026-11-23T09:09:55.335Z",
-          "expiresAt": "2026-11-23T09:39:55.335Z",
+          "heartbeatAt": "2026-11-23T09:11:01.648Z",
+          "expiresAt": "2026-11-23T09:41:01.648Z",
           "generation": 154
         },
         "baseSha": "afd03abe757ce8a5defa94c0bc878f4fc44a9c76",
@@ -49290,8 +49320,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T07:31:10.408Z",
-          "heartbeatAt": "2026-11-23T09:09:55.335Z",
-          "expiresAt": "2026-11-23T09:39:55.335Z",
+          "heartbeatAt": "2026-11-23T09:11:01.648Z",
+          "expiresAt": "2026-11-23T09:41:01.648Z",
           "generation": 154
         },
         "baseSha": "a8722f1b39d6b0811e2dcb33752e8a82b724c947",
@@ -50505,8 +50535,8 @@
           "runId": "run-20261123-d",
           "agentId": "lead",
           "claimedAt": "2026-11-23T06:47:05.965Z",
-          "heartbeatAt": "2026-11-23T09:09:55.335Z",
-          "expiresAt": "2026-11-23T09:39:55.335Z",
+          "heartbeatAt": "2026-11-23T09:11:01.648Z",
+          "expiresAt": "2026-11-23T09:41:01.648Z",
           "generation": 154
         },
         "baseSha": null,
@@ -109843,7 +109873,7 @@
       }
     },
     "lastCoordinatorGeneration": 154,
-    "updatedAt": "2026-11-23T09:10:38.147Z",
+    "updatedAt": "2026-11-23T09:14:08.108Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
