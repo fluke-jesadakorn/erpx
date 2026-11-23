@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7204,
+    "revision": 7208,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -123760,7 +123760,7 @@
         "owner": "workflow",
         "title": "workflow TS read tail native cutover (round 9)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -123772,28 +123772,41 @@
         "resources": [
           "owner:workflow"
         ],
-        "claim": {
-          "runId": "run-20261123-h",
-          "agentId": "wCI1wor",
-          "claimedAt": "2026-11-23T23:00:40.046Z",
-          "heartbeatAt": "2026-11-23T23:00:40.660Z",
-          "expiresAt": "2026-11-23T23:30:40.660Z",
-          "generation": 160
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-workflow/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a787c9a1e",
+            "owner": "workflow",
+            "before": 95,
+            "after": 94,
+            "note": "wf_native_legal_decision_history company/record scoped kind."
+          },
+          {
+            "command": "cargo check -p erpx-server-workflow + lib (39)",
+            "result": "passed",
+            "sourceSha": "a787c9a1e"
+          },
+          {
+            "command": "vitest workflow transport (18) + tsc workflow/legal",
+            "result": "passed",
+            "sourceSha": "a787c9a1e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining company-scoped fixed-SQL read family served by the wave3 planner; record a strictly lower count.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-g",
+          "runId": "run-20261123-h",
           "agentId": "wCI1wor",
-          "at": "2026-11-23T23:00:32.496Z",
+          "at": "2026-11-23T23:01:40.718Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
-          "nextAction": "Pick the smallest remaining company-scoped fixed-SQL read family served by the wave3 planner; record a strictly lower count."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -124126,6 +124139,42 @@
         "nextAction": "Next candidates: accounts_json pos_settings (3 copies in pms-*facts.ts) or pos_stripe_routes (3 copies in pos-stripe.ts); record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.workflow.read-tail-r10",
+        "goalId": "G4",
+        "owner": "workflow",
+        "title": "workflow TS read tail native cutover (round 10)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/**",
+          "tests/unit/workflow/**",
+          "tests/integration/workflow/**"
+        ],
+        "resources": [
+          "owner:workflow"
+        ],
+        "claim": {
+          "runId": "run-20261123-h",
+          "agentId": "wCS1wor",
+          "claimedAt": "2026-11-23T23:01:40.887Z",
+          "heartbeatAt": "2026-11-23T23:01:40.887Z",
+          "expiresAt": "2026-11-23T23:31:40.887Z",
+          "generation": 160
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: flow-planning-ports.ts readDefinitionsInstance (3 binds, company scoped); record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -124134,7 +124183,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 638,
+      "totalPackets": 639,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -124142,13 +124191,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 274,
+        "blocked": 275,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 160,
-    "updatedAt": "2026-11-23T23:01:06.537Z",
+    "updatedAt": "2026-11-23T23:01:40.889Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
