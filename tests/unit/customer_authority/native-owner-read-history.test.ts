@@ -5,8 +5,10 @@ import {
   CA_RD_ACCESS_IDENTITIES,
   CA_RD_ACCESS_READS,
   CA_RD_DUPLICATE_REVIEW_HISTORY,
+  CA_RD_DUPLICATE_REVIEWS_PENDING,
   CA_RD_IDENTITY_CHANGE_HISTORY,
   nativeOwnerReadAll,
+  nativeOwnerReadStatement,
 } from '../../../packages/server-customer_authority/src/adapters/native-owner-read';
 
 const key = 'ERPX_NATIVE_CUSTOMER_AUTHORITY_READ_CONFIG';
@@ -110,5 +112,29 @@ describe('native Customer Authority change-history owner reads', () => {
 
   it('carries the exact bound-identity discriminator', () => {
     expect(CA_RD_ACCESS_IDENTITIES).toBe('customer_authority_rd_access_identities');
+  });
+
+  it('plans the pending duplicate-review metric count without executing it', async () => {
+    process.env[key] = config();
+    const sql = "SELECT 'Pending reviews' label,count(*)::text value FROM customer_duplicate_reviews WHERE company_id=? AND status='pending'";
+    const fetchMock = vi.fn(async () => new Response(
+      JSON.stringify({ data: { statements: [{ sql, values: ['company'] }] } }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+    const statement = await nativeOwnerReadStatement(
+      CA_RD_DUPLICATE_REVIEWS_PENDING, ['company'], 'acme',
+    );
+    expect(statement).toEqual({ sql, values: ['company'] });
+    expect(fetchMock).toHaveBeenCalledTimes(1);
+    const body = JSON.parse(((fetchMock.mock.calls[0] as unknown as [URL, RequestInit])[1] as RequestInit).body as string);
+    expect(body.kind).toBe('customer_authority_rd_duplicate_reviews_pending');
+    expect(body.values).toEqual(['company']);
+    vi.unstubAllGlobals();
+    delete process.env[key];
+  });
+
+  it('carries the exact pending duplicate-review metric discriminator', () => {
+    expect(CA_RD_DUPLICATE_REVIEWS_PENDING).toBe('customer_authority_rd_duplicate_reviews_pending');
   });
 });
