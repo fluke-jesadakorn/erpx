@@ -6,6 +6,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { BusinessRuleError } from "@erpx/server-shared/index";
 import type {
+  BrandRecordKind,
   DocumentBrand,
   DocumentBrandMode,
   StorefrontAppBrand,
@@ -59,6 +60,7 @@ const CONFIG_ENV = "ERPX_NATIVE_BRANDING_CONFIG";
 const RESPONSE_LIMIT = 1024 * 1024;
 const MAX_BRANCHES = 5_000;
 const DOCUMENT_MODES: readonly DocumentBrandMode[] = ["holding", "branch", "both"];
+const RECORD_KINDS: readonly BrandRecordKind[] = ["order", "expense", "invoice", "payment", "journal"];
 /** Exact native `StorefrontAppBrand` shape. `identityRevision` is omitted by the
  * owner when the storefront has no published identity. A payload that drifts
  * from this shape is refused instead of being projected with fields dropped. */
@@ -205,6 +207,12 @@ function toEvidence(value: unknown): NativeBrandProfileEvidence | null {
     primary_attachment_id: value.primary_attachment_id,
     inverse_attachment_id: value.inverse_attachment_id,
   };
+}
+
+function toRecordBranch(value: unknown): string | null {
+  if (value === null) return null;
+  if (!identifier(value)) return failure("NATIVE_BRAND_PRESENTATION_RESPONSE_INVALID", 502);
+  return value;
 }
 
 function configuration(raw: string): NativeBrandPresentationConfiguration {
@@ -456,14 +464,16 @@ export function createNativeBrandPresentationClient(
   const read = async (
     actor: WorkContext,
     incoming: Pick<Headers, "get">,
-    kind: "workspace" | "document" | "profiles" | "storefront" | "evidence",
-    query: Readonly<{ branch?: string; mode?: string }> = {},
+    kind: "workspace" | "document" | "profiles" | "storefront" | "evidence" | "record-branch",
+    query: Readonly<{ branch?: string; mode?: string; record?: string; id?: string }> = {},
   ) => {
     const target = selectedHolding(config, actor, incoming);
     if (!target) return failure("NATIVE_BRAND_PRESENTATION_TARGET_UNAVAILABLE");
     const search = new URLSearchParams({ kind });
     if (query.branch !== undefined) search.set("branch", query.branch);
     if (query.mode !== undefined) search.set("mode", query.mode);
+    if (query.record !== undefined) search.set("record", query.record);
+    if (query.id !== undefined) search.set("id", query.id);
     const endpoint = new URL(
       `/api/v1/holdings/${encodeURIComponent(target.holdingSlug)}/branding/presentation?${search.toString()}`,
       config.base,
@@ -522,6 +532,11 @@ export function createNativeBrandPresentationClient(
     async evidence(actor: WorkContext, incoming: Pick<Headers, "get">, branchId: string) {
       if (!identifier(branchId)) return failure("NATIVE_BRAND_PRESENTATION_REQUEST_INVALID", 422);
       return toEvidence(await read(actor, incoming, "evidence", { branch: branchId }));
+    },
+    async recordBranch(actor: WorkContext, incoming: Pick<Headers, "get">, kind: BrandRecordKind, id: string) {
+      if (!RECORD_KINDS.includes(kind)) return failure("NATIVE_BRAND_PRESENTATION_REQUEST_INVALID", 422);
+      if (!identifier(id)) return failure("NATIVE_BRAND_PRESENTATION_REQUEST_INVALID", 422);
+      return toRecordBranch(await read(actor, incoming, "record-branch", { record: kind, id }));
     },
   };
 }
@@ -593,6 +608,20 @@ export async function nativeBrandProfileEvidence(
 ): Promise<NativeBrandProfileEvidence | null> {
   try {
     return await client().evidence(actor, await incoming(), branchId);
+  } catch (error) {
+    return translate(error);
+  }
+}
+
+/** Native Branch of an authoritative business document. `null` keeps the
+ * retained reader's NULL Branch semantics for a missing or unbranched record. */
+export async function nativeBrandRecordBranch(
+  actor: WorkContext,
+  kind: BrandRecordKind,
+  id: string,
+): Promise<string | null> {
+  try {
+    return await client().recordBranch(actor, await incoming(), kind, id);
   } catch (error) {
     return translate(error);
   }

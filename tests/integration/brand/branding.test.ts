@@ -18,7 +18,6 @@ import {
   createNativeBrandPresentationClient,
   nativeBrandPresentationConfigured,
   normalizeBrandImage,
-  recordBranchId,
   requireBrandManagement,
 } from "@erpx/server-brand/public/branding";
 import type { NativeBrandPresentationTransport } from "@erpx/server-brand/public/branding";
@@ -141,11 +140,16 @@ it("rejects corrupt, undersized and pixel-bomb logo inputs", async () => {
   await expect(normalizeBrandImage(huge.buffer.slice(huge.byteOffset, huge.byteOffset + huge.byteLength) as ArrayBuffer)).rejects.toMatchObject({ code: "LOGO_PIXELS" });
 });
 
-it("derives an expense Branch from the record and keeps the retained document-mode reader", async () => {
-  const expenseId = `brand-expense-${crypto.randomUUID()}`;
-  await db.prepare("INSERT INTO finance_expenses(id,company_id,branch_id,status,created_by,created_at,updated_at) VALUES(?,?,?,'draft',?,?,?)")
-    .bind(expenseId, fixture.company, fixture.branch, fixture.claimant.userId, Date.now(), Date.now()).run();
-  expect(await recordBranchId(db, fixture.claimant, "expense", expenseId)).toBe(fixture.branch);
+it("resolves a document Branch through the native client and keeps the null Branch", async () => {
+  const { client, calls } = stub(() => "branch-1");
+  expect(await client.recordBranch(actor, incoming, "expense", "expense-1")).toBe("branch-1");
+  expect(calls[0].url.pathname).toBe("/api/v1/holdings/erpx/branding/presentation");
+  expect(calls[0].url.searchParams.get("kind")).toBe("record-branch");
+  expect(calls[0].url.searchParams.get("record")).toBe("expense");
+  expect(calls[0].url.searchParams.get("id")).toBe("expense-1");
+  expect(await stub(() => null).client.recordBranch(actor, incoming, "order", "missing")).toBeNull();
+  await expect(stub(() => 42).client.recordBranch(actor, incoming, "journal", "j-1"))
+    .rejects.toMatchObject({ code: "NATIVE_BRAND_PRESENTATION_RESPONSE_INVALID", status: 502 });
 });
 
 it("allows the Holding owner to manage brands and rejects ordinary staff", async () => {
