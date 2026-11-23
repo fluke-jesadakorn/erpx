@@ -647,6 +647,21 @@ where
             source: row.source,
         })
     }
+
+    /// Current action-card event history with authority revalidated first.
+    /// Read-only: no receipt or ledger row is written. Matches the retained
+    /// `actionHistory` repository read; out-of-scope cards stay not-found.
+    pub async fn current_card_history(&mut self, id: &str) -> Result<Vec<Value>, Error> {
+        self.verify_authority(false).await?;
+        crate::adapters::collaboration_work::read_card_history(
+            &mut *self.connection,
+            &self.scope.company_id,
+            id,
+            self.scope.branch_id.as_deref(),
+            self.scope.department_id.as_deref(),
+        )
+        .await
+    }
 }
 
 fn decode_receipt(value: &Value) -> Result<Receipt, Error> {
@@ -1000,6 +1015,22 @@ where
 {
     PgCollaborationUnit::read_only(connection, scope, sources)
         .current_relation(id)
+        .await
+}
+
+/// Read-only card history helper for composition HTTP reads.
+pub async fn read_scope_card_history<S>(
+    connection: &mut PgConnection,
+    scope: CollaborationScope,
+    sources: &mut S,
+    id: &str,
+) -> Result<Vec<Value>, PgTransactionError<BusinessError>>
+where
+    S: CollaborationSourcePort<Error = PgTransactionError<BusinessError>>,
+    S::Witness: Sync,
+{
+    PgCollaborationUnit::read_only(connection, scope, sources)
+        .current_card_history(id)
         .await
 }
 

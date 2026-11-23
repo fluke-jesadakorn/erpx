@@ -4365,7 +4365,7 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
         Error,
     > {
         use erpx_server_collaboration::public::collaboration_work::{
-            read_scope_card, read_scope_relation, read_scope_workspace,
+            read_scope_card, read_scope_card_history, read_scope_relation, read_scope_workspace,
         };
         use erpx_server_collaboration::public::collaboration_work_http::{
             CollaborationCardData, CollaborationRelationData, CollaborationWorkHttpReadReply,
@@ -4628,8 +4628,20 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
                                 ))
                             }
                             CollaborationWorkReadKind::Card { id } => {
-                                let card =
-                                    read_scope_card(connection, scope, &mut sources, &id).await?;
+                                let card = read_scope_card(
+                                    connection,
+                                    scope.clone(),
+                                    &mut sources,
+                                    &id,
+                                )
+                                .await?;
+                                let history = read_scope_card_history(
+                                    connection,
+                                    scope,
+                                    &mut sources,
+                                    &id,
+                                )
+                                .await?;
                                 CollaborationWorkHttpReadReply::Card(Box::new(
                                     CollaborationCardData {
                                         access: serde_json::json!({
@@ -4646,6 +4658,7 @@ impl<C: Clock + Send + Sync + 'static> CollaborationWorkService<C> {
                                             "owner_eligible": if card.owner_eligible { 1 } else { 0 },
                                             "source_type": card.source.kind.as_str(),
                                             "source_id": card.source.id,
+                                            "history": history,
                                         }),
                                     },
                                 ))

@@ -134,3 +134,55 @@ async fn action_effects_preserve_stored_scope_and_notice_tampering_rolls_back() 
         assert_eq!(counts, (1,1,1));
     }).await;
 }
+
+#[tokio::test]
+async fn card_history_returns_versioned_events_with_scope_authority() {
+    use erpx_server_collaboration::public::collaboration_work::CardAction;
+    fixture::with_database(2, |pool| async move {
+        let migrations = load_migrations(std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("../../migrations/postgres"), MigrationTrack::HoldingWrite).await.unwrap();
+        migrate_database(&pool, MigrationTrack::HoldingWrite, &migrations).await.unwrap();
+        PgUnitOfWork::new(pool.clone()).run::<_, BusinessError, _>(TransactionOptions::default(), |c| Box::pin(async move {
+            lock_collaboration_work_sources(c).await?;
+            let key = CommandKey::new("collaboration-history-card")?;
+            let receipt = apply_plan(c, &actor(), &key, &plan(), 100).await?;
+            // Retained `actionHistory` parity: create event first, ordered by version.
+            let history = read_card_history(c, &CompanyId::new("company")?, &receipt.id, None, None).await?;
+            assert_eq!(history.len(), 1);
+            assert_eq!(history[0].get("action").and_then(|v| v.as_str()), Some("create"));
+            assert_eq!(history[0].get("version").and_then(|v| v.as_i64()), Some(1));
+            assert_eq!(history[0].get("card_id").and_then(|v| v.as_str()), Some(receipt.id.as_str()));
+            // Complete the card; the history must gain the versioned complete event.
+            let (stored, _) = read_card(c, &CompanyId::new("company")?, &receipt.id, None, None).await?;
+            let current = CurrentCard {
+                id: stored.id,
+                version: stored.version,
+                open: stored.open,
+                owner_id: stored.owner_id,
+                due_at: stored.due_at,
+                owner_eligible: true,
+                source: stored.source,
+            };
+            let done = OwnerPlan::ChangeCard {
+                current,
+                action: CardAction::Complete,
+                owner_id: None,
+                due_at: None,
+                evidence: Some("Verified on site".into()),
+                reason: "Done".into(),
+            };
+            let receipt2 = apply_plan(c, &actor(), &CommandKey::new("collaboration-history-complete")?, &done, 101).await?;
+            assert_eq!(receipt2.version, 2);
+            let history = read_card_history(c, &CompanyId::new("company")?, &receipt.id, None, None).await?;
+            assert_eq!(history.len(), 2);
+            assert_eq!(history[1].get("action").and_then(|v| v.as_str()), Some("complete"));
+            assert_eq!(history[1].get("version").and_then(|v| v.as_i64()), Some(2));
+            // Authority rechecked in owner scope: cross-company and
+            // out-of-scope branch cards stay not-found, so no foreign events leak.
+            let foreign = read_card_history(c, &CompanyId::new("other")?, &receipt.id, None, None).await;
+            assert!(matches!(foreign, Err(PgTransactionError::Business(ref e)) if e.code == "ACTION_CARD_NOT_FOUND"));
+            let scoped = read_card_history(c, &CompanyId::new("company")?, &receipt.id, Some("other-branch"), None).await;
+            assert!(matches!(scoped, Err(PgTransactionError::Business(ref e)) if e.code == "ACTION_CARD_NOT_FOUND"));
+            Ok(())
+        })).await.unwrap();
+    }).await;
+}

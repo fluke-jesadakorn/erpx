@@ -212,6 +212,31 @@ pub async fn read_card(
     ))
 }
 
+/// One action-card event history ordered by version, matching the retained
+/// `actionHistory` repository read (`collaboration_action_events` by card).
+/// The card row is re-read on the same serializable connection first, so a
+/// cross-company or out-of-branch/department card stays not-found and no
+/// foreign events leak. Read-only; no receipt or ledger row is written.
+pub async fn read_card_history(
+    c: &mut PgConnection,
+    company: &CompanyId,
+    id: &str,
+    branch: Option<&str>,
+    department: Option<&str>,
+) -> Result<Vec<Value>, Error> {
+    unit(c).await?;
+    let _ = capture(c, Family::Card, company, id, branch, department).await?;
+    let rows: Vec<String> = sqlx::query_scalar(
+        "WITH s AS MATERIALIZED (SELECT * FROM collaboration_action_events WHERE card_id=$1 ORDER BY version) SELECT to_jsonb(s)::text FROM s",
+    )
+    .bind(id)
+    .fetch_all(&mut *c)
+    .await?;
+    rows.into_iter()
+        .map(|raw| serde_json::from_str(&raw).map_err(|_| changed()))
+        .collect()
+}
+
 /// Stage only Collaboration-owned effects in the existing owner transaction.
 /// Workflow owns the receipt/audit/outbox; callers must retain these effects,
 /// source witnesses, assignee authority and selected IAM after deferred flush.
