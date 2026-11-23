@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7200,
+    "revision": 7204,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -123493,7 +123493,7 @@
         "owner": "pos",
         "title": "pos TS read tail native cutover (round 8)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -123505,28 +123505,41 @@
         "resources": [
           "owner:pos"
         ],
-        "claim": {
-          "runId": "run-20261123-h",
-          "agentId": "wCD1pos",
-          "claimedAt": "2026-11-23T23:00:39.807Z",
-          "heartbeatAt": "2026-11-23T23:00:40.660Z",
-          "expiresAt": "2026-11-23T23:30:40.660Z",
-          "generation": 160
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "afe2b5faa",
+            "owner": "pos",
+            "before": 281,
+            "after": 279,
+            "note": "Register-catalog membership reads via core_readposregistercatalog_524."
+          },
+          {
+            "command": "cargo check -p erpx-server-pos + lib (21)",
+            "result": "passed",
+            "sourceSha": "afe2b5faa"
+          },
+          {
+            "command": "vitest pos core (15) + tsc pos",
+            "result": "passed",
+            "sourceSha": "afe2b5faa"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family served by the native POS registry; record a strictly lower count.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-g",
+          "runId": "run-20261123-h",
           "agentId": "wCD1pos",
-          "at": "2026-11-23T23:00:32.496Z",
+          "at": "2026-11-23T23:01:06.357Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during active read-tail wave; WIP reviewed, 17 workers active, slices integrated continuously",
-          "nextAction": "Pick the smallest remaining owner-local fixed-SQL family served by the native POS registry; record a strictly lower count."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -124077,6 +124090,42 @@
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family (candidate existence or public-form content); record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pos.read-tail-r9",
+        "goalId": "G4",
+        "owner": "pos",
+        "title": "pos TS read tail native cutover (round 9)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pos/src/**",
+          "tests/unit/pos/**",
+          "tests/integration/pos/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "claim": {
+          "runId": "run-20261123-h",
+          "agentId": "wCR1pos",
+          "claimedAt": "2026-11-23T23:01:06.534Z",
+          "heartbeatAt": "2026-11-23T23:01:06.534Z",
+          "expiresAt": "2026-11-23T23:31:06.534Z",
+          "generation": 160
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next candidates: accounts_json pos_settings (3 copies in pms-*facts.ts) or pos_stripe_routes (3 copies in pos-stripe.ts); record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -124085,7 +124134,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 637,
+      "totalPackets": 638,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -124093,13 +124142,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 273,
+        "blocked": 274,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 160,
-    "updatedAt": "2026-11-23T23:00:40.988Z",
+    "updatedAt": "2026-11-23T23:01:06.537Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
