@@ -101,6 +101,32 @@ const READ_ROUTINE_TEMPLATE_SCHEDULES: NativeReadStatement = NativeReadStatement
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `field-command-owner` exception routing
+/// read. The owner plans this literal; the caller executes it on its open unit
+/// with the same `[id, company_id]` bind.
+pub const RD_FIELD_EXCEPTION: &str = "operations_rd_field_exception";
+const SQL_FIELD_EXCEPTION: &str =
+    "SELECT source_kind FROM operations_exceptions WHERE id=? AND company_id=?";
+const READ_FIELD_EXCEPTION: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIELD_EXCEPTION,
+    sql: SQL_FIELD_EXCEPTION,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript `field-command-owner` policy routing
+/// read. The owner plans this literal; the caller executes it on its open unit
+/// with the same `[id, company_id]` bind.
+pub const RD_FIELD_POLICY: &str = "operations_rd_field_policy";
+const SQL_FIELD_POLICY: &str =
+    "SELECT source_kinds_json FROM operations_queue_policies WHERE id=? AND company_id=?";
+const READ_FIELD_POLICY: NativeReadStatement = NativeReadStatement {
+    kind: RD_FIELD_POLICY,
+    sql: SQL_FIELD_POLICY,
+    bind_count: 2,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_TASK_PROJECTION_SOURCE,
     READ_APP_UPLOAD_TASK_STATE,
@@ -108,6 +134,8 @@ const READS: &[NativeReadStatement] = &[
     READ_BETA_MANAGEMENT_TASK_COMPANY,
     READ_BETA_MANAGEMENT_TASK_FILE_OWNER,
     READ_ROUTINE_TEMPLATE_SCHEDULES,
+    READ_FIELD_EXCEPTION,
+    READ_FIELD_POLICY,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -259,6 +287,36 @@ mod tests {
         assert_eq!(
             read.sql,
             "SELECT * FROM routine_schedules WHERE template_id=? AND company_id=? ORDER BY created_at"
+        );
+    }
+
+    #[test]
+    fn field_command_owner_plans_are_holding_scoped_and_ledger_free() {
+        for kind in [RD_FIELD_EXCEPTION, RD_FIELD_POLICY] {
+            let read = read_statement(kind).expect("read kind");
+            let upper = read.sql.to_ascii_uppercase();
+            assert!(upper.starts_with("SELECT"), "{}", read.kind);
+            assert!(!upper.contains("INSERT"));
+            assert!(!upper.contains("UPDATE"));
+            assert!(!upper.contains("DELETE"));
+            assert_eq!(read.bind_count, 2);
+            assert_eq!(read.sql.matches('?').count(), 2);
+            assert_eq!(read.scope, "holding");
+            assert!(is_read(kind));
+        }
+    }
+
+    #[test]
+    fn field_command_owner_sql_matches_retired_typescript_literals() {
+        let exception = read_statement(RD_FIELD_EXCEPTION).expect("read kind");
+        assert_eq!(
+            exception.sql,
+            "SELECT source_kind FROM operations_exceptions WHERE id=? AND company_id=?"
+        );
+        let policy = read_statement(RD_FIELD_POLICY).expect("read kind");
+        assert_eq!(
+            policy.sql,
+            "SELECT source_kinds_json FROM operations_queue_policies WHERE id=? AND company_id=?"
         );
     }
 }

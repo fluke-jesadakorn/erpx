@@ -201,6 +201,59 @@ describe('Routine template schedules native read',()=>{
   }
  });
 });
+describe('Field command owner native reads',()=>{
+ const nativeConfig=JSON.stringify({privateBaseUrl:'http://127.0.0.1:3999',timeoutMs:1000,holdings:[{origin:'https://acme.jesadakorn.com',holdingSlug:'acme',holdingId:'h1',companyId:'company'}]});
+ const fieldActor={...actor,holdingId:'h1',companyId:'company'};
+ const exceptionSql='SELECT source_kind FROM operations_exceptions WHERE id=? AND company_id=?';
+ const policySql='SELECT source_kinds_json FROM operations_queue_policies WHERE id=? AND company_id=?';
+ const plan=(sql:string,values:unknown[])=>new Response(JSON.stringify({data:{statements:[{sql,values}]}}),{status:200,headers:{'content-type':'application/json'}});
+ const harness=(rows:unknown[])=>{
+  const prepare=vi.fn(()=>({bind:vi.fn()}));
+  const batch=vi.fn(async()=>[{results:rows,success:true,meta:{changes:0,duration:0}}]);
+  const db={prepare,batch} as unknown as SqlDatabase;
+  process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG=nativeConfig;
+  vi.resetModules();
+  vi.doMock('@erpx/server-runtime/public/runtime',()=>({holdingResources:async()=>({write:db})}));
+  return {prepare,batch};
+ };
+ const restore=()=>{vi.doUnmock('@erpx/server-runtime/public/runtime');vi.resetModules();delete process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG;};
+ test('exception routing delegates to the native owner plan and keeps no local SQL',async()=>{
+  const {prepare}=harness([{source_kind:'field_service_order'}]);
+  const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(plan(exceptionSql,['ex','company']));
+  try{
+   const {nativeFieldException}=await import('../../../packages/server-operations/src/adapters/field-command-owner');
+   await expect(nativeFieldException(fieldActor,'ex')).resolves.toBe(true);
+   expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({kind:'operations_rd_field_exception',values:['ex','company']});
+   expect(prepare).toHaveBeenCalledWith(exceptionSql);
+  }finally{fetchMock.mockRestore();restore();}
+ });
+ test('a non-field exception returns false under the native plan',async()=>{
+  harness([{source_kind:'staff_task'}]);
+  const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(plan(exceptionSql,['ex','company']));
+  try{
+   const {nativeFieldException}=await import('../../../packages/server-operations/src/adapters/field-command-owner');
+   await expect(nativeFieldException(fieldActor,'ex')).resolves.toBe(false);
+  }finally{fetchMock.mockRestore();restore();}
+ });
+ test('policy routing delegates to the native owner plan and keeps field-only semantics',async()=>{
+  const {prepare}=harness([{source_kinds_json:'["field_service_order"]'}]);
+  const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(plan(policySql,['pol','company']));
+  try{
+   const {nativeFieldPolicy}=await import('../../../packages/server-operations/src/adapters/field-command-owner');
+   await expect(nativeFieldPolicy(fieldActor,'pol')).resolves.toBe(true);
+   expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({kind:'operations_rd_field_policy',values:['pol','company']});
+   expect(prepare).toHaveBeenCalledWith(policySql);
+  }finally{fetchMock.mockRestore();restore();}
+ });
+ test('a missing policy row returns false without a local SQL fallback',async()=>{
+  harness([]);
+  const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(plan(policySql,['pol','company']));
+  try{
+   const {nativeFieldPolicy}=await import('../../../packages/server-operations/src/adapters/field-command-owner');
+   await expect(nativeFieldPolicy(fieldActor,'pol')).resolves.toBe(false);
+  }finally{fetchMock.mockRestore();restore();}
+ });
+});
 describe('Handover source and colleague constraints',()=>{
  test('Bangkok day derives entirely from the supplied instant',()=>{expect(bangkokToday(Date.UTC(2026,0,1,20))).toBe('2026-01-02');});
  test('duplicate recipients and source references fail validation',()=>{const source={id:'task',sourceVersion:1,kind:'staff_task' as const},base={date:'2026-01-02',body:'Shift report',sources:[source],recipientIds:['colleague']};expect(handoverPublishSchema.safeParse({...base,sources:[source,source]}).success).toBe(false);expect(handoverPublishSchema.safeParse({...base,recipientIds:['colleague','colleague']}).success).toBe(false);});
