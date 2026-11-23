@@ -5,22 +5,12 @@ import { commercialOwnerProjectionSources as organizationProjectionSources } fro
 import { commercialOwnerProjectionSources as people_payrollProjectionSources } from "@erpx/server-people_payroll/public/commercial-owner-projection-sources";
 import "server-only";
 import sharp from "sharp";
-import { workspaceBase } from "@erpx/feature-work_projection/lib/workspace";
-import { publicScope, type WorkContext } from "@erpx/server-identity_access/public/authorization";
+import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { companyAuthority } from "@erpx/server-operations/public/staff-policy";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { attachmentsV2Readable } from "@erpx/server-files/public/attachments/feature";
 import { BusinessRuleError } from "@erpx/server-shared/index";
 import { normalizeBrandMedia } from "@erpx/server-brand/application/branding";
-import {
-  brandPresentation,
-  storefrontPresentation,
-  type BrandOwnerType,
-  type BrandProfileRow,
-  type BrandRecordKind,
-  type BrandStorefrontRow,
-} from "@erpx/server-brand/domain/branding";
-import { publishedBrandIdentity } from "@erpx/server-brand/adapters/identity";
+import type { BrandOwnerType, BrandRecordKind } from "@erpx/server-brand/domain/branding";
 import {
   nativeBrandProfileEvidence,
   nativeResolveDocumentBrand,
@@ -29,15 +19,7 @@ import {
 export { documentBrandModes } from "@erpx/server-brand/domain/branding";
 export type { DocumentBrandMode,BrandVariant,WorkspaceBrand,StorefrontAppBrand,DocumentBrand } from "@erpx/server-brand/domain/branding";
 const image={async metadata(buffer:ArrayBuffer){return sharp(Buffer.from(buffer),{failOn:"warning"}).metadata();},async encode(buffer:ArrayBuffer){return sharp(Buffer.from(buffer),{failOn:"warning"}).rotate().resize({width:4096,height:4096,fit:"inside",withoutEnlargement:true}).webp({quality:92,alphaQuality:100}).toBuffer();}};
-function mediaUrls(actor:WorkContext){
- const base=`/api/v1${workspaceBase(publicScope(actor))}`;
- return {
-  attachment:(id:string|null)=>id?`${base}/attachments/${encodeURIComponent(id)}/content`:null,
-  publication:(id:string|null)=>id?`/api/public/holdings/${encodeURIComponent(actor.holdingSlug)}/media-publications/${encodeURIComponent(id)}/content`:null,
- };
-}
 const branch=(db:SqlDatabase,actor:WorkContext,id:string)=>db.prepare(`SELECT id,display_name FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active'`).bind(id,actor.companyId).first<{id:string;display_name:string}>();
-const storefrontRow=(db:SqlDatabase,actor:WorkContext)=>db.prepare(`SELECT c.slug,c.display_name,b.short_name,b.accent_color,b.logo_attachment_id,b.logo_publication_id FROM (${organizationProjectionSources.organization_nodes}) c LEFT JOIN storefront_app_brands b ON b.company_id=c.id WHERE c.id=? AND c.kind='company' AND c.status='active'`).bind(actor.companyId).first<BrandStorefrontRow>();
 /** Native workspace brand for the selected scope. The Brand owner resolves the
  * Holding label, media URL precedence and document mode on the current Holding
  * transaction; no TypeScript Brand SQL read remains on this path. */
@@ -49,29 +31,6 @@ export async function resolveWorkspaceBrand(a:WorkContext){
 export async function resolveDocumentBrand(a:WorkContext,scope:{branchId:string|null;requestedMode?:string|null}){
  return nativeResolveDocumentBrand(a,scope);
 }
-/**
- * Retained TypeScript Brand profile list.
- *
- * The serving consumers read `nativeListBrandProfiles`; this retained reader is
- * kept only for the registered `shared.attachments.attachments-v2.integration`
- * suite, which exercises the accepted profile/storefront shapes against real
- * PostgreSQL. Remove it with that suite's native replacement.
- */
-export async function listBrandProfiles(db:SqlDatabase,a:WorkContext){
- const branches=(await db.prepare(`SELECT id,display_name FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE company_id=? AND kind='branch' AND status='active' ORDER BY display_name,id`).bind(a.companyId).all<{id:string;display_name:string}>()).results;
- const profiles=(await db.prepare("SELECT * FROM organization_brand_profiles WHERE scope_kind='holding' OR company_id=?").bind(a.companyId).all<BrandProfileRow>()).results;
- const urls=mediaUrls(a),legacy=attachmentsV2Readable();
- return {
-  holding:brandPresentation("holding",a.holdingId,a.holdingName,profiles.find(row=>row.scope_kind==="holding")??null,urls,legacy),
-  branches:branches.map(row=>brandPresentation("branch",row.id,row.display_name,profiles.find(profileRow=>profileRow.scope_kind==="branch"&&profileRow.scope_id===row.id)??null,urls,legacy)),
-  storefront:await storefront(db,a),
- };
-}
-async function storefront(db:SqlDatabase,a:WorkContext){
- const current=await storefrontRow(db,a);if(!current)throw new BusinessRuleError(409,"COMPANY_REQUIRED","The Company storefront is unavailable.");
- return storefrontPresentation(a,current,await publishedBrandIdentity(a),mediaUrls(a),attachmentsV2Readable());
-}
-export async function readStorefrontAppBrand(db:SqlDatabase,a:WorkContext){return storefront(db,a);}
 async function companyExists(db:SqlDatabase,actor:WorkContext,id:string){return !!await db.prepare(`SELECT 1 FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE id=? AND kind='company' AND status='active'`).bind(id).first();}
 export async function requireBrandManagement(db:SqlDatabase,a:WorkContext,type:BrandOwnerType,id:string){
  const allowed=type==="holding_brand"?id===a.holdingId&&await companyAuthority(db,a,["holding_owner"])

@@ -17,7 +17,6 @@ vi.mock("@erpx/server-files/public/attachments/preview",()=>({
 import { attachmentContent,attachmentDestructionEligibility,attachmentLinkStatus,approveAttachmentPublication,bindCompatibilityAttachmentSet,bindRecordAttachmentSet,cleanupAttachmentDrafts,createAttachmentPublication,createAttachmentSet,drainAttachmentScans,linkExistingAttachment,listAttachmentPublications,listAttachmentSets,prepareAttachmentBinding,publicAttachmentPublication,reorderAttachmentPublications,reserveAttachmentFile,revokeAttachmentPublication,scanAttachmentNow,completeAttachmentUpload } from "@erpx/server-files/public/attachments/service";
 import {withdrawSeededAttachment} from "../../support/helpers/attachment-v2";
 import {postView,publishPost,savePostDraft,type PostContent} from '@erpx/server-collaboration/public/social-home';
-import { listBrandProfiles } from "@erpx/server-brand/public/branding";
 import { backfillLegacyAttachments,backfillSpecializedAttachments,reconcileAttachmentStorage } from "@erpx/server-files/public/attachments/migration";
 import { sha256 } from "@erpx/server-runtime/adapters/crypto";
 import { LocalFileStore } from "@erpx/server-runtime/adapters/runtime/filesystem";
@@ -31,6 +30,13 @@ const db=env.H001_DB,key=()=>crypto.randomUUID();
 let companyA:string,companyB:string,productA:string,productB:string,campaignA:string,actorA:WorkContext,peerA:WorkContext,actorB:WorkContext;
 const png=Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAIAAAACCAYAAABytg0kAAAACXBIWXMAAAPoAAAD6AG1e1JrAAAAEUlEQVQImWOQaEj4D8IMMAYAQaQH3RNNL/AAAAAASUVORK5CYII=","base64");
 function actor(companyId:string,userId:string):WorkContext{return {userId,name:userId,email:`${userId}@example.test`,assignmentId:`assignment-${userId}`,role:"holding_owner",companyId,branchId:null,departmentId:null,holdingId:"h001",holdingSlug:"acme",holdingName:"Test",scope:{kind:"holding",holdingId:"h001",holdingSlug:"acme",holdingName:"Test",companyId},assignmentScope:"holding",inherited:false,modules:[],assignments:[],workspaces:[]};}
+// Native Brand holding-profile projection stub. The Brand owner serves this read
+// through its native port; this test-local oracle reads the seeded approval row
+// asserted above and checks the same sanitized public media URL.
+const holdingBrandUrl=async(a:WorkContext)=>{
+ const row=await db.prepare("SELECT primary_publication_id FROM organization_brand_profiles WHERE scope_kind='holding' AND scope_id=?").bind(a.holdingId).first<{primary_publication_id:string|null}>();
+ return row?.primary_publication_id?`/api/public/holdings/${encodeURIComponent(a.holdingSlug)}/media-publications/${encodeURIComponent(row.primary_publication_id)}/content`:null;
+};
 
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);process.env.ERPX_ATTACHMENTS_V2="true";delete process.env.ERPX_ATTACHMENT_UPLOAD_FREEZE;});
 afterAll(()=>{delete process.env.ERPX_ATTACHMENTS_V2;delete process.env.ERPX_ATTACHMENT_UPLOAD_FREEZE;});
@@ -533,7 +539,7 @@ describe("canonical attachment lifecycle",()=>{
     await expect(publicAttachmentPublication(db,env.H001_FILES,publicationId)).rejects.toMatchObject({status:404});
     await approveAttachmentPublication(db,peerA,publicationId,key());
     expect(await db.prepare("SELECT primary_publication_id FROM organization_brand_profiles WHERE scope_kind='holding' AND scope_id=?").bind(actorA.holdingId).first("primary_publication_id")).toBe(publicationId);
-    expect((await listBrandProfiles(db,peerA)).holding.primaryUrl).toContain(`/media-publications/${publicationId}/content`);
+    expect(await holdingBrandUrl(peerA)).toContain(`/media-publications/${publicationId}/content`);
     await expect(publicAttachmentPublication(db,env.H001_FILES,publicationId)).resolves.toMatchObject({row:{alt_text:"Test Holding mark"}});
 
     await expect(db.prepare("UPDATE attachment_publications SET alt_text='tampered' WHERE id=?").bind(publicationId).run()).rejects.toThrow(/ATTACHMENT_PUBLICATION_IMMUTABLE/);

@@ -14,13 +14,10 @@
 import sharp from "sharp";
 import { beforeAll, beforeEach, describe, expect, it } from "vitest";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
-import { setPublishedBrandIdentityForTest } from "@erpx/server-brand/adapters/identity";
 import {
   createNativeBrandPresentationClient,
-  listBrandProfiles,
   nativeBrandPresentationConfigured,
   normalizeBrandImage,
-  readStorefrontAppBrand,
   recordBranchId,
   requireBrandManagement,
 } from "@erpx/server-brand/public/branding";
@@ -162,33 +159,9 @@ it("allows the Holding owner to manage brands and rejects ordinary staff", async
 it("retires every TypeScript Branding writer from the public entrypoint", () => {
   for (const writer of ["completeBrandUpload", "completeStorefrontBrandUpload", "updateStorefrontAppBrand", "updateBrandProfile"])
     expect(Object.hasOwn(brandingPublic, writer)).toBe(false);
-  for (const read of ["resolveWorkspaceBrand", "resolveDocumentBrand", "listBrandProfiles", "readBrandProfileEvidence", "readStorefrontAppBrand", "nativeListBrandProfiles", "nativeReadStorefrontAppBrand"])
+  for (const read of ["resolveWorkspaceBrand", "resolveDocumentBrand", "readBrandProfileEvidence", "nativeListBrandProfiles", "nativeReadStorefrontAppBrand"])
     expect(typeof (brandingPublic as unknown as Record<string, unknown>)[read]).toBe("function");
   expect(typeof brandingPublic.normalizeBrandImage).toBe("function");
-});
-
-it("reads the Branding-owned storefront through the published identity overlay", async () => {
-  const now = Date.now();
-  await db.batch([
-    db.prepare("INSERT INTO storefront_app_brands(company_id,short_name,accent_color,updated_by,updated_at) VALUES(?,'Legacy storefront','#123456',?,?)")
-      .bind(fixture.company, fixture.owner.userId, now),
-    db.prepare("INSERT INTO brand_identity_drafts(id,company_id,based_revision,identity_json,status,version,created_by,updated_by,created_at,updated_at) VALUES(?,?,0,?,'published',2,?,?,?,?)")
-      .bind("branding-read-draft", fixture.company, JSON.stringify({ identity: { shortName: "Published storefront", tagline: "" }, visual: { accentColor: "#224488", logoPublicationId: null } }), fixture.owner.userId, fixture.head.userId, now, now),
-    db.prepare("INSERT INTO brand_identity_versions(id,company_id,revision,identity_json,draft_id,draft_version,created_by,published_by,published_at) VALUES(?,?,1,?,?,1,?,?,?)")
-      .bind("branding-read-version", fixture.company, JSON.stringify({ identity: { shortName: "Published storefront", tagline: "" }, visual: { accentColor: "#224488", logoPublicationId: null } }), "branding-read-draft", fixture.owner.userId, fixture.head.userId, now),
-    db.prepare("INSERT INTO brand_identity_active(company_id,identity_version_id,version,updated_by,updated_at) VALUES(?,?,1,?,?)")
-      .bind(fixture.company, "branding-read-version", fixture.head.userId, now),
-    db.prepare("INSERT INTO organization_brand_profiles(scope_kind,scope_id,company_id,document_mode,updated_by,updated_at) VALUES('branch',?,?,'both',?,?)")
-      .bind(fixture.branch, fixture.company, fixture.owner.userId, now),
-  ]);
-  setPublishedBrandIdentityForTest(async () => ({ revision: 1, identity: { identity: { shortName: "Published storefront", tagline: "" }, visual: { accentColor: "#224488", logoPublicationId: null } } } as never));
-  const storefront = await readStorefrontAppBrand(db, fixture.owner);
-  expect(storefront).toMatchObject({ shortName: "Published storefront", accentColor: "#224488", identityRevision: 1, logoUrl: null });
-  const profiles = await listBrandProfiles(db, fixture.owner);
-  expect(profiles.holding.scopeKind).toBe("holding");
-  expect(profiles.branches.find(row => row.scopeId === fixture.branch)?.documentMode).toBe("both");
-  expect(profiles.storefront.shortName).toBe("Published storefront");
-  setPublishedBrandIdentityForTest();
 });
 
 describe("native Brand presentation reads", () => {

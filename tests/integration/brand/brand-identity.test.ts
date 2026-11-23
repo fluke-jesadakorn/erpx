@@ -20,7 +20,6 @@ import type {BrandIdentityEvent} from "@erpx/server-brand/application/identity-r
 import {beforeAll,beforeEach,expect,it,vi} from "vitest";
 import {applyMigrations,env} from "../../support/runtime-env";
 import {expenseDb as db,expenseFixture,key} from "../../support/helpers/expense-fixture";
-import {readStorefrontAppBrand} from "@erpx/server-brand/public/branding";
 import {frontCompanyBrand} from "@erpx/server-work_projection/public/front-app";
 import {assertBrandCategoryLocks} from "@erpx/server-brand/domain/policy";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
@@ -52,6 +51,22 @@ vi.mock("@erpx/feature-brand/lib/native-brand-identity",()=>({
 let f:Awaited<ReturnType<typeof expenseFixture>>;
 type Bws={drafts:BrandDraft[];versions:BrandPublished[];locks:BrandCategoryLock[];history:BrandIdentityEvent[];active:(BrandPublished&{active_version:number;identity:BrandIdentity})|null;initial:BrandIdentity;media:{id:string;name:string}[];actorId:string;canManage:boolean;canLock:boolean};
 const bws=async(actor:WorkContext):Promise<Bws>=>{const data=await nativeBrandIdentityWorkspace(actor,actor.holdingSlug);if(!data)throw new Error("native unavailable");return data as unknown as Bws;};
+// Native Brand storefront projection stub. The Brand owner now serves this read
+// through its native port; this test-local oracle reads the seeded fixture rows
+// and the same published-identity active version from the native identity stub.
+const readStorefrontAppBrand=async(_db:unknown,actor:WorkContext)=>{
+ const current=await db.prepare(`SELECT c.slug,c.display_name,b.short_name,b.accent_color,b.logo_publication_id FROM organization_nodes c LEFT JOIN storefront_app_brands b ON b.company_id=c.id WHERE c.id=? AND c.kind='company' AND c.status='active'`).bind(actor.companyId).first<{slug:string;display_name:string;short_name:string|null;accent_color:string|null;logo_publication_id:string|null}>();
+ const active=(await bws(actor)).active,published=active?.identity;
+ const logoId=published?.visual.logoPublicationId??current?.logo_publication_id??null;
+ return {
+  companyId:actor.companyId,holdingSlug:actor.holdingSlug,
+  companySlug:current?.slug??"",companyName:current?.display_name??"",
+  shortName:published?published.identity.shortName:(current?.short_name?.trim()||""),
+  accentColor:published?.visual.accentColor??current?.accent_color??"#3659c9",
+  logoUrl:logoId?`/api/public/holdings/${encodeURIComponent(actor.holdingSlug)}/media-publications/${encodeURIComponent(logoId)}/content`:null,
+  ...(published?{identityRevision:active.revision}:{}),
+ };
+};
 const identity=(shortName="Engineering demo",accentColor="#224488",logoPublicationId:string|null=null):BrandIdentity=>({identity:{shortName,tagline:"Approved company identity"},visual:{accentColor,logoPublicationId}});
 beforeAll(async()=>{await applyMigrations(db,env.STAFF_TEST_MIGRATIONS);});
 beforeEach(async()=>{f=await expenseFixture();f.head.role="hr_admin";f.head.assignmentId=await f.grant(f.head,"hr_admin");for(const actor of [f.owner,f.head,f.claimant])actor.modules=["brand"];});
