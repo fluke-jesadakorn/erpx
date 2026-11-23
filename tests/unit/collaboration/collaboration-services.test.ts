@@ -352,6 +352,37 @@ describe('native Field Inbox transport',()=>{
 
 });
 
+test('a direct server read outside a request scope yields no native overlay instead of throwing',async()=>{
+ const envKey='ERPX_NATIVE_FIELD_SERVICE_SOURCE_RECORD_CONFIG',previous=process.env[envKey];
+ process.env[envKey]='{"privateBaseUrl":"http://127.0.0.1:43117","timeoutMs":250,"holdings":[]}';
+ const fieldActor={...actor,modules:['field_service'],iam:{permissions:['records.read']}} as WorkContext;
+ vi.resetModules();
+ vi.doMock('next/headers',()=>({headers:async()=>{throw new Error('`headers()` was called outside a request scope.');}}));
+ try{
+  const {nativeFieldInboxCandidates}=await import('../../../packages/server-collaboration/src/adapters/native-field-inbox');
+  await expect(nativeFieldInboxCandidates(fieldActor,{all:true,search:'',limit:100})).resolves.toEqual([]);
+ }finally{
+  vi.doUnmock('next/headers');
+  vi.resetModules();
+  if(previous===undefined)delete process.env[envKey];else process.env[envKey]=previous;
+ }
+});
+test('a non-scope header failure is not swallowed as an absent overlay',async()=>{
+ const envKey='ERPX_NATIVE_FIELD_SERVICE_SOURCE_RECORD_CONFIG',previous=process.env[envKey];
+ process.env[envKey]='{"privateBaseUrl":"http://127.0.0.1:43117","timeoutMs":250,"holdings":[]}';
+ const fieldActor={...actor,modules:['field_service'],iam:{permissions:['records.read']}} as WorkContext;
+ vi.resetModules();
+ vi.doMock('next/headers',()=>({headers:async()=>{throw new Error('unexpected storage failure');}}));
+ try{
+  const {nativeFieldInboxCandidates}=await import('../../../packages/server-collaboration/src/adapters/native-field-inbox');
+  await expect(nativeFieldInboxCandidates(fieldActor,{all:true,search:'',limit:100})).rejects.toThrow('unexpected storage failure');
+ }finally{
+  vi.doUnmock('next/headers');
+  vi.resetModules();
+  if(previous===undefined)delete process.env[envKey];else process.env[envKey]=previous;
+ }
+});
+
 describe('Native social feed, comment and revision read transport',()=>{
  const configuration=JSON.stringify({privateBaseUrl:'http://127.0.0.1:3105',timeoutMs:1000});
  const session=()=>new Request('https://acme.jesadakorn.com/posts/post-1',{method:'GET',headers:{cookie:'__Host-erpx-product=session','x-erpx-context-company':'company'}});
