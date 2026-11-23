@@ -363,3 +363,43 @@ describe('workflow spending settings history read tail (native read plan)', () =
     }
   });
 });
+
+describe('workflow staff task alert approvers read tail (native read plan)', () => {
+  it('carries no retired owner SQL in the switched adapter', async () => {
+    const source = await readFile(
+      new URL('../../../packages/server-workflow/src/adapters/operations-staff-task-alerts-facts.ts', import.meta.url),
+      'utf8',
+    );
+    expect(source).not.toContain('SELECT');
+    expect(source).not.toContain('approval_instances');
+    expect(source).not.toContain('.prepare(');
+  });
+
+  it('plans the read through the mounted native read with no local SQL', async () => {
+    const rows = [{ approver_user_id: 'approver' }];
+    const all = vi.fn(async () => rows);
+    vi.resetModules();
+    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+      nativeWorkflowReadAll: all,
+    }));
+    try {
+      const { StaffTaskAlertsWorkflowFacts } = await import(
+        '../../../packages/server-workflow/src/adapters/operations-staff-task-alerts-facts'
+      );
+      const prepare = vi.fn();
+      const db = { prepare } as never;
+      expect(await StaffTaskAlertsWorkflowFacts(db).readEscalateStaffTasksApprovers('company', 'task'))
+        .toEqual({ results: rows });
+      expect(all).toHaveBeenCalledWith(
+        'wf_native_staff_task_alert_approvers',
+        ['company', 'task'],
+        'company',
+        db,
+      );
+      expect(prepare).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.resetModules();
+    }
+  });
+});

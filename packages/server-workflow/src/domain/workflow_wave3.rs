@@ -107,6 +107,11 @@ pub const WF_NATIVE_LEAVE_EVIDENCE_DECISION: &str = "wf_native_leave_evidence_de
 /// Workflow-owned audit ledger; the TypeScript bridge executes it on the
 /// caller's open unit and carries no receipt/assertion semantics.
 pub const WF_NATIVE_SPENDING_SETTINGS_HISTORY: &str = "wf_native_spending_settings_history";
+/// Owner-authored caller-unit read for the operations staff task alert
+/// approver family. The mounted wave3-command planner resolves it to one fixed
+/// SELECT on the Workflow-owned approval tables; the TypeScript bridge executes
+/// it on the caller's open unit and carries no receipt/assertion semantics.
+pub const WF_NATIVE_STAFF_TASK_ALERT_APPROVERS: &str = "wf_native_staff_task_alert_approvers";
 pub const KINDS: &[&str] = &[
     WF_OPENAPPROVAL,
     WF_OPENAPPROVAL2,
@@ -138,6 +143,7 @@ pub const KINDS: &[&str] = &[
     WF_NATIVE_WORK_UI_BETA_APPROVAL,
     WF_NATIVE_LEAVE_EVIDENCE_DECISION,
     WF_NATIVE_SPENDING_SETTINGS_HISTORY,
+    WF_NATIVE_STAFF_TASK_ALERT_APPROVERS,
 ];
 
 fn statement(kind: &str) -> Option<(&'static str, usize)> {
@@ -364,6 +370,10 @@ fn statement(kind: &str) -> Option<(&'static str, usize)> {
             "SELECT 'Company spending rules' title,record_version version,actor_id actor,created_at at,'Spending rules revision' kind FROM audit_events WHERE action='spending.template.save' AND record_id=? AND authority_json::jsonb->>'companyId'=? ORDER BY created_at DESC",
             2,
         ),
+        WF_NATIVE_STAFF_TASK_ALERT_APPROVERS => (
+            "SELECT s.approver_user_id FROM approval_instances i JOIN approval_steps s ON s.instance_id=i.id AND s.state='pending' WHERE i.company_id=? AND i.record_type='task' AND i.record_id=? AND i.state='pending'",
+            2,
+        ),
 _ => return None,
     })
 }
@@ -569,5 +579,33 @@ mod tests {
             .is_ok()
         );
         assert!(plan(WF_NATIVE_SPENDING_SETTINGS_HISTORY, vec![json!("company")]).is_err());
+    }
+
+    /// The owner-local staff task alert approver read stays fixed, SELECT-only
+    /// and on the Workflow-owned approval tables; the bridge carries no receipt
+    /// or assertion semantics and the planner never accepts caller SQL or writes.
+    #[test]
+    fn staff_task_alert_approvers_read_kind_is_fixed_owner_local_select() {
+        let (sql, expected) = statement(WF_NATIVE_STAFF_TASK_ALERT_APPROVERS)
+            .expect("registered owner read kind");
+        assert!(sql.starts_with("SELECT "), "read must be SELECT-only: {sql}");
+        assert_eq!(expected, 2);
+        assert_eq!(sql.matches('?').count(), expected);
+        assert!(
+            sql.contains("approval_instances") && sql.contains("approval_steps"),
+            "read must stay owner-local: {sql}"
+        );
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+            assert!(!sql.contains(forbidden), "read must not mutate: {forbidden}");
+        }
+        assert!(supported(WF_NATIVE_STAFF_TASK_ALERT_APPROVERS));
+        assert!(
+            plan(
+                WF_NATIVE_STAFF_TASK_ALERT_APPROVERS,
+                vec![json!("company"), json!("task-1")]
+            )
+            .is_ok()
+        );
+        assert!(plan(WF_NATIVE_STAFF_TASK_ALERT_APPROVERS, vec![json!("company")]).is_err());
     }
 }
