@@ -54,9 +54,9 @@ impl<'c> PgGrantSave<'c> {
         .bind(entry.actor_id)
         .bind(entry.request_hash)
         .bind(entry.record_id)
-        .bind(entry.result)
+        .bind(sqlx::types::Json(entry.result.clone()))
         .bind(entry.now)
-        .bind(&authority)
+        .bind(sqlx::types::Json(authority.clone()))
         .execute(&mut *self.connection)
         .await?
         .rows_affected();
@@ -81,7 +81,7 @@ impl<'c> PgGrantSave<'c> {
         .bind(entry.record_id)
         .bind(entry.version)
         .bind(entry.now)
-        .bind(&authority)
+        .bind(sqlx::types::Json(authority.clone()))
         .execute(&mut *self.connection)
         .await?;
         let payload = serde_json::json!({
@@ -100,7 +100,7 @@ impl<'c> PgGrantSave<'c> {
         .bind(entry.record_type)
         .bind(entry.record_id)
         .bind(entry.version)
-        .bind(&payload)
+        .bind(sqlx::types::Json(payload))
         .bind(entry.now)
         .execute(&mut *self.connection)
         .await?;
@@ -212,8 +212,16 @@ impl GrantSaveRepository for PgGrantSave<'_> {
             .bind(&input.package_id)
             .bind(&input.actor_id)
             .bind(&input.request_hash)
-            .bind(input.before_json.as_deref())
-            .bind(&input.after_json)
+            .bind(sqlx::types::Json(
+                input.before_json.as_deref().map(|text| {
+                    serde_json::from_str::<serde_json::Value>(text)
+                        .unwrap_or(serde_json::Value::Null)
+                }),
+            ))
+            .bind(sqlx::types::Json(
+                serde_json::from_str::<serde_json::Value>(&input.after_json)
+                    .unwrap_or(serde_json::Value::Null),
+            ))
             .bind(input.updated_at)
             .execute(&mut *self.connection)
             .await?;

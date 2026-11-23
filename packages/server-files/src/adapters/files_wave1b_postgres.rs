@@ -78,9 +78,9 @@ impl PostgresFilesCommandPort {
         .bind("system:files")
         .bind(key)
         .bind(company.as_str())
-        .bind(serde_json::json!({"kind":kind,"rows":rows}).to_string())
+        .bind(sqlx::types::Json(serde_json::json!({"kind":kind,"rows":rows})))
         .bind(now)
-        .bind("{}")
+        .bind(sqlx::types::Json(serde_json::json!({})))
         .execute(&mut *connection)
         .await?;
         sqlx::query(
@@ -111,7 +111,7 @@ impl PostgresFilesCommandPort {
         .bind("files")
         .bind(company.as_str())
         .bind(1_i64)
-        .bind(serde_json::json!({"kind":kind,"rows":rows}).to_string())
+        .bind(sqlx::types::Json(serde_json::json!({"kind":kind,"rows":rows})))
         .bind(now)
         .execute(&mut *connection)
         .await?;
