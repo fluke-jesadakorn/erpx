@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6418,
+    "revision": 6421,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -112959,25 +112959,53 @@
         "resources": [
           "owner:learning"
         ],
-        "nextAction": "Switch feature-learn/workplace consumers to nativeLearningPage only; delete learningWorkspace/learningAssignmentDetail SQL + exports; record 100->93 statements",
+        "nextAction": "Integrated; claim released",
         "goalId": "G4",
         "kind": "migration",
-        "status": "in_progress",
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wD01",
-          "claimedAt": "2026-11-23T17:15:22.271Z",
-          "heartbeatAt": "2026-11-23T17:57:05.360Z",
-          "expiresAt": "2026-11-23T18:27:05.360Z",
-          "generation": 158
-        },
+        "status": "blocked",
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-learning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "bb0fd4291",
+            "owner": "learning",
+            "before": 100,
+            "after": 96,
+            "residual": [
+              {
+                "path": "packages/server-learning/src/adapters/learning.ts",
+                "writes": 3,
+                "removalTaskId": "retire.learning.work-port",
+                "removalCondition": "Bind a native Learning work port into server-work_projection work-items and delete learningWork assignments SQL."
+              }
+            ],
+            "note": "wD01: workspace/detail 7 statements deleted; learningWork keeps 3 until native work port."
+          },
+          {
+            "command": "cargo check -p erpx-server-learning",
+            "result": "passed",
+            "sourceSha": "bb0fd4291"
+          },
+          {
+            "command": "vitest learning units 169/169",
+            "result": "passed",
+            "sourceSha": "bb0fd4291"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "handoff": null,
+        "blocker": "handoff",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wD01",
+          "at": "2026-11-23T17:58:54.587Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false,
         "dependsOn": [],
         "requiredPorts": [],
@@ -113830,6 +113858,43 @@
         "nextAction": "Switch finance journal list to mounted native read_journal_list / nativeJournalList; delete finance_journals TS SELECT and route fallback; keep overviewCounts classified",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.learning.work-port",
+        "goalId": "G4",
+        "owner": "learning",
+        "title": "Native learning work port + alias consumer cleanup (3 SELECT -> 0)",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-learning/src/adapters/learning.ts",
+          "packages/server-learning/src/public/learning.ts",
+          "packages/server-learning/src/adapters/learning_work.rs",
+          "packages/server-learning/src/public/learning_work.rs",
+          "packages/server-work_projection/src/adapters/work-items.ts",
+          "packages/server-records/src/adapters/record-domain-details.ts",
+          "packages/server-records/src/application/record-domain-details.ts",
+          "packages/server-collaboration/src/adapters/staff-notifications.ts",
+          "packages/server-collaboration/src/application/staff-notifications.ts",
+          "tests/unit/learning/**",
+          "tests/integration/learning/**"
+        ],
+        "resources": [
+          "owner:learning"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Add native learningWork read (assignments + eligibility) mirrored from work-items use, switch work-items/records/collab alias consumers, delete 3 SELECTs and aliases; record 96->93",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -113838,21 +113903,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 475,
+      "totalPackets": 476,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 21,
-        "in_progress": 11,
+        "pending": 22,
+        "in_progress": 10,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 114,
+        "blocked": 115,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T17:57:05.362Z",
+    "updatedAt": "2026-11-23T17:59:02.644Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
