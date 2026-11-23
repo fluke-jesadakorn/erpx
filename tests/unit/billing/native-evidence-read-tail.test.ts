@@ -5,13 +5,14 @@ vi.mock('server-only', () => ({}));
 // native owner port and assert the exact typed kind and positional values it
 // sends; the caller's pool must never receive a TypeScript-authored SELECT.
 const ownerQuery = vi.hoisted(() => vi.fn(async (_client: unknown, _kind: string, _values: unknown[]) => ({ rows: [] } as never)));
-const ownerBind = vi.hoisted(() => vi.fn(async () => ({ bind: vi.fn() })));
+const ownerBind = vi.hoisted(() => vi.fn(async (_db: unknown, _kind: string, _values: readonly unknown[]) => ({ bind: vi.fn(), first: vi.fn(async () => ({})) })));
 vi.mock('../../../packages/server-billing/src/adapters/native-billing-owner-write', () => ({
   nativeBillingOwnerQuery: ownerQuery,
   nativeBillingOwnerBind: ownerBind,
 }));
 const { drainBillingEvidenceScans } = await import('@erpx/server-billing/adapters/billing-attachments');
 const { billingApiRepository } = await import('@erpx/server-billing/adapters/billing-api');
+const { billingLink, applyLegacyStripeEvent } = await import('@erpx/server-billing/adapters/beta-billing');
 
 function env() {
   const query = vi.fn(async () => ({ rows: [] }));
@@ -53,5 +54,49 @@ describe('Billing owner-local evidence read tail', () => {
 
     expect(ownerQuery).toHaveBeenCalledTimes(3);
     expect(query).not.toHaveBeenCalled();
+  });
+});
+
+describe('Billing beta webhook read tail', () => {
+  it('routes customer, inboxState and legacyCustomer through typed owner kinds with no local SQL', async () => {
+    const prepare = vi.fn();
+    const runtime = {
+      CONTROL_DB: { prepare, batch: vi.fn(async () => ({})) },
+      BETTER_AUTH_URL: 'https://fixture.example',
+      STRIPE_SECRET_KEY: 'sk_test_fixture',
+      STRIPE_WEBHOOK_SECRET: 'whsec_test',
+    } as never;
+    ownerBind.mockReset();
+    ownerBind.mockImplementation(async (_db: unknown, kind: string, _values: readonly unknown[]) => ({
+      bind: vi.fn(),
+      first: vi.fn(async () =>
+        kind === 'beta_customer'
+          ? { customer_id: 'cus_1' }
+          : kind === 'beta_inbox_state'
+            ? { state: 'pending' }
+            : { holding_id: 'h001' },
+      ),
+    }));
+    vi.stubGlobal('fetch', vi.fn(async () => Response.json({ url: 'https://billing.stripe.com/b/session/test' })));
+    try {
+      await billingLink(runtime, 'h001', 'acme', 'owner@test', 'portal');
+      await applyLegacyStripeEvent(
+        runtime,
+        {
+          id: 'evt-1',
+          type: 'customer.subscription.updated',
+          created: 1,
+          livemode: false,
+          data: { object: { customer: 'cus_1' } },
+        } as never,
+        async () => ({ data: [] } as never),
+      );
+    } finally {
+      vi.unstubAllGlobals();
+    }
+    expect(ownerBind).toHaveBeenCalledWith(expect.anything(), 'beta_customer', ['h001']);
+    expect(ownerBind).toHaveBeenCalledWith(expect.anything(), 'beta_inbox_state', ['evt-1']);
+    expect(ownerBind).toHaveBeenCalledWith(expect.anything(), 'beta_legacy_customer', ['cus_1']);
+    expect(prepare).not.toHaveBeenCalled();
   });
 });

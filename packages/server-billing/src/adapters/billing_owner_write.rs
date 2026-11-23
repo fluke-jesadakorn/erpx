@@ -42,6 +42,9 @@ fn sql(kind: &str) -> Option<&'static str> {
         BETA_APPLY_EVENT => r####"UPDATE stripe_inbox SET state='applied',applied_at=? WHERE id=?"####,
         BETA_PREPARE_BILLING => r####"INSERT INTO beta_billing(holding_id,updated_at) VALUES(?,?) ON CONFLICT DO NOTHING"####,
         BETA_MANAGEMENT_BILLING_STATUS => r####"SELECT status FROM beta_billing WHERE holding_id=?"####,
+        BETA_CUSTOMER => r####"SELECT customer_id FROM beta_billing WHERE holding_id=?"####,
+        BETA_INBOX_STATE => r####"SELECT state FROM stripe_inbox WHERE id=?"####,
+        BETA_LEGACY_CUSTOMER => r####"SELECT holding_id FROM beta_billing WHERE customer_id=?"####,
         EVIDENCE_RETAIN => r####"INSERT INTO billing_evidence(id,holding_id,filename,mime,size,sha256,actor,created_at,object_key,detected_mime,source_state) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,$11) ON CONFLICT(id) DO NOTHING"####,
         EVIDENCE_STORAGE_LEDGER => r####"INSERT INTO billing_evidence_storage_ledger(id,evidence_id,holding_id,object_key,bytes,state,created_at,updated_at) SELECT $1,id,holding_id,object_key,size,'stored',$2,$2 FROM billing_evidence WHERE id=$3 ON CONFLICT(object_key) DO NOTHING"####,
         EVIDENCE_SCAN_ATTEMPT => r####"INSERT INTO billing_evidence_scan_attempts(id,evidence_id,attempt,state,created_at) VALUES($1,$2,1,'pending',$3) ON CONFLICT(evidence_id,attempt) DO NOTHING"####,
@@ -255,6 +258,43 @@ mod tests {
             now: 1,
         })
         .is_err());
+    }
+    #[test]
+    fn beta_webhook_reads_are_owner_authored_and_fully_bound() {
+        let holding = HoldingId::new("h001").unwrap();
+        for (kind, sql, value) in [
+            (
+                BETA_CUSTOMER,
+                "SELECT customer_id FROM beta_billing WHERE holding_id=?",
+                "h001",
+            ),
+            (
+                BETA_INBOX_STATE,
+                "SELECT state FROM stripe_inbox WHERE id=?",
+                "evt-1",
+            ),
+            (
+                BETA_LEGACY_CUSTOMER,
+                "SELECT holding_id FROM beta_billing WHERE customer_id=?",
+                "cus-1",
+            ),
+        ] {
+            let statement = billing_owner_statement(&holding, &BillingOwnerWriteInput {
+                kind: kind.into(),
+                values: vec![serde_json::json!(value)],
+                now: 1,
+            })
+            .unwrap_or_else(|_| panic!("{kind} is an allow-listed owner read kind"));
+            assert_eq!(statement.sql, sql);
+            assert_eq!(statement.values, vec![serde_json::json!(value)]);
+            // A missing witness bind cannot widen an owner read.
+            assert!(billing_owner_statement(&holding, &BillingOwnerWriteInput {
+                kind: kind.into(),
+                values: vec![],
+                now: 1,
+            })
+            .is_err());
+        }
     }
     #[test]
     fn api_evidence_and_account_reads_are_owner_authored_and_fully_bound() {
