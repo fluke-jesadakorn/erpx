@@ -441,3 +441,18 @@ test('keeps one fixed Sales follow-up source projection for the enforced and non
  expect(source).toContain('return {sql:followupSourceSelect,args:[] as unknown[]}');
  expect(source).toContain('`${followupSourceSelect} JOIN (${crmFinanceCustomerSources}) customer');
 });
+
+test('final-root Sales projections reuse the one owner fixed SQL for notices and follow-ups',async()=>{
+ const {readFile}=await import('node:fs/promises'),base=new URL("../../../packages/server-sales/src/adapters/",import.meta.url);
+ const finalRoot=await readFile(new URL("final-root-owner-projection-sources.ts",base),'utf8'),commercial=await readFile(new URL("commercial-owner-projection-sources.ts",base),'utf8');
+ for(const key of ['commerce_customer_notifications','customer_followups']){
+  expect(commercial).toMatch(new RegExp(`^  ${key}: "SELECT `,'m'));
+  expect(finalRoot).not.toMatch(new RegExp(`^  ${key}: "SELECT `,'m'));
+  expect(finalRoot).toContain(`commercialOwnerProjectionSources.${key}`);
+ }
+ const {finalRootOwnerProjectionSources:root}=await import('@erpx/server-sales/adapters/final-root-owner-projection-sources');
+ const {commercialOwnerProjectionSources:owner}=await import('@erpx/server-sales/adapters/commercial-owner-projection-sources');
+ expect(root.commerce_customer_notifications).toBe(owner.commerce_customer_notifications);
+ expect(root.customer_followups).toBe(owner.customer_followups);
+ expect(Object.keys(root)).toEqual(['commerce_customer_notifications','customer_contact_note_history','customer_contact_notes','customer_followup_events','customer_followups']);
+});
