@@ -224,6 +224,13 @@ pub const KINDS: &[&str] = &[
     crate::adapters::core_reads::SHIFTS,
     crate::adapters::core_reads::TABLES,
     crate::adapters::core_reads::CASH_MOVEMENTS,
+    // POS addon/package obligation read kinds: closed, SELECT-only owner
+    // statements that the TypeScript obligation bridge requests on the
+    // caller's unit.
+    crate::adapters::obligation_reads::ADDON_RESTAURANT,
+    crate::adapters::obligation_reads::ADDON_HOTEL,
+    crate::adapters::obligation_reads::PACKAGE,
+    crate::adapters::obligation_reads::PMS_PACKAGE,
 ];
 
 pub fn supported(kind: &str) -> bool { KINDS.contains(&kind) }
@@ -331,6 +338,10 @@ fn sql(kind: &str) -> Option<&'static str> {
         // lives in the dedicated module shared with the integration oracle.
         kind if crate::adapters::core_reads::supported(kind) =>
             return crate::adapters::core_reads::sql(kind),
+        // Addon/package obligation reads: authoritative owner SQL lives in the
+        // dedicated module shared with the integration parity oracle.
+        kind if crate::adapters::obligation_reads::supported(kind) =>
+            return crate::adapters::obligation_reads::sql(kind),
         _ => return None,
     })
 }
@@ -375,7 +386,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 105);
+        assert_eq!(KINDS.len(), 109);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -465,5 +476,24 @@ mod tests {
             }
         }
         assert_eq!(crate::adapters::core_reads::KINDS.len(), 3);
+    }
+
+    /// The retired addon/package obligation reads are SELECT-only owner
+    /// statements scoped by caller-supplied Company/package values. No caller
+    /// SQL is accepted; transport only selects the statement text.
+    #[test]
+    fn obligation_read_kinds_are_select_only() {
+        for kind in crate::adapters::obligation_reads::KINDS {
+            assert!(supported(kind), "obligation read kind must be mounted: {kind}");
+            let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
+            assert!(stmt.starts_with("WITH scope AS (SELECT "), "obligation kind must be a scoped read: {kind}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+                assert!(
+                    !stmt.contains(forbidden),
+                    "obligation kind must not mutate: {kind} contains {forbidden}"
+                );
+            }
+        }
+        assert_eq!(crate::adapters::obligation_reads::KINDS.len(), 4);
     }
 }

@@ -4,6 +4,7 @@ import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postg
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { assertPosPackageObligationSources } from "@erpx/server-pos/adapters/package-obligations";
 import { assertPmsPackageObligationSources, pmsPackageSettlementSources as hotel } from "@erpx/server-pms/public/package-obligations";
+import { nativePosAddonObligationsStatement } from "./native-pos-obligation-statement";
 
 type Input = { companyId: string; packageId: string; packageVersion: number; moduleId: string; now: number };
 /** Stored service mode survives a later register edit. Recipe lineage and the
@@ -45,7 +46,18 @@ const postingKeys = `SELECT s.package_id,s.company_id,'sale:'||s.id source_key,s
 return {sales,stockFulfillments,shifts,payments,refunds,refundPayments,events,postingKeys};
 }
 /** Closed source SQL for the two included owners. No base product collections
- * or global Stripe connection/payout balances are attributed to an addon. */
+ * or global Stripe connection/payout balances are attributed to an addon.
+ *
+ * CROSS-OWNER CONSUMERS (retained TypeScript, removal documented): these
+ * projection strings are SQL text consumed by
+ * `packages/server-finance/src/adapters/hospitality-addon-package-obligations.ts`,
+ * `packages/server-inventory/src/adapters/hospitality-addon-package-obligations.ts`
+ * and `packages/server-pms/src/adapters/addon-package-obligations.ts`. They
+ * embed the text in their own settlement readers, so they cannot use the
+ * row-returning native obligation bridge yet. Each consumer requires its own
+ * owner-side settlement source port and removal task before this projection is
+ * retired; the owner SQL itself is mirrored in
+ * `erpx_server_pos::public::obligation_reads::settlement_sources`. */
 export function posAddonPackageSettlementSources(packageId:string) {
  const {sales,stockFulfillments,payments,refunds,refundPayments,postingKeys}=sourceSql(packageId);
  return {
@@ -73,29 +85,7 @@ export async function posAddonPackageObligations(owner: PostgresDatabase, databa
   assertPosAddonPackageObligationSources(owner, database, input.companyId, input.packageId);
   if (input.moduleId !== 'pos' || !['pos-restaurant','pos-hotel-charge'].includes(input.packageId) || input.packageVersion !== 1 || !Number.isSafeInteger(input.now) || input.now < 0)
     throw new Error('POS_ADDON_PACKAGE_OBLIGATION_SCOPE_REQUIRED');
-  const {sales,stockFulfillments,shifts,payments,refunds,refundPayments,events}=sourceSql(input.packageId);
-  const facts = (await database.prepare(`WITH scope AS (SELECT ?::text company_id,?::text package_id),
-    sales AS MATERIALIZED (SELECT source.* FROM (${sales}) source,scope WHERE source.company_id=scope.company_id AND source.package_id=scope.package_id),
-    fulfillments AS MATERIALIZED (SELECT source.* FROM (${stockFulfillments}) source,scope WHERE source.company_id=scope.company_id AND source.package_id=scope.package_id),
-    payments AS MATERIALIZED (SELECT source.* FROM (${payments}) source,scope WHERE source.company_id=scope.company_id AND source.package_id=scope.package_id),
-    refunds AS MATERIALIZED (SELECT source.* FROM (${refunds}) source,scope WHERE source.company_id=scope.company_id AND source.package_id=scope.package_id),
-    payouts AS MATERIALIZED (SELECT source.* FROM (${refundPayments}) source,scope WHERE source.company_id=scope.company_id AND source.package_id=scope.package_id),
-    callbacks AS MATERIALIZED (SELECT source.* FROM (${events}) source,scope WHERE source.company_id=scope.company_id AND source.package_id=scope.package_id)
-    SELECT 'sale' kind,s.id,s.version,s.state FROM sales s WHERE s.state NOT IN ('completed','cancelled','merged')
-    UNION ALL SELECT 'shift',s.id,s.version,s.state FROM (${shifts}) s,scope WHERE s.company_id=scope.company_id AND s.package_id=scope.package_id AND s.state<>'reviewed'
-    UNION ALL SELECT 'cash',m.id,0,'unapproved' FROM pos_cash_movements m JOIN (${shifts}) s ON s.id=m.shift_id,scope WHERE s.company_id=scope.company_id AND s.package_id=scope.package_id AND m.approved_by IS NULL
-    UNION ALL SELECT 'kitchen',f.id,f.version,f.state FROM fulfillments f WHERE f.kind='recipe' AND f.state NOT IN ('delivered','cancelled')
-    UNION ALL SELECT 'payment',p.id,p.version,p.state FROM payments p WHERE p.state IN ('requested','pending','exception')
-    UNION ALL SELECT 'refund',r.id,r.version,r.state FROM refunds r WHERE r.state NOT IN ('completed','rejected')
-    UNION ALL SELECT 'refund-payment',p.id,0,p.state FROM payouts p WHERE p.state<>'succeeded'
-    UNION ALL SELECT 'room-reversal',r.id,r.version,r.state FROM pos_room_charge_reversal_requests r JOIN sales s ON s.id=r.sale_id AND s.company_id=r.company_id WHERE r.state IN ('requested','pos_approved')
-    UNION ALL SELECT 'callback',e.id,0,'unapplied' FROM callbacks e WHERE e.applied_at IS NULL
-    UNION ALL SELECT 'job',j.id,j.attempts,j.state FROM pos_jobs j,scope WHERE j.company_id=scope.company_id AND j.state<>'completed' AND (
-      j.kind='complete_sale' AND EXISTS(SELECT 1 FROM sales s WHERE s.id=j.record_id)
-      OR j.kind IN ('checkout','check_payment') AND EXISTS(SELECT 1 FROM payments p WHERE p.id=j.record_id)
-      OR j.kind='refund' AND EXISTS(SELECT 1 FROM payouts p WHERE p.id=j.record_id)
-      OR j.kind='event' AND EXISTS(SELECT 1 FROM callbacks e WHERE e.id=j.record_id))
-    ORDER BY kind,id`).bind(input.companyId,input.packageId).all()).results;
+  const facts = await nativePosAddonObligationsStatement(database, input.companyId, input.packageId);
   return { companyId:input.companyId,packageId:input.packageId,moduleId:'pos',observedAt:input.now,
     revision:createHash('sha256').update(JSON.stringify({companyId:input.companyId,packageVersion:input.packageVersion,packageId:input.packageId,facts})).digest('hex'),outstanding:facts.length };
 }
