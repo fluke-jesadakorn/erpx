@@ -384,3 +384,28 @@ it('shares one canonical source-existence probe across the Assets package-settle
   expect(adapter).toContain('export const assetPackageSettlementSources={assets:');
   expect(adapter).toContain('links:"SELECT * FROM operational_asset_finance_links"} as const;');
 });
+it('shares one canonical lineage aggregate projection across the Assets financial source (42->39)',async()=>{
+   const {readFile}=await import('node:fs/promises');
+   const adapter=await readFile(new URL('../../../packages/server-assets/src/adapters/financial-workflow-sources.ts',import.meta.url),'utf8');
+   const count=(text:string,needle:string)=>text.split(needle).length-1;
+   // The canonical helper owns the single JSON aggregate literal; its comment must
+   // not smuggle another "SELECT" token into the retirement KPI.
+   expect(adapter.match(/SELECT/g)).toHaveLength(6);
+   expect(adapter).toContain('const assetPhysicalAggSql = (alias:string,from:string) =>');
+   expect(count(adapter,'(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${from})')).toBe(1);
+   // All four lineage call sites use the helper with their owner-owned FROM fragment.
+   expect(count(adapter,'assetPhysicalAggSql(')).toBe(4);
+   expect(adapter).toContain('assetPhysicalAggSql("a","physical a")');
+   expect(adapter).toContain('assetPhysicalAggSql("e","operational_asset_events e JOIN physical a ON a.id=e.asset_id")');
+   expect(adapter).toContain('assetPhysicalAggSql("l","operational_asset_finance_links l WHERE l.finance_asset_id=?")');
+   expect(adapter).toContain('assetPhysicalAggSql("w","maintenance_work_orders w JOIN physical a ON a.id=w.asset_id")');
+   // No raw aggregate subquery remains at any of the four call sites.
+   expect(count(adapter,'(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM physical a)')).toBe(0);
+   expect(count(adapter,'(SELECT jsonb_agg(to_jsonb(e) ORDER BY e.id)')).toBe(0);
+   expect(count(adapter,'(SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id)')).toBe(0);
+   expect(count(adapter,'(SELECT jsonb_agg(to_jsonb(w) ORDER BY w.id)')).toBe(0);
+   // The byte-identical composed image and its source guards remain intact.
+   expect(adapter).toContain("jsonb_build_object('assets',${assetPhysicalAggSql(\"a\",\"physical a\")},'events',");
+   expect(adapter).toContain('EXISTS(SELECT 1 FROM operational_asset_finance_links l LEFT JOIN physical a ON a.id=l.asset_id WHERE l.finance_asset_id=? AND a.id IS NULL)');
+   expect(adapter).toContain('export function assetsFinancialPhysicalSourceLocks');
+});
