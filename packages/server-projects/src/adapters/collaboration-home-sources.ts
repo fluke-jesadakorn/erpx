@@ -9,10 +9,17 @@ import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-avail
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
 import {ApiError} from '@erpx/server-runtime/public/http';
 
+/** Owner-local fixed SQL for the Projects collaboration-home read family. The
+ * selected-audience and home reads repeat identical membership, actor-scope and
+ * clock fragments; one definition each removes the redundant statement text. */
+const projectMemberScope = '(p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?))';
+const workforceActorScope = 'CROSS JOIN (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope';
+const projectAudienceClock = `WITH project_audience_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms)`;
+
 function audienceScope(actor:StaffActor,enforced:boolean){
     const current=currentAssignmentReadScope(actor,'workforce_actor_scope');
     return {where:`p.company_id=workforce_actor_scope.company_id AND ${current.where}
-      AND (p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?))
+      AND ${projectMemberScope}
       AND ${enforced?`${hasPermission(actor,'records.read')?'TRUE':'FALSE'} AND ${purchasedCapabilityPredicate('p.company_id','projects.wbs','history','project_audience_clock.now_ms')}
       AND ${scheduledFeaturePredicate('p.company_id','projects')} AND iam_role_allows(?::text,p.company_id,'records.read')`:'TRUE'}`,
       args:[actor.companyId,actor.branchId,actor.departmentId,...current.args,actor.userId,actor.userId,...(enforced?[actor.role]:[])]};
@@ -25,9 +32,9 @@ export async function socialProjectAudienceOptions(db:SqlDatabase,actor:StaffAct
     const mode=await projectsPackageEnforcementMode();
     if(mode==='shadow')await readPurchasedAccess(db,mode,{companyId:actor.companyId,capability:'projects.wbs'});
     const scope=audienceScope(actor,mode==='enforced');
-    return (await db.prepare(`WITH project_audience_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms)
+    return (await db.prepare(`${projectAudienceClock}
       SELECT p.id,p.title FROM staff_projects p CROSS JOIN project_audience_clock
-      CROSS JOIN (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope
+      ${workforceActorScope}
       WHERE ${scope.where} ORDER BY p.title,p.id LIMIT 100`)
       .bind(...scope.args)
       .all<{id:string;title:string}>()).results;
@@ -43,10 +50,10 @@ export async function socialProjectAudienceSource(db:SqlDatabase,actor:StaffActo
     }
     await checkPurchasedCapability(db,mode,{companyId:actor.companyId,capability:'projects.wbs',purpose:'history'});
     const scope=audienceScope(actor,true);
-    const row=await db.prepare(`WITH project_audience_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms)
+    const row=await db.prepare(`${projectAudienceClock}
       SELECT jsonb_build_object('project',to_jsonb(p),'members',(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM staff_project_members m WHERE m.project_id=p.id))::text image
       FROM staff_projects p CROSS JOIN project_audience_clock
-      CROSS JOIN (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope
+      ${workforceActorScope}
       WHERE ${scope.where} AND p.id=?`).bind(...scope.args,id).first<{image:string}>();
     if(!row)throw new ApiError(403,'PROJECT_AUDIENCE_FORBIDDEN','The original Project audience is unavailable in the current assignment.');
     return row.image;
@@ -65,13 +72,13 @@ export function socialProjectAudienceReadPredicate(){
 export function collaborationHomeSources(db: SqlDatabase) {
     return { async projects(companyId: string, userId: string, userId2: string) {
             return db.prepare(`SELECT p.id,p.title FROM staff_projects p WHERE p.company_id=?
-      AND (p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?))
+      AND ${projectMemberScope}
       ORDER BY p.title,p.id LIMIT 100`)
                 .bind(companyId, userId, userId2).all<{
                 id: string;
                 title: string;
             }>();
         }, guardProjectAudience(key: string, value: "audience-project", id: string, companyId: string, userId: string, userId2: string) {
-            return assertion(db, key, value, "EXISTS(SELECT 1 FROM staff_projects p WHERE p.id=? AND p.company_id=? AND (p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?)))", [id, companyId, userId, userId2]);
+            return assertion(db, key, value, `EXISTS(SELECT 1 FROM staff_projects p WHERE p.id=? AND p.company_id=? AND ${projectMemberScope})`, [id, companyId, userId, userId2]);
         } };
 }

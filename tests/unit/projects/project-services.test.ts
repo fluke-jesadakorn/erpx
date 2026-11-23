@@ -624,3 +624,17 @@ it('keeps one fixed Projects executive-evidence projection for the search and by
  expect(source.match(/\$\{milestoneEvidenceSelect\}/g)).toHaveLength(2);
  expect(source.match(/\$\{dependencyEvidenceSelect\}/g)).toHaveLength(2);
 });
+it('keeps one owner-local fixed SQL definition for the Projects collaboration-home read family',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const source=await readFile(new URL('../../../packages/server-projects/src/adapters/collaboration-home-sources.ts',import.meta.url),'utf8');
+ const count=(token:string)=>source.split(token).length-1;
+ expect(source).toContain('const projectMemberScope');
+ expect(source).toContain('const workforceActorScope');
+ expect(source).toContain('const projectAudienceClock');
+ expect(count('(p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?))')).toBe(1);
+ expect(count('CROSS JOIN (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope')).toBe(1);
+ expect(count('WITH project_audience_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms)')).toBe(1);
+ expect(count('${projectMemberScope}')).toBe(3);
+ expect(count('${workforceActorScope}')).toBe(2);
+ expect(count('${projectAudienceClock}')).toBe(2);
+});
