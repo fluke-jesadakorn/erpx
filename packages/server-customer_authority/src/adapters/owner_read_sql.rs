@@ -123,6 +123,39 @@ const READ_DUPLICATE_REVIEWS_PENDING: NativeReadStatement = NativeReadStatement 
     bind_count: 1,
 };
 
+/// Native successors of the TypeScript `executive-metric-projections.ts`
+/// identity-change-events breakdown. The owner plans the literal; the caller
+/// binds `[companyId, from, to]` on its own unit and reuses the exact planned
+/// statement for executive source drill-down. The month/default and action
+/// breakdowns are distinct owner-local fixed statements; no TypeScript mirror
+/// remains for either.
+pub const RD_IDENTITY_CHANGE_EVENTS_MONTH: &str = "customer_authority_rd_identity_change_events_month";
+pub const RD_IDENTITY_CHANGE_EVENTS_ACTION: &str = "customer_authority_rd_identity_change_events_action";
+
+const SQL_RD_IDENTITY_CHANGE_EVENTS_MONTH: &str = concat!(
+    "SELECT to_char(to_timestamp(e.created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') label,count(*)::text value ",
+    "FROM customer_identity_change_events e JOIN customer_identity_changes c ON c.id=e.change_id ",
+    "WHERE c.company_id=? AND e.created_at>=? AND e.created_at<? GROUP BY 1 ORDER BY 1",
+);
+
+const SQL_RD_IDENTITY_CHANGE_EVENTS_ACTION: &str = concat!(
+    "SELECT e.action label,count(*)::text value ",
+    "FROM customer_identity_change_events e JOIN customer_identity_changes c ON c.id=e.change_id ",
+    "WHERE c.company_id=? AND e.created_at>=? AND e.created_at<? GROUP BY 1 ORDER BY 1",
+);
+
+const READ_IDENTITY_CHANGE_EVENTS_MONTH: NativeReadStatement = NativeReadStatement {
+    kind: RD_IDENTITY_CHANGE_EVENTS_MONTH,
+    sql: SQL_RD_IDENTITY_CHANGE_EVENTS_MONTH,
+    bind_count: 3,
+};
+
+const READ_IDENTITY_CHANGE_EVENTS_ACTION: NativeReadStatement = NativeReadStatement {
+    kind: RD_IDENTITY_CHANGE_EVENTS_ACTION,
+    sql: SQL_RD_IDENTITY_CHANGE_EVENTS_ACTION,
+    bind_count: 3,
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_SALES_REVIEW_COUNTS,
     READ_IDENTITY_CHANGE_HISTORY,
@@ -131,6 +164,8 @@ const READS: &[NativeReadStatement] = &[
     READ_ACCESS_READS,
     READ_ACCESS_IDENTITIES,
     READ_DUPLICATE_REVIEWS_PENDING,
+    READ_IDENTITY_CHANGE_EVENTS_MONTH,
+    READ_IDENTITY_CHANGE_EVENTS_ACTION,
 ];
 
 /// Resolve an owner read kind. `None` for every unregistered discriminator.
@@ -229,6 +264,26 @@ mod tests {
         assert!(!read.sql.to_uppercase().contains("INSERT INTO"));
         assert!(!read.sql.to_uppercase().contains("DELETE FROM"));
         assert!(!read.sql.to_uppercase().contains("UPDATE "));
+    }
+
+    #[test]
+    fn identity_change_events_breakdowns_are_fixed_selects_with_exact_binds() {
+        for (kind, label) in [
+            (RD_IDENTITY_CHANGE_EVENTS_MONTH, "to_char(to_timestamp(e.created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') label"),
+            (RD_IDENTITY_CHANGE_EVENTS_ACTION, "e.action label"),
+        ] {
+            let read = read_statement(kind).expect("read kind");
+            assert!(is_read(kind));
+            assert_eq!(read.bind_count, 3);
+            assert_eq!(read.sql.matches('?').count(), 3);
+            assert!(read.sql.starts_with(&format!("SELECT {label},count(*)::text value")));
+            assert!(read.sql.contains("FROM customer_identity_change_events e JOIN customer_identity_changes c ON c.id=e.change_id"));
+            assert!(read.sql.contains("WHERE c.company_id=? AND e.created_at>=? AND e.created_at<?"));
+            assert!(read.sql.ends_with("GROUP BY 1 ORDER BY 1"));
+            assert!(!read.sql.to_uppercase().contains("INSERT INTO"));
+            assert!(!read.sql.to_uppercase().contains("DELETE FROM"));
+            assert!(!read.sql.to_uppercase().contains("UPDATE "));
+        }
     }
 
     #[test]

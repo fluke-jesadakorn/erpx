@@ -6,6 +6,8 @@ import {
   CA_RD_ACCESS_READS,
   CA_RD_DUPLICATE_REVIEW_HISTORY,
   CA_RD_DUPLICATE_REVIEWS_PENDING,
+  CA_RD_IDENTITY_CHANGE_EVENTS_ACTION,
+  CA_RD_IDENTITY_CHANGE_EVENTS_MONTH,
   CA_RD_IDENTITY_CHANGE_HISTORY,
   nativeOwnerReadAll,
   nativeOwnerReadStatement,
@@ -181,5 +183,61 @@ describe('executive duplicate-review pending metric owner read', () => {
       actor as never, 'duplicate-reviews-pending', filters as never, 'default',
     )).rejects.toMatchObject({ code: 'CUSTOMER_AUTHORITY_NATIVE_READ_UNAVAILABLE', status: 503 });
     vi.unstubAllGlobals();
+  });
+});
+
+describe('executive identity-change-events metric owner read', () => {
+  const actor = { companyId: 'company', holdingSlug: 'acme' };
+  const filters = { from: '2026-01-01', to: '2026-01-31', currency: 'USD' };
+  const from = Date.parse(filters.from), to = Date.parse(filters.to) + 86400000;
+  const monthSql = "SELECT to_char(to_timestamp(e.created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') label,count(*)::text value FROM customer_identity_change_events e JOIN customer_identity_changes c ON c.id=e.change_id WHERE c.company_id=? AND e.created_at>=? AND e.created_at<? GROUP BY 1 ORDER BY 1";
+  const actionSql = "SELECT e.action label,count(*)::text value FROM customer_identity_change_events e JOIN customer_identity_changes c ON c.id=e.change_id WHERE c.company_id=? AND e.created_at>=? AND e.created_at<? GROUP BY 1 ORDER BY 1";
+
+  it('carries the exact identity-change-events breakdown discriminators', () => {
+    expect(CA_RD_IDENTITY_CHANGE_EVENTS_MONTH).toBe('customer_authority_rd_identity_change_events_month');
+    expect(CA_RD_IDENTITY_CHANGE_EVENTS_ACTION).toBe('customer_authority_rd_identity_change_events_action');
+  });
+
+  it.each([
+    ['default', CA_RD_IDENTITY_CHANGE_EVENTS_MONTH, monthSql],
+    ['month', CA_RD_IDENTITY_CHANGE_EVENTS_MONTH, monthSql],
+    ['status', CA_RD_IDENTITY_CHANGE_EVENTS_ACTION, actionSql],
+  ] as const)('plans the native %s breakdown and executes its exact statement', async (breakdown, kind, nativeSql) => {
+    process.env[key] = config();
+    const fetchMock = vi.fn(async () => new Response(
+      JSON.stringify({ data: { statements: [{ sql: nativeSql, values: [actor.companyId, from, to] }] } }),
+      { status: 200, headers: { 'content-type': 'application/json' } },
+    ));
+    vi.stubGlobal('fetch', fetchMock);
+    const seen: { sql: string; values: unknown[] }[] = [];
+    const db = {
+      prepare: (statement: string) => ({
+        bind: (...values: unknown[]) => {
+          seen.push({ sql: statement, values });
+          return { all: async () => ({ results: [{ label: 'x', value: '3' }] }) };
+        },
+      }),
+    };
+    const result = await readExecutiveMetricProjection(
+      db as never, actor as never, 'identity-change-events', filters as never, breakdown,
+    );
+    expect(result.raw).toEqual([{ label: 'x', value: '3' }]);
+    expect(seen).toEqual([{ sql: nativeSql, values: [actor.companyId, from, to] }]);
+    const body = JSON.parse(((fetchMock.mock.calls[0] as unknown as [URL, RequestInit])[1] as RequestInit).body as string);
+    expect(body.kind).toBe(kind);
+    expect(body.values).toEqual([actor.companyId, from, to]);
+    vi.unstubAllGlobals();
+    delete process.env[key];
+  });
+
+  it('fails closed when the native owner read service is unconfigured', async () => {
+    delete process.env[key];
+    vi.stubGlobal('fetch', vi.fn(async () => { throw new Error('must not fetch'); }));
+    await expect(readExecutiveMetricProjection(
+      { prepare: () => { throw new Error('must not prepare'); } } as never,
+      actor as never, 'identity-change-events', filters as never, 'default',
+    )).rejects.toMatchObject({ code: 'CUSTOMER_AUTHORITY_NATIVE_READ_UNAVAILABLE', status: 503 });
+    vi.unstubAllGlobals();
+    delete process.env[key];
   });
 });

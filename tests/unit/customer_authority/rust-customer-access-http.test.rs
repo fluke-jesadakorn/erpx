@@ -403,6 +403,56 @@ async fn command_plan_route_returns_pending_duplicate_reviews_metric_statement()
 }
 
 #[tokio::test]
+async fn command_plan_route_returns_identity_change_events_breakdown_statements() {
+    let router = customer_access_http_router(vec![CustomerAccessHttpTarget {
+        host: "acme.example.test".into(),
+        holding_slug: "acme".into(),
+        origin: "https://acme.example.test".into(),
+        backend: Arc::new(Noop),
+    }])
+    .unwrap();
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
+    let addr = listener.local_addr().unwrap();
+    let server = tokio::spawn(async move {
+        let _ = serve(listener, router).await;
+    });
+
+    for (kind, label) in [
+        (
+            "customer_authority_rd_identity_change_events_month",
+            "to_char(to_timestamp(e.created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') label",
+        ),
+        (
+            "customer_authority_rd_identity_change_events_action",
+            "e.action label",
+        ),
+    ] {
+        let body = format!(
+            "{{\"kind\":\"{kind}\",\"values\":[\"company-id\",1767225600000,1769904000000]}}"
+        );
+        let (status, body, _) = http(
+            addr,
+            post(
+                "/api/v1/holdings/acme/customer-access/command-plan",
+                "acme.example.test",
+                Some("ca-identity-events-plan-1"),
+                &body,
+            ),
+        )
+        .await;
+        assert_eq!(status, 200);
+        let statement = &body["data"]["statements"][0];
+        let sql = statement["sql"].as_str().expect("planned sql");
+        assert!(sql.starts_with(&format!("SELECT {label},count(*)::text value")));
+        assert!(sql.contains("FROM customer_identity_change_events e JOIN customer_identity_changes c ON c.id=e.change_id"));
+        assert!(sql.ends_with("GROUP BY 1 ORDER BY 1"));
+        assert_eq!(statement["values"].as_array().unwrap().len(), 3);
+    }
+
+    server.abort();
+}
+
+#[tokio::test]
 async fn actual_router_forwards_access_reads_and_commands() {
     let seen = Arc::new(Mutex::new(Vec::new()));
     let router = customer_access_http_router(vec![
