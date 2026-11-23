@@ -1,15 +1,16 @@
 import "server-only";
-import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import {randomUUID} from "node:crypto";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/public/command-guards';
+import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
+import {isNativeWorkflowWrite} from "@erpx/server-workflow/public/native-workflow-evidence";
 import {manufacturingPackageEnforcementMode,readPurchasedAccesses,checkPurchasedCapability,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from "@erpx/server-commercial/public/purchase-command-boundary";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
 import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-transactions";
-import {isTransactionalSqlDatabase,type SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
+import {isTransactionalSqlDatabase,type SqlDatabase,type SqlResult,type SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {planningPurchaseScenarioRows,planningPurchaseRecommendationRows,planningPurchaseResourceRows,planningPurchaseSourceReadLocks} from "@erpx/server-planning/public/purchase-sources";
@@ -17,8 +18,29 @@ import {manufacturingWarehouseSources,manufacturingProductSources,manufacturingC
 export type ManufacturingPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 /** Transient guard rows are keyed by the command that staged them. Every
  * purchase/attachment/posting boundary cleans them in the same before/after
- * batch, so the statement lives in one place instead of being copied. */
-export function clearCommandAssertions(database:SqlDatabase,key:string,companyId:string){return nativeClearCommandAssertions(database,companyId,key);}
+ * batch, so the statement lives in one place instead of being copied. The
+ * cleanup is a local owner statement on the caller transaction, never an HTTP
+ * plan round-trip inside the atomic unit. */
+export function clearCommandAssertions(database:SqlDatabase,key:string):SqlStatement{return clearWorkflowCommandAssertions(database,key);}
+/** Execute one owner-unit effect list in order on the caller transaction.
+ * Native assertion markers resolve through the typed Rust plan on this same
+ * connection (never HTTP as an atomic-guard substitute), runnable owner
+ * effects run in place, and only real statements share one batch. The fixed
+ * lock order never reverses: receipt replay/lock, doc row lock, stock/lot,
+ * quality hold, finance journal, outbox. */
+export async function runOwnerUnitEffects(database:SqlDatabase,companyId:string,key:string,effects:readonly SqlStatement[]):Promise<SqlResult[]>{
+ const observed:SqlResult[]=[];
+ let pending:SqlStatement[]=[];
+ const flush=async()=>{if(!pending.length)return;const batch=pending;pending=[];observed.push(...await database.batch(batch));};
+ for(const effect of effects){
+ if(isNativeWorkflowWrite(effect)){await flush();await effect.withContext({db:database,companyId,key,now:Date.now()}).run();continue;}
+ const candidate=effect as SqlStatement&{sql?:unknown};
+ if(typeof candidate.run==="function"&&typeof candidate.sql!=="string"){await flush();observed.push(await candidate.run());continue;}
+ pending.push(effect);
+ }
+ await flush();
+ return observed;
+}
 export type ManufacturingPurchaseTarget={kind:"specification"|"scenario"|"recommendation"|"order"|"resource"|"accounting";id:string};
 export const manufacturingPurchaseSpecificationRows=`SELECT s.id,s.company_id,NULL::text branch_id,false advanced,
  jsonb_build_object('specification',to_jsonb(s)-'status'-'version'-'updated_at'-'reviewed_by','lines',COALESCE((SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM manufacturing_specification_lines line WHERE line.specification_id=s.id),'[]'::jsonb),'products',COALESCE((SELECT jsonb_agg(to_jsonb(product) ORDER BY product.id) FROM (${manufacturingProductSources}) product WHERE product.company_id=s.company_id AND (product.id=s.output_product_id OR product.id IN(SELECT product_id FROM manufacturing_specification_lines WHERE specification_id=s.id))),'[]'::jsonb),'operations',COALESCE((SELECT jsonb_agg(to_jsonb(operation) ORDER BY operation.id) FROM manufacturing_specification_operations operation WHERE operation.specification_id=s.id),'[]'::jsonb)) witness
@@ -31,7 +53,18 @@ export const manufacturingPurchaseOrderRows=`SELECT o.id,o.company_id,o.branch_i
 const profileRows=`SELECT id,company_id,NULL::text branch_id,false advanced,to_jsonb(profile)-'status'-'version'-'updated_at'-'reviewed_by' witness FROM manufacturing_accounting_profiles profile`;
 function planningRows(source:string){return `SELECT planning.*,jsonb_build_object('planning',planning.witness,'specification',specification.witness,'warehouse',jsonb_build_array(warehouse.id,warehouse.company_id,warehouse.branch_id)) source_witness FROM (${source}) planning JOIN (${manufacturingPurchaseSpecificationRows}) specification ON specification.id=planning.specification_id AND specification.company_id=planning.company_id JOIN (${manufacturingWarehouseSources}) warehouse ON warehouse.id=planning.warehouse_id AND warehouse.company_id=planning.company_id AND warehouse.branch_id=planning.branch_id`;}
 function rows(kind:ManufacturingPurchaseTarget["kind"]){switch(kind){case "specification":return manufacturingPurchaseSpecificationRows;case "scenario":return planningRows(planningPurchaseScenarioRows);case "recommendation":return planningRows(planningPurchaseRecommendationRows);case "order":return manufacturingPurchaseOrderRows;case "resource":return planningPurchaseResourceRows;case "accounting":return profileRows;}}
-export function manufacturingPurchaseSourceReadLocks(database:SqlDatabase,writer=false){return [...planningPurchaseSourceReadLocks(database,writer),...manufacturingCommerceSourceReadLocks(database),database.prepare(`LOCK TABLE manufacturing_specifications,manufacturing_specification_lines,manufacturing_specification_operations,manufacturing_orders,manufacturing_order_events,manufacturing_accounting_profiles,manufacturing_order_postings,manufacturing_cost_movements IN ${writer?"SHARE ROW EXCLUSIVE":"SHARE"} MODE`)];}
+/** Owner source snapshot for one Manufacturing purchase check. Writer commands
+ * hold ROW SHARE (never SHARE/SHARE ROW EXCLUSIVE): the same unit flushes
+ * native owner writes (planning recommendation review + manufacturing order
+ * create) on a separate binary connection, and a self-conflicting table lock
+ * would block the native flush behind this transaction until it times out.
+ * Row locks, serializable snapshots and the before/after witness assertions
+ * still serialize concurrent commands. Planning tables are locked here with
+ * ROW SHARE directly (rather than planningPurchaseSourceReadLocks(writer))
+ * because the planning helper only offers SHARE/SHARE ROW EXCLUSIVE, both of
+ * which conflict with the native ROW EXCLUSIVE and would reintroduce the
+ * 10s MANUFACTURING_OWNER_WRITE_UNAVAILABLE timeout. */
+export function manufacturingPurchaseSourceReadLocks(database:SqlDatabase,writer=false){if(!writer)return [...planningPurchaseSourceReadLocks(database,false),...manufacturingCommerceSourceReadLocks(database),database.prepare(`LOCK TABLE manufacturing_specifications,manufacturing_specification_lines,manufacturing_specification_operations,manufacturing_orders,manufacturing_order_events,manufacturing_accounting_profiles,manufacturing_order_postings,manufacturing_cost_movements IN SHARE MODE`)];return [database.prepare(`LOCK TABLE planning_scenarios,planning_recommendations,planning_scenario_events,planning_resource_allocations,production_resources,production_resource_calendar IN ROW SHARE MODE`),...manufacturingCommerceSourceReadLocks(database),database.prepare(`LOCK TABLE manufacturing_specifications,manufacturing_specification_lines,manufacturing_specification_operations,manufacturing_orders,manufacturing_order_events,manufacturing_accounting_profiles,manufacturing_order_postings,manufacturing_cost_movements IN ROW SHARE MODE`)];}
 async function current(database:SqlDatabase,actor:WorkContext,key:string,permission:string,module?:"planning"|"manufacturing"){
  if(module&&!actor.modules.includes(module))throw new ApiError(403,"MANUFACTURING_ACCESS_CHANGED","Choose a current original production assignment.");
  for(const required of new Set([permission,...(module&&permission==="records.review"?["records.write"]:[])])){
@@ -39,7 +72,7 @@ async function current(database:SqlDatabase,actor:WorkContext,key:string,permiss
  const row=await database.prepare(`SELECT ${assignmentReadSql("production_scope",required)} allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) production_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();
  if(!row?.allowed)throw new ApiError(403,"MANUFACTURING_ACCESS_CHANGED","The original production assignment is no longer current.");}
  if(module){const selection=await database.prepare("SELECT (jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array(?::text)) allowed FROM assignments WHERE id=?").bind(module,actor.assignmentId).first<{allowed:boolean}>();if(!selection?.allowed)throw new ApiError(403,"MANUFACTURING_ACCESS_CHANGED","The current assignment no longer selects the original production module.");}
- await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await clearCommandAssertions(database,key,actor.companyId)]);
+ await runOwnerUnitEffects(database,actor.companyId,key,[...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearCommandAssertions(database,key)]);
 }
 async function source(database:SqlDatabase,actor:WorkContext,target:ManufacturingPurchaseTarget){const row=await database.prepare(`SELECT id,advanced,${target.kind==="scenario"||target.kind==="recommendation"?"source_witness":"witness"}::text witness FROM (${rows(target.kind)}) actual_production WHERE id=? AND company_id=? AND (branch_id IS NULL OR ?::text IS NULL OR branch_id=?)`).bind(target.id,actor.companyId,actor.branchId,actor.branchId).first<{id:string;advanced:boolean;witness:string}>();if(!row)throw new ApiError(404,"PRODUCTION_SOURCE_NOT_FOUND","The original production source is unavailable in this workspace.");return row;}
 function base(kind:ManufacturingPurchaseTarget["kind"]){return kind==="specification"?["manufacturing.bom"]:kind==="accounting"?["manufacturing.costs","finance.production-costing"]:kind==="order"?["manufacturing.execution"]:["planning.basic"];}
@@ -63,11 +96,11 @@ export async function withManufacturingPurchasedCommand<Result>(owner:SqlDatabas
  const replay=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(command.key,command.operation,command.target.id,actor.userId,actor.companyId).first(),purpose=replay?"history" as const:command.purpose,before=command.existing||replay?await source(database,actor,command.target):null;
  const sources=await Promise.all((command.sources??[]).map(async target=>({target,value:await source(database,actor,target)}))),advanced=before?.advanced||sources.some(item=>item.value.advanced)||command.advanced,
  capabilities=[...new Set([...(command.capabilities??base(command.target.kind)),...(advanced?["planning.advanced-mrp"]:[])])],scopes=capabilities.map(capability=>({companyId:actor.companyId,capability,purpose})),boundaries=scopes.map((scope,index)=>({key:`${key}:${index}`,boundary:purchaseCommandBoundary(database,mode,`${key}:${index}`,scope)!}));
- for(const scope of scopes)await checkPurchasedCapability(database,mode,scope);await database.batch(boundaries.flatMap(item=>item.boundary.before));const result=await run(database);await flushFinanceDeferredEffects(database);
+ for(const scope of scopes)await checkPurchasedCapability(database,mode,scope);await runOwnerUnitEffects(database,actor.companyId,key,boundaries.flatMap(item=>item.boundary.before));const result=await run(database);await flushFinanceDeferredEffects(database);
  if(!replay&&purpose==="new-work")await currentPlanningSpecification(database,actor,command.target);
  const after=await source(database,actor,command.target);if(before&&after.witness!==before.witness||advanced&&!after.advanced&&command.target.kind!=="resource"&&command.target.kind!=="accounting")throw new ApiError(409,"PRODUCTION_SOURCE_CHANGED","The original production source changed before commit.");
  for(const item of sources){if((await source(database,actor,item.target)).witness!==item.value.witness)throw new ApiError(409,"PRODUCTION_SOURCE_CHANGED","The captured production source changed before commit.");}
- await current(database,actor,key,command.permission,command.module);const observed=await database.batch([...(await Promise.all(boundaries.map(async item=>[...item.boundary.after, await clearCommandAssertions(database,item.key,actor.companyId)]))).flat()]);boundaries[0]?.boundary.observe?.(observed);return result;
+ await current(database,actor,key,command.permission,command.module);const observed=await runOwnerUnitEffects(database,actor.companyId,key,boundaries.flatMap(item=>[...item.boundary.after,clearCommandAssertions(database,item.key)]));boundaries[0]?.boundary.observe?.(observed);return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }
 
