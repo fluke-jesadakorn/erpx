@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 6421,
+    "revision": 6424,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -113140,7 +113140,7 @@
         "owner": "work_projection",
         "title": "Mount native work-report router in private composition",
         "kind": "integration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -113156,22 +113156,22 @@
           "owner:work_projection",
           "resource:composition"
         ],
-        "claim": {
-          "runId": "run-20261123-f",
-          "agentId": "wH13",
-          "claimedAt": "2026-11-23T17:34:59.726Z",
-          "heartbeatAt": "2026-11-23T17:57:05.360Z",
-          "expiresAt": "2026-11-23T18:27:05.360Z",
-          "generation": 158
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement WorkReportHttpBackend over the Holding authorizer + read_work_report_projection, build targets from config holdings, merge work_report_router, add composition unit test",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Mounted with 3+2 tests; claim released",
+        "handoff": {
+          "runId": "run-20261123-f",
+          "agentId": "wH13",
+          "at": "2026-11-23T17:59:54.278Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Mounted with 3+2 tests; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -113796,7 +113796,7 @@
         "owner": "crm",
         "title": "Replace CRM pipeline directory/entitlement stubs with real native witnesses",
         "kind": "integration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -113814,7 +113814,14 @@
           "owner:crm",
           "resource:composition"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-f",
+          "agentId": "wL01",
+          "claimedAt": "2026-11-23T17:59:54.357Z",
+          "heartbeatAt": "2026-11-23T17:59:54.357Z",
+          "expiresAt": "2026-11-23T18:29:54.357Z",
+          "generation": 158
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -113895,6 +113902,54 @@
         "nextAction": "Add native learningWork read (assignments + eligibility) mirrored from work-items use, switch work-items/records/collab alias consumers, delete 3 SELECTs and aliases; record 96->93",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "integrate.commercial.owner-read",
+        "goalId": "G4",
+        "owner": "commercial",
+        "title": "Commercial owner-read SQL kinds route + billing switches (3 SELECT -> 0)",
+        "kind": "integration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-commercial/src/domain/owner_read.rs",
+          "packages/server-commercial/src/public/owner_read.rs",
+          "packages/server-commercial/src/public/owner_read_http.rs",
+          "packages/server-commercial/src/domain/mod.rs",
+          "packages/server-commercial/src/public/mod.rs",
+          "packages/server-commercial/src/adapters/native-owner-read.ts",
+          "packages/server-commercial/src/adapters/last-audit-owner-projection-sources.ts",
+          "packages/server-commercial/src/public/last-audit-owner-projection-sources.ts",
+          "packages/server-commercial/package.json",
+          "packages/server-commercial/Cargo.toml",
+          "packages/server-billing/src/adapters/billing-target.ts",
+          "packages/server-billing/src/adapters/billing.ts",
+          "packages/server-billing/src/adapters/billing-forecast.ts",
+          "packages/server-billing/src/adapters/billing-target-rollout.ts",
+          "src/composition/src/commercial_owner_read.rs",
+          "src/composition/src/lib.rs",
+          "src/composition/src/private_development_api.rs",
+          "tests/unit/commercial/**",
+          "tests/integration/commercial/**",
+          "tests/catalogue/suite-manifest.json"
+        ],
+        "resources": [
+          "owner:commercial",
+          "owner:billing",
+          "resource:composition"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement SQL-returning owner-read kinds (3 static SELECTs) + private route + TS fail-closed client; switch 12 billing sites preserving FOR UPDATE on caller unit; delete constants; mount in composition",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -113917,7 +113972,7 @@
       }
     },
     "lastCoordinatorGeneration": 158,
-    "updatedAt": "2026-11-23T17:59:02.644Z",
+    "updatedAt": "2026-11-23T18:00:50.070Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
