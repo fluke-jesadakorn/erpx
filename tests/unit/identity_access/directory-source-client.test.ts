@@ -1,5 +1,6 @@
 import {describe,it,expect,vi} from 'vitest';
 import {createDirectorySourceAdminClient,DirectorySourceClientError,type DirectorySourceFetch} from '@erpx/contracts/directory-source-admin-client';
+import {fieldFactsFromSnapshot,setFieldFactsForTest} from '@erpx/server-identity_access/adapters/directory-field-mapping';
 const target={holdingSlug:'acme',connectionId:'source-é'};
 const pins={companyId:'company',revision:7,assignmentId:'source-admin-a',assignmentVersion:3};
 const input={keyId:'reviewed_key',expectedConnectionVersion:1,reason:'  Reviewed exact source  '};
@@ -45,4 +46,24 @@ describe('native Directory source contract client',()=>{
   const fetcher=vi.fn<DirectorySourceFetch>(async()=>response(pending));const client=createDirectorySourceAdminClient(fetcher);const extra={...input,actor:{userId:'different-user',permissions:['iam.review']},database:'untrusted'};await client.preview(target,pins,'source-closed-intent',extra);
   const body=JSON.parse(fetcher.mock.calls[0][1]!.body as string);expect(Object.keys(body).sort()).toEqual(['expectedConnectionVersion','keyId','reason']);expect(body.actor).toBeUndefined();expect(new Headers(fetcher.mock.calls[0][1]!.headers).has('cookie')).toBe(false);
  });
+
+const management={values:[{target:'person',objectId:'person-1',version:4,values:{'custom:team':'finance'}},{target:'group',objectId:'group-1',version:2,values:{}}],attributes:[{id:'attr-1',version:3,label:'Team',canView:true,canEdit:true}]};
+describe('native directory field-mapping read facts',()=>{
+ it('projects values and attributes from the native management snapshot without SQL',async()=>{
+  const facts=fieldFactsFromSnapshot(management),actor={} as never;
+  await expect(facts.values(actor,'person-1')).resolves.toEqual({version:4,definition:{'custom:team':'finance'}});
+  await expect(facts.values(actor,'group-1')).resolves.toBeNull();
+  await expect(facts.attribute(actor,'attr-1')).resolves.toEqual({id:'attr-1',version:3,definition:{label:'Team'}});
+  await expect(facts.attribute(actor,'missing')).resolves.toBeNull();
+ });
+ it('fails closed for malformed or unsafe native snapshots',()=>{
+  for(const bad of [null,{}, {values:{},attributes:[]}, {values:[{target:'person',objectId:'p',version:-1,values:{}}],attributes:[]}, {values:[],attributes:[{id:'a',version:Number.MAX_SAFE_INTEGER+1}]}]){
+   expect(()=>fieldFactsFromSnapshot(bad)).toThrow();
+  }
+ });
+ it('exposes a test seam that replaces the native read without a runtime fetch',async()=>{
+  const facts=fieldFactsFromSnapshot(management);setFieldFactsForTest(facts);
+  try{await expect(facts.values({} as never,'person-1')).resolves.toMatchObject({version:4});}finally{setFieldFactsForTest(undefined);}
+ });
+});
 });
