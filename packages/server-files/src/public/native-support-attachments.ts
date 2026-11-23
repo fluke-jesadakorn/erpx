@@ -4,6 +4,7 @@ import { Readable } from 'node:stream';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { ApiError } from '@erpx/server-runtime/public/http';
+import { nativeFilesRead } from '../adapters/native-files-command';
 
 /**
  * Server-only transport for the native Support evidence attachment intake.
@@ -429,17 +430,24 @@ export function nativeSupportAttachmentFailure(
   return undefined;
 }
 
-/** SQL classification only. It never authorizes the set; the native backend
- * re-reads and authorizes the exact target inside its SERIALIZABLE unit. */
+/** Files-owned route fact: the exact target of a scoped Support attachment
+ * set. Returns `null` for missing/foreign sets so the retained route can
+ * produce its own not-found response. The target query is owned by the native
+ * Files read port (`RD_SUPPORT_ATTACHMENT_TARGET`); this module carries no
+ * SQL. It never authorizes the set; the native backend re-reads and authorizes
+ * the exact target inside its SERIALIZABLE unit. */
 export async function supportAttachmentSetTarget(
   database: SqlDatabase,
   companyId: string,
   setId: string,
 ): Promise<'support_ticket' | null> {
-  const row = await database
-    .prepare('SELECT target_type FROM attachment_sets WHERE id=? AND company_id=?')
-    .bind(setId, companyId)
-    .first<{ target_type: string }>();
+  if (!setId || setId.includes('\u0000')) return null;
+  const row = await nativeFilesRead<{ target_type: string }>(
+    'RD_SUPPORT_ATTACHMENT_TARGET',
+    [setId, companyId],
+    database,
+    companyId,
+  );
   return row?.target_type === 'support_ticket' ? 'support_ticket' : null;
 }
 

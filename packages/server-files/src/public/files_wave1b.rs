@@ -4,6 +4,6 @@ pub use crate::application::files_wave1b::{
     execute, unit_error, validate,
 };
 pub use crate::domain::files_wave1b::{
-    supported, sql, is_read, RD_PROJECT_ATTACHMENT_TARGET,
+    supported, sql, is_read, RD_PROJECT_ATTACHMENT_TARGET, RD_SUPPORT_ATTACHMENT_TARGET,
 };
 pub use crate::adapters::files_wave1b_postgres::{PlannedStatement, PostgresFilesCommandPort, plan};
