@@ -55,3 +55,5 @@ pub(crate) mod reorder_policies;
 pub(crate) mod sales_reservation;
 
 pub(crate) mod portal_commerce_locks;
+
+pub(crate) mod supply_package_obligations;

@@ -36,7 +36,16 @@ export const supplyInventorySettlementSources={
 } as const;
 /** Native Supply documents remain obligations until their original decisions
  * and quantity/value effects agree. Retained positive Stock is not unfinished
- * work. Only proven Sales-return disposal is delegated to the Sales owner. */
+ * work. Only proven Sales-return disposal is delegated to the Sales owner.
+ *
+ * Residual note (retire.reads.inventory): the native caller-unit port
+ * (`erpx-server-inventory::public::supply_package_obligations`, PG-proven)
+ * cannot serve this path yet — the Commercial obligations dispatcher observes
+ * inside the caller's serializable transaction, and an HTTP mount would read
+ * in a separate unit and miss uncommitted effects. This TS implementation
+ * stays authoritative until the dispatcher gains a native in-transaction
+ * inventory-module path; removal then deletes this function with its
+ * count/transfer/transit/landed-cost readers. */
 export async function supplyInventoryPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
  assertSupplyInventoryPackageObligationSources(owner,database,input.companyId);
  if(input.moduleId!=="inventory"||!["supply","supply-quality","supply-advanced"].includes(input.packageId)||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error("SUPPLY_INVENTORY_PACKAGE_OBLIGATION_SCOPE_REQUIRED");

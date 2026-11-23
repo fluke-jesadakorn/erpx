@@ -64,3 +64,5 @@ pub mod reorder_policies;
 pub mod sales_reservation;
 
 pub mod portal_commerce_locks;
+
+pub mod supply_package_obligations;

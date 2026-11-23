@@ -19,3 +19,5 @@ pub(crate) mod landed_costs;
 pub(crate) mod reorder_policies;
 
 pub(crate) mod sales_reservation;
+
+pub(crate) mod supply_package_obligations;
