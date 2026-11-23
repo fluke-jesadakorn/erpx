@@ -56,11 +56,43 @@ const READ_HIRE_HANDOFFS: NativeTalentReadStatement = NativeTalentReadStatement 
     bind_count: 1,
 };
 
+/// Native successor of the TypeScript `nativeTalentExecutiveEvidence` open
+/// requisition row read. The caller binds `[id, company_id, branch_id,
+/// branch_id, department_id, department_id]` on its open unit.
+pub const RD_EXEC_REQUISITION: &str = "talent_rd_exec_requisition";
+const SQL_RD_EXEC_REQUISITION: &str =
+    "SELECT r.id,r.job_title,r.target_start_date,r.status,r.version,r.updated_at,r.branch_id,r.department_id \
+     FROM talent_requisitions r WHERE r.id=? AND r.company_id=? \
+     AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) \
+     AND r.status='open' LIMIT 1";
+const READ_EXEC_REQUISITION: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_EXEC_REQUISITION,
+    sql: SQL_RD_EXEC_REQUISITION,
+    bind_count: 6,
+};
+
+/// Native successor of the TypeScript `nativeTalentExecutiveEvidence`
+/// application row read. The caller binds `[id, company_id, branch_id,
+/// branch_id, department_id, department_id, from, to_exclusive]`.
+pub const RD_EXEC_APPLICATION: &str = "talent_rd_exec_application";
+const SQL_RD_EXEC_APPLICATION: &str =
+    "SELECT a.id,a.requisition_id,a.status,a.version,a.updated_at,r.job_title,r.branch_id,r.department_id \
+     FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id \
+     WHERE a.id=? AND r.company_id=? AND (?::text IS NULL OR r.branch_id=?) \
+     AND (?::text IS NULL OR r.department_id=?) AND a.updated_at>=? AND a.updated_at<? LIMIT 1";
+const READ_EXEC_APPLICATION: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_EXEC_APPLICATION,
+    sql: SQL_RD_EXEC_APPLICATION,
+    bind_count: 8,
+};
+
 const STATEMENTS: &[NativeTalentReadStatement] = &[
     READ_APPLICATION_EVENTS,
     READ_PROPOSALS,
     READ_OFFERS,
     READ_HIRE_HANDOFFS,
+    READ_EXEC_REQUISITION,
+    READ_EXEC_APPLICATION,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -95,7 +127,30 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), 1);
         }
-        assert_eq!(STATEMENTS.len(), 4);
+        assert_eq!(STATEMENTS.len(), 6);
+    }
+
+    #[test]
+    fn executive_evidence_reads_are_owner_authored_select_only() {
+        let expected = [
+            (RD_EXEC_REQUISITION, SQL_RD_EXEC_REQUISITION, 6usize),
+            (RD_EXEC_APPLICATION, SQL_RD_EXEC_APPLICATION, 8usize),
+        ];
+        for (kind, sql, binds) in expected {
+            let statement = read_statement(kind).expect("registered owner read kind");
+            assert_eq!(statement.kind, kind);
+            assert_eq!(statement.sql, sql);
+            assert_eq!(statement.bind_count, binds);
+            assert!(sql.starts_with("SELECT "), "owner read must be SELECT-only: {sql}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+                assert!(!sql.contains(forbidden), "owner read must not mutate: {forbidden}");
+            }
+            assert!(
+                sql.contains("talent_"),
+                "owner read must stay on owner-local Talent tables: {sql}"
+            );
+            assert_eq!(sql.matches('?').count(), binds);
+        }
     }
 
     #[test]
