@@ -22,6 +22,8 @@ pub(crate) mod file_source;
 
 pub(crate) mod source_record;
 
+pub(crate) mod final_root_projection;
+
 pub(crate) mod service_parts_posting;
 
 pub(crate) mod reservation_alerts;

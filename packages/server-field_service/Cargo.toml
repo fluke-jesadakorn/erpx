@@ -31,6 +31,10 @@ path="../../tests/unit/field_service/rust-parts-policy.test.rs"
 name="executive_policy"
 path="../../tests/unit/field_service/rust-executive-policy.test.rs"
 
+[[test]]
+name="final_root_projection"
+path="../../tests/unit/field_service/rust-final-root-projection.test.rs"
+
 [dev-dependencies]
 tokio.workspace=true
 uuid.workspace=true
