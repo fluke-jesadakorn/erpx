@@ -125,6 +125,19 @@ const READ_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS: NativeReadStatement = Na
     bind_count: 0,
 };
 
+/// Native successor of the three identical TypeScript
+/// `expense-payment-cancellation`, `expense-command-policy` and
+/// `document-page-payment-source` expense-id reads. The owner plans this
+/// literal once; the caller executes it on its open unit with the same
+/// `[id, company_id]` binds. Deduped into one owner read kind.
+pub const RD_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID: &str = "people_payroll_rd_expense_payment_draft_expense_id";
+const SQL_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID: &str = "SELECT expense_id FROM expense_payment_drafts WHERE id=? AND company_id=?";
+const READ_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID: NativeReadStatement = NativeReadStatement {
+    kind: RD_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID,
+    sql: SQL_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID,
+    bind_count: 2,
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_RECORD_SUPPLEMENT_ROWS,
     READ_ORG_ROSTER_EXIT_ENGAGEMENT_IDS,
@@ -136,6 +149,7 @@ const READS: &[NativeReadStatement] = &[
     READ_WORK_UI_HEAD_PLACEMENT,
     READ_ATTACHMENT_MIGRATION_PAYMENT_EXPORTS,
     READ_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS,
+    READ_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -243,6 +257,19 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 3);
         assert!(read.sql.contains("hr_engagements"));
         assert!(is_read(RD_WORK_UI_HEAD_PLACEMENT));
+    }
+
+    #[test]
+    fn expense_payment_draft_expense_id_read_plan_is_ledger_free_and_bounded() {
+        let read = read_statement(RD_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID).expect("read kind");
+        assert!(read.sql.to_ascii_uppercase().starts_with("SELECT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("INSERT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("UPDATE"));
+        assert!(!read.sql.to_ascii_uppercase().contains("DELETE"));
+        assert_eq!(read.bind_count, 2);
+        assert_eq!(read.sql.matches('?').count(), 2);
+        assert!(read.sql.contains("expense_payment_drafts"));
+        assert!(is_read(RD_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID));
     }
 
     #[test]

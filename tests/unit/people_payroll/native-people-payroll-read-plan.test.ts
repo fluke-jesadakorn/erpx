@@ -12,7 +12,10 @@ import {
   PEOPLE_PAYROLL_RD_WORK_UI_HEAD_PLACEMENT,
   PEOPLE_PAYROLL_RD_ATTACHMENT_MIGRATION_PAYMENT_EXPORTS,
   PEOPLE_PAYROLL_RD_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS,
+  PEOPLE_PAYROLL_RD_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID,
 } from '../../../packages/server-people_payroll/src/adapters/native-people-payroll-read';
+import { expensePaymentDraftExpenseId, documentPageExpensePaymentSource } from '../../../packages/server-people_payroll/src/adapters/document-page-payment-source';
+import { expensePaymentCommandFlowTarget } from '../../../packages/server-people_payroll/src/adapters/expense-command-policy';
 import { attachmentMigrationpeoplepayroll } from '../../../packages/server-people_payroll/src/adapters/attachment-migration-facts';
 import { createFlowRoutingSourceRepository } from '../../../packages/server-people_payroll/src/adapters/workflow-flow-routing-facts';
 import { RecordDetailsPeoplePayrollOwnedFacts } from '../../../packages/server-people_payroll/src/adapters/records-record-details-owned-facts';
@@ -327,6 +330,53 @@ describe('native People Payroll caller-unit read plan', () => {
     ]);
     expect(bound).toEqual([[], []]);
     expect(prepared).toEqual(['SELECT 1 AS row', 'SELECT 1 AS row']);
+  });
+
+  it('exposes the deduped expense-payment-draft expense-id read kind with no SQL on the wire', () => {
+    expect(PEOPLE_PAYROLL_RD_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID).toBe('people_payroll_rd_expense_payment_draft_expense_id');
+    expect(PEOPLE_PAYROLL_RD_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+  });
+
+  it('plans the deduped expense-payment-draft expense-id reads on the caller unit with their binds', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push({ kind: body.kind, values: body.values });
+      return new Response(JSON.stringify({
+        data: { statements: [{ sql: 'SELECT 1 AS expense_id', values: body.values }] },
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+    const prepared: string[] = [];
+    const bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) {
+        prepared.push(sql);
+        return {
+          bind(...values: unknown[]) { bound.push(values); return this; },
+          async all() { return { results: [], success: true, meta: { changes: 0, duration: 0 } }; },
+          async first() { return null; },
+        };
+      },
+      async batch() { return [{ results: [{ expense_id: 'exp-1' }], success: true, meta: { changes: 0, duration: 0 } }]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+
+    const canonical = await expensePaymentDraftExpenseId(db as never, 'draft-1', 'company');
+    const page = await documentPageExpensePaymentSource(db as never, 'draft-2', 'company');
+    const commandTarget = await expensePaymentCommandFlowTarget(
+      db as never, { companyId: 'company' } as never, 'expense.payment.release', 'draft-3',
+    );
+    expect(canonical).toEqual({ expense_id: 'exp-1' });
+    expect(page).toEqual({ expense_id: 'exp-1' });
+    expect(commandTarget).toEqual({ kind: 'expense', id: 'exp-1', action: 'payment' });
+
+    expect(bodies).toEqual([
+      { kind: PEOPLE_PAYROLL_RD_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID, values: ['draft-1', 'company'] },
+      { kind: PEOPLE_PAYROLL_RD_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID, values: ['draft-2', 'company'] },
+      { kind: PEOPLE_PAYROLL_RD_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID, values: ['draft-3', 'company'] },
+    ]);
+    expect(bound).toEqual([['draft-1', 'company'], ['draft-2', 'company'], ['draft-3', 'company']]);
+    expect(prepared).toEqual(['SELECT 1 AS expense_id', 'SELECT 1 AS expense_id', 'SELECT 1 AS expense_id']);
   });
 
   it('fails closed when configuration is missing or the plan is malformed', async () => {

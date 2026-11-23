@@ -15,12 +15,13 @@ import {expensePaymentCancellations,expensePaymentTreasurySql} from '@erpx/serve
 import {expensePayers} from '@erpx/server-people_payroll/adapters/expense-workflow-read';
 import {expenseAuthoritySnapshot} from '@erpx/server-people_payroll/adapters/expense-routing';
 import {withExpensePurchasedCommand,expenseFinalRead} from '@erpx/server-people_payroll/adapters/expense-purchases';
+import {expensePaymentDraftExpenseId} from '@erpx/server-people_payroll/adapters/document-page-payment-source';
 export {expensePaymentCancellationSchema} from '@erpx/server-people_payroll/domain/expense-payment-cancellation';
 export type {ExpensePaymentCancellationInput,ExpensePaymentCancellationResult} from '@erpx/server-people_payroll/domain/expense-payment-cancellation';
 
 function nativeCancellation(database:SqlDatabase){
  const payment=async(actor:WorkContext,id:string)=>{
-   const draft=await database.prepare('SELECT expense_id FROM expense_payment_drafts WHERE id=? AND company_id=?').bind(id,actor.companyId).first<{expense_id:string}>();
+   const draft=await expensePaymentDraftExpenseId(database,id,actor.companyId);
    if(!draft)throw new ApiError(404,'PAYMENT_DRAFT_NOT_FOUND','Payment preparation not found in this Company.');
    // Canonical parent -> child row order, before the native command receipt.
    await database.prepare('SELECT id FROM finance_expenses WHERE id=? AND company_id=? FOR UPDATE').bind(draft.expense_id,actor.companyId).first();
