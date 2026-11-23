@@ -7,13 +7,17 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
+/** Owner-local fixed SQL for the Asset branch display label. Both the active-assets
+ * and asset-retirements projections share this one literal so the TS read tail
+ * carries no duplicate statement. */
+export const assetBranchDisplayNameLabel = `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=a.branch_id AND n.company_id=a.company_id),'Company-wide')`;
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const spec = specs[id], scopedAlias = (alias: string) => `${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?)`, scopeArgs = [a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId];
     const source=await assetMetricSource(sourceDb,a,id);
     let sql = '', values: unknown[] = [];
     const referenceAtOverride: number | null = null;
     if (id === "active-assets" || id === "asset-condition-location") {
-        const label = breakdown === "branch" ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=a.branch_id AND n.company_id=a.company_id),'Company-wide')`
+        const label = breakdown === "branch" ? assetBranchDisplayNameLabel
             : breakdown === "department" ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=a.department_id AND n.company_id=a.company_id),'Unassigned')`
                 : "a.condition";
         sql = `SELECT ${label} label,count(*)::text value FROM (${source.sql}) a WHERE ${scopedAlias("a")} AND a.lifecycle_status='in_service' GROUP BY 1 ORDER BY 1`;
@@ -21,7 +25,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     }
     if (id === "asset-retirements") {
         const label = breakdown === "branch"
-            ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=a.branch_id AND n.company_id=a.company_id),'Company-wide')`
+            ? assetBranchDisplayNameLabel
             : breakdown === "month" || breakdown === "default"
                 ? "to_char(to_timestamp(e.created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')"
                 : "'Retired assets'";
