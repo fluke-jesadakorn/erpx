@@ -16,14 +16,20 @@ export async function legalPortalPurchasePredicate(alias='i',strictHistory=false
  if(!strictHistory&&await legalPackageEnforcementMode()!=='enforced')return 'TRUE';
  const clock='legal_portal_purchase_clock.now_ms';return `EXISTS(WITH legal_portal_purchase_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms) SELECT 1 FROM legal_portal_purchase_clock WHERE ${legalItemPurchasePredicate(alias,'history',clock)} AND ${purchasedCapabilityPredicate(`${alias}.company_id`,'legal.documents','history',clock)} AND ${purchasedCapabilityPredicate(`${alias}.company_id`,'legal.access','history',clock)} AND ${scheduledFeaturePredicate(`${alias}.company_id`,'legal')})`;
 }
-export async function legalPortalSnapshotSourceImage(database:SqlDatabase,actor:PortalActor,id?:string){
- const row=await database.prepare(`SELECT COALESCE(jsonb_agg(jsonb_build_object(
- 'share',to_jsonb(s),'item',to_jsonb(i),'document',to_jsonb(d),
- 'settings',(SELECT to_jsonb(settings) FROM legal_settings settings WHERE settings.company_id=i.company_id),
+/** One verified Legal portal source image. The snapshot read and the original
+ * read interpolate the same fixed projection; keep its authorization-bearing
+ * subqueries in one place so the two holders cannot drift apart. */
+export function legalPortalSourceImageFields(){
+ return `'settings',(SELECT to_jsonb(settings) FROM legal_settings settings WHERE settings.company_id=i.company_id),
  'destructions',(SELECT jsonb_agg(to_jsonb(destruction) ORDER BY destruction.id) FROM legal_destructions destruction WHERE destruction.item_id=i.id),
  'comments',(SELECT jsonb_agg(to_jsonb(comment) ORDER BY comment.id) FROM legal_comments comment WHERE comment.item_id=i.id AND comment.document_id=d.id AND comment.visibility='external'),
  'envelopes',(SELECT jsonb_agg(jsonb_build_object('envelope',to_jsonb(envelope),'signer',to_jsonb(signer)) ORDER BY envelope.id) FROM legal_envelopes envelope JOIN legal_signers signer ON signer.envelope_id=envelope.id WHERE envelope.item_id=i.id AND envelope.document_id=d.id AND signer.user_id=?),
- 'billing',(SELECT jsonb_agg(to_jsonb(entry) ORDER BY entry.id) FROM legal_counsel_entries entry WHERE entry.item_id=i.id AND entry.created_by=?)
+ 'billing',(SELECT jsonb_agg(to_jsonb(entry) ORDER BY entry.id) FROM legal_counsel_entries entry WHERE entry.item_id=i.id AND entry.created_by=?)`;
+}
+export async function legalPortalSnapshotSourceImage(database:SqlDatabase,actor:PortalActor,id?:string){
+ const row=await database.prepare(`SELECT COALESCE(jsonb_agg(jsonb_build_object(
+ 'share',to_jsonb(s),'item',to_jsonb(i),'document',to_jsonb(d),
+ ${legalPortalSourceImageFields()}
  ) ORDER BY s.id),'[]'::jsonb)::text image
  FROM legal_shares s JOIN legal_items i ON i.id=s.item_id JOIN legal_documents d ON d.id=s.document_id AND d.item_id=i.id
  WHERE lower(s.email)=? AND (s.user_id IS NULL OR s.user_id=?) AND (?::text IS NULL OR s.id=?) AND s.revoked_at IS NULL

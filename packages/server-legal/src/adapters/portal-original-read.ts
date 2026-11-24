@@ -6,16 +6,12 @@ import {attachmentPrivateReadSourceLocks,attachmentReadSource} from '@erpx/serve
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import type {PortalActor} from '@erpx/server-legal/domain/portal';
-import {legalPortalPurchasePredicate} from '@erpx/server-legal/adapters/portal-purchases';
+import {legalPortalPurchasePredicate,legalPortalSourceImageFields} from '@erpx/server-legal/adapters/portal-purchases';
 
 async function originalImage(database:SqlDatabase,actor:PortalActor,id:string){
  const row=await database.prepare(`SELECT i.company_id,d.attachment_link_id,
  jsonb_build_object('share',to_jsonb(s),'item',to_jsonb(i),'document',to_jsonb(d),
- 'settings',(SELECT to_jsonb(settings) FROM legal_settings settings WHERE settings.company_id=i.company_id),
- 'destructions',(SELECT jsonb_agg(to_jsonb(destruction) ORDER BY destruction.id) FROM legal_destructions destruction WHERE destruction.item_id=i.id),
- 'comments',(SELECT jsonb_agg(to_jsonb(comment) ORDER BY comment.id) FROM legal_comments comment WHERE comment.item_id=i.id AND comment.document_id=d.id AND comment.visibility='external'),
- 'envelopes',(SELECT jsonb_agg(jsonb_build_object('envelope',to_jsonb(envelope),'signer',to_jsonb(signer)) ORDER BY envelope.id) FROM legal_envelopes envelope JOIN legal_signers signer ON signer.envelope_id=envelope.id WHERE envelope.item_id=i.id AND envelope.document_id=d.id AND signer.user_id=?),
- 'billing',(SELECT jsonb_agg(to_jsonb(entry) ORDER BY entry.id) FROM legal_counsel_entries entry WHERE entry.item_id=i.id AND entry.created_by=?))::text image
+ ${legalPortalSourceImageFields()})::text image
  FROM legal_shares s JOIN legal_items i ON i.id=s.item_id JOIN legal_documents d ON d.id=s.document_id AND d.item_id=i.id
  WHERE s.id=? AND lower(s.email)=? AND (s.user_id IS NULL OR s.user_id=?) AND s.revoked_at IS NULL
  AND s.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND ${await legalPortalPurchasePredicate()}`)
