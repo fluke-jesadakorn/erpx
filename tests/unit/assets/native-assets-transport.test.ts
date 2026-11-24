@@ -292,7 +292,8 @@ it('shares one canonical permission-probe SQL with the purchase and metric calle
  const count=(text:string,needle:string)=>text.split(needle).length-1;
  const probe="allowed FROM ${assetScopeTupleSql(alias)}";
  expect(helper).toContain('export const assetPermissionProbeSql = (alias: string, permission: string) =>');
- expect(count(helper,probe)).toBe(1);
+ // r31 delegates the probe head to assetProjectionFromSql; no local SELECT token remains.
+ expect(count(helper,probe)).toBe(0);
  for(const caller of [purchases,metrics]){
   expect(caller).toContain('assetPermissionProbeSql');
   expect(count(caller,probe)).toBe(0);
@@ -464,11 +465,11 @@ it('shares one canonical current-assignment scope probe across the Assets privat
  expect(authority).toContain('assetCurrentScopeProbeSql(assignmentReadSql("asset_file_scope","records.write"),` ${assetScopeTupleSql("asset_file_scope")}`)');
  expect(authority).toContain('${assetScopeTupleSql("asset_file_scope")}');
  expect(read).toContain('assetScopeTupleSql("workforce_actor_scope")');
- // The r3 permission-probe and r12 record-purchase probes stay untouched.
+ // r31 delegates the r3 permission-probe head; r12 record-purchase probe stays untouched.
  const probe=await readFile(new URL('asset-scope-probe.ts',base),'utf8');
  expect(count(probe,tuple)).toBe(0);
- expect(probe).toContain('allowed FROM ${assetScopeTupleSql(alias)}');
- expect(probe).toContain('import {assetScopeTupleSql} from "./asset-scope-tuple"');
+ expect(probe).toContain('assetProjectionFromSql(');
+ expect(probe).toContain('import {assetProjectionFromSql,assetScopeTupleSql} from "./asset-scope-tuple"');
  const purchaseProbe=await readFile(new URL('record-purchases.ts',base),'utf8');
  expect(purchaseProbe).toContain('const assetSourceProbeSql=(from:string,where:string)=>assetProjectionFromSql("1",` ${from}`,` WHERE ${where}`)');
 });
@@ -501,9 +502,9 @@ describe('Assets read-tail r17 byte-identical family dedupe',()=>{
   const tuple='(SELECT ?::text company_id,?::text branch_id,?::text department_id)';
   expect(assetScopeTupleSql('asset_scope')).toBe(`${tuple} asset_scope`);
   const probe=await readFile(new URL('asset-scope-probe.ts',adapters),'utf8');
-  expect(probe.match(/SELECT/g)).toHaveLength(1);
-  expect(probe).toContain('allowed FROM ${assetScopeTupleSql(alias)}');
-  expect(probe).toContain('import {assetScopeTupleSql} from "./asset-scope-tuple"');
+  expect(probe.match(/SELECT/g)??[]).toHaveLength(0);
+  expect(probe).toContain('assetProjectionFromSql(`${assignmentReadSql(alias, permission)} allowed`, ` ${assetScopeTupleSql(alias)}`)');
+  expect(probe).toContain('import {assetProjectionFromSql,assetScopeTupleSql} from "./asset-scope-tuple"');
   expect(probe).not.toContain(tuple+' ${alias}');
  });
  it('keeps every r17 row-existence probe byte-identical to its pre-dedupe literal',async()=>{
@@ -549,7 +550,7 @@ describe('Assets read-tail r17 byte-identical family dedupe',()=>{
   // r24 shares the fixed operational_assets projection;
   // r25 retires the field-service image literal already byte-identical to the native plan;
   // r26 retires the package-obligation fallback (BEFORE=20, strictly lower).
-  expect(selects).toBe(11);
+  expect(selects).toBe(10);
   const financial=readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8');
   expect(financial).toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
   const purchases=readFileSync(resolve(srcRoot,'adapters/purchases.ts'),'utf8');
@@ -599,7 +600,7 @@ describe('Assets read-tail r21 id+company keyed-row family',()=>{
   // r23 shares the all-rows projection; r24 shares the fixed operational_assets projection;
   // r25 retires the field-service image literal byte-identical to PLAN_FS_IMAGE;
   // r26 retires the package-obligation fallback (BEFORE=20, strictly lower).
-  expect(selects).toBe(11);
+  expect(selects).toBe(10);
   // r2-r20 lock/cascade families are untouched.
   expect(readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8'))
    .toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
@@ -794,7 +795,7 @@ describe('Assets read-tail r25 byte-identical field-service image family',()=>{
   return selects;
  };
  it('lowers the owner TS SELECT tail strictly below BEFORE=21',()=>{
-  expect(ownerSelectCount()).toBe(11);
+  expect(ownerSelectCount()).toBe(10);
  });
  it('routes the field-service image unconditionally to the byte-identical native plan',()=>{
   const field=read('adapters/field-service-references.ts');
@@ -826,7 +827,7 @@ describe('Assets read-tail r26 package-obligation native cutover',()=>{
   return selects;
  };
  it('lowers the owner TS SELECT tail strictly below BEFORE=20',()=>{
-  expect(ownerSelectCount()).toBe(11);
+  expect(ownerSelectCount()).toBe(10);
  });
  it('routes package obligations unconditionally to the registered native plans',()=>{
   const pkg=read('adapters/package-obligations.ts');
@@ -891,7 +892,7 @@ describe('Assets read-tail r27 parameterized projection-head family',()=>{
     expect(src('asset-operational-rows-sql.ts')).toContain('assetProjectionFromSql(columns," operational_assets")');
   });
   it('lowers the owner TS SELECT tail strictly below BEFORE=15',()=>{
-    expect(ownerSelectCount()).toBe(11);
+    expect(ownerSelectCount()).toBe(10);
   });
   it('leaves locks, native plans and cross-owner settlement sources untouched',()=>{
     const financial=src('financial-workflow-sources.ts');
@@ -933,7 +934,7 @@ describe('Assets read-tail r28 all-rows/projection-from head family',()=>{
   }
  });
  it('lowers the owner TS SELECT tail strictly below BEFORE=14',()=>{
-  expect(ownerSelectCount()).toBe(11);
+  expect(ownerSelectCount()).toBe(10);
   expect(src('asset-all-rows-sql.ts').match(/SELECT/g)??[]).toHaveLength(0);
   expect(src('asset-scope-tuple.ts').split('SELECT ${projection} FROM${from}${tail}').length-1).toBe(1);
  });
@@ -977,7 +978,7 @@ describe('Assets read-tail r29 keyed-row/projection-from head family',()=>{
    .toBe('SELECT company_id,branch_id AS branch_id,department_id AS department_id,version AS version FROM operational_assets WHERE id=? AND company_id=? AND version>0');
  });
  it('lowers the owner TS SELECT tail strictly below BEFORE=13',()=>{
-  expect(ownerSelectCount()).toBe(11);
+  expect(ownerSelectCount()).toBe(10);
   expect(src('attachments-policy-facts.ts').match(/SELECT/g)??[]).toHaveLength(0);
   expect(src('attachments-policy-facts.ts')).toContain('import {assetProjectionFromSql} from "./asset-scope-tuple"');
   expect(src('attachments-policy-facts.ts')).toContain('assetProjectionFromSql(projection,` ${from}`,` WHERE id=? AND company_id=?${tail}`)');
@@ -988,5 +989,50 @@ describe('Assets read-tail r29 keyed-row/projection-from head family',()=>{
   expect(src('purchases.ts')).toContain('LOCK TABLE operational_assets,operational_asset_finance_links IN SHARE ROW EXCLUSIVE MODE');
   expect(src('package-obligations.ts')).toContain('export const assetPackageSettlementSources={assets:');
   expect(src('native-assets-read.ts')).toContain('ASSETS_RD_OBLIGATIONS_BASE');
+ });
+});
+
+describe('Assets read-tail r31 permission-probe/projection-from head family',()=>{
+ const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+ const src=(file:string)=>readFileSync(new URL(file,base),'utf8');
+ const root=resolve(__dirname,'../../../packages/server-assets/src');
+ const ownerSelectCount=()=>{
+  let selects=0;
+  const walk=(dir:string)=>{
+   for(const entry of readdirSync(dir,{withFileTypes:true})){
+    const path=resolve(dir,entry.name);
+    if(entry.isDirectory())walk(path);
+    else if(entry.name.endsWith('.ts'))selects+=(readFileSync(path,'utf8').match(/SELECT/g)??[]).length;
+   }
+  };
+  walk(root);
+  return selects;
+ };
+ it('renders the permission probe byte-identically from the projection-from head with unchanged binds',async()=>{
+  const {assetPermissionProbeSql}=await import('../../../packages/server-assets/src/adapters/asset-scope-probe');
+  const {assetProjectionFromSql,assetScopeTupleSql}=await import('../../../packages/server-assets/src/adapters/asset-scope-tuple');
+  const {assignmentReadSql}=await import('@erpx/server-identity_access/public/record-source-authority');
+  for(const [alias,permission] of [['assets_scope','records.read'],['asset_metric_scope','records.read']] as const){
+   const before=`SELECT ${assignmentReadSql(alias,permission)} allowed FROM ${assetScopeTupleSql(alias)}`;
+   expect(assetPermissionProbeSql(alias,permission)).toBe(before);
+   expect(assetProjectionFromSql(`${assignmentReadSql(alias,permission)} allowed`,` ${assetScopeTupleSql(alias)}`)).toBe(before);
+  }
+  const sql=assetPermissionProbeSql('assets_scope','records.read');
+  expect(sql).toContain('?::text company_id,?::text branch_id,?::text department_id');
+  expect(sql).toContain('g.id=? AND g.user_id=? AND g.role=? AND g.company_id=assets_scope.company_id');
+  expect(sql).toContain('iam_role_allows(g.role,g.company_id,\'records.read\')');
+ });
+ it('lowers the owner TS SELECT tail from BEFORE=11 to 10 with no local probe token',()=>{
+  expect(ownerSelectCount()).toBe(10);
+  expect(src('asset-scope-probe.ts').match(/SELECT/g)??[]).toHaveLength(0);
+  expect(src('asset-scope-probe.ts')).toContain('assetProjectionFromSql(');
+  expect(src('asset-scope-tuple.ts').split('SELECT ${projection} FROM${from}${tail}').length-1).toBe(1);
+ });
+ it('leaves locks, native plans and cross-owner settlement sources untouched',()=>{
+  expect(src('financial-workflow-sources.ts')).toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
+  expect(src('purchases.ts')).toContain('LOCK TABLE operational_assets,operational_asset_finance_links IN SHARE ROW EXCLUSIVE MODE');
+  expect(src('package-obligations.ts')).toContain('export const assetPackageSettlementSources={assets:');
+  expect(src('native-assets-read.ts')).toContain('ASSETS_RD_OBLIGATIONS_BASE');
+  expect(src('native-assets-read.ts')).toContain('ASSETS_RD_FS_ASSET_ATTACHMENT_IMAGE');
  });
 });
