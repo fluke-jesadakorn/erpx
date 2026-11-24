@@ -89,7 +89,7 @@ describe('Identity access read-tail r30 probe families', () => {
     const helper = read('adapters/read-tail-family-r30.ts');
     expect(helper).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
     expect(hash('adapters/product-sso-store.ts')).toBe('967b754535bb65e0196bf47fa0c0292c65b30276291e137c926d22579a3f3441');
-    expect(hash('adapters/workflow-command-authority.ts')).toBe('812f5e85cb404d8500749f3697469688ecf69eb35154133475763ecdbef286f5');
+    expect(hash('adapters/workflow-command-authority.ts')).toBe('945f3fec7af9c5846ccdca30180ce0bbfe701d77d63dfd74411b08cc02979ce9');
     expect(hash('adapters/payroll-cancellation-grant.ts')).toBe('eae4d8d3f2eacc4839676d3fcf7cd2da7edc3bb5a6a875e71b2787cf9e26e5ee');
     expect(hash('adapters/legacy-module-access.ts')).toBe('b90209698ed4adfbd08ae9de45e5619e2f5a9ebffdf4c92a10a065dc4bc5a01e');
     expect(hash('adapters/iam-transactions.ts')).toBe('70923db932b36cebd425f6aa6c860892cb03ed75bc41fb40ea2193e7884de3b7');
@@ -109,7 +109,7 @@ describe('Identity access read-tail r30 probe families', () => {
 });
 
 describe('Identity access read-tail r30 retirement check', () => {
-  test('retirement:ts-statements is strictly below BEFORE=478 (r32 lowered 475 to 472)', () => {
+  test('retirement:ts-statements is strictly below BEFORE=472 (r33 lowered 472 to 468)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -119,7 +119,7 @@ describe('Identity access read-tail r30 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBeLessThan(478);
-    expect(total).toBe(472);
+    expect(total).toBeLessThan(472);
+    expect(total).toBe(468);
   });
 });

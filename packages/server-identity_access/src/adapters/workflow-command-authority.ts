@@ -1,5 +1,6 @@
 import {identitySnapshotSources as organizationSnapshotSources} from '@erpx/server-organization/public/identity-snapshot-sources';
 import {assignmentActiveProbeSql} from './read-tail-family-r29';
+import {activeWorkContextProbeSql} from './read-tail-family-r33';
 const organizationSources=organizationSnapshotSources();
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import type {CommandActor} from "@erpx/server-workflow/public/commands-contract";
@@ -9,7 +10,7 @@ export function createWorkflowCommandGuards(assertion:WorkflowAssertionPort){
 function workflowWorkContextGuards(db:SqlDatabase,actor:CommandActor,id:string):SqlStatement[]{
  return (actor.authority ? [
        db.prepare('SELECT session_id FROM active_work_contexts WHERE session_id=? AND company_id=? FOR UPDATE').bind(actor.authority.sessionId,actor.companyId),
-       assertion(db,id,'work-context',`EXISTS(SELECT 1 FROM active_work_contexts WHERE session_id=? AND company_id=? AND user_id=? AND assignment_id=? AND revision=? AND assignment_version=? AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint)`,[actor.authority.sessionId,actor.companyId,actor.userId,actor.assignmentId,actor.authority.revision,actor.authority.assignmentVersion]),
+       assertion(db,id,'work-context',`EXISTS(${activeWorkContextProbeSql(" AND assignment_id=? AND revision=? AND assignment_version=? AND expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint")})`,[actor.authority.sessionId,actor.companyId,actor.userId,actor.assignmentId,actor.authority.revision,actor.authority.assignmentVersion]),
        db.prepare('SELECT id FROM assignments WHERE id=? FOR SHARE').bind(actor.assignmentId),
        assertion(db,id,'assignment-version',`EXISTS(SELECT 1 FROM assignments a WHERE a.id=? AND a.version=? AND a.user_id=? AND a.role=? AND a.company_id=?
          AND a.revoked_at IS NULL AND a.valid_from<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND a.valid_until>floor(extract(epoch FROM clock_timestamp())*1000)::bigint

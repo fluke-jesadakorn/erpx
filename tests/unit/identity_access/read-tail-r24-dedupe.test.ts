@@ -29,7 +29,9 @@ describe('Identity access read-tail r24 override authority probe family', () => 
     expect((factsSrc.match(/export const overrideAuthorityProbe/g) ?? []).length).toBe(1);
     expect((factsSrc.match(/\boverrideAuthorityProbe\b/g) ?? []).length).toBe(3); // def + two calls
     const headMarker = `EXISTS(SELECT 1 FROM assignments a WHERE a.id=? AND a.company_id=? AND a.user_id=?`;
-    expect((factsSrc.match(new RegExp(headMarker.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g')) ?? []).length).toBe(1); // only in helper
+    const literal = (s: string) => new RegExp(s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g');
+    expect((factsSrc.match(literal(headMarker)) ?? []).length).toBe(0); // head moved to the r33 helper
+    expect((read('adapters/read-tail-family-r33.ts').match(literal('SELECT 1 FROM assignments a WHERE a.id=? AND a.company_id=? AND a.user_id=? AND ')) ?? []).length).toBe(1);
   });
 
   test('introduces no write or lock and leaves locks/session authority/native kinds/earlier helpers untouched', () => {

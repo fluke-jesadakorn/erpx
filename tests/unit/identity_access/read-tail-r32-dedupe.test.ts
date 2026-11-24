@@ -92,7 +92,7 @@ describe('Identity access read-tail r32 wiring', () => {
 });
 
 describe('Identity access read-tail r32 retirement check', () => {
-  test('retirement:ts-statements is 472 after BEFORE=475', () => {
+  test('retirement:ts-statements is 468 after BEFORE=472', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -102,7 +102,7 @@ describe('Identity access read-tail r32 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBeLessThan(475);
-    expect(total).toBe(472);
+    expect(total).toBeLessThan(472);
+    expect(total).toBe(468);
   });
 });
