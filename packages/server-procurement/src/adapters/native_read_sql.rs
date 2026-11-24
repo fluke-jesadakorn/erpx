@@ -195,6 +195,20 @@ const READ_RECORD_RFQ_EXISTS: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `supplier-bills` `detail` bill-match
+/// events read. The owner plans this literal; the caller executes it on its
+/// open unit with the same `[matchId]` bind. It reads back event rows written
+/// by the mounted command-plan statement `procurement_stmt_1`.
+pub const RD_BILL_MATCH_EVENTS: &str = "procurement_rd_bill_match_events";
+const SQL_BILL_MATCH_EVENTS: &str =
+    "SELECT * FROM procurement_bill_match_events WHERE match_id=? ORDER BY version DESC";
+const READ_BILL_MATCH_EVENTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_BILL_MATCH_EVENTS,
+    sql: SQL_BILL_MATCH_EVENTS,
+    bind_count: 1,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_INVOICE_MATCH_FOR_FINANCE,
     READ_REQUEST_QUOTATION,
@@ -209,6 +223,7 @@ const READS: &[NativeReadStatement] = &[
     READ_INVOICE_POLICY_MATCHING_REQUIRED,
     READ_RECORD_BILL_MATCH_EXISTS,
     READ_RECORD_RFQ_EXISTS,
+    READ_BILL_MATCH_EVENTS,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -240,6 +255,7 @@ mod tests {
         assert!(is_read(RD_INVOICE_POLICY_MATCHING_REQUIRED));
         assert!(is_read(RD_RECORD_BILL_MATCH_EXISTS));
         assert!(is_read(RD_RECORD_RFQ_EXISTS));
+        assert!(is_read(RD_BILL_MATCH_EVENTS));
         assert!(!is_read("procurement_stmt_1"));
         assert!(read_statement("not_a_native_read").is_none());
     }
@@ -304,6 +320,11 @@ mod tests {
                 "procurement_bill_matches",
             ),
             (RD_RECORD_RFQ_EXISTS, 1usize, "procurement_rfqs"),
+            (
+                RD_BILL_MATCH_EVENTS,
+                1usize,
+                "procurement_bill_match_events",
+            ),
         ] {
             let read = read_statement(kind).expect("read kind");
             let upper = read.sql.to_ascii_uppercase();
@@ -462,6 +483,20 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 1);
         assert_eq!(read.scope, "holding");
         assert!(is_read(RD_RECORD_RFQ_EXISTS));
+        assert!(!is_read("procurement_stmt_1"));
+    }
+
+    #[test]
+    fn bill_match_events_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_BILL_MATCH_EVENTS).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT * FROM procurement_bill_match_events WHERE match_id=? ORDER BY version DESC"
+        );
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_BILL_MATCH_EVENTS));
         assert!(!is_read("procurement_stmt_1"));
     }
 }

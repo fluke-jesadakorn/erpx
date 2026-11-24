@@ -15,7 +15,7 @@ import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {stageSupplierBillReceiptVersion,stageSupplierBillReceiptLinks} from "@erpx/server-commerce/public/supplier-bill-receipts";
 import {stageSupplierBillDraftVoid} from "@erpx/server-finance/public/supplier-bill-draft-void";
 import {nativeSupplierBillNotification} from "./native-supplier-bill-notification";
-import {nativeProcurementReadAll,nativeProcurementReadFirst,PROCUREMENT_RD_BILL_MATCH_RECEIPTS,PROCUREMENT_RD_BILL_MATCH_VARIANCE,PROCUREMENT_RD_BILL_MATCH_RECEIPT_HISTORY,PROCUREMENT_RD_INVOICE_POLICY_MATCHING_REQUIRED} from "./native-procurement-read";
+import {nativeProcurementReadAll,nativeProcurementReadFirst,PROCUREMENT_RD_BILL_MATCH_RECEIPTS,PROCUREMENT_RD_BILL_MATCH_VARIANCE,PROCUREMENT_RD_BILL_MATCH_RECEIPT_HISTORY,PROCUREMENT_RD_INVOICE_POLICY_MATCHING_REQUIRED,PROCUREMENT_RD_BILL_MATCH_EVENTS} from "./native-procurement-read";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {samePerson} from "@erpx/feature-identity_access/lib/iam";
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
@@ -109,7 +109,7 @@ function application(actor:WorkContext,provided?:SqlDatabase){
       JOIN (${commercePlatformSources.commerce_orders}) o ON o.id=f.order_id
       WHERE br.match_id=? ORDER BY f.fulfillment_date,f.id
     `).bind(id).all<Row>(),
-    write.prepare("SELECT * FROM procurement_bill_match_events WHERE match_id=? ORDER BY version DESC").bind(id).all<Row>(),
+    nativeProcurementReadAll<Row>(PROCUREMENT_RD_BILL_MATCH_EVENTS,[id],write),
     write.prepare(`SELECT a.id,a.code,a.name FROM (${financePlatformSources.finance_accounts}) a JOIN (${financePlatformSources.finance_charts}) c ON c.id=a.chart_id AND c.company_id=a.company_id WHERE a.company_id=? AND a.chart_id=? AND a.currency=c.base_currency AND a.category='expense' AND a.status='active' ORDER BY a.code`)
       .bind(actor.companyId, bill.chart_id).all<Row>(),
   ]);
