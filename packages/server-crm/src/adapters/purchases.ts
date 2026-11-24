@@ -30,6 +30,7 @@ type Composition={companyId:string;checks:Check[];handoff?:Handoff};
 const compositions=new WeakMap<SqlDatabase,Composition>();
 
 const accountIdentity="jsonb_build_array(account.id,account.company_id,account.kind,account.created_by)",contactIdentity="jsonb_build_array(contact.id,contact.company_id,contact.account_id,contact.created_by)";
+export const actorScopeSql=`(SELECT ?::text company_id,?::text branch_id,?::text department_id)`;
 export const crmPurchaseAccountRows=`SELECT account.id,account.company_id,NULL::text branch_id,NULL::text department_id,account.created_by,${accountIdentity} witness FROM crm_accounts account LEFT JOIN (${crmFinanceCustomerSources}) customer ON customer.id=account.finance_party_id AND customer.company_id=account.company_id AND customer.kind='customer' WHERE account.finance_party_id IS NULL OR customer.id IS NOT NULL`;
 export const crmPurchaseContactRows=`SELECT contact.id,contact.company_id,NULL::text branch_id,NULL::text department_id,account.created_by,${contactIdentity} witness FROM crm_contacts contact JOIN (${crmPurchaseAccountRows}) account ON account.id=contact.account_id AND account.company_id=contact.company_id`;
 export const crmPurchaseLeadRows=`SELECT lead.id,lead.company_id,lead.branch_id,lead.department_id,
@@ -81,7 +82,7 @@ export async function requireCRMCurrentAuthority(database:SqlDatabase,actor:Work
  const scope={company_id:record?.company_id??actor.companyId,branch_id:record?.branch_id??actor.branchId,department_id:record?.department_id??actor.departmentId};
  for(const permission of new Set(permissions)){
   if(!hasPermission(actor,permission))throw new ApiError(403,"CRM_ACCESS_CHANGED","Choose a current authorized sales role.");
-  const row=await database.prepare(`SELECT ${assignmentReadSql("crm_scope",permission)} allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) crm_scope`).bind(actor.assignmentId,actor.userId,actor.role,scope.company_id,scope.branch_id,scope.department_id).first<{allowed:boolean}>();
+  const row=await database.prepare(`SELECT ${assignmentReadSql("crm_scope",permission)} allowed FROM ${actorScopeSql} crm_scope`).bind(actor.assignmentId,actor.userId,actor.role,scope.company_id,scope.branch_id,scope.department_id).first<{allowed:boolean}>();
   if(!row?.allowed)throw new ApiError(403,"CRM_ACCESS_CHANGED","The original sales assignment is no longer current.");
  }
  await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await nativeClearCommandAssertions(database, actor.companyId, key)]);
@@ -96,7 +97,7 @@ export async function requireCRMPurchasedRead(database:SqlDatabase,actor:WorkCon
 export async function crmReferenceHistory(database:SqlDatabase,actor:WorkContext,capability:string){const mode=await commercePackageEnforcementMode();if(mode==='disabled')return true;
  const permission=capability==='pms.reservations'?'pms.read':capability==='sales.marketing'?'records.read':'commerce.read';
  if(!hasPermission(actor,permission)||capability==='sales.marketing'&&!actor.modules.includes('marketing'))return false;
- const current=await database.prepare(`SELECT ${assignmentReadSql('crm_reference',permission)} allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) crm_reference`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();
+ const current=await database.prepare(`SELECT ${assignmentReadSql('crm_reference',permission)} allowed FROM ${actorScopeSql} crm_reference`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();
  return !!current?.allowed&&!!(await readPurchasedAccesses(database,mode,actor.companyId,[capability]))[capability].history;
 }
 /** Minimal references for controls; no grants, assignments or source snapshots

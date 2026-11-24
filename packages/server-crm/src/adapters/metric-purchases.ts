@@ -7,11 +7,11 @@ import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {commercePackageEnforcementMode,readPurchasedAccesses} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {salesFollowupMetricHistoryAccess,salesFollowupMetricSource} from "@erpx/server-sales/public/metric-purchases";
-import {crmPurchaseOpportunityRows} from "@erpx/server-crm/adapters/purchases";
+import {actorScopeSql,crmPurchaseOpportunityRows} from "@erpx/server-crm/adapters/purchases";
 const rows=`SELECT lead.* FROM crm_leads lead JOIN (${crmPurchaseOpportunityRows}) actual ON actual.id=lead.id AND actual.company_id=lead.company_id`;
 export async function crmMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){
  const mode=await commercePackageEnforcementMode(),access=await readPurchasedAccesses(database,mode,actor.companyId,["sales.crm"]),followups=await salesFollowupMetricHistoryAccess(database,actor);if(mode!=="enforced")return {"opportunity-pipeline":true,...followups};
- const current=actor.modules.includes("crm")&&hasPermission(actor,"commerce.read")&&!!await database.prepare(`SELECT ${assignmentReadSql("crm_metric_scope","commerce.read")} AND EXISTS(SELECT 1 FROM assignments WHERE id=? AND (jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array('crm'::text))) allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) crm_metric_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.companyId,actor.branchId,actor.departmentId).first<boolean>("allowed");
+ const current=actor.modules.includes("crm")&&hasPermission(actor,"commerce.read")&&!!await database.prepare(`SELECT ${assignmentReadSql("crm_metric_scope","commerce.read")} AND EXISTS(SELECT 1 FROM assignments WHERE id=? AND (jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array('crm'::text))) allowed FROM ${actorScopeSql} crm_metric_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.companyId,actor.branchId,actor.departmentId).first<boolean>("allowed");
  return {"opportunity-pipeline":current&&access["sales.crm"].history,...followups};
 }
 export async function crmMetricSource(database:SqlDatabase,actor:WorkContext,id:string){
