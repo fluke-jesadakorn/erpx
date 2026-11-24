@@ -7,3 +7,9 @@ import "server-only";
  * statement is accepted or changed. */
 export const projectionLookup = (select: string, source: string, alias: string, where: string): string =>
   `(SELECT ${select} FROM (${source}) ${alias} WHERE ${where})`;
+/** Canonical owner-local EXISTS witness head shared by the attachment owner
+ * version guard, the IAM scope guard and the package-settlement upstream-source
+ * witness. Callers pass only owner-fixed source/alias and predicate fragments;
+ * each composed guard stays byte-identical to its pre-dedupe literal. No LOCK
+ * statement is accepted or changed. */
+export const existsGuardPrefix = (source: string): string => `EXISTS(SELECT 1 FROM ${source} WHERE `;

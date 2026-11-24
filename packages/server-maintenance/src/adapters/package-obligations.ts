@@ -5,7 +5,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {assertAssetPackageObligationSources,assetPackageSettlementSources as assets} from "@erpx/server-assets/public/package-obligations";
 import {maintenanceSettlementConsumptions,maintenanceSettlementInventoryReadLocks} from "@erpx/server-inventory/public/maintenance-settlement-sources";
-import {projectionLookup} from "./projection-lookup";
+import {existsGuardPrefix,projectionLookup} from "./projection-lookup";
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
 /** Canonical owner-local Work/Plan source image for Maintenance package settlement.
  * Both callers share this one fixed statement so the TS read tail carries no
@@ -24,7 +24,7 @@ const settlementEventRows=(table:"maintenance_preventive_occurrences"|"maintenan
  * only an owner-fixed relation, alias and column from closed sets, never
  * request-authored SQL. Both composed strings stay byte-identical to their
  * pre-dedupe literals. */
-const workSourceExists=(source:string,alias:string,column:string)=>`EXISTS(SELECT 1 FROM ${source} ${alias} WHERE ${alias}.${column}=work.id)`;
+const workSourceExists=(source:string,alias:string,column:string)=>`${existsGuardPrefix(`${source} ${alias}`)}${alias}.${column}=work.id)`;
 /** Canonical owner-local scoped source CTE shared by the Work and Plan branches
  * of the package-obligations facts read. Callers pass only an owner-fixed alias,
  * a closed source relation and a fixed scope predicate, never request-authored

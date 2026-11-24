@@ -523,7 +523,7 @@ describe('Maintenance package settlement source fixed SQL',()=>{
   // the two MATERIALIZED scoped CTEs through scopedSourceCte (10 -> 9); r16
   // moved the asset-version lookup into projectionLookup (9 -> 8); r20 shared
   // the three facts UNION rows through factRow (8 -> 6).
-  expect(source.match(/SELECT/g)).toHaveLength(6);
+  expect(source.match(/SELECT/g)).toHaveLength(5);
   expect(count(source,'SELECT work.*,COALESCE')).toBe(0);
   expect(count(source,'SELECT plan.*,COALESCE')).toBe(0);
   expect(source).toContain('ownerSourceSql("maintenance_work_orders","work")');
@@ -573,7 +573,7 @@ describe('Maintenance settlement event row fixed SQL',()=>{
   expect(source.match(/SELECT \* FROM/g)).toHaveLength(1);
   // r10 shared the two upstream-source EXISTS witnesses (11 -> 10); r15 shared
   // the two MATERIALIZED scoped CTEs through scopedSourceCte (10 -> 9).; r16 moved the asset-version lookup into projectionLookup (9 -> 8); r20 shared the three facts UNION rows through factRow (8 -> 6).
-  expect(source.match(/SELECT/g)).toHaveLength(6);
+  expect(source.match(/SELECT/g)).toHaveLength(5);
   expect(source).not.toContain('occurrences:"SELECT * FROM maintenance_preventive_occurrences"');
   expect(source).not.toContain('workEvents:"SELECT * FROM maintenance_work_events"');
   expect(source).toContain('settlementEventRows("maintenance_preventive_occurrences")');
@@ -595,11 +595,12 @@ describe('Maintenance upstream source witness fixed SQL',()=>{
   it('single-sources the upstream-source EXISTS witness and keeps both composed predicates intact',async()=>{
    const {readFile}=await import('node:fs/promises');
    const source=await readFile(new URL(file,import.meta.url),'utf8');
-   expect(source.match(/const workSourceExists=\(source:string,alias:string,column:string\)=>`EXISTS\(SELECT 1 FROM \$\{source\} \$\{alias\} WHERE \$\{alias\}\.\$\{column\}=work\.id\)`/g)).toHaveLength(1);
-   expect(source.match(/EXISTS\(SELECT 1 FROM/g)).toHaveLength(1);
-   // r16 moved the asset-version lookup into projectionLookup (9 -> 8); r20 shared the three facts UNION rows through factRow (8 -> 6).
-   expect(source.match(/SELECT/g)).toHaveLength(6);
-   expect(source).toContain('`EXISTS(SELECT 1 FROM ${source} ${alias} WHERE ${alias}.${column}=work.id)`');
+   expect(source).toContain('const workSourceExists=(source:string,alias:string,column:string)=>`${existsGuardPrefix(`${source} ${alias}`)}${alias}.${column}=work.id)`;');
+   expect(source.match(/EXISTS\(SELECT 1 FROM/g)??[]).toHaveLength(0);
+   // r16 moved the asset-version lookup into projectionLookup (9 -> 8); r20 shared the three facts UNION rows through factRow (8 -> 6);
+   // r22 folded this EXISTS head into the shared existsGuardPrefix (6 -> 5).
+   expect(source.match(/SELECT/g)).toHaveLength(5);
+   expect(source).toContain('`${existsGuardPrefix(`${source} ${alias}`)}${alias}.${column}=work.id)`');
    expect(source).not.toContain('EXISTS(SELECT 1 FROM maintenance_preventive_occurrences occurrence');
    expect(source).not.toContain('EXISTS(SELECT 1 FROM (${maintenanceSettlementConsumptions}) part');
    expect(source).toContain('scope.package_id=\'assets-preventive\' AND ${workSourceExists("maintenance_preventive_occurrences","occurrence","work_order_id")}');
@@ -710,7 +711,7 @@ describe('Maintenance record-image fixed SQL',()=>{
   }
  });
 
- it('retirement:ts-statements stays strictly below the r21 BEFORE=30 baseline',async()=>{
+ it('retirement:ts-statements stays strictly below the r22 BEFORE=28 baseline',async()=>{
   const {readdirSync,readFileSync}=await import('node:fs');
   const {resolve}=await import('node:path');
   let total=0;
@@ -723,8 +724,8 @@ describe('Maintenance record-image fixed SQL',()=>{
    }
   };
   walk(srcRoot);
-  expect(total).toBe(28);
-  expect(total).toBeLessThan(30);
+  expect(total).toBe(25);
+  expect(total).toBeLessThan(28);
  });
 });
 
@@ -741,7 +742,8 @@ describe('Maintenance IAM scope guard fixed SQL',()=>{
    const helper=readFileSync(new URL(`${dir}iam-scope-guard.ts`,import.meta.url),'utf8');
    const work=readFileSync(new URL(`${dir}work.ts`,import.meta.url),'utf8');
    const purchase=readFileSync(new URL(`${dir}purchase-sources.ts`,import.meta.url),'utf8');
-   expect(helper.match(/SELECT/g)).toHaveLength(1);
+   expect(helper.match(/SELECT/g)??[]).toHaveLength(0);
+   expect(helper).toContain('${existsGuardPrefix(from)}');
    // r7's work-local literal and the pre-r13 purchase eligibility literal are gone.
    expect(work).not.toContain('EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments})');
    expect(purchase).not.toContain('EXISTS(SELECT 1 FROM assignments assignment');
@@ -817,7 +819,8 @@ describe('Maintenance projection lookup fixed SQL',()=>{
    const executive=readFileSync(new URL(`${dir}executive-metric-projections.ts`,import.meta.url),'utf8');
    const packageSources=readFileSync(new URL(`${dir}package-obligations.ts`,import.meta.url),'utf8');
    expect(helper.match(/export const projectionLookup = \(select: string, source: string, alias: string, where: string\): string =>/g)).toHaveLength(1);
-   expect(helper.match(/SELECT/g)).toHaveLength(1);
+   expect(helper.match(/SELECT/g)).toHaveLength(2);
+   expect(helper).toContain('export const existsGuardPrefix = (source: string): string => `EXISTS(SELECT 1 FROM ${source} WHERE `;');
    expect(helper).not.toMatch(/LOCK\s+TABLE/);
    expect(calendar).toContain('projectionLookup("user_id",people_payrollProjectionSources.hr_people,"hr_people","id=? AND company_id=s.company_id")');
    expect(executive).toContain('projectionLookup("n.display_name",organizationProjectionSources.organization_nodes,"n",');
@@ -989,7 +992,7 @@ describe('Maintenance facts UNION fact-row fixed SQL',()=>{
   expect(source).not.toContain("SELECT 'occurrence',occurrence.id");
   // r20 folded three SELECT literals into one template: this file is 8 -> 6 and
   // the owner read-tail total is 32 -> 30 (strictly below BEFORE=32).
-  expect(source.match(/SELECT/g)).toHaveLength(6);
+  expect(source.match(/SELECT/g)).toHaveLength(5);
   // The owner lock and the scope CTE stay untouched; no write/row-lock introduced.
   expect(source).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
   expect(source).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|pg_advisory/i);
@@ -1064,5 +1067,53 @@ describe('Maintenance projection row-scan fixed SQL',()=>{
   expect(readFileSync(new URL(`${dir}package-obligations.ts`,import.meta.url),'utf8')).toContain('export const factRow=');
   expect(readFileSync(new URL(`${dir}purchase-sources.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans,maintenance_preventive_occurrences IN SHARE ROW EXCLUSIVE MODE');
   expect(readFileSync(new URL(`${dir}finance-record-sources.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE operational_inventory_consumptions,maintenance_work_orders,operational_assets IN SHARE MODE');
+ });
+});
+
+/** Fixed-SQL read-tail oracle for the Maintenance EXISTS head + owner-name family
+ * (r22). The attachment owner-version guard, the IAM scope guard and the
+ * package-settlement upstream-source witness share one owner-local EXISTS head,
+ * and the owner display-name image reuses the scalar projectionLookup. All four
+ * composed strings stay byte-identical to their pre-dedupe literals, no duplicate
+ * TS query literal remains, the retired count drops strictly below BEFORE=28,
+ * every r3-r21 family stays unchanged and every owner lock is untouched. */
+describe('Maintenance EXISTS head and owner-name reuse fixed SQL',()=>{
+ const dir='../../../packages/server-maintenance/src/adapters/';
+ it('single-sources the EXISTS head and owner-name lookup, byte-identically',async()=>{
+  const {readFileSync}=await import('node:fs');
+  const shared=readFileSync(new URL(`${dir}projection-lookup.ts`,import.meta.url),'utf8');
+  const att=readFileSync(new URL(`${dir}attachment-owner-version-guard.ts`,import.meta.url),'utf8');
+  const iam=readFileSync(new URL(`${dir}iam-scope-guard.ts`,import.meta.url),'utf8');
+  const pkg=readFileSync(new URL(`${dir}package-obligations.ts`,import.meta.url),'utf8');
+  const owner=readFileSync(new URL(`${dir}maintenance-owner-name.ts`,import.meta.url),'utf8');
+  expect(shared.split('export const existsGuardPrefix =').length-1).toBe(1);
+  expect(shared).toContain('`EXISTS(SELECT 1 FROM ${source} WHERE `');
+  for(const s of [att,iam,pkg]) expect(s).not.toContain('EXISTS(SELECT 1 FROM');
+  expect(att).toContain('${existsGuardPrefix(table)}');
+  expect(iam).toContain('${existsGuardPrefix(from)}');
+  expect(pkg).toContain('${existsGuardPrefix(`${source} ${alias}`)}');
+  expect(owner.match(/SELECT/g)).toBeNull();
+  expect(owner).toContain('projectionLookup("legal_name", people_payrollProjectionSources.hr_people, "hr_people"');
+  // Locks untouched; no native read or write was introduced.
+  expect(pkg).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
+  for(const s of [att,iam,shared,owner]) expect(s).not.toMatch(/LOCK\s+TABLE|INSERT\s+INTO|UPDATE\s+\w+\s+SET|FOR\s+UPDATE/i);
+
+  const {existsGuardPrefix}=await import('../../../packages/server-maintenance/src/adapters/projection-lookup');
+  const {attachmentOwnerVersionGuardSql}=await import('../../../packages/server-maintenance/src/adapters/attachment-owner-version-guard');
+  const {iamScopeGuardSql}=await import('../../../packages/server-maintenance/src/adapters/iam-scope-guard');
+  const {maintenanceOwnerName}=await import('../../../packages/server-maintenance/src/adapters/maintenance-owner-name');
+  const {finalRootOwnerProjectionSources:pp}=await import('../../../packages/server-people_payroll/src/public/final-root-owner-projection-sources');
+  // Pre-r22 literals rebuilt verbatim with closed fragments.
+  expect(existsGuardPrefix('t')).toBe('EXISTS(SELECT 1 FROM t WHERE ');
+  expect(attachmentOwnerVersionGuardSql('maintenance_work_orders')).toBe(
+   `EXISTS(SELECT 1 FROM maintenance_work_orders WHERE id=? AND company_id=? AND version=?)`);
+  expect(attachmentOwnerVersionGuardSql('maintenance_preventive_plans','extra_predicate')).toBe(
+   `EXISTS(SELECT 1 FROM maintenance_preventive_plans WHERE id=? AND company_id=? AND version=? AND extra_predicate)`);
+  expect(iamScopeGuardSql('SRC','a','p','e','r','?','records.write','SCOPE')).toBe(
+   `EXISTS(SELECT 1 FROM SRC WHERE a.company_id=r.company_id AND a.user_id=? AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(a.role,a.company_id,'records.write') AND SCOPE AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')))`);
+  expect(existsGuardPrefix('maintenance_preventive_occurrences occurrence')+'occurrence.work_order_id=work.id)').toBe(
+   `EXISTS(SELECT 1 FROM maintenance_preventive_occurrences occurrence WHERE occurrence.work_order_id=work.id)`);
+  expect(maintenanceOwnerName('w')).toBe(
+   `(SELECT legal_name FROM (${pp.hr_people}) hr_people WHERE company_id=w.company_id AND user_id=w.owner_id AND merged_into_id IS NULL LIMIT 1)`);
  });
 });
