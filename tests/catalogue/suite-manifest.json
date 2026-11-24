@@ -16683,7 +16683,7 @@
         "Cargo.toml",
         "Cargo.lock",
         "rust-toolchain.toml",
-        "packages/erpx-server-customer-authority/Cargo.toml"
+        "packages/server-customer_authority/Cargo.toml"
       ],
       "packages": [
         "@erpx/server-customer-authority"
@@ -54190,7 +54190,7 @@
         "Cargo.toml",
         "Cargo.lock",
         "rust-toolchain.toml",
-        "packages/erpx-server-marketing/Cargo.toml"
+        "packages/server-marketing/Cargo.toml"
       ],
       "packages": [
         "@erpx/server-marketing"
@@ -64948,7 +64948,7 @@
         "Cargo.toml",
         "Cargo.lock",
         "rust-toolchain.toml",
-        "packages/erpx-server-platform-administration/Cargo.toml"
+        "packages/server-platform_administration/Cargo.toml"
       ],
       "packages": [
         "@erpx/server-platform-administration"
