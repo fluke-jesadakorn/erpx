@@ -88,16 +88,16 @@ describe('billing read-tail r29 point-read-by-id dedupe', () => {
     expect(await src('billing-read-tail-r25-sql.ts')).toContain('BILLING_ADVISORY_XACT_LOCK_SQL');
   });
 
-  it('lowers the billing owner SELECT KPI from BEFORE=57 to 55', async () => {
+  it('lowers the billing owner SELECT KPI from BEFORE=57 to 53', async () => {
     let spaced = 0, bare = 0;
     for (const file of await tsFiles(srcRoot)) {
       const text = await readFile(file, 'utf8');
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(54);
-    expect(bare).toBe(54);
-    expect(spaced).toBeLessThan(55);
-    expect(bare).toBeLessThan(55);
+    expect(spaced).toBe(53);
+    expect(bare).toBe(53);
+    expect(spaced).toBeLessThan(54);
+    expect(bare).toBeLessThan(54);
   });
 });
