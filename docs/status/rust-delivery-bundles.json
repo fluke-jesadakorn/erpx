@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10763,
+    "revision": 10777,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -163945,7 +163945,7 @@
         "owner": "talent",
         "title": "talent existence guard native read port",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -163957,22 +163957,37 @@
         "resources": [
           "owner:talent"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMtal4",
-          "claimedAt": "2026-11-24T08:14:03.845Z",
-          "heartbeatAt": "2026-11-24T08:41:42.266Z",
-          "expiresAt": "2026-11-24T09:11:42.266Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-talent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0daffe45c",
+            "owner": "talent",
+            "before": 49,
+            "after": 48,
+            "note": "Talent workspace record source moves to native talent_rd_workspace_record_source; locks and cross-owner predicates untouched."
+          },
+          {
+            "command": "cargo test -p erpx-server-talent --lib (11) + http (11) + vitest talent (60) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "0daffe45c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Port one owner-local existence/point read to a native talent kind; locks and r20-r30 untouched. BEFORE=49.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMtal4",
+          "at": "2026-11-24T08:52:49.818Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -165313,7 +165328,7 @@
         "owner": "pos",
         "title": "pos TS read tail native cutover (round 27)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -165325,22 +165340,37 @@
         "resources": [
           "owner:pos"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMpos5",
-          "claimedAt": "2026-11-24T08:31:48.472Z",
-          "heartbeatAt": "2026-11-24T08:41:42.266Z",
-          "expiresAt": "2026-11-24T09:11:42.266Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0daffe45c",
+            "owner": "pos",
+            "before": 215,
+            "after": 213,
+            "note": "Two pos_audit actor reads move to native audit_reads kinds; locks, PMS fragments and existing registries untouched."
+          },
+          {
+            "command": "cargo test -p erpx-server-pos --lib (51) + vitest pos native (139) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "0daffe45c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Remaining: owner-local lock-free reads outside day-report and stripe; locks and PMS fragments stay inline. BEFORE=215.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMpos5",
+          "at": "2026-11-24T08:52:48.964Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -165865,7 +165895,7 @@
         "owner": "learning",
         "title": "learning TS read tail native cutover (round 9)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -165877,22 +165907,37 @@
         "resources": [
           "owner:learning"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMlrn4",
-          "claimedAt": "2026-11-24T08:37:46.062Z",
-          "heartbeatAt": "2026-11-24T08:41:42.266Z",
-          "expiresAt": "2026-11-24T09:11:42.266Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-learning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0daffe45c",
+            "owner": "learning",
+            "before": 70,
+            "after": 69,
+            "note": "Metric and purchase assignment scope heads share currentAssignmentScopeHead; 7 LOCK TABLE statements untouched."
+          },
+          {
+            "command": "vitest learning r9 (4) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "0daffe45c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=70.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMlrn4",
+          "at": "2026-11-24T08:52:49.375Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -165901,7 +165946,7 @@
         "owner": "people_payroll",
         "title": "payroll TS read tail native cutover (round 35)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -165913,22 +165958,37 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMppl6",
-          "claimedAt": "2026-11-24T08:39:47.826Z",
-          "heartbeatAt": "2026-11-24T08:41:42.266Z",
-          "expiresAt": "2026-11-24T09:11:42.266Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0daffe45c",
+            "owner": "people_payroll",
+            "before": 1390,
+            "after": 1387,
+            "note": "Four payroll item projections by run share ppRd35PayrollItemsByRun; advisory locks and r1-r34 untouched."
+          },
+          {
+            "command": "vitest payroll r20-r35 (71) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "0daffe45c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=1390.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMppl6",
+          "at": "2026-11-24T08:52:50.225Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -166024,7 +166084,7 @@
         "owner": "customer_authority",
         "title": "customer authority TS read tail native cutover (round 33)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -166036,22 +166096,37 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMcaa",
-          "claimedAt": "2026-11-24T08:41:23.464Z",
-          "heartbeatAt": "2026-11-24T08:41:42.266Z",
-          "expiresAt": "2026-11-24T09:11:42.266Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-customer_authority/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0daffe45c",
+            "owner": "customer_authority",
+            "before": 49,
+            "after": 47,
+            "note": "Three bound company scope CTE probes share companyScopeSelect; locks, native kinds and eligibility helpers untouched."
+          },
+          {
+            "command": "vitest customer_authority r33 (54) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "0daffe45c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=49.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMcaa",
+          "at": "2026-11-24T08:52:50.633Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -166060,7 +166135,7 @@
         "owner": "files",
         "title": "files TS read tail native cutover (round 28)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -166072,22 +166147,37 @@
         "resources": [
           "owner:files"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMfil6",
-          "claimedAt": "2026-11-24T08:45:08.237Z",
-          "heartbeatAt": "2026-11-24T08:45:08.237Z",
-          "expiresAt": "2026-11-24T09:15:08.237Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0daffe45c",
+            "owner": "files",
+            "before": 279,
+            "after": 277,
+            "note": "Private image column projection shared by three readers; locks, advisory statements and native write boundaries untouched."
+          },
+          {
+            "command": "vitest files r28 (5) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "0daffe45c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=279.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMfil6",
+          "at": "2026-11-24T08:52:51.053Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -166132,7 +166222,7 @@
         "owner": "inventory",
         "title": "inventory TS read tail native cutover (round 35)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -166144,22 +166234,37 @@
         "resources": [
           "owner:inventory"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMinva",
-          "claimedAt": "2026-11-24T08:45:44.587Z",
-          "heartbeatAt": "2026-11-24T08:45:44.587Z",
-          "expiresAt": "2026-11-24T09:15:44.587Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0daffe45c",
+            "owner": "inventory",
+            "before": 349,
+            "after": 347,
+            "note": "Three lot balance existence guards share lotBalanceGuardSql; count sources, adapters, locks and native registry untouched."
+          },
+          {
+            "command": "vitest inventory r31-r35 (27) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "0daffe45c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=349.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMinva",
+          "at": "2026-11-24T08:52:51.477Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -166679,17 +166784,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 28,
-        "in_progress": 19,
+        "in_progress": 12,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1086,
+        "blocked": 1093,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:51:36.316Z",
+    "updatedAt": "2026-11-24T08:52:51.483Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
