@@ -1,4 +1,5 @@
 import {learningMetricSource} from "@erpx/server-learning/adapters/metric-purchases";
+import {overdueEvidenceColumns} from "./learning-read-sql";
 import "server-only";
 import { z } from "zod";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -46,7 +47,7 @@ export function executiveEvidenceSources(database: SqlDatabase) {
                     scope.push("(a.due_date>? OR (a.due_date=? AND a.id>?))");
                     values.push(overdueCursor.dueDate, overdueCursor.dueDate, overdueCursor.id);
                 }
-                rows = (await db.prepare(`SELECT a.id,a.version,a.status,a.due_date,a.updated_at,c.title course_title,c.required_for
+                rows = (await db.prepare(`${overdueEvidenceColumns}
       FROM (${source.sql}) a JOIN learning_courses c ON c.id=a.course_id AND c.company_id=a.company_id
       WHERE ${scope.join(" AND ")}
       ORDER BY a.due_date,a.id LIMIT ?`)

@@ -16,7 +16,7 @@ import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packa
 
 import type {LearningCapability,LearningPurchaseControls} from "@erpx/server-learning/domain/purchase-controls";
 export type {LearningCapability,LearningPurchaseControls} from "@erpx/server-learning/domain/purchase-controls";
-import {actorScopeProbe,coursesImage} from "./learning-read-sql";
+import {actorScopeProbe,coursesImage,learningModuleGrantProbe} from "./learning-read-sql";
 type Target={kind:"course"|"assignment"|"certificate";id:string};
 const commands=new WeakMap<SqlDatabase,{actorId:string;assignmentId:string;target:Target;operation:string}>();
 /** Private owner marker, never a public transaction registration port. */
@@ -25,7 +25,7 @@ const capabilities:LearningCapability[]=["learn.courses","learn.assignments","le
 async function current(database:SqlDatabase,actor:WorkContext,key:string,permission:string){
  const row=await database.prepare(`SELECT ${assignmentReadSql("learning_scope",permission)}
  AND EXISTS(SELECT 1 FROM assignments learning_module WHERE learning_module.id=? AND learning_module.company_id=learning_scope.company_id
- AND learning_module.user_id=? AND learning_module.role=? AND EXISTS(SELECT 1 FROM erpx_json_each(learning_module.modules_json) module WHERE module.value='learning')) allowed FROM
+ AND learning_module.user_id=? AND learning_module.role=? AND EXISTS(${learningModuleGrantProbe('learning_module')})) allowed FROM
  ${actorScopeProbe}) learning_scope`)
   .bind(actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();
  if(!row?.allowed)throw new ApiError(403,"LEARNING_ACCESS_CHANGED","Choose a current Learning assignment.");
