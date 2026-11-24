@@ -36,6 +36,7 @@ import {policyVersionGuard} from './read-tail-r29';
 import {settingsRead} from './read-tail-r27';
 import {versionStatusScopeGuard} from './read-tail-r30';
 import {supplierBillPointGuard} from './read-tail-r34';
+import {billMatchProjection} from './read-tail-r40';
 export {supplierBillSchema,supplierBillDecisionSchema,supplierInvoicePolicySchema,matchedBillLines} from "@erpx/server-procurement/domain/supplier-bills";
 const scope=branchDepartmentScope("m");
 const args=(actor:WorkContext)=>[actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId];
@@ -47,29 +48,23 @@ function application(actor:WorkContext,provided?:SqlDatabase){
  replay:async(key,operation,id,input)=>replayCommand(await database(),actor,key,operation,id,input),
  bill:async(id)=>{const write=await database();
   const row = await write.prepare(`
-    SELECT m.*,p.name supplier_name,o.number order_number,f.version fulfillment_version,
+${billMatchProjection(`f.version fulfillment_version,
       i.status invoice_status,i.created_by invoice_created_by,i.version invoice_version,
-      ${receiptCount("m.id")}
-    FROM procurement_bill_matches m
-    JOIN (${financePlatformSources.finance_parties}) p ON p.id=m.supplier_id
-    JOIN (${commercePlatformSources.commerce_orders}) o ON o.id=m.order_id
+      ${receiptCount("m.id")}`, financePlatformSources.finance_parties, commercePlatformSources.commerce_orders, `
     JOIN (${commercePlatformSources.commerce_fulfillments}) f ON f.id=m.fulfillment_id
     LEFT JOIN (${financePlatformSources.finance_invoices}) i ON i.id=m.invoice_id
     WHERE m.id=? AND ${scope}
-  `).bind(id, ...args(actor)).first<Row>();
+  `)}`).bind(id, ...args(actor)).first<Row>();
   return row;
 },workspace:async()=>{const write=await database();
   return (await write.prepare(`
-    SELECT m.*,p.name supplier_name,o.number order_number,
+${billMatchProjection(`
       COALESCE((SELECT json_agg(br.fulfillment_id ORDER BY f.fulfillment_date,f.id)::text
         FROM procurement_bill_match_receipts br JOIN (${commercePlatformSources.commerce_fulfillments}) f ON f.id=br.fulfillment_id
         WHERE br.match_id=m.id),'[]') receipt_ids_json,
-      ${receiptCount("m.id")}
-    FROM procurement_bill_matches m
-    JOIN (${financePlatformSources.finance_parties}) p ON p.id=m.supplier_id
-    JOIN (${commercePlatformSources.commerce_orders}) o ON o.id=m.order_id
+      ${receiptCount("m.id")}`, financePlatformSources.finance_parties, commercePlatformSources.commerce_orders, `
     WHERE ${scope} AND ${supplierBillOwnerPredicate("m")} ORDER BY m.updated_at DESC
-  `).bind(...args(actor)).all<Row>()).results;
+  `)}`).bind(...args(actor)).all<Row>()).results;
 },captureOptions:async()=>{const write=await database();
   const receipts = (await write.prepare(`
     SELECT f.*,o.number order_number,o.party_id supplier_id,o.currency order_currency,
