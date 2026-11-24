@@ -1,4 +1,4 @@
-import {releaseRevisionTable,releaseCurrencyPredicate,releaseRevisionShareLockSql,releaseRevisionReadSql,latestReleaseIdSql,latestReleaseRowSql,releaseAcceptanceRowSql,activeBranchCountSql,businessAcceptanceSetupSql,releaseAcceptanceExistsSql} from "@erpx/server-platform_administration/adapters/release-predicate";
+import {releaseRevisionTable,releaseCurrencyPredicate,releaseRevisionShareLockSql,releaseRevisionReadSql,latestReleaseIdSql,latestReleaseRowSql,releaseAcceptanceRowSql,activeBranchCountSql,businessAcceptanceSetupSql,releaseAcceptanceExistsSql,releaseTableExistsSql} from "@erpx/server-platform_administration/adapters/release-predicate";
 import { platformOwnerProjectionSources as identity_accessPlatformSources } from "@erpx/server-identity_access/public/platform-owner-projection-sources";
 import { platformOwnerProjectionSources as organizationPlatformSources } from "@erpx/server-organization/public/platform-owner-projection-sources";
 import "server-only";
@@ -30,7 +30,7 @@ async function inputsGuard(db: SqlDatabase, actor: WorkContext, key: string, rev
   return [
     await nativeOwnerWrite(scope===legalProductionScope.version?'pl_legal_release_revision_init':'pl_release_revision_init',[actor.companyId],`pl-revision:${key}:${scope}`,{companyId:actor.companyId},()=>db.prepare(NATIVE_OWNER_WRITE_NOOP_SQL)),
     db.prepare(releaseRevisionShareLockSql(scope)).bind(actor.companyId),
-    assertion(db, key, 'release-configuration', `EXISTS(SELECT 1 FROM ${releaseRevisionTable(scope)} WHERE company_id=? AND revision=?)`, [actor.companyId, revision]),
+    assertion(db, key, 'release-configuration', releaseTableExistsSql(releaseRevisionTable(scope), 'company_id=? AND revision=?'), [actor.companyId, revision]),
     assertion(db, key, 'release-setup', `EXISTS(${businessAcceptanceSetupSql('?', { acceptedVersion: '?' })})`, [actor.companyId, setupVersion]),
     ...(scope === productionScope.version ? [assertion(db, key, 'release-establishment', `(${activeBranchCountSql('?')})=1`, [actor.companyId]),
     assertion(db, key, 'release-currency', releaseCurrencyPredicate('?'), [actor.companyId])] : []),

@@ -21,6 +21,16 @@ export function releaseAcceptanceExistsSql(where: string) {
   return `EXISTS(SELECT 1 FROM company_release_acceptances WHERE ${where})`;
 }
 
+/** The parameterized EXISTS SELECT-head shared by the release-configuration
+ * guard and the PMS rollout feature-release guard. Both callers previously
+ * inlined the same head with a different FROM expression and WHERE predicate;
+ * this one owner-local definition renders byte-identical SQL for each. The
+ * fixed-table helper above and all earlier helpers remain unchanged, as do
+ * row locks and native reads. */
+export function releaseTableExistsSql(from: string, where: string, gap = ' ') {
+  return `EXISTS(SELECT 1 FROM ${from}${gap}WHERE ${where})`;
+}
+
 /** The single revision read shared by release-acceptance inputs and the share-lock
  * guards. Kept here once so the base revision SQL has one owner-local definition;
  * each caller supplies its own suffix (e.g. ' FOR SHARE'). */
