@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12359,
+    "revision": 12362,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -182885,17 +182885,32 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "cb663109a",
+            "owner": "finance",
+            "before": 1812,
+            "after": 1805,
+            "note": "Clock probes, payment checksum guard, Thai active guard and reporting table-by-id shared; locks/tax/advisory/native untouched."
+          },
+          {
+            "command": "vitest finance (162) + scoped tsc + 9 byte oracles",
+            "result": "passed",
+            "sourceSha": "cb663109a"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: lease expired; same operator resumes with reviewed WIP",
-        "nextAction": "Clock scalar probe (-3), payment slip checksum (-1), thai active guard (-1), reporting table-by-id (-2): 1812->1805. BEFORE=1812.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n57",
-          "at": "2026-11-24T15:07:42.843Z",
+          "runId": "run-20261124-d",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T15:27:31.675Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
-          "nextAction": "Clock scalar probe (-3), payment slip checksum (-1), thai active guard (-1), reporting table-by-id (-2): 1812->1805. BEFORE=1812."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -183317,7 +183332,7 @@
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T15:24:36.268Z",
+    "updatedAt": "2026-11-24T15:27:31.678Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
