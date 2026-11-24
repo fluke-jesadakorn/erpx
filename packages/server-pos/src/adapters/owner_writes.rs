@@ -161,6 +161,17 @@ pub const PMS_READPOSCONNECTIONSACCOUNT_535: &str = "pms_readposconnectionsaccou
 /// `readPosConnections` literal in `pms-counter-payment-facts.ts`. Read-only
 /// caller-transaction `SELECT` scoped by Company; no TypeScript mirror remains.
 pub const COUNTER_READPOSCONNECTIONREADINESS_536: &str = "counter_readposconnectionreadiness_536";
+/// Hospitality-setup settings read retired from the `SELECT enabled,currency
+/// FROM pos_settings WHERE company_id=?` literal in
+/// `pms-hospitality-setup-facts.ts`. Read-only caller-transaction `SELECT`
+/// scoped by Company; no TypeScript mirror remains.
+pub const CORE_READPOSSETTINGSENABLEDCURRENCY_537: &str = "core_readpossettingsenabledcurrency_537";
+/// Hospitality-setup restaurant register list retired from the
+/// `SELECT id,name,warehouse_id,mode FROM pos_registers WHERE company_id=?
+/// AND branch_id=? AND active=true AND mode='restaurant'` literal in
+/// `pms-hospitality-setup-facts.ts`. Read-only caller-transaction `SELECT`
+/// scoped by Company and Branch; no TypeScript mirror remains.
+pub const CORE_READPOSRESTAURANTREGISTERS_538: &str = "core_readposrestaurantregisters_538";
 pub const STRIPE_WRITEPOSSTRIPEEVENTS1_49: &str = "stripe_writeposstripeevents1_49";
 pub const STRIPE_WRITEPOSSTRIPEEVENTS2_53: &str = "stripe_writeposstripeevents2_53";
 pub const STRIPE_WRITEPOSCONNECTIONHISTORY1_58: &str = "stripe_writeposconnectionhistory1_58";
@@ -274,6 +285,8 @@ pub const KINDS: &[&str] = &[
     PMS_READPOSCONNECTIONSCHARGE_534,
     PMS_READPOSCONNECTIONSACCOUNT_535,
     COUNTER_READPOSCONNECTIONREADINESS_536,
+    CORE_READPOSSETTINGSENABLEDCURRENCY_537,
+    CORE_READPOSRESTAURANTREGISTERS_538,
     STRIPE_WRITEPOSSTRIPEEVENTS1_49,
     STRIPE_WRITEPOSSTRIPEEVENTS2_53,
     STRIPE_WRITEPOSCONNECTIONHISTORY1_58,
@@ -430,6 +443,8 @@ fn sql(kind: &str) -> Option<&'static str> {
         PMS_READPOSCONNECTIONSCHARGE_534 => r#"SELECT 1 FROM pos_connections WHERE company_id=? AND state='ready' AND charges_enabled=true AND payouts_enabled=true AND (card_enabled=true OR promptpay_enabled=true) AND (livemode=false OR ?='true')"#,
         PMS_READPOSCONNECTIONSACCOUNT_535 => r#"SELECT account_id,livemode FROM pos_connections WHERE company_id=? AND state='ready' AND charges_enabled=true AND payouts_enabled=true AND (card_enabled=true OR promptpay_enabled=true)"#,
         COUNTER_READPOSCONNECTIONREADINESS_536 => r#"SELECT * FROM pos_connections WHERE company_id=? AND state='ready' AND charges_enabled=true AND payouts_enabled=true AND promptpay_enabled=true AND thb_bank_ready=true AND payout_interval='daily'"#,
+        CORE_READPOSSETTINGSENABLEDCURRENCY_537 => r#"SELECT enabled,currency FROM pos_settings WHERE company_id=?"#,
+        CORE_READPOSRESTAURANTREGISTERS_538 => r#"SELECT id,name,warehouse_id,mode FROM pos_registers WHERE company_id=? AND branch_id=? AND active=true AND mode='restaurant'"#,
         STRIPE_WRITEPOSSTRIPEEVENTS1_49 => r#"INSERT INTO pos_stripe_events(id,account_id,livemode,company_id,event_type,payload_json,received_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING"#,
         STRIPE_WRITEPOSSTRIPEEVENTS2_53 => r#"UPDATE pos_stripe_events SET provider_created_at=COALESCE(provider_created_at,?) WHERE id=?"#,
         STRIPE_WRITEPOSCONNECTIONHISTORY1_58 => r#"INSERT INTO pos_connection_history VALUES(?,?,?) ON CONFLICT DO NOTHING"#,
@@ -530,7 +545,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 130);
+        assert_eq!(KINDS.len(), 132);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -878,6 +893,33 @@ mod tests {
         assert_eq!(
             sql(COUNTER_READPOSCONNECTIONREADINESS_536).unwrap(),
             "SELECT * FROM pos_connections WHERE company_id=? AND state='ready' AND charges_enabled=true AND payouts_enabled=true AND promptpay_enabled=true AND thb_bank_ready=true AND payout_interval='daily'"
+        );
+    }
+
+    /// The retired hospitality-setup settings and restaurant-register reads are
+    /// SELECT-only owner statements. Their SQL is byte-identical to the literals
+    /// deleted from `pms-hospitality-setup-facts.ts`; these kinds are the sole
+    /// authority and no TypeScript copy, mirror or fallback remains. Neither
+    /// kind carries a `FOR UPDATE`/`FOR SHARE` lock.
+    #[test]
+    fn hospitality_setup_read_kinds_are_select_only() {
+        for kind in [CORE_READPOSSETTINGSENABLEDCURRENCY_537, CORE_READPOSRESTAURANTREGISTERS_538] {
+            assert!(supported(kind), "hospitality-setup read kind must be allow listed: {kind}");
+            let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
+            assert!(stmt.starts_with("SELECT "), "hospitality-setup read must be SELECT-only: {kind}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE", "FOR SHARE"] {
+                assert!(!stmt.contains(forbidden), "hospitality-setup read must not mutate or lock: {kind} contains {forbidden}");
+            }
+        }
+        assert_eq!(sql(CORE_READPOSSETTINGSENABLEDCURRENCY_537).unwrap().matches('?').count(), 1);
+        assert_eq!(sql(CORE_READPOSRESTAURANTREGISTERS_538).unwrap().matches('?').count(), 2);
+        assert_eq!(
+            sql(CORE_READPOSSETTINGSENABLEDCURRENCY_537).unwrap(),
+            "SELECT enabled,currency FROM pos_settings WHERE company_id=?"
+        );
+        assert_eq!(
+            sql(CORE_READPOSRESTAURANTREGISTERS_538).unwrap(),
+            "SELECT id,name,warehouse_id,mode FROM pos_registers WHERE company_id=? AND branch_id=? AND active=true AND mode='restaurant'"
         );
     }
 

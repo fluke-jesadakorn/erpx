@@ -77,6 +77,32 @@ export async function nativePosSettingsCurrencyStatement(db: SqlDatabase, compan
 }
 
 /**
+ * Owner-issued hospitality-setup settings read. The SQL lives in the native POS
+ * owner registry (`erpx-server-pos::adapters::owner_writes`, kind
+ * `core_readpossettingsenabledcurrency_537`) and is byte-identical to the
+ * settings literal in `pms-hospitality-setup-facts.ts`. Caller-transaction read
+ * scoped by Company; no local SQL, mirror or fallback remains.
+ */
+export async function nativePosSettingsEnabledCurrencyStatement(db: SqlDatabase, company: string): Promise<SqlValueRow | null> {
+  return nativePosOne(db, company, 'core_readpossettingsenabledcurrency_537', [company]);
+}
+
+/**
+ * Owner-issued hospitality-setup restaurant register list. The SQL lives in the
+ * native POS owner registry (`erpx-server-pos::adapters::owner_writes`, kind
+ * `core_readposrestaurantregisters_538`) and is byte-identical to the registers
+ * literal in `pms-hospitality-setup-facts.ts`. Caller-transaction read scoped by
+ * Company and Branch; no local SQL, mirror or fallback remains.
+ */
+export async function nativePosRestaurantRegistersStatement(
+  db: SqlDatabase,
+  company: string,
+  branch: string,
+): Promise<SqlValueRow[]> {
+  return nativePosAll(db, company, 'core_readposrestaurantregisters_538', [company, branch]);
+}
+
+/**
  * Owner-issued posting-journal id read. The SQL lives in the native POS owner
  * registry (`erpx-server-pos::adapters::owner_writes`, kind
  * `core_readpospostingsjournal_523`); this bridge sends only the typed kind and

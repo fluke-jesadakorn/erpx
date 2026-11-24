@@ -117,6 +117,78 @@ describe('native POS core workspace read bridge (shifts family)', () => {
     expect(seen.sql).not.toContain('r.branch_id=?');
   });
 
+  it('serves the hospitality-setup settings read from the native registry, not local SQL', async () => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const sql = 'SELECT enabled,currency FROM pos_settings WHERE company_id=?';
+    const values = ['company'];
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { sql, values } }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const seen: { sql?: string; values?: unknown[] } = {};
+    const row = { enabled: true, currency: 'THB' };
+    const db = {
+      prepare: (text: string) => ({
+        bind: (...bound: unknown[]) => {
+          seen.sql = text;
+          seen.values = bound;
+          return { first: async () => row };
+        },
+      }),
+    };
+    const result = await pmsHospitalitySetupPosFacts(db as never).settings({ company: 'company' });
+    expect(result).toEqual(row);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({
+      company: 'company',
+      kind: 'core_readpossettingsenabledcurrency_537',
+      values,
+    });
+    expect(seen.sql).toBe(sql);
+    expect(seen.values).toEqual(values);
+  });
+
+  it('serves the hospitality-setup restaurant registers read from the native registry, not local SQL', async () => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const sql = "SELECT id,name,warehouse_id,mode FROM pos_registers WHERE company_id=? AND branch_id=? AND active=true AND mode='restaurant'";
+    const values = ['company', 'branch'];
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { sql, values } }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const seen: { sql?: string; values?: unknown[] } = {};
+    const rows = [{ id: 'register', name: 'Main', warehouse_id: 'wh', mode: 'restaurant' }];
+    const db = mockDb(seen, rows);
+    const prepare = vi.spyOn(db, 'prepare');
+    const result = await pmsHospitalitySetupPosFacts(db as never).registers({ company: 'company', branch: 'branch' });
+    expect(result).toEqual(rows);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({
+      company: 'company',
+      kind: 'core_readposrestaurantregisters_538',
+      values,
+    });
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(seen.sql).toBe(sql);
+    expect(seen.values).toEqual(values);
+  });
+
+  it('fails closed for both hospitality-setup reads when the native owner service is unconfigured', async () => {
+    delete process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    const facts = pmsHospitalitySetupPosFacts({} as never);
+    await expect(facts.settings({ company: 'company' })).rejects.toMatchObject({
+      code: 'NATIVE_POS_OWNER_UNAVAILABLE',
+      status: 503,
+    });
+    await expect(facts.registers({ company: 'company', branch: 'branch' })).rejects.toMatchObject({
+      code: 'NATIVE_POS_OWNER_UNAVAILABLE',
+      status: 503,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
   it('requests the executive-evidence sale row from the native owner registry only', async () => {
     process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
     const sql = "SELECT s.id source_id,s.id sale_id,'sale' source_type,s.number receipt_number,s.business_date FROM pos_sales s WHERE s.id=? AND s.company_id=?";
