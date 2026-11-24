@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7780,
+    "revision": 7788,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -131171,7 +131171,7 @@
         "owner": "finance",
         "title": "finance TS read tail native cutover (round 7)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -131183,22 +131183,42 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG46fin",
-          "claimedAt": "2026-11-24T01:03:08.126Z",
-          "heartbeatAt": "2026-11-24T01:07:51.653Z",
-          "expiresAt": "2026-11-24T01:37:51.653Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "851ce5ce3",
+            "owner": "finance",
+            "before": 2267,
+            "after": 2266,
+            "note": "workflow flow routing posted_by pair deduped; no FOR SHARE, lock-free reads preserved."
+          },
+          {
+            "command": "vitest native journal detail (25)",
+            "result": "passed",
+            "sourceSha": "851ce5ce3"
+          },
+          {
+            "command": "scoped tsc finance",
+            "result": "passed",
+            "sourceSha": "851ce5ce3"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "TS-only dedupe candidates (no new composition): workflow-flow-routing posted_by pair, chart base_currency 5 copies, finance_journals chart-id existence reads; BEFORE=2267; preserve lock-free reads.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG46fin",
+          "at": "2026-11-24T01:10:25.217Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -131386,7 +131406,7 @@
         "owner": "customer_360",
         "title": "customer_360 TS read tail native cutover (round 3)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -131398,22 +131418,42 @@
         "resources": [
           "owner:customer_360"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG52c360",
-          "claimedAt": "2026-11-24T01:04:20.541Z",
-          "heartbeatAt": "2026-11-24T01:07:51.653Z",
-          "expiresAt": "2026-11-24T01:37:51.653Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-customer_360/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "851ce5ce3",
+            "owner": "customer_360",
+            "before": 36,
+            "after": 35,
+            "note": "Portal support conclusion EXISTS prefix shared; byte-identical."
+          },
+          {
+            "command": "vitest customer_360 TS units (22)",
+            "result": "passed",
+            "sourceSha": "851ce5ce3"
+          },
+          {
+            "command": "tsc customer_360",
+            "result": "passed",
+            "sourceSha": "851ce5ce3"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: timeline (20) owner-local dedupe or package-obligations (6) byte-identical pair; avoid portal (blocked) and the visibility predicate. BEFORE=36.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG52c360",
+          "at": "2026-11-24T01:10:24.769Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -131717,6 +131757,78 @@
         "nextAction": "Next: legal_members snapshot sources (3) or SELECT 1 FROM legal_members family (3 + EXISTS variant 4); avoid knowledge.ts guard, trust/PDF/malware. BEFORE=315.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.customer_360.read-tail-r4",
+        "goalId": "G4",
+        "owner": "customer_360",
+        "title": "customer_360 TS read tail native cutover (r4)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-customer_360/src/**",
+          "tests/unit/customer_360/**",
+          "tests/integration/customer_360/**"
+        ],
+        "resources": [
+          "owner:customer_360"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG60c360",
+          "claimedAt": "2026-11-24T01:10:25.562Z",
+          "heartbeatAt": "2026-11-24T01:10:25.562Z",
+          "expiresAt": "2026-11-24T01:40:25.562Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "TS-only dedupe if available; if none safe, report blocked with evidence. BEFORE=35.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.read-tail-r8",
+        "goalId": "G4",
+        "owner": "finance",
+        "title": "finance TS read tail native cutover (r8)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG61fin",
+          "claimedAt": "2026-11-24T01:10:25.892Z",
+          "heartbeatAt": "2026-11-24T01:10:25.892Z",
+          "expiresAt": "2026-11-24T01:40:25.892Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "TS-only dedupe if available; if none safe, report blocked with evidence. BEFORE=2266.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -131725,7 +131837,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 778,
+      "totalPackets": 780,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -131733,13 +131845,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 400,
+        "blocked": 402,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:10:04.275Z",
+    "updatedAt": "2026-11-24T01:10:25.897Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
