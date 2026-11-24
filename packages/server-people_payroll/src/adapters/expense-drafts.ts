@@ -1,4 +1,5 @@
 import {ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
+import { ppRd51AccountingCategoryGuard } from './pp-read-tail-r51-sources';
 import { PP_RD23_FINANCE_EXPENSE_DRAFT_REJECTED_GUARD } from './pp-read-tail-r23-sources';
 import { ppRd29FinancePartySupplierSql } from './pp-read-tail-r29-sources';
 import { expenseDrafts } from '@erpx/server-collaboration/adapters/native-expense-drafts';
@@ -6,7 +7,6 @@ import{nativeExpenseEmployment,nativeExpenseRequirements,expenseRequirements}fro
 export{nativeExpenseEmployment,nativeExpenseRequirements,expenseRequirements};
 
 import {withExpensePurchasedCommand} from "@erpx/server-people_payroll/adapters/expense-purchases";
-import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/hospitality-owner-projection-sources";
 
 import { hospitalityOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/hospitality-owner-projection-sources";
@@ -83,7 +83,7 @@ function originalNativeExpenseDrafts(write: SqlDatabase) {
         write,
         key,
         "category",
-        `EXISTS(SELECT 1 FROM (${financeProjectionSources.finance_accounts}) a JOIN (${commerceProjectionSources.commerce_settings}) s ON s.chart_id=a.chart_id AND s.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND a.category='expense' AND a.status='active' AND (?::text IS NULL OR (a.currency=? AND s.currency=?)))`,
+        ppRd51AccountingCategoryGuard(true, 'nullable-both'),
         [category, actor.companyId, currency, currency, currency],
       ),
     );

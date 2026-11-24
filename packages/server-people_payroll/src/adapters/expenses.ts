@@ -6,6 +6,7 @@ import { ppRd29OpenFinancePeriodSql, ppRd29FinanceExpenseTreasurySql, ppRd29Fina
 import { ppRd48ExpenseClaimInvoice } from './pp-read-tail-r48-sources';
 import { ppRd49ExpenseClaimReceiptV2, ppRd49ExpenseClaimReceiptV1, ppRd49AttachmentLinkPoint, ppRd49DraftLinkGuard } from './pp-read-tail-r49-sources';
 import { ppRd50SlipOwnerGuard } from './pp-read-tail-r50-sources';
+import { ppRd51AttachmentListV2, ppRd51AttachmentListV1 } from './pp-read-tail-r51-sources';
 import{canAccountExpenses,canPostExpenses,visibility,currentExpenseReader,approvalFields,expenseSelect,originalNativeExpenseReads,listExpenses,getExpense,expenseFromDatabase,canEditExpense,canReviewExpense,nativeExpenseReads,expensePresentationRows,expenseVisibleRecordIds,type ExpenseRow}from '@erpx/server-people_payroll/adapters/expense-read';
 export{canAccountExpenses,canPostExpenses,visibility,currentExpenseReader,approvalFields,expenseSelect,originalNativeExpenseReads,listExpenses,getExpense,expenseFromDatabase,canEditExpense,canReviewExpense,nativeExpenseReads,expensePresentationRows,expenseVisibleRecordIds};
 export type{ExpenseRow};
@@ -15,7 +16,6 @@ import {requireExpensePortUnit} from "@erpx/server-people_payroll/adapters/expen
 import {withExpensePurchasedCommand, withExpensePurchasedRead} from "@erpx/server-people_payroll/adapters/expense-purchases";
 import { workflowDecisionEffects } from "@erpx/server-workflow/public/decision-effects";
 import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/hospitality-owner-projection-sources";
-import { hospitalityOwnerProjectionSources as filesProjectionSources } from "@erpx/server-files/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/hospitality-owner-projection-sources";
@@ -82,12 +82,8 @@ function originalNativeExpenseDetail(write: SqlDatabase) {
     async attachments(_actor, id) { return (await write
       .prepare(
         attachmentsV2Readable()
-          ? `SELECT DISTINCT a.id,a.original_name,a.media_type,a.bytes FROM (${filesProjectionSources.attachments}) a
-             JOIN (${filesProjectionSources.attachment_links}) l ON l.attachment_id=a.id JOIN (${filesProjectionSources.attachment_sets}) s ON s.id=l.set_id
-             WHERE a.owner_type='expense_claim' AND a.owner_id=? AND a.revoked_at IS NULL
-               AND a.source_state='available' AND l.state='bound'
-               AND s.target_type='expense_claim' AND s.target_id=a.owner_id ORDER BY a.id`
-          : `SELECT id,original_name,media_type,bytes FROM (${filesProjectionSources.attachments}) attachments WHERE owner_type='expense_claim' AND owner_id=? AND revoked_at IS NULL ORDER BY created_at`,
+          ? ppRd51AttachmentListV2(false, true)
+          : ppRd51AttachmentListV1(false),
       )
       .bind(id)
       .all<ExpenseRow>()).results; },
@@ -120,13 +116,8 @@ function originalNativeExpenseDetail(write: SqlDatabase) {
     async paymentAttachments(actor, id) { return (await write
       .prepare(
         attachmentsV2Readable()
-          ? `SELECT DISTINCT a.id,a.owner_id,a.original_name,a.media_type,a.bytes FROM (${filesProjectionSources.attachments}) a
-             JOIN expense_payment_drafts d ON d.id=a.owner_id
-             JOIN (${filesProjectionSources.attachment_links}) l ON l.attachment_id=a.id JOIN (${filesProjectionSources.attachment_sets}) s ON s.id=l.set_id
-             WHERE a.owner_type='expense_payment' AND d.expense_id=? AND d.company_id=? AND a.revoked_at IS NULL
-               AND a.source_state='available' AND l.state${attachmentsV2ReadOnly() ? "='bound'" : " IN ('draft','bound')"}
-               AND s.target_type='expense_payment' AND s.target_id=a.owner_id ORDER BY a.id`
-          : `SELECT a.id,a.owner_id,a.original_name,a.media_type,a.bytes FROM (${filesProjectionSources.attachments}) a JOIN expense_payment_drafts d ON d.id=a.owner_id WHERE a.owner_type='expense_payment' AND d.expense_id=? AND d.company_id=? AND a.revoked_at IS NULL ORDER BY a.created_at`,
+          ? ppRd51AttachmentListV2(true, attachmentsV2ReadOnly())
+          : ppRd51AttachmentListV1(true),
       )
       .bind(id, actor.companyId)
       .all<ExpenseRow>()).results; },

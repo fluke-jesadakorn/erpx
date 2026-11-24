@@ -184,8 +184,8 @@ describe('People Payroll read-tail r45 five-family dedupe', () => {
     expect(src('payroll-statutory.ts')).toContain('pg_advisory_xact_lock');
     expect(src('people-payroll.ts')).toContain('nativePpStatement');
     expect(src('pp-read-tail-r49-sources.ts')).toContain('filesProjectionSources.attachments');
-    expect(src('expense-workflow.ts')).toContain('financeProjectionSources.finance_accounts');
-    expect(src('expenses.ts')).toContain('filesProjectionSources.attachments');
+    expect(src('pp-read-tail-r51-sources.ts')).toContain('financeProjectionSources.finance_accounts');
+    expect(src('pp-read-tail-r51-sources.ts')).toContain('filesProjectionSources.attachments');
     expect(src('pp-read-tail-r44-sources.ts')).toContain('export const ppRd44NamedSourceProjection');
     expect(src('pp-read-tail-r43-sources.ts')).toContain('export const ppRd43ActiveLeavePolicyProjection');
     expect(src('pp-read-tail-r42-sources.ts')).toContain('export const ppRd42FourColOwnerProjection');
@@ -211,6 +211,6 @@ describe('People Payroll read-tail r45 five-family dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1272);
-    expect(total).toBe(1228);
+    expect(total).toBe(1224);
   });
 });

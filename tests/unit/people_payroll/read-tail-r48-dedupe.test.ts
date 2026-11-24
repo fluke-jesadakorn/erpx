@@ -135,7 +135,7 @@ describe('People Payroll read-tail r48 three-family dedupe', () => {
     expect(src('payroll-statutory.ts')).toContain('lockYtd(value: string) { return database.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))")');
     expect(src('payroll-statutory.ts')).toContain('guardRetainedYtdItem(key: string, value: string, id: string, run_id: string, run_version: number, input_digest: string, result_json: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_items i JOIN hr_payroll_runs r ON r.id=i.run_id WHERE i.id=? AND i.run_id=? AND r.version=? AND r.status=\'posted\' AND r.input_digest=? AND i.result_json=?)"');
     expect(src('people-payroll.ts')).toContain('nativePpStatement');
-    expect(src('expense-workflow.ts')).toContain('financeProjectionSources.finance_accounts');
+    expect(src('pp-read-tail-r51-sources.ts')).toContain('financeProjectionSources.finance_accounts');
     expect(src('expenses.ts')).toContain("financeProjectionSources.finance_journals}) finance_journals WHERE id=? AND company_id=? AND source_type='expense_claim' AND source_id=? AND status='posted'");
     expect(src('expenses.ts')).toContain('`EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND version=? AND cancelled_at IS NULL AND status IN (${states.map(() => "?").join(",")}))`');
     expect(src('pp-read-tail-r47-sources.ts')).toContain('export const ppRd47GraphSnapshotProjection');
@@ -160,6 +160,6 @@ describe('People Payroll read-tail r48 three-family dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1245);
-    expect(total).toBe(1228);
+    expect(total).toBe(1224);
   });
 });

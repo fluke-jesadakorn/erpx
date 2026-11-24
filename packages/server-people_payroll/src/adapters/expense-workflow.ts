@@ -2,13 +2,13 @@ import { PP_RD23_FINANCE_EXPENSE_DRAFT_REJECTED_GUARD } from './pp-read-tail-r23
 import { ppRd29OpenFinancePeriodSql } from './pp-read-tail-r29-sources';
 import { ppRd48FinanceExpenseVersionGuard } from './pp-read-tail-r48-sources';
 import { ppRd49ExpenseClaimReceiptV2, ppRd49ExpenseClaimReceiptV1 } from './pp-read-tail-r49-sources';
+import { ppRd51AccountingCategoryGuard } from './pp-read-tail-r51-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import{nativeExpensePayers,expensePayers,nativeExpenseWorkflowFields,expenseWorkflowFields}from '@erpx/server-people_payroll/adapters/expense-workflow-read';
 export{nativeExpensePayers,expensePayers,nativeExpenseWorkflowFields,expenseWorkflowFields};
 
 import {withExpensePurchasedCommand} from "@erpx/server-people_payroll/adapters/expense-purchases";
 import {peoplePackageEnforcementMode} from "@erpx/server-commercial/public/purchase-command-boundary";
-import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as filesProjectionSources } from "@erpx/server-files/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/hospitality-owner-projection-sources";
@@ -96,7 +96,7 @@ function originalNativeExpenseAccounting(write: SqlDatabase) {
         write,
         key,
         "accounting-category",
-        `EXISTS(SELECT 1 FROM (${financeProjectionSources.finance_accounts}) a JOIN (${commerceProjectionSources.commerce_settings}) s ON s.chart_id=a.chart_id AND s.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND a.status='active' AND a.category='expense' AND a.currency=?)`,
+        ppRd51AccountingCategoryGuard(false, 'account'),
         [input.categoryAccountId, actor.companyId, row.currency],
       ),
       assertion(
@@ -169,7 +169,7 @@ function originalNativeExpenseTransitions(write: SqlDatabase) {
           write,
           key,
           "category",
-          `EXISTS(SELECT 1 FROM (${financeProjectionSources.finance_accounts}) a JOIN (${commerceProjectionSources.commerce_settings}) s ON s.chart_id=a.chart_id AND s.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND a.category='expense' AND a.status='active' AND a.currency=? AND s.currency=?)`,
+          ppRd51AccountingCategoryGuard(true, 'both'),
           [
             row.category_account_id,
             actor.companyId,

@@ -197,7 +197,7 @@ describe('People Payroll read-tail r47 three-family dedupe', () => {
     expect(src('payroll-adjustments.ts')).toContain('SELECT id FROM hr_time_entries WHERE id=? FOR SHARE');
     expect(src('payroll-statutory.ts')).toContain('pg_advisory_xact_lock');
     expect(src('people-payroll.ts')).toContain('nativePpStatement');
-    expect(src('expense-workflow.ts')).toContain('financeProjectionSources.finance_accounts');
+    expect(src('pp-read-tail-r51-sources.ts')).toContain('financeProjectionSources.finance_accounts');
     expect(src('platform-owner-projection-sources.ts')).toContain('ppRd45CompRevisionProjection');
     expect(src('platform-owner-projection-sources.ts')).toContain('PP_RD22_LEAVE_REQUESTS_PROJECTION_SQL');
     expect(src('collaboration-notification-snapshot-sources.ts')).toContain('ppRd44NamedSourceProjection');
@@ -223,6 +223,6 @@ describe('People Payroll read-tail r47 three-family dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1261);
-    expect(total).toBe(1228);
+    expect(total).toBe(1224);
   });
 });

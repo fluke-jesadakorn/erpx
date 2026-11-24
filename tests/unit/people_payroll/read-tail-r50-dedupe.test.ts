@@ -140,7 +140,7 @@ describe('People Payroll read-tail r50 two-family dedupe', () => {
     expect(src('payroll-statutory.ts')).toContain('lockProfile(value: string) { return database.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))")');
     expect(src('payroll-statutory.ts')).toContain('lockYtd(value: string) { return database.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))")');
     expect(src('people-payroll.ts')).toContain('nativePpStatement');
-    expect(src('expense-workflow.ts')).toContain('financeProjectionSources.finance_accounts');
+    expect(src('pp-read-tail-r51-sources.ts')).toContain('financeProjectionSources.finance_accounts');
     expect(src('expenses.ts')).toContain("financeProjectionSources.finance_journals}) finance_journals WHERE id=? AND company_id=? AND source_type='expense_claim' AND source_id=? AND status='posted'");
     expect(src('expense-payments.ts')).toContain("a.owner_type='expense_payment' AND a.owner_id=?");
     expect(src('executive-metric-projections.ts')).toContain('financeFinalSources.executive_metric_projections_finance_journals_j_join');
@@ -165,6 +165,6 @@ describe('People Payroll read-tail r50 two-family dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1233);
-    expect(total).toBe(1228);
+    expect(total).toBe(1224);
   });
 });
