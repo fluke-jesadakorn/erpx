@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8983,
+    "revision": 8985,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -146594,7 +146594,7 @@
         "owner": "procurement",
         "title": "procurement TS read tail native cutover (r20)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -146606,28 +146606,36 @@
         "resources": [
           "owner:procurement"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGC0pro",
-          "claimedAt": "2026-11-24T03:57:28.711Z",
-          "heartbeatAt": "2026-11-24T03:57:29.397Z",
-          "expiresAt": "2026-11-24T04:27:29.397Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-procurement/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "2ff9a87df",
+            "owner": "procurement",
+            "before": 166,
+            "after": 163,
+            "note": "receiptCount, expenseAccountBy and hrPersonIn helpers shared; writes/locks untouched; r17-r19 unchanged."
+          },
+          {
+            "command": "vitest procurement (103) + bun run typecheck",
+            "result": "passed",
+            "sourceSha": "2ff9a87df"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=166.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-i",
+          "runId": "run-20261123-j",
           "agentId": "wGC0pro",
-          "at": "2026-11-24T03:57:20.238Z",
+          "at": "2026-11-24T03:58:00.242Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long cargo queue; WIP reviewed, all owner claims preserved and re-issued.",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=166."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -146685,17 +146693,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 28,
+        "in_progress": 27,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 683,
+        "blocked": 684,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 162,
-    "updatedAt": "2026-11-24T03:57:44.058Z",
+    "updatedAt": "2026-11-24T03:58:00.248Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
