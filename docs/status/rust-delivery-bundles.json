@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12240,
+    "revision": 12243,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261124-c",
       "agentId": "lead-opencode",
       "startedAt": "2026-11-24T11:32:49.939Z",
-      "heartbeatAt": "2026-11-24T14:04:54.024Z",
-      "expiresAt": "2026-11-24T14:34:54.024Z",
+      "heartbeatAt": "2026-11-24T14:10:58.174Z",
+      "expiresAt": "2026-11-24T14:40:58.174Z",
       "generation": 169,
       "tokenHash": "eac3f45906eed752625f2bb4dc251a340a6a580a6b89a15f666d16287f0d616e"
     },
@@ -181926,8 +181926,8 @@
           "runId": "run-20261124-c",
           "agentId": "wH4n38",
           "claimedAt": "2026-11-24T14:06:24.867Z",
-          "heartbeatAt": "2026-11-24T14:06:24.867Z",
-          "expiresAt": "2026-11-24T14:36:24.867Z",
+          "heartbeatAt": "2026-11-24T14:10:58.174Z",
+          "expiresAt": "2026-11-24T14:40:58.174Z",
           "generation": 169
         },
         "baseSha": null,
@@ -181962,8 +181962,8 @@
           "runId": "run-20261124-c",
           "agentId": "wH4n39",
           "claimedAt": "2026-11-24T14:06:37.772Z",
-          "heartbeatAt": "2026-11-24T14:06:37.772Z",
-          "expiresAt": "2026-11-24T14:36:37.772Z",
+          "heartbeatAt": "2026-11-24T14:10:58.174Z",
+          "expiresAt": "2026-11-24T14:40:58.174Z",
           "generation": 169
         },
         "baseSha": null,
@@ -181975,6 +181975,41 @@
         "nextAction": "Item-key head 4 sites (-4), ordered non-item key 3 sites (-3), state/kind tail 3 sites (-3): 173->163. BEFORE=173.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.projects.read-tail-r37",
+        "goalId": "G4",
+        "owner": "projects",
+        "title": "projects union arm and proof group heads",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-projects/src/**",
+          "tests/unit/projects/**"
+        ],
+        "resources": [
+          "owner:projects"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n40",
+          "claimedAt": "2026-11-24T14:11:30.569Z",
+          "heartbeatAt": "2026-11-24T14:11:30.569Z",
+          "expiresAt": "2026-11-24T14:41:30.569Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "4-arm fact union closed helper (-3) and 3-arm not-exists proof group (-2): 93->88.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -181983,11 +182018,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1759,
+      "totalPackets": 1760,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 2,
+        "in_progress": 3,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -181997,7 +182032,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:10:40.757Z",
+    "updatedAt": "2026-11-24T14:11:30.572Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
