@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7548,
+    "revision": 7552,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -128212,7 +128212,7 @@
         "owner": "work_projection",
         "title": "work_projection TS read tail native cutover (round 3)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -128224,22 +128224,42 @@
         "resources": [
           "owner:work_projection"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wF20wpr",
-          "claimedAt": "2026-11-24T00:24:16.639Z",
-          "heartbeatAt": "2026-11-24T00:27:28.297Z",
-          "expiresAt": "2026-11-24T00:57:28.297Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-work_projection/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "fd03a6610",
+            "owner": "work_projection",
+            "before": 108,
+            "after": 107,
+            "note": "Save preference and receipt share one inert SELECT 1 noop."
+          },
+          {
+            "command": "vitest work services (14)",
+            "result": "passed",
+            "sourceSha": "fd03a6610"
+          },
+          {
+            "command": "tsc work_projection",
+            "result": "passed",
+            "sourceSha": "fd03a6610"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: calendar-commands-facts, page-layouts or quick-access-preferences duplicate/inert reads; record a strictly lower spaced count (BEFORE=108).",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wF20wpr",
+          "at": "2026-11-24T00:29:53.845Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -128493,6 +128513,42 @@
         "nextAction": "Next: movement-presentation-query (1 read) or the smallest remaining owner-local family; record a strictly lower spaced count (BEFORE=263).",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.work_projection.read-tail-r4",
+        "goalId": "G4",
+        "owner": "work_projection",
+        "title": "work_projection TS read tail native cutover (round 4)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-work_projection/src/**",
+          "tests/unit/work_projection/**",
+          "tests/integration/work_projection/**"
+        ],
+        "resources": [
+          "owner:work_projection"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wF28wpr",
+          "claimedAt": "2026-11-24T00:29:54.021Z",
+          "heartbeatAt": "2026-11-24T00:29:54.021Z",
+          "expiresAt": "2026-11-24T00:59:54.021Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: page-layouts duplicate inert SELECT 1 noop (2->1) and calendar-commands-facts; record a strictly lower spaced count (BEFORE=107).",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -128501,7 +128557,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 717,
+      "totalPackets": 718,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
@@ -128509,13 +128565,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 351,
+        "blocked": 352,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T00:27:28.300Z",
+    "updatedAt": "2026-11-24T00:29:54.024Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
