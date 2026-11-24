@@ -30,6 +30,8 @@ const approvalStepsApproverSql = `SELECT s.*,COALESCE(p.legal_name,s.approver_us
 const approverNameLookupSql = `(SELECT legal_name ${peoplepayrollFinalSources.approvals_hr_people_from} WHERE company_id=i.company_id AND iam_same_person(user_id,d.`;
 const approvalDecisionHistorySql = `COALESCE(p.legal_name,d.actor_user_id) actor_name,${approverNameLookupSql}previous_approver_user_id,company_id) AND merged_into_id IS NULL LIMIT 1) previous_approver_name,${approverNameLookupSql}approver_user_id,company_id) AND merged_into_id IS NULL LIMIT 1) approver_name FROM approval_decisions d JOIN approval_instances i ON i.id=d.instance_id LEFT ${peoplepayrollFinalSources.approvals_hr_people_p_join} ON p.user_id=d.actor_user_id AND p.company_id=i.company_id AND p.merged_into_id IS NULL WHERE i.record_type=`;
 const pendingInstanceExistsSql = "EXISTS(SELECT 1 FROM approval_instances WHERE id=? AND version=? AND state='pending' AND current_step=?)";
+/** Byte-identical span shared by the override/non-override approval-version guards; emitted SQL is unchanged. */
+const pendingInstanceAndStepSql = `${pendingInstanceExistsSql} AND EXISTS(SELECT 1 FROM approval_steps WHERE id=? AND `;
 const jsonEachBindSql = "(SELECT value FROM erpx_json_each(?))";
 export { participantSql } from '@erpx/server-workflow/adapters/approval-participant-projection';
 export type { ApprovalKind } from '@erpx/server-workflow/domain/approvals';
@@ -111,8 +113,8 @@ export function nativeApprovalPlanningPorts(database: SqlDatabase, readOverrides
         readExpenseDecisionEvidenceAssignmentsreceiptsperson2(record_id: string) { return files_approvals(database).readExpenseDecisionEvidenceAssignmentsreceiptsperson2(record_id); },
         guard31(key: string, value: "approval-version", id: string, version: number, ordinal: number, id2: string, userId: string, override: boolean) {
             return assertion(database, key, value, override
-                ? `${pendingInstanceExistsSql} AND EXISTS(SELECT 1 FROM approval_steps WHERE id=? AND state='pending' AND approver_user_id<>?)`
-                : `${pendingInstanceExistsSql} AND EXISTS(SELECT 1 FROM approval_steps WHERE id=? AND ? IN (SELECT approver_user_id UNION SELECT value FROM erpx_json_each(COALESCE(approver_pool_json,'[]'))) AND state='pending')`, [id, version, ordinal, id2, userId]);
+                ? `${pendingInstanceAndStepSql}state='pending' AND approver_user_id<>?)`
+                : `${pendingInstanceAndStepSql}? IN (SELECT approver_user_id UNION SELECT value FROM erpx_json_each(COALESCE(approver_pool_json,'[]'))) AND state='pending')`, [id, version, ordinal, id2, userId]);
         },
         guard32(key: string, value: "override-authority", assignmentId: string, companyId: string, userId: string, branch_id: string | null, department_id: string | null) { return identity_access_approvals(database).guard32(key, value, assignmentId, companyId, userId, branch_id, department_id); },
         guard33(key: string, value: "appointed-approval-current", value2: (string | null)[], policyStep: boolean) { return organization_approvals(database).guard33(key, value, value2, policyStep); },
