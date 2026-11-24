@@ -1,4 +1,5 @@
 import "server-only";
+import {materializedClockCteSql} from './finance-read-tail-r19-sql';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError } from "@erpx/server-runtime/public/http";
@@ -33,7 +34,7 @@ export function groupSourceSql(sql: string, predicates: readonly string[]) {
   const required=predicates.filter(predicate=>predicate!=="TRUE");if(!required.length)return sql;
   const where=sql.indexOf(" WHERE ");
   const position=where>=0?where:Math.min(...[" ORDER BY "," GROUP BY "," LIMIT "].map(clause=>{const index=sql.indexOf(clause);return index<0?sql.length:index;}));
-  return `WITH finance_group_purchase_clock AS MATERIALIZED (SELECT ${packageClockSql} AS now_ms) `+sql.slice(0,position)+" WHERE "+required.map(predicate=>`(${predicate})`).join(" AND ")+(where>=0?" AND "+sql.slice(position+7):sql.slice(position));
+  return `${materializedClockCteSql('finance_group_purchase_clock', packageClockSql, true, true)} `+sql.slice(0,position)+" WHERE "+required.map(predicate=>`(${predicate})`).join(" AND ")+(where>=0?" AND "+sql.slice(position+7):sql.slice(position));
 }
 export function groupEditionHistorySql(alias: string, history: (company: string)=>string) {
   if(history("source->>'companyId'")==="TRUE")return "TRUE";

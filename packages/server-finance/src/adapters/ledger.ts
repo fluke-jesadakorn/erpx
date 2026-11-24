@@ -1,3 +1,4 @@
+import {materializedClockCteSql} from './finance-read-tail-r19-sql';
 import {withManufacturingInitialStockJournalRead} from '@erpx/server-finance/adapters/manufacturing-initial-stock-journal-read';
 import { DIMENSION_DEFINITIONS_SQL } from './finance-read-tail-r17-sql';
 import {requireQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
@@ -32,7 +33,7 @@ function ledgerService(actor: WorkContext,provided?:SqlDatabase,documentId?:stri
     return createLedgerService({ error: (...args) => new ApiError(...args), charts: async () => await listCharts(actor,await db()) as LedgerRow[], profiles: () => accountingProfiles(actor), accounts: async (chartId) => (await (await db()).prepare("SELECT * FROM finance_accounts WHERE chart_id=? AND company_id=? ORDER BY code").bind(chartId, actor.companyId).all<LedgerRow>()).results, periods: async () => (await (await db()).prepare("SELECT * FROM finance_periods WHERE company_id=? ORDER BY start_date DESC").bind(actor.companyId).all<LedgerRow>()).results, journals: async (chartId, query, paginated) => {
             const write = await db();
             let initialReader=true;try{await requireQueuedCommandAuthority(write,actor,'finance.read');}catch(error){if(error instanceof ApiError&&(error.status===401||error.status===403))initialReader=false;else throw error;}
-            const clock=`WITH finance_ledger_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms) `;
+            const clock=`${materializedClockCteSql('finance_ledger_clock', packageClockSql)} `;
             const initialFilter=`(SELECT ${initialPhysicalStockFinanceJournalFilter('j','finance_ledger_clock.now_ms',initialReader)} FROM finance_ledger_clock)`;
             return paginated ? readListPage<LedgerRow & {
                 id: string;

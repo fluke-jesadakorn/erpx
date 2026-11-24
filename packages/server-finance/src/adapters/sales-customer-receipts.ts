@@ -1,4 +1,5 @@
 import 'server-only';
+import {materializedClockCteSql} from './finance-read-tail-r19-sql';
 import {createHash,randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {requirePermission} from '@erpx/server-identity_access/public/iam-permissions';
@@ -72,7 +73,7 @@ export async function salesCustomerReceiptProductEntry(database:SqlDatabase,scop
  if(!scope.sessionId||!Number.isSafeInteger(scope.assignmentVersion)||scope.assignmentVersion<1)return null;
  try{await loadIamAuthority(database,scope.companyId,scope.userId,scope.role,scope.sessionId);}catch(error){if(error instanceof ApiError&&(error.status===401||error.status===403))return null;throw error;}
  const access=(await readPurchasedAccesses(database,'enforced',scope.companyId,[sales]))[sales];if(!access.history)return null;
- const row=await database.prepare(`WITH receipt_entry_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms),receipt_scope AS MATERIALIZED(SELECT ?::text company_id,?::text branch_id,?::text department_id)
+ const row=await database.prepare(`${materializedClockCteSql('receipt_entry_clock', packageClockSql)},receipt_scope AS MATERIALIZED(SELECT ?::text company_id,?::text branch_id,?::text department_id)
  SELECT receipt.id FROM finance_customer_receipts receipt CROSS JOIN receipt_scope CROSS JOIN receipt_entry_clock
  JOIN (${financeSalesReceiptOriginalSources}) original ON original.id=receipt.payment_id AND original.company_id=receipt.company_id
  JOIN (${commerceFinanceSalesSources.invoiceScope}) owned ON owned.invoice_id=original.invoice_id AND owned.company_id=original.company_id

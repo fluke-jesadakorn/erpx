@@ -1,3 +1,4 @@
+import {materializedClockCteSql} from './finance-read-tail-r19-sql';
 import {financeSourceAccess} from "@erpx/server-finance/adapters/source-purchases";
 import {financePackageEnforcementMode} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {purchasedCapabilityPredicate,packageClockSql} from "@erpx/server-commercial/public/purchased-capability-sql";
@@ -12,7 +13,7 @@ export async function financeExpansionWork(actor: WorkContext) {
     const write=(await holdingResources(actor.holdingId)).write,mode=await financePackageEnforcementMode(),history=await groupHistoryPredicate();
     const access=await financeSourceAccess(write,actor,["finance.accounting","finance.banking","finance.close","finance.advanced","finance.receivables"]);
     if(!access["finance.accounting"].history)return [];
-    const clock=mode==="enforced"?`WITH finance_group_purchase_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms) `:"";
+    const clock=mode==="enforced"?`${materializedClockCteSql('finance_group_purchase_clock', packageClockSql, true)} `:"";
     const purchase=(company:string,capability:string)=>mode==="enforced"?`(SELECT ${purchasedCapabilityPredicate(company,capability,"history","finance_group_purchase_clock.now_ms")} FROM finance_group_purchase_clock)`:"TRUE";
     const actionAllowed=(kind:string)=>access[["instrument","instrument-run","instrument_payment","calculation","book-adjustment","group-edition","ownership","acquisition","intercompany-pair"].includes(kind)||kind.includes("financing")?"finance.advanced":kind==="collection"?"finance.receivables":kind==="bank"?"finance.banking":"finance.accounting"].settleExisting;
     return createFinanceExpansionWork({actionAllowed, permission: requirePermission, ready: async () => {}, today: () => new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Bangkok', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date()), rows: async (actor) => (await write

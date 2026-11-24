@@ -1,4 +1,5 @@
 import "server-only";
+import {materializedClockCteSql} from './finance-read-tail-r19-sql';
 import { readPurchasedAccesses } from "@erpx/server-commercial/public/purchase-command-boundary";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { assignmentReadSql } from "@erpx/server-identity_access/public/record-source-authority";
@@ -22,7 +23,7 @@ export async function financeProductLegalSetupEntry(scope: LegalSetupScope) {
   const database = (await holdingResources(scope.holdingId)).write;
   const access = await readPurchasedAccesses(database, "enforced", scope.companyId, financeReferenceCapabilities());
   const permitted = Object.entries(access).filter(([,value])=>value.history);if(!permitted.length)return null;
-  const current = await database.prepare(`WITH legal_setup_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms)
+  const current = await database.prepare(`${materializedClockCteSql('legal_setup_clock', packageClockSql)}
     SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) legal_setup_scope CROSS JOIN legal_setup_clock
     WHERE ${assignmentReadSql("legal_setup_scope", "finance.read")} AND EXISTS(SELECT 1 FROM assignments WHERE id=? AND version=?)
     AND ${scheduledFeaturePredicate("legal_setup_scope.company_id","finance")}

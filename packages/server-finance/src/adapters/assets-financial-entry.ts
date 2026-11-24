@@ -1,4 +1,5 @@
 import 'server-only';
+import {materializedClockCteSql} from './finance-read-tail-r19-sql';
 import {createHash} from 'node:crypto';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
@@ -16,7 +17,7 @@ export async function assetsFinancialProductEntry(database:SqlDatabase,scope:Ass
  let iam:Awaited<ReturnType<typeof loadIamAuthority>>;try{iam=await loadIamAuthority(database,scope.companyId,scope.userId,scope.role,scope.sessionId);}catch(error){if(error instanceof ApiError&&(error.status===401||error.status===403))return null;throw error;}
  const caps=['assets.register','finance.asset-recognition','finance.asset-disposal'] as const,access=await readPurchasedAccesses(database,'enforced',scope.companyId,caps);
  if(!access['assets.register'].history||!access['finance.asset-recognition'].history&&!access['finance.asset-disposal'].history)return null;
- const current=await database.prepare(`WITH assets_financial_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms)
+ const current=await database.prepare(`${materializedClockCteSql('assets_financial_clock', packageClockSql)}
  SELECT a.id FROM (${identitySources.assignments}) a CROSS JOIN (SELECT ?::text company_id,NULL::text branch_id,NULL::text department_id) assets_financial_scope CROSS JOIN assets_financial_clock
  WHERE a.id=? AND a.user_id=? AND a.company_id=assets_financial_scope.company_id AND a.role=? AND a.version=? AND a.scope_kind='holding'
  AND ${assignmentReadSql('assets_financial_scope','finance.read')}
