@@ -3085,6 +3085,33 @@
       "lane": "unit",
       "owner": "billing",
       "modules": [
+        "finance"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Billing workspace view must stay native-only and fail closed."
+      },
+      "apps": [
+        "finance"
+      ],
+      "packages": [
+        "@erpx/server-billing"
+      ],
+      "id": "billing.billing-native-view-cutover.unit",
+      "files": [
+        "tests/unit/billing/billing-native-view-cutover.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "billing",
+      "modules": [
         "commercial"
       ],
       "fixture": "none",

@@ -44,18 +44,18 @@ describe('billing read-tail r23 parameterized family dedupe', () => {
       expect(fragment).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     }
     const billing = await src('billing.ts');
-    expect(billing).toContain('"SELECT pg_advisory_xact_lock(hashtextextended($1,0))"');
+    expect(billing).toContain('BILLING_ADVISORY_XACT_LOCK_SQL');
     expect(billing).toContain('"SELECT * FROM billing_enrollments WHERE holding_id=$1 AND ended_at IS NULL FOR UPDATE"');
     const jobs = await src('billing-jobs.ts');
     expect(jobs).toContain('"SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS locked"');
-    expect(jobs).toContain('"SELECT pg_advisory_unlock(hashtextextended($1,0))"');
+    expect(jobs).toContain('BILLING_ADVISORY_UNLOCK_SQL');
   });
 
-  it('lowers the billing owner SELECT KPI strictly below the recorded BEFORE=66 baseline', async () => {
+  it('lowers the billing owner SELECT KPI strictly below the recorded BEFORE=63 baseline', async () => {
     const files = await tsFiles(new URL('../../../packages/server-billing/src/', import.meta.url));
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
-    expect(count).toBeLessThan(66);
-    expect(count).toBe(65);
+    expect(count).toBeLessThan(63);
+    expect(count).toBe(60); // r25 left 63; r26 removes the nativeBillingView/billingView SELECT literals.
   });
 });

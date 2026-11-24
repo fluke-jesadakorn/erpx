@@ -43,11 +43,11 @@ describe('billing advisory lock text family dedupe', () => {
     expect(jobs).toContain('"SELECT pg_try_advisory_lock(hashtextextended($1,0)) AS locked"');
   });
 
-  it('lowers the billing owner SELECT KPI strictly below the recorded BEFORE=65 baseline', async () => {
+  it('lowers the billing owner SELECT KPI strictly below the recorded BEFORE=63 baseline', async () => {
     const files = await tsFiles(new URL('../../../packages/server-billing/src/', import.meta.url));
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
-    expect(count).toBeLessThan(65);
-    expect(count).toBe(63); // r23 left 65; r25 lowers 65->63 (three advisory-lock literals -> one shared text).
+    expect(count).toBeLessThan(63);
+    expect(count).toBe(60); // r25 left 63; r26 removes the three nativeBillingView/billingView SELECT literals.
   });
 });

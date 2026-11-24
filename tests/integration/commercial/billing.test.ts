@@ -2,7 +2,6 @@ import { beforeAll, it, expect } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import {
   billingCommand,
-  billingView,
   type BillingActor,
   type BillingInput,
 } from "@erpx/server-billing/public/billing";
@@ -16,6 +15,36 @@ import {
 } from "@erpx/server-billing/public/billing-stripe";
 const db = env.CONTROL_DB;
 beforeAll(() => applyMigrations(db, env.CONTROL_TEST_MIGRATIONS));
+/** Native-owned Billing workspace oracle. The retired TypeScript `billingView`
+ * is gone; the native workspace read is the sole authority, so this oracle reads
+ * the same Billing-owned Control rows the Rust workspace reader projects. */
+async function nativeBillingView(holdingId: string) {
+  const rows = async (text: string, params: unknown[] = []) =>
+    (await db.pool.query(text, params)).rows;
+  const [accounts, enrollments, plans, periods, costs, invoices, audit, jobs, inbox] =
+    await Promise.all([
+      rows("SELECT * FROM billing_accounts WHERE holding_id=$1", [holdingId]),
+      rows("SELECT * FROM billing_enrollments WHERE holding_id=$1 ORDER BY started_at DESC,id DESC LIMIT 1", [holdingId]),
+      rows("SELECT * FROM billing_plans WHERE id IN ('infrastructure','standard','priority') ORDER BY CASE id WHEN 'infrastructure' THEN 0 WHEN 'standard' THEN 1 ELSE 2 END,revision DESC"),
+      rows("SELECT * FROM billing_periods WHERE holding_id=$1 ORDER BY month DESC,id DESC", [holdingId]),
+      rows("SELECT * FROM billing_costs WHERE holding_id=$1 ORDER BY created_at DESC,id DESC", [holdingId]),
+      rows("SELECT * FROM billing_invoices WHERE holding_id=$1 ORDER BY created_at DESC,id DESC", [holdingId]),
+      rows("SELECT * FROM billing_audit WHERE holding_id=$1 ORDER BY created_at DESC,id DESC LIMIT 100", [holdingId]),
+      rows("SELECT * FROM billing_jobs WHERE holding_id=$1 ORDER BY created_at,id", [holdingId]),
+      rows("SELECT i.id,'attention' AS state,i.last_error FROM stripe_inbox i JOIN billing_accounts a ON a.customer_id=i.payload_json::jsonb #>> '{data,object,customer}' WHERE a.holding_id=$1 AND i.state='pending' AND i.last_error IS NOT NULL ORDER BY i.created_at LIMIT 50", [holdingId]),
+    ]);
+  return {
+    account: accounts[0] ?? null,
+    enrollment: enrollments[0] ?? null,
+    plans,
+    periods,
+    costs,
+    invoices,
+    audit,
+    jobs: [...jobs.filter((job) => job.state !== "done"), ...inbox],
+    legacy: null,
+  };
+}
 class FakeStripe {
   objects = new Map<string, StripeObject>();
   receipts = new Map<string, StripeObject>();
@@ -108,7 +137,7 @@ async function fixture(now = Date.parse("2026-09-01T00:00:00+07:00")) {
       email: "admin@example.test",
       platform: true,
     };
-  const get = () => billingView(db, id, now);
+  const get = () => nativeBillingView(id);
   const command = async (
     action: BillingInput["action"],
     fields: Partial<BillingInput> = {},

@@ -3,12 +3,9 @@ import { forbidden, notFound } from 'next/navigation';
 import { requireManageErpxContext } from '@erpx/server-identity_access/public/authorization';
 import { runtimeEnv } from '../../../../packages/server-runtime/src/public/runtime';
 import { billingHoldingFacts } from '@erpx/server-runtime/public/billing-holding-facts';
+import { ApiError } from '@erpx/server-runtime/public/http';
 import type { PostgresDatabase } from '@erpx/server-runtime/public/runtime/postgres';
-import { billingView } from '@erpx/server-billing/public/billing';
-import {
-  nativeBillingAvailable,
-  nativeBillingWorkspace,
-} from '@erpx/server-billing/public/native-billing-page';
+import { nativeBillingWorkspace } from '@erpx/server-billing/public/native-billing-page';
 
 export async function platformBillingPresentation(holdingId?: string) {
   const { platform } = await requireManageErpxContext();
@@ -31,19 +28,19 @@ export async function platformBillingPresentation(holdingId?: string) {
       data: null,
       writable: platform.role === 'platform_admin',
     };
-  const native = nativeBillingAvailable();
-  const data = native
-    ? await nativeBillingWorkspace({
-        userId: platform.userId,
-        holdingId: selected,
-        platform: true,
-        role: platform.role,
-        assignmentId: platform.assignmentId,
-        expiresAt: null,
-      })
-    : await billingView(db, selected);
-  if (native && !data)
-    throw new Error('NATIVE_BILLING_UNAVAILABLE');
+  // The native Billing workspace is the sole authority. `nativeBillingWorkspace`
+  // fails closed when the exact private configuration is missing or the owner
+  // response is missing/malformed; there is no TypeScript SQL fallback.
+  const data = await nativeBillingWorkspace({
+    userId: platform.userId,
+    holdingId: selected,
+    platform: true,
+    role: platform.role,
+    assignmentId: platform.assignmentId,
+    expiresAt: null,
+  });
+  if (!data)
+    throw new ApiError(503, 'NATIVE_BILLING_UNAVAILABLE', 'The native Billing view is unavailable.');
   return {
     accounts,
     holdingId: selected,

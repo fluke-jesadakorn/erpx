@@ -28,7 +28,7 @@ const nativeBillingCommandActions = new Set<BillingInput["action"]>([
   "complete-costs",
 ]);
 export interface BillingApiRepository {platformAccounts():Promise<{rows:Record<string,unknown>[]}>;holdingSlug(id:string):Promise<{rows:{slug:string}[]}>;scopedEvidence(id:string,holdingId:string):Promise<{rows:BillingEvidenceSource[]}>;deniedUnavailable(id:string,evidenceId:string,holdingId:string,actorId:string,reason:string,now:number):Promise<unknown>;deniedMissingFile(id:string,evidenceId:string,holdingId:string,actorId:string,reason:string,now:number):Promise<unknown>;allowedEvidence(id:string,evidenceId:string,holdingId:string,actorId:string,now:number):Promise<unknown>;existingEvidence(id:string):Promise<{rows:BillingEvidenceSource[]}>;billingAccountExists(holdingId:string):Promise<{rowCount:number|null}>;retainQuarantine(facts:{id:string;holdingId:string;filename:string;mime:string;size:number;sha:string;actorId:string;now:number;objectKey:string;detected:string}):Promise<void>;}
-export interface BillingApiPorts {ready():Promise<void>;repository:BillingApiRepository;platformActor():Promise<{userId:string;email:string;role:string;assignmentId?:string}>;workActor(slug:string):Promise<WorkContext>;companyAuthority(actor:WorkContext):Promise<unknown>;error(status:number,code:string,message:string):Error;errorResponse(error:unknown):Response;now():number;id():string;origin():string;publicOrigin(request:Request):string;readOnly():boolean;uploadsFrozen():boolean;scannerReadiness():Promise<{ready:boolean;enabled:boolean}>;object(key:string):Promise<{body:ReadableStream<Uint8Array>}|null>;objectHead(key:string):Promise<{customMetadata:Record<string,string>}|null>;putObject(key:string,bytes:Uint8Array,options:{onlyIf:{etagDoesNotMatch:string};httpMetadata:{contentType:string;cacheControl:string};customMetadata:{sha256:string;state:string}}):Promise<unknown>;hash(value:string|Uint8Array):string;detect(bytes:Uint8Array,mime:string):string|null;target(holdingId:string,month:string):Promise<TargetBillingPeriodView>;view(holdingId:string):Promise<BillingView>;body(request:Request):Promise<unknown>;command(actor:BillingActor,holdingId:string,input:BillingInput,key:string,returnUrl:string):Promise<{ok:boolean;url?:string}>;nativeCostCommand?(actor:BillingActor,holdingId:string,input:BillingInput,key:string):Promise<{ok:boolean;url?:string}>;nativeInvoiceCommand?(actor:BillingActor,holdingId:string,route:string,body:unknown,key:string):Promise<{ok:boolean}>;}
+export interface BillingApiPorts {ready():Promise<void>;repository:BillingApiRepository;platformActor():Promise<{userId:string;email:string;role:string;assignmentId?:string}>;workActor(slug:string):Promise<WorkContext>;companyAuthority(actor:WorkContext):Promise<unknown>;error(status:number,code:string,message:string):Error;errorResponse(error:unknown):Response;now():number;id():string;origin():string;publicOrigin(request:Request):string;readOnly():boolean;uploadsFrozen():boolean;scannerReadiness():Promise<{ready:boolean;enabled:boolean}>;object(key:string):Promise<{body:ReadableStream<Uint8Array>}|null>;objectHead(key:string):Promise<{customMetadata:Record<string,string>}|null>;putObject(key:string,bytes:Uint8Array,options:{onlyIf:{etagDoesNotMatch:string};httpMetadata:{contentType:string;cacheControl:string};customMetadata:{sha256:string;state:string}}):Promise<unknown>;hash(value:string|Uint8Array):string;detect(bytes:Uint8Array,mime:string):string|null;target(holdingId:string,month:string):Promise<TargetBillingPeriodView>;view(actor:BillingActor,holdingId:string):Promise<BillingView|undefined>;body(request:Request):Promise<unknown>;command(actor:BillingActor,holdingId:string,input:BillingInput,key:string,returnUrl:string):Promise<{ok:boolean;url?:string}>;nativeCostCommand?(actor:BillingActor,holdingId:string,input:BillingInput,key:string):Promise<{ok:boolean;url?:string}>;nativeInvoiceCommand?(actor:BillingActor,holdingId:string,route:string,body:unknown,key:string):Promise<{ok:boolean}>;}
 function concatBytes(chunks:Uint8Array[],size:number){const bytes=new Uint8Array(size);let offset=0;for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}return bytes;}
 export function createBillingApi(ports:BillingApiPorts){
 function billingHandler(platform: boolean) {
@@ -328,11 +328,22 @@ function billingHandler(platform: boolean) {
       }
       if (path.length)
         throw ports.error(404, "NOT_FOUND", "Billing route not found.");
-      if (request.method === "GET")
+      if (request.method === "GET") {
+        // The native Billing workspace is the sole authority for the view. A
+        // missing/unconfigured or malformed native response fails closed; the
+        // retained TypeScript SQL view is no longer an alternative reader.
+        const data = await ports.view(actor, holdingId);
+        if (!data)
+          throw ports.error(
+            503,
+            "NATIVE_BILLING_UNAVAILABLE",
+            "The native Billing view is unavailable.",
+          );
         return Response.json(
-          canonicalDestinationLinks({ data: await ports.view(holdingId) }),
+          canonicalDestinationLinks({ data }),
           { headers: { "Cache-Control": "private, no-store" } },
         );
+      }
       throw ports.error(404, "NOT_FOUND", "Billing route not found.");
     } catch (error) {
       return ports.errorResponse(error);

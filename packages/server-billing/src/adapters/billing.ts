@@ -7,7 +7,7 @@ import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgre
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {billingHoldingFacts} from '@erpx/server-runtime/public/billing-holding-facts';
 import {createBillingService,type BillingRepository} from '@erpx/server-billing/application/billing';
-import type {BillingActor,BillingInput,BillingReceipt,BillingAccount,BillingEnrollment,BillingPeriod,BillingPlan,BillingInvoiceRow,BillingJobRow,BillingMeterRow,BillingViewFacts} from '@erpx/server-billing/domain/billing';
+import type {BillingActor,BillingInput,BillingReceipt,BillingAccount,BillingEnrollment,BillingPeriod,BillingPlan,BillingInvoiceRow,BillingJobRow,BillingMeterRow} from '@erpx/server-billing/domain/billing';
 import type {BillingStripe} from '@erpx/server-billing/domain/stripe';
 import {calculateTargetBillingPeriod} from '@erpx/server-billing/adapters/billing-target';
 import {calculateTargetRolloutReadiness} from '@erpx/server-billing/adapters/billing-target-rollout';
@@ -104,47 +104,6 @@ recordCommandAudit:(value0,value1,value2,value3,value4,value5,value6)=>nativeBil
 recordCommandReceipt:(value0,value1,value2,value3)=>nativeBillingOwnerQuery(c, 'record_command_receipt', [value0,value1,value2,value3]),
 commit:()=>c.query<Record<string,unknown>>("COMMIT",[]),
 rollback:()=>c.query<Record<string,unknown>>("ROLLBACK",[]),release:()=>c.release(),calculateTarget:(...args)=>calculateTargetBillingPeriod(c,...args),calculateRollout:(...args)=>calculateTargetRolloutReadiness(c,...args)}}
-
-
-async function nativeBillingView(
-  db: PostgresDatabase,
-  holdingId: string,
-  ): Promise<BillingViewFacts> {
-  const query = async (table: string, order = "") =>
-    (
-      await db.pool.query(
-        `SELECT * FROM ${table} WHERE holding_id=$1 ${order}`,
-        [holdingId],
-      )
-    ).rows;
-  return {
-        account: (await query("billing_accounts"))[0] ?? null,
-    enrollment:
-      (
-        await query("billing_enrollments", "ORDER BY started_at DESC LIMIT 1")
-      )[0] ?? null,
-    plans: (
-      await db.pool.query(
-        "SELECT * FROM billing_plans WHERE id IN ('infrastructure','standard','priority') ORDER BY CASE id WHEN 'infrastructure' THEN 0 WHEN 'standard' THEN 1 ELSE 2 END,revision DESC",
-      )
-    ).rows,
-    periods: await query("billing_periods", "ORDER BY month DESC"),
-    costs: await query("billing_costs", "ORDER BY created_at DESC"),
-    invoices: await query("billing_invoices", "ORDER BY created_at DESC"),
-    audit: await query("billing_audit", "ORDER BY created_at DESC LIMIT 100"),
-    jobs: [
-      ...(await query("billing_jobs", "AND state<>'done' ORDER BY created_at")),
-      ...(
-        await db.pool.query(
-          "SELECT i.id,'attention' AS state,i.last_error FROM stripe_inbox i JOIN billing_accounts a ON a.customer_id=i.payload_json::jsonb #>> '{data,object,customer}' WHERE a.holding_id=$1 AND i.state='pending' AND i.last_error IS NOT NULL ORDER BY i.created_at LIMIT 50",
-          [holdingId],
-        )
-      ).rows,
-    ],
-    legacy: (await query("beta_billing"))[0] ?? null,
-  };
-}
-function nativeBilling(db?:PostgresDatabase){return createBillingService({error:(...args)=>new ApiError(...args),hash:value=>createHash('sha256').update(value).digest('hex'),id:randomUUID,now:Date.now,session:async()=>nativeBillingRepository(await db!.pool.connect()),view:holdingId=>nativeBillingView(db!,holdingId)})}
+function nativeBilling(db?:PostgresDatabase){return createBillingService({error:(...args)=>new ApiError(...args),hash:value=>createHash('sha256').update(value).digest('hex'),id:randomUUID,now:Date.now,session:async()=>nativeBillingRepository(await db!.pool.connect()),view:async()=>{throw new ApiError(503,'NATIVE_BILLING_UNAVAILABLE','The native Billing view is authoritative.');}})}
 export const advanceBilling=(c:PoolClient,holdingId:string,now:number)=>nativeBilling().advanceBilling(nativeBillingRepository(c),holdingId,now);
-export const billingView=(db:PostgresDatabase,holdingId:string,now=Date.now())=>nativeBilling(db).billingView(holdingId,now);
 export const billingCommand=(db:PostgresDatabase,actor:BillingActor,holdingId:string,input:BillingInput,key:string,stripe:BillingStripe,returnUrl:string,now=Date.now())=>nativeBilling(db).billingCommand(actor,holdingId,input,key,stripe,returnUrl,now);

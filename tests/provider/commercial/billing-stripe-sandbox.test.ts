@@ -2,7 +2,6 @@ import { beforeAll, it, expect } from "vitest";
 import { env, applyMigrations } from "../../support/runtime-env";
 import {
   billingCommand,
-  billingView,
   type BillingInput,
 } from "@erpx/server-billing/public/billing";
 import { drainBilling } from "@erpx/server-billing/public/billing-jobs";
@@ -11,6 +10,22 @@ import { billingStripe, testObject } from "@erpx/server-billing/public/billing-s
 const enabled =
   process.env.ERPX_TEST_STRIPE_SANDBOX === "1" &&
   process.env.STRIPE_SECRET_KEY?.startsWith("sk_test_");
+/** Native-owned Billing workspace oracle. The retired TypeScript `billingView`
+ * is gone; read the same Billing-owned Control rows the Rust workspace reader
+ * projects so this Sandbox oracle stays on native-owned state. */
+async function nativeBillingView(holdingId: string) {
+  const db = env.CONTROL_DB;
+  const rows = async (text: string, params: unknown[] = []) =>
+    (await db.pool.query(text, params)).rows;
+  const [accounts, periods, costs, invoices, jobs] = await Promise.all([
+    rows("SELECT * FROM billing_accounts WHERE holding_id=$1", [holdingId]),
+    rows("SELECT * FROM billing_periods WHERE holding_id=$1 ORDER BY month DESC,id DESC", [holdingId]),
+    rows("SELECT * FROM billing_costs WHERE holding_id=$1 ORDER BY created_at DESC,id DESC", [holdingId]),
+    rows("SELECT * FROM billing_invoices WHERE holding_id=$1 ORDER BY created_at DESC,id DESC", [holdingId]),
+    rows("SELECT * FROM billing_jobs WHERE holding_id=$1 AND state<>'done' ORDER BY created_at,id", [holdingId]),
+  ]);
+  return { account: accounts[0] ?? null, periods, costs, invoices, jobs };
+}
 beforeAll(async () => {
   if (enabled)
     await applyMigrations(env.CONTROL_DB, env.CONTROL_TEST_MIGRATIONS);
@@ -36,7 +51,7 @@ it.skipIf(!enabled)(
           email: "erpx-billing-fixture@example.test",
         },
         admin = { ...owner, userId: "fixture-admin", platform: true };
-      const view = () => billingView(db, id, now);
+      const view = () => nativeBillingView(id);
       const cmd = async (
         action: BillingInput["action"],
         fields: Partial<BillingInput> = {},
