@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11893,
+    "revision": 11899,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -176281,7 +176281,7 @@
         "owner": "identity_access",
         "title": "IAM assignment probe heads",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -176293,22 +176293,37 @@
         "resources": [
           "owner:identity_access"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4c02",
-          "claimedAt": "2026-11-24T11:57:44.326Z",
-          "heartbeatAt": "2026-11-24T12:16:27.798Z",
-          "expiresAt": "2026-11-24T12:46:27.798Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "4d12aba6b",
+            "owner": "identity_access",
+            "before": 499,
+            "after": 485,
+            "note": "Assignment active, user-scope and distinct assignee probes shared; locks/session/native untouched."
+          },
+          {
+            "command": "vitest identity (49) + scoped tsc + 17/17 byte oracle",
+            "result": "passed",
+            "sourceSha": "4d12aba6b"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "F1+F2+F3 assignment probe heads (-14, 499->485).",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4c02",
+          "at": "2026-11-24T12:29:07.435Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -177169,7 +177184,7 @@
         "owner": "learning",
         "title": "learning image head and scope row",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -177181,22 +177196,37 @@
         "resources": [
           "owner:learning"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4e02",
-          "claimedAt": "2026-11-24T12:13:21.850Z",
-          "heartbeatAt": "2026-11-24T12:16:27.798Z",
-          "expiresAt": "2026-11-24T12:46:27.798Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-learning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "4d12aba6b",
+            "owner": "learning",
+            "before": 49,
+            "after": 45,
+            "note": "jsonbAggImageHead and scopeRow shared; 7 locks/native/r1-r15 untouched."
+          },
+          {
+            "command": "vitest learning (82) + scoped tsc + 6/6 byte oracle",
+            "result": "passed",
+            "sourceSha": "4d12aba6b"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "jsonbAggImageHead (-2) and scopeRow (-2): 49->45.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4e02",
+          "at": "2026-11-24T12:29:08.371Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -177205,7 +177235,7 @@
         "owner": "sales",
         "title": "sales ecommerce order scope generator",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -177217,22 +177247,37 @@
         "resources": [
           "owner:sales"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4e04",
-          "claimedAt": "2026-11-24T12:17:16.137Z",
-          "heartbeatAt": "2026-11-24T12:17:16.137Z",
-          "expiresAt": "2026-11-24T12:47:16.137Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-sales/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "4d12aba6b",
+            "owner": "sales",
+            "before": 60,
+            "after": 58,
+            "note": "Note/followup/notice order scope constants collapse into one generator; LOCK TABLE untouched."
+          },
+          {
+            "command": "vitest sales (43) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "4d12aba6b"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Collapse note/followup/notice order scope constants into one generator: 60->58.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4e04",
+          "at": "2026-11-24T12:29:07.902Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -178038,17 +178083,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 26,
+        "in_progress": 23,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1311,
+        "blocked": 1314,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T12:28:34.464Z",
+    "updatedAt": "2026-11-24T12:29:08.378Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
