@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8341,
+    "revision": 8345,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -138337,7 +138337,7 @@
         "owner": "work_projection",
         "title": "work_projection TS read tail native cutover (round r6)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -138349,22 +138349,37 @@
         "resources": [
           "owner:work_projection"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCmwp",
-          "claimedAt": "2026-11-24T01:58:52.995Z",
-          "heartbeatAt": "2026-11-24T01:58:52.995Z",
-          "expiresAt": "2026-11-24T02:28:52.995Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-work_projection/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "5d50ab8f5",
+            "owner": "work_projection",
+            "before": 102,
+            "after": 100,
+            "note": "calendar_release feature-read SQL shared by ready() and calendarPurchaseControls(); deterministic predicate."
+          },
+          {
+            "command": "vitest work calendar/services (54) + tsc work_projection",
+            "result": "passed",
+            "sourceSha": "5d50ab8f5"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe or native read; if none, report blocked. BEFORE=102.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCmwp",
+          "at": "2026-11-24T02:07:26.698Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -138996,6 +139011,42 @@
         "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=81.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.work_projection.read-tail-r7",
+        "goalId": "G4",
+        "owner": "work_projection",
+        "title": "work_projection TS read tail native cutover (round 7)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-work_projection/src/**",
+          "tests/unit/work_projection/**",
+          "tests/integration/work_projection/**"
+        ],
+        "resources": [
+          "owner:work_projection"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC5wp",
+          "claimedAt": "2026-11-24T02:07:27.039Z",
+          "heartbeatAt": "2026-11-24T02:07:27.039Z",
+          "expiresAt": "2026-11-24T02:37:27.039Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: remaining read groups; avoid SELECT 1 markers and generated predicates. BEFORE=100.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -139004,7 +139055,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 911,
+      "totalPackets": 912,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -139012,13 +139063,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 534,
+        "blocked": 535,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:07:08.854Z",
+    "updatedAt": "2026-11-24T02:07:27.046Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
