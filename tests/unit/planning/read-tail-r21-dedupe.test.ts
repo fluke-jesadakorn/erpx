@@ -92,7 +92,8 @@ describe('Planning read-tail r21 attachment-target version guard dedupe', () => 
       }
     };
     walk(srcRoot);
-    expect(total).toBe(17);
-    expect(total).toBeLessThan(18);
+    // r22 folded the resource-allocation point lookup into the package fact builder (17 -> 16).
+    expect(total).toBe(16);
+    expect(total).toBeLessThan(17);
   });
 });

@@ -39,7 +39,7 @@ describe('Planning read-tail r11 parameterized resource-allocation point-lookup 
 
   test('shared module declares the read literal exactly once and stays read-only', () => {
     const shared = src('planning-resource-allocation-sql.ts');
-    expect(selectCount(shared)).toBe(1);
+    expect(selectCount(shared)).toBe(0); // r22: read literal folded into the package fact builder
     expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     for (const sql of generated) {
       expect(sql.toUpperCase()).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);

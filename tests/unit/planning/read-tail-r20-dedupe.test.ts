@@ -75,7 +75,8 @@ describe('Planning read-tail r20 production-resources EXISTS head dedupe', () =>
       }
     };
     walk(srcRoot);
-    expect(total).toBe(17);
+    // r22 folded the resource-allocation point lookup into the package fact builder (17 -> 16).
+    expect(total).toBe(16);
     expect(total).toBeLessThan(19);
   });
 });
