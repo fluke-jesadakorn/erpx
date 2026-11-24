@@ -10,6 +10,8 @@ import { workflowFinalOwnerProjections as peoplepayrollFinalOwnerProjections } f
 const commerceFinalSources=commerceFinalOwnerProjections(),financeFinalSources=financeFinalOwnerProjections(),peoplepayrollFinalSources=peoplepayrollFinalOwnerProjections();
 /** Byte-identical span shared by the order flow's stock_gl and invoicing branches; emitted SQL is unchanged. */
 const orderFulfilledExistsSql = `WHEN d.state='fulfilled' AND EXISTS(SELECT 1 ${commerceFinalSources.flow_routing_commerce_fulfillments_f_from} `;
+/** Byte-identical company-scoped flow-routes read fragment shared by the bulk read and the single-route read; emitted SQL is unchanged. */
+const flowRoutesByCompanySql = "SELECT * FROM flow_routes WHERE company_id=?";
 const flowAdvanceSql=JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)),'../flow-advance-sql.json'),'utf8')) as Record<string,string>;
 function flowAdvanceStatement(kind:FlowKind):string{const sql=flowAdvanceSql[kind];if(!sql)throw new Error(`FLOW_ADVANCE_SQL_MISSING:${kind}`);return sql;}
 
@@ -87,7 +89,7 @@ export function nativeFlowPlanningPorts(database: SqlDatabase): FlowPlanningPort
         readDefinitionsDelivery(source_id: string | number | null) { return commerce_flow_routing(database).readDefinitionsDelivery(source_id); },
         readDefinitionsPaymentBatch(company_id: string, id: string | number | null) { if (!hasPolicyReadSnapshot()) return people_payroll_flow_routing(database).readDefinitionsPaymentBatch(company_id, id);
             return nativePolicyRead(database, JSON.stringify(["flow-payment-batches",company_id]), async () => new Map((await people_payroll_flow_routing(database).readWorkflowPaymentBatches(company_id)).results.map(row => [row.source_id,row]))).then(rows => rows.get(String(id)) ?? null); },
-        readSharedFlowReferencesRoutesdefaultsevents(companyId: string) { return database.prepare("SELECT * FROM flow_routes WHERE company_id=?").bind(companyId).all<Route & {
+        readSharedFlowReferencesRoutesdefaultsevents(companyId: string) { return database.prepare(flowRoutesByCompanySql).bind(companyId).all<Route & {
             kind: string;
             record_id: string;
         }>(); },
@@ -97,7 +99,7 @@ export function nativeFlowPlanningPorts(database: SqlDatabase): FlowPlanningPort
             department_id: string | null;
         }>(); },
         readSharedFlowReferencesRoutesdefaultsevents3(companyId: string) { return database.prepare("SELECT kind,record_id,action,actor_name,created_at,reason,step_key FROM flow_events WHERE company_id=? ORDER BY created_at,id").bind(companyId).all<FlowHistoryRow>(); },
-        readReadFlowRoute(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string) { return database.prepare("SELECT * FROM flow_routes WHERE company_id=? AND kind=? AND record_id=?").bind(companyId, kind, id).first<Route>(); },
+        readReadFlowRoute(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string) { return database.prepare(`${flowRoutesByCompanySql} AND kind=? AND record_id=?`).bind(companyId, kind, id).first<Route>(); },
         readReadFlowDefaultsRevision(companyId: string) { return database.prepare("SELECT COALESCE(MAX(revision),0) revision FROM flow_defaults WHERE company_id=?").bind(companyId).first<{
             revision: number;
         }>(); },
