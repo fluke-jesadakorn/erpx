@@ -41,7 +41,7 @@ describe('Ecommerce read-tail r24 three-family dedupe', () => {
     const cte = po.split('\n').find(l => l.includes('WITH scope AS'))!;
     expect(cte).toContain("WITH scope AS${ecommerceScopeRow('',false,'')}");
     expect(po).not.toContain('WITH scope AS(SELECT ?::text company_id)');
-    expect(po).toContain("import {ecommerceScopeRow,ecommerceSelectOne} from './read-tail-sql';");
+    expect(po).toContain("import {ecommerceScopeRow,ecommerceOrderedList,ecommerceSelectOne} from './read-tail-sql';");
   });
 
   test('F2: the optional order tail rebuilds all three r11 source reads byte-identically', () => {
@@ -62,7 +62,7 @@ describe('Ecommerce read-tail r24 three-family dedupe', () => {
     expect(src).toContain("const readSource = ecommerceOrderedList.bind(null, '*');");
     expect((src.match(/const readSource = /g) ?? []).length).toBe(1);
     expect((src.match(/readSource\(/g) ?? []).length).toBe(3);
-    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(4);
+    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(7);
     expect(src).not.toContain('const readSource = (table: string, scope: string');
     expect(src).toContain('readSource("ecommerce_channels", "company_id=?", "updated_at DESC")');
     expect(src).toContain('readSource("ecommerce_cart_lines", "cart_id=?", "ordinal")');
@@ -132,7 +132,7 @@ describe('Ecommerce read-tail r24 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(19);
+    expect(total).toBe(11);
     expect(total).toBeLessThan(22);
   });
 });

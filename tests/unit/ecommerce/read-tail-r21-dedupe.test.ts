@@ -142,6 +142,6 @@ describe('Ecommerce read-tail r21 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(19);
+    expect(total).toBe(11);
   });
 });

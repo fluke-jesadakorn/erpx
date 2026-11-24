@@ -6,8 +6,9 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
+import { ecommerceScalar } from './read-tail-sql';
 /** r8: one parameterized source-node label; branch and department callers are byte-identical after binding. Text only: binds and locks are unchanged. */
-const nodeNameLabel = (col: string, fallback: string) => `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=c.${col} AND n.company_id=c.company_id),'${fallback}')`;
+const nodeNameLabel = (col: string, fallback: string) => `COALESCE((${ecommerceScalar(`n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=c.${col} AND n.company_id=c.company_id`)}),'${fallback}')`;
 const branchNameLabel = nodeNameLabel('branch_id','Branch');
 const departmentNameLabel = nodeNameLabel('department_id','Unassigned');
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {

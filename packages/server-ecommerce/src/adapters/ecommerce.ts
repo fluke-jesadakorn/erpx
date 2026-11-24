@@ -56,7 +56,7 @@ const readSource = ecommerceOrderedList.bind(null, '*');
 /** r13: one parameterized checkout-row read; the detail and lock callers
  *  rebuild byte-identically. Text only: projection, binds and locks unchanged. */
 const checkoutRow = (projection: string, lock = '') =>
-  `SELECT ${projection} FROM ecommerce_checkouts x JOIN ecommerce_carts c ON c.id=x.cart_id JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=x.sales_order_id WHERE x.id=? AND ${cartScope}${lock}`;
+  ecommerceOrderedList(projection, `ecommerce_checkouts x JOIN ecommerce_carts c ON c.id=x.cart_id JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=x.sales_order_id`, `x.id=? AND ${cartScope}${lock}`);
 
 function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction: boolean): EcommerceRepository {
  let money: Awaited<ReturnType<typeof snapshotMoney>> | undefined;
@@ -174,7 +174,7 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
   );
   await nativeWrite('cart.create', [id, a.companyId, warehouse.branch_id, a.departmentId, i.channelId, i.partyId, i.warehouseId, i.currency, a.userId, now, now], id, a.userId, key);
   },
-  cart: (id, lock) => write.prepare(`SELECT c.* FROM ecommerce_carts c WHERE c.id=? AND ${cartScope}${lock ? " FOR UPDATE" : ""}`).bind(id, ...scopeValues(a)).first<Row>(),
+  cart: (id, lock) => write.prepare(ecommerceOrderedList('c.*', 'ecommerce_carts c', `c.id=? AND ${cartScope}${lock ? " FOR UPDATE" : ""}`)).bind(id, ...scopeValues(a)).first<Row>(),
   async listing(id) {
   return await write
       .prepare(
@@ -233,7 +233,7 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
   },
   async reviewRecord(kind, id) {
    const table = kind === "channel" ? "ecommerce_channels" : "ecommerce_listings";
-   return write.prepare(`SELECT x.*${kind === "listing" ? ",c.company_id" : ""} FROM ${table} x ${kind === "listing" ? "JOIN ecommerce_channels c ON c.id=x.channel_id" : ""} WHERE x.id=? AND ${kind === "listing" ? "c" : "x"}.company_id=?`).bind(id, a.companyId).first<Row>();
+   return write.prepare(ecommerceOrderedList(`x.*${kind === "listing" ? ",c.company_id" : ""}`, `${table} x ${kind === "listing" ? "JOIN ecommerce_channels c ON c.id=x.channel_id" : ""}`, `x.id=? AND ${kind === "listing" ? "c" : "x"}.company_id=?`)).bind(id, a.companyId).first<Row>();
   },
   async commitReview(command, kind, expected, status, now) {
    const { input: i, id, operation: op, key } = command, table = kind === "channel" ? "ecommerce_channels" : "ecommerce_listings";

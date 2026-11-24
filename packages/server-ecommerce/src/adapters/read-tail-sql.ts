@@ -2,6 +2,10 @@
 /** r22: one parameterized one-row probe frame; every probe site rebuilds
  *  byte-identically. Text only: binds, locks and emitted SQL unchanged. */
 export const ecommerceSelectOne = (tail: string) => `SELECT 1 ${tail}`;
+/** r26: one parameterized scalar head; the label, child-aggregate,
+ *  scope-row and reviewer-scope wrappers rebuild byte-identically. Text only:
+ *  binds, locks and emitted SQL unchanged. */
+export const ecommerceScalar = (body: string) => `SELECT ${body}`;
 export const ecommerceModuleAssignment = (alias = '') => {
  const p = alias ? `${alias}.` : '';
  return ecommerceSelectOne(`FROM assignments${alias ? ` ${alias}` : ''} WHERE ${p}id=? AND ${p}company_id=? AND (jsonb_array_length(${p}modules_json::jsonb)=0 OR ${p}modules_json::jsonb @> '["ecommerce"]'::jsonb)`);
@@ -15,7 +19,7 @@ export const ecommerceRowProbe = (from: string, where: string, gap = ' ') =>
 /** r21: one scoped-row frame emits both column shapes byte-identically. The
  *  r20 separator stays configurable; text only, binds and locks unchanged. */
 export const ecommerceScopeRow = (alias: string, branch = false, separator = ' ') =>
- `(SELECT ?::text company_id${branch ? ',?::text branch_id,?::text department_id' : ''})${separator}${alias}`;
+ `(${ecommerceScalar(`?::text company_id${branch ? ',?::text branch_id,?::text department_id' : ''}`)})${separator}${alias}`;
 /** r21: one release/feature gate frame emits every probe site byte-identically.
  *  Text only: binds, source locks and the emitted SQL are unchanged. */
 export const ecommerceReleaseGate = (scope: string, predicate: string, selectAlias = ' allowed') =>
@@ -27,9 +31,10 @@ export const ecommerceExistsGuard = (table: string, where: string) =>
 /** r14: one parameterized ordered list read; the listing, cart and checkout
  *  workspace callers rebuild byte-identically. Text only: binds unchanged.
  *  r24: the ORDER BY tail is optional so the three r11 source-row reads
- *  compose from the same frame, byte-identically. */
-export const ecommerceOrderedList = (columns: string, from: string, where: string, order?: string) =>
-  `SELECT ${columns} FROM ${from} WHERE ${where}${order ? ` ORDER BY ${order}` : ''}`;
+ *  compose from the same frame, byte-identically. r26: WHERE is optional so
+ *  the two CTE source frames compose byte-identically with zero binds. */
+export const ecommerceOrderedList = (columns: string, from: string, where?: string, order?: string) =>
+  `SELECT ${columns} FROM ${from}${where ? ` WHERE ${where}` : ''}${order ? ` ORDER BY ${order}` : ''}`;
 /** r14/r15: one parameterized listing frame. The channel-row and evidence
  *  projections rebuild byte-identically through this single frame; the product
  *  join is optional and all three aliases are configurable. text only: the two

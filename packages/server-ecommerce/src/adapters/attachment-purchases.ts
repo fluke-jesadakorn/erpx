@@ -16,14 +16,14 @@ import {financeDeferredEffectStatements} from '@erpx/server-finance/public/finan
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {hasModuleAccess} from '@erpx/catalogue/module-access';
 import {ecommerceCommerceSourceReadLocks} from '@erpx/server-ecommerce/adapters/commerce-source-locks';
-import {ecommerceModuleAssignment,ecommerceScopeRow,ecommerceListingEvidence,ecommerceReleaseGate} from './read-tail-sql';
+import {ecommerceModuleAssignment,ecommerceScopeRow,ecommerceListingEvidence,ecommerceReleaseGate,ecommerceScalar} from './read-tail-sql';
 
 export type EcommerceAttachmentPurchase={companyId:string;capability:'sales.ecommerce';purpose:CapabilityPurpose;actor:WorkContext;id:string;witness:string;approverRequired:boolean};
 const sourceQuery=ecommerceListingEvidence("jsonb_build_array(to_jsonb(listing)-'version'-'updated_at',to_jsonb(channel),product.id,product.company_id)::text witness",'listing','channel','product');
 /** r12: one parameterized reviewer-scope read. The authority check and the
  *  command-boundary assertion rebuild byte-identically. Text only: binds unchanged. */
 const reviewScopeSql = (projection: string, scope: string) =>
-  `SELECT (${assignmentReadSql('ecommerce_file_review','records.review')} OR ${assignmentReadSql('ecommerce_file_review','commerce.approve')}) ${projection}FROM ${scope}`;
+  ecommerceScalar(`(${assignmentReadSql('ecommerce_file_review','records.review')} OR ${assignmentReadSql('ecommerce_file_review','commerce.approve')}) ${projection}FROM ${scope}`);
 export async function ecommerceAttachmentPurchaseScope(database:SqlDatabase,actor:WorkContext,policy:Pick<AttachmentPolicy,'targetType'|'purposeKey'>,id:string,operation?:AttachmentOperation):Promise<EcommerceAttachmentPurchase|null>{
  if(policy.targetType!=='ecommerce_listing'||await commercePackageEnforcementMode()==='disabled')return null;
  const row=await database.prepare(sourceQuery).bind(id,actor.companyId).first<{witness:string}>(),witness=row?.witness;if(!witness)throw new ApiError(404,'ATTACHMENT_TARGET_NOT_FOUND','The actual Ecommerce listing file source is unavailable in this Company.');

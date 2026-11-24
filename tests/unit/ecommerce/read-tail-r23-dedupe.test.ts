@@ -81,7 +81,7 @@ describe('Ecommerce read-tail r23 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(19);
+    expect(total).toBe(11);
     expect(total).toBeLessThan(22);
   });
 });

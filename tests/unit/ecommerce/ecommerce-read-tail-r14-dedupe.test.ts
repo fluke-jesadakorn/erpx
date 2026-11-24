@@ -63,7 +63,7 @@ describe('Ecommerce read-tail r14 four-family dedupe', () => {
       expect(shared.match(new RegExp(`export const ${name} = `, 'g')) ?? []).toHaveLength(count);
     }
     expect((src.match(/ecommerceExistsGuard\(/g) ?? []).length).toBe(6);
-    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(4);
+    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(7);
     expect((src.match(/ecommerceListingChannelRow\(/g) ?? []).length).toBe(1);
     expect((ao.match(/ecommerceListingChannelRow\(/g) ?? []).length).toBe(1);
     expect((pb.match(/ecommerceSourceIdentity\(/g) ?? []).length).toBe(2);
@@ -120,6 +120,6 @@ describe('Ecommerce read-tail r14 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(57);
-    expect(total).toBe(19);
+    expect(total).toBe(11);
   });
 });

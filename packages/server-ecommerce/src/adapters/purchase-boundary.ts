@@ -13,11 +13,11 @@ import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-avail
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
-import {ecommerceModuleAssignment,ecommerceRowProbe,ecommerceScopeRow,ecommerceSourceIdentity,ecommerceReleaseGate} from './read-tail-sql';
+import {ecommerceModuleAssignment,ecommerceRowProbe,ecommerceScopeRow,ecommerceSourceIdentity,ecommerceReleaseGate,ecommerceScalar} from './read-tail-sql';
 type Target={kind:'channel'|'listing'|'cart'|'checkout';id:string};
 type Source={company_id:string;branch_id:string|null;department_id:string|null;version:number;identity:string;image:string};
 export type EcommercePurchaseCommand={operation:string;key:string;id:string;purpose:'new-work'|'settle-existing';review?:boolean;before?:Target;after:Target};
-const childAgg=(alias:string,table:string,orderBy:string,fk:string,parent:string)=>`COALESCE((SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.${orderBy}) FROM ${table} ${alias} WHERE ${alias}.${fk}=${parent}.id),'[]'::jsonb)`;
+const childAgg=(alias:string,table:string,orderBy:string,fk:string,parent:string)=>`COALESCE((${ecommerceScalar(`jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.${orderBy}) FROM ${table} ${alias} WHERE ${alias}.${fk}=${parent}.id`)}),'[]'::jsonb)`;
 /** Closed owner joins use actual stored identities, including the exact native
  * Sales order. A channel label or supplied product name grants no authority. */
 async function source(database:SqlDatabase,actor:WorkContext,target:Target){
