@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8156,
+    "revision": 8171,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -120897,7 +120897,7 @@
         "owner": "manufacturing",
         "title": "manufacturing TS read tail native cutover (round 2)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -120909,14 +120909,7 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGB1man",
-          "claimedAt": "2026-11-24T01:41:20.971Z",
-          "heartbeatAt": "2026-11-24T01:42:53.920Z",
-          "expiresAt": "2026-11-24T02:12:53.920Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -120939,15 +120932,34 @@
             "command": "vitest native-manufacturing-bom-transport (14) + scoped tsc",
             "result": "passed",
             "sourceSha": "712e41f1a"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-manufacturing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "7a959965f",
+            "owner": "manufacturing",
+            "before": 149,
+            "after": 148,
+            "note": "Independent QC pass/fail guards share independentQcGuardSql; same live statement and binds."
+          },
+          {
+            "command": "vitest manufacturing BOM transport (23)",
+            "result": "passed",
+            "sourceSha": "7a959965f"
+          },
+          {
+            "command": "tsc manufacturing scoped",
+            "result": "passed",
+            "sourceSha": "7a959965f"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "handoff",
         "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-g",
-          "agentId": "wB4man",
-          "at": "2026-11-23T21:52:13.633Z",
+          "runId": "run-20261123-i",
+          "agentId": "wGB1man",
+          "at": "2026-11-24T01:47:51.211Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
           "nextAction": "Integrated; claim released"
@@ -121464,7 +121476,7 @@
         "owner": "manufacturing",
         "title": "manufacturing TS read tail native cutover (round 3)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -121476,7 +121488,14 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGBLman",
+          "claimedAt": "2026-11-24T01:47:52.746Z",
+          "heartbeatAt": "2026-11-24T01:47:52.746Z",
+          "expiresAt": "2026-11-24T02:17:52.746Z",
+          "generation": 161
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -121502,7 +121521,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261123-g",
@@ -135810,7 +135829,7 @@
         "owner": "platform_administration",
         "title": "platform_administration TS read tail native cutover (r6)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -135822,22 +135841,42 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGASpad",
-          "claimedAt": "2026-11-24T01:38:48.496Z",
-          "heartbeatAt": "2026-11-24T01:42:53.920Z",
-          "expiresAt": "2026-11-24T02:12:53.920Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-platform_administration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "7a959965f",
+            "owner": "platform_administration",
+            "before": 45,
+            "after": 44,
+            "note": "company_business_acceptance setup projection shared; guard and inputs reads byte-identical."
+          },
+          {
+            "command": "vitest platform targeted (40)",
+            "result": "passed",
+            "sourceSha": "7a959965f"
+          },
+          {
+            "command": "tsc platform_administration",
+            "result": "passed",
+            "sourceSha": "7a959965f"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe dedupe/native read; if none, report blocked. BEFORE=45.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGASpad",
+          "at": "2026-11-24T01:47:50.558Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -135902,7 +135941,7 @@
         "owner": "operations",
         "title": "operations TS read tail native cutover (r24)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -135914,22 +135953,42 @@
         "resources": [
           "owner:operations"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGAUope",
-          "claimedAt": "2026-11-24T01:39:23.287Z",
-          "heartbeatAt": "2026-11-24T01:42:53.920Z",
-          "expiresAt": "2026-11-24T02:12:53.920Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-operations/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "7a959965f",
+            "owner": "operations",
+            "before": 167,
+            "after": 165,
+            "note": "start/completion approver JSON EXISTS clauses share canonical source; SQL byte-identical."
+          },
+          {
+            "command": "vitest operations services (100)",
+            "result": "passed",
+            "sourceSha": "7a959965f"
+          },
+          {
+            "command": "tsc operations focused",
+            "result": "passed",
+            "sourceSha": "7a959965f"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=167.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGAUope",
+          "at": "2026-11-24T01:47:50.030Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -135995,7 +136054,7 @@
         "owner": "finance",
         "title": "finance TS read tail native cutover (round 12)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -136007,22 +136066,42 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGAXfin",
-          "claimedAt": "2026-11-24T01:41:07.307Z",
-          "heartbeatAt": "2026-11-24T01:42:53.920Z",
-          "expiresAt": "2026-11-24T02:12:53.920Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "7a959965f",
+            "owner": "finance",
+            "before": 2257,
+            "after": 2254,
+            "note": "finance_journal_lines projection 4 copies -> one FINANCE_JOURNAL_LINES_PROJECTION_SQL; values byte-identical."
+          },
+          {
+            "command": "vitest finance read plan (9)",
+            "result": "passed",
+            "sourceSha": "7a959965f"
+          },
+          {
+            "command": "tsc finance scoped",
+            "result": "passed",
+            "sourceSha": "7a959965f"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: finance_journal_lines projection (4 copies -> -3) or remaining journals literals in hospitality/commercial. BEFORE=2257.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGAXfin",
+          "at": "2026-11-24T01:47:49.545Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -136707,6 +136786,114 @@
         "nextAction": "Next: another same-file literal pair in service.ts/service-repository.ts; avoid excluded categories. BEFORE=363.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.read-tail-r13",
+        "goalId": "G4",
+        "owner": "finance",
+        "title": "finance TS read tail native cutover (r13)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGBIfin",
+          "claimedAt": "2026-11-24T01:47:51.669Z",
+          "heartbeatAt": "2026-11-24T01:47:51.669Z",
+          "expiresAt": "2026-11-24T02:17:51.669Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=2254.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.operations.read-tail-r25",
+        "goalId": "G4",
+        "owner": "operations",
+        "title": "operations TS read tail native cutover (r25)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-operations/src/**",
+          "tests/unit/operations/**",
+          "tests/integration/operations/**"
+        ],
+        "resources": [
+          "owner:operations"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGBJope",
+          "claimedAt": "2026-11-24T01:47:52.111Z",
+          "heartbeatAt": "2026-11-24T01:47:52.111Z",
+          "expiresAt": "2026-11-24T02:17:52.111Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=165.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.platform_administration.read-tail-r7",
+        "goalId": "G4",
+        "owner": "platform_administration",
+        "title": "platform_administration TS read tail native cutover (r7)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-platform_administration/src/**",
+          "tests/unit/platform_administration/**",
+          "tests/integration/platform_administration/**"
+        ],
+        "resources": [
+          "owner:platform_administration"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGBKpad",
+          "claimedAt": "2026-11-24T01:47:52.437Z",
+          "heartbeatAt": "2026-11-24T01:47:52.437Z",
+          "expiresAt": "2026-11-24T02:17:52.437Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=44.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -136715,7 +136902,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 868,
+      "totalPackets": 871,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
@@ -136723,13 +136910,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 489,
+        "blocked": 492,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:47:28.022Z",
+    "updatedAt": "2026-11-24T01:47:52.755Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
