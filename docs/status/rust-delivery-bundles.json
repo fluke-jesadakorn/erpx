@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11209,
+    "revision": 11222,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -169104,7 +169104,7 @@
         "owner": "agent",
         "title": "agent TS read tail native cutover (round 21)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -169116,7 +169116,14 @@
         "resources": [
           "owner:agent"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMagt4",
+          "claimedAt": "2026-11-24T10:19:52.169Z",
+          "heartbeatAt": "2026-11-24T10:19:52.169Z",
+          "expiresAt": "2026-11-24T10:49:52.169Z",
+          "generation": 168
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -171712,6 +171719,222 @@
         "nextAction": "Find a NEW byte-identical/parameterized SELECT-head family outside r1-r26; locks and native plans untouched. BEFORE=15.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.workflow.read-tail-r43",
+        "goalId": "G4",
+        "owner": "workflow",
+        "title": "workflow TS read tail native cutover (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/**",
+          "tests/unit/workflow/**",
+          "tests/integration/workflow/**"
+        ],
+        "resources": [
+          "owner:workflow"
+        ],
+        "claim": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMwf4",
+          "claimedAt": "2026-11-24T10:19:52.322Z",
+          "heartbeatAt": "2026-11-24T10:19:52.322Z",
+          "expiresAt": "2026-11-24T10:49:52.322Z",
+          "generation": 168
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=53.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.marketing.read-tail-r35",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing TS read tail native cutover (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**",
+          "tests/integration/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMmkt8",
+          "claimedAt": "2026-11-24T10:19:52.476Z",
+          "heartbeatAt": "2026-11-24T10:19:52.476Z",
+          "expiresAt": "2026-11-24T10:49:52.476Z",
+          "generation": 168
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=66.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.talent.read-tail-r35",
+        "goalId": "G4",
+        "owner": "talent",
+        "title": "talent TS read tail native cutover (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-talent/src/**",
+          "tests/unit/talent/**",
+          "tests/integration/talent/**"
+        ],
+        "resources": [
+          "owner:talent"
+        ],
+        "claim": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMtal8",
+          "claimedAt": "2026-11-24T10:19:52.635Z",
+          "heartbeatAt": "2026-11-24T10:19:52.635Z",
+          "expiresAt": "2026-11-24T10:49:52.635Z",
+          "generation": 168
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=46.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.procurement.read-tail-r37",
+        "goalId": "G4",
+        "owner": "procurement",
+        "title": "procurement TS read tail native cutover (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-procurement/src/**",
+          "tests/unit/procurement/**",
+          "tests/integration/procurement/**"
+        ],
+        "resources": [
+          "owner:procurement"
+        ],
+        "claim": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMproa",
+          "claimedAt": "2026-11-24T10:19:52.803Z",
+          "heartbeatAt": "2026-11-24T10:19:52.803Z",
+          "expiresAt": "2026-11-24T10:49:52.803Z",
+          "generation": 168
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=112.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.operations.read-tail-r42",
+        "goalId": "G4",
+        "owner": "operations",
+        "title": "operations TS read tail native cutover (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-operations/src/**",
+          "tests/unit/operations/**",
+          "tests/integration/operations/**"
+        ],
+        "resources": [
+          "owner:operations"
+        ],
+        "claim": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCEopf",
+          "claimedAt": "2026-11-24T10:19:52.966Z",
+          "heartbeatAt": "2026-11-24T10:19:52.966Z",
+          "expiresAt": "2026-11-24T10:49:52.966Z",
+          "generation": 168
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=110.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.records.read-tail-r23",
+        "goalId": "G4",
+        "owner": "records",
+        "title": "records TS read tail native cutover (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-records/src/**",
+          "tests/unit/records/**",
+          "tests/integration/records/**"
+        ],
+        "resources": [
+          "owner:records"
+        ],
+        "claim": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMrec2",
+          "claimedAt": "2026-11-24T10:19:53.128Z",
+          "heartbeatAt": "2026-11-24T10:19:53.128Z",
+          "expiresAt": "2026-11-24T10:49:53.128Z",
+          "generation": 168
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=29.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -171720,11 +171943,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1562,
+      "totalPackets": 1568,
       "migratedPackets": 330,
       "statusCounts": {
-        "pending": 20,
-        "in_progress": 23,
+        "pending": 19,
+        "in_progress": 30,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -171734,7 +171957,7 @@
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T10:18:11.413Z",
+    "updatedAt": "2026-11-24T10:19:53.135Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
