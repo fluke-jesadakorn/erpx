@@ -470,6 +470,24 @@ test('Sales metric CRM membership EXISTS reuses one alias-parameterized SQL gene
  expect(source.match(/crmAssignmentExists/g)).toHaveLength(3);
 });
 
+test('Sales contact-note projection prefix is one byte-identical SQL constant across order and customer reads',async()=>{
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../packages/server-sales/src/adapters/notes.ts",import.meta.url),'utf8');
+ const file=ts.createSourceFile('notes.ts',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS);
+ const decls=(name:string)=>file.statements.filter(ts.isVariableStatement).flatMap(s=>[...s.declarationList.declarations]).filter(d=>d.name.getText(file)===name);
+ expect(decls('notesProjection')).toHaveLength(1);
+ const value=(name:string)=>{const code=ts.transpileModule(`const ${decls(name)[0].getText(file)};`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;return new Function(`${code}\nreturn ${name};`)() as string;};
+ const projection=value('notesProjection'),scopeValue=value('scope');
+ expect(projection).toBe('SELECT n.* FROM customer_contact_notes n');
+ expect(source.match(/SELECT n\.\* FROM customer_contact_notes n/g)).toHaveLength(1);
+ expect(source).not.toContain('SELECT n.* FROM customer_contact_notes n ');
+ expect(source.match(/\$\{notesProjection\} /g)).toHaveLength(2);
+ const templates:string[]=[];const visit=(node:import('typescript').Node)=>{if(ts.isCallExpression(node)&&node.expression.getText(file).endsWith('prepare')){const arg=node.arguments[0];if(arg&&(ts.isTemplateExpression(arg)||ts.isNoSubstitutionTemplateLiteral(arg))&&arg.getText(file).includes('${notesProjection}'))templates.push(arg.getText(file));}ts.forEachChild(node,visit);};visit(file);
+ expect(templates).toHaveLength(2);
+ const orders='<commerce_orders>',rendered=templates.map(text=>new Function('notesProjection','commerceProjectionSources','scope',`return ${text};`)(projection,{commerce_orders:orders},scopeValue) as string);
+ expect(rendered[0]).toBe(`SELECT n.* FROM customer_contact_notes n JOIN (${orders}) o ON o.id=n.order_id AND o.company_id=n.company_id WHERE n.order_id=? AND ${scopeValue} ORDER BY n.created_at DESC,n.id DESC`);
+ expect(rendered[1]).toBe(`SELECT n.* FROM customer_contact_notes n LEFT JOIN (${orders}) o ON o.id=n.order_id AND o.company_id=n.company_id WHERE n.company_id=? AND n.customer_id=? AND (n.order_id IS NULL AND ?::text IS NULL AND ?::text IS NULL OR n.order_id IS NOT NULL AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)) ORDER BY n.created_at DESC,n.id DESC`);
+});
+
 test('final-root Sales projections reuse the one owner fixed SQL for notices and follow-ups',async()=>{
  const {readFile}=await import('node:fs/promises'),base=new URL("../../../packages/server-sales/src/adapters/",import.meta.url);
  const finalRoot=await readFile(new URL("final-root-owner-projection-sources.ts",base),'utf8'),commercial=await readFile(new URL("commercial-owner-projection-sources.ts",base),'utf8');
