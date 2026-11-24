@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12390,
+    "revision": 12392,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183675,6 +183675,41 @@
         "nextAction": "Claimed families: scope bind head (-3), aliased point-read (-2), assignment-viewer tail (-2): 81->74. Verify byte identity or record floor with AST evidence. BEFORE=81.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.people_payroll.read-tail-r51",
+        "goalId": "G4",
+        "owner": "people_payroll",
+        "title": "payroll attachment lists and chart guard",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/**",
+          "tests/unit/people_payroll/**"
+        ],
+        "resources": [
+          "owner:people_payroll"
+        ],
+        "claim": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n79",
+          "claimedAt": "2026-11-24T15:48:14.159Z",
+          "heartbeatAt": "2026-11-24T15:48:14.159Z",
+          "expiresAt": "2026-11-24T16:18:14.159Z",
+          "generation": 170
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Attachment list V2/V1 builders (-2) and accounting-category chart guard (-2): 1228->1224. BEFORE=1228.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -183683,11 +183718,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1797,
+      "totalPackets": 1798,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 15,
+        "in_progress": 16,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -183697,7 +183732,7 @@
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T15:45:13.417Z",
+    "updatedAt": "2026-11-24T15:48:14.162Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
