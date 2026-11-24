@@ -25,3 +25,6 @@ export const manufacturingRowsSelect = (table: string, where = "") =>
   `SELECT * FROM ${table}${where ? ` WHERE ${where}` : ""}`;
 
 export const manufacturingIdSelect = (table: string) => `SELECT id FROM ${table}`;
+
+export const manufacturingNativeProductionProbe = (ids: string, where: string) =>
+  `SELECT 1 FROM (${ids}) native_production WHERE ${where}`;

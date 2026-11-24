@@ -167,7 +167,7 @@ describe('Manufacturing finance-close read retirement',()=>{
     expect(paths.some(path=>path.includes('finance-close-source'))).toBe(false);
     const count=paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0);
     expect(count).toBeLessThan(148);
-    expect(count).toBe(109);
+    expect(count).toBe(108);
   });
 });
 describe('Manufacturing owner-local report-actor read dedupe',()=>{
@@ -425,10 +425,12 @@ describe('Manufacturing read-tail text-only fragment dedupe', () => {
     expect(f.manufacturingRowsSelect('manufacturing_cost_movements')).toBe('SELECT * FROM manufacturing_cost_movements');
     expect(f.manufacturingRowsSelect('manufacturing_specifications', 'company_id=? ORDER BY updated_at DESC')).toBe('SELECT * FROM manufacturing_specifications WHERE company_id=? ORDER BY updated_at DESC');
     expect(f.manufacturingIdSelect('manufacturing_orders')).toBe('SELECT id FROM manufacturing_orders');
+    expect(f.manufacturingNativeProductionProbe('IDS', 'native_production.id=workspace_records.id')).toBe('SELECT 1 FROM (IDS) native_production WHERE native_production.id=workspace_records.id');
+    expect(f.manufacturingNativeProductionProbe('IDS', 'id=?')).toBe('SELECT 1 FROM (IDS) native_production WHERE id=?');
   });
   it('keeps one text-only definition and routes every caller through it', () => {
     const fragment = adapter('manufacturing-read-sql-fragments.ts');
-    expect(fragment.match(/\bSELECT\b/g)).toHaveLength(9);
+    expect(fragment.match(/\bSELECT\b/g)).toHaveLength(10);
     expect(fragment).not.toMatch(/^import /m);
     expect(fragment).not.toMatch(/compositionRoot|registerRead|readPlanRegistry/);
     for (const [name, old, helper] of [
@@ -444,6 +446,7 @@ describe('Manufacturing read-tail text-only fragment dedupe', () => {
       ['package-obligations.ts', ['SELECT * FROM manufacturing_cost_movements'], 'manufacturingRowsSelect'],
       ['metric-purchases.ts', ['SELECT id FROM manufacturing_orders'], 'manufacturingIdSelect'],
       ['record-purchases.ts', ['SELECT id FROM manufacturing_specifications UNION ALL'], 'manufacturingIdSelect'],
+      ['record-purchases.ts', ['EXISTS(SELECT 1 FROM (${nativeIds}) native_production WHERE native_production.id=${id})', 'SELECT 1 FROM (${nativeIds}) native_production WHERE id=?'], 'manufacturingNativeProductionProbe'],
     ] as const) {
       const text = adapter(name);
       for (const literal of old) expect(text).not.toContain(literal);
