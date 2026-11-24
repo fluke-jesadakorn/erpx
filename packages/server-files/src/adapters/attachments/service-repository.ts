@@ -6,6 +6,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { AttachmentSourceState, AttachmentComponentKind } from "@erpx/server-files/domain/attachments/types";
 import type { SetRow, LinkRow } from "@erpx/server-files/domain/attachments/service-models";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import {LINK_SET_ATTACHMENT_EXISTS_SQL, LINK_SET_ID_SELECT_SQL} from "../read-tail-dedupe-sql";
 const setByIdSql = "SELECT * FROM attachment_sets WHERE id=? AND company_id=?";
 export const usedStorageSql = "SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')";
 export const pendingStorageSql = "SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?";
@@ -157,7 +158,7 @@ export function repository(db: SqlDatabase) {
             target_type: string;
             target_id: string;
             purpose_key: string;
-        }) => { return db.prepare(`SELECT l.id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=? AND l.state='bound' AND s.company_id=? AND s.target_type=? AND s.target_id=? AND s.purpose_key=?`).bind(facts.supersedesLinkId, facts.companyId, facts.target_type, facts.target_id, facts.purpose_key).first(); },
+        }) => { return db.prepare(`${LINK_SET_ID_SELECT_SQL} WHERE l.id=? AND l.state='bound' AND s.company_id=? AND s.target_type=? AND s.target_id=? AND s.purpose_key=?`).bind(facts.supersedesLinkId, facts.companyId, facts.target_type, facts.target_id, facts.purpose_key).first(); },
         lock15: (facts: {
             arg1: string;
         }) => { return db.prepare(advisoryLockSql).bind(facts.arg1).run(); },
@@ -482,7 +483,7 @@ export function repository(db: SqlDatabase) {
             setId: string;
             attachment_id: unknown;
             companyId: string;
-        }) => { return db.prepare("SELECT l.id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.set_id=? AND l.attachment_id=? AND s.company_id=? AND l.state IN ('draft','bound')").bind(facts.setId, facts.attachment_id, facts.companyId).first<{
+        }) => { return db.prepare(`${LINK_SET_ID_SELECT_SQL} WHERE l.set_id=? AND l.attachment_id=? AND s.company_id=? AND l.state IN ('draft','bound')`).bind(facts.setId, facts.attachment_id, facts.companyId).first<{
             id: string;
         }>(); },
         readAttachmentLinks60: (facts: {
@@ -1006,5 +1007,5 @@ export function repository(db: SqlDatabase) {
             commandId: string;
             step: string;
             values: (string | number | null)[];
-        }) => assertion(db, facts.commandId, facts.step, "EXISTS(SELECT 1 FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id JOIN attachments a ON a.id=l.attachment_id AND a.company_id=s.company_id WHERE l.id=? AND l.set_id=? AND s.company_id=? AND l.state='draft' AND a.source_state='available' AND a.checksum_sha256=?)", facts.values) };
+        }) => assertion(db, facts.commandId, facts.step, `${LINK_SET_ATTACHMENT_EXISTS_SQL} AND a.company_id=s.company_id WHERE l.id=? AND l.set_id=? AND s.company_id=? AND l.state='draft' AND a.source_state='available' AND a.checksum_sha256=?)`, facts.values) };
 }
