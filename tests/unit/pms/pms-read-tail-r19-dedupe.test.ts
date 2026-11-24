@@ -39,9 +39,10 @@ describe('pms read-tail r19 byte-identical projection-fragment dedupe', () => {
       expect(sql).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     }
     const text = await src(CALL_SITE);
-    // distinct aliases are different fragments and stay inline
+    // the pp wrapper stays inline; r31 routes the distinct-alias pms_import_batches
+    // wrapper through a closed helper with byte-identical generated SQL
     expect(text).toContain('FROM (${PMS_POSTINGS_PROJECTION_SQL}) pp');
-    expect(text).toContain('FROM pms_import_batches) b');
+    expect(text).toContain("pmsFinanceSnapshotWrapperSql('importBatches','JOIN','b')");
   });
 
   it('lowers the pms owner SELECT KPI strictly below the r18 after=487 baseline', async () => {
@@ -50,7 +51,7 @@ describe('pms read-tail r19 byte-identical projection-fragment dedupe', () => {
     // r20 deduped the 3x pms_properties and 3x pms_records projections below r19 after=481.
     // r21 deduped the 4x parameterized recipient cross-join fragment below r20 after=477.
     // r30 deduped the 3-SELECT parameterized payment-identity union below r29 after=361.
-    expect(count).toBe(358);
+    expect(count).toBe(347);
     expect(count).toBeLessThan(487);
   });
 });

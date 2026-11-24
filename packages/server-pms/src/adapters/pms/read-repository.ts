@@ -6,6 +6,7 @@ import { decodePmsRecord, type PmsStoredRecord } from "@erpx/server-pms/domain/s
 import { PMS_RECORDS_PROJECTION_PREFIX_SQL } from "../pms-read-tail-r24-sql";
 import { PMS_GUEST_STAYS_CHOSEN_MEMBER_SQL } from "../pms-read-tail-r25-sql";
 import { PMS_CHOSEN_RECORDS_SQL } from "../pms-read-tail-r26-sql";
+import { PMS_RECORD_POINT_PREFIX_SQL, pmsSetupExistsSql } from "../pms-read-tail-r31-sql";
 import { nativePmsReadAll, PMS_RD_INVENTORY_COMMAND } from "../native-pms-read";
 import * as application from "@erpx/server-pms/application/read-repository";
 const stayPredicate = `(data_json::jsonb->>'state' IN ('reserved','in_house') OR
@@ -91,12 +92,12 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
             propertyId2: string;
             propertyId3: string;
         }) => db.prepare(`SELECT
-    EXISTS(SELECT 1 FROM pms_records WHERE property_id=? AND kind='room_type') AS "hasRoomTypes",
-    EXISTS(SELECT 1 FROM pms_records WHERE property_id=? AND kind='room' AND data_json::jsonb->>'active'='true') AS "hasActiveRooms",
-    EXISTS(SELECT 1 FROM pms_records WHERE property_id=? AND kind='rate' AND data_json::jsonb->>'active'='true') AS "hasActiveRates"`).bind(facts.propertyId, facts.propertyId2, facts.propertyId3).first<PmsSetupFacts>(),
+    ${pmsSetupExistsSql('room_type')} AS "hasRoomTypes",
+    ${pmsSetupExistsSql('room')} AS "hasActiveRooms",
+    ${pmsSetupExistsSql('rate')} AS "hasActiveRates"`).bind(facts.propertyId, facts.propertyId2, facts.propertyId3).first<PmsSetupFacts>(),
         hasStays: (facts: {
             propertyId: string;
-        }) => db.prepare("SELECT EXISTS(SELECT 1 FROM pms_records WHERE property_id=? AND kind='stay') present").bind(facts.propertyId).first<{
+        }) => db.prepare(`SELECT ${pmsSetupExistsSql('stay')} present`).bind(facts.propertyId).first<{
             present: boolean;
         }>(),
         allRecords: (facts: {
@@ -174,7 +175,7 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
      ORDER BY updated_at DESC,id LIMIT 50
  ),
  inventory_recent AS (
-   SELECT id,kind,data_json::jsonb data FROM pms_records WHERE property_id=? AND ? AND (
+   ${PMS_RECORD_POINT_PREFIX_SQL}? AND (
      (kind='lost' AND (data_json::jsonb->>'state'='stored' OR data_json::jsonb->>'foundDate' BETWEEN ? AND ?))
      OR (kind='movement' AND data_json::jsonb->>'date' BETWEEN ? AND ?)
    ) ORDER BY updated_at DESC,id LIMIT 50
@@ -232,7 +233,7 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
             id: string;
             propertyId2: string;
         }) => db.prepare(`WITH selected AS (
-      SELECT id,kind,data_json::jsonb data FROM pms_records WHERE property_id=? AND id=?
+      ${PMS_RECORD_POINT_PREFIX_SQL}id=?
     ), related AS (
       SELECT id FROM selected UNION
       SELECT value FROM selected CROSS JOIN LATERAL jsonb_each_text(data)
