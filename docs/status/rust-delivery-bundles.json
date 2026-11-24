@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7446,
+    "revision": 7448,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -116379,7 +116379,7 @@
         "owner": "finance",
         "title": "Mount finance journal batch-post + route/client cutover",
         "kind": "integration",
-        "status": "integrating",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116398,28 +116398,42 @@
           "owner:finance",
           "resource:composition"
         ],
-        "claim": {
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "ba1a344c6503b53797d14636f33afd83c57b8006",
+        "lastPushedSha": null,
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "c1a3c11ab"
+          },
+          {
+            "command": "vitest native-journal-batch (5)",
+            "result": "passed",
+            "sourceSha": "c1a3c11ab"
+          },
+          {
+            "command": "structure:check + test:catalogue (1374 suites)",
+            "result": "passed",
+            "sourceSha": "c1a3c11ab"
+          },
+          {
+            "command": "route: no postJournalBatch call; parsed input validated then raw clone forwarded",
+            "result": "passed",
+            "sourceSha": "c1a3c11ab"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated at HEAD; retained TS parity oracle tracked for later removal.",
+        "handoff": {
           "runId": "run-20261123-i",
           "agentId": "wDG1fin",
-          "claimedAt": "2026-11-23T23:30:57.180Z",
-          "heartbeatAt": "2026-11-23T23:58:58.236Z",
-          "expiresAt": "2026-11-24T00:28:58.236Z",
-          "generation": 161
-        },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Verifying composition and catalogue.",
-        "handoff": {
-          "runId": "run-20261123-h",
-          "agentId": "wDG1fin",
-          "at": "2026-11-23T23:30:50.417Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired at 23:30 during active read-tail and composition mounts; WIP reviewed, slices integrated continuously",
-          "nextAction": "Compose batch administration/target, mount POST /finance/journals/batch-post, add strict native-journal-batch client, switch workplace route native-only, delete postJournalBatch TS fallback."
+          "at": "2026-11-24T00:08:03.405Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Integrated at HEAD; retained TS parity oracle tracked for later removal."
         },
         "scopeRefinementRequired": false
       },
@@ -127131,7 +127145,7 @@
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T00:07:34.492Z",
+    "updatedAt": "2026-11-24T00:08:03.407Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
