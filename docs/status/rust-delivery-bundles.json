@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7527,
+    "revision": 7531,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -128197,6 +128197,78 @@
         "nextAction": "Next: legal_destructions active-destruction guard duplicated in enrollment-continuation.ts and legal/enrollment.ts; record a strictly lower spaced count (BEFORE=320).",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pms.read-tail-r13",
+        "goalId": "G4",
+        "owner": "pms",
+        "title": "pms TS read tail native cutover (r13)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pms/src/**",
+          "tests/unit/pms/**",
+          "tests/integration/pms/**"
+        ],
+        "resources": [
+          "owner:pms"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wF22pms",
+          "claimedAt": "2026-11-24T00:25:29.795Z",
+          "heartbeatAt": "2026-11-24T00:25:29.795Z",
+          "expiresAt": "2026-11-24T00:55:29.795Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to a mounted native read; record a strictly lower spaced count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.read-tail-r4",
+        "goalId": "G4",
+        "owner": "finance",
+        "title": "finance TS read tail native cutover (r4)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wF23fin",
+          "claimedAt": "2026-11-24T00:25:29.972Z",
+          "heartbeatAt": "2026-11-24T00:25:29.972Z",
+          "expiresAt": "2026-11-24T00:55:29.972Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to a mounted native read; record a strictly lower spaced count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -128205,11 +128277,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 711,
+      "totalPackets": 713,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
-        "in_progress": 18,
+        "in_progress": 20,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -128219,7 +128291,7 @@
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T00:25:20.093Z",
+    "updatedAt": "2026-11-24T00:25:29.975Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
