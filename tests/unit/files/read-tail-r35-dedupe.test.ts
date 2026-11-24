@@ -62,8 +62,10 @@ describe('Files read-tail r35 parameterized family', () => {
       const p = `packages/server-files/src/adapters/${h}`;
       expect(git('rev-parse', `HEAD:${p}`).trim()).toBe(git('hash-object', p).trim());
     }
-    expect(git('diff', '--name-only', '--', 'packages/server-files/src').trim().split('\n'))
-      .toEqual(['packages/server-files/src/adapters/field-file-writer-owner.ts']);
+    // Only the Field owner adapter may be a modified tracked src file; new
+    // helpers are untracked until integration. Robust to a clean tree.
+    const changed = git('diff', '--name-only', '--', 'packages/server-files/src').trim().split('\n').filter(Boolean);
+    expect(changed.every(p => p === 'packages/server-files/src/adapters/field-file-writer-owner.ts')).toBe(true);
   });
 
   test('retirement:ts-statements is strictly below the r34 BEFORE=262 baseline', () => {
@@ -81,10 +83,10 @@ describe('Files read-tail r35 parameterized family', () => {
       }
     };
     walk(srcRoot);
-    // r34 left 262; r35 lowers 262->260 (two 2-token heads -> one 2-token helper).
-    expect(literal).toBe(260);
-    expect(total).toBe(261);
-    expect(literal).toBeLessThan(262);
-    expect(total).toBeLessThan(263);
+    // r35 left 260; r36 lowers 260->258 (two 2-token set heads -> one 2-token helper).
+    expect(literal).toBe(258);
+    expect(total).toBe(259);
+    expect(literal).toBeLessThan(260);
+    expect(total).toBeLessThan(261);
   });
 });
