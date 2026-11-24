@@ -10,11 +10,12 @@ import type {CommandActor} from '@erpx/server-workflow/domain/commands';
 import {BusinessRuleError} from '@erpx/server-shared/index';
 import {workflowWave3Statement} from './native-workflow-wave3';
 import {resolveNativeEffects} from './native-workflow-write';
+import {nativeWorkflowReadFirst} from './native-workflow-read';
 const {workflowWorkContextGuards,workflowAssignmentGuard}=createWorkflowCommandGuards(assertion);
 type NativeCommandBoundary=CommandBoundary<SqlStatement>&{observe?:(results:SqlResult[])=>undefined;native?:(effect:SqlStatement)=>boolean;flush?:(effects:SqlStatement[])=>Promise<SqlStatement[]>;companyId?:string};
 function application(db:SqlDatabase,boundary?:NativeCommandBoundary){
  const repository:CommandRepository<SqlStatement>={
-  receipt:id=>db.prepare('SELECT request_hash,result_json,operation,actor_id,record_id,authority_json FROM command_receipts WHERE command_id=?').bind(id).first<{request_hash:string;result_json:string;operation:string;actor_id:string;record_id:string;authority_json:string|null}>(),
+  receipt:id=>nativeWorkflowReadFirst<{request_hash:string;result_json:string;operation:string;actor_id:string;record_id:string;authority_json:string|null}>('wf_native_command_receipt_replay',[id],boundary?.companyId??'',db),
   clearAssertions:(id:string,companyId:string)=>nativeClearCommandAssertions(db,companyId,id),
   insertReceipt:async(actor,id,operation,digest,recordId,result,now)=>workflowWave3Statement(db,{kind:'company',id:actor.companyId},'wf_command_receipt',[id,operation,actor.userId,digest,recordId,JSON.stringify(result),now,JSON.stringify({role:actor.role,assignmentId:actor.assignmentId,iam:actor.iam,...actor.authority,companyId:actor.companyId,branchId:actor.branchId,departmentId:actor.departmentId})],`wf-receipt:${id}`,now),
   captureAssignmentAuthority:async(actor,id)=>workflowWave3Statement(db,{kind:'company',id:actor.companyId},'wf_command_authority',[actor.assignmentId,id],`wf-authority:${id}`,Date.now()),

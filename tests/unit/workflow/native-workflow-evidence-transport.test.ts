@@ -771,3 +771,95 @@ describe('workflow project worker command evidence image read tail (native read 
     }
   });
 });
+
+describe('workflow canonical replay receipt read tail (native read plan)', () => {
+  it('carries no retired owner SQL for the switched read', async () => {
+    const source = await readFile(
+      new URL('../../../packages/server-workflow/src/adapters/commands.ts', import.meta.url),
+      'utf8',
+    );
+    expect(source).not.toContain('SELECT request_hash,result_json,operation,actor_id,record_id,authority_json FROM command_receipts');
+    expect(source).not.toContain('.prepare(');
+    expect(source).toContain("'wf_native_command_receipt_replay'");
+  });
+
+  it('plans the replay receipt read through the mounted native read with no local SQL', async () => {
+    const row = {
+      request_hash: 'hash', result_json: '{"ok":true}', operation: 'op',
+      actor_id: 'actor', record_id: 'record', authority_json: null,
+    };
+    const first = vi.fn(async () => row);
+    let repository: { receipt: (id: string) => Promise<unknown> } | undefined;
+    vi.resetModules();
+    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+      nativeWorkflowReadFirst: first,
+    }));
+    vi.doMock('@erpx/server-workflow/application/commands', () => ({
+      createCommandApplication: (ports: { repository: typeof repository }) => {
+        repository = ports.repository;
+        return { replayCommand: async () => null, executeCommand: async () => null };
+      },
+    }));
+    vi.doMock('@erpx/server-collaboration/adapters/native-command-assertions', () => ({
+      nativeClearCommandAssertions: async () => ({}),
+    }));
+    vi.doMock('@erpx/server-runtime/public/http', () => ({
+      ApiError: class ApiError extends Error {},
+    }));
+    vi.doMock('@erpx/server-identity_access/public/iam-store', () => ({
+      iamMutationGuards: () => [],
+    }));
+    vi.doMock('@erpx/server-identity_access/public/workflow-command-authority', () => ({
+      createWorkflowCommandGuards: () => ({
+        workflowWorkContextGuards: () => [], workflowAssignmentGuard: () => ({}),
+      }),
+      workflowActiveContext: async () => null,
+      workflowActiveGrant: async () => true,
+    }));
+    vi.doMock('@erpx/server-workflow/public/command-assertions', () => ({ assertion: {} }));
+    vi.doMock('@erpx/server-workflow/public/command-policies', () => ({
+      prepareOwnerCommandStatements: async () => [],
+    }));
+    vi.doMock('@erpx/server-shared/index', () => ({
+      BusinessRuleError: class BusinessRuleError extends Error {},
+    }));
+    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-wave3', () => ({
+      workflowWave3Statement: () => ({}),
+    }));
+    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-write', () => ({
+      resolveNativeEffects: async () => ({ statements: [] }),
+    }));
+    try {
+      const { replayCommand } = await import('../../../packages/server-workflow/src/adapters/commands');
+      const prepare = vi.fn();
+      const db = { prepare } as never;
+      await replayCommand(db, { companyId: 'company' } as never, 'command-1', 'op', 'record', {});
+      expect(repository).toBeDefined();
+      expect(await repository!.receipt('command-1')).toEqual(row);
+      expect(first).toHaveBeenCalledWith(
+        'wf_native_command_receipt_replay',
+        ['command-1'],
+        'company',
+        db,
+      );
+      expect(prepare).not.toHaveBeenCalled();
+    } finally {
+      for (const specifier of [
+        '../../../packages/server-workflow/src/adapters/native-workflow-read',
+        '@erpx/server-workflow/application/commands',
+        '@erpx/server-collaboration/adapters/native-command-assertions',
+        '@erpx/server-runtime/public/http',
+        '@erpx/server-identity_access/public/iam-store',
+        '@erpx/server-identity_access/public/workflow-command-authority',
+        '@erpx/server-workflow/public/command-assertions',
+        '@erpx/server-workflow/public/command-policies',
+        '@erpx/server-shared/index',
+        '../../../packages/server-workflow/src/adapters/native-workflow-wave3',
+        '../../../packages/server-workflow/src/adapters/native-workflow-write',
+      ]) {
+        vi.doUnmock(specifier as string);
+      }
+      vi.resetModules();
+    }
+  });
+});

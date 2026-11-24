@@ -155,6 +155,13 @@ pub const WF_NATIVE_FINANCE_SOURCE_REVISION: &str = "wf_native_finance_source_re
 /// executes it on the caller's open company unit and carries no receipt or
 /// assertion semantics. Cross-owner assertion fragments remain in the caller.
 pub const WF_NATIVE_PROJECT_WORKER_COMMAND_EVIDENCE: &str = "wf_native_project_worker_command_evidence";
+/// Owner-authored caller-unit read for the canonical replay receipt read. The
+/// mounted wave3-command planner resolves it to one fixed SELECT with the exact
+/// six-column receipt shape; the TypeScript bridge executes it on the caller's
+/// open unit and carries no receipt/audit/outbox write ledger. The read is
+/// keyed by command id only (no company predicate), preserving the original
+/// caller-unit semantics; authority is revalidated by the command application.
+pub const WF_NATIVE_COMMAND_RECEIPT_REPLAY: &str = "wf_native_command_receipt_replay";
 pub const KINDS: &[&str] = &[
     WF_OPENAPPROVAL,
     WF_OPENAPPROVAL2,
@@ -196,6 +203,7 @@ pub const KINDS: &[&str] = &[
     WF_NATIVE_FINANCE_SALES_COMPLETION,
     WF_NATIVE_FINANCE_SOURCE_REVISION,
     WF_NATIVE_PROJECT_WORKER_COMMAND_EVIDENCE,
+    WF_NATIVE_COMMAND_RECEIPT_REPLAY,
 ];
 
 fn statement(kind: &str) -> Option<(&'static str, usize)> {
@@ -461,6 +469,10 @@ fn statement(kind: &str) -> Option<(&'static str, usize)> {
         WF_NATIVE_PROJECT_WORKER_COMMAND_EVIDENCE => (
             "SELECT jsonb_build_object('receipts',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.command_id) FROM command_receipts r WHERE r.record_id=? AND r.authority_json::jsonb->>'companyId'=?),'audit',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM audit_events a JOIN command_receipts r ON r.command_id=a.command_id WHERE a.record_id=? AND r.authority_json::jsonb->>'companyId'=?),'outbox',(SELECT jsonb_agg(to_jsonb(o) ORDER BY o.id) FROM outbox_events o WHERE o.aggregate_id=? AND o.payload_json::jsonb->>'companyId'=?))::text image",
             6,
+        ),
+        WF_NATIVE_COMMAND_RECEIPT_REPLAY => (
+            "SELECT request_hash,result_json,operation,actor_id,record_id,authority_json FROM command_receipts WHERE command_id=?",
+            1,
         ),
 _ => return None,
     })
@@ -979,5 +991,48 @@ mod tests {
         assert!(
             plan(WF_NATIVE_PROJECT_WORKER_COMMAND_EVIDENCE, vec![json!("record-1")]).is_err()
         );
+    }
+
+    /// The canonical replay receipt read stays fixed, SELECT-only, keyed by
+    /// command id only (no company predicate) with the exact six columns. The
+    /// bridge executes it on the caller's unit and carries no receipt or
+    /// assertion semantics; authority is revalidated by the command application.
+    #[test]
+    fn command_receipt_replay_read_kind_is_fixed_select() {
+        let (sql, expected) = statement(WF_NATIVE_COMMAND_RECEIPT_REPLAY)
+            .expect("registered owner read kind");
+        assert!(sql.starts_with("SELECT "), "read must be SELECT-only: {sql}");
+        assert_eq!(expected, 1);
+        assert_eq!(sql.matches('?').count(), expected);
+        assert_eq!(
+            sql,
+            "SELECT request_hash,result_json,operation,actor_id,record_id,authority_json FROM command_receipts WHERE command_id=?"
+        );
+        for column in [
+            "request_hash",
+            "result_json",
+            "operation",
+            "actor_id",
+            "record_id",
+            "authority_json",
+        ] {
+            assert!(sql.contains(column), "read must keep column: {column}");
+        }
+        assert!(
+            sql.contains("command_receipts") && sql.contains("WHERE command_id=?"),
+            "read must stay owner-local and keyed by command id: {sql}"
+        );
+        assert!(
+            !sql.contains("company_id") && !sql.contains("companyId"),
+            "read must keep the no-company-predicate semantics: {sql}"
+        );
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+            assert!(!sql.contains(forbidden), "read must not mutate: {forbidden}");
+        }
+        assert!(supported(WF_NATIVE_COMMAND_RECEIPT_REPLAY));
+        assert!(
+            plan(WF_NATIVE_COMMAND_RECEIPT_REPLAY, vec![json!("command-1")]).is_ok()
+        );
+        assert!(plan(WF_NATIVE_COMMAND_RECEIPT_REPLAY, vec![]).is_err());
     }
 }
