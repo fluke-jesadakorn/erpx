@@ -5,11 +5,17 @@ import { recordsFinanceUsageSql } from '@erpx/server-finance/public/records-ai-u
 import { recordsExecutiveUsageSql } from '@erpx/server-platform_administration/public/records-ai-usage-projection';
 import { recordsAiMonthlyLimitSql } from '@erpx/server-manage_erpx/public/records-ai-limit-projection';
 import { agentWorkspaceMonthlyUsageSql } from './records-ai-quota';
+import { agentMonthlyUnionCountSql } from './read-tail-r25-source-sql';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+/** Byte-identical five-branch records quota union count, now composed from the
+ * one Agent monthly-union count head. Kept local so this adapter owns its binds. */
+const collaborationQuotaUnionCountSql = agentMonthlyUnionCountSql(
+    `${socialExpenseUsageSql} UNION ALL ${recordsRequestUsageSql} UNION ALL ${recordsFinanceUsageSql} UNION ALL ${agentWorkspaceMonthlyUsageSql} UNION ALL ${recordsExecutiveUsageSql}`,
+);
 export function collaborationAiSources(db: SqlDatabase) {
     return { guardQuota(id: string, value: "quota", companyId: string, month: string, companyId2: string, month2: string, companyId3: string, companyId4: string, now: number, userId: string, value2: number, maxConcurrent: number, maxPerMinute: number) {
-            return assertion(db, id, value, `${socialMonthlyUsageCountSql} + (SELECT count(*) FROM (${socialExpenseUsageSql} UNION ALL ${recordsRequestUsageSql} UNION ALL ${recordsFinanceUsageSql} UNION ALL ${agentWorkspaceMonthlyUsageSql} UNION ALL ${recordsExecutiveUsageSql}) WHERE company_id=? AND month=?) < ${recordsAiMonthlyLimitSql} AND ${socialRequestRateBudgetSql}`, [
+            return assertion(db, id, value, `${socialMonthlyUsageCountSql} + ${collaborationQuotaUnionCountSql} < ${recordsAiMonthlyLimitSql} AND ${socialRequestRateBudgetSql}`, [
                 companyId,
                 month,
                 companyId2,

@@ -22,6 +22,10 @@ export type {AssistantGovernance} from '@erpx/server-agent/domain/governance';
 /** Byte-identical Agent pool-member access EXISTS shared by policyCandidates and guardDefaultPolicy.
  * Each call site keeps its own binds; the native policy owner remains the authority. */
 const agentPoolMemberAccessSql = 'EXISTS(SELECT 1 FROM agent_pool_members m WHERE m.pool_id=x.pool_id AND m.user_id=? AND m.revoked_at IS NULL)';
+/** The guardApprovedPolicy witness correlates the same pool-member head to agent_pools
+ * (p.id) instead of agent_assignments (x.pool_id). Derived from the one authored head so
+ * the two witnesses cannot drift; both keep their own binds. */
+const agentPoolMemberAccessByPoolSql = agentPoolMemberAccessSql.replace('x.pool_id', 'p.id');
 /** Byte-identical Agent private-session projection shared by workspaceSessions and sessionRecord.
  * Each call site keeps its own binds; the native session owner remains the authority. */
 const privateSessionSelectSql = 'SELECT s.id,s.user_id,s.assignment_id,s.conversation_key,s.generation,s.created_at,c.* FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id WHERE s.company_id=?';
@@ -68,7 +72,7 @@ lockAssignedPool(poolId:string){return db.prepare("SELECT id FROM agent_pools WH
 guardApprovedPolicy(key:string,value:"approved-agent",assignmentId:string,companyId:string,assignmentVersion:number | null,agentVersionId:string | null,agentVersionRevision:number | null,catalogVersion:number | null,userId:string,poolId:string | null,poolVersion:number | null){return assertion(db,key,value,`EXISTS(SELECT 1 FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id JOIN agent_catalog c ON c.id=v.agent_id LEFT JOIN agent_pools p ON p.id=x.pool_id
       WHERE x.id=? AND x.company_id=? AND c.company_id=x.company_id AND x.version=? AND x.status='active'
       AND v.id=? AND v.version=? AND v.status='approved' AND c.version=? AND c.status='approved'
-      AND (x.user_id=? OR p.id=? AND p.status='active' AND p.version=? AND EXISTS(SELECT 1 FROM agent_pool_members m WHERE m.pool_id=p.id AND m.user_id=? AND m.revoked_at IS NULL)))`,
+      AND (x.user_id=? OR p.id=? AND p.status='active' AND p.version=? AND ${agentPoolMemberAccessByPoolSql}))`,
     [assignmentId,companyId,assignmentVersion,agentVersionId,agentVersionRevision,catalogVersion,userId,poolId,poolVersion,userId]);},
 async workspaceAgents(companyId:string){return (await db
           .prepare(
