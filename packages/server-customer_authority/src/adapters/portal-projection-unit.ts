@@ -17,6 +17,7 @@ import {customerPortalPurchaseScope} from '@erpx/server-customer_authority/adapt
 import {jsonbAggFact,bindingsExists} from './customer-authority-read-sql';
 import {jsonbImageProjection} from './customer-authority-read-tail-r23-sources';
 import {bindingCommerceOrderSource} from './customer-authority-read-tail-r34-sources';
+import {allColumnsProjection} from './customer-authority-read-tail-r37-sources';
 
 type Actor={userId:string;email:string};
 type Projection={items:{binding_id:string;sharedFiles:{linkId:string}[]}[]};
@@ -33,7 +34,7 @@ export function customerPortalProjectionSupportInstalled(database:SqlDatabase,ac
 
 async function source(database:SqlDatabase,actor:Actor,installed:boolean):Promise<SourceImage>{
  const support=installed?`jsonb_build_array(${jsonbAggFact('r')} FROM customer_portal_support_responses r JOIN bindings b ON b.id=r.binding_id,${jsonbAggFact('a')} FROM customer_portal_support_acknowledgements a JOIN bindings b ON b.id=a.binding_id,${jsonbAggFact('c')} FROM customer_portal_support_closures c JOIN bindings b ON b.id=c.binding_id))`:'NULL';
- const row=await database.prepare(`WITH bindings AS(SELECT * FROM customer_access_bindings WHERE email=?)
+ const row=await database.prepare(`WITH bindings AS(${allColumnsProjection('customer_access_bindings',' WHERE email=?')})
  SELECT jsonb_build_array(
  ${jsonbAggFact('b')} FROM bindings b),
  ${jsonbAggFact('o')} FROM (${commerce.commerce_orders}) o WHERE ${bindingsExists('b.order_id=o.id AND b.company_id=o.company_id')}),
