@@ -863,3 +863,62 @@ describe('workflow canonical replay receipt read tail (native read plan)', () =>
     }
   });
 });
+
+describe('workflow export receipt result_json dedupe', () => {
+  it('shares one fixed SQL constant across both export receipt readers', async () => {
+    const [supplierSource, financeSource, sharedSource] = await Promise.all([
+      readFile(
+        new URL(
+          '../../../packages/server-workflow/src/adapters/supplier-export-receipt.ts',
+          import.meta.url,
+        ),
+        'utf8',
+      ),
+      readFile(
+        new URL(
+          '../../../packages/server-workflow/src/adapters/finance-command-receipts.ts',
+          import.meta.url,
+        ),
+        'utf8',
+      ),
+      readFile(
+        new URL('../../../packages/server-workflow/src/adapters/receipt-sql.ts', import.meta.url),
+        'utf8',
+      ),
+    ]);
+    expect(supplierSource).toContain('exportReceiptResultSql');
+    expect(financeSource).toContain('exportReceiptResultSql');
+    expect(supplierSource).not.toContain('SELECT result_json FROM command_receipts');
+    expect(financeSource).not.toContain("AND operation='finance.refund.export'");
+    expect(sharedSource.match(/SELECT result_json FROM command_receipts/g)).toHaveLength(1);
+  });
+
+  it('binds command id and operation and returns result_json for both callers', async () => {
+    const { exportReceiptResultSql } = await import(
+      '../../../packages/server-workflow/src/adapters/receipt-sql'
+    );
+    const { supplierExportReceipt } = await import(
+      '../../../packages/server-workflow/src/adapters/supplier-export-receipt'
+    );
+    const { financeCommandReceipts } = await import(
+      '../../../packages/server-workflow/src/adapters/finance-command-receipts'
+    );
+    const row = { result_json: '{"exported":true}' };
+    const fakeDb = () => {
+      const first = vi.fn(async () => row);
+      const bind = vi.fn(() => ({ first }));
+      const prepare = vi.fn(() => ({ bind }));
+      return { db: { prepare } as never, prepare, bind, first };
+    };
+
+    const supplier = fakeDb();
+    expect(await supplierExportReceipt(supplier.db, 'supplier-key')).toEqual(row);
+    expect(supplier.prepare).toHaveBeenCalledWith(exportReceiptResultSql);
+    expect(supplier.bind).toHaveBeenCalledWith('supplier-key', 'finance.supplier_batch.export');
+
+    const refund = fakeDb();
+    expect(await financeCommandReceipts(refund.db).refundExport('refund-key')).toEqual(row);
+    expect(refund.prepare).toHaveBeenCalledWith(exportReceiptResultSql);
+    expect(refund.bind).toHaveBeenCalledWith('refund-key', 'finance.refund.export');
+  });
+});
