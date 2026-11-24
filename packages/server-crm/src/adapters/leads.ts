@@ -4,6 +4,7 @@ import { leadOwnerNameSql } from './lead-owner-name';
 import { crmGuestLinkReservationSourceSql } from './read-tail-r26-sql';
 import { crmCampaignOptionsSql } from './read-tail-r27-sql';
 import { crmCaseEventReadSql, crmOpportunityProbeSql } from './read-tail-r28-sql';
+import { crmLeadOwnerGuardSql } from './read-tail-r29-sql';
 import { nativeCrmActivityWork } from './native-activity-workspace';
 import {filterCRMPurchasedWork} from "@erpx/server-crm/adapters/record-purchases";
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
@@ -37,7 +38,7 @@ export {crmLeadSchema,crmLeadChangeSchema,crmOpportunitySchema} from "@erpx/serv
 const scope="l.company_id=? AND (?::text IS NULL OR l.branch_id=?) AND (?::text IS NULL OR l.department_id=?)",args=(a:WorkContext)=>[a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId],eligible=salesRecipientEligibility('l','l.owner_id');
 async function records(db:SqlDatabase,a:WorkContext,id?:string){return (await db.prepare(`SELECT l.*,v.id opportunity_id,v.stage,v.expected_minor,v.currency,v.close_date,v.quote_id,v.quote_version,v.sales_id,v.reservation_id,v.win_source,v.won_at,v.version opportunity_version,v.customer_id,p.name customer_name,ca.finance_party_id account_customer_id,ca.version account_version,q.state quote_state,q.version current_quote_version,${leadOwnerNameSql} owner_name,CASE WHEN ${eligible} THEN 1 ELSE 0 END owner_eligible FROM crm_leads l LEFT JOIN crm_accounts ca ON ca.id=l.account_id AND ca.company_id=l.company_id LEFT JOIN crm_opportunities v ON v.lead_id=l.id LEFT JOIN (${financeProjectionSources.finance_parties}) p ON p.id=v.customer_id AND p.company_id=l.company_id LEFT JOIN (${commerceProjectionSources.commerce_orders}) q ON q.id=v.quote_id WHERE ${scope} AND ${await crmNativeReadFilter('lead','l')} AND (?::text IS NULL OR l.id=?) ORDER BY l.updated_at DESC,l.id`).bind(...args(a),id??null,id??null).all<Row>()).results;}
 /** Narrow source projection for Executive evidence; never load CRM contact or brief fields. */
-function ownerGuard(db:SqlDatabase,a:WorkContext,id:string,key:string,v:number){return assertion(db,key,'crm-owner',`EXISTS(SELECT 1 FROM crm_leads l WHERE l.id=? AND l.version=? AND l.owner_id=? AND ${scope} AND ${eligible})`,[id,v,a.userId,...args(a)]);}
+function ownerGuard(db:SqlDatabase,a:WorkContext,id:string,key:string,v:number){return assertion(db,key,'crm-owner',crmLeadOwnerGuardSql(scope,eligible),[id,v,a.userId,...args(a)]);}
 
 function application(a:WorkContext,provided?:SqlDatabase){let resource:Promise<SqlDatabase>|null=provided?Promise.resolve(provided):null;const database=()=>resource??=holdingResources(a.holdingId).then(x=>x.write);
 return createCRMApplication({actorId:a.userId,canRead:hasPermission(a,'commerce.read'),canSales:hasPermission(a,'commerce.sales'),canApprove:hasPermission(a,'commerce.approve'),canPms:hasPermission(a,'pms.read'),canSupport:hasPermission(a,'support.read'),clock:{now:()=>Date.now()},authorize:permission=>{requirePermission(a,permission);},activityWork:async()=>nativeCrmActivityWork(a),async repository(){const write=await database();const repository:CRMRepository={

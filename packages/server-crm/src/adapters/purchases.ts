@@ -25,6 +25,7 @@ import {commercialOwnerProjectionSources as organizationProjectionSources} from 
 import {crmCreatorLeadScopeSql} from "./read-tail-r24-sql";
 import {crmPurchaseRowProjection} from "./read-tail-r25-sql";
 import {crmCaseEventReadSql,crmOpportunityProbeSql} from "./read-tail-r28-sql";
+import {crmLeadEligibleOwnerSql} from "./read-tail-r29-sql";
 
 export type CRMPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type CRMPurchaseTarget={kind:"lead"|"activity"|"account"|"contact"|"guest-link";id:string};
@@ -177,7 +178,7 @@ export async function withCRMPurchasedCommand<Result>(actor:WorkContext,command:
   const check=async()=>{const current=await source(database,actor,command.target);if(current.witness!==after.witness)throw new ApiError(409,"CRM_SOURCE_CHANGED","The original CRM source changed before commit.");for(const item of sources)if((await source(database,actor,item.target)).witness!==item.source.witness)throw new ApiError(409,"CRM_SOURCE_CHANGED","The captured CRM identity changed before commit.");
    if(opportunity&&(await database.prepare(opportunityWitnessSql).bind(command.target.id,actor.companyId).first<{witness:string}>())?.witness!==opportunity.witness)throw new ApiError(409,'CRM_SOURCE_CHANGED','The actual linked opportunity source changed before commit.');
    await requireCRMCurrentAuthority(database,actor,permissions,key,current);
-   if(command.eligibleOwner&&!receipt){const valid=command.target.kind==='activity'?await database.prepare(`${crmLeadActivityExists}? AND c.company_id=? AND ${salesRecipientEligibility('l','c.owner_id')}`).bind(command.target.id,actor.companyId).first():await database.prepare(`SELECT 1 FROM crm_leads l WHERE l.id=? AND l.company_id=? AND ${salesRecipientEligibility('l','l.owner_id')}`).bind(command.target.id,actor.companyId).first();if(!valid)throw new ApiError(409,'CRM_OWNER_CHANGED','The assigned original salesperson is no longer eligible.');}
+   if(command.eligibleOwner&&!receipt){const valid=command.target.kind==='activity'?await database.prepare(`${crmLeadActivityExists}? AND c.company_id=? AND ${salesRecipientEligibility('l','c.owner_id')}`).bind(command.target.id,actor.companyId).first():await database.prepare(crmLeadEligibleOwnerSql(salesRecipientEligibility('l','l.owner_id'))).bind(command.target.id,actor.companyId).first();if(!valid)throw new ApiError(409,'CRM_OWNER_CHANGED','The assigned original salesperson is no longer eligible.');}
    const observed=await database.batch((await Promise.all(boundaries.map(async item=>[...item.boundary.after, await nativeClearCommandAssertions(database, actor.companyId, item.key)]))).flat());boundaries[0]?.boundary.observe?.(observed);};
   await check();composition.checks.push(check);return result;
  };

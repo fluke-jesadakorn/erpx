@@ -7,6 +7,7 @@ import {assertSalesPackageObligationSources,salesPackageSettlementSources as sal
 import {crmFinanceCustomerSources,crmFinanceSourceReadLocks} from '@erpx/server-finance/public/crm-purchase-sources';
 import {crmHotelGuestSources,crmHotelSourceReadLocks} from '@erpx/server-pms/public/crm-purchase-sources';
 import {crmObligationScopeSql,crmOpportunityLeadSql,crmHotelReservationProbeSql,crmCaseEventReceiptWitnessSql} from '@erpx/server-crm/adapters/purchases';
+import {crmAccountContactProbeSql} from './read-tail-r29-sql';
 /** One owner literal for the retained-customer identity guard. The lead-identity
  * and account fact sites pass only the company expression; rendered SQL stays
  * byte-identical to the pre-dedupe text. */
@@ -34,7 +35,7 @@ export async function salesCRMPackageObligations(owner:PostgresDatabase,database
  ${historyFactSql('activity-history','crm_lead_activity_events event JOIN crm_lead_activities activity ON activity.id=event.activity_id CROSS JOIN scope WHERE activity.company_id=scope.company_id')}
  ${historyFactSql('guest-sharing-history','crm_guest_sharing_events event,scope WHERE event.company_id=scope.company_id')}
  UNION ALL SELECT 'account',account.id,to_jsonb(account),${financeCustomerMissingSql('account.company_id')} FROM crm_accounts account,scope WHERE account.company_id=scope.company_id
- UNION ALL SELECT 'contact',contact.id,to_jsonb(contact),NOT EXISTS(SELECT 1 FROM crm_accounts account WHERE account.id=contact.account_id AND account.company_id=contact.company_id) FROM crm_contacts contact,scope WHERE contact.company_id=scope.company_id
+ UNION ALL SELECT 'contact',contact.id,to_jsonb(contact),NOT EXISTS(${crmAccountContactProbeSql()}) FROM crm_contacts contact,scope WHERE contact.company_id=scope.company_id
  UNION ALL SELECT 'guest-identity',guest.id,to_jsonb(guest),NOT EXISTS(SELECT 1 FROM crm_contacts contact JOIN (${crmHotelGuestSources}) original ON original.id=guest.guest_id AND original.property_id=guest.property_id AND original.company_id=guest.company_id WHERE contact.id=guest.contact_id AND contact.company_id=guest.company_id) FROM crm_guest_links guest,scope WHERE guest.company_id=scope.company_id ORDER BY kind,id`).bind(input.companyId).all<{kind:string;id:string;fact:unknown;pending:boolean}>()).results;
  return {companyId:input.companyId,packageId:input.packageId,moduleId:'crm',observedAt:input.now,revision:createHash('sha256').update(JSON.stringify({companyId:input.companyId,packageVersion:input.packageVersion,facts})).digest('hex'),outstanding:facts.filter(fact=>fact.pending).length};
 }

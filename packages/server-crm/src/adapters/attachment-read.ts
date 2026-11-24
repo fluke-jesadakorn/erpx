@@ -15,6 +15,7 @@ import {attachmentReadSource,attachmentPrivateReadSourceLocks,assertAttachmentRe
 import {isTransactionalSqlDatabase,type SqlDatabase,type StoredFile} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {actorScopeSql,crmPurchaseAccountRows,crmPurchaseOpportunityRows,crmPurchaseSourceReadLocks} from '@erpx/server-crm/adapters/purchases';
+import {crmAccountImageReadSql} from './read-tail-r29-sql';
 
 /** One parameterized native-source image fragment for both CRM attachment
  * witnesses; callers pass the owned row projection and their alias predicate so
@@ -30,11 +31,11 @@ type Target='crm_account'|'crm_opportunity';
 export function isCRMAttachmentReadTarget(target:string):target is Target{return target==='crm_account'||target==='crm_opportunity';}
 type Source={image:string;customer_id:string|null;quote_id:string|null;sales_id:string|null;reservation_id:string|null};
 async function image(database:SqlDatabase,companyId:string,target:Target,id:string){
- const row=target==='crm_account'?await database.prepare(`SELECT jsonb_build_object('account',to_jsonb(account),
-  'contacts',(${crmRelatedAggSql('contact','crm_contacts contact WHERE contact.account_id=account.id AND contact.company_id=account.company_id')}),
-  'leads',(${crmRelatedAggSql('lead','crm_leads lead WHERE lead.account_id=account.id AND lead.company_id=account.company_id')}),
-  ${nativeImageSql(crmPurchaseAccountRows,'native.id=account.id AND native.company_id=account.company_id')})::text image,
-  account.finance_party_id customer_id,NULL::text quote_id,NULL::text sales_id,NULL::text reservation_id FROM crm_accounts account WHERE account.id=? AND account.company_id=?`).bind(id,companyId).first<Source>()
+ const row=target==='crm_account'?await database.prepare(crmAccountImageReadSql(
+  crmRelatedAggSql('contact','crm_contacts contact WHERE contact.account_id=account.id AND contact.company_id=account.company_id'),
+  crmRelatedAggSql('lead','crm_leads lead WHERE lead.account_id=account.id AND lead.company_id=account.company_id'),
+  nativeImageSql(crmPurchaseAccountRows,'native.id=account.id AND native.company_id=account.company_id'),
+ )).bind(id,companyId).first<Source>()
  :await database.prepare(`SELECT jsonb_build_object('opportunity',to_jsonb(opportunity),'lead',to_jsonb(lead),'account',to_jsonb(account),'contact',to_jsonb(contact),
   'guestLinks',(${crmRelatedAggSql('link','crm_guest_links link WHERE link.company_id=lead.company_id AND link.contact_id=lead.contact_id')}),
   ${nativeImageSql(crmPurchaseOpportunityRows,'native.id=lead.id AND native.company_id=lead.company_id')})::text image,

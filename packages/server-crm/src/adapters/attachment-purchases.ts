@@ -13,12 +13,11 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {financeDeferredEffectStatements} from "@erpx/server-finance/public/finance-transactions";
 import {actorScopeSql,crmPurchaseAccountRows,crmPurchaseOpportunityRows,crmAccountCreatedByScopeSql,crmPurchaseSourceReadLocks,requireCRMCurrentAuthority} from "@erpx/server-crm/adapters/purchases";
+import {crmAccountAttachmentSourceSql} from "./read-tail-r29-sql";
 
 type Target={kind:"account"|"opportunity";id:string};
 export type CRMAttachmentPurchase={companyId:string;capability:"sales.crm";purpose:CapabilityPurpose;actor:WorkContext;target:Target;witness:string};
-function sourceQuery(kind:Target["kind"]){return kind==="account"?`SELECT jsonb_build_object('account',to_jsonb(account)-'version'-'updated_at','native',native.witness)::text
- FROM crm_accounts account JOIN (${crmPurchaseAccountRows}) native ON native.id=account.id AND native.company_id=account.company_id
- WHERE account.id=? AND account.company_id=? AND ${crmAccountCreatedByScopeSql}`
+function sourceQuery(kind:Target["kind"]){return kind==="account"?crmAccountAttachmentSourceSql(crmPurchaseAccountRows,`${crmAccountCreatedByScopeSql}`)
  :`SELECT jsonb_build_object('opportunity',to_jsonb(opportunity)-'version'-'updated_at','lead',to_jsonb(lead)-'version'-'updated_at','native',native.witness)::text
  FROM crm_opportunities opportunity JOIN crm_leads lead ON lead.id=opportunity.lead_id JOIN (${crmPurchaseOpportunityRows}) native ON native.id=lead.id AND native.company_id=lead.company_id
  WHERE opportunity.id=? AND lead.company_id=? AND (?::text IS NULL OR lead.branch_id=?) AND (?::text IS NULL OR lead.department_id=?)`;}
