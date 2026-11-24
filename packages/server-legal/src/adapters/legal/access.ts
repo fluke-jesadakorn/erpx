@@ -12,6 +12,7 @@ import { productionFeatureGuard } from "@erpx/server-pms/public/feature-availabi
 import { legalEvent } from '@erpx/server-collaboration/adapters/native-legal-event';
 import {legalCompanyAdvisoryLockSql,legalFilesAdvisoryLockSql,legalDestructionActiveSql,legalSettingsEnabledSql} from '../legal-read-tail-r9-sources';
 import {legalItemSelectSql} from '../legal-read-tail-r16-sources';
+import {legalMemberEditExistsSql} from '../legal-read-tail-r25-sources';
 export const tables: Record<LegalKind, string> = {
   request: "legal_requests",
   matter: "legal_matters",
@@ -106,7 +107,7 @@ export function guards(
       db,
       key,
       "legal-access",
-      `EXISTS(SELECT 1 FROM legal_items i WHERE i.id=? AND i.version=? AND ${v.sql}${edit ? " AND EXISTS(SELECT 1 FROM legal_members em WHERE em.item_id=i.id AND em.user_id=? AND em.access='edit')" : ""})`,
+      `EXISTS(SELECT 1 FROM legal_items i WHERE i.id=? AND i.version=? AND ${v.sql}${edit ? " AND "+legalMemberEditExistsSql("em") : ""})`,
       [id, version, ...v.values, ...(edit ? [a.userId] : [])],
     ),
   ];
