@@ -1,8 +1,12 @@
+import { readFileSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 const file = new URL('../../../packages/server-talent/src/adapters/attachment-read-sources.ts', import.meta.url);
 const srcDir = new URL('../../../packages/server-talent/src/', import.meta.url);
+const headUrl = new URL('../../../packages/server-talent/src/adapters/talent-read-tail-r37-sources.ts', import.meta.url);
+const headDecl = readFileSync(headUrl, 'utf8').match(/export const selectProjection = [\s\S]*?;\n/)![0].replace('export const', 'const').replace(/:\s*string/g, '');
+const selectProjection = new Function(headDecl + ' return selectProjection;')();
 
 // Exact pre-dedupe emitted SQL (r20 baseline). The people-payroll source SQL
 // and the offer-target candidate predicate are stubbed to keep the pinned
@@ -20,11 +24,11 @@ async function tsFiles(directory: URL): Promise<string[]> {
 }
 function evaluate(text: string): { app: string; ret: string } {
   const helper = text.match(/const jsonbAgg=[\s\S]*?;\n/)![0].replace(/:\s*string/g, '');
-  const jsonbAgg = new Function(helper + ' return jsonbAgg;')();
+  const jsonbAgg = new Function('selectProjection', helper + ' return jsonbAgg;')(selectProjection);
   const appTpl = text.match(/const applicationImages=(`[\s\S]*?`);/)![1];
   const retTpl = text.match(/database\.prepare\((`[\s\S]*?`)\)\.bind/)![1];
-  const app = new Function('jsonbAgg', 'talentHirePeopleSources', 'return ' + appTpl + ';')(jsonbAgg, '__PEOPLE_SRC__');
-  const ret = new Function('jsonbAgg', 'applicationImages', 'candidate', 'return ' + retTpl + ';')(jsonbAgg, app, 'c.id=?');
+  const app = new Function('selectProjection', 'jsonbAgg', 'talentHirePeopleSources', 'return ' + appTpl + ';')(selectProjection, jsonbAgg, '__PEOPLE_SRC__');
+  const ret = new Function('selectProjection', 'jsonbAgg', 'applicationImages', 'candidate', 'return ' + retTpl + ';')(selectProjection, jsonbAgg, app, 'c.id=?');
   return { app, ret };
 }
 
@@ -55,7 +59,7 @@ describe('talent read-tail r21 jsonb sibling family dedupe', () => {
   it('lowers the talent owner SELECT KPI strictly below the r20 after=69', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(27);
+    expect(count).toBe(19);
     expect(count).toBeLessThan(40);
   });
 });

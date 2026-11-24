@@ -1,5 +1,6 @@
 import 'server-only';
 import {talentActorScopeCte} from './talent-scope-sql';
+import {selectProjection} from './talent-read-tail-r37-sources';
 import {isTalentAttachmentReadTarget,talentAttachmentReadSourceLocks,talentAttachmentReadSourceImage} from '@erpx/server-talent/adapters/attachment-read-sources';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
@@ -28,7 +29,7 @@ export async function withTalentAttachmentContentRead<Result extends {object:Sto
   await database.batch([...talentAttachmentReadSourceLocks(database),attachmentPrivateReadSourceLocks(database),...privateFileDenialAuthoritySourceLocks(database)]);
   await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);await database.batch(purchase.slice(1));
   const source=await attachmentReadSource(database,actor.companyId,linkId);assertAttachmentReadRoute(selected,source);if(!source)throw changed();
-  const before=await talentAttachmentReadSourceImage(database,actor.companyId,source.targetType,source.targetId),currentScope=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!!await database.prepare(`SELECT 1 FROM${talentActorScopeCte}workforce_actor_scope WHERE ${currentScope.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...currentScope.args).first();
+  const before=await talentAttachmentReadSourceImage(database,actor.companyId,source.targetType,source.targetId),currentScope=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!!await database.prepare(`${selectProjection('1')} FROM${talentActorScopeCte}workforce_actor_scope WHERE ${currentScope.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...currentScope.args).first();
   const deniedAuthority=initiallyCurrent?null:await privateFileDenialAuthorityWitness(database,actor),checkpoint=new Set((await attachmentDeniedReadAudits(database,actor,linkId)).map(event=>event.id));
   const check=async(authorizeSource:boolean,denial=false)=>{
    if(identity(actor)!==context)throw changed();

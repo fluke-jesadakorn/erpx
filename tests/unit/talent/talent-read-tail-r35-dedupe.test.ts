@@ -1,8 +1,12 @@
+import { readFileSync } from 'node:fs';
 import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 const file = new URL('../../../packages/server-talent/src/adapters/talent.ts', import.meta.url);
 const srcDir = new URL('../../../packages/server-talent/src/', import.meta.url);
+const headUrl = new URL('../../../packages/server-talent/src/adapters/talent-read-tail-r37-sources.ts', import.meta.url);
+const headDecl = readFileSync(headUrl, 'utf8').match(/export const selectProjection = [\s\S]*?;\n/)![0].replace('export const', 'const').replace(/:\s*string/g, '');
+const selectProjection = new Function(headDecl + ' return selectProjection;')();
 
 // Exact pre-dedupe emitted SQL (r34 baseline, BEFORE=46). Only the projected
 // columns and the trailing predicate are parameterized; the owner-eligibility
@@ -23,7 +27,7 @@ async function tsFiles(directory: URL): Promise<string[]> {
 }
 function evaluate(text: string): (columns: string, tail: string) => string {
   const helper = text.match(/const applicationProjection = [\s\S]*?;\n/)![0].replace(/:\s*string/g, '');
-  return new Function('eligibleOwner', `${helper}\nreturn applicationProjection;`)(ELIGIBLE);
+  return new Function('eligibleOwner', 'selectProjection', `${helper}\nreturn applicationProjection;`)(ELIGIBLE, selectProjection);
 }
 
 describe('talent read-tail r35 application-projection head family dedupe', () => {
@@ -32,8 +36,8 @@ describe('talent read-tail r35 application-projection head family dedupe', () =>
     expect(text.split('const applicationProjection =').length - 1).toBe(1);
     expect(text.split('applicationProjection(').length - 1).toBe(2); // ownedApps + detail call
     expect(text.split('const ownedApps=applicationProjection(').length - 1).toBe(1);
-    expect(text.split('CASE WHEN ${eligibleOwner} THEN 1 ELSE 0 END owner_eligible FROM talent_applications a').length - 1).toBe(1);
-    expect(text.split('CASE WHEN ${eligibleOwner} THEN 1 ELSE 0 END owner_eligible FROM talent_applications a JOIN').length - 1).toBe(1);
+    expect(text.split('CASE WHEN ${eligibleOwner} THEN 1 ELSE 0 END owner_eligible`)} FROM talent_applications a').length - 1).toBe(1);
+    expect(text.split('CASE WHEN ${eligibleOwner} THEN 1 ELSE 0 END owner_eligible`)} FROM talent_applications a JOIN').length - 1).toBe(1);
   });
 
   it('emits byte-identical SQL for both former inline projections', async () => {
@@ -54,7 +58,7 @@ describe('talent read-tail r35 application-projection head family dedupe', () =>
   it('lowers the talent owner SELECT KPI strictly below BEFORE=46', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(27);
+    expect(count).toBe(19);
     expect(count).toBeLessThan(40);
   });
 });

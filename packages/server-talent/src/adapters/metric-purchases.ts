@@ -1,5 +1,6 @@
 import "server-only";
 import {talentActorScopeSelect,talentClockCte} from './talent-scope-sql';
+import {selectProjection} from './talent-read-tail-r37-sources';
 import {talentSourceRows} from './talent-read-tail-r32-sources';
 import {hasModuleAccess} from "@erpx/catalogue/module-access";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
@@ -22,5 +23,5 @@ export async function talentMetricSource(database:SqlDatabase,actor:WorkContext,
  if(!(await talentMetricHistoryAccess(database,actor))[id as keyof typeof metrics])throw new ApiError(403,"METRIC_SOURCE_UNAVAILABLE","Recruitment history and current reviewer authority are required.");
  const rows=id==="open-requisitions"?talentSourceRows("*","talent_requisitions"):talentSourceRows("a.*,r.branch_id,r.department_id","talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id");
  if(await talentPackageEnforcementMode()!=="enforced")return {sql:rows,args:[] as (string|number|null)[]};
- return {sql:`${talentClockCte("talent_metric_clock")} SELECT talent_metric_owned.* FROM (${rows}) talent_metric_owned CROSS JOIN talent_metric_clock WHERE ${assignmentReadSql("talent_metric_owned","records.read")} AND ${assignmentReadSql("talent_metric_owned","records.review")} AND ${purchasedCapabilityPredicate("talent_metric_owned.company_id",capability,"history","talent_metric_clock.now_ms")}`,args:[actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.userId,actor.role]};
+ return {sql:`${talentClockCte("talent_metric_clock")} ${selectProjection('talent_metric_owned.*')} FROM (${rows}) talent_metric_owned CROSS JOIN talent_metric_clock WHERE ${assignmentReadSql("talent_metric_owned","records.read")} AND ${assignmentReadSql("talent_metric_owned","records.review")} AND ${purchasedCapabilityPredicate("talent_metric_owned.company_id",capability,"history","talent_metric_clock.now_ms")}`,args:[actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.userId,actor.role]};
 }
