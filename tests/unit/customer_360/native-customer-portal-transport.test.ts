@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFileSync, readdirSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
@@ -233,11 +233,42 @@ describe('Customer 360 obligation-fact query-head family', () => {
     expect(obligations).toContain('const supportConclusionExists='); // r3
     expect(obligations).toContain('LOCK TABLE customer_portal_actions IN SHARE ROW EXCLUSIVE MODE');
     expect(obligations).toContain('assertPortalAuthorityPackageObligationSources');
-    const pin = c360Src('final-root-owner-projection-sources.ts');
-    expect(pin).toContain('customer_portal_actions: "SELECT \\"id\\",\\"company_id\\"'); // cross-owner pin untouched
   });
 
-  it('retirement:ts-statements is strictly lower than BEFORE=15 (expected 14)', () => {
+  it('retirement r12: orphaned customer_portal_actions final-root projection is removed', () => {
+    const ownerRoot = resolve(c360SrcRoot, '..');
+    expect(existsSync(resolve(c360SrcRoot, 'adapters/final-root-owner-projection-sources.ts'))).toBe(false);
+    expect(existsSync(resolve(c360SrcRoot, 'public/final-root-owner-projection-sources.ts'))).toBe(false);
+    const pkg = JSON.parse(readFileSync(resolve(ownerRoot, 'package.json'), 'utf8')) as {
+      exports: Record<string, unknown>;
+    };
+    expect(pkg.exports['./adapters/final-root-owner-projection-sources']).toBeUndefined();
+    expect(pkg.exports['./public/final-root-owner-projection-sources']).toBeUndefined();
+    const removed = '@erpx/server-customer_360/public/final-root-owner-projection-sources';
+    const removedAdapter = '@erpx/server-customer_360/adapters/final-root-owner-projection-sources';
+    const files: string[] = [];
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) files.push(path);
+      }
+    };
+    walk(c360SrcRoot);
+    walk(resolve(ownerRoot, '../server-customer_authority/src'));
+    for (const file of files) {
+      const source = readFileSync(file, 'utf8');
+      expect(source).not.toContain(removed);
+      expect(source).not.toContain(removedAdapter);
+    }
+    const consumer = readFileSync(
+      resolve(ownerRoot, '../server-customer_authority/src/adapters/portal-access.ts'),
+      'utf8',
+    );
+    expect(consumer).not.toContain('customer360ProjectionSources');
+  });
+
+  it('retirement:ts-statements is strictly lower than BEFORE=14 (expected 13)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -247,7 +278,7 @@ describe('Customer 360 obligation-fact query-head family', () => {
       }
     };
     walk(c360SrcRoot);
-    expect(total).toBe(14);
-    expect(total).toBeLessThan(15);
+    expect(total).toBe(13);
+    expect(total).toBeLessThan(14);
   });
 });

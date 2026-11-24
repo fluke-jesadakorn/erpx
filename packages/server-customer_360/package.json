@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./adapters/final-root-owner-projection-sources": "./src/adapters/final-root-owner-projection-sources.ts",
     "./adapters/shared-preview-request": "./src/adapters/shared-preview-request.ts",
     "./adapters/portal-projection-request": "./src/adapters/portal-projection-request.ts",
     "./adapters/presentation-context-queries": "./src/adapters/presentation-context-queries.ts",
@@ -21,7 +20,6 @@
     "./adapters/native-customer-portal": "./src/adapters/native-customer-portal.ts",
     "./public/customer-timeline": "./src/public/customer-timeline.ts",
     "./public/customer-portal-attachments": "./src/public/customer-portal-attachments.ts",
-    "./public/final-root-owner-projection-sources": "./src/public/final-root-owner-projection-sources.ts",
     "./public/portal-projection-request": "./src/public/portal-projection-request.ts",
     "./public/presentation-context-queries": "./src/public/presentation-context-queries.ts",
     "./public/portal-command-request": "./src/public/portal-command-request.ts",

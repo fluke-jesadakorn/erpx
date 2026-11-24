@@ -388,7 +388,7 @@ describe('native Customer 360 timeline transport',()=>{
    expect(timeline).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|LOCK\s+TABLE/i);
   });
 
-  it('r9 obligation-fact head family: retirement:ts-statements is strictly below BEFORE=15',async()=>{
+  it('r9 obligation-fact head family: retirement:ts-statements is strictly below BEFORE=14',async()=>{
    const fs=await import('node:fs/promises');
    const {fileURLToPath}=await import('node:url');
    const {resolve}=await import('node:path');
@@ -402,7 +402,7 @@ describe('native Customer 360 timeline transport',()=>{
     }
    };
    await walk(root);
-   expect(total).toBe(14);
-   expect(total).toBeLessThan(15);
+   expect(total).toBe(13);
+   expect(total).toBeLessThan(14);
   });
 });
