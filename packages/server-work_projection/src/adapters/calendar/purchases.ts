@@ -18,7 +18,7 @@ import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-fea
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {captureCalendarReminderAuthority} from '@erpx/server-work_projection/adapters/calendar/reminder-authority';
-import {appointmentProbe,invitedAttendeeSql,versionById} from '../read-tail-sql';
+import {appointmentProbe,calendarImageSql,invitedAttendeeSql,versionById} from '../read-tail-sql';
 const actorScopeSql=(where:string)=>`SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope WHERE ${where}`;
 const roleAllowsSql=(permission:string)=>`SELECT iam_role_allows(?,?,'${permission}') allowed`;
 
@@ -54,13 +54,13 @@ export function calendarPurchasedItems(items:CalendarItem[],access:CalendarPurch
 }
 function kind(input:Pick<CalendarCommand,'action'>){return input.action.startsWith('appointment.')?'appointment':'announcement';}
 async function image(database:SqlDatabase,companyId:string,type:string,id:string){
- if(type==='announcement')return database.prepare('SELECT to_jsonb(row)::text image FROM calendar_announcements row WHERE id=? AND company_id=?').bind(id,companyId).first<string>('image');
- return database.prepare(`SELECT jsonb_build_object('record',to_jsonb(row),
+ if(type==='announcement')return database.prepare(calendarImageSql('to_jsonb(row)::text','calendar_announcements')).bind(id,companyId).first<string>('image');
+ return database.prepare(calendarImageSql(`jsonb_build_object('record',to_jsonb(row),
  'attendees',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.user_id) FROM calendar_attendees a WHERE a.appointment_id=row.id AND a.company_id=row.company_id),
  'participants',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.person_id) FROM calendar_appointment_participants p WHERE p.appointment_id=row.id AND p.company_id=row.company_id),
  'series',(SELECT to_jsonb(s) FROM calendar_series s WHERE s.appointment_id=row.id AND s.company_id=row.company_id),
  'exceptions',(SELECT jsonb_agg(to_jsonb(e) ORDER BY e.occurrence_key) FROM calendar_occurrence_exceptions e WHERE e.appointment_id=row.id AND e.company_id=row.company_id),
- 'responses',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.occurrence_key,r.user_id) FROM calendar_occurrence_responses r WHERE r.appointment_id=row.id AND r.company_id=row.company_id))::text image FROM calendar_appointments row WHERE id=? AND company_id=?`).bind(id,companyId).first<string>('image');
+ 'responses',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.occurrence_key,r.user_id) FROM calendar_occurrence_responses r WHERE r.appointment_id=row.id AND r.company_id=row.company_id))::text`,'calendar_appointments')).bind(id,companyId).first<string>('image');
 }
 async function recordAuthority(database:SqlDatabase,actor:WorkContext,input:Pick<CalendarCommand,'action'>,id:string,existing:boolean){
  const type=kind(input),row=await database.prepare(`SELECT company_id,branch_id,department_id,created_by${type==='appointment'?',organizer_person_id':''} FROM ${type==='appointment'?'calendar_appointments':'calendar_announcements'} WHERE id=? AND company_id=?`).bind(id,actor.companyId).first<{company_id:string;branch_id:string|null;department_id:string|null;created_by:string;organizer_person_id?:string|null}>();

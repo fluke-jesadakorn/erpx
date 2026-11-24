@@ -33,3 +33,6 @@ export const receiptByIdSql = (columns: string, table: string) =>
 /** staff_daily_plans composite-key read. The selected column and trailing predicate are the only variation. */
 export const dailyPlanSql = (columns: string, extra = '') =>
     `SELECT ${columns} FROM staff_daily_plans WHERE company_id=? AND user_id=? AND plan_date=?${extra}`;
+/** Calendar source image snapshot by id and company. The projection expression and source table are the only variation. */
+export const calendarImageSql = (expression: string, table: 'calendar_announcements' | 'calendar_appointments') =>
+    `SELECT ${expression} image FROM ${table} row WHERE id=? AND company_id=?`;
