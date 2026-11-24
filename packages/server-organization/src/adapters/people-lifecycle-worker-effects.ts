@@ -1,4 +1,5 @@
 import { platformOwnerProjectionSources as people_payrollPlatformSources } from "@erpx/server-people_payroll/public/platform-owner-projection-sources";
+import { leavePolicyVersionLookup } from './organization-column-alias-families-r37';
 import type { PoolClient } from 'pg';
 import type { LifecyclePositionFacts } from '@erpx/server-people_payroll/public/lifecycle-worker-contract';
 export function lifecycleOrganizationFacts(client: PoolClient) {
@@ -12,5 +13,5 @@ export function lifecycleOrganizationFacts(client: PoolClient) {
         readPolicy(company_id: string, level_id: unknown) { return client.query<{
             policy_version_id: string;
             effective_from: string;
-        }>(`SELECT d.policy_version_id,p.effective_from FROM level_leave_defaults d JOIN (${people_payrollPlatformSources.leave_policy_versions}) p ON p.id=d.policy_version_id WHERE d.company_id=$1 AND d.level_id=$2 ORDER BY d.version DESC LIMIT 1`, [company_id, level_id]); } };
+        }>(leavePolicyVersionLookup(people_payrollPlatformSources.leave_policy_versions,'$1','$2'), [company_id, level_id]); } };
 }
