@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11347,
+    "revision": 11353,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -171051,7 +171051,7 @@
         "owner": "people_payroll",
         "title": "people_payroll TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -171063,22 +171063,37 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMpplc",
-          "claimedAt": "2026-11-24T10:16:12.822Z",
-          "heartbeatAt": "2026-11-24T10:34:05.000Z",
-          "expiresAt": "2026-11-24T11:04:05.000Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "c88d3f49b",
+            "owner": "people_payroll",
+            "before": 1341,
+            "after": 1306,
+            "note": "35 inline two-predicate literals reuse ppRd32TwoColProjection / ppRd36TwoPredTail; locks, native kinds and r1-r40 builders untouched."
+          },
+          {
+            "command": "vitest payroll r32-r41 (42) + scoped tsc + byte-verify",
+            "result": "passed",
+            "sourceSha": "c88d3f49b"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Tier B: 35 inline two-predicate SELECT <cols> FROM <table> WHERE c1=? AND c2=? literals must reuse ppRd36TwoPredTail. Outer locks/native untouched. BEFORE=1341.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMpplc",
+          "at": "2026-11-24T10:39:06.968Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -172681,7 +172696,7 @@
         "owner": "talent",
         "title": "talent TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -172693,22 +172708,37 @@
         "resources": [
           "owner:talent"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMtal9",
-          "claimedAt": "2026-11-24T10:28:17.655Z",
-          "heartbeatAt": "2026-11-24T10:34:05.000Z",
-          "expiresAt": "2026-11-24T11:04:05.000Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-talent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "20a3c077a",
+            "owner": "talent",
+            "before": 45,
+            "after": 44,
+            "note": "Command receipt and workspace record standalone existence reads share one helper; LOCK TABLE, native reads and owner boundary untouched."
+          },
+          {
+            "command": "vitest talent (48) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "20a3c077a"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=45.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMtal9",
+          "at": "2026-11-24T10:39:07.492Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -172906,7 +172936,7 @@
         "owner": "marketing",
         "title": "marketing TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -172918,22 +172948,22 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMmkt9",
-          "claimedAt": "2026-11-24T10:31:36.434Z",
-          "heartbeatAt": "2026-11-24T10:34:05.000Z",
-          "expiresAt": "2026-11-24T11:04:05.000Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=65.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with AST evidence; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMmkt9",
+          "at": "2026-11-24T10:39:07.822Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with AST evidence; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -173379,17 +173409,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 22,
+        "in_progress": 19,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1221,
+        "blocked": 1224,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T10:38:40.128Z",
+    "updatedAt": "2026-11-24T10:39:07.827Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
