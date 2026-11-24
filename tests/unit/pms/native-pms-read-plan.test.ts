@@ -20,8 +20,11 @@ import {
   PMS_RD_UNPOSTED_BOOKING_RECEIPTS,
   PMS_RD_UNPOSTED_COUNTER_RECEIPTS,
   PMS_RD_HOSPITALITY_SETUP_PROPERTIES,
+  PMS_RD_ATTACHMENT_PROPERTY_IMAGE,
+  PMS_RD_ATTACHMENT_RECORD_IMAGE,
 } from '../../../packages/server-pms/src/adapters/native-pms-read';
 import { readPmsInventoryCommand } from '../../../packages/server-pms/src/adapters/pms/read-repository';
+import { pmsAttachmentReadSourceImage } from '../../../packages/server-pms/src/adapters/attachment-read-sources';
 
 const envKey = 'ERPX_NATIVE_PMS_CONFIG';
 const original = process.env[envKey];
@@ -533,6 +536,56 @@ describe('native PMS hospitality-setup property list read retirement', () => {
     expect(bodies.map(b => b.values)).toEqual([['company-1', 'branch-1']]);
     expect(bound).toEqual([['company-1', 'branch-1']]);
     expect(prepared).toEqual([hospitalitySetupPropertiesSql]);
+    for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
+  });
+});
+
+const attachmentPropertyImageSql = 'SELECT to_jsonb(p)::text image FROM pms_properties p WHERE p.id=? AND p.company_id=?';
+const attachmentRecordImageSql = "SELECT jsonb_build_object('property',to_jsonb(p),'record',to_jsonb(r))::text image FROM pms_records r JOIN pms_properties p ON p.id=r.property_id WHERE r.id=? AND p.company_id=?";
+
+describe('native PMS attachment read-source image retirement', () => {
+  it('exposes fixed attachment read kinds with no SQL on the wire', () => {
+    expect(PMS_RD_ATTACHMENT_PROPERTY_IMAGE).toBe('pms_rd_attachment_property_image');
+    expect(PMS_RD_ATTACHMENT_RECORD_IMAGE).toBe('pms_rd_attachment_record_image');
+    for (const kind of [PMS_RD_ATTACHMENT_PROPERTY_IMAGE, PMS_RD_ATTACHMENT_RECORD_IMAGE])
+      expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+  });
+
+  it('removes both TypeScript attachment image SELECT literals but keeps the source lease', async () => {
+    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/attachment-read-sources.ts', import.meta.url), 'utf8');
+    expect(adapter).not.toContain(attachmentPropertyImageSql);
+    expect(adapter).not.toContain(attachmentRecordImageSql);
+    expect(adapter).toContain('nativePmsReadFirst');
+    expect(adapter).toContain('PMS_RD_ATTACHMENT_PROPERTY_IMAGE');
+    expect(adapter).toContain('PMS_RD_ATTACHMENT_RECORD_IMAGE');
+    expect(adapter).toContain('LOCK TABLE pms_properties,pms_records IN SHARE ROW EXCLUSIVE MODE');
+  });
+
+  it('plans both attachment images in Rust and runs them on the caller unit', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push(body);
+      const sql = body.kind === PMS_RD_ATTACHMENT_PROPERTY_IMAGE ? attachmentPropertyImageSql : attachmentRecordImageSql;
+      return new Response(JSON.stringify({ data: { statements: [{ sql, values: body.values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+    const prepared: string[] = [], bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) { prepared.push(sql); return { bind(...values: unknown[]) { bound.push(values); return this; } }; },
+      async batch<T>() { return [{ results: [{ image: '{"snapshot":true}' }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+    const propertyImage = await pmsAttachmentReadSourceImage(db as never, 'company-1', 'pms_property', 'property-1');
+    const recordImage = await pmsAttachmentReadSourceImage(db as never, 'company-1', 'pms_guest', 'guest-1');
+
+    expect(propertyImage).toBe('{"snapshot":true}');
+    expect(recordImage).toBe('{"snapshot":true}');
+    expect(bodies.map(b => b.kind)).toEqual([PMS_RD_ATTACHMENT_PROPERTY_IMAGE, PMS_RD_ATTACHMENT_RECORD_IMAGE]);
+    expect(bodies.map(b => b.values)).toEqual([['property-1', 'company-1'], ['guest-1', 'company-1']]);
+    expect(bound).toEqual([['property-1', 'company-1'], ['guest-1', 'company-1']]);
+    expect(prepared).toEqual([attachmentPropertyImageSql, attachmentRecordImageSql]);
     for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
   });
 });

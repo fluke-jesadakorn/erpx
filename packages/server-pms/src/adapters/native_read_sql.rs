@@ -65,6 +65,12 @@ pub const PMS_RD_UNPOSTED_COUNTER_RECEIPTS: &str = "pms_rd_unposted_counter_rece
 /// Fixed SQL with two positional binds, no ledger/receipt/outbox and no
 /// lock/refund path; the caller runs it on its already-open unit.
 pub const PMS_RD_HOSPITALITY_SETUP_PROPERTIES: &str = "pms_rd_hospitality_setup_properties";
+/// Native successors of the owner-local attachment read-source image reads.
+/// Fixed SQL with two positional binds each, no ledger/receipt/outbox and no
+/// lock/refund path; the caller runs them on its already-open read unit. The
+/// separate `LOCK TABLE` lease stays on the caller's connection.
+pub const PMS_RD_ATTACHMENT_PROPERTY_IMAGE: &str = "pms_rd_attachment_property_image";
+pub const PMS_RD_ATTACHMENT_RECORD_IMAGE: &str = "pms_rd_attachment_record_image";
 const SQL_INVENTORY_COMMAND: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
 WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
 UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
@@ -189,7 +195,22 @@ const READ_HOSPITALITY_SETUP_PROPERTIES: NativeReadStatement = NativeReadStateme
     bind_count: 2,
 };
 
-const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES];
+/// `SELECT to_jsonb(p)::text image FROM pms_properties p WHERE p.id=? AND p.company_id=?`
+const SQL_ATTACHMENT_PROPERTY_IMAGE: &str = "SELECT to_jsonb(p)::text image FROM pms_properties p WHERE p.id=? AND p.company_id=?";
+const READ_ATTACHMENT_PROPERTY_IMAGE: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_ATTACHMENT_PROPERTY_IMAGE,
+    sql: SQL_ATTACHMENT_PROPERTY_IMAGE,
+    bind_count: 2,
+};
+/// `SELECT jsonb_build_object('property',to_jsonb(p),'record',to_jsonb(r))::text image FROM pms_records r JOIN pms_properties p ON p.id=r.property_id WHERE r.id=? AND p.company_id=?`
+const SQL_ATTACHMENT_RECORD_IMAGE: &str = "SELECT jsonb_build_object('property',to_jsonb(p),'record',to_jsonb(r))::text image FROM pms_records r JOIN pms_properties p ON p.id=r.property_id WHERE r.id=? AND p.company_id=?";
+const READ_ATTACHMENT_RECORD_IMAGE: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_ATTACHMENT_RECORD_IMAGE,
+    sql: SQL_ATTACHMENT_RECORD_IMAGE,
+    bind_count: 2,
+};
+
+const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -409,5 +430,27 @@ ORDER BY id"
         assert_eq!(read.sql.matches('?').count(), read.bind_count);
         assert_eq!(read.bind_count, 2);
         assert!(is_read(read.kind));
+    }
+
+    #[test]
+    fn attachment_read_source_images_are_fixed_ledger_free_selects() {
+        let property = read_statement(PMS_RD_ATTACHMENT_PROPERTY_IMAGE).expect("property image read");
+        let record = read_statement(PMS_RD_ATTACHMENT_RECORD_IMAGE).expect("record image read");
+        assert_eq!(property.sql, "SELECT to_jsonb(p)::text image FROM pms_properties p WHERE p.id=? AND p.company_id=?");
+        assert_eq!(record.sql, "SELECT jsonb_build_object('property',to_jsonb(p),'record',to_jsonb(r))::text image FROM pms_records r JOIN pms_properties p ON p.id=r.property_id WHERE r.id=? AND p.company_id=?");
+        for read in [property, record] {
+            let upper = read.sql.to_ascii_uppercase();
+            assert!(upper.starts_with("SELECT"));
+            assert!(!upper.contains("INSERT INTO"));
+            assert!(!upper.contains("UPDATE "));
+            assert!(!upper.contains("DELETE FROM"));
+            assert!(!upper.contains("FOR UPDATE"));
+            assert!(!upper.contains("FOR SHARE"));
+            assert!(!upper.contains("LOCK TABLE"));
+            assert!(!upper.contains("REFUND"));
+            assert_eq!(read.sql.matches('?').count(), read.bind_count);
+            assert_eq!(read.bind_count, 2);
+            assert!(is_read(read.kind));
+        }
     }
 }

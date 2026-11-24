@@ -33,6 +33,8 @@ export const PMS_RD_PENDING_HOTEL_TRANSFERS = 'pms_rd_pending_hotel_transfers';
 export const PMS_RD_UNPOSTED_BOOKING_RECEIPTS = 'pms_rd_unposted_booking_receipts';
 export const PMS_RD_UNPOSTED_COUNTER_RECEIPTS = 'pms_rd_unposted_counter_receipts';
 export const PMS_RD_HOSPITALITY_SETUP_PROPERTIES = 'pms_rd_hospitality_setup_properties';
+export const PMS_RD_ATTACHMENT_PROPERTY_IMAGE = 'pms_rd_attachment_property_image';
+export const PMS_RD_ATTACHMENT_RECORD_IMAGE = 'pms_rd_attachment_record_image';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');
