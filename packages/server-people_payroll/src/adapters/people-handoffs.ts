@@ -1,6 +1,7 @@
 import { PP_RD23_HR_PAY_GROUPS_ACTIVE_CURRENCY_GUARD } from './pp-read-tail-r23-sources';
 import { PP_RD22_ACTIVE_PERSON_VERSION_GUARD } from './pp-read-tail-r22-sources';
 import { ppRd33FourColByIdCompany } from './pp-read-tail-r33-sources';
+import { ppRd34ActivePayGroupProjection } from './pp-read-tail-r34-sources';
 import { nativePeopleHandoffs } from "@erpx/server-collaboration/adapters/native-people-handoffs";
 import {withTalentPurchasedRead,withTalentHirePurchasedCommand,withTalentPrivacyPurchasedCommand} from "@erpx/server-talent/public/purchases";
 import "server-only";
@@ -26,7 +27,7 @@ function application(provided?:SqlDatabase) {
     const repository: PeopleHandoffRepository<SqlStatement> = { readHireSourceRow(...args) { return peopleHireHandoffFacts(database).readHireSourceRow(...args); },
         readHireHandoffQueueEffect(...args) { return peopleHireHandoffFacts(database).readHireHandoffQueueEffect(...args); },
         readConsumeHireHandoffReceipt(...args) { return peopleHireHandoffFacts(database).readConsumeHireHandoffReceipt(...args); },
-        readConsumeHireHandoffGroup(payGroupId: string, companyId: string) { return database.prepare("SELECT id,currency,frequency FROM hr_pay_groups WHERE id=? AND company_id=? AND status='active'").bind(payGroupId, companyId).first<{
+        readConsumeHireHandoffGroup(payGroupId: string, companyId: string) { return database.prepare(ppRd34ActivePayGroupProjection('id,currency,frequency')).bind(payGroupId, companyId).first<{
             id: string;
             currency: string;
             frequency: string;

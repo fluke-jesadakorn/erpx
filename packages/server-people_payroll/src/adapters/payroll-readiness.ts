@@ -1,6 +1,7 @@
 import { PP_RD23_HR_COMP_REVISIONS_SQL, PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL, PP_RD23_HR_PAY_GROUPS_IMAGE_SQL, PP_RD23_HR_TIME_ENTRIES_OVERTIME_SQL, PP_RD23_OVERTIME_PAYROLL_HANDOFFS_SQL } from './pp-read-tail-r23-sources';
 import { ppRd27IdVersionStatusInGuard } from './pp-read-tail-r27-sources';
 import { ppRd33FourColByIdCompany } from './pp-read-tail-r33-sources';
+import { ppRd34ActivePayGroupProjection } from './pp-read-tail-r34-sources';
 import { PP_RD28_ADVANCE_REPAYMENTS_SQL, PP_RD28_CONTRACTOR_COUNT_SQL, PP_RD28_PENDING_TIME_COUNT_SQL } from './pp-read-tail-r28-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import {PP_RD15_ACTIVE_PAYEE_SQL} from './pp-read-tail-r15-sources';
@@ -79,7 +80,7 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
             }>();
         },
         readSourceBlockersGroup(pay_group_id: string, company_id: string) {
-            return database.prepare("SELECT overtime_multiplier_bps,proration_method FROM hr_pay_groups WHERE id=? AND company_id=? AND status='active'").bind(pay_group_id, company_id).first<{
+            return database.prepare(ppRd34ActivePayGroupProjection('overtime_multiplier_bps,proration_method')).bind(pay_group_id, company_id).first<{
                 overtime_multiplier_bps: number;
                 proration_method: string;
             }>();

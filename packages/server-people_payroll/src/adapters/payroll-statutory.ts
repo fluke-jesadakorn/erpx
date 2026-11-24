@@ -1,4 +1,5 @@
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
+import { ppRd34ActivePayGroupProjection } from './pp-read-tail-r34-sources';
 import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
 import { ppRd27IdCompanyEngagementApprovedVersionGuard } from './pp-read-tail-r27-sources';
 import { payrollStatutory } from '@erpx/server-collaboration/adapters/native-payroll-statutory';
@@ -22,7 +23,7 @@ export type { PayrollStatutoryRun, ThaiPayrollEvidence } from '@erpx/server-peop
 function application(provided?: SqlDatabase) {
     let database = provided!;
     const repository: PayrollStatutoryRepository<SqlStatement> = { countryPack(country_pack_id: string) { return database.prepare("SELECT id,country_code,version,status,rules_json,adapter_id,source_digest,record_version FROM hr_country_packs WHERE id=?").bind(country_pack_id).first<PackRow>(); },
-        payGroup(pay_group_id: string, company_id: string) { return database.prepare("SELECT country_code,currency,frequency FROM hr_pay_groups WHERE id=? AND company_id=? AND status='active'").bind(pay_group_id, company_id).first<{
+        payGroup(pay_group_id: string, company_id: string) { return database.prepare(ppRd34ActivePayGroupProjection('country_code,currency,frequency')).bind(pay_group_id, company_id).first<{
             country_code: string;
             currency: string;
             frequency: string;

@@ -3,6 +3,7 @@ import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
 import { ppRd31StatusGuard } from './pp-read-tail-r31-sources';
 import { ppRd32TwoColProjection } from './pp-read-tail-r32-sources';
 import { ppRd33FourColByIdCompany } from './pp-read-tail-r33-sources';
+import { ppRd34ActivePayGroupProjection } from './pp-read-tail-r34-sources';
 import { ppRd26IdCompanyVersionStatusGuard, ppRd26CommandReceiptPriorSql, ppRd26RunIdGuard } from './pp-read-tail-r26-sources';
 import { ppRd27IdByIdCompanySql } from './pp-read-tail-r27-sources';
 import { PP_RD28_ADVANCE_REPAYMENTS_SQL } from './pp-read-tail-r28-sources';
@@ -380,7 +381,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
         readResolvePayrollPostNext(...args) { return payrollFinanceFacts(database).readResolvePayrollPostNext(...args); },
         readResolvePayrollPostEffect(...args) { return payrollFinanceFacts(database).readResolvePayrollPostEffect(...args); },
         readSavePayrollAccountMappingGroup(payGroupId: string, companyId: string) {
-            return database.prepare("SELECT id,currency FROM hr_pay_groups WHERE id=? AND company_id=? AND status='active'").bind(payGroupId, companyId).first<{
+            return database.prepare(ppRd34ActivePayGroupProjection('id,currency')).bind(payGroupId, companyId).first<{
                 id: string;
                 currency: string;
             }>();
