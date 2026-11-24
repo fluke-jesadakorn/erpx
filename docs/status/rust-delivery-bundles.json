@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12251,
+    "revision": 12257,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -182111,6 +182111,77 @@
         "nextAction": "Portal both-tables installed probe native zero-bind kind, registry 37->38: 43->42.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.read-tail-r49",
+        "goalId": "G4",
+        "owner": "finance",
+        "title": "finance TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n43",
+          "claimedAt": "2026-11-24T14:19:29.177Z",
+          "heartbeatAt": "2026-11-24T14:19:29.177Z",
+          "expiresAt": "2026-11-24T14:49:29.177Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Generic table-by-id (-24 safe), journals OR guard (-6), consolidation runs (-2): 1844->1812. BEFORE=1844.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.sales.read-tail-r32",
+        "goalId": "G4",
+        "owner": "sales",
+        "title": "sales TS read tail (next round)",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-sales/src/**",
+          "tests/unit/sales/**"
+        ],
+        "resources": [
+          "owner:sales"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Blocked with AST evidence; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n44",
+          "at": "2026-11-24T14:19:42.404Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with AST evidence; claim released"
+        },
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -182119,21 +182190,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1762,
+      "totalPackets": 1764,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 3,
+        "in_progress": 4,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1409,
+        "blocked": 1410,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:18:46.847Z",
+    "updatedAt": "2026-11-24T14:19:42.410Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
