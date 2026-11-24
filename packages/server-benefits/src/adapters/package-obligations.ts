@@ -22,13 +22,16 @@ function terminal(table:string,id:string,kind:string){
  AND command.result_json::jsonb->>'version'=event.version::text
  WHERE event.${kind==='window'?'window':kind}_id=${id}.id AND event.status=${id}.status AND event.version<=${id}.version)`;
 }
+/** Byte-identical owner-local settlement-source projection shared by the four
+ * Benefits actual-source selects; generated SQL is unchanged. */
+const settlementSource=(events:string,alias:string,kind:string,table:string)=>`SELECT ${alias}.*,${terminal(events,alias,kind)} terminal_proven FROM ${table} ${alias}`;
 /** Closed actual owner lineage, including sources hidden by a user's Work,
  * purchase, state or rollout. Peer owners never substitute caller labels. */
 export const benefitPackageSettlementSources={
- plans:`SELECT p.*,${terminal('benefit_plan_events','p','plan')} terminal_proven FROM benefit_plans p`,
- windows:`SELECT w.*,${terminal('benefit_window_events','w','window')} terminal_proven FROM benefit_enrollment_windows w`,
- dependents:`SELECT d.*,${terminal('benefit_dependent_events','d','dependent')} terminal_proven FROM benefit_dependents d`,
- elections:`SELECT e.*,${terminal('benefit_election_events','e','election')} terminal_proven FROM benefit_elections e`,
+ plans:settlementSource('benefit_plan_events','p','plan','benefit_plans'),
+ windows:settlementSource('benefit_window_events','w','window','benefit_enrollment_windows'),
+ dependents:settlementSource('benefit_dependent_events','d','dependent','benefit_dependents'),
+ elections:settlementSource('benefit_election_events','e','election','benefit_elections'),
  inputs:"SELECT * FROM benefit_payroll_inputs",
 } as const;
 export async function benefitPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
