@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7899,
+    "revision": 7903,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -132313,7 +132313,7 @@
         "owner": "identity_access",
         "title": "identity_access TS read tail native cutover (r6)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -132325,22 +132325,42 @@
         "resources": [
           "owner:identity_access"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG63ida",
-          "claimedAt": "2026-11-24T01:10:41.261Z",
-          "heartbeatAt": "2026-11-24T01:16:16.832Z",
-          "expiresAt": "2026-11-24T01:46:16.832Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "fb55c5c57",
+            "owner": "identity_access",
+            "before": 586,
+            "after": 584,
+            "note": "Three iam_same_person probes share samePersonProbeSql; byte-identical."
+          },
+          {
+            "command": "vitest identity services (26)",
+            "result": "passed",
+            "sourceSha": "fb55c5c57"
+          },
+          {
+            "command": "scoped tsc identity_access (no own-file errors)",
+            "result": "passed",
+            "sourceSha": "fb55c5c57"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "TS-only dedupe if available; if none safe, report blocked with evidence. BEFORE=586.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG63ida",
+          "at": "2026-11-24T01:22:39.070Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -133268,6 +133288,42 @@
         "nextAction": "Next: another owner-local byte-identical dedupe; skip crm_case_events (native config would 503). BEFORE=191.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.identity_access.read-tail-r7",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "title": "identity_access TS read tail native cutover (round 7)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG87ida",
+          "claimedAt": "2026-11-24T01:22:39.294Z",
+          "heartbeatAt": "2026-11-24T01:22:39.294Z",
+          "expiresAt": "2026-11-24T01:52:39.294Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: SELECT iam_same_person($1,$2,$3) same x8 across iam-service/iam-api/iam-migrations/iam-grant-transaction/people-lifecycle-facts (-7) or another byte-parity dedupe. BEFORE=584.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -133276,7 +133332,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 805,
+      "totalPackets": 806,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -133284,13 +133340,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 430,
+        "blocked": 431,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:22:15.052Z",
+    "updatedAt": "2026-11-24T01:22:39.298Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
