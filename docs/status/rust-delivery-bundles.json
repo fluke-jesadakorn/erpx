@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12092,
+    "revision": 12094,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -180324,6 +180324,42 @@
         "nextAction": "ownerVersionExistsSql delegates to existsGuardSql (-1), employee_requests head (-1), request_ai head (-1): 22->19. BEFORE=22.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.marketing.read-tail-r40",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing projection-source and point read heads",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**",
+          "tests/integration/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n10",
+          "claimedAt": "2026-11-24T13:30:02.146Z",
+          "heartbeatAt": "2026-11-24T13:30:02.146Z",
+          "expiresAt": "2026-11-24T14:00:02.146Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "F1 projection-source head (-3) and F2 point read head (-3): 61->55.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -180332,11 +180368,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1729,
+      "totalPackets": 1730,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 12,
+        "in_progress": 13,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -180346,7 +180382,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:29:15.900Z",
+    "updatedAt": "2026-11-24T13:30:02.152Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
