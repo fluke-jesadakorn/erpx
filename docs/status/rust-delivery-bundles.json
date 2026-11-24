@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8240,
+    "revision": 8250,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -136282,7 +136282,7 @@
         "owner": "learning",
         "title": "learning TS read tail native cutover (new lane)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -136294,22 +136294,37 @@
         "resources": [
           "owner:learning"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGAZlea",
-          "claimedAt": "2026-11-24T01:41:32.166Z",
-          "heartbeatAt": "2026-11-24T01:48:55.159Z",
-          "expiresAt": "2026-11-24T02:18:55.159Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-learning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "33c609188",
+            "owner": "learning",
+            "before": 94,
+            "after": 87,
+            "note": "Zero-importer notification-source adapter removed; actor scope, clock, courses image, org labels shared; locks 7->7."
+          },
+          {
+            "command": "vitest learning transports (169) + tsc learning",
+            "result": "passed",
+            "sourceSha": "33c609188"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: own-local byte-identical dedupe or orphan adapter; BEFORE=94. wGAZlea",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGAZlea",
+          "at": "2026-11-24T01:57:50.913Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -136722,7 +136737,7 @@
         "owner": "brand",
         "title": "brand residual read close (7 statements)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -136734,22 +136749,37 @@
         "resources": [
           "owner:brand"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGBBbra",
-          "claimedAt": "2026-11-24T01:45:25.728Z",
-          "heartbeatAt": "2026-11-24T01:48:55.159Z",
-          "expiresAt": "2026-11-24T02:18:55.159Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-brand/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "33c609188",
+            "owner": "brand",
+            "before": 7,
+            "after": 6,
+            "note": "Current-scope probe uses VALUES tuple; six remaining statements need new native ports (reported)."
+          },
+          {
+            "command": "vitest brand application (11) + tsc brand/tests-config",
+            "result": "passed",
+            "sourceSha": "33c609188"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Brand residual 7: executive-metric-projections.ts:20, executive-evidence-sources.ts:30, branding.ts:18/30, workspace-choice-brand.ts:4, attachment-read.ts:30 (2). Remove/replace any covered by existing native brand functions; owner paths only, no composition. Report blocked per-statement if a native port is required.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Partial: 7->6; remaining six classified per-statement.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGBBbra",
+          "at": "2026-11-24T01:57:52.208Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Partial: 7->6; remaining six classified per-statement."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -137289,7 +137319,7 @@
         "owner": "projects",
         "title": "projects TS read tail native cutover (r10)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -137301,22 +137331,37 @@
         "resources": [
           "owner:projects"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGBNpro",
-          "claimedAt": "2026-11-24T01:48:19.320Z",
-          "heartbeatAt": "2026-11-24T01:48:55.159Z",
-          "expiresAt": "2026-11-24T02:18:55.159Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-projects/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "33c609188",
+            "owner": "projects",
+            "before": 154,
+            "after": 150,
+            "note": "Five union arms share nativeSourceColumns prefix; emitted SQL byte-identical."
+          },
+          {
+            "command": "vitest projects (137) + tsc projects",
+            "result": "passed",
+            "sourceSha": "33c609188"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe native read or byte-identical dedupe; if none, report blocked. BEFORE=154.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGBNpro",
+          "at": "2026-11-24T01:57:51.654Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -137673,6 +137718,78 @@
         "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=108.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.learning.read-tail-r2",
+        "goalId": "G4",
+        "owner": "learning",
+        "title": "learning TS read tail native cutover (r2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-learning/src/**",
+          "tests/unit/learning/**",
+          "tests/integration/learning/**"
+        ],
+        "resources": [
+          "owner:learning"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC9lea",
+          "claimedAt": "2026-11-24T01:57:52.539Z",
+          "heartbeatAt": "2026-11-24T01:57:52.539Z",
+          "expiresAt": "2026-11-24T02:27:52.539Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=87.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.projects.read-tail-r11",
+        "goalId": "G4",
+        "owner": "projects",
+        "title": "projects TS read tail native cutover (r11)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-projects/src/**",
+          "tests/unit/projects/**",
+          "tests/integration/projects/**"
+        ],
+        "resources": [
+          "owner:projects"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCbpro",
+          "claimedAt": "2026-11-24T01:57:52.888Z",
+          "heartbeatAt": "2026-11-24T01:57:52.888Z",
+          "expiresAt": "2026-11-24T02:27:52.888Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=150.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -137681,21 +137798,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 882,
+      "totalPackets": 884,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 22,
+        "in_progress": 21,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 514,
+        "blocked": 517,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:57:18.213Z",
+    "updatedAt": "2026-11-24T01:57:52.892Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
