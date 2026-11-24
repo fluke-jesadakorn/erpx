@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10922,
+    "revision": 10926,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -168077,7 +168077,7 @@
         "owner": "organization",
         "title": "organization TS read tail native cutover (round 40)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -168089,22 +168089,37 @@
         "resources": [
           "owner:organization"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMorgc",
-          "claimedAt": "2026-11-24T09:10:38.188Z",
-          "heartbeatAt": "2026-11-24T09:10:38.188Z",
-          "expiresAt": "2026-11-24T09:40:38.188Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-organization/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d8bf1c33e",
+            "owner": "organization",
+            "before": 257,
+            "after": 251,
+            "note": "Active position list, recommended pay, node change by id, staff levels and member profile share five helpers; locks, spaced JOINs and r17-r39 untouched."
+          },
+          {
+            "command": "vitest organization r40 (4) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "d8bf1c33e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=257.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMorgc",
+          "at": "2026-11-24T09:20:22.620Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -168553,6 +168568,42 @@
         "nextAction": "Next: safe byte-identical or parameterized SELECT-head family outside locks; if none, report blocked. BEFORE=345.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.organization.read-tail-r41",
+        "goalId": "G4",
+        "owner": "organization",
+        "title": "organization TS read tail native cutover (round 41)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-organization/src/**",
+          "tests/unit/organization/**",
+          "tests/integration/organization/**"
+        ],
+        "resources": [
+          "owner:organization"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMorgd",
+          "claimedAt": "2026-11-24T09:20:23.198Z",
+          "heartbeatAt": "2026-11-24T09:20:23.198Z",
+          "expiresAt": "2026-11-24T09:50:23.198Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=251.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -168561,7 +168612,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1501,
+      "totalPackets": 1502,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 22,
@@ -168569,13 +168620,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1124,
+        "blocked": 1125,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:20:06.773Z",
+    "updatedAt": "2026-11-24T09:20:23.205Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
