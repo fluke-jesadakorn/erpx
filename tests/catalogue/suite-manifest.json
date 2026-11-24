@@ -67760,6 +67760,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PMS properties and records owner projections must stay byte-identical."
+      },
+      "apps": "booking",
+      "packages": [
+        "@erpx/server-pms"
+      ],
+      "id": "pms.read-tail-r20-dedupe.unit",
+      "files": [
+        "tests/unit/pms/pms-read-tail-r20-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "pms.reports.integration",
       "lane": "integration",
       "owner": "pms",
@@ -105836,6 +105861,31 @@
         "@erpx/ui",
         "@erpx/workplace"
       ]
+    },
+    {
+      "lane": "unit",
+      "owner": "work_projection",
+      "modules": [
+        "work_projection"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Work projection settlement source rows must stay byte-identical."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-work_projection"
+      ],
+      "id": "work_projection.calendar-settlement-source-dedupe.unit",
+      "files": [
+        "tests/unit/work_projection/calendar-settlement-source-dedupe.test.ts"
+      ],
+      "framework": "vitest"
     },
     {
       "id": "work_projection.work_projection_calendar_read_postgres.integration",
