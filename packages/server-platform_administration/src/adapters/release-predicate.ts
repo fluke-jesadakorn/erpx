@@ -13,6 +13,14 @@ export function releaseRevisionTable(scope: ReleaseScopeVersion) {
   return scope === legalProductionScope.version ? 'company_legal_release_revisions' : 'company_release_revisions';
 }
 
+/** The single release-acceptance existence guard shared by the version, latest
+ * and attachment-owner checks. Kept here once so this parameterized family has
+ * one owner-local definition; each caller supplies only its WHERE predicate.
+ * The rendered SQL is byte-identical to the former inline copies. */
+export function releaseAcceptanceExistsSql(where: string) {
+  return `EXISTS(SELECT 1 FROM company_release_acceptances WHERE ${where})`;
+}
+
 /** The single revision read shared by release-acceptance inputs and the share-lock
  * guards. Kept here once so the base revision SQL has one owner-local definition;
  * each caller supplies its own suffix (e.g. ' FOR SHARE'). */

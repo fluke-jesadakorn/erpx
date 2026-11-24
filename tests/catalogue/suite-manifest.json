@@ -65809,6 +65809,33 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Platform release acceptance EXISTS guards must stay byte-identical."
+      },
+      "apps": [
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-platform_administration"
+      ],
+      "id": "platform_administration.release-acceptance-exists-guard-dedupe.unit",
+      "files": [
+        "tests/unit/platform_administration/release-acceptance-exists-guard-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "platform_administration",
+      "modules": [
+        "platform_administration"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Platform release currency probes must stay byte-identical."
       },
       "apps": "admin",

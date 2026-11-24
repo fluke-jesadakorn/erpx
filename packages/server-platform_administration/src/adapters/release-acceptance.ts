@@ -1,4 +1,4 @@
-import {releaseRevisionTable,releaseCurrencyPredicate,releaseRevisionShareLockSql,releaseRevisionReadSql,latestReleaseIdSql,activeBranchCountSql,businessAcceptanceSetupSql} from "@erpx/server-platform_administration/adapters/release-predicate";
+import {releaseRevisionTable,releaseCurrencyPredicate,releaseRevisionShareLockSql,releaseRevisionReadSql,latestReleaseIdSql,activeBranchCountSql,businessAcceptanceSetupSql,releaseAcceptanceExistsSql} from "@erpx/server-platform_administration/adapters/release-predicate";
 import { platformOwnerProjectionSources as identity_accessPlatformSources } from "@erpx/server-identity_access/public/platform-owner-projection-sources";
 import { platformOwnerProjectionSources as organizationPlatformSources } from "@erpx/server-organization/public/platform-owner-projection-sources";
 import "server-only";
@@ -20,7 +20,7 @@ import { nativeReleaseEvents } from '@erpx/server-collaboration/adapters/native-
 
 /** Code-owned guard SQL repeated across release command steps. Kept here once so
  * owner guards never repeat the same fixed statement in every command step. */
-export const RELEASE_VERSION_GUARD_SQL = 'EXISTS(SELECT 1 FROM company_release_acceptances WHERE company_id=? AND id=? AND version=? AND revoked_at IS NULL)';
+export const RELEASE_VERSION_GUARD_SQL = releaseAcceptanceExistsSql('company_id=? AND id=? AND version=? AND revoked_at IS NULL');
 export const RELEASE_ROW_LOCK_SQL = 'SELECT id FROM company_release_acceptances WHERE company_id=? AND id=? FOR UPDATE';
 
 /** Code-owned SQL expressions only. Used by owner, API, queue and scheduled guards. */
@@ -70,7 +70,7 @@ function repository(db:SqlDatabase,companyId:string,work?:WorkContext):ReleaseRe
     ...(await inputsGuard(db, actor, key, inputs.configurationRevision, inputs.setupVersion, scope)),
     db.prepare(RELEASE_ROW_LOCK_SQL).bind(actor.companyId, id),
     assertion(db, key, 'release-version', RELEASE_VERSION_GUARD_SQL, [actor.companyId, id, input.expectedVersion]),
-    assertion(db, key, 'release-latest', `EXISTS(SELECT 1 FROM company_release_acceptances WHERE company_id=? AND id=? AND id=${latestReleaseIdSql('?', '?')})`, [actor.companyId, id, actor.companyId, scope]),
+    assertion(db, key, 'release-latest', releaseAcceptanceExistsSql(`company_id=? AND id=? AND id=${latestReleaseIdSql('?', '?')}`), [actor.companyId, id, actor.companyId, scope]),
     assertion(db, key, 'release-independent', 'NOT iam_same_person(?,?,?)', [actor.userId, row.requested_by, actor.companyId]),
     await nativeOwnerWrite('pl_release_gate_review_upsert',[
       actor.companyId,id,input.criterionId,input.state,actor.userId,actor.assignmentId,criterion.permission,input.reason,now,

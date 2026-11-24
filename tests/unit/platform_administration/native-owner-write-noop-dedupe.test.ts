@@ -35,13 +35,13 @@ describe('platform administration native owner-write no-op dedupe', () => {
 
   it('keeps one canonical release-version guard and one canonical row lock', () => {
     const text = source('adapters/release-acceptance.ts');
-    const versionGuard = "EXISTS(SELECT 1 FROM company_release_acceptances WHERE company_id=? AND id=? AND version=? AND revoked_at IS NULL)";
+    const versionGuardWhere = "company_id=? AND id=? AND version=? AND revoked_at IS NULL";
     const rowLock = 'SELECT id FROM company_release_acceptances WHERE company_id=? AND id=? FOR UPDATE';
-    expect(text).toContain(`export const RELEASE_VERSION_GUARD_SQL = '${versionGuard}'`);
+    expect(text).toContain(`export const RELEASE_VERSION_GUARD_SQL = releaseAcceptanceExistsSql('${versionGuardWhere}')`);
     expect(text).toContain(`export const RELEASE_ROW_LOCK_SQL = '${rowLock}'`);
     expect(text.match(/RELEASE_VERSION_GUARD_SQL/g)).toHaveLength(4); // declaration + review, revoke, evidence guards
     expect(text.match(/RELEASE_ROW_LOCK_SQL/g)).toHaveLength(3); // declaration + review, revoke locks
-    expect(text.match(new RegExp(versionGuard.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'))).toHaveLength(1);
+    expect(text.match(new RegExp(versionGuardWhere.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'))).toHaveLength(1);
     expect(text.match(new RegExp(rowLock.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'))).toHaveLength(1);
   });
 
