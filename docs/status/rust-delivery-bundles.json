@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8851,
+    "revision": 8855,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -114308,7 +114308,7 @@
         "owner": "support",
         "title": "Native support session reads (12 SELECT -> 0)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -114320,14 +114320,7 @@
         "resources": [
           "owner:support"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGC9sup",
-          "claimedAt": "2026-11-24T02:22:56.338Z",
-          "heartbeatAt": "2026-11-24T03:23:58.596Z",
-          "expiresAt": "2026-11-24T03:53:58.596Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -114355,15 +114348,29 @@
             "command": "tsc root + vitest session-read-retirement (4)",
             "result": "passed",
             "sourceSha": "ab8213d87"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "08426f306",
+            "owner": "support",
+            "before": 102,
+            "after": 94,
+            "note": "Five native read kinds for incident attachment image/links and sales support counts/open/customer cases; locks and purchase checks stay at callers."
+          },
+          {
+            "command": "cargo support (91) + vitest support (133) + tsc support/tests",
+            "result": "passed",
+            "sourceSha": "08426f306"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Native read kinds for incident-attachment-read-sources (image/links) and sales-projection (orderScope) via native_support_read_sql; keep portal/service-access untouched. BEFORE=102.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-f",
-          "agentId": "wW02",
-          "at": "2026-11-23T19:36:26.717Z",
+          "runId": "run-20261123-i",
+          "agentId": "wGC9sup",
+          "at": "2026-11-24T03:29:15.468Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
           "nextAction": "Integrated; claim released"
@@ -144754,7 +144761,7 @@
         "owner": "finance",
         "title": "finance TS read tail native cutover",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -144766,22 +144773,37 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGC9fin",
-          "claimedAt": "2026-11-24T03:17:09.945Z",
-          "heartbeatAt": "2026-11-24T03:23:58.596Z",
-          "expiresAt": "2026-11-24T03:53:58.596Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "08426f306",
+            "owner": "finance",
+            "before": 2121,
+            "after": 2083,
+            "note": "28 id/company/status/version guards and 12 company-only jsonb_agg projections shared; EXISTS and COALESCE stay at call sites; lock variants inline."
+          },
+          {
+            "command": "vitest finance read plan (38) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "08426f306"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=2121.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC9fin",
+          "at": "2026-11-24T03:29:14.894Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -145350,17 +145372,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 34,
+        "in_progress": 32,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 657,
+        "blocked": 659,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T03:28:40.155Z",
+    "updatedAt": "2026-11-24T03:29:15.484Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
