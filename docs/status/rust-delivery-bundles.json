@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8862,
+    "revision": 8864,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -144957,7 +144957,7 @@
         "owner": "sales",
         "title": "sales TS read tail native cutover (round 12)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -144969,22 +144969,37 @@
         "resources": [
           "owner:sales"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCHsal",
-          "claimedAt": "2026-11-24T03:18:17.718Z",
-          "heartbeatAt": "2026-11-24T03:23:58.596Z",
-          "expiresAt": "2026-11-24T03:53:58.596Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-sales/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "92bd81705",
+            "owner": "sales",
+            "before": 98,
+            "after": 97,
+            "note": "Contact note projection shared by order/customer branches; rendered SQL byte-identical; zero duplicate literal groups remain."
+          },
+          {
+            "command": "vitest sales services (110) + tsc sales/tests",
+            "result": "passed",
+            "sourceSha": "92bd81705"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: `SELECT n.* FROM customer_contact_notes n ` appears twice in notes.ts; verify byte-identical and dedupe. BEFORE=98.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated at dedupe floor.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCHsal",
+          "at": "2026-11-24T03:30:41.466Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated at dedupe floor."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -145466,17 +145481,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 34,
+        "in_progress": 33,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 659,
+        "blocked": 660,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T03:30:27.048Z",
+    "updatedAt": "2026-11-24T03:30:41.486Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
