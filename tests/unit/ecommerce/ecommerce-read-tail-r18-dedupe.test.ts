@@ -61,7 +61,7 @@ describe('Ecommerce read-tail r18 EXISTS-head family', () => {
 });
 
 describe('Ecommerce read-tail r18 retirement check', () => {
-  test('retirement:ts-statements stays strictly below the r18 BEFORE=48 baseline (r24 pin 22)', () => {
+  test('retirement:ts-statements stays strictly below the r18 BEFORE=48 baseline (r25 pin 19)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -72,6 +72,6 @@ describe('Ecommerce read-tail r18 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(48);
-    expect(total).toBe(22);
+    expect(total).toBe(19);
   });
 });

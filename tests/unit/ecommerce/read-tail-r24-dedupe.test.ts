@@ -62,7 +62,7 @@ describe('Ecommerce read-tail r24 three-family dedupe', () => {
     expect(src).toContain("const readSource = ecommerceOrderedList.bind(null, '*');");
     expect((src.match(/const readSource = /g) ?? []).length).toBe(1);
     expect((src.match(/readSource\(/g) ?? []).length).toBe(3);
-    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(3);
+    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(4);
     expect(src).not.toContain('const readSource = (table: string, scope: string');
     expect(src).toContain('readSource("ecommerce_channels", "company_id=?", "updated_at DESC")');
     expect(src).toContain('readSource("ecommerce_cart_lines", "cart_id=?", "ordinal")');
@@ -122,7 +122,7 @@ describe('Ecommerce read-tail r24 three-family dedupe', () => {
 });
 
 describe('Ecommerce read-tail r24 retirement check', () => {
-  test('retirement:ts-statements === 22 (r24 BEFORE=25; r23 BEFORE=26)', () => {
+  test('retirement:ts-statements === 19 (r25 BEFORE=22; r24 BEFORE=25)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -132,7 +132,7 @@ describe('Ecommerce read-tail r24 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(22);
-    expect(total).toBeLessThan(25);
+    expect(total).toBe(19);
+    expect(total).toBeLessThan(22);
   });
 });

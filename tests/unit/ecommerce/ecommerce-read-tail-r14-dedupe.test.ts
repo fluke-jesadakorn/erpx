@@ -63,7 +63,7 @@ describe('Ecommerce read-tail r14 four-family dedupe', () => {
       expect(shared.match(new RegExp(`export const ${name} = `, 'g')) ?? []).toHaveLength(count);
     }
     expect((src.match(/ecommerceExistsGuard\(/g) ?? []).length).toBe(6);
-    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(3);
+    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(4);
     expect((src.match(/ecommerceListingChannelRow\(/g) ?? []).length).toBe(1);
     expect((ao.match(/ecommerceListingChannelRow\(/g) ?? []).length).toBe(1);
     expect((pb.match(/ecommerceSourceIdentity\(/g) ?? []).length).toBe(2);
@@ -109,7 +109,7 @@ describe('Ecommerce read-tail r14 four-family dedupe', () => {
 });
 
 describe('Ecommerce read-tail r14 retirement check', () => {
-  test('retirement:ts-statements stays strictly below the r14 BEFORE=57 baseline (r24 pin 22)', () => {
+  test('retirement:ts-statements stays strictly below the r14 BEFORE=57 baseline (r25 pin 19)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -120,6 +120,6 @@ describe('Ecommerce read-tail r14 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(57);
-    expect(total).toBe(22);
+    expect(total).toBe(19);
   });
 });

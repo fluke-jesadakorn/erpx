@@ -15736,6 +15736,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "crm",
+      "modules": [
+        "crm"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "CRM single key sources and clocked read head must stay canonical."
+      },
+      "apps": [
+        "sales"
+      ],
+      "packages": [
+        "@erpx/server-crm"
+      ],
+      "id": "crm.read-tail-r39-dedupe.unit",
+      "files": [
+        "tests/unit/crm/read-tail-r39-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "crm.rust-crm-account-http.integration",
       "lane": "integration",
       "owner": "crm",
@@ -21100,6 +21127,33 @@
       "id": "ecommerce.read-tail-r24-dedupe.unit",
       "files": [
         "tests/unit/ecommerce/read-tail-r24-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "ecommerce",
+      "modules": [
+        "ecommerce"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Ecommerce return links, file authority and listing frames must stay canonical."
+      },
+      "apps": [
+        "ecommerce"
+      ],
+      "packages": [
+        "@erpx/server-ecommerce"
+      ],
+      "id": "ecommerce.read-tail-r25-dedupe.unit",
+      "files": [
+        "tests/unit/ecommerce/read-tail-r25-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -32737,6 +32791,33 @@
       "id": "finance.read-tail-r45-dedupe.unit",
       "files": [
         "tests/unit/finance/read-tail-r45-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Finance account chart, party kind and FX guards must stay canonical."
+      },
+      "apps": [
+        "finance"
+      ],
+      "packages": [
+        "@erpx/server-finance"
+      ],
+      "id": "finance.read-tail-r46-dedupe.unit",
+      "files": [
+        "tests/unit/finance/read-tail-r46-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -65731,6 +65812,33 @@
       "id": "organization.read-tail-r48-dedupe.unit",
       "files": [
         "tests/unit/organization/read-tail-r48-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "organization",
+      "modules": [
+        "organization"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Organization branch options, node selection and messaging guard must stay canonical."
+      },
+      "apps": [
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-organization"
+      ],
+      "id": "organization.read-tail-r49-dedupe.unit",
+      "files": [
+        "tests/unit/organization/read-tail-r49-dedupe.test.ts"
       ],
       "framework": "vitest"
     },

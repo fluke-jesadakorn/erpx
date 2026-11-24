@@ -343,7 +343,7 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
   await nativeWrite('checkout.return',[`ecommerce-return-${key}`,id,i.fulfillmentId,ret.id,i.fulfillmentVersion,ret.status,now,now,id],id,a.userId,key);
   },
   fulfillmentLinks: async id => (await write.prepare(readSource("ecommerce_fulfillment_links", "checkout_id=?")).bind(id).all<Row>()).results,
-  returnLinks: async id => (await write.prepare(`SELECT l.*,r.status current_return_status,r.version current_return_version FROM ecommerce_return_links l JOIN (${commerceProjectionSources.commerce_returns}) r ON r.id=l.commerce_return_id WHERE l.checkout_id=?`).bind(id).all<Row>()).results,
+  returnLinks: async id => (await write.prepare(ecommerceOrderedList("l.*,r.status current_return_status,r.version current_return_version", `ecommerce_return_links l JOIN (${commerceProjectionSources.commerce_returns}) r ON r.id=l.commerce_return_id`, "l.checkout_id=?")).bind(id).all<Row>()).results,
  };
 }
 function application(a: WorkContext, ownerWrite?: SqlDatabase) {

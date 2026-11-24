@@ -88,7 +88,7 @@ describe('Ecommerce read-tail r21 fact-arm, gate and scope-row dedupe', () => {
     expect(po).not.toContain(" SELECT 'channel' kind");
     expect((shared.match(/export const ecommerceReleaseGate = /g) ?? []).length).toBe(1);
     expect((shared.match(/export const ecommerceScopeRow = /g) ?? []).length).toBe(1);
-    expect((ap.match(/ecommerceReleaseGate\(/g) ?? []).length).toBe(2);
+    expect((ap.match(/ecommerceReleaseGate\(/g) ?? []).length).toBe(3);
     expect((pb.match(/ecommerceReleaseGate\(/g) ?? []).length).toBe(1);
     // Prior scope-row call-site counts are unchanged.
     expect((ap.match(/ecommerceScopeRow\(/g) ?? []).length).toBe(5);
@@ -132,7 +132,7 @@ describe('Ecommerce read-tail r21 fact-arm, gate and scope-row dedupe', () => {
 });
 
 describe('Ecommerce read-tail r21 retirement check', () => {
-  test('retirement:ts-statements === 22 (r24 BEFORE=25; r20 BEFORE=38)', () => {
+  test('retirement:ts-statements === 19 (r25 BEFORE=22; r24 BEFORE=25)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -142,6 +142,6 @@ describe('Ecommerce read-tail r21 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(22);
+    expect(total).toBe(19);
   });
 });

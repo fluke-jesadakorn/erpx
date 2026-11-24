@@ -30,16 +30,25 @@ export const ecommerceExistsGuard = (table: string, where: string) =>
  *  compose from the same frame, byte-identically. */
 export const ecommerceOrderedList = (columns: string, from: string, where: string, order?: string) =>
   `SELECT ${columns} FROM ${from} WHERE ${where}${order ? ` ORDER BY ${order}` : ''}`;
+/** r14/r15: one parameterized listing frame. The channel-row and evidence
+ *  projections rebuild byte-identically through this single frame; the product
+ *  join is optional and all three aliases are configurable. text only: the two
+ *  binds and source locks are unchanged. r25: the image projection keeps its
+ *  trailing newline verbatim. */
+export const ecommerceListingFrame = (projection: string, { l = 'l', c = 'c', p = 'p', withProduct = true }: { l?: string; c?: string; p?: string; withProduct?: boolean } = {}) =>
+  `SELECT ${projection} FROM ecommerce_listings ${l} JOIN ecommerce_channels ${c} ON ${c}.id=${l}.channel_id${withProduct ? ` JOIN commerce_products ${p} ON ${p}.id=${l}.product_id AND ${p}.company_id=${c}.company_id` : ''} WHERE ${l}.id=? AND ${c}.company_id=?`;
 /** r14: one parameterized listing-channel row read; the repository detail and
- *  attachment-facts callers rebuild byte-identically. Binds unchanged. */
+ *  attachment-facts callers rebuild byte-identically. Binds unchanged.
+ *  r25: composes from the shared listing frame, byte-identically. */
 export const ecommerceListingChannelRow = (columns: string) =>
-  `SELECT ${columns} FROM ecommerce_listings l JOIN ecommerce_channels c ON c.id=l.channel_id WHERE l.id=? AND c.company_id=?`;
+  ecommerceListingFrame(columns, { withProduct: false });
 /** r14: one parameterized source-identity read; the channel and listing source
  *  callers rebuild byte-identically. Binds unchanged. */
 export const ecommerceSourceIdentity = (columns: string, from: string) =>
   `SELECT ${columns} FROM ${from} WHERE x.id=?`;
 /** r15: one parameterized listing-evidence read; the attachment content and
  *  purchase-witness callers rebuild byte-identically. Binds unchanged. The
- *  projection may carry a trailing newline to preserve the caller's line break. */
+ *  projection may carry a trailing newline to preserve the caller's line break.
+ *  r25: composes from the shared listing frame, byte-identically. */
 export const ecommerceListingEvidence = (projection: string, l = 'l', c = 'c', p = 'p') =>
-  `SELECT ${projection} FROM ecommerce_listings ${l} JOIN ecommerce_channels ${c} ON ${c}.id=${l}.channel_id JOIN commerce_products ${p} ON ${p}.id=${l}.product_id AND ${p}.company_id=${c}.company_id WHERE ${l}.id=? AND ${c}.company_id=?`;
+  ecommerceListingFrame(projection, { l, c, p });
