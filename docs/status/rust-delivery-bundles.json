@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7932,
+    "revision": 7936,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -131398,8 +131398,8 @@
             "sourceSha": "281c4c3a2",
             "owner": "commerce",
             "before": 557,
-            "after": 551,
-            "note": "D1-D6 text dedupe plus new constants file; measured 557->551 on the pushed tree (locks still execute at every call site)."
+            "after": 554,
+            "note": "D1-D6 text dedupe plus committed constants file; measured 557->554 (the earlier 551 reading excluded the untracked constants file)."
           },
           {
             "command": "vitest commerce targeted (198)",
@@ -132369,7 +132369,7 @@
         "owner": "commerce",
         "title": "commerce TS read tail native cutover (r6)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -132381,22 +132381,37 @@
         "resources": [
           "owner:commerce"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG64com",
-          "claimedAt": "2026-11-24T01:12:26.039Z",
-          "heartbeatAt": "2026-11-24T01:23:27.967Z",
-          "expiresAt": "2026-11-24T01:53:27.967Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-commerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "6103a37bf",
+            "owner": "commerce",
+            "before": 554,
+            "after": 549,
+            "note": "Six stock-projection copies share COMMERCE_STOCK_BY_WAREHOUSE_PRODUCT_SQL; each call prepares its own statement."
+          },
+          {
+            "command": "vitest commerce units (136) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "6103a37bf"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "TS-only dedupe if available; if none safe, report blocked with evidence. BEFORE=554.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG64com",
+          "at": "2026-11-24T01:27:19.258Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -133711,6 +133726,42 @@
         "nextAction": "Next: legal approval-step point reads need company scope (scope-refine or dedupe only), or another byte-parity pair; keep assertion fragments. BEFORE=84.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.commerce.read-tail-r7",
+        "goalId": "G4",
+        "owner": "commerce",
+        "title": "commerce TS read tail native cutover (round 7)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-commerce/src/**",
+          "tests/unit/commerce/**",
+          "tests/integration/commerce/**"
+        ],
+        "resources": [
+          "owner:commerce"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG95com",
+          "claimedAt": "2026-11-24T01:27:19.584Z",
+          "heartbeatAt": "2026-11-24T01:27:19.584Z",
+          "expiresAt": "2026-11-24T01:57:19.584Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: finance-owned snapshot fragments or projection-source strings; TS-only byte-identical dedupe. BEFORE=549.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -133719,7 +133770,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 813,
+      "totalPackets": 814,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -133727,13 +133778,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 438,
+        "blocked": 439,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:27:03.018Z",
+    "updatedAt": "2026-11-24T01:27:19.588Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
