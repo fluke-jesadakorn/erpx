@@ -1,3 +1,4 @@
+import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
 import { nativeFinanceTaxRegister } from '@erpx/server-collaboration/adapters/native-finance-tax-register';
 import { financeOwnerDecisionEffects } from "@erpx/server-workflow/public/finance-owner-decision-effects";
@@ -178,7 +179,7 @@ function vatService(provided?: SqlDatabase) {
             const { actor, key, operation, input, id, status, entries, verifiedFamilyJson, correction, verifiedSources, now } = facts;
             const write = await db(actor);
             return executeCommand(write, actor, key, operation, input, id, input.expectedVersion + 1, { id, status, version: input.expectedVersion + 1, entryCount: entries.length }, [
-                assertion(write, key, "vat-correction-version", "EXISTS(SELECT 1 FROM finance_vat_corrections WHERE id=? AND company_id=? AND status='prepared' AND version=?)", [id, actor.companyId, input.expectedVersion]),
+                assertion(write, key, "vat-correction-version", idCompanyStatusVersionGuard("finance_vat_corrections", "prepared"), [id, actor.companyId, input.expectedVersion]),
                 assertion(write, key, "vat-correction-entries", "COALESCE((SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM finance_tax_entries t WHERE correction_id=?),'[]'::jsonb)=?::jsonb", [id, JSON.stringify(entries)]), ...(verifiedFamilyJson !== null ? [familyGuard(write, actor, key, String(correction.family_source_id), verifiedFamilyJson), ...verifiedSources.flatMap((current, index) => sourceGuards(write, actor, key, entries[index].source_type as VatSourceType, current.source, `replacement-${index}-`))] : []),
                 await nativeFinanceTaxRegister(write, actor.companyId).taxEntryCorrectionDecision([status, actor.userId, input.reason, now, id]),
                 await nativeFinanceTaxRegister(write, actor.companyId).vatCorrectionDecision([status, actor.userId, input.reason, now, id]),
@@ -199,7 +200,7 @@ function vatService(provided?: SqlDatabase) {
             const { actor, key, operation, input, id, p, r, currentProfile, current } = facts;
             const write = await db(actor);
             return executeCommand(write, actor, key, operation, input, id, input.expectedVersion + 1, { id, status: "approved_for_export", version: input.expectedVersion + 1 }, [
-                assertion(write, key, "vat-package", "EXISTS(SELECT 1 FROM finance_statutory_packages WHERE id=? AND company_id=? AND status='prepared' AND version=?)", [id, actor.companyId, input.expectedVersion]),
+                assertion(write, key, "vat-package", idCompanyStatusVersionGuard("finance_statutory_packages", "prepared"), [id, actor.companyId, input.expectedVersion]),
                 assertion(write, key, "vat-calculation", "EXISTS(SELECT 1 FROM finance_calculation_runs WHERE id=? AND company_id=? AND status='prepared' AND version=1)", [p.calculation_run_id, actor.companyId]),
                 registerGuard(write, actor, key, p, r.json),
                 ...reconciliationGuards(write, actor, key, String(p.chart_id), String(p.effective_date), String(currentProfile.effective_date), current.rows),
@@ -211,7 +212,7 @@ function vatService(provided?: SqlDatabase) {
             const { actor, key, operation, input, id, p, content, exportHash, r, currentProfile, current } = facts;
             const write = await db(actor);
             return executeCommand(write, actor, key, operation, input, id, input.expectedVersion + 1, { id, status: "exported", version: input.expectedVersion + 1, filename: `ERPX-PP30-workpaper-${p.filing_month}.csv`, content, exportHash }, [
-                assertion(write, key, "vat-package", "EXISTS(SELECT 1 FROM finance_statutory_packages WHERE id=? AND company_id=? AND status='approved_for_export' AND version=?)", [id, actor.companyId, input.expectedVersion]), registerGuard(write, actor, key, p, r.json),
+                assertion(write, key, "vat-package", idCompanyStatusVersionGuard("finance_statutory_packages", "approved_for_export"), [id, actor.companyId, input.expectedVersion]), registerGuard(write, actor, key, p, r.json),
                 ...reconciliationGuards(write, actor, key, String(p.chart_id), String(p.effective_date), String(currentProfile.effective_date), current.rows),
                 await nativeFinanceTaxRegister(write, actor.companyId).statutoryPackageExport([content, exportHash, Date.now(), id]),
                 await packageEvent(write, actor, key, id, input.expectedVersion + 1, "export", { exportHash, reason: input.reason }),
@@ -220,7 +221,7 @@ function vatService(provided?: SqlDatabase) {
             const { actor, key, operation, input, id } = facts;
             const write = await db(actor);
             return executeCommand(write, actor, key, operation, input, id, input.expectedVersion + 1, { id, status: "filed", version: input.expectedVersion + 1 }, [
-                assertion(write, key, "vat-package", "EXISTS(SELECT 1 FROM finance_statutory_packages WHERE id=? AND company_id=? AND status='exported' AND version=?)", [id, actor.companyId, input.expectedVersion]),
+                assertion(write, key, "vat-package", idCompanyStatusVersionGuard("finance_statutory_packages", "exported"), [id, actor.companyId, input.expectedVersion]),
                 await nativeFinanceTaxRegister(write, actor.companyId).statutoryPackageFile([input.filingReference, Date.parse(`${input.filedDate}T00:00:00+07:00`), JSON.stringify({ filing: input }), Date.now(), id]),
                 await packageEvent(write, actor, key, id, input.expectedVersion + 1, "file", input),
             ]);

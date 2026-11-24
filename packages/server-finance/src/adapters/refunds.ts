@@ -1,3 +1,4 @@
+import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import {materializedClockCteSql} from './finance-read-tail-r19-sql';
 import {withRefundBankEvidenceConfirmation,withRefundBankEvidenceWorkspace,type RefundBankEvidenceReadScope} from '@erpx/server-finance/adapters/refund-bank-evidence';
 import { BANK_TRANSACTION_BY_ID_SQL } from './finance-read-tail-r17-sql';
@@ -61,7 +62,7 @@ function refundService(provided?:SqlDatabase,presentation?:{historyOnly:boolean;
             const { actor, key, input, id, now } = facts;
             const write = await db(actor);
             return executeCommand(write, actor, key, 'finance.refund.approve', input, id, input.expectedVersion + 1, { id, status: 'approved', version: input.expectedVersion + 1 }, [
-                assertion(write, key, 'obligation', "EXISTS(SELECT 1 FROM finance_refund_obligations WHERE id=? AND company_id=? AND status='pending' AND version=?)", [id, actor.companyId, input.expectedVersion]),
+                assertion(write, key, 'obligation', idCompanyStatusVersionGuard("finance_refund_obligations", "pending"), [id, actor.companyId, input.expectedVersion]),
                 await nativeFinanceRefunds(write, actor.companyId).obligationApprove([input.beneficiaryName, input.beneficiaryAccount, input.reason, actor.userId, now, now, id]),
                 await nativeRefundNotification(write, actor, key, id, 'treasury', 'Refund approved: prepare and verify bank instructions', actor.userId),
             ]);
@@ -81,7 +82,7 @@ function refundService(provided?:SqlDatabase,presentation?:{historyOnly:boolean;
             const { actor, key, input, content, sha256, rows, now } = facts;
             const write = await db(actor);
             const exportSteps = await Promise.all(rows.map(async ({ row }) => [
-                assertion(write, key, `instruction-${row.id}`, "EXISTS(SELECT 1 FROM finance_refund_instructions WHERE id=? AND company_id=? AND status='prepared' AND version=?)", [row.id, actor.companyId, row.version]),
+                assertion(write, key, `instruction-${row.id}`, idCompanyStatusVersionGuard("finance_refund_instructions", "prepared"), [row.id, actor.companyId, row.version]),
                 await nativeFinanceRefunds(write, actor.companyId).instructionExport([sha256, key, now, now, row.id]),
             ]));
             return executeCommand(write, actor, key, 'finance.refund.export', input, key, 1, { id: key, format: 'csv', content, sha256, rows: rows.length, confirmationRequired: true }, exportSteps.flat());

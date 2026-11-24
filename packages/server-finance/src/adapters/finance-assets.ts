@@ -1,3 +1,4 @@
+import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { APPROVED_SECONDARY_CHART_RULE_SQL } from './finance-read-tail-r15-sql';
 import { DIMENSION_DEFINITIONS_SQL } from './finance-read-tail-r17-sql';
@@ -80,7 +81,7 @@ function nativeAssets(provided?:SqlDatabase, providedOwned=false) {
         preparePolicyDisposal: async (actor, assetId, input, key, status) => { const plan = await (await import("@erpx/server-finance/public/finance-asset-policies")).prepareAssetPolicyDisposal(await database(actor), actor, assetId, input, key, status); policies.set(input.id, plan); return { hash: plan.hash, dimensions: plan.dimensions, journalIds: plan.journalIds }; },
         prepareJournal: async (actor, input, key) => { const plan = await prepareJournal(await database(actor), actor, input, key, "posted"); journals.set(plan.result.id, plan); return { result: { id: plan.result.id } }; },
         prepareMoney: async (actor, input) => { moneyPlans.set(input.amountKind, await snapshotMoney(await database(actor), actor, input)); },
-        prepareDecision: async (actor, id, key, asset, disposal) => { const write = await database(actor); decisionSteps = [...assetGuards(write, actor, key, asset), write.prepare("SELECT id FROM finance_asset_disposals WHERE id=? FOR UPDATE").bind(id), assertion(write, key, "disposal-version", "EXISTS(SELECT 1 FROM finance_asset_disposals WHERE id=? AND company_id=? AND status='draft' AND version=?)", [id, actor.companyId, disposal.version])]; },
+        prepareDecision: async (actor, id, key, asset, disposal) => { const write = await database(actor); decisionSteps = [...assetGuards(write, actor, key, asset), write.prepare("SELECT id FROM finance_asset_disposals WHERE id=? FOR UPDATE").bind(id), assertion(write, key, "disposal-version", idCompanyStatusVersionGuard("finance_asset_disposals", "draft"), [id, actor.companyId, disposal.version])]; },
         commitCreate: async ({ actor, input, key, id, amount, now, result }) => {
             const write = await database(actor);
             const money = moneyPlans.get("cost")!;

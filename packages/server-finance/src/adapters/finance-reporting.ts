@@ -1,3 +1,4 @@
+import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
 import { nativeFinanceReporting } from '@erpx/server-collaboration/adapters/native-finance-reporting';
 import {financeReportingCompanyFacts} from '@erpx/server-organization/public/finance-reporting-company-facts';
@@ -68,7 +69,7 @@ function nativeReporting(provided?:SqlDatabase) {
             const write = await database();
             return executeCommand(write, actor, key, op, input, id, next, { id, status, version: next, edition: Number(row.edition), sha256 }, [
                 ...(action === "issue" ? sourceGuards(write, actor, key, String(row.chart_id), String(row.profile_id), Number(row.profile_version), Number(row.source_revision)) : []),
-                assertion(write, key, "statement-version", "EXISTS(SELECT 1 FROM finance_statement_packages WHERE id=? AND company_id=? AND status='draft' AND version=?)", [id, actor.companyId, input.expectedVersion]),
+                assertion(write, key, "statement-version", idCompanyStatusVersionGuard("finance_statement_packages", "draft"), [id, actor.companyId, input.expectedVersion]),
                 await nativeFinanceReporting(write, actor.companyId).statementPackageDecision([status, actor.userId, input.reason, now, html, sha256, now, id]),
                 await nativeFinanceReporting(write, actor.companyId).statementEventDecision([`statement-event-${key}`, id, actor.companyId, status, actor.userId, next, input.reason, key, now]),
             ]);
@@ -86,7 +87,7 @@ function nativeReporting(provided?:SqlDatabase) {
             const journal = journalId ? journals.get(journalId)! : null, money = preparedMoney;
             return executeCommand(write, actor, key, op, input, id, next, { id, status, version: next, profitMinor: Number(row.profit_minor), journalId: journal?.result.id ?? null }, [
                 ...(action === "post" ? sourceGuards(write, actor, key, String(row.chart_id), String(row.profile_id), Number(row.profile_version), Number(row.source_revision)) : []),
-                assertion(write, key, "closing-version", "EXISTS(SELECT 1 FROM finance_year_closings WHERE id=? AND company_id=? AND status='draft' AND version=?)", [id, actor.companyId, input.expectedVersion]),
+                assertion(write, key, "closing-version", idCompanyStatusVersionGuard("finance_year_closings", "draft"), [id, actor.companyId, input.expectedVersion]),
                 ...(action === "post" ? [assertion(write, key, "closing-period", "EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND end_date=?)", [row.period_id, actor.companyId, row.end_date]), assertion(write, key, "earlier-periods", "NOT EXISTS(SELECT 1 FROM finance_periods WHERE company_id=? AND id<>? AND start_date<=? AND end_date>=? AND state<>'closed')", [actor.companyId, row.period_id, row.end_date, row.start_date])] : []),
                 ...(journal?.steps ?? []), ...(money ? [money.statement] : []),
                 await nativeFinanceReporting(write, actor.companyId).yearClosingDecision([status, journal?.result.id ?? null, actor.userId, input.reason, now, now, id]),

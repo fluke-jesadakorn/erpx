@@ -1,3 +1,4 @@
+import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import{currentInvoiceLines}from '@erpx/server-finance/public/invoice-line-read';
 import "server-only";
 import { financeInvoiceLines } from '@erpx/server-collaboration/adapters/native-finance-invoice-lines';
@@ -15,7 +16,7 @@ export async function prepareInvoiceLineRevision(db: SqlDatabase, actor: WorkCon
 }, commandId: string) {
     const plan = await invoiceLineService(db).prepare(actor, input, revision, amounts), { accounts, party, rows, controlAccount, now } = plan, byId = new Map(accounts.map(account => [account.id, account]));
     const guards: SqlStatement[] = [
-        ...accounts.map((account, index) => assertion(db, commandId, `line-account-${index}`, "EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND status='active' AND version=?)", [account.id, actor.companyId, account.version])),
+        ...accounts.map((account, index) => assertion(db, commandId, `line-account-${index}`, idCompanyStatusVersionGuard("finance_accounts", "active"), [account.id, actor.companyId, account.version])),
         assertion(db, commandId, "line-party", "EXISTS(SELECT 1 FROM finance_parties WHERE id=? AND company_id=? AND version=? AND status='active')", [input.partyId, actor.companyId, Number(party.version)]),
     ];
     const steps: SqlStatement[] = await Promise.all(rows.map(async (line, ordinal) => {

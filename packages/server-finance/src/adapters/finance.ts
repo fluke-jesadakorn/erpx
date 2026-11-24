@@ -1,3 +1,4 @@
+import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
 import { SUPPLIER_RESERVATION_GUARD_SQL, BANK_TRANSACTION_BY_ID_SQL } from './finance-read-tail-r17-sql';
 import {requireLegacyFinanceJournal} from './document-purchases';
@@ -440,7 +441,7 @@ function invoiceService(provided?: SqlDatabase) {
         }, commitPost: async ({ actor, invoiceId, input, id, invoice, baseTotal, now }) => {
             const write = await db(actor), journal = journalNative!;
             return executeCommand(write, actor, id, "finance.invoice.post", input, invoiceId, Number(invoice.version) + 1, { id: invoiceId, status: "posted", journalId: journal.result.id }, [
-                assertion(write, id, "invoice", "EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND company_id=? AND status='draft' AND version=?)", [invoiceId, actor.companyId, invoice.version]), ...(attachmentBinding?.guards ?? []), ...(native?.guards ?? []), ...journal.steps,
+                assertion(write, id, "invoice", idCompanyStatusVersionGuard("finance_invoices", "draft"), [invoiceId, actor.companyId, invoice.version]), ...(attachmentBinding?.guards ?? []), ...(native?.guards ?? []), ...journal.steps,
                 await nativeFinanceOwnerWrite(write, actor, 'finance_stmt_19', [journal.result.id, journal.result.fxRateMicros, baseTotal, baseTotal, actor.userId, now, now, invoiceId]),
                 ...(snapshot ? [snapshot] : []),
                 ...(goods?.steps ?? []), ...(matched?.steps ?? []),

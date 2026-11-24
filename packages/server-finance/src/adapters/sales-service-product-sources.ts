@@ -1,3 +1,4 @@
+import { aggByCompany } from './finance-read-tail-r20-sql';
 import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {commerceFinanceJoinedFacts} from '@erpx/server-finance/adapters/commerce-joined-facts';
@@ -16,7 +17,7 @@ export function salesServiceProductFinanceLeases(database:SqlDatabase,write=true
  * document currency, approved defaults and active chart. No collections escape. */
 export async function salesServiceProductFinanceSource(database:SqlDatabase,companyId:string){
  const effective=await commerceFinanceJoinedFacts(database).readCommerceSettings1({companyId});
- const reference=await database.prepare(`SELECT jsonb_build_object('charts',COALESCE((SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM finance_charts c WHERE c.company_id=?),'[]'::jsonb),'accounts',COALESCE((SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM finance_accounts a WHERE a.company_id=?),'[]'::jsonb),'defaults',COALESCE((SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM finance_sales_defaults d WHERE d.company_id=?),'[]'::jsonb),'settings',(SELECT to_jsonb(s) FROM company_money_settings s WHERE s.company_id=?),'scales',COALESCE((SELECT jsonb_agg(to_jsonb(s) ORDER BY s.currency) FROM company_currency_scales s WHERE s.company_id=?),'[]'::jsonb),'rates',COALESCE((SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM company_fx_rates r WHERE r.company_id=?),'[]'::jsonb))::text image`).bind(companyId,companyId,companyId,companyId,companyId,companyId).first<string>('image');
+ const reference=await database.prepare(`SELECT jsonb_build_object('charts',COALESCE(${aggByCompany('c','finance_charts','id')},'[]'::jsonb),'accounts',COALESCE(${aggByCompany('a','finance_accounts','id')},'[]'::jsonb),'defaults',COALESCE(${aggByCompany('d','finance_sales_defaults','id')},'[]'::jsonb),'settings',(SELECT to_jsonb(s) FROM company_money_settings s WHERE s.company_id=?),'scales',COALESCE(${aggByCompany('s','company_currency_scales','currency')},'[]'::jsonb),'rates',COALESCE(${aggByCompany('r','company_fx_rates','id')},'[]'::jsonb))::text image`).bind(companyId,companyId,companyId,companyId,companyId,companyId).first<string>('image');
  return {effective,image:JSON.stringify([effective,reference])};
 }
 type MoneyRow={company_id:string;source_type:string;source_id:string;amount_kind:string;transaction_date:string;currency:string;currency_scale:number;amount_units:string;usd_units:string;fx_rate_id:string|null;used_latest_fallback:boolean;captured_at:number;source:string};

@@ -1,3 +1,4 @@
+import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { nativeFinanceAccruals } from '@erpx/server-collaboration/adapters/native-finance-accruals';
@@ -54,7 +55,7 @@ function accrualService(provided?:SqlDatabase) {
             const { actor, key, scheduleId, runId, result, schedule, journalId, chart, period, number, periodEndValue, periodStart, now, amount, sourceHash } = facts;
             const write = await db(actor);
             return executeCommand(write, actor, key, "finance.accrual.prepare", { scheduleId }, runId, 1, result, [
-                assertion(write, key, "schedule-version", "EXISTS(SELECT 1 FROM finance_accrual_schedules WHERE id=? AND company_id=? AND status='active' AND version=?)", [scheduleId, actor.companyId, schedule.version]),
+                assertion(write, key, "schedule-version", idCompanyStatusVersionGuard("finance_accrual_schedules", "active"), [scheduleId, actor.companyId, schedule.version]),
                 await nativeFinanceAccruals(write, actor.companyId).journalInsert([journalId, actor.companyId, chart.chart_id, period.id, number, periodEndValue, schedule.currency, 1000000, "accrual_schedule", runId, `Accrual · ${schedule.description} · ${periodStart} to ${periodEndValue}`, actor.userId, now, now]),
                 await nativeFinanceAccruals(write, actor.companyId).journalLinesInsert([`${journalId}-0`, journalId, schedule.debit_account_id, schedule.description, amount, 0, amount, 0, "{}", `${journalId}-1`, journalId, schedule.credit_account_id, schedule.description, 0, amount, 0, amount, "{}"]),
                 await nativeFinanceAccruals(write, actor.companyId).runInsert([runId, scheduleId, actor.companyId, periodStart, periodEndValue, amount, schedule.currency, journalId, Number(schedule.version), sourceHash, actor.userId, now, now]),

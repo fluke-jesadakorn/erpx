@@ -1,3 +1,4 @@
+import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
 import { OPEN_PERIOD_LIST_SQL, APPROVED_SECONDARY_CHART_RULE_SQL } from './finance-read-tail-r15-sql';
 import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
@@ -104,7 +105,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
                 .first();
         }, guardContractParent(key: string, value: "contract-parent", id: string | number | null, companyId: string, value2: number) {
             const db = read();
-            return assertion(db, key, value, "EXISTS(SELECT 1 FROM finance_business_contracts WHERE id=? AND company_id=? AND status='active' AND version=?)", [id, companyId, value2]);
+            return assertion(db, key, value, idCompanyStatusVersionGuard("finance_business_contracts", "active"), [id, companyId, value2]);
         }, async prepareContract(id: string, companyId: string, root: string, value: string | number | null, number: string, name: string, chartId: string, partyId: string, startDate: string, endDate: string, edition: number, value2: string, sourceHash: string, userId: string, reason: string, now: number, now2: number) {
             const db = read();
             return await nativeFinanceOwnerWriteSystem(db, companyId, 'prepare_contract', [id, companyId, root, value, number, name, chartId, partyId, startDate, endDate, edition, value2, sourceHash, userId, reason, now, now2]);
@@ -209,7 +210,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
                 .first<Row>();
         }, guardRecognitionDraft(key: string, value: "recognition-version", id: string, companyId: string, expectedVersion: number) {
             const db = read();
-            return assertion(db, key, value, "EXISTS(SELECT 1 FROM finance_recognition_runs WHERE id=? AND company_id=? AND status='draft' AND version=?)", [id, companyId, expectedVersion]);
+            return assertion(db, key, value, idCompanyStatusVersionGuard("finance_recognition_runs", "draft"), [id, companyId, expectedVersion]);
         }, async decideRecognition(status: "rejected" | "posted", version: number, userId: string, value: string | null, reason: string, now: number, id: string) {
             const db = read();
             return await nativeFinanceOwnerWriteSystem(db, 'system', 'decide_recognition', [status, version, userId, value, reason, now, id]);
@@ -221,7 +222,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
                 .first<Row>();
         }, guardPostedRecognition(key: string, value: "recognition-version", id: string, companyId: string, expectedVersion: number) {
             const db = read();
-            return assertion(db, key, value, "EXISTS(SELECT 1 FROM finance_recognition_runs WHERE id=? AND company_id=? AND status='posted' AND version=?)", [id, companyId, expectedVersion]);
+            return assertion(db, key, value, idCompanyStatusVersionGuard("finance_recognition_runs", "posted"), [id, companyId, expectedVersion]);
         }, async reverseRecognition(reversalId: string, reason: string, now: number, id: string) {
             const db = read();
             return await nativeFinanceOwnerWriteSystem(db, 'system', 'reverse_recognition', [reversalId, reason, now, id]);

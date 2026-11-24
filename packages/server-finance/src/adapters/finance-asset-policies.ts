@@ -1,3 +1,4 @@
+import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
 import { assetPolicyRunSchema } from '@erpx/server-finance/domain/due-inputs';
@@ -141,7 +142,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
             return await nativeFinanceOwnerWriteSystem(db, companyId, 'asset_depreciation_event', [value, id, companyId, value2, key, value3, userId, now]);
         }, guardRunVersion(key: string, value: "asset-policy-run-version", id: string, companyId: string, expectedVersion: number) {
             const db = read();
-            return assertion(db, key, value, "EXISTS(SELECT 1 FROM finance_asset_policy_runs WHERE id=? AND company_id=? AND status='draft' AND version=?)", [id, companyId, expectedVersion]);
+            return assertion(db, key, value, idCompanyStatusVersionGuard("finance_asset_policy_runs", "draft"), [id, companyId, expectedVersion]);
         }, async decideRun(value: "posted" | "rejected", userId: string, value2: string, now: number, id: string) {
             const db = read();
             return await nativeFinanceOwnerWriteSystem(db, 'system', 'decide_policy_run', [value, userId, value2, now, id]);

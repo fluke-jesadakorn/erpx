@@ -1,3 +1,4 @@
+import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import type { z } from "zod";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -132,7 +133,7 @@ decisionCommit:async(facts)=>{const {actor,id,input,key,op,status,version,journa
           db,
           key,
           "adjustment-version",
-          "EXISTS(SELECT 1 FROM finance_book_adjustments WHERE id=? AND company_id=? AND status='draft' AND version=?)",
+          idCompanyStatusVersionGuard("finance_book_adjustments", "draft"),
           [id, actor.companyId, input.expectedVersion],
         ),
         ...(journal?.steps ?? []),
@@ -172,7 +173,7 @@ reverseCommit:async(facts)=>{const {actor,id,input,key,op,reversalId,updatedAt}=
           db,
           key,
           "adjustment-version",
-          "EXISTS(SELECT 1 FROM finance_book_adjustments WHERE id=? AND company_id=? AND status='posted' AND version=?)",
+          idCompanyStatusVersionGuard("finance_book_adjustments", "posted"),
           [id, actor.companyId, input.expectedVersion],
         ),
         ...reversal.steps,

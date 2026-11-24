@@ -1,3 +1,4 @@
+import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
 import { FINANCE_ADVISORY_XACT_LOCK_SQL } from "./advisory-lock-dedupe-sql";
 import { nativeFinanceThaiDocuments } from '@erpx/server-collaboration/adapters/native-finance-thai-documents';
@@ -93,7 +94,7 @@ function documentService(provided?: SqlDatabase) {
             const { actor, commandId, operation, input, id, status, issue, original, now } = facts;
             const write = await db(actor);
             const nativeIssue = issue ? issues.get(issue.id)! : null;
-            const guards = [assertion(write, commandId, 'amendment', "EXISTS(SELECT 1 FROM finance_thai_document_changes WHERE id=? AND company_id=? AND status='draft' AND version=?)", [id, actor.companyId, input.expectedVersion]), assertion(write, commandId, 'current-document', "NOT EXISTS(SELECT 1 FROM finance_thai_document_events WHERE document_id=? AND action IN ('cancelled','superseded'))", [original.id])];
+            const guards = [assertion(write, commandId, 'amendment', idCompanyStatusVersionGuard("finance_thai_document_changes", "draft"), [id, actor.companyId, input.expectedVersion]), assertion(write, commandId, 'current-document', "NOT EXISTS(SELECT 1 FROM finance_thai_document_events WHERE document_id=? AND action IN ('cancelled','superseded'))", [original.id])];
             if (issue)
                 guards.push(assertion(write, commandId, 'financial-source', original.payment_id ? "EXISTS(SELECT 1 FROM finance_payments WHERE id=? AND company_id=? AND status='settled')" : "EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND company_id=? AND status IN ('posted','partially_paid','paid'))", [original.payment_id ?? original.invoice_id, actor.companyId]));
             return executeCommand(write, actor, commandId, operation, input, id, input.expectedVersion + 1, { id, status, version: input.expectedVersion + 1, replacementDocumentId: issue?.id ?? null }, [
