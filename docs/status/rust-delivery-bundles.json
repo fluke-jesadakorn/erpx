@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10838,
+    "revision": 10840,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -167533,6 +167533,43 @@
         "nextAction": "Add marketing-package-obligations plan and cut over the 11-token statement. BEFORE=77.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.field_service.read-tail-r8",
+        "goalId": "G4",
+        "owner": "field_service",
+        "title": "field service final root projection retirement (round 8)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-field_service/src/**",
+          "packages/server-field_service/package.json",
+          "tests/unit/field_service/**",
+          "tests/integration/field_service/**"
+        ],
+        "resources": [
+          "owner:field_service"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMfld2",
+          "claimedAt": "2026-11-24T09:06:58.682Z",
+          "heartbeatAt": "2026-11-24T09:06:58.682Z",
+          "expiresAt": "2026-11-24T09:36:58.682Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Delete final-root TS projection sources and repoint parity oracles to native; residual 3 bind retire.records.registry-fallback. BEFORE=5.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -167541,11 +167578,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1481,
+      "totalPackets": 1482,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 23,
-        "in_progress": 22,
+        "in_progress": 23,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -167555,7 +167592,7 @@
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:06:43.933Z",
+    "updatedAt": "2026-11-24T09:06:58.690Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
