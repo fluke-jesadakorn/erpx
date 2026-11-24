@@ -1,4 +1,5 @@
 import {withFinancePurchasedCommand,withFinancePurchasedRead,requireFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
+import { CHART_BASE_CURRENCY_BY_ID_SQL } from './finance-read-tail-r15-sql';
 import { nativeFinanceCollections } from '@erpx/server-collaboration/adapters/native-finance-collections';
 import {financeCommandReceipts} from "@erpx/server-workflow/public/finance-command-receipts";
 import type { z } from "zod";
@@ -234,7 +235,7 @@ picker:async(actor,asOf,query,search)=>{  const [invoices, cases] = await Promis
 return {invoices,cases};},
 chart:async(actor,chartId)=>write
       .prepare(
-        "SELECT base_currency FROM finance_charts WHERE id=? AND company_id=?",
+        CHART_BASE_CURRENCY_BY_ID_SQL,
       )
       .bind(chartId, actor.companyId)
       .first<{ base_currency: string }>(),

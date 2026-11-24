@@ -1,4 +1,5 @@
 import "server-only";
+import { COMMAND_RECEIPT_EXISTS_SQL } from './finance-read-tail-r15-sql';
 import { randomUUID } from "node:crypto";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
@@ -106,7 +107,7 @@ export async function withFinancePurchasedCommand<Result>(actor: WorkContext, co
       const sourcePurchases = await command.companyPurchases?.(transaction) ?? [];
       const companies = [...new Set([actor.companyId, ...sourcePurchases.map(scope => scope.companyId)])].sort();
       await transaction.batch(companies.flatMap(company => companyPurchaseReadLocks(transaction, company)));
-      const receipt = await transaction.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?")
+      const receipt = await transaction.prepare(COMMAND_RECEIPT_EXISTS_SQL)
         .bind(command.key, command.operation, actor.userId, actor.companyId).first();
       const purpose = receipt ? "history" as const : command.purpose;
       let capability = command.capability ?? "finance.accounting";

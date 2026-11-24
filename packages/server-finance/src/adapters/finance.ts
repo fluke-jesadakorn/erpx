@@ -1,4 +1,5 @@
 import {requireLegacyFinanceJournal} from './document-purchases';
+import { CHART_BASE_CURRENCY_BY_ID_SQL } from './finance-read-tail-r15-sql';
 import { nativeFinanceOwnerWrite } from './native-finance-owner-write';
 import{confirmedFunctionalFx,prepareJournal,journalPreparation,journalStatements}from '@erpx/server-finance/adapters/journal-planning';
 import{decimalToMinor}from '@erpx/server-finance/public/money-primitives';
@@ -337,7 +338,7 @@ function accountImportService(provided?: SqlDatabase) {
     let pending: Promise<SqlDatabase> | undefined;
     const db = (actor: WorkContext) => pending ??= financeOwnedDatabase(actor, provided);
     const unused = "NOT EXISTS(SELECT 1 FROM finance_journal_lines WHERE account_id=?) AND NOT EXISTS(SELECT 1 FROM finance_invoices WHERE debit_account_id=? OR credit_account_id=? OR tax_account_id=?) AND NOT EXISTS(SELECT 1 FROM finance_invoice_line_versions WHERE account_id=? OR tax_account_id=?)";
-    return createAccountImport({ error: (...args) => new ApiError(...args), authorize: requirePermission, ready: async (actor) => { await db(actor); }, now: Date.now, id: () => crypto.randomUUID(), prior: async (actor, key, input) => priorCommand(await db(actor), actor, key, 'finance.account.import', input), chart: async (actor, chartId) => (await db(actor)).prepare('SELECT base_currency FROM finance_charts WHERE id=? AND company_id=?').bind(chartId, actor.companyId).first<{
+    return createAccountImport({ error: (...args) => new ApiError(...args), authorize: requirePermission, ready: async (actor) => { await db(actor); }, now: Date.now, id: () => crypto.randomUUID(), prior: async (actor, key, input) => priorCommand(await db(actor), actor, key, 'finance.account.import', input), chart: async (actor, chartId) => (await db(actor)).prepare(CHART_BASE_CURRENCY_BY_ID_SQL).bind(chartId, actor.companyId).first<{
             base_currency: string;
         }>(), existing: async (actor, chartId, code) => (await db(actor)).prepare('SELECT * FROM finance_accounts WHERE chart_id=? AND company_id=? AND code=?').bind(chartId, actor.companyId, code).first<FinanceRow>(), unused: async (id) => !!await (await pending!).prepare(`SELECT (${unused}) unused`).bind(id, id, id, id, id, id).first('unused'), commit: async ({ actor, key, input, plans, now }) => {
             const write = await db(actor), chartId = input.chartId, pendingStatements: SqlStatement[] = [];

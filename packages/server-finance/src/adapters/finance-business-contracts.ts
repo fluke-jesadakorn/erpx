@@ -1,4 +1,5 @@
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
+import { OPEN_PERIOD_LIST_SQL, APPROVED_SECONDARY_CHART_RULE_SQL } from './finance-read-tail-r15-sql';
 import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
 import { recognitionRunSchema } from '@erpx/server-finance/domain/due-inputs';
 import { billingRevisionSchema } from '@erpx/server-finance/domain/business-billing-revision';
@@ -62,7 +63,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async secondaryBook(companyId: string, chartId: string) {
             const db = read();
             return db
-                .prepare("SELECT 1 FROM finance_book_rules WHERE company_id=? AND secondary_chart_id=? AND status='approved'")
+                .prepare(APPROVED_SECONDARY_CHART_RULE_SQL)
                 .bind(companyId, chartId)
                 .first();
         }, async configurationAccounts(companyId: string, chartId: string, ids: string[]) {
@@ -287,7 +288,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async workspacePeriods(companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT id,name,start_date,end_date FROM finance_periods WHERE company_id=? AND state='open' ORDER BY start_date DESC")
+                .prepare(OPEN_PERIOD_LIST_SQL)
                 .bind(companyId)
                 .all<Row>();
         }, async workspaceCorrections(companyId: string) { const db = read(); return db.prepare('SELECT * FROM finance_billing_corrections WHERE company_id=? ORDER BY created_at DESC LIMIT 500').bind(companyId).all<Row>(); }, contractDecisionEvidence(value: string, key: string, id: string, op: string, userId: string, assignmentId: string, expectedVersion: number, value2: string, now: number) { return financeBusinessContractEffects(read()).contractDecisionEvidence(value, key, id, op, userId, assignmentId, expectedVersion, value2, now); }, recognitionDecisionEvidence(value: string, key: string, id: string, op: string, userId: string, assignmentId: string, expectedVersion: number, value2: string, now: number) { return financeBusinessContractEffects(read()).recognitionDecisionEvidence(value, key, id, op, userId, assignmentId, expectedVersion, value2, now); } };

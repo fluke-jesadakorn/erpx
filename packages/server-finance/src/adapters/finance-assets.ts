@@ -1,4 +1,5 @@
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
+import { APPROVED_SECONDARY_CHART_RULE_SQL } from './finance-read-tail-r15-sql';
 import { nativeFinanceAssets } from '@erpx/server-collaboration/adapters/native-finance-assets';
 import { financeOwnerDecisionEffects } from "@erpx/server-workflow/public/finance-owner-decision-effects";
 import { financeTransaction } from "@erpx/server-finance/public/finance-transactions";
@@ -52,7 +53,7 @@ function nativeAssets(provided?:SqlDatabase, providedOwned=false) {
             chart_id: string;
             category: string;
         }>()).results,
-        secondaryChart: async (actor, chart) => !!await (await database(actor)).prepare("SELECT 1 FROM finance_book_rules WHERE company_id=? AND secondary_chart_id=? AND status='approved'").bind(actor.companyId, chart).first(),
+        secondaryChart: async (actor, chart) => !!await (await database(actor)).prepare(APPROVED_SECONDARY_CHART_RULE_SQL).bind(actor.companyId, chart).first(),
         events: async (actor, id) => (await (await database(actor)).prepare("SELECT * FROM finance_asset_events WHERE asset_id=? ORDER BY created_at,id").bind(id).all()).results,
         depreciations: async (actor, id) => (await (await database(actor)).prepare("SELECT * FROM finance_asset_depreciations WHERE asset_id=? ORDER BY ordinal").bind(id).all()).results,
         disposals: async (actor, id) => (await (await database(actor)).prepare("SELECT * FROM finance_asset_disposals WHERE asset_id=? ORDER BY created_at,id").bind(id).all()).results,

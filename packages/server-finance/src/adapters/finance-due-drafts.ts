@@ -1,3 +1,4 @@
+import { COMMAND_RECEIPT_EXISTS_SQL } from './finance-read-tail-r15-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead, requireFinanceCurrentAuthority } from "@erpx/server-finance/adapters/purchase-boundary";
 import { financeDueDrafts, financeDueDraftsWorker } from '@erpx/server-collaboration/adapters/native-finance-due-drafts';
 import { financePackageEnforcementMode, holdingPurchaseReadLocks, checkPurchasedCapability } from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -35,7 +36,7 @@ function nativeDue(provided?: SqlDatabase, providedOwned=false) {
     const prepareDue = async <Result>(actor:WorkContext,key:string,operation:string,capability:string,run:(database:SqlDatabase)=>Promise<Result>) => {
       const db=await database();
       if(await financePackageEnforcementMode()!=="disabled"){
-        const prior=await db.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(key,operation,actor.userId,actor.companyId).first();
+        const prior=await db.prepare(COMMAND_RECEIPT_EXISTS_SQL).bind(key,operation,actor.userId,actor.companyId).first();
         completions.push({actor,capability,purpose:prior?"history":"settle-existing"});
       }
       return withFinancePurchasedCommand(actor,{key,operation,purpose:"settle-existing",capability},tx=>run(tx??db),db);

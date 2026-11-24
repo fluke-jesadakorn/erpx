@@ -18,6 +18,16 @@ import {
 import { FINANCE_ADVISORY_XACT_LOCK_SQL } from '../../../packages/server-finance/src/adapters/advisory-lock-dedupe-sql';
 import { FINANCE_RECEIPT_IMAGE_SQL, FINANCE_INVOICES_PROJECTION_SQL, FINANCE_PARTIES_PROJECTION_SQL, FINANCE_ACCOUNTS_PROJECTION_SQL } from '../../../packages/server-finance/src/adapters/finance-tail-dedupe-sql';
 import {
+  CHART_BASE_CURRENCY_BY_ID_SQL,
+  OPEN_PERIOD_LIST_SQL,
+  APPROVED_SECONDARY_CHART_RULE_SQL,
+  FINANCE_JOURNALS_JOIN_SQL,
+  COMMAND_RECEIPT_EXISTS_SQL,
+  COMMAND_RECEIPT_RECORD_IMAGE_SQL,
+} from '../../../packages/server-finance/src/adapters/finance-read-tail-r15-sql';
+import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/people-payroll-final-owner-projections';
+import { workflowFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/workflow-final-owner-projections';
+import {
   nativeFinanceReadAll,
   nativeFinanceReadFirst,
   FINANCE_RD_ASSET_POLICY_ROW,
@@ -370,5 +380,46 @@ describe('finance read-tail r14 group 4 owner-projection dedupe', () => {
       const key = name.replace('_PROJECTION_SQL', '').toLowerCase();
       expect(sources[file]![key]).toBe(expected[name]);
     }
+  });
+});
+
+const R15_CURRENCY_SQL = 'SELECT base_currency FROM finance_charts WHERE id=? AND company_id=?';
+const R15_OPEN_PERIODS_SQL = "SELECT id,name,start_date,end_date FROM finance_periods WHERE company_id=? AND state='open' ORDER BY start_date DESC";
+const R15_APPROVED_RULE_SQL = "SELECT 1 FROM finance_book_rules WHERE company_id=? AND secondary_chart_id=? AND status='approved'";
+const R15_JOURNALS_JOIN_SQL = 'JOIN (SELECT "id","company_id","chart_id","period_id","journal_number","entry_date","currency","fx_rate_micros","source_type","source_id","memo","status","is_opening","version","created_by","posted_by","posted_at","reversed_by","reversed_at","created_at","updated_at" FROM finance_journals) j';
+const R15_RECEIPT_EXISTS_SQL = "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
+const R15_RECEIPT_IMAGE_SQL = "SELECT r.record_id,to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=? AND r.operation=? AND r.actor_id=? AND r.authority_json::jsonb->>'companyId'=?";
+
+const R15_GROUPS: [string, string, string, string[]][] = [
+  ['CHART_BASE_CURRENCY_BY_ID_SQL', CHART_BASE_CURRENCY_BY_ID_SQL, R15_CURRENCY_SQL, ['pos-core-facts.ts', 'commerce-facts.ts', 'finance.ts', 'finance-collections.ts']],
+  ['OPEN_PERIOD_LIST_SQL', OPEN_PERIOD_LIST_SQL, R15_OPEN_PERIODS_SQL, ['payroll-owner-facts.ts', 'finance-books.ts', 'finance-business-contracts.ts', 'finance-invoice-read.ts']],
+  ['APPROVED_SECONDARY_CHART_RULE_SQL', APPROVED_SECONDARY_CHART_RULE_SQL, R15_APPROVED_RULE_SQL, ['finance-assets.ts', 'finance-business-contracts.ts', 'refund-bank-evidence.ts', 'finance-instruments.ts']],
+  ['FINANCE_JOURNALS_JOIN_SQL', FINANCE_JOURNALS_JOIN_SQL, R15_JOURNALS_JOIN_SQL, ['people-payroll-final-owner-projections.ts', 'workflow-final-owner-projections.ts']],
+  ['COMMAND_RECEIPT_EXISTS_SQL', COMMAND_RECEIPT_EXISTS_SQL, R15_RECEIPT_EXISTS_SQL, ['document-purchases.ts', 'finance-due-drafts.ts', 'purchase-boundary.ts']],
+  ['COMMAND_RECEIPT_RECORD_IMAGE_SQL', COMMAND_RECEIPT_RECORD_IMAGE_SQL, R15_RECEIPT_IMAGE_SQL, ['expense-posting-prerequisites.ts', 'payroll-posting-prerequisites.ts']],
+];
+
+describe('finance read-tail r15 byte-identical SQL dedupe', () => {
+  it('keeps one byte-identical literal per family with no inline duplicates', async () => {
+    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r15-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split('SELECT ').length - 1).toBe(6);
+    for (const [name, actual, literal, files] of R15_GROUPS) {
+      expect(actual).toBe(literal);
+      const sourceLiteral = literal.includes('"') ? literal.replace(/"/g, '\\"') : literal;
+      expect(shared.split(sourceLiteral).length - 1).toBe(1);
+      for (const file of files) {
+        const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+        expect(text.split(literal).length - 1).toBe(0);
+        expect(text).toContain(name);
+      }
+    }
+  });
+
+  it('backs both finance_journals JOIN projections with the shared text', () => {
+    const p = peoplePayrollFinalOwnerProjections();
+    const w = workflowFinalOwnerProjections();
+    expect(p.executive_main_evidence_sources_finance_journals_j_join).toBe(FINANCE_JOURNALS_JOIN_SQL);
+    expect(p.executive_metric_projections_finance_journals_j_join).toBe(FINANCE_JOURNALS_JOIN_SQL);
+    expect(w.flow_routing_finance_journals_j_join).toBe(FINANCE_JOURNALS_JOIN_SQL);
   });
 });

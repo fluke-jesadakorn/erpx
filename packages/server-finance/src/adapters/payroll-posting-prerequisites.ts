@@ -1,4 +1,5 @@
 import { FINANCE_RECEIPT_IMAGE_SQL } from "./finance-tail-dedupe-sql";
+import { COMMAND_RECEIPT_RECORD_IMAGE_SQL } from './finance-read-tail-r15-sql';
 import {effectiveWorkModules} from '@erpx/server-identity_access/public/rules/work-modules';
 import {payrollPostingPrerequisitesPresentationAllowed} from '@erpx/server-finance/domain/payroll-posting-prerequisites-entry';
 import 'server-only';
@@ -167,7 +168,7 @@ export async function payrollPostingPrerequisiteConfirmation(actor:WorkContext,r
   await database.prepare('LOCK TABLE finance_charts,finance_accounts,finance_periods,company_money_settings,company_currency_scales,company_fx_rates IN SHARE MODE').run();
   await database.batch(payrollPostingPrerequisiteSourceLocks(database));await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);
   const current=await authority(database,actor,permission);for(const capability of capabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability,purpose:'history'});
-  const before=await references(database,actor),receipt=await database.prepare("SELECT r.record_id,to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=? AND r.operation=? AND r.actor_id=? AND r.authority_json::jsonb->>'companyId'=?").bind(key,operation,actor.userId,actor.companyId).first<{record_id:string;image:string}>();
+  const before=await references(database,actor),receipt=await database.prepare(COMMAND_RECEIPT_RECORD_IMAGE_SQL).bind(key,operation,actor.userId,actor.companyId).first<{record_id:string;image:string}>();
   if(!receipt)throw new ApiError(404,'PAYROLL_POSTING_CONFIRMATION_NOT_FOUND','The original Payroll prerequisite receipt is unavailable.');
   const original=await replayCommand<{id:string}>(database,actor,key,operation,receipt.record_id,input.request),native=before[kind].find(row=>row.id===receipt.record_id);
   if(!original||original.id!==receipt.record_id||!native||!before.payroll.groups.some(row=>row.id===input.request.payGroupId))throw changed();

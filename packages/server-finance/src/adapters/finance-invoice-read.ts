@@ -1,6 +1,7 @@
 
 
 import { requireFinanceDocumentHistory } from "@erpx/server-finance/adapters/document-purchases";
+import { OPEN_PERIOD_LIST_SQL } from './finance-read-tail-r15-sql';
 import { salesInvoiceLines } from "@erpx/server-finance/adapters/sales-lines";
 
 import { createFinanceResourcePolicy } from '@erpx/server-finance/application/access';
@@ -107,7 +108,7 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
     WHERE a.payment_id=? AND a.company_id=? ORDER BY a.created_at`).bind(paymentId, actor.companyId).all<FinanceRow>()).results;
         },
         paymentReversal: async (facts) => { const { paymentId, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_payment_reversals WHERE payment_id=?").bind(paymentId).first<FinanceRow>(); },
-        openPeriods: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT id,name,start_date,end_date FROM finance_periods WHERE company_id=? AND state='open' ORDER BY start_date DESC").bind(actor.companyId).all<FinanceRow>()).results; },
+        openPeriods: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare(OPEN_PERIOD_LIST_SQL).bind(actor.companyId).all<FinanceRow>()).results; },
         confirmInvoices: async (facts) => { if(historyOnly)return [];
             const { actor, payment } = facts;
             const write = await db(actor);

@@ -3,6 +3,7 @@ import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
 import {financeOwnedSnapshotSources as commerceSnapshotSources} from "@erpx/server-commerce/public/finance-owned-snapshot-sources";
 import {financeOwnedSnapshotSources as filesSnapshotSources} from "@erpx/server-files/public/finance-owned-snapshot-sources";
 import "server-only";
+import { CHART_BASE_CURRENCY_BY_ID_SQL } from './finance-read-tail-r15-sql';
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type {Row} from "@erpx/server-commerce/public/commerce-contracts";
@@ -13,7 +14,7 @@ readFinanceParties1:(facts:{companyId:string;})=>db.prepare("SELECT * FROM finan
 readFinanceJournalLines1:(facts:{id:string | number | null;})=>db.prepare("SELECT account_id,debit_minor,credit_minor FROM finance_journal_lines WHERE journal_id=? ORDER BY ordinal").bind(facts.id).all<Row>(),
 prepareFinanceInvoices1:(facts:{invoice_id:string | number | null;})=>db.prepare('SELECT id FROM finance_invoices WHERE id=? FOR UPDATE').bind(facts.invoice_id),
 readFinanceJournalLines2:(facts:{incoming:boolean;credit_journal_id:string | number | null;control:string;})=>db.prepare(`SELECT SUM(CASE WHEN ? THEN base_credit_minor-base_debit_minor ELSE base_debit_minor-base_credit_minor END) value FROM finance_journal_lines WHERE journal_id=? AND account_id=?`).bind(facts.incoming,facts.credit_journal_id,facts.control).first<number>('value'),
-readFinanceCharts1:(facts:{chart_id:string | number | null;companyId:string;})=>db.prepare('SELECT base_currency FROM finance_charts WHERE id=? AND company_id=?').bind(facts.chart_id,facts.companyId).first<{base_currency:string}>(),
+readFinanceCharts1:(facts:{chart_id:string | number | null;companyId:string;})=>db.prepare(CHART_BASE_CURRENCY_BY_ID_SQL).bind(facts.chart_id,facts.companyId).first<{base_currency:string}>(),
 readFinanceAccounts1:(facts:{account:string;companyId:string;chart_id:string | number | null;base_currency:string;fact4:"other_income" | "other_expense";})=>db.prepare('SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category=? AND status=\'active\'').bind(facts.account,facts.companyId,facts.chart_id,facts.base_currency,facts.fact4).first(),
 prepareFinanceInvoices2:(facts:{invoice_id:string | number | null;})=>db.prepare('SELECT id FROM finance_invoices WHERE id=? FOR UPDATE').bind(facts.invoice_id),
 prepareFinanceInvoices3:async(facts:{credited:number;baseCreditedMinor:number;credited2:number;now:number;invoice_id:string | number | null;})=>await nativeFinanceOwnerWriteSystem(db, 'system', 'commerce_invoice_outstanding', [facts.credited,facts.baseCreditedMinor,facts.credited2,facts.now,facts.invoice_id]),

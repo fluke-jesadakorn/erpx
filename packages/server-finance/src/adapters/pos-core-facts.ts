@@ -1,4 +1,5 @@
 import "server-only";
+import { CHART_BASE_CURRENCY_BY_ID_SQL } from './finance-read-tail-r15-sql';
 import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
 import {one,all,run} from '@erpx/server-runtime/public/runtime/sql';
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
@@ -19,7 +20,7 @@ readFinanceAccounts3:(facts:{company:string;chartId:string;currency:string;})=>a
 readFinanceAccounts4:(facts:{chartId:string;code:string;})=>one(db,'SELECT id FROM finance_accounts WHERE chart_id=? AND code=?',facts.chartId,facts.code),
 writeFinanceAccounts1:async(facts:{accountId:`${string}-${string}-${string}-${string}-${string}`;chartId:string;company:string;code:string;name:"POS bank deposits" | "POS EDC clearing" | "POS Stripe clearing" | "POS customer advances" | "POS work in progress" | "POS waste expense" | "POS customer refunds payable" | "POS fees and losses" | "POS cash variance" | "POS cash transfers" | "POS disputes pending";category:"asset" | "liability" | "expense";fact6:string | null;fact7:0 | 1;controlKind:"bank" | "none";now:number;now2:number;})=>(await nativeFinanceOwnerWriteSystem(db, String(facts.company ?? 'system'), 'pos_account_insert', [facts.accountId,facts.chartId,facts.company,facts.code,facts.name,facts.category,facts.fact6,facts.fact7,facts.controlKind,facts.now,facts.now2])).run(),
 readFinanceAccounts5:(facts:{fact0:string;company:string;chartId:string;})=>one(db,"SELECT id FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND status='active'",facts.fact0,facts.company,facts.chartId),
-readFinanceCharts3:(facts:{chartId:string;company:string;})=>one(db,'SELECT base_currency FROM finance_charts WHERE id=? AND company_id=?',facts.chartId,facts.company),
+readFinanceCharts3:(facts:{chartId:string;company:string;})=>one(db,CHART_BASE_CURRENCY_BY_ID_SQL,facts.chartId,facts.company),
 readCompanyFxRates1:(facts:{company:string;currency:string;})=>one(db,'SELECT id FROM company_fx_rates WHERE company_id=? AND currency=? ORDER BY effective_date DESC,confirmed_at DESC LIMIT 1',facts.company,facts.currency),
 readFinanceParties1:(facts:{partyId:string;company:string;})=>one(db,"SELECT id FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND status='active'",facts.partyId,facts.company),
 readFinanceParties2:(facts:{partyId:string;company:string;})=>one(db,"SELECT id FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND status='active'",facts.partyId,facts.company),

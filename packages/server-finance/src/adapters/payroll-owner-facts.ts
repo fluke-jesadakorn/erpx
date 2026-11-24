@@ -1,10 +1,11 @@
 import {financeSnapshotSources} from "@erpx/server-people_payroll/public/finance-snapshot-sources";
+import { OPEN_PERIOD_LIST_SQL } from './finance-read-tail-r15-sql';
 import { financePayrollOwner } from '@erpx/server-collaboration/adapters/native-finance-payroll-owner';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 export function payrollFinanceFacts(database: SqlDatabase) {
     return { readPayrollPostingOptionsChartsperiodsmappingsgroups(companyId: string) { return database.prepare("SELECT id,name,base_currency FROM finance_charts WHERE company_id=? AND status='active' ORDER BY name").bind(companyId).all(); },
-        readPayrollPostingOptionsChartsperiodsmappingsgroups2(companyId: string) { return database.prepare("SELECT id,name,start_date,end_date FROM finance_periods WHERE company_id=? AND state='open' ORDER BY start_date DESC").bind(companyId).all(); },
+        readPayrollPostingOptionsChartsperiodsmappingsgroups2(companyId: string) { return database.prepare(OPEN_PERIOD_LIST_SQL).bind(companyId).all(); },
         readPayrollPostingOptionsAccounts(companyId: string, chartIds: string[]) { return database.prepare(`SELECT id,chart_id,code,name,category,currency FROM finance_accounts WHERE company_id=? AND status='active' AND chart_id IN (${chartIds.map(() => "?").join(",")}) ORDER BY code`).bind(companyId, ...chartIds).all(); },
         readResolvePayrollPostPeriods(companyId: string, dateHint: string, dateHint2: string) {
             return database.prepare("SELECT id,start_date FROM finance_periods WHERE company_id=? AND state='open' AND start_date<=? AND end_date>=? ORDER BY start_date").bind(companyId, dateHint, dateHint2).all<{

@@ -1,3 +1,4 @@
+import { COMMAND_RECEIPT_EXISTS_SQL } from './finance-read-tail-r15-sql';
 import {serviceInitialStockJournalCapabilities,serviceInitialStockJournalMarked,serviceInitialStockJournalMarkedPredicate,serviceInitialStockJournalPredicate,serviceInitialStockJournalReadPredicate} from '@erpx/server-finance/adapters/service-initial-stock-journal-sources';
 import {posInitialStockJournalCapabilities,posInitialStockJournalMarked,posInitialStockJournalMarkedPredicate,posInitialStockJournalPredicate,posInitialStockJournalReadPredicate} from '@erpx/server-finance/adapters/pos-initial-stock-journal-sources';
 import {manufacturingInitialStockJournalCapabilities,manufacturingInitialStockJournalMarked,manufacturingInitialStockJournalMarkedPredicate,manufacturingInitialStockJournalPredicate,manufacturingInitialStockJournalReadPredicate} from '@erpx/server-finance/adapters/manufacturing-initial-stock-journal-sources';
@@ -158,7 +159,7 @@ export async function withFinanceSourceDocuments<Result>(actor:WorkContext,targe
   // These closed source commands must establish the owner relation leases
   // before their first receipt/source snapshot, including absent relations.
   await transaction.batch(financeSourceDocumentReadLocks(transaction,actor.companyId));
-  const receipt=await transaction.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(command.key,command.operation,actor.userId,actor.companyId).first(),purpose=receipt?"history" as const:"settle-existing" as const;
+  const receipt=await transaction.prepare(COMMAND_RECEIPT_EXISTS_SQL).bind(command.key,command.operation,actor.userId,actor.companyId).first(),purpose=receipt?"history" as const:"settle-existing" as const;
   const sources:{kind:FinanceDocumentKind;id:string;capability:string;additionalCapabilities?:readonly string[];commerceProof?:CommerceProof}[]=[];for(const target of [...targets].sort((a,b)=>a.kind.localeCompare(b.kind)||a.id.localeCompare(b.id))){
    if(command.baseCapability){
     await requireFinanceCurrentAuthority(transaction,actor,`finance-bank-source:${crypto.randomUUID()}`);const purchases=await readPurchasedAccesses(transaction,mode,actor.companyId,[command.baseCapability,"finance.inventory-valuation"]);let capability:string=command.baseCapability;

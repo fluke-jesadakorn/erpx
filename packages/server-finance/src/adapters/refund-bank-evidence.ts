@@ -1,4 +1,5 @@
 import 'server-only';
+import { APPROVED_SECONDARY_CHART_RULE_SQL } from './finance-read-tail-r15-sql';
 import {createHash} from 'node:crypto';
 import {samePerson} from '@erpx/feature-identity_access/lib/iam';
 import {financeCsvRows} from '@erpx/feature-finance/lib/finance-csv';
@@ -148,7 +149,7 @@ function readScope(database:SqlDatabase,actor:WorkContext,checks:(()=>Promise<vo
   if(owner.status!=='approved'||!['exported','unknown'].includes(String(instruction.status)))return false;
   try{
    const original=await source(database,actor,String(instruction.id));if(original.owner.id!==owner.id||Number(original.row.version)!==Number(instruction.version)||original.account.status!=='active'||original.account.category!=='asset'||!['none','bank'].includes(String(original.account.control_kind))||original.chart.status!=='active'||!Number.isSafeInteger(original.facts.amountMinor)||original.facts.amountMinor<=0)return false;
-   if(await database.prepare("SELECT 1 FROM finance_book_rules WHERE company_id=? AND secondary_chart_id=? AND status='approved'").bind(actor.companyId,original.account.chart_id).first())return false;
+   if(await database.prepare(APPROVED_SECONDARY_CHART_RULE_SQL).bind(actor.companyId,original.account.chart_id).first())return false;
    const selected=await requireFinanceDocumentHistory(database,actor,'refund',String(owner.id),'settle-existing',true),initialAuthority=await authority(database,actor,'import',selected.capability);
    if(samePerson(actor,owner.created_by)||samePerson(actor,owner.approved_by))return false;
    functionalCurrencies[String(instruction.id)]=String(original.chart.base_currency);

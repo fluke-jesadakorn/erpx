@@ -1,4 +1,5 @@
 import { FINANCE_RECEIPT_IMAGE_SQL } from "./finance-tail-dedupe-sql";
+import { COMMAND_RECEIPT_RECORD_IMAGE_SQL } from './finance-read-tail-r15-sql';
 import 'server-only';
 import { POSTING_FINANCE_PERIODS_SQL, POSTING_COMPANY_FX_RATES_SQL, POSTING_COMPANY_MONEY_IMAGE_SQL } from "./posting-prerequisites-dedupe-sql";
 import {createHash,randomUUID} from 'node:crypto';
@@ -141,7 +142,7 @@ export async function expensePostingPrerequisiteConfirmation(actor:WorkContext,r
  if(!/^[a-zA-Z0-9:_.-]{8,180}$/.test(key))throw new ApiError(422,'COMMAND_KEY_REQUIRED','Use the original Idempotency-Key.');
  try{return await (await owner(actor)).transaction(async database=>{
   await leases(database,actor.companyId,undefined,true);const current=await authority(database,actor,permission);for(const capability of capabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability,purpose:'history'});
-  const before=await references(database,actor),receipt=await database.prepare("SELECT r.record_id,to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=? AND r.operation=? AND r.actor_id=? AND r.authority_json::jsonb->>'companyId'=?").bind(key,operation,actor.userId,actor.companyId).first<{record_id:string;image:string}>();
+  const before=await references(database,actor),receipt=await database.prepare(COMMAND_RECEIPT_RECORD_IMAGE_SQL).bind(key,operation,actor.userId,actor.companyId).first<{record_id:string;image:string}>();
   if(!receipt)throw new ApiError(404,'EXPENSE_POSTING_CONFIRMATION_NOT_FOUND','The original Expense prerequisite receipt is unavailable.');
   const original=await replayCommand<{id:string}>(database,actor,key,operation,receipt.record_id,input.request),native=before[kind].find(row=>row.id===receipt.record_id);if(!original||original.id!==receipt.record_id||!native)throw changed();
   const source=JSON.parse(native.source) as Record<string,unknown>,state=expensePostingPrerequisiteNativeStatusSchema.safeParse(kind==='rate'?'confirmed':kind==='period'?source.state:source.status),allowed:Record<Kind,readonly string[]>={chart:['draft','active','archived'],account:['active','inactive'],period:['open','closing','closed'],rate:['confirmed']};if(!state.success||!allowed[kind].includes(state.data))throw changed();

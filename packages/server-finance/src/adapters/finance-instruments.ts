@@ -1,4 +1,5 @@
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
+import { APPROVED_SECONDARY_CHART_RULE_SQL } from './finance-read-tail-r15-sql';
 import { nativeFinanceInstruments } from '@erpx/server-collaboration/adapters/native-finance-instruments';
 import "server-only";
 import type { z } from "zod";
@@ -38,7 +39,7 @@ chart:async(actor,chartId)=>db
     .first<Row>(),
 secondary:async(actor,chartId)=>db
       .prepare(
-        "SELECT 1 FROM finance_book_rules WHERE company_id=? AND secondary_chart_id=? AND status='approved'",
+        APPROVED_SECONDARY_CHART_RULE_SQL,
       )
       .bind(actor.companyId, chartId)
       .first(),

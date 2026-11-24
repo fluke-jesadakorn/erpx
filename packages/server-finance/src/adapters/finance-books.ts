@@ -1,5 +1,6 @@
 import { withFinancePurchasedRead, withFinancePurchasedCommand, withFinanceConfigurationCommand } from "@erpx/server-finance/adapters/purchase-boundary";
 import { FINANCE_ADVISORY_XACT_LOCK_SQL } from "./advisory-lock-dedupe-sql";
+import { OPEN_PERIOD_LIST_SQL } from './finance-read-tail-r15-sql';
 import { nativeFinanceBooks } from '@erpx/server-collaboration/adapters/native-finance-books';
 import {financeCommandReceipts} from "@erpx/server-workflow/public/finance-command-receipts";
 import { financeTransaction } from "@erpx/server-finance/public/finance-transactions";
@@ -177,7 +178,7 @@ function nativeBooks(provided?:SqlDatabase){let write:SqlDatabase;return createF
         .all(),
       write
         .prepare(
-          "SELECT id,name,start_date,end_date FROM finance_periods WHERE company_id=? AND state='open' ORDER BY start_date DESC",
+          OPEN_PERIOD_LIST_SQL,
         )
         .bind(actor.companyId)
         .all(),
