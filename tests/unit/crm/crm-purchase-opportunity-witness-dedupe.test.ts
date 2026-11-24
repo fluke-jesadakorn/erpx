@@ -213,3 +213,51 @@ describe('crm read-tail r14 parameterized families', () => {
     expect(totalSelects()).toBeLessThan(171);
   });
 });
+
+describe('crm read-tail r15 parameterized families', () => {
+  const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+  const src = (name: string) => readFileSync(resolve(owner, `adapters/${name}`), 'utf8');
+  const bodyOf = (text: string, marker: string) => {
+    const line = text.split('\n').find(value => value.includes(marker)) ?? '';
+    return line.slice(line.indexOf('`') + 1, line.lastIndexOf('`'));
+  };
+  const totalSelects = () => {
+    let total = 0;
+    for (const rel of readdirSync(owner, { recursive: true })) {
+      if (!String(rel).endsWith('.ts')) continue;
+      total += readFileSync(resolve(owner, String(rel)), 'utf8').match(/SELECT /g)?.length ?? 0;
+    }
+    return total;
+  };
+
+  it('owns the case-event receipt witness once and renders both fact sites byte-identically', () => {
+    const purchases = src('purchases.ts'), sales = src('sales-package-obligations.ts');
+    const prefix = bodyOf(purchases, 'export const crmCaseEventReceiptWitnessSql=');
+    expect(prefix).toBe("SELECT 1 FROM crm_case_events event JOIN command_receipts receipt ON event.id='crm-event-'||receipt.command_id||");
+    expect(purchases.match(/export const crmCaseEventReceiptWitnessSql=/g)).toHaveLength(1);
+    expect(sales.match(/\$\{crmCaseEventReceiptWitnessSql\}/g)).toHaveLength(2);
+    expect(sales).toContain("EXISTS(${crmCaseEventReceiptWitnessSql}'-lead' AND receipt.record_id=l.id AND receipt.operation='crm.lead.disqualify'");
+    expect(sales).toContain("EXISTS(${crmCaseEventReceiptWitnessSql}'-deal' AND receipt.record_id=l.id AND receipt.actor_id=event.actor_id AND receipt.operation=CASE WHEN o.stage='lost'");
+    expect(`EXISTS(${prefix}'-lead' AND receipt.record_id=l.id AND receipt.operation='crm.lead.disqualify'`).toBe("EXISTS(SELECT 1 FROM crm_case_events event JOIN command_receipts receipt ON event.id='crm-event-'||receipt.command_id||'-lead' AND receipt.record_id=l.id AND receipt.operation='crm.lead.disqualify'");
+    expect(`EXISTS(${prefix}'-deal' AND receipt.record_id=l.id AND receipt.actor_id=event.actor_id AND receipt.operation=CASE WHEN o.stage='lost'`).toBe("EXISTS(SELECT 1 FROM crm_case_events event JOIN command_receipts receipt ON event.id='crm-event-'||receipt.command_id||'-deal' AND receipt.record_id=l.id AND receipt.actor_id=event.actor_id AND receipt.operation=CASE WHEN o.stage='lost'");
+    expect(sales).not.toContain("SELECT 1 FROM crm_case_events event JOIN command_receipts receipt ON event.id='crm-event-'||receipt.command_id||'-");
+  });
+
+  it('owns the account/contact created-by lead scope once and renders both reads byte-identically', () => {
+    const identities = src('identities.ts');
+    const marker = 'const accountOrContactLeadScopeSql=';
+    expect(identities.split(marker).length - 1).toBe(1);
+    expect(identities.match(/\$\{accountOrContactLeadScopeSql\(/g)).toHaveLength(2);
+    expect(identities).toContain("${accountOrContactLeadScopeSql('account_id','a.id','a.company_id')}");
+    expect(identities).toContain("${accountOrContactLeadScopeSql('contact_id','c.id','c.company_id')}");
+    expect(identities).not.toContain('SELECT 1 FROM crm_leads l WHERE l.account_id=a.id AND l.company_id=a.company_id');
+    expect(identities).not.toContain('SELECT 1 FROM crm_leads l WHERE l.contact_id=c.id AND l.company_id=c.company_id');
+    const render = (field: string, ref: string, company: string) => `(?::text IS NULL OR a.created_by=? OR EXISTS(SELECT 1 FROM crm_leads l WHERE l.${field}=${ref} AND l.company_id=${company} AND l.branch_id=? AND (?::text IS NULL OR l.department_id=?)))`;
+    expect(render('account_id', 'a.id', 'a.company_id')).toBe('(?::text IS NULL OR a.created_by=? OR EXISTS(SELECT 1 FROM crm_leads l WHERE l.account_id=a.id AND l.company_id=a.company_id AND l.branch_id=? AND (?::text IS NULL OR l.department_id=?)))');
+    expect(render('contact_id', 'c.id', 'c.company_id')).toBe('(?::text IS NULL OR a.created_by=? OR EXISTS(SELECT 1 FROM crm_leads l WHERE l.contact_id=c.id AND l.company_id=c.company_id AND l.branch_id=? AND (?::text IS NULL OR l.department_id=?)))');
+  });
+
+  it('keeps the owner SELECT KPI strictly below the r15 BEFORE=168 baseline', () => {
+    expect(totalSelects()).toBeLessThan(168);
+  });
+});

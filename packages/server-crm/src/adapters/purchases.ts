@@ -63,6 +63,10 @@ export const crmOpportunityLeadSql=`SELECT 1 FROM crm_opportunities opportunity 
  * Marketing/Sales obligation joins and the reference guard pass their own
  * tails; rendered SQL stays byte-identical to the pre-dedupe text. */
 export const crmHotelReservationProbeSql=`SELECT 1 FROM (${crmHotelReservationSources}) reservation`;
+/** r15: one owner literal for the case-event/command-receipt authority witness
+ * join shared by the Sales-obligation lead-disqualify and opportunity-win fact
+ * sites. Callers pass only their differing tail; rendered SQL stays byte-identical. */
+export const crmCaseEventReceiptWitnessSql=`SELECT 1 FROM crm_case_events event JOIN command_receipts receipt ON event.id='crm-event-'||receipt.command_id||`;
 export const crmAccountCreatedByScopeSql=`(?::text IS NULL OR account.created_by=? OR EXISTS(SELECT 1 FROM crm_leads lead WHERE lead.account_id=account.id AND lead.company_id=account.company_id AND lead.branch_id=? AND (?::text IS NULL OR lead.department_id=?)))`;
 export const crmPurchaseGuestLinkRows=`SELECT link.id,link.company_id,guest.branch_id,NULL::text department_id,account.created_by,
  jsonb_build_object('link',jsonb_build_array(link.id,link.company_id,link.contact_id,link.guest_id,link.property_id),'contact',${contactIdentity},'guest',to_jsonb(guest)) witness FROM crm_guest_links link
