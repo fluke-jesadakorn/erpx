@@ -181,8 +181,9 @@ describe('quality attachment target-scope read dedupe',()=>{
   expect(readFileSync(source(migration),'utf8')).not.toContain('SELECT ');
   expect(readFileSync(source(operational),'utf8')).not.toContain('SELECT ');
   const policyText=readFileSync(source(policy),'utf8');
-  expect(policyText.match(/SELECT /g)).toHaveLength(1);
+  expect(policyText).not.toContain('SELECT ');
   expect(policyText).toContain('readQualityHold');
+  expect(policyText.match(/qualityAttachmentScopeReadSql/g)).toHaveLength(3);
   expect(readFileSync(source(operational),'utf8')).toContain('qualityAttachmentVersionGuardSql');
  });
 });
