@@ -2,7 +2,8 @@ import { platformOwnerProjectionSources as people_payrollPlatformSources } from 
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {NODE_BRANCH_ACTIVE_EXISTS} from './organization-read-tail-sources';
-const ROSTER_REQUIRED_SOURCE = "SELECT roster_required FROM organization_positions WHERE company_id=? AND id=?";
+import {twoColumnLookup} from './organization-column-alias-families-r27';
+const ROSTER_REQUIRED_SOURCE = twoColumnLookup('roster_required','organization_positions','company_id','id');
 export function peopleDirectoryOrganizationFacts(database: SqlDatabase) {
     return { readDirectoryOptionsNodes(companyId: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) {
             return database.prepare("SELECT id,kind,display_name,branch_id FROM organization_nodes WHERE company_id=? AND status='active' AND kind IN ('branch','department') AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR kind='branch' OR id=?) ORDER BY display_name")

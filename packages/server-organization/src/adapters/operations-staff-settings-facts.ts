@@ -1,6 +1,7 @@
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { nativeOrgStatement } from "./native-organization-owner-write";
+import { twoColumnLookup, nodeKindByIdCompany } from './organization-column-alias-families-r27';
 export function StaffSettingsOrganizationFacts(database: SqlDatabase, companyId = '') {
     return { readListLevelsEffect(companyId: string) {
             return database.prepare("SELECT * FROM staff_levels WHERE company_id=? ORDER BY level_number ASC NULLS LAST,rank DESC,code")
@@ -16,7 +17,7 @@ export function StaffSettingsOrganizationFacts(database: SqlDatabase, companyId 
                 version: number;
             }>();
         },
-        readSaveLevelPrevious(id: string, companyId: string) { return database.prepare("SELECT level_number FROM staff_levels WHERE id=? AND company_id=?").bind(id, companyId).first<{
+        readSaveLevelPrevious(id: string, companyId: string) { return database.prepare(twoColumnLookup('level_number','staff_levels','id','company_id')).bind(id, companyId).first<{
             level_number: number | null;
         }>(); },
         guard5(key: string, value: "level-version", id: string, companyId: string, expectedVersion: number) {
@@ -32,7 +33,7 @@ export function StaffSettingsOrganizationFacts(database: SqlDatabase, companyId 
             return assertion(database, key, value, "EXISTS(SELECT 1 FROM staff_levels WHERE id=? AND company_id=? AND active=1)", [levelId, companyId]);
         },
         readSetDepartmentHeadDepartment(id: string, companyId: string) {
-            return database.prepare("SELECT branch_id FROM organization_nodes WHERE id=? AND company_id=? AND kind='department'")
+            return database.prepare(nodeKindByIdCompany('branch_id','department'))
                 .bind(id, companyId)
                 .first<{
                 branch_id: string | null;
