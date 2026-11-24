@@ -12,6 +12,11 @@ export const initialEntryClockAssignmentsSql=`WITH initial_entry_clock AS MATERI
 export const stockHistoryExistsSql=`SELECT EXISTS(SELECT 1 FROM commerce_stock s WHERE s.warehouse_id=? AND s.product_id=?) OR EXISTS(SELECT 1 FROM inventory_ledger m WHERE m.warehouse_id=? AND m.product_id=?) OR EXISTS(SELECT 1 FROM inventory_lot_balances b JOIN inventory_lots l ON l.id=b.lot_id WHERE b.warehouse_id=? AND l.product_id=?) OR EXISTS(SELECT 1 FROM inventory_order_reservations r WHERE r.warehouse_id=? AND r.product_id=?) OR EXISTS(SELECT 1 ${quality.inventory_counts_inventory_quality_holds_from} WHERE warehouse_id=? AND product_id=?) OR EXISTS(SELECT 1 FROM inventory_count_lines l JOIN inventory_counts c ON c.id=l.count_id WHERE c.warehouse_id=? AND l.product_id=? AND (?::text IS NULL OR c.id<>?) AND (c.status<>'cancelled' OR c.posted_at IS NOT NULL OR c.journal_id IS NOT NULL)) history`;
 export const noLaterLedgerMovementSql="NOT EXISTS(SELECT 1 FROM inventory_ledger WHERE warehouse_id=? AND product_id=? AND movement_date>?)";
 export const noLotBalanceSql="NOT EXISTS(SELECT 1 FROM inventory_lot_balances WHERE lot_id=? AND warehouse_id=?)";
+/** r35: the lot-balance existence guards share one byte-identical prefix and
+ * differ only in a trailing predicate (a bare version check, a quantity
+ * watermark, or the full optimistic-concurrency tuple). Only the literal text
+ * is shared; every caller still prepares its own statement with its own binds. */
+export const lotBalanceGuardSql = (predicate:string) => `EXISTS(SELECT 1 FROM inventory_lot_balances WHERE lot_id=? AND warehouse_id=?${predicate})`;
 export const serviceInitialPhysicalNativeRowSql='SELECT 1 FROM inventory_service_initial_physical_sources WHERE count_id=? AND company_id=?';
 export const jsonbImageSql='SELECT jsonb_build_object(';
 /** r11: the reservations rollup and the single-count-line marker are each

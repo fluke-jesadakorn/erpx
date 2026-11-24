@@ -1,7 +1,7 @@
 import { inventoryExecutiveOwnerProjections as commerceProjectionSources } from "@erpx/server-commerce/public/inventory-executive-owner-projections";
 import { inventoryExecutiveOwnerProjections as qualityProjectionSources } from "@erpx/server-quality/public/inventory-executive-owner-projections";
 import "server-only";
-import {noLaterLedgerMovementSql,noLotBalanceSql,reservedStockAggSql,qualityHeldExistsSql} from './read-tail-sql';
+import {noLaterLedgerMovementSql,noLotBalanceSql,lotBalanceGuardSql,reservedStockAggSql,qualityHeldExistsSql} from './read-tail-sql';
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import { nativeInventoryStatement } from '@erpx/feature-inventory/adapters/server/native-inventory-command';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
@@ -32,5 +32,5 @@ prepareInventoryOrderReservations3:(facts:{id:string;})=>nativeInventoryStatemen
 readInventoryInTransit1:(facts:{companyId:string;branchId:string | null;branchId2:string | null;branchId3:string | null;})=>nativeInventoryReadAll<Row>(INVENTORY_RD_IN_TRANSIT_CURRENCY_TOTALS,[facts.companyId,facts.branchId,facts.branchId2,facts.branchId3],db),
 guardRule9:(facts:{key:string;guardId:string;values:(string | number | null)[];})=>assertion(db,facts.key,facts.guardId,noLaterLedgerMovementSql,facts.values),
 guardRule11:(facts:{key:string;guardId:string;values:(string | number | null)[];})=>assertion(db,facts.key,facts.guardId,noLotBalanceSql,facts.values),
-guardRule12:(facts:{key:string;guardId:string;values:(string | number | null)[];})=>assertion(db,facts.key,facts.guardId,"EXISTS(SELECT 1 FROM inventory_lot_balances WHERE lot_id=? AND warehouse_id=? AND version=? AND quantity_milli=? AND value_minor=?)",facts.values),
+guardRule12:(facts:{key:string;guardId:string;values:(string | number | null)[];})=>assertion(db,facts.key,facts.guardId,lotBalanceGuardSql(' AND version=? AND quantity_milli=? AND value_minor=?'),facts.values),
 };}
