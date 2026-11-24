@@ -1,8 +1,11 @@
 import "server-only";
+import {ATTACHMENTS_OWNER_PROJECTION_SQL} from "./owner-projection-dedupe-sql";
 /** Closed native projections with explicit owned columns for named Finance reads.
- * The consumer retains its supplied transaction and one-statement snapshot;
- * this contract accepts no table name, predicate, SQL, or query from a caller. */
+ * The two Finance joins share one byte-identical 26-column projection and differ
+ * only by their closed-set alias (proposed/used). Text only: each consumer still
+ * renders and prepares its own statement with its own binds; no SQL or relation
+ * name is accepted from a caller. */
 export function financeOwnedSnapshotSources(){return {
-  "commerce_facts_attachments_proposed_join": "JOIN (SELECT \"id\",\"upload_id\",\"owner_type\",\"owner_id\",\"purpose\",\"object_key\",\"revision\",\"original_name\",\"media_type\",\"bytes\",\"checksum_sha256\",\"created_by\",\"legal_hold\",\"created_at\",\"revoked_at\",\"company_id\",\"detected_media_type\",\"source_state\",\"scanned_at\",\"scanner_definition_at\",\"preview_object_key\",\"preview_media_type\",\"preview_checksum_sha256\",\"preview_bytes\",\"destroyed_at\",\"legacy_sanitized_only\" FROM attachments) proposed",
-  "commerce_facts_attachments_used_join": "JOIN (SELECT \"id\",\"upload_id\",\"owner_type\",\"owner_id\",\"purpose\",\"object_key\",\"revision\",\"original_name\",\"media_type\",\"bytes\",\"checksum_sha256\",\"created_by\",\"legal_hold\",\"created_at\",\"revoked_at\",\"company_id\",\"detected_media_type\",\"source_state\",\"scanned_at\",\"scanner_definition_at\",\"preview_object_key\",\"preview_media_type\",\"preview_checksum_sha256\",\"preview_bytes\",\"destroyed_at\",\"legacy_sanitized_only\" FROM attachments) used"
+  "commerce_facts_attachments_proposed_join": `JOIN (${ATTACHMENTS_OWNER_PROJECTION_SQL}) proposed`,
+  "commerce_facts_attachments_used_join": `JOIN (${ATTACHMENTS_OWNER_PROJECTION_SQL}) used`
 } as const;}
