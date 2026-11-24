@@ -1,4 +1,4 @@
-import {releaseRevisionTable,releaseCurrencyPredicate} from "@erpx/server-platform_administration/adapters/release-predicate";
+import {releaseRevisionTable,releaseCurrencyPredicate,releaseRevisionShareLockSql} from "@erpx/server-platform_administration/adapters/release-predicate";
 import { platformOwnerProjectionSources as identity_accessPlatformSources } from "@erpx/server-identity_access/public/platform-owner-projection-sources";
 import { platformOwnerProjectionSources as organizationPlatformSources } from "@erpx/server-organization/public/platform-owner-projection-sources";
 import "server-only";
@@ -29,7 +29,7 @@ export const RELEASE_ROW_LOCK_SQL = 'SELECT id FROM company_release_acceptances 
 async function inputsGuard(db: SqlDatabase, actor: WorkContext, key: string, revision: number, setupVersion: number, scope: ReleaseScopeVersion) {
   return [
     await nativeOwnerWrite(scope===legalProductionScope.version?'pl_legal_release_revision_init':'pl_release_revision_init',[actor.companyId],`pl-revision:${key}:${scope}`,{companyId:actor.companyId},()=>db.prepare(NATIVE_OWNER_WRITE_NOOP_SQL)),
-    db.prepare(`SELECT revision FROM ${releaseRevisionTable(scope)} WHERE company_id=? FOR SHARE`).bind(actor.companyId),
+    db.prepare(releaseRevisionShareLockSql(scope)).bind(actor.companyId),
     assertion(db, key, 'release-configuration', `EXISTS(SELECT 1 FROM ${releaseRevisionTable(scope)} WHERE company_id=? AND revision=?)`, [actor.companyId, revision]),
     assertion(db, key, 'release-setup', `EXISTS(SELECT 1 FROM (${organizationPlatformSources.company_business_acceptance}) company_business_acceptance WHERE company_id=? AND status='accepted' AND version=?)`, [actor.companyId, setupVersion]),
     ...(scope === productionScope.version ? [assertion(db, key, 'release-establishment', `(SELECT count(*) FROM (${organizationPlatformSources.organization_nodes}) organization_nodes WHERE company_id=? AND kind='branch' AND status='active')=1`, [actor.companyId]),

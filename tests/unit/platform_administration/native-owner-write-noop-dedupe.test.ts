@@ -31,4 +31,20 @@ describe('platform administration native owner-write no-op dedupe', () => {
     expect(text.match(new RegExp(versionGuard.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'))).toHaveLength(1);
     expect(text.match(new RegExp(rowLock.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'))).toHaveLength(1);
   });
+
+  it('keeps one canonical revision share-lock and reuses it in PMS and release acceptance', () => {
+    const shareLock = 'SELECT revision FROM ${releaseRevisionTable(scope)} WHERE company_id=? FOR SHARE';
+    const all = [
+      'adapters/release-predicate.ts',
+      'adapters/pms-rollout-guards.ts',
+      'adapters/release-acceptance.ts',
+    ].map(source).join('\n');
+    expect(all.split(shareLock).length - 1).toBe(1);
+    for (const file of ['adapters/pms-rollout-guards.ts', 'adapters/release-acceptance.ts']) {
+      const text = source(file);
+      expect(text).toContain('releaseRevisionShareLockSql(scope)');
+      expect(text).not.toContain('WHERE company_id=? FOR SHARE');
+    }
+    expect(source('public/release-predicate.ts')).toContain('releaseRevisionShareLockSql');
+  });
 });

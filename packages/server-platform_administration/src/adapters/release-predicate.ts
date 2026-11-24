@@ -13,6 +13,13 @@ export function releaseRevisionTable(scope: ReleaseScopeVersion) {
   return scope === legalProductionScope.version ? 'company_legal_release_revisions' : 'company_release_revisions';
 }
 
+/** The single revision share-lock statement shared by release acceptance and
+ * PMS rollout guards. Kept here once so owner guards never repeat the same
+ * fixed lock SQL in every call site. */
+export function releaseRevisionShareLockSql(scope: ReleaseScopeVersion) {
+  return `SELECT revision FROM ${releaseRevisionTable(scope)} WHERE company_id=? FOR SHARE`;
+}
+
 export function releaseCurrencyPredicate(companyExpression: string) {
   // The scalar wrapper uses a parameter expression exactly once.
   return `(SELECT NOT EXISTS(SELECT 1 FROM (${financePlatformSources.finance_charts}) c WHERE c.company_id=scope_company.id AND c.base_currency<>'THB')
