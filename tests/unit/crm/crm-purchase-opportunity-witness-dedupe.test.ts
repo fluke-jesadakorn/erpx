@@ -386,7 +386,7 @@ describe('crm read-tail r19 parameterized projection families', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r18 AFTER=158 baseline', () => {
-    expect(totalSelects()).toBe(136);
+    expect(totalSelects()).toBeLessThanOrEqual(130);
     expect(totalSelects()).toBeLessThan(158);
   });
 });
@@ -432,7 +432,7 @@ describe('crm read-tail r20 parameterized history families', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r19 AFTER=153 baseline', () => {
-    expect(totalSelects()).toBe(136);
+    expect(totalSelects()).toBeLessThanOrEqual(130);
     expect(totalSelects()).toBeLessThan(153);
   });
 });
@@ -478,7 +478,7 @@ describe('crm read-tail r21 parameterized branch option family', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r20 BEFORE=151 baseline', () => {
-    expect(totalSelects()).toBe(136);
+    expect(totalSelects()).toBeLessThanOrEqual(130);
     expect(totalSelects()).toBeLessThan(151);
   });
 });
@@ -536,7 +536,7 @@ describe('crm read-tail r22 assignment-scope EXISTS family', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r21 BEFORE=150 baseline', () => {
-    expect(totalSelects()).toBe(136);
+    expect(totalSelects()).toBeLessThanOrEqual(130);
     expect(totalSelects()).toBeLessThan(150);
   });
 });
@@ -580,7 +580,7 @@ describe('crm read-tail r23 reference-existence and account-scope families', () 
   });
 
   it('keeps the owner SELECT KPI strictly below the r22 BEFORE=146 baseline', () => {
-    expect(totalSelects()).toBe(136);
+    expect(totalSelects()).toBeLessThanOrEqual(130);
     expect(totalSelects()).toBeLessThan(146);
   });
 });
@@ -638,7 +638,7 @@ describe('crm read-tail r24 creator EXISTS lead-scope family', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r24 BEFORE=144 baseline', () => {
-    expect(totalSelects()).toBe(136);
+    expect(totalSelects()).toBeLessThanOrEqual(130);
     expect(totalSelects()).toBeLessThan(144);
   });
 });

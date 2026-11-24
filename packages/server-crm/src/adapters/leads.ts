@@ -3,6 +3,7 @@ import { activeCustomerPartiesSql } from './active-customer-parties';
 import { leadOwnerNameSql } from './lead-owner-name';
 import { crmGuestLinkReservationSourceSql } from './read-tail-r26-sql';
 import { crmCampaignOptionsSql } from './read-tail-r27-sql';
+import { crmCaseEventReadSql, crmOpportunityProbeSql } from './read-tail-r28-sql';
 import { nativeCrmActivityWork } from './native-activity-workspace';
 import {filterCRMPurchasedWork} from "@erpx/server-crm/adapters/record-purchases";
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
@@ -56,7 +57,7 @@ async sourceOrders(row){return (await write.prepare(`SELECT id,number,kind,state
 sourceSupport: row => supportCustomerSourceCases(write, a, String(row.account_customer_id)),
 
 async sourceFollowups(row){return (await write.prepare(`SELECT f.id,f.status,f.due_date,f.order_id FROM (${salesProjectionSources.customer_followups}) f JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=f.order_id WHERE f.company_id=? AND o.party_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?) ORDER BY f.updated_at DESC LIMIT 50`).bind(a.companyId,row.account_customer_id,a.branchId,a.branchId,a.departmentId,a.departmentId).all<Row>()).results;},
-async history(id){return (await write.prepare('SELECT * FROM crm_case_events WHERE lead_id=? ORDER BY created_at DESC,id DESC').bind(id).all<Row>()).results;},
+async history(id){return (await write.prepare(crmCaseEventReadSql('*','lead_id=?',' ORDER BY created_at DESC,id DESC')).bind(id).all<Row>()).results;},
 
 replay:(key,operation,id,input)=>replayCommand(write,a,key,operation,id,input),commit:(mutation,result)=>commit(write,a,mutation,result),
 };return repository;}});}
@@ -93,7 +94,7 @@ async function commit<Result>(write:SqlDatabase,a:WorkContext,m:CRMMutation,resu
 
 async function translated<Result>(action:()=>Promise<Result>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 export function getCRMLead(a:WorkContext,id:string){return translated(async()=>{const db=(await holdingResources(a.holdingId)).write;await requireCRMPurchasedRead(db,a,{kind:'lead',id});return application(a,db).getLead(id);});}
-export function crmOpportunityEvidenceRow(a:WorkContext,id:string,provided?:SqlDatabase){return translated(async()=>{const db=provided??(await holdingResources(a.holdingId)).write;await requireCRMPurchasedRead(db,a);const source=await db.prepare('SELECT lead_id FROM crm_opportunities WHERE id=?').bind(id).first<{lead_id:string}>();if(source)await requireCRMPurchasedRead(db,a,{kind:'lead',id:source.lead_id});return application(a,db).evidence(id);});}
+export function crmOpportunityEvidenceRow(a:WorkContext,id:string,provided?:SqlDatabase){return translated(async()=>{const db=provided??(await holdingResources(a.holdingId)).write;await requireCRMPurchasedRead(db,a);const source=await db.prepare(crmOpportunityProbeSql('lead_id','id=?')).bind(id).first<{lead_id:string}>();if(source)await requireCRMPurchasedRead(db,a,{kind:'lead',id:source.lead_id});return application(a,db).evidence(id);});}
 export function crmWorkspace(a:WorkContext){return translated(async()=>{const db=(await holdingResources(a.holdingId)).write,purchase=await requireCRMPurchasedRead(db,a),view=await application(a,db).workspace();return {...view,...(purchase?{purchase,referencePurchases:await crmReferencePurchaseControls(db,a)}: {})};});}
 export function crmDetail(a:WorkContext,id:string){return translated(async()=>{const db=(await holdingResources(a.holdingId)).write,purchase=await requireCRMPurchasedRead(db,a,{kind:'lead',id}),view=await application(a,db).detail(id);return {...view,...(purchase?{purchase,referencePurchases:await crmReferencePurchaseControls(db,a)}: {})};});}
 function create(a:WorkContext,raw:unknown,key:string,provided?:SqlDatabase){const input=crmLeadSchema.parse(raw);return withCRMPurchasedCommand(a,{key,operation:'crm.lead.create',target:{kind:'lead',id:`lead-${key}`},purpose:'new-work',eligibleOwner:true,createInput:input,capabilities:[...(input.campaignId||input.sourceKind==='form'?['sales.marketing']:[]),...(input.sourceKind==='pms'?['pms.reservations']:[])]},async db=>{await crmLeadCreateReferences(db,a,input);return application(a,db).create(input,key);},provided);}

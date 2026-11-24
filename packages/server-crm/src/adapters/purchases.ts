@@ -24,6 +24,7 @@ import {salesRecipientEligibility} from "@erpx/server-sales/public/sales-recipie
 import {commercialOwnerProjectionSources as organizationProjectionSources} from "@erpx/server-organization/public/commercial-owner-projection-sources";
 import {crmCreatorLeadScopeSql} from "./read-tail-r24-sql";
 import {crmPurchaseRowProjection} from "./read-tail-r25-sql";
+import {crmCaseEventReadSql,crmOpportunityProbeSql} from "./read-tail-r28-sql";
 
 export type CRMPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type CRMPurchaseTarget={kind:"lead"|"activity"|"account"|"contact"|"guest-link";id:string};
@@ -118,7 +119,7 @@ async function source(database:SqlDatabase,actor:WorkContext,target:CRMPurchaseT
  const args=target.kind==="lead"||target.kind==="activity"?[actor.branchId,actor.branchId,actor.departmentId,actor.departmentId]:[actor.branchId,actor.userId,actor.branchId,actor.departmentId,actor.departmentId];
  const row=await database.prepare(`SELECT id,company_id,branch_id,department_id,witness::text witness FROM (${sourceRows[target.kind]}) actual WHERE id=? AND company_id=? AND ${scoped}`).bind(target.id,actor.companyId,...args).first<Source>();
  if(!row||target.kind==="guest-link"&&actor.branchId&&row.branch_id!==actor.branchId)throw new ApiError(404,"CRM_SOURCE_NOT_FOUND","The original CRM source is unavailable in this workspace.");
- if(target.kind==='lead'&&await database.prepare('SELECT 1 FROM crm_opportunities WHERE lead_id=?').bind(target.id).first()&&!await database.prepare(`${crmOpportunityExistsSql}id=? AND company_id=?`).bind(target.id,actor.companyId).first())throw new ApiError(404,'CRM_SOURCE_NOT_FOUND','The actual original opportunity source is unavailable.');
+ if(target.kind==='lead'&&await database.prepare(crmOpportunityProbeSql('1','lead_id=?')).bind(target.id).first()&&!await database.prepare(`${crmOpportunityExistsSql}id=? AND company_id=?`).bind(target.id,actor.companyId).first())throw new ApiError(404,'CRM_SOURCE_NOT_FOUND','The actual original opportunity source is unavailable.');
  return row;
 }
 export async function requireCRMCurrentAuthority(database:SqlDatabase,actor:WorkContext,permissions:readonly string[],key:string,record?:Source){
@@ -198,7 +199,7 @@ export async function crmMarketingCandidateTransaction<Result>(actor:WorkContext
   if(!candidate)throw new ApiError(404,"MARKETING_CANDIDATE_NOT_FOUND","The captured consented candidate is unavailable.");
   const prior=await replayCommand<Record<string,unknown>>(database,actor,key,"marketing.candidate.handoff",id,input),purpose=prior?"history" as const:"settle-existing" as const;
   if(!prior&&(candidate.status!=="pending"||candidate.created_by===actor.userId||Number(candidate.version)!==input.expectedVersion))throw new ApiError(409,"CONFLICT","Independent current candidate review is required.");
-  const now=Date.now(),captured=prior?await database.prepare("SELECT snapshot_json::text snapshot_json FROM crm_case_events WHERE id=? AND lead_id=? AND action='create' AND actor_id=?").bind(`crm-event-${key}-crm-lead`,`lead-${key}-crm`,actor.userId).first<{snapshot_json:string}>():null;
+  const now=Date.now(),captured=prior?await database.prepare(crmCaseEventReadSql('snapshot_json::text snapshot_json',"id=? AND lead_id=? AND action='create' AND actor_id=?")).bind(`crm-event-${key}-crm-lead`,`lead-${key}-crm`,actor.userId).first<{snapshot_json:string}>():null;
   const capturedInput=captured?crmLeadSchema.parse(JSON.parse(captured.snapshot_json)):null,dueDate=input.dueDate??capturedInput?.dueDate??new Date(now+7*86400000).toISOString().slice(0,10),leadInput=crmLeadSchema.parse(marketingCandidateLeadInput(candidate,dueDate));composition.handoff={id,key,raw:input,input:leadInput};
   const scopes=["sales.crm","sales.marketing"].map(capability=>({companyId:actor.companyId,capability,purpose})),boundaryKey=`marketing-handoff-purchase:${randomUUID()}`,boundaries=scopes.map((scope,index)=>({key:`${boundaryKey}:${index}`,boundary:purchaseCommandBoundary(database,mode,`${boundaryKey}:${index}`,scope)!}));
   for(const scope of scopes)await checkPurchasedCapability(database,mode,scope);await database.batch(boundaries.flatMap(item=>item.boundary.before));
