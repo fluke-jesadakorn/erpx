@@ -17,6 +17,7 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import {planningPurchaseScenarioRows,planningPurchaseRecommendationRows,planningPurchaseResourceRows,planningPurchaseSourceReadLocks} from "@erpx/server-planning/public/purchase-sources";
 import {manufacturingWarehouseSources,manufacturingProductSources,manufacturingCommerceSourceReadLocks} from "@erpx/server-commerce/public/manufacturing-purchase-sources";
 import {manufacturingOperationAggSql,manufacturingSpecificationLineAggSql,manufacturingSpecificationProductsAggSql,manufacturingActorScopeRows} from "./manufacturing-read-sql-fragments";
+import {manufacturingPurchaseRecordSelect} from "./manufacturing-read-tail-r16-sql";
 export type ManufacturingPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 /** Owner-local fixed read: one command receipt on the caller transaction. This
  * idempotency/replay witness is identical in the purchased-command and
@@ -143,6 +144,6 @@ export async function manufacturingWorkspacePurchases(database:SqlDatabase,actor
  const access=await readPurchasedAccesses(database,mode,actor.companyId,["manufacturing.bom","manufacturing.execution","planning.basic","planning.advanced-mrp"]);
  const controls=(capabilities:readonly string[]):ManufacturingPurchaseControls=>({newWork:capabilities.every(capability=>access[capability].newWork),settleExisting:capabilities.every(capability=>access[capability].settleExisting),history:capabilities.every(capability=>access[capability].history),revision:access[capabilities[0]].revision});
  const purchase=controls([module==="planning"?"planning.basic":"manufacturing.execution"]),advancedPurchase=controls(["planning.basic","planning.advanced-mrp"]),recordPurchases:Record<string,ManufacturingPurchaseControls>={};
- if(purchase.history){const native=await database.prepare(`SELECT id,capability,advanced FROM (${manufacturingPurchaseRecordRows}) production_workspace_source WHERE company_id=? AND (branch_id IS NULL OR ?::text IS NULL OR branch_id=?)`).bind(actor.companyId,actor.branchId,actor.branchId).all<{id:string;capability:string;advanced:boolean}>();for(const row of native.results)recordPurchases[row.id]=controls([row.capability,...(row.advanced?["planning.advanced-mrp"]:[])]);}
+ if(purchase.history){const native=await database.prepare(manufacturingPurchaseRecordSelect("id,capability,advanced",manufacturingPurchaseRecordRows,"production_workspace_source","company_id=? AND (branch_id IS NULL OR ?::text IS NULL OR branch_id=?)")).bind(actor.companyId,actor.branchId,actor.branchId).all<{id:string;capability:string;advanced:boolean}>();for(const row of native.results)recordPurchases[row.id]=controls([row.capability,...(row.advanced?["planning.advanced-mrp"]:[])]);}
  return {purchase,advancedPurchase,recordPurchases};
 }

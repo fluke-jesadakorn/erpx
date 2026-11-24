@@ -7,6 +7,7 @@ import {manufacturingPackageEnforcementMode,readPurchasedAccess} from "@erpx/ser
 import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {manufacturingPurchaseRecordRows,requireManufacturingPurchasedRead,manufacturingClockCte,manufacturingPurchaseScopedRows,type ManufacturingPurchaseTarget} from "@erpx/server-manufacturing/adapters/purchases";
 import {manufacturingSelectedAssignmentExists,manufacturingIdSelect,manufacturingNativeProductionProbe} from "./manufacturing-read-sql-fragments";
+import {manufacturingPurchaseRecordSelect} from "./manufacturing-read-tail-r16-sql";
 const nativeIds=["manufacturing_specifications","manufacturing_orders","planning_scenarios","planning_recommendations"].map(manufacturingIdSelect).join(" UNION ALL ");
 /** Actual source policy/purchase is evaluated before each consumer's limit. */
 export async function manufacturingSourceReadScope(database:SqlDatabase,actor:WorkContext,surface:"staff"|"inbox"|"records"){
@@ -17,5 +18,5 @@ export async function manufacturingSourceReadScope(database:SqlDatabase,actor:Wo
  return {where:`(NOT (${relevant}) OR ${visible})`,args:[actor.departmentId,actor.branchId,actor.branchId,actor.assignmentId,actor.userId,actor.role,actor.assignmentId,JSON.stringify(actor.modules)]};
 }
 export async function requireManufacturingWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,_moduleId:string,id:string){
- if(await manufacturingPackageEnforcementMode()==="disabled")return;const row=await database.prepare(`SELECT kind,module_id FROM (${manufacturingPurchaseRecordRows}) production_record WHERE id=? AND company_id=?`).bind(id,actor.companyId).first<{kind:ManufacturingPurchaseTarget["kind"];module_id:"planning"|"manufacturing"}>();if(row)await requireManufacturingPurchasedRead(database,actor,{target:{kind:row.kind,id},module:row.module_id});else if(await database.prepare(manufacturingNativeProductionProbe(nativeIds,"id=?")).bind(id).first())throw new ApiError(404,"PRODUCTION_SOURCE_NOT_FOUND","The original production source is unavailable in this workspace.");
+ if(await manufacturingPackageEnforcementMode()==="disabled")return;const row=await database.prepare(manufacturingPurchaseRecordSelect("kind,module_id",manufacturingPurchaseRecordRows,"production_record","id=? AND company_id=?")).bind(id,actor.companyId).first<{kind:ManufacturingPurchaseTarget["kind"];module_id:"planning"|"manufacturing"}>();if(row)await requireManufacturingPurchasedRead(database,actor,{target:{kind:row.kind,id},module:row.module_id});else if(await database.prepare(manufacturingNativeProductionProbe(nativeIds,"id=?")).bind(id).first())throw new ApiError(404,"PRODUCTION_SOURCE_NOT_FOUND","The original production source is unavailable in this workspace.");
 }
