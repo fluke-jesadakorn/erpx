@@ -131,3 +131,18 @@ export const nativeRecordExistsSql = (table: string, alias: string, id: string) 
  *  row alias varies; every caller supplies its own two branch binds. */
 export const branchScopeTupleSql = (alias: string) =>
   `(?::text IS NULL OR ${alias}.branch_id=?)`;
+/** r25: parameterized two-predicate table EXISTS guard. A source/child row is
+ *  admitted only while exactly two scope columns match their caller values. The
+ *  relation, row alias, both columns and both right-hand expressions vary per
+ *  consumer; only the SQL text is shared. Every caller keeps its own statement,
+ *  binds and scope. r11-r24 helpers above are left untouched. */
+export const scopeExistsSql = (table: string, alias: string, firstColumn: string, firstValue: string, secondColumn: string, secondValue: string) =>
+  `EXISTS(SELECT 1 FROM ${table} ${alias} WHERE ${alias}.${firstColumn}=${firstValue} AND ${alias}.${secondColumn}=${secondValue})`;
+/** r25: parameterized posted-journal account-line EXISTS guard. A count's
+ *  inventory/variance journal leg must carry the exact net value on its debit or
+ *  credit column with the opposite leg zero. The source-proof key and the two
+ *  amount columns vary per term; only the SQL text is shared. Every caller keeps
+ *  its own statement, binds and journal scope. r11-r24 helpers above are left
+ *  untouched. */
+export const journalAccountLineExistsSql = (accountKey: string, amountColumn: string, zeroColumn: string) =>
+  `EXISTS(SELECT 1 FROM finance_journal_lines line WHERE line.journal_id=j.id AND line.account_id=source.source_proof->>'${accountKey}' AND line.${amountColumn}=c.net_value_minor AND line.${zeroColumn}=0)`;

@@ -10,7 +10,7 @@ import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgre
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {qualityPurchaseSourceRows,qualityPurchaseSourceReadLocks} from "@erpx/server-quality/public/purchase-sources";
-import {allInitialPhysicalStockMarkedRowsSql,childJsonAggSql,childJoinJsonAggSql,terminalReceiptMatchSql,transitLossDecisionPendingSql} from './read-tail-sql';
+import {allInitialPhysicalStockMarkedRowsSql,childJsonAggSql,childJoinJsonAggSql,scopeExistsSql,terminalReceiptMatchSql,transitLossDecisionPendingSql} from './read-tail-sql';
 
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
@@ -69,7 +69,7 @@ export async function supplyInventoryPackageObligations(owner:PostgresDatabase,d
  AND receipt.authority_json::jsonb->>'companyId'=t.company_id AND receipt.result_json::jsonb->>'status'=t.status
  WHERE event.transfer_id=t.id AND event.reviewed_version<t.version AND event.action=CASE t.status WHEN 'posted' THEN 'post' WHEN 'rejected' THEN 'reject' ELSE 'cancel' END)
  AND (t.status<>'posted' OR EXISTS(SELECT 1 FROM inventory_transfer_lines line WHERE line.transfer_id=t.id))
- AND (t.status<>'posted' OR t.delivery_mode<>'transit' OR EXISTS(SELECT 1 FROM inventory_transit transit WHERE transit.transfer_id=t.id AND transit.company_id=t.company_id)),false)
+ AND (t.status<>'posted' OR t.delivery_mode<>'transit' OR ${scopeExistsSql('inventory_transit','transit','transfer_id','t.id','company_id','t.company_id')}),false)
  FROM inventory_transfers t,scope WHERE scope.full AND t.company_id=scope.company_id
  UNION ALL SELECT 'transit',t.id,jsonb_build_array(to_jsonb(t),
  ${childJsonAggSql('inventory_transit_lines','line','line.transit_id=t.id')},
@@ -77,7 +77,7 @@ export async function supplyInventoryPackageObligations(owner:PostgresDatabase,d
  ${childJoinJsonAggSql('inventory_transit_lots','lot','inventory_transit_lines line ON line.id=lot.transit_line_id','line.transit_id=t.id')}),
  NOT COALESCE((t.status='cancelled' AND EXISTS(SELECT 1 FROM command_receipts receipt WHERE receipt.record_id=t.id AND receipt.operation='inventory.transit.cancel'
  AND receipt.authority_json::jsonb->>'companyId'=t.company_id AND receipt.result_json::jsonb->>'version'=t.version::text)
- AND EXISTS(SELECT 1 FROM inventory_transit_events event WHERE event.transit_id=t.id AND event.kind='cancel'))
+ AND ${scopeExistsSql('inventory_transit_events','event','transit_id','t.id','kind',"'cancel'")})
  OR(t.status='completed' AND EXISTS(SELECT 1 FROM inventory_transit_lines line WHERE line.transit_id=t.id)
  AND NOT EXISTS(SELECT 1 FROM inventory_transit_lines line WHERE line.transit_id=t.id AND (line.received_milli+line.lost_milli<>line.quantity_milli OR line.settled_value_minor<>line.value_minor
  OR line.received_milli<>COALESCE((SELECT sum(event.quantity_milli) FROM inventory_transit_events event WHERE event.line_id=line.id AND event.kind='receipt'),0)

@@ -9,7 +9,7 @@ import {landedCostPurchaseSourceRows,landedCostSourceReadLocks} from "@erpx/serv
 import {qualityDisposalCountRows} from "@erpx/server-inventory/adapters/quality-count-purchases";
 import {qualityPurchaseSourceReadLocks} from "@erpx/server-quality/public/purchase-sources";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
-import {countMarkedJournalSql,allInitialPhysicalStockMarkedRowsSql,initialPhysicalCountJournalSql,initialPhysicalCountFinanceImagesSql,terminalReceiptMatchSql,journalLineSumSql} from './read-tail-sql';
+import {countMarkedJournalSql,allInitialPhysicalStockMarkedRowsSql,initialPhysicalCountJournalSql,initialPhysicalCountFinanceImagesSql,journalAccountLineExistsSql,terminalReceiptMatchSql,journalLineSumSql} from './read-tail-sql';
 
 /** r11: the posted-count journal tail is byte-identical for the manufacturing,
  * pos and service initial-physical-count variants. Only the literal text is
@@ -17,8 +17,8 @@ import {countMarkedJournalSql,allInitialPhysicalStockMarkedRowsSql,initialPhysic
 const initialPhysicalCountJournalTail=`
  WHERE c.net_value_minor>0 AND c.net_value_minor=(SELECT sum(line.counted_value_minor-line.snapshot_value_minor) FROM inventory_count_lines line WHERE line.count_id=c.id)
  AND (SELECT count(*) FROM finance_journal_lines line WHERE line.journal_id=j.id)=2
- AND EXISTS(SELECT 1 FROM finance_journal_lines line WHERE line.journal_id=j.id AND line.account_id=source.source_proof->>'inventoryAccountId' AND line.debit_minor=c.net_value_minor AND line.credit_minor=0)
- AND EXISTS(SELECT 1 FROM finance_journal_lines line WHERE line.journal_id=j.id AND line.account_id=source.source_proof->>'varianceAccountId' AND line.credit_minor=c.net_value_minor AND line.debit_minor=0)
+ AND ${journalAccountLineExistsSql('inventoryAccountId','debit_minor','credit_minor')}
+ AND ${journalAccountLineExistsSql('varianceAccountId','credit_minor','debit_minor')}
  AND ${terminalReceiptMatchSql(supplyInventoryTerminalReceipts,'count','c.id','c.company_id','c.status','c.version')}`;
 
 /** Exact posted physical-count ownership. Count commands own independent
