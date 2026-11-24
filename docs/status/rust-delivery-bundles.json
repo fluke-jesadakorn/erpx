@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9645,
+    "revision": 9649,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -153043,7 +153043,7 @@
         "owner": "manufacturing",
         "title": "manufacturing TS read tail native cutover (round 17)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -153055,22 +153055,37 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "claim": {
-          "runId": "run-20261123-k",
-          "agentId": "wGCKman",
-          "claimedAt": "2026-11-24T05:31:30.290Z",
-          "heartbeatAt": "2026-11-24T05:31:30.290Z",
-          "expiresAt": "2026-11-24T06:01:30.290Z",
-          "generation": 163
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-manufacturing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1c538a637",
+            "owner": "manufacturing",
+            "before": 94,
+            "after": 89,
+            "note": "Six settlement fact union branches share manufacturingSettlementFactSelect; r11/r4/r15/r16 and locks untouched."
+          },
+          {
+            "command": "vitest manufacturing r15-r17 (12) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "1c538a637"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=94.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCKman",
+          "at": "2026-11-24T05:42:56.125Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -153181,7 +153196,7 @@
         "owner": "ecommerce",
         "title": "ecommerce TS read tail native cutover (r6)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -153193,22 +153208,37 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "claim": {
-          "runId": "run-20261123-k",
-          "agentId": "wGCLeco",
-          "claimedAt": "2026-11-24T05:34:19.134Z",
-          "heartbeatAt": "2026-11-24T05:34:19.134Z",
-          "expiresAt": "2026-11-24T06:04:19.135Z",
-          "generation": 163
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-ecommerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1c538a637",
+            "owner": "ecommerce",
+            "before": 68,
+            "after": 66,
+            "note": "Review receipt guard and cart checkout EXISTS family shared; r1-r5 and checkout locks untouched."
+          },
+          {
+            "command": "vitest ecommerce 5 files (28) + tsc ecommerce",
+            "result": "passed",
+            "sourceSha": "1c538a637"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=68.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCLeco",
+          "at": "2026-11-24T05:42:55.681Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -154167,17 +154197,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 28,
+        "in_progress": 26,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 832,
+        "blocked": 834,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 163,
-    "updatedAt": "2026-11-24T05:42:30.814Z",
+    "updatedAt": "2026-11-24T05:42:56.131Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
