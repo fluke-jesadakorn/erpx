@@ -38,6 +38,7 @@ function access(a: WorkContext, write = false) {
     );
 }
 const eligibleOwner = `EXISTS(SELECT 1 ${identityaccessSources.talent_adapters_talent_assignments_x_from} WHERE x.company_id=a.company_id AND x.user_id=a.owner_id AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(x.user_id,x.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (x.scope_kind='holding' OR (x.scope_kind='branch' AND x.scope_node_id=r.branch_id) OR (x.scope_kind='department' AND x.scope_node_id=r.department_id)))`;
+const ownedApps=`SELECT a.*,r.job_title,c.legal_name candidate_name,CASE WHEN ${eligibleOwner} THEN 1 ELSE 0 END owner_eligible FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id JOIN talent_candidates c ON c.id=a.candidate_id WHERE a.company_id=? AND `;
 
 type DatabaseSource=SqlDatabase|(()=>Promise<SqlDatabase>);
 const databaseSource=(source:DatabaseSource)=>typeof source==="function"?source:async()=>source;
@@ -61,7 +62,7 @@ async requisitions(a){return nativeTalentReadAll<Row>('talent_rd_workspace_requi
 async candidates(a){return nativeTalentReadAll<Row>('talent_rd_workspace_candidates',[a.companyId],await database());},
 async applications(a){const write=await database();return (await write
         .prepare(
-          `SELECT a.*,r.job_title,c.legal_name candidate_name,CASE WHEN ${eligibleOwner} THEN 1 ELSE 0 END owner_eligible FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id JOIN talent_candidates c ON c.id=a.candidate_id WHERE a.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) ORDER BY a.updated_at DESC`,
+          `${ownedApps}(?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) ORDER BY a.updated_at DESC`,
         )
         .bind(
           a.companyId,
@@ -109,7 +110,7 @@ export async function talentExecutiveEvidenceRow(db:SqlDatabase,a:WorkContext,me
 async function talentWorkOwned(a:WorkContext,provided?:SqlDatabase):Promise<import("@erpx/feature-work_projection/lib/work-item").WorkItem[]>{const database=provided?async()=>provided:lazyDatabase(a);return createTalentWork({authorize:access,async rows(a){const write=await database();return (
       await write
         .prepare(
-          `SELECT a.*,r.job_title,c.legal_name candidate_name,CASE WHEN ${eligibleOwner} THEN 1 ELSE 0 END owner_eligible FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id JOIN talent_candidates c ON c.id=a.candidate_id WHERE a.company_id=? AND a.status NOT IN ('accepted','rejected','withdrawn') AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) ORDER BY a.updated_at DESC`,
+          `${ownedApps}a.status NOT IN ('accepted','rejected','withdrawn') AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?) ORDER BY a.updated_at DESC`,
         )
         .bind(
           a.companyId,
