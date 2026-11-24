@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10878,
+    "revision": 10882,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -167567,7 +167567,7 @@
         "owner": "manage_erpx",
         "title": "manage_erpx point read families (round 10)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -167579,22 +167579,37 @@
         "resources": [
           "owner:manage_erpx"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMman2",
-          "claimedAt": "2026-11-24T09:06:43.359Z",
-          "heartbeatAt": "2026-11-24T09:06:43.359Z",
-          "expiresAt": "2026-11-24T09:36:43.359Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-manage_erpx/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "71f56083d",
+            "owner": "manage_erpx",
+            "before": 28,
+            "after": 26,
+            "note": "Company provisioning and beta invitation point reads share two helpers; locks, native authority and r1-r9 untouched."
+          },
+          {
+            "command": "vitest manage_erpx gate/beta/services (37) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "71f56083d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "company provisioning point reads and beta invitation point reads. BEFORE=28.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMman2",
+          "at": "2026-11-24T09:12:43.733Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -168065,6 +168080,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=347.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.manage_erpx.read-tail-r11",
+        "goalId": "G4",
+        "owner": "manage_erpx",
+        "title": "manage_erpx TS read tail native cutover (round 11)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-manage_erpx/src/**",
+          "tests/unit/manage_erpx/**",
+          "tests/integration/manage_erpx/**"
+        ],
+        "resources": [
+          "owner:manage_erpx"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMman3",
+          "claimedAt": "2026-11-24T09:12:44.094Z",
+          "heartbeatAt": "2026-11-24T09:12:44.094Z",
+          "expiresAt": "2026-11-24T09:42:44.094Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=26.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -168073,7 +168124,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1492,
+      "totalPackets": 1493,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 23,
@@ -168081,13 +168132,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1113,
+        "blocked": 1114,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:11:48.612Z",
+    "updatedAt": "2026-11-24T09:12:44.100Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
