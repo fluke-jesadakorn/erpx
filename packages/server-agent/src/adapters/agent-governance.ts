@@ -35,6 +35,11 @@ const agentActivePrivateSessionSql = (expiresAt: string) =>
  * vary; each call site keeps its own company bind; the native owner remains the authority. */
 const agentCompanyListSql = (table: string, suffix: string) =>
   `SELECT * FROM ${table} WHERE company_id=? ${suffix}`;
+/** Parameterized Agent pool-child list projection shared by workspaceMembers and
+ * workspacePoolHistory. Only the child table/alias and ORDER BY suffix vary; each
+ * call site keeps its own company bind; the native owner remains the authority. */
+const agentPoolChildListSql = (table: string, alias: string, suffix: string) =>
+  `SELECT ${alias}.* FROM ${table} ${alias} JOIN agent_pools p ON p.id=${alias}.pool_id WHERE p.company_id=? ORDER BY ${suffix}`;
 async function exposed<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 function bindRepository(db:SqlDatabase):AgentGovernanceRepository<SqlStatement>{return {async policyCandidates(companyId:string,userId:string){return (await db.prepare(
     `SELECT x.id,x.version assignment_version,x.scope_path,x.pool_id,x.agent_version_id,
@@ -89,8 +94,8 @@ async workspaceInvocations(companyId:string){return (await db
           .bind(companyId)
           .all<Row>()).results;},
 async workspacePeople(companyId:string,now:number){return agentGovernanceEligiblePeople(db,companyId,now);},
-async workspaceMembers(companyId:string){return (await db.prepare("SELECT m.* FROM agent_pool_members m JOIN agent_pools p ON p.id=m.pool_id WHERE p.company_id=? ORDER BY m.pool_id,m.user_id").bind(companyId).all<Row>()).results;},
-async workspacePoolHistory(companyId:string){return (await db.prepare("SELECT r.* FROM agent_pool_revisions r JOIN agent_pools p ON p.id=r.pool_id WHERE p.company_id=? ORDER BY r.created_at DESC").bind(companyId).all<Row>()).results;},
+async workspaceMembers(companyId:string){return (await db.prepare(agentPoolChildListSql('agent_pool_members','m','m.pool_id,m.user_id')).bind(companyId).all<Row>()).results;},
+async workspacePoolHistory(companyId:string){return (await db.prepare(agentPoolChildListSql('agent_pool_revisions','r','r.created_at DESC')).bind(companyId).all<Row>()).results;},
 async workspaceSessions(companyId:string,userId:string,value:0 | 1){return (await db.prepare(`${privateSessionSelectSql} AND (s.user_id=? OR ?) ORDER BY c.updated_at DESC LIMIT 100`).bind(companyId,userId,value).all<Row>()).results;},
 async latestPrivateSession(companyId:string,userId:string,assignmentId:string,scopeKey:string,conversationKey:string){return db.prepare("SELECT s.id,s.generation,c.status,c.expires_at FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id WHERE s.company_id=? AND s.user_id=? AND s.assignment_id=? AND s.scope_key=? AND s.conversation_key=? ORDER BY s.generation DESC LIMIT 1")
     .bind(companyId,userId,assignmentId,scopeKey,conversationKey).first<{id:string;generation:number;status:string;expires_at:number}>();},

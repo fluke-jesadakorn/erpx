@@ -1,8 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { readFile } from 'node:fs/promises';
+import { readFile, readdir } from 'node:fs/promises';
 
 const src = (name: string) =>
   readFile(new URL(`../../../packages/server-agent/src/${name}`, import.meta.url), 'utf8');
+
+async function agentSelectCount(dir: URL): Promise<number> {
+  let total = 0;
+  for (const entry of await readdir(dir, { withFileTypes: true })) {
+    const child = new URL(entry.name + (entry.isDirectory() ? '/' : ''), dir);
+    if (entry.isDirectory()) total += await agentSelectCount(child);
+    else if (entry.name.endsWith('.ts')) {
+      total += ((await readFile(child, 'utf8')).match(/SELECT/g) ?? []).length;
+    }
+  }
+  return total;
+}
 
 /** Verbatim pre-dedupe expression (guided-intake ↔ workspace assistant). */
 const quotaExpression = '(SELECT count(*) FROM (SELECT company_id,created_at FROM ai_workspace_turns UNION ALL ${agentExecutiveDatedUsage()} UNION ALL ${agentFinanceDatedUsage()}) ai_calls WHERE company_id=? AND created_at>=?)+(${agentSocialMonthlyCount()})+(${agentExpenseMonthlyCount()})+(${agentRequestMonthlyCount()})<${financeAiCompanyAllowanceSql}';
@@ -326,5 +338,72 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     expect(locks.match(/SELECT/g)).toHaveLength(4);
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
     expect(assistant).toContain('"SELECT state,answer_json FROM ai_workspace_turns WHERE id=?"');
+  });
+
+  /** Verbatim pre-dedupe pool-child list projections (workspaceMembers / workspacePoolHistory). */
+  const memberListSql =
+    'SELECT m.* FROM agent_pool_members m JOIN agent_pools p ON p.id=m.pool_id WHERE p.company_id=? ORDER BY m.pool_id,m.user_id';
+  const poolHistoryListSql =
+    'SELECT r.* FROM agent_pool_revisions r JOIN agent_pools p ON p.id=r.pool_id WHERE p.company_id=? ORDER BY r.created_at DESC';
+
+  it('r18: authors the parameterized pool-child list projection once', async () => {
+    const gov = await src('adapters/agent-governance.ts');
+    const def = gov.match(
+      /const agentPoolChildListSql = \(table: string, alias: string, suffix: string\) =>\s*`(SELECT [^`]*?)`;/,
+    )?.[1];
+    expect(def).toBe(
+      'SELECT ${alias}.* FROM ${table} ${alias} JOIN agent_pools p ON p.id=${alias}.pool_id WHERE p.company_id=? ORDER BY ${suffix}',
+    );
+    expect(gov.match(/SELECT \$\{alias\}\.\* FROM \$\{table\}/g)).toHaveLength(1);
+  });
+
+  it('r18: both consumers render the exact pre-dedupe SQL with unchanged binds', async () => {
+    const gov = await src('adapters/agent-governance.ts');
+    const def = gov.match(
+      /const agentPoolChildListSql = \(table: string, alias: string, suffix: string\) =>\s*`(SELECT [^`]*?)`;/,
+    )?.[1]!;
+    const calls = [
+      ...gov.matchAll(/agentPoolChildListSql\('([^']+)','([^']+)','([^']+)'\)/g),
+    ].map((m) => [m[1], m[2], m[3]]);
+    expect(calls).toEqual([
+      ['agent_pool_members', 'm', 'm.pool_id,m.user_id'],
+      ['agent_pool_revisions', 'r', 'r.created_at DESC'],
+    ]);
+    expect(
+      calls.map(([t, a, s]) =>
+        def.replaceAll('${alias}', a).replaceAll('${table}', t).replaceAll('${suffix}', s),
+      ),
+    ).toEqual([memberListSql, poolHistoryListSql]);
+    expect(gov).toContain(
+      "db.prepare(agentPoolChildListSql('agent_pool_members','m','m.pool_id,m.user_id')).bind(companyId)",
+    );
+    expect(gov).toContain(
+      "db.prepare(agentPoolChildListSql('agent_pool_revisions','r','r.created_at DESC')).bind(companyId)",
+    );
+  });
+
+  it('r18: records a strictly lower SELECT count than BEFORE=58', async () => {
+    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBeLessThan(58);
+  });
+
+  it('r18: the translation guard, locks and r7-r17 families stay untouched', async () => {
+    const gov = await src('adapters/agent-governance.ts');
+    const assistant = await src('adapters/workspace-assistant.ts');
+    const locks = await src('adapters/social-ai-source-locks.ts');
+    expect(gov).toContain(`const agentPoolMemberAccessSql = '${poolMemberAccess}';`);
+    expect(gov).toContain(`const privateSessionSelectSql = '${privateSessionSelect}';`);
+    expect(gov).toContain('const agentActivePrivateSessionSql = (expiresAt: string) =>');
+    expect(gov).toContain('const agentCompanyListSql = (table: string, suffix: string) =>');
+    expect(await src('adapters/native-owner-write.ts')).toContain('nativeOwnerWriteNoopSql = "SELECT 1"');
+    expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
+    expect(assistant).toContain(') calls WHERE company_id=? AND created_at>=?');
+    expect(assistant).toContain('"SELECT state,answer_json FROM ai_workspace_turns WHERE id=?"');
+    for (const lock of [
+      '"SELECT session_id FROM ai_private_session_controls WHERE session_id=? FOR SHARE"',
+      '"SELECT x.id FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id JOIN agent_catalog c ON c.id=v.agent_id WHERE x.id=? FOR SHARE OF x,v,c"',
+      '"SELECT id FROM agent_pools WHERE id=? FOR SHARE"',
+    ]) expect(gov).toContain(lock);
+    expect(locks.match(/SELECT/g)).toHaveLength(4);
+    expect(locks).toContain("'settings',(SELECT to_jsonb(s) FROM ai_company_settings s WHERE s.company_id=?)");
   });
 });
