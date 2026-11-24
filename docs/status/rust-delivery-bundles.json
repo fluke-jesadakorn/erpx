@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12480,
+    "revision": 12482,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -184243,7 +184243,7 @@
         "owner": "work_projection",
         "title": "work_projection next read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -184254,22 +184254,37 @@
         "resources": [
           "owner:work_projection"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n99",
-          "claimedAt": "2026-11-24T16:19:55.223Z",
-          "heartbeatAt": "2026-11-24T16:30:27.050Z",
-          "expiresAt": "2026-11-24T17:00:27.050Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-work_projection/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "7be053460",
+            "owner": "work_projection",
+            "before": 50,
+            "after": 48,
+            "note": "READ_67 reminder authorization, READ_61 occurrence response, READ_63/64 exception/response lists bridged; calendar_series stays TS. Route mount remains a blocker; fail-closed transport."
+          },
+          {
+            "command": "vitest work_projection (19 targeted; 80/82 lane, 2 pre-existing pins) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "7be053460"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Add native-calendar-read wrappers for READ_67/61/63/64 and retire reminder authorization, occurrence response and byAppointmentIds literals (-3): 50->47. BEFORE=50.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; composition mount still required for runtime",
+        "handoff": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n99",
+          "at": "2026-11-24T16:44:55.200Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; composition mount still required for runtime"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -184318,17 +184333,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 4,
+        "in_progress": 3,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1453,
+        "blocked": 1454,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:44:16.690Z",
+    "updatedAt": "2026-11-24T16:44:55.204Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
