@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12304,
+    "revision": 12314,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -182737,6 +182737,182 @@
         "nextAction": "factRow delegate to settlementRefSource (-1): 21->20. BEFORE=21.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.people_payroll.read-tail-r50",
+        "goalId": "G4",
+        "owner": "people_payroll",
+        "title": "people_payroll TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/**",
+          "tests/unit/people_payroll/**"
+        ],
+        "resources": [
+          "owner:people_payroll"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n56",
+          "claimedAt": "2026-11-24T14:55:03.401Z",
+          "heartbeatAt": "2026-11-24T14:55:03.401Z",
+          "expiresAt": "2026-11-24T15:25:03.401Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "COALESCE display_name family (-4), slip owner guards (-1): 1233->1228. BEFORE=1233.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.read-tail-r50",
+        "goalId": "G4",
+        "owner": "finance",
+        "title": "finance TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n57",
+          "claimedAt": "2026-11-24T14:55:16.319Z",
+          "heartbeatAt": "2026-11-24T14:55:16.319Z",
+          "expiresAt": "2026-11-24T15:25:16.319Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Clock scalar probe (-3), payment slip checksum (-1), thai active guard (-1), reporting table-by-id (-2): 1812->1805. BEFORE=1812.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.files.read-tail-r44",
+        "goalId": "G4",
+        "owner": "files",
+        "title": "files TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "tests/unit/files/**"
+        ],
+        "resources": [
+          "owner:files"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n58",
+          "claimedAt": "2026-11-24T14:55:29.196Z",
+          "heartbeatAt": "2026-11-24T14:55:29.196Z",
+          "expiresAt": "2026-11-24T15:25:29.196Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "upload_intents EXISTS head (-2), attachments star head (-1), attachment_events head (-1): 246->242. BEFORE=246.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.collaboration.read-tail-r40",
+        "goalId": "G4",
+        "owner": "collaboration",
+        "title": "collaboration TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "tests/unit/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n59",
+          "claimedAt": "2026-11-24T14:55:42.154Z",
+          "heartbeatAt": "2026-11-24T14:55:42.154Z",
+          "expiresAt": "2026-11-24T15:25:42.154Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "NOT EXISTS source rows pair (-1): 356->355. BEFORE=356.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.assets.read-tail-r32",
+        "goalId": "G4",
+        "owner": "assets",
+        "title": "assets TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-assets/src/**",
+          "tests/unit/assets/**"
+        ],
+        "resources": [
+          "owner:assets"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n60",
+          "claimedAt": "2026-11-24T14:55:55.056Z",
+          "heartbeatAt": "2026-11-24T14:55:55.056Z",
+          "expiresAt": "2026-11-24T15:25:55.056Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Finance link head (-1), metric breakdown head (-1), node label inner head (-1): 10->7. BEFORE=10.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -182745,11 +182921,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1776,
+      "totalPackets": 1781,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 5,
+        "in_progress": 10,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -182759,7 +182935,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:54:16.491Z",
+    "updatedAt": "2026-11-24T14:55:55.060Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
