@@ -60,6 +60,7 @@ fn sql(kind: &str) -> Option<&'static str> {
       ORDER BY effective_month DESC,id DESC LIMIT 1"####,
         TARGET_ROLLOUT_RATED_SHADOW_PERIOD => r####"SELECT state,mode,total_satang,price_id,meter_snapshot_id,lines_json FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2"####,
         APPROVED_RATED_PERIOD => r####"SELECT 1 FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2 AND state='approved'"####,
+        ACTIVE_TARGET_ENROLLMENT => r####"SELECT * FROM billing_enrollments WHERE holding_id=$1 AND plan_id='platform_usage' AND ended_at IS NULL"####,
         TARGET_ROLLOUT_AVAILABLE_OPERATING_COSTS => r####"SELECT o.category,o.amount_satang,e.source_state
        FROM billing_target_operating_costs o
        JOIN billing_evidence e ON e.id=o.evidence_id
@@ -428,6 +429,31 @@ mod tests {
             now: 1,
         })
         .is_err());
+    }
+    #[test]
+    fn active_target_enrollment_read_is_owner_authored_and_single_bound() {
+        let holding = HoldingId::new("h001").unwrap();
+        let statement = billing_owner_statement(&holding, &BillingOwnerWriteInput {
+            kind: ACTIVE_TARGET_ENROLLMENT.into(),
+            values: vec![serde_json::json!("h001")],
+            now: 1,
+        })
+        .expect("active_target_enrollment is an allow-listed owner read kind");
+        assert_eq!(
+            statement.sql,
+            "SELECT * FROM billing_enrollments WHERE holding_id=$1 AND plan_id='platform_usage' AND ended_at IS NULL"
+        );
+        assert_eq!(statement.values, vec![serde_json::json!("h001")]);
+        // The holding is the only bind and the plan/active predicates are
+        // owner-authored; neither a missing nor a widened bind is accepted.
+        for values in [vec![], vec![serde_json::json!("h001"), serde_json::json!("extra")]] {
+            assert!(billing_owner_statement(&holding, &BillingOwnerWriteInput {
+                kind: ACTIVE_TARGET_ENROLLMENT.into(),
+                values,
+                now: 1,
+            })
+            .is_err());
+        }
     }
     #[test]
     fn target_rollout_operating_and_capacity_reads_are_owner_authored_and_fully_bound() {

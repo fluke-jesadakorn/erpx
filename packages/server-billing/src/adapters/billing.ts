@@ -79,9 +79,9 @@ legacyEnrollmentOverlap:(value0,value1,value2)=>c.query<BillingEnrollment>(`SELE
            AND started_at<$3 AND COALESCE(ended_at,effective_at,9223372036854775807)>$2`,[value0,value1,value2]),
 monthInvoiceExists:(value0,value1)=>c.query<BillingInvoiceRow>(`SELECT 1 FROM billing_invoices i JOIN billing_periods p ON p.id=i.period_id
            WHERE i.holding_id=$1 AND p.month=$2 AND i.status<>'void'`,[value0,value1]),
-activeTargetEnrollment:(value0)=>c.query<BillingEnrollment>("SELECT * FROM billing_enrollments WHERE holding_id=$1 AND plan_id='platform_usage' AND ended_at IS NULL",[value0]),
+activeTargetEnrollment:(value0)=>nativeBillingOwnerQuery(c, 'active_target_enrollment', [value0]),
 enrollTarget:(value0,value1,value2)=>nativeBillingOwnerQuery(c, 'enroll_target', [value0,value1,value2]),
-retainedTargetEnrollment:(value0)=>c.query<BillingEnrollment>("SELECT * FROM billing_enrollments WHERE holding_id=$1 AND plan_id='platform_usage' AND ended_at IS NULL",[value0]),
+retainedTargetEnrollment:(value0)=>nativeBillingOwnerQuery(c, 'active_target_enrollment', [value0]),
 targetPeriod:(value0,value1)=>c.query<BillingPeriod>("SELECT * FROM billing_periods WHERE enrollment_id=$1 AND month=$2",[value0,value1]),
 insertTargetInvoice:(value0,value1,value2,value3,value4,value5,value6,value7)=>nativeBillingOwnerQuery(c, 'insert_target_invoice', [value0,value1,value2,value3,value4,value5,value6,value7]),
 approveTargetRating:(value0,value1,value2,value3,value4,value5)=>nativeBillingOwnerQuery(c, 'approve_target_rating', [value0,value1,value2,value3,value4,value5]),
