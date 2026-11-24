@@ -266,3 +266,11 @@ export const stockSourceColumnsSql = (column: string, table: string) =>
  *  above are left unchanged. */
 export const attachmentOwnerVersionGuardSql = (table: string, extra = '') =>
   `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=?${extra ? ` AND ${extra}` : ''})`;
+/** r38: parameterized attachment child-lot id ARRAY projection. The landed-cost,
+ *  transit and transfer attachment reads share one byte-identical projection of
+ *  child lot ids through the owning line; only the lot relation, line relation,
+ *  child FK and parent FK vary. Every caller keeps its own bind shape and
+ *  independent statement. Locks, count sources/adapters, the clock CTE and the
+ *  native read registry stay untouched. r11-r37 helpers above are left unchanged. */
+export const attachmentLotIdsSql = (lots: string, lines: string, lineFk: string, parentFk: string) =>
+  `ARRAY(SELECT lot_id FROM ${lots} cl JOIN ${lines} l ON l.id=cl.${lineFk} WHERE l.${parentFk}=d.id) lot_ids`;
