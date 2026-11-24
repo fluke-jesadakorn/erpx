@@ -89,6 +89,6 @@ describe('Customer Authority read-tail r33 company-scope probe family', () => {
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(49);
-    expect(total).toBe(47);
+    expect(total).toBe(43);
   });
 });

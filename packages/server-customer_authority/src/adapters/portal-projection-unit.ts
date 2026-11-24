@@ -16,6 +16,7 @@ import {portalSupportInstalled,portalSupportSourceReadLocks} from '@erpx/server-
 import {customerPortalPurchaseScope} from '@erpx/server-customer_authority/adapters/portal-read-purchases';
 import {jsonbAggFact,bindingsExists} from './customer-authority-read-sql';
 import {jsonbImageProjection} from './customer-authority-read-tail-r23-sources';
+import {bindingCommerceOrderSource} from './customer-authority-read-tail-r34-sources';
 
 type Actor={userId:string;email:string};
 type Projection={items:{binding_id:string;sharedFiles:{linkId:string}[]}[]};
@@ -61,7 +62,7 @@ export async function withCustomerPortalRequestProjection<Result extends Project
    await flushFinanceDeferredEffects(database);
    if(JSON.stringify(actor)!==context||digest(await source(database,actor,installed))!==digest(after))throw changed();
    const purchase=await customerPortalPurchaseScope(database,'b');
-   if(newReads.length){const current=await database.prepare(`SELECT count(*)::int n FROM customer_access_reads r JOIN customer_access_bindings b ON b.id=r.binding_id AND b.version=r.binding_version JOIN customer_access_identities i ON i.binding_id=b.id AND i.user_id=r.user_id AND i.email=b.email JOIN (${commerce.commerce_orders}) o ON o.id=b.order_id AND o.company_id=b.company_id AND o.party_id=b.customer_id WHERE r.id IN (${newReads.map(()=>'?').join(',')}) AND r.user_id=? AND b.email=? AND b.status='approved' AND b.expires_at>? AND o.kind IN ('quote','sales') AND o.state IN ('confirmed','converted','partially_fulfilled','fulfilled') AND ${purchase}`).bind(...newReads.map(row=>row.id),actor.userId,actor.email.toLowerCase(),Date.now()).first<number>('n');if(current!==newReads.length)throw changed();}
+   if(newReads.length){const current=await database.prepare(`${bindingCommerceOrderSource('count(*)::int n',`customer_access_reads r JOIN customer_access_bindings b ON b.id=r.binding_id AND b.version=r.binding_version JOIN customer_access_identities i ON i.binding_id=b.id AND i.user_id=r.user_id AND i.email=b.email`,` AND o.party_id=b.customer_id WHERE r.id IN (${newReads.map(()=>'?').join(',')}) AND r.user_id=? AND b.email=? AND b.status='approved' AND b.expires_at>? AND o.kind IN ('quote','sales') AND o.state IN ('confirmed','converted','partially_fulfilled','fulfilled') AND ${purchase}`)}`).bind(...newReads.map(row=>row.id),actor.userId,actor.email.toLowerCase(),Date.now()).first<number>('n');if(current!==newReads.length)throw changed();}
    for(const id of links)if(!fileImages.get(id)||!await customerPortalPreviewRow(database,actor,id,Date.now())||(await customerPortalSharedPreviewSource(database,actor,id))?.witness!==fileImages.get(id))throw changed();
    await assertCurrent();return result;
   }finally{units.delete(database);}

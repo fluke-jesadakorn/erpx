@@ -13,9 +13,9 @@ import {commercePackageEnforcementMode,companyPurchaseReadLocks,checkPurchasedCa
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {commerceCompleteOwnerSourceReadLocks} from '@erpx/server-commerce/public/owner-source-locks';
-import {finalRootOwnerProjectionSources as commerce} from '@erpx/server-commerce/public/final-root-owner-projection-sources';
 import {portalReleaseAssertionSql,portalReleaseGateSql} from './portal-release-gate';
 import {portalPurchaseBindingSource} from './portal-purchase-binding-source';
+import {bindingCommerceOrderSource} from './customer-authority-read-tail-r34-sources';
 import {customerPortalSourceReadLocks} from '@erpx/server-customer_authority/adapters/portal-source-locks';
 import {financeDeferredEffectStatements} from '@erpx/server-finance/public/finance-transactions';
 export type PortalAttachmentPurchase={companyId:string;capability:'sales.portal';purpose:CapabilityPurpose;actor:WorkContext;targetId:string;external:boolean;witness:string};
@@ -23,7 +23,7 @@ const sourceQuery=(external:boolean)=>`${portalPurchaseBindingSource(`jsonb_buil
  ${external?'JOIN customer_access_identities i ON i.binding_id=b.id AND i.user_id=? AND i.email=?':''}
  WHERE b.id=? AND b.company_id=? ${external?"AND b.status='approved' AND b.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND b.email=?":'AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)'}`;
 const sourceArgs=(scope:Pick<PortalAttachmentPurchase,'external'|'actor'|'targetId'|'companyId'>)=>scope.external?[scope.actor.userId,scope.actor.email.toLowerCase(),scope.targetId,scope.companyId,scope.actor.email.toLowerCase()]:[scope.targetId,scope.companyId,scope.actor.branchId,scope.actor.branchId,scope.actor.departmentId,scope.actor.departmentId];
-function staffAuthority(scope:PortalAttachmentPurchase){return {where:`(SELECT (${assignmentReadSql('portal_file_staff','commerce.read')} OR ${assignmentReadSql('portal_file_staff','support.read')}) FROM (SELECT o.company_id,o.branch_id,o.department_id FROM customer_access_bindings b JOIN (${commerce.commerce_orders}) o ON o.id=b.order_id AND o.company_id=b.company_id WHERE b.id=? AND b.company_id=?) portal_file_staff)`,args:[scope.actor.assignmentId,scope.actor.userId,scope.actor.role,scope.actor.assignmentId,scope.actor.userId,scope.actor.role,scope.targetId,scope.companyId]};}
+function staffAuthority(scope:PortalAttachmentPurchase){return {where:`(SELECT (${assignmentReadSql('portal_file_staff','commerce.read')} OR ${assignmentReadSql('portal_file_staff','support.read')}) FROM (${bindingCommerceOrderSource('o.company_id,o.branch_id,o.department_id','customer_access_bindings b',' WHERE b.id=? AND b.company_id=?')}) portal_file_staff)`,args:[scope.actor.assignmentId,scope.actor.userId,scope.actor.role,scope.actor.assignmentId,scope.actor.userId,scope.actor.role,scope.targetId,scope.companyId]};}
 export async function portalAttachmentPurchaseScope(database:SqlDatabase,actor:WorkContext,policy:Pick<AttachmentPolicy,'targetType'|'purposeKey'>,id:string,operation?:AttachmentOperation):Promise<PortalAttachmentPurchase|null>{
  if(policy.targetType!=='customer_access_binding'||await commercePackageEnforcementMode()==='disabled')return null;
  const external=actor.role==='external_customer'&&actor.assignmentId===`customer-portal:${id}`,scope={companyId:actor.companyId,capability:'sales.portal' as const,purpose:operation==='read'||operation==='revoke-history'?'history' as const:'settle-existing' as const,actor,targetId:id,external},row=await database.prepare(`SELECT (${sourceQuery(external)}) witness`).bind(...sourceArgs(scope)).first<{witness:string|null}>();

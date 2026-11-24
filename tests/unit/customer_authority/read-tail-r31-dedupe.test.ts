@@ -77,6 +77,6 @@ describe('Customer Authority read-tail r31 support-conclusion identity family', 
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(53);
-    expect(total).toBe(47);
+    expect(total).toBe(43);
   });
 });
