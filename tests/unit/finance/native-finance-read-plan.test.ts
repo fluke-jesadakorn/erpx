@@ -41,6 +41,7 @@ import { journalLineEvidenceSql } from '../../../packages/server-finance/src/ada
 import { bookRootUnionSql, peopleRunsCteSql, peoplePostingsCteSql, journalAggregateCtesSql, netPayableFactSql, payrollUnpostedFactSql, statutoryLiabilityFactSql, statutoryLateralSql, secondaryJournalFactSql } from '../../../packages/server-finance/src/adapters/finance-read-tail-r23-sql';
 import { packageObligationFactsSql, ASSET_DEPRECIATION_COUNT_SQL, ASSET_POLICY_EDITION_PENDING_SQL, ASSET_POLICY_RUN_PENDING_SQL, TAX_SOURCE_APPROVED_INVOICE_SQL, TAX_SOURCE_APPROVED_COMMERCE_RETURN_SQL, TAX_SOURCE_APPROVED_BILLING_CREDIT_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r24-sql';
 import { ACCOUNT_SELECT_PREFIX, INVOICE_EXISTS_PREFIX, JOURNAL_SELECT_PREFIX } from '../../../packages/server-finance/src/adapters/finance-read-tail-r30-sql';
+import { CONSOLIDATION_RUN_BY_ID_SQL, ISSUED_THAI_DOCUMENT_BY_ID_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r31-sql';
 import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/people-payroll-final-owner-projections';
 import { workflowFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/workflow-final-owner-projections';
 import {
@@ -1024,7 +1025,7 @@ describe('finance read-tail r24 byte-identical SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2038);
-    expect(total).toBe(1989);
+    expect(total).toBe(1985);
   });
 });
 
@@ -1195,6 +1196,50 @@ describe('finance read-tail r30 byte-identical guard-prefix families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2027);
-    expect(total).toBe(1989);
+    expect(total).toBe(1985);
+  });
+});
+
+describe('finance read-tail r31 byte-identical read families', () => {
+  const LITERALS = {
+    CONSOLIDATION_RUN_BY_ID_SQL: 'SELECT * FROM finance_consolidation_runs r WHERE id=? AND holding_id=?',
+    ISSUED_THAI_DOCUMENT_BY_ID_SQL: 'SELECT * FROM finance_issued_thai_documents WHERE id=? AND company_id=?',
+  };
+
+  it('exposes the two exact literals with no row-lock text', () => {
+    expect(CONSOLIDATION_RUN_BY_ID_SQL).toBe(LITERALS.CONSOLIDATION_RUN_BY_ID_SQL);
+    expect(ISSUED_THAI_DOCUMENT_BY_ID_SQL).toBe(LITERALS.ISSUED_THAI_DOCUMENT_BY_ID_SQL);
+    for (const value of Object.values(LITERALS)) expect(value).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+  });
+
+  it('removes every inline family literal from its call sites', async () => {
+    for (const [file, literal] of [
+      ['finance-consolidation.ts', LITERALS.CONSOLIDATION_RUN_BY_ID_SQL],
+      ['finance-thai-documents.ts', LITERALS.ISSUED_THAI_DOCUMENT_BY_ID_SQL],
+    ] as const) {
+      const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+      expect(text.split(literal).length - 1).toBe(0);
+    }
+  });
+
+  it('leaves the retained tax assertion guard inline', async () => {
+    const tax = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    expect(tax).toContain('const pendingCorrectionsSql = "SELECT COUNT(*) FROM finance_vat_corrections');
+    expect(tax).toContain('`(${pendingCorrectionsSql})=0`');
+  });
+
+  it('retirement:ts-statements stays strictly below the r31 BEFORE=1989 baseline', () => {
+    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(1989);
+    expect(total).toBe(1985);
   });
 });
