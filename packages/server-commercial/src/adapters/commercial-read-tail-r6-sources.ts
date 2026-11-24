@@ -6,10 +6,11 @@ import "server-only";
  * fragments only, never request input. The r1/r3/r4/r5 helpers stay untouched.
  * Pure read: no writes, no LOCK TABLE, no FOR UPDATE/SHARE and no advisory lock. */
 
+import { monthScopedRead } from "./commercial-read-tail-r13-sources";
+
 /** Usage-snapshot header read keyed by billing month. */
 export function snapshotByMonthSql(selectList: string) {
-  return `SELECT ${selectList}
-      FROM billing_usage_snapshots WHERE month=?`;
+  return monthScopedRead(selectList, "billing_usage_snapshots");
 }
 
 /** Purchase shadow-observation aggregate over a Company grant/history source. */

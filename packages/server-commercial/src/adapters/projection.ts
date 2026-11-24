@@ -2,6 +2,7 @@ import {commercialSeatProjectionAccounts} from '@erpx/server-identity_access/pub
 import {coverageProbe} from './commercial-read-tail-r4-sources';
 import {snapshotByMonthSql} from './commercial-read-tail-r6-sources';
 import {holdingSnapshotReadSql} from './commercial-read-tail-r9-sources';
+import {monthScopedRead} from './commercial-read-tail-r13-sources';
 
 import { nativeCommercialOwnerWrite, NativeCommercialOwnerWriteError } from "@erpx/server-commercial/adapters/native-owner-write";
 async function ownerWrite(kind: any, values: readonly unknown[], recordId: string, key: string) {
@@ -46,12 +47,11 @@ function repository(control:SqlDatabase):UsageProjectionRepository{return {async
     control.prepare(snapshotByMonthSql(`holding_id,ai_coverage,storage_coverage,seat_coverage,seat_source_count,unreconciled_originals,
       active_seat_count,active_seat_observed_at`))
       .bind(month).all<SnapshotHeader>(),
-    control.prepare(`SELECT holding_id,month,source_key,company_id,company_name,branch_id,branch_name,
+    control.prepare(monthScopedRead(`holding_id,month,source_key,company_id,company_name,branch_id,branch_name,
       meter_kind,funding_source,pricing_status,quantity,input_tokens,output_tokens,
       average_daily_bytes,active_at_period_end,request_status,gateway_status,provider,model,
       units_json::text units_json,cost_status,verified_cost_satang,cost_evidence_key,
-      cost_reconciled_at,active_from,active_until,byte_milliseconds::text byte_milliseconds
-      FROM billing_usage_meters WHERE month=?`)
+      cost_reconciled_at,active_from,active_until,byte_milliseconds::text byte_milliseconds`, "billing_usage_meters"))
       .bind(month).all<MeterRow>(),
     control.prepare(snapshotByMonthSql("holding_id,active_seat_count,active_seat_observed_at"))
       .bind(currentMonth).all<Pick<SnapshotHeader,"holding_id"|"active_seat_count"|"active_seat_observed_at">>(),

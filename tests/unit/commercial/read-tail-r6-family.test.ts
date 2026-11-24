@@ -61,9 +61,11 @@ describe('Commercial read-tail r6 byte-identical / parameterized family', () => 
     expect(adapters('purchase-command-boundary.ts')).toContain('SELECT company_id,package_id FROM company_package_grants ORDER BY company_id,package_id FOR SHARE');
   });
 
-  test('shared module declares each read literal exactly once', () => {
+  test('shared module declares each remaining read literal exactly once', () => {
     const shared = adapters('commercial-read-tail-r6-sources.ts');
-    expect(shared.match(/SELECT /g)).toHaveLength(2); // one literal per builder
+    // The snapshot-by-month literal now lives in the r13 month-scoped builder;
+    // r6 delegates to it and keeps only its purchase-observation literal.
+    expect(shared.match(/SELECT /g)).toHaveLength(1);
   });
 
   test('retirement:ts-statements stays strictly below the r6 BEFORE=34 baseline', () => {

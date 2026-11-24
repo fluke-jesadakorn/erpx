@@ -90,6 +90,6 @@ describe('Commercial read-tail r10 parameterized EXISTS package-source family', 
     };
     walk(srcRoot);
     expect(total).toBeLessThan(28);
-    expect(total).toBe(23);
+    expect(total).toBe(22);
   });
 });
