@@ -3295,6 +3295,33 @@
       "lane": "unit",
       "owner": "billing",
       "modules": [
+        "commercial"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Billing point-read residuals must absorb into the r29 head."
+      },
+      "apps": [
+        "finance"
+      ],
+      "packages": [
+        "@erpx/server-billing"
+      ],
+      "id": "billing.billing-read-tail-r34-dedupe.unit",
+      "files": [
+        "tests/unit/billing/billing-read-tail-r34-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "billing",
+      "modules": [
         "finance"
       ],
       "fixture": "none",

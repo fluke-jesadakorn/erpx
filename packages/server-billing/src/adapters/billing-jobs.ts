@@ -24,9 +24,10 @@ import {BILLING_ADVISORY_UNLOCK_SQL} from './billing-read-tail-r25-sql';
 import {billingAccountProjectionSql} from './billing-read-tail-r30-sql';
 import type {BillingAccount,BillingInvoiceRow,BillingJobRow} from '@erpx/server-billing/domain/billing';
 import {billingTestFinanceReady} from '@erpx/server-commerce/public/billing-test-finance-ready';
-/** r17 read tail: shared invoice-id read prefix; each caller appends its own predicate. */
+/** r17 read tail: shared invoice-id read prefix, routed through the r29 point-read
+ * head; each caller appends its own predicate. */
 function billingInvoiceIdSql(extra: string) {
-  return `SELECT id FROM billing_invoices WHERE holding_id=$1${extra}`;
+  return billingPointReadSql('id', 'billing_invoices', `holding_id=$1${extra}`);
 }
 function nativeJobRepository(c:PoolClient):BillingJobRepository{return {invoice:(v0)=>c.query<BillingInvoiceRow>(BILLING_INVOICE_BY_ID_SQL,[v0]),
 mirrorInvoiceState:(v0,v1,v2,v3,v4,v5,v6)=>nativeBillingOwnerQuery(c, 'mirror_invoice_state', [v0,v1,v2,v3,v4,v5,v6]),

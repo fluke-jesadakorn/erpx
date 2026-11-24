@@ -84,6 +84,6 @@ describe('billing read-tail r27 metric count projection dedupe', () => {
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(59);
-    expect(count).toBe(42); // r33 deduped the residual point reads and the enrollment subscription head.
+    expect(count).toBe(36); // r34 routed the r17/r19/operating/reconciliation heads through r29.
   });
 });

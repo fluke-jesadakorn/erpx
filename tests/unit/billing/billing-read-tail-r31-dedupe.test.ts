@@ -79,8 +79,8 @@ describe('billing read-tail r31 target-month read dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(42);
-    expect(bare).toBe(42);
+    expect(spaced).toBe(36);
+    expect(bare).toBe(36);
     expect(spaced).toBeLessThan(48);
     expect(bare).toBeLessThan(48);
   });

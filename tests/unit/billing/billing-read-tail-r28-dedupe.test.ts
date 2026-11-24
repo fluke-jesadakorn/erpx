@@ -39,7 +39,7 @@ describe('billing read-tail r28 storage-ledger parameterized family dedupe', () 
     // The non-family statements stay untouched: pending-scan prefix, reconciliation
     // point read, source listing and the duplicate-object COUNT wrapper.
     expect(text).toContain('BILLING_PENDING_SCAN_COUNT_SQL');
-    expect(text).toContain('SELECT ready,created_at FROM billing_evidence_reconciliation_runs');
+    expect(text).toContain("billingPointReadSql('ready,created_at','billing_evidence_reconciliation_runs'");
     expect(text).toContain('SELECT id,holding_id,object_key,size,sha256,source_state FROM billing_evidence ORDER BY id');
     expect(text).toContain('(SELECT count(*)::bigint FROM (');
   });
@@ -60,6 +60,6 @@ describe('billing read-tail r28 storage-ledger parameterized family dedupe', () 
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(59);
-    expect(count).toBe(42); // r33 deduped the residual point reads and the enrollment subscription head.
+    expect(count).toBe(36); // r34 routed the r17/r19/operating/reconciliation heads through r29.
   });
 });

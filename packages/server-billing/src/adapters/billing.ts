@@ -17,16 +17,16 @@ import {BILLING_ADVISORY_XACT_LOCK_SQL} from './billing-read-tail-r25-sql';
 import {billingPointReadSql} from './billing-read-tail-r29-sql';
 export {billingInput} from '@erpx/server-billing/domain/billing';
 export type {BillingActor,BillingInput} from '@erpx/server-billing/domain/billing';
-/** r17 read tail: one SQL text per alias-parameterized read family. Call sites keep
- * their own binds and result types; each helper only adds its own predicate/table. */
+/** r17 read tail: one SQL text per alias-parameterized read family, routed through
+ * the r29 point-read head. Call sites keep their own binds and result types. */
 function billingEffectiveMonthGuardSql(table: string) {
   return `SELECT 1 FROM ${table} WHERE holding_id=$1 AND effective_month<=$2`;
 }
 function billingPlanByRevisionSql(extra = "") {
-  return `SELECT * FROM billing_plans WHERE id=$1${extra} ORDER BY revision DESC LIMIT 1`;
+  return billingPointReadSql('*', 'billing_plans', `id=$1${extra} ORDER BY revision DESC LIMIT 1`);
 }
 function billingPeriodByEnrollmentSql(extra = "") {
-  return `SELECT * FROM billing_periods WHERE enrollment_id=$1${extra}`;
+  return billingPointReadSql('*', 'billing_periods', `enrollment_id=$1${extra}`);
 }
 export function nativeBillingRepository(c:PoolClient):BillingRepository{return {
 recordRatingRun:(value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11)=>nativeBillingOwnerQuery(c, 'record_rating_run', [value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11]),

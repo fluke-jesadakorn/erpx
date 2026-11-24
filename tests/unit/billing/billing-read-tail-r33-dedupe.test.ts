@@ -155,9 +155,9 @@ describe('billing read-tail r33 residual dedupe', () => {
       expect(text.split(oracle.full).length - 1).toBe(oracle.inlineAfter);
       expect(text.split(oracle.routed).length - 1).toBe(1);
     }
-    expect(billing.split('billingPointReadSql(').length - 1).toBe(5);
-    expect(jobs.split('billingPointReadSql(').length - 1).toBe(6);
-    expect(target.split('billingPointReadSql(').length - 1).toBe(3);
+    expect(billing.split('billingPointReadSql(').length - 1).toBe(7);
+    expect(jobs.split('billingPointReadSql(').length - 1).toBe(7);
+    expect(target.split('billingPointReadSql(').length - 1).toBe(4);
   });
 
   it('preserves the pendingEvents scalar tail with $2 index and wrapping parens', () => {
@@ -190,8 +190,8 @@ describe('billing read-tail r33 residual dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(42);
-    expect(bare).toBe(42);
+    expect(spaced).toBe(36);
+    expect(bare).toBe(36);
     expect(spaced).toBeLessThan(48);
     expect(bare).toBeLessThan(48);
   });

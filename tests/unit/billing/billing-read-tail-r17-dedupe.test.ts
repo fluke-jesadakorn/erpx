@@ -5,10 +5,13 @@ const dir = new URL('../../../packages/server-billing/src/adapters/', import.met
 const src = (name: string) => readFile(new URL(name, dir), 'utf8');
 
 const GUARD = 'SELECT 1 FROM ${table} WHERE holding_id=$1 AND effective_month<=$2';
-const PLAN = 'SELECT * FROM billing_plans WHERE id=$1${extra} ORDER BY revision DESC LIMIT 1';
-const PERIOD = 'SELECT * FROM billing_periods WHERE enrollment_id=$1${extra}';
+const PLAN_SQL = 'SELECT * FROM billing_plans WHERE id=$1${extra} ORDER BY revision DESC LIMIT 1';
+const PERIOD_SQL = 'SELECT * FROM billing_periods WHERE enrollment_id=$1${extra}';
+const PLAN_ROUTE = "billingPointReadSql('*', 'billing_plans', `id=$1${extra} ORDER BY revision DESC LIMIT 1`)";
+const PERIOD_ROUTE = "billingPointReadSql('*', 'billing_periods', `enrollment_id=$1${extra}`)";
 const PENDING_SCAN = "SELECT count(*) FILTER (WHERE source_state IN ('legacy_unscanned','quarantined','scanning','scan_error'))::bigint pending";
 const INVOICE_ID = 'SELECT id FROM billing_invoices WHERE holding_id=$1${extra}';
+const INVOICE_ID_ROUTE = "billingPointReadSql('id', 'billing_invoices', `holding_id=$1${extra}`)";
 
 async function tsFiles(directory: URL): Promise<string[]> {
   const found: string[] = [];
@@ -23,12 +26,15 @@ describe('billing read-tail r17 alias-parameterized family dedupe', () => {
   it('declares each shared SQL text exactly once', async () => {
     const billing = await src('billing.ts');
     expect(billing.split(GUARD).length - 1).toBe(1);
-    expect(billing.split(PLAN).length - 1).toBe(1);
-    expect(billing.split(PERIOD).length - 1).toBe(1);
+    expect(billing.split(PLAN_ROUTE).length - 1).toBe(1);
+    expect(billing.split(PERIOD_ROUTE).length - 1).toBe(1);
+    expect(billing).not.toContain(PLAN_SQL);
+    expect(billing).not.toContain(PERIOD_SQL);
     const attachments = await src('billing-attachments.ts');
     expect(attachments.split(PENDING_SCAN).length - 1).toBe(1);
     const jobs = await src('billing-jobs.ts');
-    expect(jobs.split(INVOICE_ID).length - 1).toBe(1);
+    expect(jobs.split(INVOICE_ID_ROUTE).length - 1).toBe(1);
+    expect(jobs).not.toContain(INVOICE_ID);
   });
 
   it('routes every family call site through the shared fragment with byte-identical SQL', async () => {
@@ -65,7 +71,7 @@ describe('billing read-tail r17 alias-parameterized family dedupe', () => {
   it('keeps the fragments read-only and leaves advisory/FOR UPDATE reads untouched', async () => {
     const billing = await src('billing.ts');
     const jobs = await src('billing-jobs.ts');
-    for (const fragment of [GUARD, PLAN, PERIOD, PENDING_SCAN, INVOICE_ID]) {
+    for (const fragment of [GUARD, PLAN_SQL, PERIOD_SQL, PENDING_SCAN, INVOICE_ID]) {
       expect(fragment).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     }
     expect(billing).toContain('BILLING_ADVISORY_XACT_LOCK_SQL');

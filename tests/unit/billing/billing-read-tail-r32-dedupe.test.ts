@@ -133,9 +133,9 @@ describe('billing read-tail r32 dedupe', () => {
     }
     expect(jobs).toContain("from './billing-read-tail-r29-sql'");
     expect(jobs.split('BILLING_INVOICE_BY_ID_SQL').length - 1).toBe(3);
-    expect(jobs.split('billingPointReadSql(').length - 1).toBe(6);
-    expect(target.split('billingPointReadSql(').length - 1).toBe(3);
-    expect(billing.split('billingPointReadSql(').length - 1).toBe(5);
+    expect(jobs.split('billingPointReadSql(').length - 1).toBe(7);
+    expect(target.split('billingPointReadSql(').length - 1).toBe(4);
+    expect(billing.split('billingPointReadSql(').length - 1).toBe(7);
   });
 
   it('leaves FOR UPDATE, advisory and native owner reads untouched', async () => {
@@ -160,8 +160,8 @@ describe('billing read-tail r32 dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(42);
-    expect(bare).toBe(42);
+    expect(spaced).toBe(36);
+    expect(bare).toBe(36);
     expect(spaced).toBeLessThan(48);
     expect(bare).toBeLessThan(48);
   });

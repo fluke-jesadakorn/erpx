@@ -1,11 +1,12 @@
 /** Parameterized Billing read-tail r19 SQL text shared across owner-local readers.
  * Text only: every caller still prepares and executes its own statement with its
  * own binds and result-type alias; nothing is cached or executed here. */
+import {billingPointReadSql} from './billing-read-tail-r29-sql';
 
 /** Target provider-cost point reads share a holding/month prefix; each caller
  * appends its own predicate (for example the source-key guard). */
 export function billingProviderCostsSql(extra = "") {
-  return `SELECT * FROM billing_target_provider_costs WHERE holding_id=$1 AND month=$2${extra}`;
+  return billingPointReadSql('*', 'billing_target_provider_costs', `holding_id=$1 AND month=$2${extra}`);
 }
 
 /** Usage-snapshot point reads share the native commercial source and the

@@ -68,8 +68,8 @@ describe('billing read-tail r29 point-read-by-id dedupe', () => {
       expect(text.split(oracle.full).length - 1).toBe(0);
       expect(text.split(oracle.routed).length - 1).toBe(1);
     }
-    expect(billing.split('billingPointReadSql(').length - 1).toBe(5);
-    expect(target.split('billingPointReadSql(').length - 1).toBe(3);
+    expect(billing.split('billingPointReadSql(').length - 1).toBe(7);
+    expect(target.split('billingPointReadSql(').length - 1).toBe(4);
   });
 
   it('keeps the r15 invoice-by-id constant, FOR UPDATE guard and advisory locks untouched', async () => {
@@ -97,8 +97,8 @@ describe('billing read-tail r29 point-read-by-id dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(42);
-    expect(bare).toBe(42);
+    expect(spaced).toBe(36);
+    expect(bare).toBe(36);
     expect(spaced).toBeLessThan(48);
     expect(bare).toBeLessThan(48);
   });

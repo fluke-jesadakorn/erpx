@@ -11,10 +11,7 @@ import {billingPointReadSql} from './billing-read-tail-r29-sql';
 import {billingTargetMonthSql} from './billing-read-tail-r31-sql';
 import type * as D from '@erpx/server-billing/domain/target';
 export type {TargetMeasuredEvidence,TargetRatedLine,TargetBillingPeriodView} from '@erpx/server-billing/domain/target';
-export function nativeTargetBillingRepository(c:PoolClient):TargetBillingRepository{return {operatingCosts:(value0,value1)=>c.query<D.OperatingCostsRow>(`SELECT o.category,o.amount_satang,e.source_state
-      FROM billing_target_operating_costs o
-      JOIN billing_evidence e ON e.id=o.evidence_id
-      WHERE o.holding_id=$1 AND o.month=$2`,[value0,value1]),
+export function nativeTargetBillingRepository(c:PoolClient):TargetBillingRepository{return {operatingCosts:(value0,value1)=>c.query<D.OperatingCostsRow>(billingPointReadSql('o.category,o.amount_satang,e.source_state\n     ','billing_target_operating_costs o\n      JOIN billing_evidence e ON e.id=o.evidence_id\n     ','o.holding_id=$1 AND o.month=$2'),[value0,value1]),
 measuredSnapshot:async(value0,value1)=>c.query<D.MeasuredSnapshotRow>(await billingUsageSnapshotSql(`snapshot_id,refreshed_at,source_count,ai_coverage,storage_coverage,
       unreconciled_originals,seat_coverage,seat_source_count`,await nativeCommercialOwnerRead(COMMERCIAL_RD_USAGE_SNAPSHOT)),[value0,value1]),
 currentSeats:async(value0,value1)=>c.query<D.CurrentSeatsRow>(await billingUsageSnapshotSql('active_seat_count,active_seat_observed_at',await nativeCommercialOwnerRead(COMMERCIAL_RD_USAGE_SNAPSHOT)),[value0,value1]),
