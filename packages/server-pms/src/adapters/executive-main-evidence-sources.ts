@@ -6,6 +6,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { hotelOccupancyMetric, HotelRoomRevenueMetric, HotelOccupancyEvidenceRow, HotelGuestAccountBalanceEvidenceRow, HotelNightAuditBlockerEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
 import { pmsNightLineageStepSql, pmsNightSourceWitnessSql } from "./pms-read-tail-r43-sql";
+import { pmsNightLineageAnchorSql } from "./pms-read-tail-r44-sql";
 function hotelOccupancyRows(db: SqlDatabase, actor: WorkContext, filters: Filters, metric: typeof hotelOccupancyMetric | HotelRoomRevenueMetric = hotelOccupancyMetric, query = "", cursor?: {
     businessDate: string;
     id: string;
@@ -151,7 +152,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         AND e.kind='entry' AND e.data_json::jsonb->>'date'=?
         AND e.data_json::jsonb->>'kind' IN ('charge','adjustment')
     ), lineage(entry_id,property_id,net_raw,current_id,source_key,original_id,visited) AS (
-      SELECT id,property_id,net_raw,id,source_key,original_id,ARRAY[id]::text[] FROM candidate_entries
+${pmsNightLineageAnchorSql('lineage')}
       UNION ALL
 ${pmsNightLineageStepSql('lineage')}
     )

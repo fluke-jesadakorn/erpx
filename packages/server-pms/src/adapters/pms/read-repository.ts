@@ -12,6 +12,7 @@ import { PMS_STAY_SOURCE_PROJECTION_SQL } from "../pms-read-tail-r38-sql";
 import { pmsGuestIdJoinSql } from "../pms-read-tail-r41-sql";
 import { PMS_ORDERED_RECORDS_TAIL_SQL, pmsStayExistsHeadSql } from "../pms-read-tail-r42-sql";
 import { pmsBookingEmailPendingSql } from "../pms-read-tail-r43-sql";
+import { pmsChosenKindUnionSql } from "../pms-read-tail-r44-sql";
 import { nativePmsReadAll, PMS_RD_INVENTORY_COMMAND } from "../native-pms-read";
 import * as application from "@erpx/server-pms/application/read-repository";
 const stayPredicate = `(data_json::jsonb->>'state' IN ('reserved','in_house') OR
@@ -171,8 +172,8 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
      (data_json::jsonb->>'state'='in_house' AND ((? AND data_json::jsonb->>'roomId' IN (SELECT id FROM chosen WHERE kind='room')) OR ?))
      OR (? AND ((data_json::jsonb->>'state'='reserved' AND data_json::jsonb->>'arrival'<=?) OR (data_json::jsonb->>'state'='in_house')))
    ) UNION SELECT id,data FROM guest_history WHERE position<=20
- ), guestAccounts AS (SELECT id FROM chosen WHERE kind='guest_account' UNION SELECT data->>'guestAccountId' FROM stays UNION SELECT data->>'guestAccountId' FROM chosen),
- room_ids AS (SELECT id FROM chosen WHERE kind='room' UNION SELECT data->>'roomId' FROM stays UNION SELECT data->>'roomId' FROM chosen),
+ ), guestAccounts AS (${pmsChosenKindUnionSql('guest_account')}),
+ room_ids AS (${pmsChosenKindUnionSql('room')}),
  recent_tasks AS (
    ${PMS_RECORD_ID_PROPERTY_HEAD_SQL} AND ? AND kind='task'
      AND data_json::jsonb->>'roomId' IN (SELECT id FROM room_ids) AND data_json::jsonb->>'state' IN ('done','superseded')

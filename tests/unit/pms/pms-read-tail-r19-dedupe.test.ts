@@ -51,7 +51,7 @@ describe('pms read-tail r19 byte-identical projection-fragment dedupe', () => {
     // r20 deduped the 3x pms_properties and 3x pms_records projections below r19 after=481.
     // r21 deduped the 4x parameterized recipient cross-join fragment below r20 after=477.
     // r30 deduped the 3-SELECT parameterized payment-identity union below r29 after=361.
-    expect(count).toBe(299);
+    expect(count).toBe(292);
     expect(count).toBeLessThan(487);
   });
 });
@@ -60,19 +60,24 @@ describe('pms read-tail r30 parameterized payment-identity union dedupe', () => 
   const UNION = String.raw`FROM pms_documents d JOIN pms_properties p ON p.id=d.property_id WHERE d.kind IN ('receipt','refund') AND d.finance_id IS NOT NULL UNION SELECT company_id,finance_payment_id FROM pms_transfer_requests WHERE finance_payment_id IS NOT NULL UNION SELECT p.company_id,b.finance_payment_id FROM pms_import_balances b JOIN pms_properties p ON p.id=b.property_id WHERE b.finance_payment_id IS NOT NULL`;
 
   it('declares the union once and routes both callers through the shared function', async () => {
+    // r44 folds the identity and source-image unions into one closed builder.
+    const shared = await src('adapters/pms-read-tail-r44-sql.ts');
     const fin = await src('adapters/finance-record-sources.ts');
     const pkg = await src('adapters/package-obligations.ts');
-    expect(fin.split(UNION).length - 1).toBe(1);
+    expect(fin.split(UNION).length - 1).toBe(0);
     expect(pkg.split(UNION).length - 1).toBe(0);
+    expect(shared).toContain("type PaymentUnionKind = 'identity' | 'sourceImage'");
+    expect(shared).toContain('const PAYMENT_UNION');
     expect(fin).toContain('export function pmsPaymentIdentityUnionSql(aliasDocumentId: boolean): string');
+    expect(fin).toContain("return pmsPaymentUnionSql('identity', aliasDocumentId);");
     expect(fin).toContain('payment: pmsPaymentIdentityUnionSql(true)');
     expect(pkg).toContain('import { pmsPaymentIdentityUnionSql } from "./finance-record-sources";');
     expect(pkg).toContain('payments: pmsPaymentIdentityUnionSql(false)');
   });
 
   it('keeps the union read-only with the only variant being the document id alias', async () => {
-    const fin = await src('adapters/finance-record-sources.ts');
+    const shared = await src('adapters/pms-read-tail-r44-sql.ts');
     expect(UNION).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
-    expect(fin).toContain("d.finance_id${aliasDocumentId ? ' id' : ''} FROM pms_documents");
+    expect(shared).toContain("d.finance_id${aliasDocumentId ? ' id' : ''}");
   });
 });

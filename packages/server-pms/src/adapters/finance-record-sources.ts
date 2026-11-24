@@ -1,11 +1,12 @@
 import "server-only";
 import { pmsJournalIdentityUnionSql } from "./pms-read-tail-r39-sql";
+import { pmsPaymentUnionSql } from "./pms-read-tail-r44-sql";
 /** Closed Finance-payment identity union shared by the Hotel document reader and
  * package settlement sources. Text only: callers keep their own scope/authority
  * guards, binds and transaction. The sole variant is the optional `id` output
  * alias on the document finance_id column; no table, predicate or SQL is caller-supplied. */
 export function pmsPaymentIdentityUnionSql(aliasDocumentId: boolean): string {
-  return `SELECT p.company_id,d.finance_id${aliasDocumentId ? ' id' : ''} FROM pms_documents d JOIN pms_properties p ON p.id=d.property_id WHERE d.kind IN ('receipt','refund') AND d.finance_id IS NOT NULL UNION SELECT company_id,finance_payment_id FROM pms_transfer_requests WHERE finance_payment_id IS NOT NULL UNION SELECT p.company_id,b.finance_payment_id FROM pms_import_balances b JOIN pms_properties p ON p.id=b.property_id WHERE b.finance_payment_id IS NOT NULL`;
+  return pmsPaymentUnionSql('identity', aliasDocumentId);
 }
 /** Only actual Hotel document/posting identities reach the Finance reader. */
 export const pmsFinanceRecordSources = {
@@ -20,5 +21,5 @@ export function pmsFinanceRecordSourceReadLocks(database:import("@erpx/server-ru
 /** Full retained native relationship headers remain server-only. */
 export const pmsFinanceRecordSourceImages={
  journal: pmsJournalIdentityUnionSql('sourceImage'),
- payment:`SELECT p.company_id,d.finance_id id,jsonb_build_object('property',to_jsonb(p),'document',to_jsonb(d)) source_image FROM pms_documents d JOIN pms_properties p ON p.id=d.property_id WHERE d.kind IN ('receipt','refund') AND d.finance_id IS NOT NULL UNION ALL SELECT company_id,finance_payment_id,to_jsonb(d) FROM pms_transfer_requests d WHERE finance_payment_id IS NOT NULL UNION ALL SELECT p.company_id,b.finance_payment_id,jsonb_build_object('property',to_jsonb(p),'balance',to_jsonb(b)) FROM pms_import_balances b JOIN pms_properties p ON p.id=b.property_id WHERE b.finance_payment_id IS NOT NULL`,
+ payment:pmsPaymentUnionSql('sourceImage'),
 } as const;

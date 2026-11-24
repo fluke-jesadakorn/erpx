@@ -9,6 +9,7 @@ import { specs } from '@erpx/server-runtime/public/executive/metric-projection-c
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import { pmsBranchLabelSql } from "./pms-read-tail-r40-sql";
 import { pmsNightLineageStepSql, pmsNightSourceWitnessSql } from "./pms-read-tail-r43-sql";
+import { pmsNightLineageAnchorSql } from "./pms-read-tail-r44-sql";
 /** Closed branch label shared by the occupancy and guest-account-balance metrics. No caller SQL is accepted. */
 const EXEC_BRANCH_LABEL_SQL = pmsBranchLabelSql('n');
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
@@ -56,7 +57,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         WHERE e.kind='entry' AND e.data_json::jsonb->>'date' BETWEEN ? AND ?
           AND e.data_json::jsonb->>'kind' IN ('charge','adjustment')
       ), entry_lineage(entry_id,property_id,business_date,net_raw,current_id,source_key,original_id,visited) AS (
-        SELECT id,property_id,business_date,net_raw,id,source_key,original_id,ARRAY[id]::text[] FROM candidate_entries
+${pmsNightLineageAnchorSql('entry_lineage')}
         UNION ALL
 ${pmsNightLineageStepSql('entry_lineage')}
       ), room_revenue AS (
