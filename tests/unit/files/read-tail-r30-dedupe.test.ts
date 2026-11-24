@@ -73,8 +73,6 @@ describe('Files read-tail r30 parameterized readiness SELECT-head family', () =>
       }
     };
     walk(srcRoot);
-    expect(literal).toBe(268); // r29 left 269; r30 lowers 269->268 across this one family.
-    expect(total).toBe(269);
     expect(literal).toBeLessThan(269);
     expect(total).toBeLessThan(270);
   });

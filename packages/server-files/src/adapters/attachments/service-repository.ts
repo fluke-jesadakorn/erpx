@@ -10,13 +10,14 @@ import {LINK_ATTACHMENT_SELECT_SQL, LINK_SET_ATTACHMENT_EXISTS_SQL, LINK_SET_ID_
 import {attachmentsByIdCompanySql} from "../read-tail-r26-source-sql";
 import {SELECT_ATTACHMENT_ID_SQL} from "../read-tail-r27-source-sql";
 import {LINK_SET_JOIN_SQL} from "../read-tail-r29-source-sql";
+import {attachmentPublicationByIdSql} from "../read-tail-r31-source-sql";
 const setByIdSql = "SELECT * FROM attachment_sets WHERE id=? AND company_id=?";
 export const usedStorageSql = "SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')";
 export const pendingStorageSql = "SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?";
 const advisoryLockSql = "SELECT pg_advisory_xact_lock(hashtextextended(?,0))";
 const attachmentChecksumSql = attachmentsByIdCompanySql('checksum_sha256,source_state');
 const setLockSql = "SELECT state FROM attachment_sets WHERE id=? AND company_id=? FOR UPDATE";
-const publicationByIdSql = "SELECT * FROM attachment_publications WHERE id=? AND company_id=?";
+const publicationByIdSql = attachmentPublicationByIdSql(true);
 const publicationOrderVersionSql = "SELECT version FROM attachment_publication_orders WHERE company_id=? AND target_type=? AND target_id=?";
 const uploadIntentForSetSql = "SELECT * FROM upload_intents WHERE id=? AND attachment_set_id IS NOT NULL AND created_by=? AND company_id=?";
 const attachmentLinkSql = "SELECT l.*,s.target_type,s.target_id,s.component_kind,s.purpose_key,s.expected_target_version,s.state set_state,s.company_id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=? AND s.company_id=?";
@@ -634,7 +635,7 @@ export function repository(db: SqlDatabase) {
         }) => { return nativeWrite('SR_025', [facts.arg1, facts.companyId, facts.attachment_id, facts.sourceLinkId, facts.userId, facts.arg6, facts.arg7, facts.now]); },
         readAttachmentPublications84: (facts: {
             id: string;
-        }) => { return db.prepare("SELECT * FROM attachment_publications WHERE id=?").bind(facts.id).first<Record<string, unknown>>(); },
+        }) => { return db.prepare(attachmentPublicationByIdSql(false)).bind(facts.id).first<Record<string, unknown>>(); },
         readAttachmentPublications85: (facts: {
             companyId: string;
             targetType: string;

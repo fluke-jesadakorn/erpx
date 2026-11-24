@@ -17,6 +17,7 @@ import { createAttachmentMigrationApplication, type AttachmentMigrationRepositor
 import { ORPHAN_PRESERVATION_PRESENT_SQL } from '../preservation-presence-dedupe-sql';
 import { orphanReconciliationSql } from '../read-tail-r26-source-sql';
 import { STORAGE_LEDGER_PRESENCE_SQL } from '../read-tail-r29-source-sql';
+import { ledgerBytesSumSql } from '../read-tail-r31-source-sql';
 function application(db: SqlDatabase) {
     const database = db, repository: AttachmentMigrationRepository<SqlStatement> = { readBackfillSpecializedAttachmentsMessaging() { return attachmentMigrationcollaboration(database).readBackfillSpecializedAttachmentsMessaging(); },
         readBackfillSpecializedAttachmentsDocuments() { return attachmentMigrationlegal(database).readBackfillSpecializedAttachmentsDocuments(); },
@@ -174,7 +175,7 @@ function application(db: SqlDatabase) {
             quarantine_key: string | null;
             final_key: string | null;
         }>(); },
-        readReconcileAttachmentStorageEffect7() { return database.prepare("SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE state='stored'").first("coalesce"); },
+        readReconcileAttachmentStorageEffect7() { return database.prepare(ledgerBytesSumSql("state='stored'")).first("coalesce"); },
         readReconcileAttachmentStorageEffect8() { return database.prepare("SELECT count(*) FROM (SELECT object_key FROM attachment_storage_ledger WHERE state='stored' GROUP BY object_key HAVING count(*)>1) duplicates").first("count"); } };
     return createAttachmentMigrationApplication<SqlStatement>({ repository, clock: { now: Date.now }, policy: attachmentPolicy, legacyPolicy: legacyAttachmentPolicy, retention: attachmentRetentionSnapshot, ownerScope: source => legacyAttachmentOwnerScope(db, source), brandCompanies: () => legacyHoldingBrandCompanies(db), digest: value => createHash('sha256').update(value).digest('hex'), bytesDigest: buffer => sha256(new Uint8Array(buffer).slice().buffer), thumbnailChecksum: async (bytes) => createHash('sha256').update(await sharp(bytes, { limitInputPixels: 25000000, animated: false }).rotate().resize(480, 480, { fit: 'cover' }).webp({ quality: 82 }).toBuffer()).digest('hex'), preservationMetadataDigest: head => requireOrphan().preservationMetadataDigest(head), verifiedPreservedDirectory: (...args) => requireOrphan().verifiedPreservedDirectory(...args), batch: async effects => { const resolved = await resolveNativeEffects(effects, { companyId: '', key: 'files-migration', now: Date.now(), db }); return db.batch(resolved.statements); } });
 }
