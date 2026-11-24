@@ -71,22 +71,3 @@ export async function withQualityPurchasedCommand<Result>(owner:SqlDatabase,acto
   await current(database,actor,key,command.permissions);const observed=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));boundaries[0]?.boundary.observe?.(observed);return result;
  });}catch(error){throw purchaseCommandFailure(error)??financialConstraintError(error)??error;}
 }
-
-/** Actor-free durable escalation stays with the actual existing hold. Normal
- * recipient SQL still checks current roles; no management package is imposed
- * on shared quarantine facts or another product's unrelated Stock jobs. */
-export async function withQualityPurchasedSweep<Result>(owner:SqlDatabase,run:(database:SqlDatabase,scope?:{companyId:string;holdIds:string[]})=>Promise<Result>,merge:(results:Result[])=>Result){
- const mode=await commercePackageEnforcementMode();if(mode==="disabled")return run(owner);
- if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,"QUALITY_TRANSACTION_REQUIRED","Quality escalation requires its owned Holding transaction.");
- const companies=(await owner.prepare("SELECT DISTINCT company_id FROM inventory_quality_holds WHERE status NOT IN ('released','cancelled','disposed') ORDER BY company_id").all<{company_id:string}>()).results,results:Result[]=[];
- for(const company of companies){results.push(await owner.transaction(async database=>{
-  const locks=companyPurchaseReadLocks(database,company.company_id);await database.batch([locks[0],...qualityPurchaseSourceReadLocks(database),...locks.slice(1)]);
-  const access=await readPurchasedAccesses(database,mode,company.company_id,capabilities),ids=(await database.prepare("SELECT id FROM inventory_quality_holds WHERE company_id=? AND status NOT IN ('released','cancelled','disposed') ORDER BY id").bind(company.company_id).all<{id:string}>()).results;
-  const sources:QualityPurchaseSource[]=[];for(const row of ids){const source=await qualityHoldPurchaseSource(database,{companyId:company.company_id,branchId:null},row.id);if(source.capabilities.every(capability=>access[capability].settleExisting))sources.push(source);}
-  const required=[...new Set(sources.flatMap(source=>source.capabilities))],boundaries=required.map(capability=>{const key=`quality-sweep:${randomUUID()}`;return {key,boundary:purchaseCommandBoundary(database,mode,key,{companyId:company.company_id,capability,purpose:"settle-existing"})!};});
-  await database.batch(boundaries.flatMap(item=>item.boundary.before));const result=await run(database,{companyId:company.company_id,holdIds:sources.map(source=>source.hold.id)});await flushFinanceDeferredEffects(database);
-  for(const source of sources)if((await qualityHoldPurchaseSource(database,{companyId:company.company_id,branchId:null},source.hold.id)).witness!==source.witness)throw new ApiError(409,"QUALITY_SOURCE_CHANGED","The original escalation source changed before commit.");
-  const observed=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));boundaries[0]?.boundary.observe?.(observed);return result;
- }));}
- return merge(results);
-}
