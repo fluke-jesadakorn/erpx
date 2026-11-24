@@ -2,6 +2,7 @@ import "server-only";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type {TargetRow} from "@erpx/server-files/public/contracts/attachments-operational";
+import { ecommerceListingChannelRow } from "./read-tail-sql";
 const versionOwners:Record<string,string>={"ecommerce_listing": "ecommerce_listings"};
 const allowedTargets=new Set<string>(["ecommerce_listing"]);
 /** r9: one parameterized attachment-owner version guard; the listing-specific
@@ -53,5 +54,5 @@ if(!allowedTargets.has(targetType))return null;
     .bind(now, targetId, expectedVersion);
 }
 export function OperationalAttachmentEcommerceFacts(db:SqlDatabase){return {
-readEcommerceListings1:(facts:{targetId:string;companyId:string;})=>db.prepare("SELECT c.company_id,NULL::text branch_id,NULL::text department_id,l.version FROM ecommerce_listings l JOIN ecommerce_channels c ON c.id=l.channel_id WHERE l.id=? AND c.company_id=?").bind(facts.targetId,facts.companyId).first<TargetRow>(),versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>remainingOperationalAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>remainingOperationalAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
+readEcommerceListings1:(facts:{targetId:string;companyId:string;})=>db.prepare(ecommerceListingChannelRow("c.company_id,NULL::text branch_id,NULL::text department_id,l.version")).bind(facts.targetId,facts.companyId).first<TargetRow>(),versionGuard:(commandId:string,targetType:string,targetId:string,companyId:string,version:number,index:number)=>remainingOperationalAttachmentTargetVersionGuard(db,commandId,targetType,targetId,companyId,version,index),versionStep:(targetType:string,targetId:string,expectedVersion:number,now:number)=>remainingOperationalAttachmentRecordVersionStep(db,targetType,targetId,expectedVersion,now)
 };}

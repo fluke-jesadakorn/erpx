@@ -3344,33 +3344,6 @@
       "framework": "vitest"
     },
     {
-      "lane": "unit",
-      "owner": "billing",
-      "modules": [
-        "commercial"
-      ],
-      "fixture": "none",
-      "requires": {
-        "jobs": false,
-        "scanner": false
-      },
-      "ci": {
-        "critical": true,
-        "reason": "Billing advisory lock and unlock literals must stay shared constants."
-      },
-      "apps": [
-        "apps"
-      ],
-      "packages": [
-        "@erpx/server-billing"
-      ],
-      "id": "billing.read-tail-r25-dedupe.unit",
-      "files": [
-        "tests/unit/billing/read-tail-r25-dedupe.test.ts"
-      ],
-      "framework": "vitest"
-    },
-    {
       "id": "billing.rust-billing-commands.unit",
       "lane": "unit",
       "owner": "billing",
@@ -19615,6 +19588,33 @@
       "id": "ecommerce.read-tail-r13-dedupe.unit",
       "files": [
         "tests/unit/ecommerce/ecommerce-read-tail-r13-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "ecommerce",
+      "modules": [
+        "ecommerce"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Ecommerce guard, ordered list, listing row and source identity reads must stay four helpers."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-ecommerce"
+      ],
+      "id": "ecommerce.read-tail-r14-dedupe.unit",
+      "files": [
+        "tests/unit/ecommerce/ecommerce-read-tail-r14-dedupe.test.ts"
       ],
       "framework": "vitest"
     },

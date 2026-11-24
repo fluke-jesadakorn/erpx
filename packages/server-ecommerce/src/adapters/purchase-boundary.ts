@@ -13,7 +13,7 @@ import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-avail
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
-import {ecommerceModuleAssignment,ecommerceScopeRow} from './read-tail-sql';
+import {ecommerceModuleAssignment,ecommerceScopeRow,ecommerceSourceIdentity} from './read-tail-sql';
 type Target={kind:'channel'|'listing'|'cart'|'checkout';id:string};
 type Source={company_id:string;branch_id:string|null;department_id:string|null;version:number;identity:string;image:string};
 export type EcommercePurchaseCommand={operation:string;key:string;id:string;purpose:'new-work'|'settle-existing';review?:boolean;before?:Target;after:Target};
@@ -22,8 +22,8 @@ const childAgg=(alias:string,table:string,orderBy:string,fk:string,parent:string
  * Sales order. A channel label or supplied product name grants no authority. */
 async function source(database:SqlDatabase,actor:WorkContext,target:Target){
  let sql:string;
- if(target.kind==='channel')sql="SELECT x.company_id,NULL::text branch_id,NULL::text department_id,x.version,jsonb_build_array(x.id,x.company_id)::text identity,to_jsonb(x)::text image FROM ecommerce_channels x WHERE x.id=?";
- else if(target.kind==='listing')sql=`SELECT c.company_id,NULL::text branch_id,NULL::text department_id,x.version,jsonb_build_array(x.id,x.channel_id,x.product_id,c.company_id)::text identity,jsonb_build_array(to_jsonb(x),to_jsonb(c),p.id,p.company_id)::text image FROM ecommerce_listings x JOIN ecommerce_channels c ON c.id=x.channel_id JOIN (${commerce.commerce_products}) p ON p.id=x.product_id AND p.company_id=c.company_id WHERE x.id=?`;
+ if(target.kind==='channel')sql=ecommerceSourceIdentity("x.company_id,NULL::text branch_id,NULL::text department_id,x.version,jsonb_build_array(x.id,x.company_id)::text identity,to_jsonb(x)::text image","ecommerce_channels x");
+ else if(target.kind==='listing')sql=ecommerceSourceIdentity(`c.company_id,NULL::text branch_id,NULL::text department_id,x.version,jsonb_build_array(x.id,x.channel_id,x.product_id,c.company_id)::text identity,jsonb_build_array(to_jsonb(x),to_jsonb(c),p.id,p.company_id)::text image`,`ecommerce_listings x JOIN ecommerce_channels c ON c.id=x.channel_id JOIN (${commerce.commerce_products}) p ON p.id=x.product_id AND p.company_id=c.company_id`);
  else{
   const checkout=target.kind==='checkout';
   sql=`SELECT c.company_id,c.branch_id,c.department_id,${checkout?'x':'c'}.version,jsonb_build_array(${checkout?'x.id,x.cart_id,x.sales_order_id,':''}c.id,c.company_id,c.branch_id,c.department_id,c.channel_id,c.party_id,c.warehouse_id,c.currency)::text identity,

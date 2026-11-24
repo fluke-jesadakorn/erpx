@@ -23,6 +23,7 @@ import {channelSchema} from '@erpx/server-ecommerce/domain/channel';
 import {listingSchema,cartSchema,lineSchema,checkoutSchema,actionSchema} from '@erpx/server-ecommerce/domain/commerce';
 import {requireEcommercePurchasedRead,ecommercePurchaseControls,withEcommercePurchasedCommand,type EcommercePurchaseCommand} from '@erpx/server-ecommerce/adapters/purchase-boundary';
 import {nativeEcommerceOwnerWrite,NativeEcommerceWave2Error,type EcommerceOwnerWriteKind} from '@erpx/server-ecommerce/adapters/native-wave2';
+import { ecommerceExistsGuard, ecommerceOrderedList, ecommerceListingChannelRow } from './read-tail-sql';
 /** Single fail-closed bridge to the owner axum command router. No SQL, no fallback. */
 async function nativeWrite(kind:EcommerceOwnerWriteKind,values:readonly unknown[],recordId:string,actorId:string,key:string){
  try{return await nativeEcommerceOwnerWrite(kind,values,recordId,actorId,key);}
@@ -39,9 +40,9 @@ function access(a: WorkContext, write = false) {
 }
 const cartScope = "c.company_id=? AND (?::text IS NULL OR c.branch_id=?) AND (?::text IS NULL OR c.department_id=?)";
 function scopeValues(a:WorkContext){return [a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId];}
-const activeChannelAssertion = "EXISTS(SELECT 1 FROM ecommerce_channels WHERE id=? AND company_id=? AND status='active')";
-const openCartAssertion = "EXISTS(SELECT 1 FROM ecommerce_carts WHERE id=? AND version=? AND status='open')";
-const checkoutVersionAssertion = "EXISTS(SELECT 1 FROM ecommerce_checkouts WHERE id=? AND version=?)";
+const activeChannelAssertion = ecommerceExistsGuard("ecommerce_channels", "id=? AND company_id=? AND status='active'");
+const openCartAssertion = ecommerceExistsGuard("ecommerce_carts", "id=? AND version=? AND status='open'");
+const checkoutVersionAssertion = ecommerceExistsGuard("ecommerce_checkouts", "id=? AND version=?");
 /** r10: one parameterized projection-existence guard; the product and party
  *  callers rebuild byte-identically. Text only: binds and locks unchanged. */
 const activeProjectionAssertion = (source: string, alias: string, predicate: string) =>
@@ -72,19 +73,19 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
           .all<Row>(),
         write
           .prepare(
-            `SELECT l.*,p.name product_name,c.name channel_name FROM ecommerce_listings l JOIN ecommerce_channels c ON c.id=l.channel_id JOIN (${commerceProjectionSources.commerce_products}) p ON p.id=l.product_id WHERE c.company_id=? ORDER BY l.updated_at DESC`,
+            ecommerceOrderedList("l.*,p.name product_name,c.name channel_name", `ecommerce_listings l JOIN ecommerce_channels c ON c.id=l.channel_id JOIN (${commerceProjectionSources.commerce_products}) p ON p.id=l.product_id`, "c.company_id=?", "l.updated_at DESC"),
           )
           .bind(a.companyId)
           .all<Row>(),
         write
           .prepare(
-            `SELECT c.* FROM ecommerce_carts c WHERE ${cartScope} ORDER BY c.updated_at DESC`,
+            ecommerceOrderedList("c.*", "ecommerce_carts c", cartScope, "c.updated_at DESC"),
           )
           .bind(...scopeValues(a))
           .all<Row>(),
         write
           .prepare(
-            `SELECT x.*,o.number,o.state order_state FROM ecommerce_checkouts x JOIN ecommerce_carts c ON c.id=x.cart_id JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=x.sales_order_id WHERE ${cartScope} ORDER BY x.updated_at DESC`,
+            ecommerceOrderedList("x.*,o.number,o.state order_state", `ecommerce_checkouts x JOIN ecommerce_carts c ON c.id=x.cart_id JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=x.sales_order_id`, cartScope, "x.updated_at DESC"),
           )
           .bind(...scopeValues(a))
           .all<Row>(),
@@ -176,7 +177,7 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
   async listing(id) {
   return await write
       .prepare(
-        "SELECT l.*,c.company_id,c.status channel_status FROM ecommerce_listings l JOIN ecommerce_channels c ON c.id=l.channel_id WHERE l.id=? AND c.company_id=?",
+        ecommerceListingChannelRow("l.*,c.company_id,c.status channel_status"),
       )
       .bind(id, a.companyId)
       .first<Row>();

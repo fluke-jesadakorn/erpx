@@ -6,3 +6,19 @@ export const ecommerceModuleAssignment = (alias = '') => {
 export const ecommerceScopeRow = (alias: string, branch = false) => branch
  ? `(SELECT ?::text company_id,?::text branch_id,?::text department_id) ${alias}`
  : `(SELECT ?::text company_id) ${alias}`;
+/** r14: one parameterized EXISTS row guard; the channel, cart and checkout
+ *  assertion callers rebuild byte-identically. Text only: binds unchanged. */
+export const ecommerceExistsGuard = (table: string, where: string) =>
+  `EXISTS(SELECT 1 FROM ${table} WHERE ${where})`;
+/** r14: one parameterized ordered list read; the listing, cart and checkout
+ *  workspace callers rebuild byte-identically. Text only: binds unchanged. */
+export const ecommerceOrderedList = (columns: string, from: string, where: string, order: string) =>
+  `SELECT ${columns} FROM ${from} WHERE ${where} ORDER BY ${order}`;
+/** r14: one parameterized listing-channel row read; the repository detail and
+ *  attachment-facts callers rebuild byte-identically. Binds unchanged. */
+export const ecommerceListingChannelRow = (columns: string) =>
+  `SELECT ${columns} FROM ecommerce_listings l JOIN ecommerce_channels c ON c.id=l.channel_id WHERE l.id=? AND c.company_id=?`;
+/** r14: one parameterized source-identity read; the channel and listing source
+ *  callers rebuild byte-identically. Binds unchanged. */
+export const ecommerceSourceIdentity = (columns: string, from: string) =>
+  `SELECT ${columns} FROM ${from} WHERE x.id=?`;
