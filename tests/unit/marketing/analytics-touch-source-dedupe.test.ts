@@ -87,7 +87,7 @@ describe('marketing materialized clock body dedupe', () => {
 
   it('leaves native read mounts and locks untouched', async () => {
     const record = await readFile(adapter('record-purchases.ts'), 'utf8');
-    expect(record).toContain('native_marketing.id=${id}');
+    expect(record).toContain("marketingSourceRowGuardSql('('+nativeIds+') native_marketing','native_marketing.id='+id)");
     // r40 renders the record-read point read from the shared head; the byte
     // oracle is frozen in read-tail-r40-dedupe.test.ts.
     expect(record).not.toContain("SELECT kind FROM (${rows}) actual");

@@ -41,6 +41,6 @@ describe('marketing purchase witness-row family', () => {
     expect(record).toContain('${marketingPurchaseAssetRows}');
     expect(record).toContain('${marketingPurchaseCandidateRows}');
     const purchases = await readFile(adapter('purchases.ts'), 'utf8');
-    expect(purchases).toContain('EXISTS(SELECT 1 FROM (${marketingPurchaseCandidateRows}) native_candidate');
+    expect(purchases).toContain("marketingSourceRowGuardSql('('+marketingPurchaseCandidateRows+') native_candidate','native_candidate.id='+alias+'.id AND native_candidate.company_id='+alias+'.company_id')");
   });
 });

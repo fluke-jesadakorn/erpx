@@ -90,12 +90,14 @@ describe('Marketing owner-local campaign read tail', () => {
     const service = await readFile(new URL('attachments-service-facts.ts', base), 'utf8');
     const operational = await readFile(new URL('attachments-operational-facts.ts', base), 'utf8');
 
-    const predicate = 'EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=?';
-    // The canonical helper owns the single guard predicate; its comment must
-    // not smuggle a second "SELECT" token into the retirement KPI.
+    const predicate = 'EXISTS(SELECT 1 FROM ${source} WHERE ${tail})';
+    // The canonical head owns the single guard token; the version helper now
+    // delegates to it with an owner table and a fixed where-tail.
     expect(guard.match(/SELECT/g)).toHaveLength(1);
     expect(guard).toContain('export const attachmentOwnerVersionGuardSql');
+    expect(guard).toContain('export const marketingSourceRowGuardSql');
     expect(guard).toContain(predicate);
+    expect(guard).toContain('marketingSourceRowGuardSql(table, `id=? AND company_id=? AND version=?${extra ? ` AND ${extra}` : ""}`)');
 
     for (const consumer of [service, operational]) {
       expect(consumer).toContain('import { attachmentOwnerVersionGuardSql } from "./attachment-owner-version-guard"');
@@ -277,16 +279,18 @@ describe('Marketing owner-local campaign read tail', () => {
     const helper = await readFile(new URL('attachment-reviewer-guard.ts', base), 'utf8');
     const purchases = await readFile(new URL('attachment-purchases.ts', base), 'utf8');
 
-    const predicate = "SELECT (${assignmentReadSql('marketing_file_review','records.review')} OR ${assignmentReadSql('marketing_file_review','commerce.approve')})${alias ? ` ${alias}` : ''} FROM ${marketingActorScopeSql} marketing_file_review";
-    // The guard owns one read token and the canonical actor-scope helper owns
-    // the other; neither a comment nor a consumer smuggles a duplicate KPI token.
-    expect(helper.match(/SELECT/g)).toHaveLength(1);
+    // r43 routes the reviewer guard through the shared actor-scope head; the
+    // canonical scope helper and the new head each own exactly one read token.
+    expect(helper.match(/SELECT/g) ?? []).toHaveLength(0);
     expect(helper).toContain('export const attachmentReviewerGuardSql');
-    expect(helper).toContain(predicate);
+    expect(helper).toContain("actorScopeAssignmentSql(`(${assignmentReadSql('marketing_file_review','records.review')} OR ${assignmentReadSql('marketing_file_review','commerce.approve')})`,'marketing_file_review',alias ? ` ${alias}` : '')");
     const scopeHelper = await readFile(new URL('marketing-actor-scope-sql.ts', base), 'utf8');
     expect(scopeHelper.match(/SELECT/g)).toHaveLength(1);
+    const headHelper = await readFile(new URL('marketing-actor-scope-guard.ts', base), 'utf8');
+    expect(headHelper.match(/SELECT/g)).toHaveLength(1);
+    expect(headHelper).toContain("from './marketing-actor-scope-sql'");
     expect(helper).not.toContain('(SELECT ?::text company_id,?::text branch_id,?::text department_id)');
-    expect(helper).toContain("from './marketing-actor-scope-sql'");
+    expect(helper).toContain("from './marketing-actor-scope-guard'");
 
     expect(purchases).toContain('import {attachmentReviewerGuardSql} from "./attachment-reviewer-guard"');
     expect(purchases).not.toContain('assignmentReadSql("marketing_file_review"');

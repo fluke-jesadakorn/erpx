@@ -86,9 +86,9 @@ describe('marketing NULL-scope analytics row-frame dedupe (r39)', () => {
     expect(await src('marketing.ts')).toContain('from "./native-marketing-read"');
   });
 
-  it('retirement:ts-statements KPI is 48 (strictly below BEFORE=55)', async () => {
-    // r42 merges the evidence-row tail from two tokens to one; this round
-    // pins the new owner floor after that drop.
-    expect(await selectTokens()).toBe(48);
+  it('retirement:ts-statements KPI is 38 (strictly below BEFORE=55)', async () => {
+    // r42 merged the evidence-row tail (49 -> 48); r43 retires six source-row
+    // guards, three actor-scope guards and one union frame (48 -> 38).
+    expect(await selectTokens()).toBe(38);
   });
 });

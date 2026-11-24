@@ -15,10 +15,11 @@ import {holdingResources} from "../../../../packages/server-runtime/src/public/r
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {crmMarketingSourceReadLocks,publicSubmissionReceiptWitness} from "@erpx/server-marketing/adapters/crm-purchase-sources";
 import type {PublicMarketingForm} from "@erpx/server-marketing/application/public-form";
-import {marketingActorScopeSql} from "./marketing-actor-scope-sql";
+import {actorScopeAssignmentSql} from "./marketing-actor-scope-guard";
 import {marketingModuleMemberSql} from "./module-membership";
 import {formAssetReadHead} from "./form-asset-read-head";
 import {marketingPurchaseRowsSql} from "./marketing-purchase-rows-sql";
+import {marketingSourceRowGuardSql} from "./attachment-owner-version-guard";
 export type MarketingPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type MarketingPurchaseTarget={kind:"asset"|"candidate"|"campaign"|"campaign-cost";id:string};
 export const marketingPurchaseAssetRows=marketingPurchaseRowsSql('asset');
@@ -30,9 +31,9 @@ const rows={asset:marketingPurchaseAssetRows,candidate:marketingPurchaseCandidat
  * before/after check. Both reads execute this exact statement inside the caller's
  * Holding transaction; one source keeps the fresh-approval witness from drifting. */
 const formAssetRow:string=formAssetReadHead({kind:'form-row'});
-export async function marketingCandidateReadFilter(alias:'c'|'marketing_lead_candidates'){return await commercePackageEnforcementMode()==='disabled'?'true':`EXISTS(SELECT 1 FROM (${marketingPurchaseCandidateRows}) native_candidate WHERE native_candidate.id=${alias}.id AND native_candidate.company_id=${alias}.company_id)`;}
+export async function marketingCandidateReadFilter(alias:'c'|'marketing_lead_candidates'){return await commercePackageEnforcementMode()==='disabled'?'true':`${marketingSourceRowGuardSql('('+marketingPurchaseCandidateRows+') native_candidate','native_candidate.id='+alias+'.id AND native_candidate.company_id='+alias+'.company_id')}`;}
 type Source={id:string;company_id:string;branch_id:string|null;department_id:string|null;witness:string};
-const marketingAssignmentAllowedSql=(alias:string,permission:string)=>`SELECT ${assignmentReadSql(alias,permission)} allowed FROM ${marketingActorScopeSql} ${alias}`;
+const marketingAssignmentAllowedSql=(alias:string,permission:string)=>actorScopeAssignmentSql(assignmentReadSql(alias,permission),alias,' allowed');
 export function marketingPurchaseSourceReadLocks(database:SqlDatabase){return [...marketingExpenseSourceReadLocks(database),...crmMarketingSourceReadLocks(database),database.prepare("LOCK TABLE marketing_campaign_costs,marketing_public_limits,marketing_public_receipts IN SHARE ROW EXCLUSIVE MODE")];}
 async function source(database:SqlDatabase,actor:WorkContext,target:MarketingPurchaseTarget){const result=await database.prepare(`SELECT id,company_id,branch_id,department_id,witness::text witness FROM (${rows[target.kind]}) actual WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id IS NULL OR department_id=?)`).bind(target.id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).first<Source>();if(!result)throw new ApiError(404,"MARKETING_SOURCE_NOT_FOUND","The original Marketing source is unavailable in this workspace.");return result;}
 export async function requireMarketingCurrentAuthority(database:SqlDatabase,actor:WorkContext,permissions:readonly string[],key:string){

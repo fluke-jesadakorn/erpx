@@ -62358,6 +62358,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "marketing",
+      "modules": [
+        "marketing"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Marketing source-row, actor-scope and union heads must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-marketing"
+      ],
+      "id": "marketing.read-tail-r43-dedupe.unit",
+      "files": [
+        "tests/unit/marketing/read-tail-r43-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "marketing.rust-marketing-campaign-http.integration",
       "lane": "integration",
       "owner": "marketing",

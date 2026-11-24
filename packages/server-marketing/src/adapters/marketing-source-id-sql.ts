@@ -1,4 +1,5 @@
 import 'server-only';
+import {marketingPurchaseUnionSql} from './marketing-purchase-union-sql';
 
 /** Owner-local fixed source-id projection for Marketing purchase-scope reads.
  * The four source tables share one UNION ALL frame; a single admitted builder
@@ -7,4 +8,4 @@ import 'server-only';
 const sourceIdTables = ['marketing_assets','marketing_lead_candidates','marketing_campaigns','marketing_campaign_costs'] as const;
 
 export const marketingSourceIdsSql = (): string =>
-  sourceIdTables.map(table => `SELECT id FROM ${table}`).join(' UNION ALL ');
+  marketingPurchaseUnionSql(sourceIdTables.map(table => ['id', table] as const));

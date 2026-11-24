@@ -15,17 +15,20 @@ describe('marketing source-id projection dedupe', () => {
     expect(marketingSourceIdsSql()).toBe(expected);
   });
 
-  it('keeps one query token in the helper and no inline literal in the consumer', async () => {
+  it('keeps one query token in the shared union frame and none in the source-id wrapper', async () => {
     const helper = await readFile(adapter('marketing-source-id-sql.ts'), 'utf8');
+    const union = await readFile(adapter('marketing-purchase-union-sql.ts'), 'utf8');
     const record = await readFile(adapter('record-purchases.ts'), 'utf8');
-    expect(helper.match(/SELECT /g)).toHaveLength(1);
+    expect(helper.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(union.match(/SELECT /g)).toHaveLength(1);
+    expect(helper).toContain("marketingPurchaseUnionSql(sourceIdTables.map(table => ['id', table] as const))");
     expect(record).not.toContain(expected);
     expect(record).toContain('marketingSourceIdsSql()');
   });
 
   it('keeps downstream interpolation and binds unchanged', async () => {
     const record = await readFile(adapter('record-purchases.ts'), 'utf8');
-    expect(record).toContain('EXISTS(SELECT 1 FROM (${nativeIds}) native_marketing');
+    expect(record).toContain("marketingSourceRowGuardSql('('+nativeIds+') native_marketing','native_marketing.id='+id)");
     expect(record).toContain('SELECT 1 FROM (${nativeIds}) actual WHERE id=?');
   });
 });

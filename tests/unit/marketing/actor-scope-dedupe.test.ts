@@ -11,17 +11,26 @@ describe('marketing actor-scope subquery dedupe', () => {
     const canonical = await readFile(adapter('marketing-actor-scope-sql.ts'), 'utf8');
     expect(canonical.match(/SELECT/g)).toHaveLength(1);
 
+    // r43 routes the four assignment guards through the shared head; the
+    // remaining attachment-read witness still owns its inline scope reference.
     for (const name of [
       'purchases.ts',
       'attachment-purchases.ts',
       'metric-purchases.ts',
       'attachment-reviewer-guard.ts',
-      'attachment-read.ts',
     ]) {
       const source = await readFile(adapter(name), 'utf8');
       expect(source).not.toContain(scope);
-      expect(source).toContain('marketingActorScopeSql');
+      expect(source).not.toContain('marketingActorScopeSql');
+      expect(source).toContain('actorScopeAssignmentSql');
     }
+    const guard = await readFile(adapter('marketing-actor-scope-guard.ts'), 'utf8');
+    expect(guard.match(/SELECT /g)).toHaveLength(1);
+    expect(guard).toContain("from './marketing-actor-scope-sql'");
+
+    const read = await readFile(adapter('attachment-read.ts'), 'utf8');
+    expect(read).not.toContain(scope);
+    expect(read).toContain('marketingActorScopeSql');
   });
 
   it('emits the original byte-identical scope for the canonical const', async () => {
@@ -44,9 +53,9 @@ describe('marketing actor-scope subquery dedupe', () => {
     const attachments = await readFile(adapter('attachment-purchases.ts'), 'utf8');
     const metric = await readFile(adapter('metric-purchases.ts'), 'utf8');
     const read = await readFile(adapter('attachment-read.ts'), 'utf8');
-    expect(purchases).toContain('allowed FROM ${marketingActorScopeSql} ${alias}');
-    expect(attachments).toContain('FROM ${marketingActorScopeSql} marketing_file_scope)');
-    expect(metric).toContain('allowed FROM ${marketingActorScopeSql} marketing_metric_scope');
+    expect(purchases).toContain("actorScopeAssignmentSql(assignmentReadSql(alias,permission),alias,' allowed')");
+    expect(attachments).toContain("actorScopeAssignmentSql(assignmentReadSql(\"marketing_file_scope\",\"records.write\"),'marketing_file_scope')");
+    expect(metric).toContain("'marketing_metric_scope',' allowed'");
     expect(read).toContain('FROM${marketingActorScopeSql}workforce_actor_scope');
     expect(purchases).toContain('.bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId)');
     expect(attachments).toContain('[actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId]');
