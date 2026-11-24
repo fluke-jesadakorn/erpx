@@ -327,13 +327,14 @@ describe('support service-team coverage native read', () => {
       'FROM service_team_revisions',
       'FROM service_team_members',
       'FROM service_team_coverage',
+      'organization_nodes',
     ]) expect(adapter).not.toContain(fragment);
+    expect(adapter).not.toContain('organizationProjectionSources');
     expect(adapter).toContain('SUPPORT_RD_SERVICE_TEAM_OPTIONS');
     expect(adapter).toContain('SUPPORT_RD_SERVICE_TEAM_OPTION_HISTORY');
     expect(adapter).toContain('SUPPORT_RD_SERVICE_TEAM_OPTION_HANDLERS');
     expect(adapter).toContain('SUPPORT_RD_SERVICE_TEAM_OPTION_COVERAGE');
-    // Organization still owns the node projection list kept in TypeScript.
-    expect(adapter).toContain('organization_nodes');
+    expect(adapter).toContain('SUPPORT_RD_SERVICE_TEAM_OPTION_NODES');
   });
 
   it('plans the four service-team option reads in Rust with owner-scoped binds', async () => {
@@ -350,12 +351,14 @@ describe('support service-team coverage native read', () => {
         SUPPORT_RD_SERVICE_TEAM_OPTION_HISTORY,
         SUPPORT_RD_SERVICE_TEAM_OPTION_HANDLERS,
         SUPPORT_RD_SERVICE_TEAM_OPTION_COVERAGE,
+        SUPPORT_RD_SERVICE_TEAM_OPTION_NODES,
       } = await import('@erpx/server-support/adapters/native-support-read');
       const cases: [string, string[]][] = [
         [SUPPORT_RD_SERVICE_TEAM_OPTIONS, ['company']],
         [SUPPORT_RD_SERVICE_TEAM_OPTION_HISTORY, ['company', 'team-1']],
         [SUPPORT_RD_SERVICE_TEAM_OPTION_HANDLERS, ['team-1', 'company']],
         [SUPPORT_RD_SERVICE_TEAM_OPTION_COVERAGE, ['team-1', 'company']],
+        [SUPPORT_RD_SERVICE_TEAM_OPTION_NODES, ['company', 'branch', 'branch', 'branch', 'dept', 'dept']],
       ];
       for (const [kind, values] of cases) {
         fetchMock.mockClear();

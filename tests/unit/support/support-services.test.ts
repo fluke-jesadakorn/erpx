@@ -4,6 +4,7 @@ import { createValidateServiceScope } from "@erpx/server-support/application/ser
 import { createServiceTeamHandlers, createResolveServiceTeam } from "@erpx/server-support/application/service-teams";
 import { createServiceTeamOptions } from "@erpx/server-support/application/service-team-options";
 import { type ServiceTeam } from "@erpx/server-support/domain/service-teams";
+vi.mock("server-only", () => ({}));
 const actor = { userId: "owner", companyId: "company", holdingId: "holding", branchId: null, departmentId: null, role: "holding_owner" } as WorkContext;
 const scope = { company_id: "company", branch_id: "branch", department_id: "department" };
 const team: ServiceTeam = { id: "team", company_id: "company", name: "Local team", active: 1, version: 4, configuration_json: "{}" };
@@ -385,42 +386,45 @@ it('keeps one fixed SLA policy eligibility projection for the workspace and work
     expect(source).toContain('FROM support_sla_policies p WHERE p.company_id=? ORDER BY p.updated_at DESC');
 });
 
-it('keeps one parameterized active-organization-node scope family with byte-identical rendering', async () => {
+it('plans the three active-organization-node scope probes in Rust with kind-scoped authority', async () => {
     const { readFile } = await import('node:fs/promises');
     const source = await readFile(new URL('../../../packages/server-support/src/adapters/service-access.ts', import.meta.url), 'utf8');
-    expect(source).toContain('const activeOrgNodeSql');
-    expect(source.match(/SELECT 1 FROM \(\$\{organizationProjectionSources\.organization_nodes\}\) organization_nodes WHERE id=\?/g)).toHaveLength(1);
-    expect(source.match(/activeOrgNodeSql\('company'\)/g)).toHaveLength(1);
-    expect(source.match(/activeOrgNodeSql\('branch'\)/g)).toHaveLength(1);
-    expect(source.match(/activeOrgNodeSql\('department', departmentBranchMatch\)/g)).toHaveLength(1);
-    expect(source).toContain("kind='${kind}'${branchMatch} AND status='active'");
-    expect(source).toContain("const departmentBranchMatch = ' AND branch_id IS NOT DISTINCT FROM ?'");
+    expect(source).not.toContain('activeOrgNodeSql');
+    expect(source).not.toContain('departmentBranchMatch');
+    expect(source).not.toContain('organizationProjectionSources');
+    for (const kind of [
+      'SUPPORT_RD_SERVICE_SCOPE_COMPANY',
+      'SUPPORT_RD_SERVICE_SCOPE_BRANCH',
+      'SUPPORT_RD_SERVICE_SCOPE_DEPARTMENT',
+    ]) expect(source).toContain(kind);
 
     const { validateServiceScope } = await import('@erpx/server-support/adapters/service-access');
-    const { finalRootOwnerProjectionSources } = await import('@erpx/server-organization/public/final-root-owner-projection-sources');
-    const nodes = finalRootOwnerProjectionSources.organization_nodes;
-    const companySql = `SELECT 1 FROM (${nodes}) organization_nodes WHERE id=? AND company_id=? AND kind='company' AND status='active'`;
-    const branchSql = `SELECT 1 FROM (${nodes}) organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active'`;
-    const departmentSql = `SELECT 1 FROM (${nodes}) organization_nodes WHERE id=? AND company_id=? AND kind='department' AND branch_id IS NOT DISTINCT FROM ? AND status='active'`;
-    const calls: { sql: string; values: unknown[] }[] = [];
+    const config = JSON.stringify({
+      privateBaseUrl: 'http://127.0.0.1:3997',
+      timeoutMs: 1000,
+      holdings: [{ origin: 'https://acme.jesadakorn.com', holdingSlug: 'acme', holdingId: 'h1', companyId: 'company' }],
+    });
+    process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
+    const batch = vi.fn(async () => [{ results: [{ '1': 1 }], success: true, meta: { changes: 0, duration: 0 } }]);
     const db = {
-        prepare(sql: string) {
-            const call = { sql, values: [] as unknown[] };
-            calls.push(call);
-            return {
-                bind(...values: unknown[]) { call.values = values; return this; },
-                async first() { return true; },
-            };
-        },
+      prepare: (sql: string) => ({ bind: (...values: unknown[]) => ({ sql, values, first: async () => true }) }),
+      batch,
     } as unknown as import('@erpx/server-runtime/public/runtime/types').SqlDatabase;
-    await validateServiceScope(db, actor, scope);
-    const nodeCalls = calls.filter((call) => call.sql.includes('organization_nodes WHERE id=?'));
-    expect(nodeCalls.map((call) => call.sql)).toEqual([companySql, branchSql, departmentSql]);
-    expect(nodeCalls.map((call) => call.values)).toEqual([
-        ['company', 'company'],
-        ['branch', 'company'],
-        ['department', 'company', 'branch'],
-    ]);
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      new Response(JSON.stringify({ data: { statements: [{ sql: 'SELECT 1', values: [] }] } }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    try {
+      await validateServiceScope(db, actor, scope);
+      const bodies = fetchMock.mock.calls.map(call => JSON.parse(String(call[1]!.body)));
+      expect(bodies.map(body => ({ kind: body.kind, values: body.values }))).toEqual([
+        { kind: 'support_rd_service_scope_company', values: ['company', 'company'] },
+        { kind: 'support_rd_service_scope_branch', values: ['branch', 'company'] },
+        { kind: 'support_rd_service_scope_department', values: ['department', 'company', 'branch'] },
+      ]);
+    } finally {
+      fetchMock.mockRestore();
+      delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
+    }
 });
 
 it('keeps one parameterized assignment-access witness for the Support ticket and incident read predicates', async () => {

@@ -557,6 +557,54 @@ const READ_WORK_TEAM_COVERAGE: NativeSupportReadStatement = NativeSupportReadSta
     bind_count: 8,
 };
 
+/// Native successors of the TypeScript active-organization-node scope probes.
+/// The company/branch callers bind `[node_id, company_id]`; the department
+/// caller binds `[department_id, company_id, branch_id]`. The node kind and the
+/// `status='active'` predicate stay fixed native SQL over the closed Organization
+/// projection, and the department probe keeps the original
+/// `branch_id IS NOT DISTINCT FROM ?` scope match. No lock, advisory or audit
+/// ledger is attached to these reads.
+pub const RD_SERVICE_SCOPE_COMPANY: &str = "support_rd_service_scope_company";
+const SQL_SERVICE_SCOPE_COMPANY: &str =
+    "SELECT 1 FROM (SELECT \"id\",\"kind\",\"slug\",\"display_name\",\"parent_id\",\"company_id\",\"branch_id\",\"status\",\"hierarchy_revision\" FROM organization_nodes) organization_nodes WHERE id=? AND company_id=? AND kind='company' AND status='active'";
+const READ_SERVICE_SCOPE_COMPANY: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_SERVICE_SCOPE_COMPANY,
+    sql: SQL_SERVICE_SCOPE_COMPANY,
+    bind_count: 2,
+};
+
+pub const RD_SERVICE_SCOPE_BRANCH: &str = "support_rd_service_scope_branch";
+const SQL_SERVICE_SCOPE_BRANCH: &str =
+    "SELECT 1 FROM (SELECT \"id\",\"kind\",\"slug\",\"display_name\",\"parent_id\",\"company_id\",\"branch_id\",\"status\",\"hierarchy_revision\" FROM organization_nodes) organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active'";
+const READ_SERVICE_SCOPE_BRANCH: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_SERVICE_SCOPE_BRANCH,
+    sql: SQL_SERVICE_SCOPE_BRANCH,
+    bind_count: 2,
+};
+
+pub const RD_SERVICE_SCOPE_DEPARTMENT: &str = "support_rd_service_scope_department";
+const SQL_SERVICE_SCOPE_DEPARTMENT: &str =
+    "SELECT 1 FROM (SELECT \"id\",\"kind\",\"slug\",\"display_name\",\"parent_id\",\"company_id\",\"branch_id\",\"status\",\"hierarchy_revision\" FROM organization_nodes) organization_nodes WHERE id=? AND company_id=? AND kind='department' AND branch_id IS NOT DISTINCT FROM ? AND status='active'";
+const READ_SERVICE_SCOPE_DEPARTMENT: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_SERVICE_SCOPE_DEPARTMENT,
+    sql: SQL_SERVICE_SCOPE_DEPARTMENT,
+    bind_count: 3,
+};
+
+/// Native successor of the TypeScript service-team option organization-node
+/// list. The caller binds `[company_id, branch_id, branch_id, branch_id,
+/// department_id, department_id]`; the closed Organization node projection,
+/// the active/kind predicates and the branch/department scope fallbacks stay
+/// fixed native SQL with only scalar values crossing the wire.
+pub const RD_SERVICE_TEAM_OPTION_NODES: &str = "support_rd_service_team_option_nodes";
+const SQL_SERVICE_TEAM_OPTION_NODES: &str =
+    "SELECT id,kind,display_name,branch_id FROM (SELECT \"id\",\"kind\",\"slug\",\"display_name\",\"parent_id\",\"company_id\",\"branch_id\",\"status\",\"hierarchy_revision\" FROM organization_nodes) organization_nodes WHERE company_id=? AND status='active' AND kind IN ('company','branch','department') AND (?::text IS NULL OR id=? OR branch_id=?) AND (?::text IS NULL OR id=? OR kind='branch') ORDER BY display_name";
+const READ_SERVICE_TEAM_OPTION_NODES: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_SERVICE_TEAM_OPTION_NODES,
+    sql: SQL_SERVICE_TEAM_OPTION_NODES,
+    bind_count: 6,
+};
+
 const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SERVICE_COVERAGE_HISTORY,
     READ_SERVICE_TEAM_COVERAGE,
@@ -598,6 +646,10 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_CUSTOMER_CONTACT_NOTES,
     READ_SERVICE_TEAM_MEMBERS_NAMED,
     READ_WORK_TEAM_COVERAGE,
+    READ_SERVICE_SCOPE_COMPANY,
+    READ_SERVICE_SCOPE_BRANCH,
+    READ_SERVICE_SCOPE_DEPARTMENT,
+    READ_SERVICE_TEAM_OPTION_NODES,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -764,6 +816,10 @@ mod tests {
             (RD_CUSTOMER_CONTACT_NOTES, SQL_CUSTOMER_CONTACT_NOTES, 2usize),
             (RD_SERVICE_TEAM_MEMBERS_NAMED, SQL_SERVICE_TEAM_MEMBERS_NAMED, 2usize),
             (RD_WORK_TEAM_COVERAGE, SQL_WORK_TEAM_COVERAGE, 8usize),
+            (RD_SERVICE_SCOPE_COMPANY, SQL_SERVICE_SCOPE_COMPANY, 2usize),
+            (RD_SERVICE_SCOPE_BRANCH, SQL_SERVICE_SCOPE_BRANCH, 2usize),
+            (RD_SERVICE_SCOPE_DEPARTMENT, SQL_SERVICE_SCOPE_DEPARTMENT, 3usize),
+            (RD_SERVICE_TEAM_OPTION_NODES, SQL_SERVICE_TEAM_OPTION_NODES, 6usize),
         ];
         for (kind, sql, binds) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -779,12 +835,13 @@ mod tests {
                     sql.contains("support_ticket_events") || sql.contains("support_incident_events") ||
                     sql.contains("support_incident_tickets") || sql.contains("support_tickets") ||
                     sql.contains("support_incidents") || sql.contains("support_sla_policies") ||
-                    sql.contains("attachment_links") || sql.contains("customer_contact_notes"),
-                "owner read must stay on owner-local Support tables, closed Files projections or the closed Sales contact-notes projection: {sql}"
+                    sql.contains("attachment_links") || sql.contains("customer_contact_notes") ||
+                    sql.contains("organization_nodes"),
+                "owner read must stay on owner-local Support tables, closed Files/Organization/Sales projections: {sql}"
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 40);
+        assert_eq!(STATEMENTS.len(), 44);
     }
 
     #[test]
@@ -866,6 +923,14 @@ mod tests {
         assert_eq!(named_members.bind_count, 2);
         let coverage = read_statement(RD_WORK_TEAM_COVERAGE).expect("work team coverage read");
         assert_eq!(coverage.bind_count, 8);
+        let company_node = read_statement(RD_SERVICE_SCOPE_COMPANY).expect("company scope node read");
+        assert_eq!(company_node.bind_count, 2);
+        let branch_node = read_statement(RD_SERVICE_SCOPE_BRANCH).expect("branch scope node read");
+        assert_eq!(branch_node.bind_count, 2);
+        let department_node = read_statement(RD_SERVICE_SCOPE_DEPARTMENT).expect("department scope node read");
+        assert_eq!(department_node.bind_count, 3);
+        let nodes = read_statement(RD_SERVICE_TEAM_OPTION_NODES).expect("team option node list read");
+        assert_eq!(nodes.bind_count, 6);
     }
 
     #[test]
@@ -1013,5 +1078,59 @@ mod tests {
         assert!(coverage.sql.ends_with("    ) LIMIT 1"));
         assert!(!coverage.sql.contains(';'));
         assert!(read_statement("support_rd_work_team_coverage_select").is_none());
+    }
+
+    #[test]
+    fn service_scope_org_node_reads_render_the_retired_owner_literals_byte_for_byte() {
+        let nodes = "(SELECT \"id\",\"kind\",\"slug\",\"display_name\",\"parent_id\",\"company_id\",\"branch_id\",\"status\",\"hierarchy_revision\" FROM organization_nodes)";
+        let company = read_statement(RD_SERVICE_SCOPE_COMPANY).expect("company scope node read");
+        assert_eq!(
+            company.sql,
+            format!("SELECT 1 FROM {nodes} organization_nodes WHERE id=? AND company_id=? AND kind='company' AND status='active'")
+        );
+        assert_eq!(company.bind_count, 2);
+        assert_eq!(company.sql.matches('?').count(), 2);
+        let branch = read_statement(RD_SERVICE_SCOPE_BRANCH).expect("branch scope node read");
+        assert_eq!(
+            branch.sql,
+            format!("SELECT 1 FROM {nodes} organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active'")
+        );
+        assert_eq!(branch.bind_count, 2);
+        assert_eq!(branch.sql.matches('?').count(), 2);
+        let department = read_statement(RD_SERVICE_SCOPE_DEPARTMENT).expect("department scope node read");
+        assert_eq!(
+            department.sql,
+            format!("SELECT 1 FROM {nodes} organization_nodes WHERE id=? AND company_id=? AND kind='department' AND branch_id IS NOT DISTINCT FROM ? AND status='active'")
+        );
+        assert_eq!(department.bind_count, 3);
+        assert_eq!(department.sql.matches('?').count(), 3);
+        for statement in [company, branch, department] {
+            assert!(statement.sql.starts_with("SELECT 1 FROM (SELECT"));
+            assert!(statement.sql.contains("FROM organization_nodes) organization_nodes WHERE id=?"));
+            assert!(statement.sql.ends_with("AND status='active'"));
+            assert!(!statement.sql.contains(';'));
+        }
+        assert!(department.sql.contains("branch_id IS NOT DISTINCT FROM ?"));
+        assert!(read_statement("support_rd_service_scope_company_select").is_none());
+        assert!(read_statement("support_rd_service_scope_branch_select").is_none());
+        assert!(read_statement("support_rd_service_scope_department_select").is_none());
+    }
+
+    #[test]
+    fn service_team_option_nodes_read_renders_the_retired_owner_literal_byte_for_byte() {
+        let nodes = read_statement(RD_SERVICE_TEAM_OPTION_NODES).expect("team option node list read");
+        assert_eq!(
+            nodes.sql,
+            "SELECT id,kind,display_name,branch_id FROM (SELECT \"id\",\"kind\",\"slug\",\"display_name\",\"parent_id\",\"company_id\",\"branch_id\",\"status\",\"hierarchy_revision\" FROM organization_nodes) organization_nodes WHERE company_id=? AND status='active' AND kind IN ('company','branch','department') AND (?::text IS NULL OR id=? OR branch_id=?) AND (?::text IS NULL OR id=? OR kind='branch') ORDER BY display_name"
+        );
+        assert_eq!(nodes.bind_count, 6);
+        assert_eq!(nodes.sql.matches('?').count(), 6);
+        assert!(nodes.sql.starts_with("SELECT id,kind,display_name,branch_id FROM (SELECT"));
+        assert!(nodes.sql.contains("kind IN ('company','branch','department')"));
+        assert!(nodes.sql.contains("(?::text IS NULL OR id=? OR branch_id=?)"));
+        assert!(nodes.sql.contains("(?::text IS NULL OR id=? OR kind='branch')"));
+        assert!(nodes.sql.ends_with("ORDER BY display_name"));
+        assert!(!nodes.sql.contains(';'));
+        assert!(read_statement("support_rd_service_team_option_nodes_select").is_none());
     }
 }

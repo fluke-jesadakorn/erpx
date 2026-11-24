@@ -42,7 +42,7 @@ describe('Support read-tail r22 ticket guard family', () => {
 
     test('keeps the earlier helpers and the lock/purchase/native kinds intact', () => {
         expect(src('adapters/service-access.ts')).toContain('const serviceTeamSetSql = (table: string, fields: string, order: string) =>');
-        expect(src('adapters/service-access.ts')).toContain('const activeOrgNodeSql = (kind: string, branchMatch = \'\') =>');
+        expect(src('adapters/service-access.ts')).toContain('SUPPORT_RD_SERVICE_SCOPE_COMPANY');
         expect(src('adapters/eligibility-projection-sources.ts')).toContain('export const supportAssignmentAccessSql = (alias: string, pad: string, tail: string) =>');
         expect(src('adapters/ticket-portal-sources.ts')).toContain('export const portalReplayProofSql=');
         expect(src('adapters/ticket-portal-sources.ts')).toContain('export const portalValidBindingSelect=');

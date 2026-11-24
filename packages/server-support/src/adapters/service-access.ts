@@ -1,6 +1,5 @@
 import { finalRootOwnerProjectionSources as collaborationProjectionSources } from "@erpx/server-collaboration/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/final-root-owner-projection-sources";
-import { finalRootOwnerProjectionSources as organizationProjectionSources } from "@erpx/server-organization/public/final-root-owner-projection-sources";
 import { createValidateServiceScope, createRequireServiceOwner } from "@erpx/server-support/application/service-access";
 export { inServiceWorkspace } from "@erpx/server-support/domain/service-access";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -11,6 +10,7 @@ import { companyAuthority } from "@erpx/server-operations/public/staff-policy";
 import { expenseAuthoritySnapshot } from "@erpx/server-people_payroll/public/expense-routing";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { ApiError } from "@erpx/server-runtime/public/http";
+import { nativeSupportReadAll, SUPPORT_RD_SERVICE_SCOPE_COMPANY, SUPPORT_RD_SERVICE_SCOPE_BRANCH, SUPPORT_RD_SERVICE_SCOPE_DEPARTMENT } from "@erpx/server-support/adapters/native-support-read";
 /** One parameterized active-assignment existence family: the scoped service
  * membership probe and the company membership probe share the same active
  * assignment read; only the alias, column qualifier, line gap and trailing
@@ -35,17 +35,19 @@ export async function companyMember(db: SqlDatabase, companyId: string, userId: 
         .bind(companyId, userId)
         .first());
 }
-/** One parameterized active-organization-node scope family: company, branch and
- * department differ only by node kind and the optional branch match. Rendering
- * stays byte-identical and the native service scope authority remains. */
-const activeOrgNodeSql = (kind: string, branchMatch = '') =>
-    `SELECT 1 FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE id=? AND company_id=? AND kind='${kind}'${branchMatch} AND status='active'`;
-const departmentBranchMatch = ' AND branch_id IS NOT DISTINCT FROM ?';
+/** Native active-organization-node scope probes. The company and branch kinds
+ * carry the closed Organization node projection with the active/kind predicates
+ * as fixed native SQL and two binds; the department kind adds the original
+ * `branch_id IS NOT DISTINCT FROM ?` scope match as a third bind. Only scalar
+ * node/company/branch ids cross the wire and the native service scope authority
+ * remains. */
 export function nativeValidateServiceScope(db: SqlDatabase) {
+    const node = (kind: string, values: readonly unknown[]) =>
+        nativeSupportReadAll<{ '1': number }>(kind, values, db).then(result => Boolean(result.results[0]));
     return createValidateServiceScope({ error: violation => new ApiError(violation.status, violation.code, violation.message), member: (scope, userId) => serviceMember(db, scope, userId),
-        async company(companyId) { return Boolean(await db.prepare(activeOrgNodeSql('company')).bind(companyId, companyId).first()); },
-        async branch(companyId, branchId) { return Boolean(await db.prepare(activeOrgNodeSql('branch')).bind(branchId, companyId).first()); },
-        async department(companyId, branchId, departmentId) { return Boolean(await db.prepare(activeOrgNodeSql('department', departmentBranchMatch)).bind(departmentId, companyId, branchId).first()); },
+        async company(companyId) { return node(SUPPORT_RD_SERVICE_SCOPE_COMPANY, [companyId, companyId]); },
+        async branch(companyId, branchId) { return node(SUPPORT_RD_SERVICE_SCOPE_BRANCH, [branchId, companyId]); },
+        async department(companyId, branchId, departmentId) { return node(SUPPORT_RD_SERVICE_SCOPE_DEPARTMENT, [departmentId, companyId, branchId]); },
     });
 }
 export async function validateServiceScope(db: SqlDatabase, actor: WorkContext, scope: RecordScope) { return nativeValidateServiceScope(db)(actor, scope); }

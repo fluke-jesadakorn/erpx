@@ -59,7 +59,7 @@ describe('Support read-tail r23 active-assignment family', () => {
     });
 
     test('keeps the earlier helpers and the lock/purchase/native kinds intact', () => {
-        expect(access).toContain('const activeOrgNodeSql = (kind: string, branchMatch = \'\') =>');
+        expect(access).toContain('SUPPORT_RD_SERVICE_SCOPE_BRANCH');
         expect(access).toContain('const serviceTeamSetSql = (table: string, fields: string, order: string) =>');
         expect(src('adapters/eligibility-projection-sources.ts')).toContain('export const supportAssignmentAccessSql = (alias: string, pad: string, tail: string) =>');
         expect(src('adapters/ticket-portal-sources.ts')).toContain('export const portalReplayProofSql=');
@@ -84,7 +84,7 @@ describe('Support read-tail r23 active-assignment family', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(40);
+        expect(total).toBe(38);
         expect(total).toBeLessThan(50);
     });
 });

@@ -57,6 +57,10 @@ export const SUPPORT_RD_TICKET_RECIPIENTS = 'support_rd_ticket_recipients';
 export const SUPPORT_RD_CUSTOMER_CONTACT_NOTES = 'support_rd_customer_contact_notes';
 export const SUPPORT_RD_SERVICE_TEAM_MEMBERS_NAMED = 'support_rd_service_team_members_named';
 export const SUPPORT_RD_WORK_TEAM_COVERAGE = 'support_rd_work_team_coverage';
+export const SUPPORT_RD_SERVICE_SCOPE_COMPANY = 'support_rd_service_scope_company';
+export const SUPPORT_RD_SERVICE_SCOPE_BRANCH = 'support_rd_service_scope_branch';
+export const SUPPORT_RD_SERVICE_SCOPE_DEPARTMENT = 'support_rd_service_scope_department';
+export const SUPPORT_RD_SERVICE_TEAM_OPTION_NODES = 'support_rd_service_team_option_nodes';
 
 /** Fixed arity of every registered kind, mirrored from the Rust read registry.
  * The command-plan route re-validates it; rejecting a mismatch here avoids an
@@ -102,6 +106,10 @@ const BIND_COUNTS: Readonly<Record<string, number>> = {
   [SUPPORT_RD_CUSTOMER_CONTACT_NOTES]: 2,
   [SUPPORT_RD_SERVICE_TEAM_MEMBERS_NAMED]: 2,
   [SUPPORT_RD_WORK_TEAM_COVERAGE]: 8,
+  [SUPPORT_RD_SERVICE_SCOPE_COMPANY]: 2,
+  [SUPPORT_RD_SERVICE_SCOPE_BRANCH]: 2,
+  [SUPPORT_RD_SERVICE_SCOPE_DEPARTMENT]: 3,
+  [SUPPORT_RD_SERVICE_TEAM_OPTION_NODES]: 6,
 };
 
 const unavailable = (): never => {
