@@ -1,4 +1,5 @@
 import{salesGoodsPostingFulfillmentSources}from '@erpx/server-commerce/public/sales-goods-posting-sources';
+import { COMMERCE_POSTING_ABSENT_SQL, COMMERCE_RECEIPT_GUARD_SQL } from './guarded-source-dedupe-sql';
 
 import { nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/server-commerce/adapters/native-owner-write";
 async function nativeSettingsWrite(actor: any, input: any, key: string, fields: readonly string[]) {
@@ -84,7 +85,7 @@ export async function initializeSalesGoodsPostingSetup(actor:WorkContext,raw:unk
  const input=salesGoodsPostingSetupSchema.parse(raw);
  try{return await (await owner(actor)).transaction(async database=>{
   await leases(database,actor.companyId);const authority=await requireSalesGoodsPostingFinanceAuthority(database,actor);
-  const receipt=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(key,operation,actor.userId,actor.companyId).first(),purpose=receipt?'history' as const:'new-work' as const;
+  const receipt=await database.prepare(COMMERCE_RECEIPT_GUARD_SQL).bind(key,operation,actor.userId,actor.companyId).first(),purpose=receipt?'history' as const:'new-work' as const;
   for(const capability of capabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability,purpose});
   const guard=`sales-goods-posting:${randomUUID()}`,boundaries=capabilities.map((capability,index)=>({key:`${guard}:${index}`,boundary:purchaseCommandBoundary(database,'enforced',`${guard}:${index}`,{companyId:actor.companyId,capability,purpose})!}));
   await database.batch(boundaries.flatMap(item=>item.boundary.before));
@@ -98,7 +99,7 @@ export async function initializeSalesGoodsPostingSetup(actor:WorkContext,raw:unk
    await validateSalesGoodsPostingFinanceState(database,actor,input,documents.history);
    await nativeSettingsWrite(actor, input, key, fields);
    result=await executeCommand(database,actor,key,operation,input,actor.companyId,1,{id:actor.companyId,status:'configured' as const,version:1 as const},[
-    assertion(database,key,'sales-goods-posting-absent','NOT EXISTS(SELECT 1 FROM commerce_settings WHERE company_id=?)',[actor.companyId]),
+    assertion(database,key,'sales-goods-posting-absent',COMMERCE_POSTING_ABSENT_SQL,[actor.companyId]),
    ]);
   }
   await flushFinanceDeferredEffects(database);

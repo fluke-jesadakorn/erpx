@@ -1,4 +1,5 @@
 import 'server-only';
+import { COMMERCE_POSTING_ABSENT_SQL } from './guarded-source-dedupe-sql';
 
 import { nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/server-commerce/adapters/native-owner-write";
 async function nativeSettingsWrite(actor: any, input: any, key: string, fields: readonly string[]) {
@@ -78,7 +79,7 @@ export async function initializeManufacturingPostingSetup(actor:WorkContext,raw:
    validate:body=>validateManufacturingPostingFinanceState(database,actor,body,before.documents.history).then(()=>undefined),
    commit:async(body,command)=>{applied=true;await nativeSettingsWrite(actor, body, key, fields);
    return executeCommand(database,actor,command,operation,body,actor.companyId,1,{id:actor.companyId,status:'configured' as const,version:1 as const},[
-    assertion(database,command,'manufacturing-posting-absent','NOT EXISTS(SELECT 1 FROM commerce_settings WHERE company_id=?)',[actor.companyId]),
+    assertion(database,command,'manufacturing-posting-absent',COMMERCE_POSTING_ABSENT_SQL,[actor.companyId]),
    ]);},
   });
   const result=await run(input,key);

@@ -18,6 +18,7 @@ import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {BusinessRuleError} from '@erpx/server-shared/index';
 import {MFG_POS_LOCK_COMMAND_RECEIPTS,MFG_POS_LOCK_PRODUCTS_WAREHOUSES,MFG_POS_LOCK_SETTINGS_SHARE} from './settings-dedupe-sql';
+import { COMMERCE_RECEIPT_GUARD_SQL } from './guarded-source-dedupe-sql';
 import {manufacturingInitialPhysicalStockCommerceSource} from '@erpx/server-commerce/adapters/manufacturing-initial-physical-stock-sources';
 import {createManufacturingInitialPhysicalStockMasterInTransaction} from '@erpx/server-commerce/adapters/commerce';
 import {manufacturingInitialPhysicalStockProductSchema,manufacturingInitialPhysicalStockWarehouseSchema,type ManufacturingInitialPhysicalStockProductInput,type ManufacturingInitialPhysicalStockWarehouseInput,type ManufacturingInitialPhysicalStockMasterResult} from '@erpx/server-commerce/domain/manufacturing-initial-physical-stock-masters';
@@ -68,7 +69,7 @@ async function create(actor:WorkContext,kind:Kind,raw:unknown,key:string):Promis
  const owner=(await holdingResources(actor.holdingId)).write;if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,'TRANSACTION_REQUIRED','Manufacturing Stock master creation requires its original Holding transaction.');
  try{return await owner.transaction(async database=>{
   await leases(database,actor);const current=await authority(database,actor);
-  const receipt=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(key,operation,actor.userId,actor.companyId).first();
+  const receipt=await database.prepare(COMMERCE_RECEIPT_GUARD_SQL).bind(key,operation,actor.userId,actor.companyId).first();
   const purpose=receipt?'history' as const:'new-work' as const,guard=`manufacturing-stock-master:${randomUUID()}`;
   for(const capability of capabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability,purpose});
   const boundaries=capabilities.map((capability,index)=>({key:`${guard}:${index}`,boundary:purchaseCommandBoundary(database,'enforced',`${guard}:${index}`,{companyId:actor.companyId,capability,purpose})!}));
