@@ -73001,6 +73001,33 @@
       "packages": []
     },
     {
+      "lane": "unit",
+      "owner": "quality",
+      "modules": [
+        "quality"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Quality hold column projection must exist once and keep snapshot/notification/executive facts byte-identical."
+      },
+      "apps": [
+        "quality"
+      ],
+      "packages": [
+        "@erpx/server-quality"
+      ],
+      "id": "quality.hold-projection-dedupe.unit",
+      "files": [
+        "tests/unit/quality/quality-hold-projection-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "quality.native-quality-transport.unit",
       "lane": "unit",
       "owner": "quality",
