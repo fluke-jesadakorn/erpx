@@ -1,6 +1,7 @@
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
 import { samePersonQuerySql } from "./iam-probe-sql";
 import { iamGroupProbeSql, iamReviewProbeSql } from "./read-tail-family-r28";
+import { assignmentCompanyProbeSql, umGroupProbeSql, protectedPersonOwnerSql } from './read-tail-family-r30';
 import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
 const peoplepayrollSources=peoplepayrollSnapshotSources();
@@ -56,7 +57,7 @@ export function peopleLifecycleIdentityAccessFacts(database: SqlDatabase, client
             }>();
         },
         readSaveLifecycleEffect2(companyId: string, companyId2: string, personId: string) {
-            return database.prepare("SELECT 1 FROM assignments a LEFT JOIN iam_members m ON m.company_id=a.company_id AND m.user_id=a.user_id WHERE a.company_id=? AND people_person_user(?,?,a.user_id) AND a.revoked_at IS NULL AND (a.role='holding_owner' OR m.login_policy='emergency')")
+            return database.prepare(protectedPersonOwnerSql)
                 .bind(companyId, companyId2, personId)
                 .first();
         },
@@ -69,7 +70,7 @@ export function peopleLifecycleIdentityAccessFacts(database: SqlDatabase, client
                 .bind(companyId, id);
         },
         guard40(key: string, value: "protected-person", companyId: string, personId: string, userId: string, companyId2: string, companyId3: string, personId2: string) {
-            return assertion(database, key, value, "NOT people_person_user(?,?,?) AND NOT EXISTS(SELECT 1 FROM assignments a LEFT JOIN iam_members m ON m.company_id=a.company_id AND m.user_id=a.user_id WHERE a.company_id=? AND people_person_user(?,?,a.user_id) AND a.revoked_at IS NULL AND (a.role='holding_owner' OR m.login_policy='emergency'))", [
+            return assertion(database, key, value, `NOT people_person_user(?,?,?) AND NOT EXISTS(${protectedPersonOwnerSql})`, [
                 companyId,
                 personId,
                 userId,
@@ -78,7 +79,7 @@ export function peopleLifecycleIdentityAccessFacts(database: SqlDatabase, client
                 personId2,
             ]);
         },
-        guard46(key: string, value: string, companyId: string, owner: string, value2: string | null, value3: string | null, kind: "equipment" | "directory" | "handover" | "payroll" | "finance" | "hr") { return assertion(database, key, value, "EXISTS(SELECT 1 FROM assignments WHERE company_id=? AND user_id=? AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (?::text IS NULL OR iam_role_allows(role,company_id,?)) AND (? NOT IN ('payroll','finance','directory') OR scope_kind='holding'))", [companyId, owner, value2, value3, kind]); },
+        guard46(key: string, value: string, companyId: string, owner: string, value2: string | null, value3: string | null, kind: "equipment" | "directory" | "handover" | "payroll" | "finance" | "hr") { return assertion(database, key, value, `EXISTS(${assignmentCompanyProbeSql("user_id=? AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (?::text IS NULL OR iam_role_allows(role,company_id,?)) AND (? NOT IN ('payroll','finance','directory') OR scope_kind='holding')")})`, [companyId, owner, value2, value3, kind]); },
         stageCancelLifecycleEffect3(now: number, id: string) {
             return nativePrepare("w_lifecycle_revoke_case")
                 .bind(now, id);
@@ -99,7 +100,7 @@ export function peopleLifecycleIdentityAccessFacts(database: SqlDatabase, client
         guard65(key: string, value: "it-assignee", itAssigneeId: string | null, companyId: string, itAssigneeId2: string | null) {
             return assertion(database, key, value, "?::text IS NULL OR EXISTS(SELECT 1 FROM assignments WHERE company_id=? AND user_id=? AND scope_kind='holding' AND iam_role_allows(role,company_id,'iam.directory.manage') AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint))", [itAssigneeId, companyId, itAssigneeId2]);
         },
-        applyValidatePackageEffect(companyId: unknown, id: unknown) { return client!.query<Record<string, unknown>>("SELECT 1 FROM um_groups WHERE company_id=$1 AND id=$2 AND NOT (definition->>'archived')::boolean", [companyId, id]); },
+        applyValidatePackageEffect(companyId: unknown, id: unknown) { return client!.query<Record<string, unknown>>(umGroupProbeSql(""), [companyId, id]); },
         readValidatePackagerole(companyId: unknown, roleId: unknown) { return client!.query<LifecycleRoleFact>("SELECT r.published_revision,v.scopes_json FROM iam_roles r JOIN iam_role_revisions v ON v.company_id=r.company_id AND v.role_id=r.id AND v.revision=r.published_revision WHERE r.company_id IN ('*',$1) AND r.id=$2 AND r.status='active'", [companyId, roleId]); },
         applyValidatePackageEffect3(companyId: unknown, connectionId: unknown, account: unknown) { return client!.query<Record<string, unknown>>("SELECT 1 FROM iam_connections WHERE company_id=$1 AND id=$2 AND status='active' AND ($3='local' OR provider=$3)", [companyId, connectionId, account]); },
         applyValidatePackageEffect4(connectionId: unknown, id: unknown) { return client!.query<Record<string, unknown>>(iamGroupProbeSql("WHERE connection_id=$1 AND external_id=$2"), [connectionId, id]); },

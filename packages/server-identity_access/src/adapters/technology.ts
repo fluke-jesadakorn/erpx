@@ -1,6 +1,7 @@
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
 import { activeIamRoleProbeSql } from './active-role-probe-family-r25';
 import { assignmentValidUntilSql } from './read-tail-family-r27';
+import { umGroupProbeSql } from './read-tail-family-r30';
 import 'server-only';import {createHash,randomUUID} from 'node:crypto';import type {PoolClient} from 'pg';import type {TechnologyStore} from '@erpx/server-identity_access/public/technology-contracts';import type {DirectoryMembershipFact,ProvisionConnection,ProvisionChild} from '@erpx/server-identity_access/public/technology-contracts';
 import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgres';import {ApiError} from '@erpx/server-runtime/public/http';import {iamDb} from '@erpx/server-identity_access/public/iam-db';import {assertCompanyScope} from '@erpx/server-identity_access/public/iam-context';import {requirePermission} from '@erpx/server-identity_access/public/iam-permissions';import {iamCommand} from '@erpx/server-identity_access/public/iam-transactions';import {requireFreshMfa} from '@erpx/server-identity_access/public/iam-mfa';import { grantInput, proposeIamReview } from '@erpx/server-identity_access/public/iam-service';
 import {validateIamGrant,insertIamGrant} from '@erpx/server-identity_access/public/iam-grants';import {prepareDirectoryPreview} from '@erpx/server-identity_access/public/directory-operations';import {technologyProvisioningFacts} from '@erpx/server-people_payroll/public/technology-provisioning-facts';import {technologyVerifiedPersonUsersProjection,technologyRestorationAssignmentProjection} from '@erpx/server-people_payroll/public/technology-provisioning-projection';import {technologyProvisioningEffects} from '@erpx/server-workflow/public/technology-provisioning-effects';import {createTechnologyService} from '@erpx/server-identity_access/application/technology';const clients=new WeakMap<TechnologyStore,PoolClient>();function nativeStore(c:PoolClient):TechnologyStore{const store:TechnologyStore={...technologyProvisioningFacts(c),...technologyProvisioningEffects(c),parentExpiry:async(facts)=>{const{actor}=facts;return (await c.query<{valid_until:number}>(assignmentValidUntilSql(), [
@@ -11,7 +12,7 @@ membershipSources:async(facts)=>{const{actor}=facts;return (await c.query<Direct
       [actor.companyId],
     )).rows;},
 groupAvailable:async(facts)=>{const{actor,groupId,e}=facts;return (await c.query(
-            "SELECT 1 FROM um_groups WHERE company_id=$1 AND id=$2 AND NOT (definition->>'archived')::boolean AND um_person_in_unit($1,$3,definition->>'scopeNodeId')",
+            umGroupProbeSql(" AND um_person_in_unit($1,$3,definition->>'scopeNodeId')"),
             [actor.companyId, groupId, e.person_id],
           )).rowCount;},
 verifiedUsers:async(facts)=>{const{actor,e,definition}=facts;return (await c.query<{user_id:string}>(

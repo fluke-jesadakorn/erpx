@@ -6,6 +6,7 @@ export const overrideAuthorityProbe=(engagementJoin:string)=>`EXISTS(SELECT 1 FR
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {assignmentActiveProbeSql,assignmentUserScopeProbeSql} from './read-tail-family-r29';
+import {assignmentCompanyProbeSql} from './read-tail-family-r30';
 export function createApprovalsSourceRepository(database:SqlDatabase){return {readCanOverrideStaffStepRole(assignmentId:string,companyId:string,userId:string,branchId:string | null,departmentId:string | null){return database.prepare("SELECT 1 FROM assignments WHERE id=? AND company_id=? AND user_id=? AND iam_role_allows(role,company_id,'workflow.people_manager') AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (scope_kind='holding' OR scope_kind='branch' AND scope_node_id=? OR scope_kind='department' AND scope_node_id=?)").bind(assignmentId,companyId,userId,branchId,departmentId).first();},
 guard3(key:string,value:"override-current-right",assignmentId:string,companyId:string,userId:string,branchId:string | null,departmentId:string | null){return assertion(database,key,value,overrideAuthorityProbe(`${peoplepayrollSources.workflow_approvals_facts_hr_engagements_e_join} ON e.person_id=p.id AND e.company_id=p.company_id AND e.status='active' `),
       [assignmentId,companyId,userId,branchId,departmentId]);},
@@ -38,7 +39,7 @@ guard34(key:string,value:"active-decision-role",assignmentId:string,value2:strin
 guard39(key:string,value:"expense-role",company_id:string,assignmentId:string,required_role:string,now:number,now2:number,branch_id:string | null,department_id:string | null){return assertion(database,
                   key,
                   value,
-                  "EXISTS(SELECT 1 FROM assignments WHERE company_id=? AND id=? AND iam_role_allows(role,company_id,'workflow.'||?) AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>? AND (scope_kind='holding' OR (scope_kind='branch' AND scope_node_id=?) OR (scope_kind='department' AND scope_node_id=?)))",
+                  `EXISTS(${assignmentCompanyProbeSql("id=? AND iam_role_allows(role,company_id,'workflow.'||?) AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=? AND valid_until>? AND (scope_kind='holding' OR (scope_kind='branch' AND scope_node_id=?) OR (scope_kind='department' AND scope_node_id=?))")})`,
                   [
                     company_id,
                     assignmentId,
