@@ -1,7 +1,7 @@
 import {productionReadProjection as productionmanufacturingProjection} from '@erpx/server-manufacturing/public/production-read-projections';
 import {productionReadProjection as productioncommerceProjection} from '@erpx/server-commerce/public/production-read-projections';
 import {productionReadProjection as productionorganizationProjection} from '@erpx/server-organization/public/production-read-projections';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {productionResourcesExists,planningAllocatedMinutes} from "./planning-guard-sql";
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {productionResourcesExists,planningAllocatedMinutes} from "./planning-guard-sql";import {planningCommandExistsGuard} from "./planning-command-guard-sql";
 
 const sourceJoins = `
     ${productionmanufacturingProjection.executiveSpecification}
@@ -61,14 +61,14 @@ guardRoutingResource(key:string,value:string,resourceId:string,companyId:string,
 async comparison(comparisonScenarioId:string,companyId:string,branch_id:string | number | null,specificationId:string){return db.prepare(`SELECT s.id,s.version,s.shortages_json,r.required_minutes,r.feasible_date FROM planning_scenarios s
       JOIN planning_recommendations r ON r.scenario_id=s.id WHERE s.id=? AND s.company_id=? AND s.branch_id=? AND s.specification_id=?`)
       .bind(comparisonScenarioId, companyId, branch_id, specificationId).first<Row>();},
-guardComparison(key:string,value:"comparison",comparisonScenarioId:string,companyId:string,value2:string,specificationId:string,value3:number){return assertion(db, key, value, "EXISTS(SELECT 1 FROM planning_scenarios WHERE id=? AND company_id=? AND branch_id=? AND specification_id=? AND version=?)", [comparisonScenarioId, companyId, value2, specificationId, value3]);},
+guardComparison(key:string,value:"comparison",comparisonScenarioId:string,companyId:string,value2:string,specificationId:string,value3:number){return assertion(db, key, value, planningCommandExistsGuard("planning_scenarios", "id=? AND company_id=? AND branch_id=? AND specification_id=? AND version=?"), [comparisonScenarioId, companyId, value2, specificationId, value3]);},
 prepareScenario(id:string,companyId:string,branch_id:string | number | null,warehouseId:string,specificationId:string,specificationVersion:number,demand:number,dueDate:string,capacityMinutes:number,value:string,userId:string,now:number,now2:number,value2:string){throw new Error("NATIVE_PLANNING_REQUIRED");},
 prepareRecommendation(recommendationId:string,id:string,value:1,demand:number,requiredMinutes:number,feasible:string,userId:string,now:number,now2:number){throw new Error("NATIVE_PLANNING_REQUIRED");},
 prepareCalculateEvent(value:string,id:string,userId:string,value2:"Calculated from confirmed Sales demand and captured supply/capacity" | "Calculated from declared manual demand and captured supply/capacity",now:number){throw new Error("NATIVE_PLANNING_REQUIRED");},
 async scenario(id:string,companyId:string,branchId:string | null,branchId2:string | null){return db.prepare("SELECT * FROM planning_scenarios WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)")
     .bind(id, companyId, branchId, branchId2).first<Row>();},
 lockScenarioRecommendations(id:string){throw new Error("NATIVE_PLANNING_REQUIRED");},
-guardUnreleasedScenario(key:string,value:"scenario",id:string,companyId:string,expectedVersion:number){return assertion(db, key, value, "EXISTS(SELECT 1 FROM planning_scenarios WHERE id=? AND company_id=? AND version=? AND status='calculated')", [id, companyId, expectedVersion]);},
+guardUnreleasedScenario(key:string,value:"scenario",id:string,companyId:string,expectedVersion:number){return assertion(db, key, value, planningCommandExistsGuard("planning_scenarios", "id=? AND company_id=? AND version=? AND status='calculated'"), [id, companyId, expectedVersion]);},
 prepareScenarioCancellation(now:number,id:string){throw new Error("NATIVE_PLANNING_REQUIRED");},
 prepareRecommendationCancellation(userId:string,now:number,id:string){throw new Error("NATIVE_PLANNING_REQUIRED");},
 prepareCancelEvent(value:string,id:string,value2:number,userId:string,reason:string,now:number){throw new Error("NATIVE_PLANNING_REQUIRED");},
@@ -83,7 +83,7 @@ guardIndependentRecommendation(key:string,value:"recommendation",id:string,expec
         db,
         key,
         value,
-        "EXISTS(SELECT 1 FROM planning_recommendations WHERE id=? AND version=? AND status='proposed' AND created_by<>?)",
+        planningCommandExistsGuard("planning_recommendations", "id=? AND version=? AND status='proposed' AND created_by<>?"),
         [id, expectedVersion, userId],
       );},
 prepareRecommendationReview(status:"approved" | "rejected",userId:string,now:number,id:string){throw new Error("NATIVE_PLANNING_REQUIRED");},
