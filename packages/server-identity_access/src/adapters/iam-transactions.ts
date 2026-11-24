@@ -1,4 +1,5 @@
 import 'server-only';
+import { assignmentActiveQuerySql } from "./iam-probe-sql";
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
 import {createHash} from 'node:crypto';
 import type {PoolClient} from 'pg';
@@ -25,7 +26,7 @@ export async function iamCommand<T>(db:PostgresDatabase,actor:IamActor,key:strin
           ? [actor.assignmentId, actor.userId]
           : [actor.assignmentId, actor.userId, actor.companyId],
       )
-    ).rows[0],active:async(assignmentId,now)=>Boolean((await client.query("SELECT iam_assignment_active($1,$2) ok", [
+    ).rows[0],active:async(assignmentId,now)=>Boolean((await client.query(assignmentActiveQuerySql, [
           assignmentId,
           now,
         ])).rows[0].ok),allowed:async(role,companyId,permission)=>Boolean((await client.query("SELECT iam_role_allows($1,$2,$3) ok", [

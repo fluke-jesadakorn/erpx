@@ -1,5 +1,5 @@
 import 'server-only';
-import { samePersonQuerySql } from "./iam-probe-sql";
+import { samePersonQuerySql, assignmentActiveQuerySql } from "./iam-probe-sql";
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
 import type {PoolClient} from 'pg';
 import type {IamActor} from '@erpx/server-identity_access/domain/iam-actor';
@@ -18,7 +18,7 @@ return {grantSamePerson: async (facts) => {
 lockGrantParent: async (facts) => { const { parentId } = facts; return (await c.query(`SELECT * FROM ${actor.platform ? "platform_assignments" : "assignments"} WHERE id=$1 FOR SHARE`, [parentId])).rows[0] ?? null; },
 grantParentActive: async (facts) => {
             const { parentId, observedNow } = facts;
-            return (await c.query("SELECT iam_assignment_active($1,$2) ok", [
+            return (await c.query(assignmentActiveQuerySql, [
                 parentId,
                 observedNow,
             ])).rows[0] ?? null;
