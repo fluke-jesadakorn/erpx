@@ -2954,7 +2954,7 @@
       "lane": "unit",
       "owner": "billing",
       "modules": [
-        "billing"
+        "commercial"
       ],
       "fixture": "none",
       "requires": {
@@ -11689,6 +11689,31 @@
       "id": "commercial.read-tail-r1-dedupe.unit",
       "files": [
         "tests/unit/commercial/read-tail-r1-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "commercial",
+      "modules": [
+        "commercial"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Commercial seat history reads must stay one byte-identical builder."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-commercial"
+      ],
+      "id": "commercial.read-tail-r3-family.unit",
+      "files": [
+        "tests/unit/commercial/read-tail-r3-family.test.ts"
       ],
       "framework": "vitest"
     },
@@ -44757,6 +44782,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Inventory initial physical source markers must stay byte-identical."
+      },
+      "apps": "supply",
+      "packages": [
+        "@erpx/server-inventory"
+      ],
+      "id": "inventory.read-tail-r20-dedupe.unit",
+      "files": [
+        "tests/unit/inventory/read-tail-r20-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "inventory.rust-commerce-order-cancellation-postgres.integration",
       "lane": "integration",
       "owner": "inventory",
@@ -62226,6 +62276,31 @@
       "id": "people_payroll.read-tail-r27-dedupe.unit",
       "files": [
         "tests/unit/people_payroll/read-tail-r27-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "people_payroll",
+      "modules": [
+        "people_payroll"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Payroll r28 seven pure-read families must stay byte-identical."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-people_payroll"
+      ],
+      "id": "people_payroll.read-tail-r28-dedupe.unit",
+      "files": [
+        "tests/unit/people_payroll/read-tail-r28-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -106236,7 +106311,7 @@
       "lane": "unit",
       "owner": "workflow",
       "modules": [
-        "workflow"
+        "operations"
       ],
       "fixture": "none",
       "requires": {
