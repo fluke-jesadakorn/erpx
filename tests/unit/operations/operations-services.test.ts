@@ -493,6 +493,7 @@ import {projectSourceProbe} from '../../../packages/server-operations/src/adapte
 import {operationsOverdueAlertSql} from '../../../packages/server-operations/src/adapters/executive-task-cohort';
 import {workCacheOperationsDeadlines} from '../../../packages/server-operations/src/adapters/work-cache-deadlines';
 import {operationsSocialTaskOriginExists} from '../../../packages/server-operations/src/adapters/social-task-origin-exists';
+import {operationsReceiptVersionExists} from '../../../packages/server-operations/src/adapters/operations-receipt-version-exists';
 import {finalRootOwnerProjectionSources as collaborationProjectionSources} from '@erpx/server-collaboration/public/final-root-owner-projection-sources';
 describe('Operations task delegation source dedupe',()=>{
  const fragment='(SELECT jsonb_agg(to_jsonb(delegation) ORDER BY delegation.id) FROM staff_task_delegations delegation WHERE delegation.task_id=t.id AND delegation.company_id=t.company_id)';
@@ -885,9 +886,9 @@ describe('Operations read-tail r41 retirement',()=>{
       }
     };
     walk(root);
-    // r42 deduped the social task-origin EXISTS family; the r41
-    // BEFORE=110 baseline itself is unchanged.
-    expect(space).toBe(109);
+    // r42 deduped the social task-origin EXISTS family and r43 deduped the
+    // command-receipt version guard; the r41 BEFORE=110 baseline is unchanged.
+    expect(space).toBe(108);
     expect(space).toBeLessThan(110);
   });
 });
@@ -926,7 +927,52 @@ describe('Operations read-tail r42 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(109);
+    expect(space).toBe(108);
     expect(space).toBeLessThan(110);
+  });
+});
+
+describe('Operations read-tail r43 retirement',()=>{
+  const source=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  const guard=(prefix:string,company:string,idClause:string,state:string,version:string)=>`EXISTS(SELECT 1 FROM command_receipts receipt WHERE ${prefix} AND receipt.authority_json::jsonb->>'companyId'=${company}${idClause} AND receipt.result_json::jsonb->>'state'=${state} AND (receipt.result_json::jsonb->>'version')::bigint<=${version})`;
+  const taskPrefix="receipt.record_id=t.id AND receipt.operation IN ('task.complete','task.approve','task.cancel')";
+  const schedulePrefix="receipt.operation='routine.schedule.end' AND receipt.record_id=s.id";
+  const taskIdClause=" AND receipt.result_json::jsonb->>'id'=t.id";
+  test('the task and schedule receipt guards render byte-identically',()=>{
+    expect(operationsReceiptVersionExists(taskPrefix,'t.company_id',taskIdClause,'t.state','t.version')).toBe(guard(taskPrefix,'t.company_id',taskIdClause,'t.state','t.version'));
+    expect(operationsReceiptVersionExists(schedulePrefix,'s.company_id','',"'ended'",'s.version')).toBe(guard(schedulePrefix,'s.company_id','',"'ended'",'s.version'));
+    expect(operationsReceiptVersionExists(taskPrefix,'t.company_id',taskIdClause,'t.state','t.version')).toBe("EXISTS(SELECT 1 FROM command_receipts receipt WHERE receipt.record_id=t.id AND receipt.operation IN ('task.complete','task.approve','task.cancel') AND receipt.authority_json::jsonb->>'companyId'=t.company_id AND receipt.result_json::jsonb->>'id'=t.id AND receipt.result_json::jsonb->>'state'=t.state AND (receipt.result_json::jsonb->>'version')::bigint<=t.version)");
+    expect(operationsReceiptVersionExists(schedulePrefix,'s.company_id','',"'ended'",'s.version')).toBe("EXISTS(SELECT 1 FROM command_receipts receipt WHERE receipt.operation='routine.schedule.end' AND receipt.record_id=s.id AND receipt.authority_json::jsonb->>'companyId'=s.company_id AND receipt.result_json::jsonb->>'state'='ended' AND (receipt.result_json::jsonb->>'version')::bigint<=s.version)");
+  });
+  test('the family keeps one canonical literal and no local SELECT at its call sites',()=>{
+    const obligations=source('work-package-obligations.ts');
+    expect(obligations).toContain(`operationsReceiptVersionExists("${taskPrefix}"`);
+    expect(obligations).toContain(`operationsReceiptVersionExists("${schedulePrefix}"`);
+    expect(obligations.match(/operationsReceiptVersionExists\(/g)).toHaveLength(2);
+    expect(obligations).not.toContain("SELECT 1 FROM command_receipts receipt WHERE receipt.record_id=t.id");
+    expect(obligations).not.toContain("SELECT 1 FROM command_receipts receipt WHERE receipt.operation='routine.schedule.end'");
+    expect(source('operations-receipt-version-exists.ts').match(/SELECT /g)).toHaveLength(1);
+  });
+  test('LOCK TABLE and the r29-r42 helpers remain untouched',()=>{
+    expect(source('work-package-obligation-sources.ts')).toContain('LOCK TABLE');
+    expect(source('project-package-obligation-sources.ts')).toContain('LOCK TABLE');
+    expect(source('work-package-obligations.ts')).toContain("LOCK TABLE command_receipts IN SHARE MODE");
+    expect(source('task-delegation-source.ts')).toContain('operationsActiveDelegationSql');
+    expect(source('social-task-origin-exists.ts')).toContain('operationsSocialTaskOriginExists');
+    expect(source('executive-task-cohort.ts')).toContain('operationsOverdueAlertSql');
+  });
+  test('retirement:ts-statements stays strictly below the r43 BEFORE=109 baseline',()=>{
+    const root=resolve(__dirname,'../../../packages/server-operations/src');
+    let space=0;
+    const walk=(dir:string)=>{
+      for(const entry of readdirSync(dir,{withFileTypes:true})){
+        const path=resolve(dir,entry.name);
+        if(entry.isDirectory())walk(path);
+        else if(entry.name.endsWith('.ts'))space+=(readFileSync(path,'utf8').match(/SELECT /g)??[]).length;
+      }
+    };
+    walk(root);
+    expect(space).toBe(108);
+    expect(space).toBeLessThan(109);
   });
 });
