@@ -7,6 +7,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { hotelOccupancyMetric, HotelRoomRevenueMetric, HotelOccupancyEvidenceRow, HotelGuestAccountBalanceEvidenceRow, HotelNightAuditBlockerEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
 import { pmsNightLineageStepSql, pmsNightSourceWitnessSql } from "./pms-read-tail-r43-sql";
 import { pmsNightLineageAnchorSql } from "./pms-read-tail-r44-sql";
+import { pmsRecordPropertyJoinSql } from "./pms-read-tail-r45-sql";
 function hotelOccupancyRows(db: SqlDatabase, actor: WorkContext, filters: Filters, metric: typeof hotelOccupancyMetric | HotelRoomRevenueMetric = hotelOccupancyMetric, query = "", cursor?: {
     businessDate: string;
     id: string;
@@ -36,10 +37,7 @@ function hotelOccupancyRows(db: SqlDatabase, actor: WorkContext, filters: Filter
         conditions.push("r.id=?");
         values.push(recordId);
     }
-    return db.prepare(`SELECT r.id,r.property_id,p.name property_name,p.config_json::jsonb->>'currency' property_currency,r.data_json::jsonb->>'date' business_date,
-      r.data_json::jsonb->>'state' state,r.data_json::jsonb->'roomMetrics'->>'capacity' capacity,
-      r.data_json::jsonb->'roomMetrics'->>'sold' sold,r.version
-    FROM pms_records r JOIN pms_properties p ON p.id=r.property_id
+    return db.prepare(`${pmsRecordPropertyJoinSql('occupancyEvidence')}
     WHERE ${conditions.join(" AND ")}
     ORDER BY r.data_json::jsonb->>'date' DESC,r.id DESC LIMIT ?`).bind(...values, recordId ? 1 : limit + 1);
 }

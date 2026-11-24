@@ -10,6 +10,7 @@ import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/e
 import { pmsBranchLabelSql } from "./pms-read-tail-r40-sql";
 import { pmsNightLineageStepSql, pmsNightSourceWitnessSql } from "./pms-read-tail-r43-sql";
 import { pmsNightLineageAnchorSql } from "./pms-read-tail-r44-sql";
+import { pmsRecordPropertyAnchorSql, pmsRecordPropertyJoinSql } from "./pms-read-tail-r45-sql";
 /** Closed branch label shared by the occupancy and guest-account-balance metrics. No caller SQL is accepted. */
 const EXEC_BRANCH_LABEL_SQL = pmsBranchLabelSql('n');
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
@@ -18,7 +19,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     let sql = '', values: unknown[] = [];
     const referenceAtOverride: number | null = null;
     if (id === "hotel-rooms") {
-        sql = "SELECT p.name label,count(*)::text value FROM pms_records r JOIN pms_properties p ON p.id=r.property_id WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND r.kind='room' GROUP BY p.id,p.name ORDER BY 1";
+        sql = pmsRecordPropertyJoinSql('roomCount') + " WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND r.kind='room' GROUP BY p.id,p.name ORDER BY 1";
         values = [a.companyId, a.branchId, a.branchId];
     }
     if (id === "hotel-occupancy") {
@@ -32,7 +33,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         COALESCE(sum(CASE WHEN ${valid} THEN ${sold}::numeric ELSE 0::numeric END),0)::text numerator,
         COALESCE(sum(CASE WHEN ${valid} THEN ${capacity}::numeric ELSE 0::numeric END),0)::text denominator,
         count(*) FILTER (WHERE NOT ${valid})::text partial_count
-      FROM pms_records r JOIN pms_properties p ON p.id=r.property_id
+      ${pmsRecordPropertyAnchorSql('r', 'p')}
       WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND r.kind='night'
         AND r.data_json::jsonb->>'state'='completed' AND r.data_json::jsonb->>'date' BETWEEN ? AND ?
       GROUP BY 1 ORDER BY 1`;

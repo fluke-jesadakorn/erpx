@@ -141,8 +141,8 @@ describe('pms read-tail r37 payment-id head dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(292);
-    expect(bare).toBe(294);
+    expect(spaced).toBe(286);
+    expect(bare).toBe(288);
     expect(spaced).toBeLessThan(328);
   });
 });

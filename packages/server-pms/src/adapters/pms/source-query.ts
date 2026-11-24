@@ -1,7 +1,6 @@
+import { pmsRecordPropertyJoinSql } from "../pms-read-tail-r45-sql";
 /** A single source identity for PMS records, bank reviews and charge corrections. */
-export const pmsSourcesSql = `SELECT r.id,r.property_id,r.kind,r.data_json::jsonb data,r.version,r.updated_at,
-    p.company_id,p.branch_id,p.name property_name,p.business_date
-  FROM pms_records r JOIN pms_properties p ON p.id=r.property_id
+export const pmsSourcesSql = `${pmsRecordPropertyJoinSql('sourceIdentity')}
   UNION ALL
   SELECT t.id,t.property_id,'transfer',jsonb_build_object('state',t.state,'recordedBy',t.recorded_by,
     'guestAccountId',t.guest_account_id),t.version,t.updated_at,p.company_id,p.branch_id,p.name,p.business_date

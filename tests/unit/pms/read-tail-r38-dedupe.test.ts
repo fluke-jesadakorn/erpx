@@ -67,7 +67,7 @@ const ORIGINALS = [
     full: SRC + " AND (id IN (SELECT id FROM chosen) OR data_json::jsonb->>'reservationId' IN (SELECT id FROM reservations))),",
     sha256: '61d7f40ac718d8c3a4d2a3a6fc99ebc095771d2a92dfe4f7b27862abb1e9347f',
     recomposed: PMS_STAY_SOURCE_PROJECTION_SQL + " AND (id IN (SELECT id FROM chosen) OR data_json::jsonb->>'reservationId' IN (SELECT id FROM reservations))),",
-    routed: '${PMS_STAY_SOURCE_PROJECTION_SQL} AND (id IN (SELECT id FROM chosen)',
+    routed: '${PMS_STAY_SOURCE_PROJECTION_SQL} AND (id IN (${pmsReservationRelationArmSql(\'chosenId\')})',
   },
   {
     file: 'adapters/pms/read-repository.ts',
@@ -155,8 +155,8 @@ describe('pms read-tail r38 count/projection head dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(292);
-    expect(bare).toBe(294);
+    expect(spaced).toBe(286);
+    expect(bare).toBe(288);
     expect(spaced).toBeLessThan(323);
   });
 });

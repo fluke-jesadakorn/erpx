@@ -139,8 +139,8 @@ describe('pms read-tail r41 guest-join, property-scope and rollout-exists dedupe
 
   it('leaves finance transfer tail, locks, native registry and r17-r40 helpers untouched', async () => {
     const fin = await src('adapters/pms/finance.ts');
-    expect(fin).toContain("SELECT t.id,t.property_id,p.version property_version");
-    expect(fin).toContain('FROM pms_transfer_requests t JOIN pms_properties p ON p.id=t.property_id AND p.company_id=t.company_id');
+    expect(fin).toContain("pmsRecordPropertyJoinSql('transferList')");
+    expect(await src('adapters/pms-read-tail-r45-sql.ts')).toContain('FROM pms_transfer_requests t JOIN pms_properties p ON p.id=t.property_id AND p.company_id=t.company_id');
     expect(fin).toContain('t.updated_at DESC LIMIT 100');
     expect(fin).not.toContain("pmsPropertyScopeSql('transfers')");
 
@@ -162,8 +162,8 @@ describe('pms read-tail r41 guest-join, property-scope and rollout-exists dedupe
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(292);
-    expect(bare).toBe(294);
+    expect(spaced).toBe(286);
+    expect(bare).toBe(288);
     expect(spaced).toBeLessThan(310);
   });
 });

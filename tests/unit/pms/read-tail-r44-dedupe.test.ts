@@ -145,15 +145,15 @@ describe('pms read-tail r44 chosen-kind, payment-union and lineage-anchor dedupe
     }
   });
 
-  it('lowers the pms owner SELECT KPI from 299 to 292', async () => {
+  it('lowers the pms owner SELECT KPI from 292 to 286', async () => {
     let spaced = 0, bare = 0;
     for (const file of await tsFiles(dir)) {
       const text = await readFile(file, 'utf8');
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(292);
-    expect(bare).toBe(294);
+    expect(spaced).toBe(286);
+    expect(bare).toBe(288);
     expect(spaced).toBeLessThan(299);
     expect(bare).toBeLessThan(301);
   });

@@ -13,6 +13,7 @@ import { pmsGuestIdJoinSql } from "../pms-read-tail-r41-sql";
 import { PMS_ORDERED_RECORDS_TAIL_SQL, pmsStayExistsHeadSql } from "../pms-read-tail-r42-sql";
 import { pmsBookingEmailPendingSql } from "../pms-read-tail-r43-sql";
 import { pmsChosenKindUnionSql } from "../pms-read-tail-r44-sql";
+import { pmsChosenKindPointSql, pmsReservationRelationArmSql } from "../pms-read-tail-r45-sql";
 import { nativePmsReadAll, PMS_RD_INVENTORY_COMMAND } from "../native-pms-read";
 import * as application from "@erpx/server-pms/application/read-repository";
 const stayPredicate = `(data_json::jsonb->>'state' IN ('reserved','in_house') OR
@@ -121,9 +122,9 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
             propertyId2: string;
             propertyId3: string;
         }) => db.prepare(`WITH chosen AS (${PMS_CHOSEN_RECORDS_SQL}),
-   reservations AS (SELECT id FROM chosen WHERE kind='reservation' UNION SELECT data->>'reservationId' FROM chosen),
-   stays AS (${PMS_STAY_SOURCE_PROJECTION_SQL} AND (id IN (SELECT id FROM chosen) OR data_json::jsonb->>'reservationId' IN (SELECT id FROM reservations))),
-   guestAccounts AS (SELECT data->>'guestAccountId' id FROM stays),
+   reservations AS (${pmsReservationRelationArmSql('chosenReservationId')} UNION ${pmsReservationRelationArmSql('reservationIdChosen')}),
+   stays AS (${PMS_STAY_SOURCE_PROJECTION_SQL} AND (id IN (${pmsReservationRelationArmSql('chosenId')}) OR data_json::jsonb->>'reservationId' IN (SELECT id FROM reservations))),
+   guestAccounts AS (${pmsChosenKindPointSql('guestAccountStayAliased')}),
    groups AS (${PMS_RECORD_ID_PROPERTY_HEAD_SQL} AND kind='block' AND data_json::jsonb->>'kind'='group' AND data_json::jsonb->>'state'='active' AND COALESCE(data_json::jsonb->>'bookingChangeId','')='' ORDER BY updated_at DESC,id LIMIT 50)
    ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? AND (
     kind IN ('room_type','room','rate') OR id IN (SELECT id FROM groups) OR id IN (SELECT id FROM chosen) OR id IN (SELECT id FROM reservations) OR id IN (SELECT id FROM stays) OR id IN (SELECT id FROM guestAccounts)
@@ -185,18 +186,18 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
      OR (kind='movement' AND data_json::jsonb->>'date' BETWEEN ? AND ?)
    ) ORDER BY updated_at DESC,id LIMIT 50
  ), linked_ids AS (
-   SELECT id FROM chosen UNION SELECT id FROM stays UNION SELECT id FROM guestAccounts
-   UNION SELECT data->>'reservationId' FROM stays
-   UNION SELECT data->>'guestId' FROM stays UNION SELECT data->>'guestId' FROM chosen
+   ${pmsReservationRelationArmSql('chosenId')} UNION ${pmsReservationRelationArmSql('staysId')} UNION ${pmsReservationRelationArmSql('guestAccountsId')}
+   UNION ${pmsReservationRelationArmSql('reservationIdStays')}
+   UNION ${pmsReservationRelationArmSql('guestIdStays')} UNION ${pmsReservationRelationArmSql('guestIdChosen')}
  ), selected_records AS (
  ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=?
  AND kind IN ('room','guest','room_type','rate','entry','refund','correction','task','block','shift','item','lost','movement') AND (
-   id IN (SELECT id FROM chosen) OR id IN (SELECT id FROM stays)
-   OR (kind='reservation' AND id IN (SELECT data->>'reservationId' FROM stays))
+   id IN (${pmsReservationRelationArmSql('chosenId')}) OR id IN (SELECT id FROM stays)
+   OR (kind='reservation' AND id IN (${pmsReservationRelationArmSql('reservationIdStays')}))
    ${PMS_GUEST_STAYS_CHOSEN_MEMBER_SQL}
    OR (kind='room' AND (? OR id IN (SELECT id FROM room_ids)))
    OR (kind='guest' AND ? AND id IN (${PMS_RECORD_ID_PROPERTY_HEAD_SQL} AND kind='guest' ORDER BY updated_at DESC,id LIMIT 50))
-   OR (kind IN ('room_type','rate') AND (? OR ? OR id IN (SELECT data->>'typeId' FROM stays UNION SELECT data->>'rateId' FROM stays)))
+   OR (kind IN ('room_type','rate') AND (? OR ? OR id IN (${pmsChosenKindPointSql('typeIdStay')} UNION ${pmsChosenKindPointSql('rateIdStay')})))
    OR (kind='guest_account' AND id IN (SELECT id FROM guestAccounts))
    OR (kind IN ('entry','refund','correction') AND data_json::jsonb->>'guestAccountId' IN (SELECT id FROM guestAccounts))
    OR (kind='task' AND ? AND data_json::jsonb->>'roomId' IN (SELECT id FROM room_ids) AND (data_json::jsonb->>'state' NOT IN ('done','superseded') OR id IN (SELECT id FROM recent_tasks)))
@@ -245,7 +246,7 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
         WHERE key IN ('guestId','reservationId','guestAccountId','roomId','typeId','rateId')
     ) ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=?
       AND (id IN (SELECT id FROM related) OR (kind='entry' AND data_json::jsonb->>'guestAccountId' IN
-        (SELECT id FROM selected WHERE kind='guest_account' UNION SELECT data->>'guestAccountId' FROM selected)))
+        (${pmsReservationRelationArmSql('selectedGuestAccountId')} UNION ${pmsChosenKindPointSql('guestAccountSelected')})))
     ORDER BY updated_at,id`).bind(facts.propertyId, facts.id, facts.propertyId2).all<PmsStoredRecord>().then(rows => rows.results.map(decodePmsRecord))
     };
 }
