@@ -1,4 +1,5 @@
 import { nativeCrmExecute } from './native-crm-command';
+import { activeCustomerPartiesSql } from './active-customer-parties';
 import { nativeCrmActivityWork } from './native-activity-workspace';
 import {filterCRMPurchasedWork} from "@erpx/server-crm/adapters/record-purchases";
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
@@ -44,7 +45,7 @@ async evidence(id){return await write.prepare(`SELECT v.id,v.lead_id,l.title,l.s
  FROM crm_opportunities v JOIN crm_leads l ON l.id=v.lead_id WHERE ${scope} AND v.id=? LIMIT 1`).bind(...args(a),id).first<Row>();},
 async currency(){return write.prepare(`SELECT currency FROM (${commerceProjectionSources.commerce_settings}) commerce_settings WHERE company_id=?`).bind(a.companyId).first<Row>();},
 async recipients(id){return (await write.prepare(`SELECT DISTINCT c.owner_id id,p.legal_name name FROM (SELECT DISTINCT user_id owner_id FROM (${identity_accessProjectionSources.assignments}) assignments WHERE company_id=?) c JOIN (${people_payrollProjectionSources.hr_people}) p ON p.user_id=c.owner_id AND p.company_id=? JOIN crm_leads l ON l.id=? WHERE ${salesRecipientEligibility('l','c.owner_id')} ORDER BY p.legal_name`).bind(a.companyId,a.companyId,id).all<{id:string;name:string}>()).results;},
-async customers(){return (await write.prepare(`SELECT id,name FROM (${financeProjectionSources.finance_parties}) finance_parties WHERE company_id=? AND kind='customer' AND status='active' ORDER BY name`).bind(a.companyId).all<Row>()).results;},
+async customers(){return (await write.prepare(activeCustomerPartiesSql).bind(a.companyId).all<Row>()).results;},
 async quotes(row){return (await write.prepare(`SELECT o.id,o.number,o.version,o.state FROM (${commerceProjectionSources.commerce_orders}) o WHERE o.company_id=? AND o.party_id=? AND o.branch_id=? AND o.department_id IS NOT DISTINCT FROM ?::text AND o.kind='quote' AND o.state='confirmed' ORDER BY o.updated_at DESC`).bind(a.companyId,row.customer_id,row.branch_id,row.department_id).all<Row>()).results;},
 async sales(row){return (await write.prepare(`SELECT id,number,version,state FROM (${commerceProjectionSources.commerce_orders}) commerce_orders WHERE company_id=? AND source_id=? AND kind='sales' AND state IN ('confirmed','partially_fulfilled','fulfilled') ORDER BY updated_at DESC`).bind(a.companyId,row.quote_id).all<Row>()).results;},
 async guestCandidates(){if(!await crmReferenceHistory(write,a,'pms.reservations'))return [];return (await write.prepare(`SELECT g.id,g.data_json::jsonb->>'name' name,p.id property_id,p.name property_name FROM (${pmsProjectionSources.pms_records}) g JOIN (${pmsProjectionSources.pms_properties}) p ON p.id=g.property_id AND p.company_id=? WHERE g.kind='guest' AND (?::text IS NULL OR p.branch_id=?) ORDER BY g.updated_at DESC LIMIT 200`).bind(a.companyId,a.branchId,a.branchId).all<Row>()).results;},
