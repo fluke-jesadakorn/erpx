@@ -3,3 +3,4 @@ pub mod executive_timeline;
 pub mod notes;
 pub mod portal;
 pub mod timeline;
+pub mod timeline_activity;

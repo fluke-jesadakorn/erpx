@@ -8,5 +8,7 @@ pub mod notes_http;
 pub mod portal;
 pub mod portal_http;
 pub mod timeline;
+pub mod timeline_activity;
+pub mod timeline_activity_http;
 pub mod timeline_http;
 pub(crate) mod portal_action_source;

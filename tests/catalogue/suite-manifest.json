@@ -15874,6 +15874,119 @@
       }
     },
     {
+      "owner": "customer_360",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "sales",
+        "portal"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-customer-360",
+        "targets": [
+          "customer_timeline_activity_http"
+        ],
+        "features": []
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-customer_360/Cargo.toml"
+      ],
+      "id": "customer_360.timeline-activity-http.integration",
+      "lane": "integration",
+      "modules": [
+        "customer_360"
+      ],
+      "files": [
+        "tests/integration/customer_360/rust-customer-timeline-activity-http.test.rs"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Customer timeline activity route must reject invalid scope/query."
+      }
+    },
+    {
+      "owner": "customer_360",
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "sales",
+        "portal"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-customer-360",
+        "targets": [
+          "customer_timeline_activity_postgres"
+        ],
+        "features": []
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-customer_360/Cargo.toml"
+      ],
+      "id": "customer_360.timeline-activity-postgres.integration",
+      "lane": "integration",
+      "modules": [
+        "customer_360"
+      ],
+      "files": [
+        "tests/integration/customer_360/rust-customer-timeline-activity-postgres.test.rs"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Native customer timeline activity rows must match the retained TS projection oracle."
+      }
+    },
+    {
+      "owner": "customer_360",
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "apps": [
+        "apps"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-customer-360",
+        "targets": [
+          "customer_timeline_activity"
+        ],
+        "features": []
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-customer_360/Cargo.toml"
+      ],
+      "id": "customer_360.timeline-activity.unit",
+      "lane": "unit",
+      "modules": [
+        "customer_360"
+      ],
+      "files": [
+        "tests/unit/customer_360/rust-customer-timeline-activity.test.rs"
+      ],
+      "ci": {
+        "critical": true,
+        "reason": "Customer timeline activity domain validation must stay fail-closed."
+      }
+    },
+    {
       "id": "customer_authority.application.unit",
       "lane": "unit",
       "owner": "customer_authority",
