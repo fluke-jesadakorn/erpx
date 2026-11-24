@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11914,
+    "revision": 11918,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -177409,7 +177409,7 @@
         "owner": "procurement",
         "title": "procurement TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -177421,22 +177421,37 @@
         "resources": [
           "owner:procurement"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4f02",
-          "claimedAt": "2026-11-24T12:25:35.143Z",
-          "heartbeatAt": "2026-11-24T12:30:32.439Z",
-          "expiresAt": "2026-11-24T13:00:32.439Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-procurement/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "83c7f6ce3",
+            "owner": "procurement",
+            "before": 107,
+            "after": 106,
+            "note": "Open promise min/sum subqueries share openPromiseByOrder; receipts/locks untouched."
+          },
+          {
+            "command": "vitest procurement (103) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "83c7f6ce3"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "supplier bill projection follow-up or new family; if none blocked. BEFORE=107.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4f02",
+          "at": "2026-11-24T12:35:32.119Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -177727,7 +177742,7 @@
         "owner": "maintenance",
         "title": "maintenance TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -177739,22 +177754,37 @@
         "resources": [
           "owner:maintenance"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4f10",
-          "claimedAt": "2026-11-24T12:23:27.201Z",
-          "heartbeatAt": "2026-11-24T12:30:32.439Z",
-          "expiresAt": "2026-11-24T13:00:32.439Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-maintenance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "83c7f6ce3",
+            "owner": "maintenance",
+            "before": 22,
+            "after": 21,
+            "note": "Work event history reuses settlementRefSource via closed tail; r20-r26/locks/native untouched."
+          },
+          {
+            "command": "vitest maintenance (47) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "83c7f6ce3"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "new reduction outside r20-r26. BEFORE=22.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4f10",
+          "at": "2026-11-24T12:35:32.559Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -178251,17 +178281,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 22,
+        "in_progress": 20,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1318,
+        "blocked": 1320,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T12:34:55.336Z",
+    "updatedAt": "2026-11-24T12:35:32.565Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
