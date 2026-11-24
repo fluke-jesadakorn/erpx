@@ -28,3 +28,8 @@ export const countSourceProofSql=(rows:string)=>`SELECT source_proof::text proof
 export const countCreateMarkedRowsSql=(marker:string)=>`SELECT record_id id,authority_json::jsonb->>'companyId' company_id FROM command_receipts WHERE operation='inventory.count.create' AND jsonb_exists(result_json::jsonb,'${marker}')`;
 export const countMarkedJournalSql=(rows:string)=>`SELECT c.company_id,c.journal_id id FROM inventory_counts c JOIN (${rows}) marker ON marker.id=c.id WHERE c.journal_id IS NOT NULL`;
 export const allInitialPhysicalStockMarkedRowsSql=(...rows:string[])=>`SELECT 1 FROM (${rows.join(' UNION ALL ')})`;
+/** r14: runner-up byte-identical fragments. Only the literal text is shared;
+ * every consumer keeps its own rows, alias, binds and independent statement. */
+export const countInitialMarkedExistsSql=(rows:string,id:string,alias='initial_marker')=>`EXISTS(SELECT 1 FROM (${rows}) ${alias} WHERE ${alias}.id=${id})`;
+export const initialPhysicalCountJournalSql=(rows:string,tail:string)=>`SELECT source.company_id,c.journal_id id FROM (${rows}) source JOIN inventory_counts c ON c.id=source.id AND c.company_id=source.company_id AND c.status='posted' JOIN finance_journals j ON j.id=c.journal_id AND j.company_id=c.company_id AND j.chart_id=source.source_proof->>'chartId' AND j.currency=source.source_proof->>'currency' AND j.source_type='stock_count' AND j.source_id=c.id AND j.status='posted' AND j.is_opening=0${tail}`;
+export const initialPhysicalCountFinanceImagesSql=(images:string)=>`SELECT source.company_id,source.journal_id id,source.image FROM (${images}) source WHERE source.journal_id IS NOT NULL`;
