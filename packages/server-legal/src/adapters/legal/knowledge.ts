@@ -1,5 +1,4 @@
 import {legalReadScope} from '@erpx/server-legal/adapters/purchases';
-import { finalRootOwnerProjectionSources as filesProjectionSources } from "@erpx/server-files/public/final-root-owner-projection-sources";
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -13,9 +12,11 @@ import { legalAccessEvent } from '@erpx/server-collaboration/adapters/native-leg
 import { nativeLegalAuxiliaryRead } from '../native-legal-auxiliary';
 import { legalStatePointSql } from '../legal-read-tail-r33-sources';
 import { legalActiveDestructionGuardHead } from '../legal-read-tail-r46-sources';
+import { legalAttachmentAvailableSql } from '../legal-read-tail-r47-sources';
+import { legalDisposedGuardSql } from '../legal-read-tail-r39-sources';
 /** Shared by search and direct citations; aliases must be legal_documents d and legal_items i.
  * Retained for the command-side availability check in `citations.ts` and the AI evidence reads. */
-export const legalEvidenceDocumentAvailableSql = `(d.object_key IS NULL OR EXISTS(SELECT 1 FROM (${filesProjectionSources.attachment_links}) clean_link JOIN (${filesProjectionSources.attachments}) clean_file ON clean_file.id=clean_link.attachment_id WHERE clean_link.id=d.attachment_link_id AND clean_link.state='bound' AND clean_file.company_id=i.company_id AND clean_file.source_state='available' AND clean_file.revoked_at IS NULL AND clean_file.checksum_sha256=d.checksum)) AND NOT EXISTS(SELECT 1 FROM legal_disposals disposed WHERE disposed.document_id=d.id) ${legalActiveDestructionGuardHead()}`;
+export const legalEvidenceDocumentAvailableSql = `${legalAttachmentAvailableSql('clean_link','clean_file')} AND ${legalDisposedGuardSql('disposed','d.id')} ${legalActiveDestructionGuardHead()}`;
 const cleanDocument = legalEvidenceDocumentAvailableSql;
 /** Exact projection of the native `knowledge` auxiliary read; the transport accepts
  * every authoritative field and no view SQL remains in TypeScript. */

@@ -62,7 +62,7 @@ describe('legal read-tail r39 fragment families', () => {
       src('legal/destruction-worker.ts'),
     ]);
     expect(corpus).toContain('legal_law_source_checks');
-    expect(corpus).toContain('NOT EXISTS(SELECT 1 FROM legal_disposals x WHERE x.document_id=c.document_id)');
+    expect(corpus).toContain("legalDisposedGuardSql('x','c.document_id')");
     expect(citations).toContain('export function legalCitation');
     expect(r9).toContain('legalFilesAdvisoryLockSql');
     expect(r9).toContain('legalCompanyAdvisoryLockSql');
