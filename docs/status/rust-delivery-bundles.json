@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11718,
+    "revision": 11720,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -175848,6 +175848,42 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=13.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.talent.read-tail-r38",
+        "goalId": "G4",
+        "owner": "talent",
+        "title": "talent universal projection stragglers",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-talent/src/**",
+          "tests/unit/talent/**",
+          "tests/integration/talent/**"
+        ],
+        "resources": [
+          "owner:talent"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4c01",
+          "claimedAt": "2026-11-24T11:57:02.398Z",
+          "heartbeatAt": "2026-11-24T11:57:02.398Z",
+          "expiresAt": "2026-11-24T12:27:02.398Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Route package-obligations.ts 12 anchors through selectProjection (39->27).",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -175856,11 +175892,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1644,
+      "totalPackets": 1645,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 26,
+        "in_progress": 27,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -175870,7 +175906,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T11:56:37.769Z",
+    "updatedAt": "2026-11-24T11:57:02.426Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
