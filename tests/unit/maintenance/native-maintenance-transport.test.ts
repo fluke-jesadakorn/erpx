@@ -641,8 +641,8 @@ describe('Maintenance record-image fixed SQL',()=>{
   expect(helper.match(/export const recordImageSql = \(fields: string, source: string\): string =>/g)).toHaveLength(1);
   expect(helper.match(/SELECT/g)).toHaveLength(1);
   expect(attachment.match(/SELECT/g)).toBeNull();
-  // Purchase keeps only its pre-existing eligibility EXISTS witness (r10/r11 untouched).
-  expect(purchase.match(/SELECT/g)).toHaveLength(1);
+  // r13 moved the purchase eligibility EXISTS witness into the shared IAM guard.
+  expect(purchase.match(/SELECT/g)).toBeNull();
   expect(attachment).toContain('recordImageSql(');
   expect(purchase).toContain('recordImageSql(');
   expect(purchase).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans,maintenance_preventive_occurrences IN SHARE ROW EXCLUSIVE MODE');
@@ -683,7 +683,47 @@ describe('Maintenance record-image fixed SQL',()=>{
    }
   };
   walk(srcRoot);
-  expect(total).toBe(40);
-  expect(total).toBeLessThan(41);
+  expect(total).toBe(39);
+  expect(total).toBeLessThan(40);
  });
 });
+
+/** Fixed-SQL read-tail oracle for the Maintenance IAM scope-guard family (r13).
+ * The Work owner-eligibility/can-review images and the Work/Plan purchase-source
+ * eligibility witness share one owner-local EXISTS guard. All composed strings
+ * stay byte-identical to their pre-dedupe literals, no duplicate TS query literal
+ * remains in either consumer and both owner locks are untouched. r3-r12 families
+ * and all locks are unchanged. */
+describe('Maintenance IAM scope guard fixed SQL',()=>{
+  const dir='../../../packages/server-maintenance/src/adapters/';
+  it('single-sources the IAM guard and keeps every composed guard byte-identical',async()=>{
+   const {readFileSync}=await import('node:fs');
+   const helper=readFileSync(new URL(`${dir}iam-scope-guard.ts`,import.meta.url),'utf8');
+   const work=readFileSync(new URL(`${dir}work.ts`,import.meta.url),'utf8');
+   const purchase=readFileSync(new URL(`${dir}purchase-sources.ts`,import.meta.url),'utf8');
+   expect(helper.match(/SELECT/g)).toHaveLength(1);
+   // r7's work-local literal and the pre-r13 purchase eligibility literal are gone.
+   expect(work).not.toContain('EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments})');
+   expect(purchase).not.toContain('EXISTS(SELECT 1 FROM assignments assignment');
+   expect(work).toContain('iamScopeGuardSql(workIamFrom');
+   expect(purchase).toContain('iamScopeGuardSql(');
+   // Locks untouched.
+   expect(purchase).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans,maintenance_preventive_occurrences IN SHARE ROW EXCLUSIVE MODE');
+
+   const {finalRootOwnerProjectionSources:ia}=await import('../../../packages/server-identity_access/src/public/final-root-owner-projection-sources');
+   const {finalRootOwnerProjectionSources:pp}=await import('../../../packages/server-people_payroll/src/public/final-root-owner-projection-sources');
+   const {iamScopeGuardSql}=await import('../../../packages/server-maintenance/src/adapters/iam-scope-guard');
+   const wf=`(${ia.assignments}) x JOIN (${pp.hr_people}) p ON p.user_id=x.user_id AND p.company_id=x.company_id JOIN (${pp.hr_engagements}) e ON e.person_id=p.id AND e.company_id=p.company_id`;
+   // Pre-r13 work literal rebuilt verbatim from the r7 definition.
+   const preWork=(alias:string,user:string,perm:string)=>`EXISTS(SELECT 1 FROM ${wf} WHERE x.company_id=${alias}.company_id AND x.user_id=${user} AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(x.user_id,x.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(x.role,x.company_id,'${perm}') AND (x.scope_kind='holding' OR (x.scope_kind='branch' AND x.scope_node_id=${alias}.branch_id) OR (x.scope_kind='department' AND x.scope_node_id=${alias}.department_id)) AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')))`;
+   const wg=(alias:string,user:string,perm:'records.write'|'records.review')=>iamScopeGuardSql(wf,'x','p','e',alias,user,perm,`(x.scope_kind='holding' OR (x.scope_kind='branch' AND x.scope_node_id=${alias}.branch_id) OR (x.scope_kind='department' AND x.scope_node_id=${alias}.department_id))`);
+   expect(wg('w','w.owner_id','records.write')).toBe(preWork('w','w.owner_id','records.write'));
+   expect(wg('w','?','records.review')).toBe(preWork('w','?','records.review'));
+   expect(wg('a','?','records.review')).toBe(preWork('a','?','records.review'));
+   // Pre-r13 purchase eligibility literal rebuilt verbatim.
+   const pf='assignments assignment JOIN hr_people person ON person.user_id=assignment.user_id AND person.company_id=assignment.company_id JOIN hr_engagements engagement ON engagement.person_id=person.id AND engagement.company_id=person.company_id';
+   const ps=`(assignment.scope_kind='holding' OR assignment.scope_kind='branch' AND assignment.scope_node_id=r.branch_id OR assignment.scope_kind='department' AND assignment.scope_node_id=r.department_id)`;
+   const prePurchase=`EXISTS(SELECT 1 FROM ${pf} WHERE assignment.company_id=r.company_id AND assignment.user_id=r.owner_id AND iam_assignment_active(assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(assignment.user_id,assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(assignment.role,assignment.company_id,'records.write') AND ${ps} AND person.status='active' AND person.merged_into_id IS NULL AND engagement.status='active' AND engagement.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (engagement.end_date IS NULL OR engagement.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')))`;
+   expect(iamScopeGuardSql(pf,'assignment','person','engagement','r','r.owner_id','records.write',ps)).toBe(prePurchase);
+  });
+ });

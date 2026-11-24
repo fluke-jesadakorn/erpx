@@ -20,11 +20,13 @@ import {hasModuleAccess} from '@erpx/catalogue/module-access';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {availableServiceSpares} from '@erpx/server-inventory/public/inventory-consumption';
 import {maintenanceOwnerName} from './maintenance-owner-name';
+import {iamScopeGuardSql} from './iam-scope-guard';
 const assetScope="a.company_id=? AND (?::text IS NULL OR a.branch_id=?) AND (?::text IS NULL OR a.department_id=?)",workScope="w.company_id=? AND (?::text IS NULL OR w.branch_id=?) AND (?::text IS NULL OR w.department_id=?)",args=(a:WorkContext)=>[a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId];
-/** Canonical owner-local IAM scope guard shared by the Work owner-eligibility
- * and can-review images. Callers pass only the row alias, the user expression
- * and a closed permission; no caller SQL or relation is accepted. */
-const iamScopeGuard=(alias:string,user:string,permission:'records.write'|'records.review')=>`EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) x JOIN (${people_payrollProjectionSources.hr_people}) p ON p.user_id=x.user_id AND p.company_id=x.company_id JOIN (${people_payrollProjectionSources.hr_engagements}) e ON e.person_id=p.id AND e.company_id=p.company_id WHERE x.company_id=${alias}.company_id AND x.user_id=${user} AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(x.user_id,x.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(x.role,x.company_id,'${permission}') AND (x.scope_kind='holding' OR (x.scope_kind='branch' AND x.scope_node_id=${alias}.branch_id) OR (x.scope_kind='department' AND x.scope_node_id=${alias}.department_id)) AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')))`;
+/** Owner-local adapter over the shared IAM guard: this owner supplies only its
+ * closed projection relations, fixed aliases and a row alias/user/permission;
+ * the common assignment/principal/role/status tail is owned once in the helper. */
+const workIamFrom=`(${identity_accessProjectionSources.assignments}) x JOIN (${people_payrollProjectionSources.hr_people}) p ON p.user_id=x.user_id AND p.company_id=x.company_id JOIN (${people_payrollProjectionSources.hr_engagements}) e ON e.person_id=p.id AND e.company_id=p.company_id`;
+const iamScopeGuard=(alias:string,user:string,permission:'records.write'|'records.review')=>iamScopeGuardSql(workIamFrom,'x','p','e',alias,user,permission,`(x.scope_kind='holding' OR (x.scope_kind='branch' AND x.scope_node_id=${alias}.branch_id) OR (x.scope_kind='department' AND x.scope_node_id=${alias}.department_id))`);
 const worker=iamScopeGuard('w','w.owner_id','records.write');
 const reviewer=(alias:'a'|'w')=>iamScopeGuard(alias,'?','records.review');
 function access(a:WorkContext,write=false){requirePermission(a,write?'records.write':'records.read');if(!hasModuleAccess(a.modules,'maintenance'))throw new ApiError(403,'MODULE_FORBIDDEN','Your current role cannot access maintenance.');}

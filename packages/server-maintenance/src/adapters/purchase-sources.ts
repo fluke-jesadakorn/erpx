@@ -1,8 +1,17 @@
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {recordImageSql} from './record-image-sources';
+import {iamScopeGuardSql} from './iam-scope-guard';
 const scope="r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)";
-const eligible=`EXISTS(SELECT 1 FROM assignments assignment JOIN hr_people person ON person.user_id=assignment.user_id AND person.company_id=assignment.company_id JOIN hr_engagements engagement ON engagement.person_id=person.id AND engagement.company_id=person.company_id WHERE assignment.company_id=r.company_id AND assignment.user_id=r.owner_id AND iam_assignment_active(assignment.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(assignment.user_id,assignment.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(assignment.role,assignment.company_id,'records.write') AND (assignment.scope_kind='holding' OR assignment.scope_kind='branch' AND assignment.scope_node_id=r.branch_id OR assignment.scope_kind='department' AND assignment.scope_node_id=r.department_id) AND person.status='active' AND person.merged_into_id IS NULL AND engagement.status='active' AND engagement.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (engagement.end_date IS NULL OR engagement.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')))`;
+/** The Work/Plan purchase-source eligibility witness now shares the common IAM
+ * guard tail with the Work owner-eligibility/can-review images; this owner only
+ * supplies its fixed raw relations, aliases, row/user expression, permission and
+ * scope. The composed string stays byte-identical to its pre-dedupe literal. */
+const eligible=iamScopeGuardSql(
+  'assignments assignment JOIN hr_people person ON person.user_id=assignment.user_id AND person.company_id=assignment.company_id JOIN hr_engagements engagement ON engagement.person_id=person.id AND engagement.company_id=person.company_id',
+  'assignment','person','engagement','r','r.owner_id','records.write',
+  `(assignment.scope_kind='holding' OR assignment.scope_kind='branch' AND assignment.scope_node_id=r.branch_id OR assignment.scope_kind='department' AND assignment.scope_node_id=r.department_id)`,
+);
 /** Closed Work/Plan owner image, including its actual physical Asset and the
  * existing worker-reference eligibility; no People purchase is inferred. */
 export function maintenancePurchaseSourceQuery(kind:"work"|"plan",file=false){return recordImageSql(
