@@ -44,3 +44,23 @@ describe('Management deterministic email and origin policy',()=>{
  test('local acceptance origins are selected only for loopback hosts',()=>{const config={frontOrigins:[],origin:'https://console.example.test',production:false};expect(publicOrigin({host:'localhost:3102',url:'http://127.0.0.1:3102'},config)).toBe('http://localhost:3102');expect(publicOrigin({host:'evil.test',url:'http://127.0.0.1:3102'},config)).toBe('https://console.example.test');});
  test('capacity defaults and invalid overrides remain pure input rules',()=>{expect(betaLimits({})).toEqual({members:20,branches:5,ai:100,storage:1024**3});expect(()=>betaLimits({BETA_MEMBER_LIMIT:'0'})).toThrow();});
 });
+describe('Management owner-local monthly AI allowance projection',()=>{
+ test('keeps one fixed projection for Records and Finance quota sources',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const base=new URL('../../../packages/server-manage_erpx/src/adapters/',import.meta.url);
+  const records=await readFile(new URL('records-ai-limit-projection.ts',base),'utf8');
+  const finance=await readFile(new URL('finance-ai-quota-sources.ts',base),'utf8');
+  const projection='COALESCE((SELECT ai_monthly_limit FROM beta_policy WHERE company_id=?),100)';
+  expect(records.match(/SELECT /g)).toHaveLength(1);
+  expect(records).toContain(projection);
+  expect(finance).not.toContain(projection);
+  expect(finance).not.toContain('SELECT ');
+  expect(finance).toContain("export {recordsAiMonthlyLimitSql as financeAiCompanyAllowanceSql} from './records-ai-limit-projection'");
+ });
+ test('preserves both public export names on the single canonical projection',async()=>{
+  const {recordsAiMonthlyLimitSql}=await import('@erpx/server-manage_erpx/public/records-ai-limit-projection');
+  const {financeAiCompanyAllowanceSql}=await import('@erpx/server-manage_erpx/public/finance-ai-quota-sources');
+  expect(financeAiCompanyAllowanceSql).toBe(recordsAiMonthlyLimitSql);
+  expect(financeAiCompanyAllowanceSql).toContain('ai_monthly_limit');
+ });
+});
