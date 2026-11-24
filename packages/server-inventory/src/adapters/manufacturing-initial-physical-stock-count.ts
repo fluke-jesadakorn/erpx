@@ -5,7 +5,7 @@ import {minorToDecimal} from '@erpx/feature-finance/lib/finance-money';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {loadIamAuthority} from '@erpx/server-identity_access/public/iam-store';
 import {assignmentReadSql} from '@erpx/server-identity_access/public/record-source-authority';
-import {initialEntryClockAssignmentsSql,stockHistoryExistsSql} from './read-tail-sql';
+import {initialEntryClockAssignmentsSql,stockHistoryExistsSql,mfgInitialPhysicalSchemaReadySql} from './read-tail-sql';
 import {readPurchasedAccesses} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {manufacturingInitialPhysicalStockCommerceSource,initialPhysicalStockMasterChoices,initialPhysicalStockMasterSource} from '@erpx/server-commerce/public/manufacturing-initial-physical-stock-sources';
@@ -27,7 +27,7 @@ const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).d
 const authorityImage=(actor:WorkContext)=>[actor.holdingId,actor.companyId,actor.branchId,actor.departmentId,actor.userId,actor.assignmentId,actor.role,actor.authority??null,actor.iam?.queuedAssignmentVersion,actor.iam?.identityVersion,actor.iam?.roleRevision,actor.iam?.hrAppointmentVersion];
 function empty(actor:WorkContext,reason:ManufacturingInitialPhysicalStockCountView['unavailableReason']):ManufacturingInitialPhysicalStockCountView{return {companyId:actor.companyId,available:false,currency:null,documentCurrency:null,contextKey:null,unavailableReason:reason,canPrepare:false,canCreateWarehouse:false,canCreateProduct:false,selection:{warehouseId:null,productId:null,countDate:null},readiness:{schemaAvailable:false,postingConfigured:false,varianceAccountAvailable:false,postingPeriodAvailable:false},warehouses:[],branches:[],products:[],record:null};}
 async function owner(actor:WorkContext){return (await holdingResources(actor.holdingId)).write;}
-async function schema(database:SqlDatabase){if(!await database.prepare("SELECT to_regclass('inventory_mfg_initial_physical_sources') IS NOT NULL ready").first<boolean>('ready'))throw new ApiError(503,'MANUFACTURING_INITIAL_PHYSICAL_STOCK_SCHEMA_REQUIRED','Install the reviewed Initial Physical Stock Count schema before using this command.');}
+async function schema(database:SqlDatabase){if(!await database.prepare(mfgInitialPhysicalSchemaReadySql).first<boolean>('ready'))throw new ApiError(503,'MANUFACTURING_INITIAL_PHYSICAL_STOCK_SCHEMA_REQUIRED','Install the reviewed Initial Physical Stock Count schema before using this command.');}
 async function history(database:SqlDatabase,companyId:string,warehouseId:string,productId:string,except:string|null=null){
  return await manufacturingInitialPhysicalStockHistory(database,companyId,warehouseId,productId)||!!await database.prepare(stockHistoryExistsSql).bind(warehouseId,productId,warehouseId,productId,warehouseId,productId,warehouseId,productId,warehouseId,productId,warehouseId,productId,except,except).first<boolean>('history');
 }
@@ -53,7 +53,7 @@ export async function manufacturingInitialPhysicalStockCountWorkspace(actor:Work
  const selection=manufacturingInitialPhysicalStockCountSelectionSchema.parse(raw);
  if(actor.departmentId||!hasPermission(actor,'inventory.read'))return empty(actor,'stock-authority-required');
  return withManufacturingInitialPhysicalStockCountUnit(await owner(actor),actor,{key:`manufacturing-initial-stock-read:${randomUUID()}`,operation:'inventory.count.read',id:selection.countId,purpose:'history',readOnly:true},async(database,_proof,_replay,current)=>{
-  const base=empty(actor,null);base.available=true;base.readiness.schemaAvailable=!!await database.prepare("SELECT to_regclass('inventory_mfg_initial_physical_sources') IS NOT NULL ready").first<boolean>('ready');
+  const base=empty(actor,null);base.available=true;base.readiness.schemaAvailable=!!await database.prepare(mfgInitialPhysicalSchemaReadySql).first<boolean>('ready');
   if(selection.countId){base.record=await record(database,current,selection.countId);base.currency=(JSON.parse(_proof!) as ManufacturingInitialPhysicalStockProof).currency;return base;}
   const access=await readPurchasedAccesses(database,'enforced',actor.companyId,manufacturingInitialPhysicalStockCapabilities),newWork=manufacturingInitialPhysicalStockCapabilities.every(cap=>access[cap].newWork),prepare=canPrepareCounts(current)&&newWork;
   const goods=await manufacturingInitialPhysicalStockCommerceSource(database,actor.companyId);base.documentCurrency=goods?String(goods.currency):null;base.currency=goods?String((await initialPhysicalStockCountFinanceSource(database,actor.companyId,selection.countDate??new Date().toISOString().slice(0,10))).config?.currency??'')||null:null;

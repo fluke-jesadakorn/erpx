@@ -17,3 +17,7 @@ export const jsonbImageSql='SELECT jsonb_build_object(';
  * byte-identical across their consumers; only the literal text is shared. */
 export const reservedWarehouseProductQtySql='SELECT warehouse_id,product_id,sum(quantity_milli::numeric) quantity_milli';
 export const singleCountLineMarkerSql='(SELECT count(*) FROM inventory_count_lines actual WHERE actual.count_id=c.id)=1';
+/** r12: byte-identical schema-readiness checks, each repeated within one command.
+ * Only the literal text is shared; every caller prepares its own statement. */
+export const posInitialPhysicalSchemaReadySql="SELECT to_regclass('inventory_pos_initial_physical_sources') IS NOT NULL ready";
+export const mfgInitialPhysicalSchemaReadySql="SELECT to_regclass('inventory_mfg_initial_physical_sources') IS NOT NULL ready";
