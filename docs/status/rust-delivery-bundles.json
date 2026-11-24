@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11275,
+    "revision": 11279,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -169119,7 +169119,7 @@
         "owner": "agent",
         "title": "agent TS read tail native cutover (round 21)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -169131,22 +169131,37 @@
         "resources": [
           "owner:agent"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMagt4",
-          "claimedAt": "2026-11-24T10:19:52.169Z",
-          "heartbeatAt": "2026-11-24T10:20:25.536Z",
-          "expiresAt": "2026-11-24T10:50:25.536Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-agent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a94cab267",
+            "owner": "agent",
+            "before": 56,
+            "after": 55,
+            "note": "previousTurn and translationTurn reads share agentWorkspaceTurnByIdSql; agentPoolMemberAccessSql, guards and FOR SHARE locks untouched."
+          },
+          {
+            "command": "vitest agent r21 (33) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "a94cab267"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: switch policyCandidates to the native governance port and delete the TS literal; keep guards and FOR SHARE locks. BEFORE=56.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMagt4",
+          "at": "2026-11-24T10:30:16.080Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -171057,7 +171072,7 @@
         "owner": "identity_access",
         "title": "identity_access TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -171069,22 +171084,37 @@
         "resources": [
           "owner:identity_access"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMidn7",
-          "claimedAt": "2026-11-24T10:16:12.968Z",
-          "heartbeatAt": "2026-11-24T10:20:25.536Z",
-          "expiresAt": "2026-11-24T10:50:25.536Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "4cf20a375",
+            "owner": "identity_access",
+            "before": 516,
+            "after": 508,
+            "note": "iam_connections, audit feed, active work context, newest-page, principal display, member and valid_until heads share seven helpers; locks, session authority, native kinds and r1-r26 untouched."
+          },
+          {
+            "command": "vitest identity r18-r27 (40) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "4cf20a375"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Seven parameterized families: iam_connections by id, audit feed, active work context assignments, newest-page lists, principal display, members by company/user, assignment valid_until. Locks/session authority excluded. BEFORE=516.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMidn7",
+          "at": "2026-11-24T10:30:16.823Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -172590,17 +172620,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 28,
+        "in_progress": 26,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1201,
+        "blocked": 1203,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T10:29:03.606Z",
+    "updatedAt": "2026-11-24T10:30:16.829Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
