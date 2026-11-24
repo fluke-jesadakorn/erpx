@@ -88,6 +88,14 @@ pub const PMS_RD_POS_GUEST_CHOICES: &str = "pms_rd_pos_guest_choices";
 /// Dedicated refund-state and FOR UPDATE reads stay in the caller's TypeScript unit.
 pub const PMS_RD_POS_STRIPE_PAYMENT: &str = "pms_rd_pos_stripe_payment";
 pub const PMS_RD_POS_BOOKING_PAYMENT: &str = "pms_rd_pos_booking_payment";
+/// Native successors of the owner-local `pms-stripe.ts` byte-identical plain
+/// payment point reads. Fixed SQL with one/two positional binds, no
+/// ledger/receipt/outbox and no lock/refund path; the caller runs them on its
+/// already-open read unit. The FOR UPDATE and refund-state reads stay in the
+/// caller's TypeScript unit.
+pub const PMS_RD_STRIPE_PAYMENT_BY_ID: &str = "pms_rd_stripe_payment_by_id";
+pub const PMS_RD_STRIPE_PAYMENT_BY_ID_COMPANY: &str = "pms_rd_stripe_payment_by_id_company";
+pub const PMS_RD_STRIPE_PAYMENT_PROPERTY: &str = "pms_rd_stripe_payment_property";
 const SQL_INVENTORY_COMMAND: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
 WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
 UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
@@ -270,7 +278,32 @@ const READ_POS_BOOKING_PAYMENT: NativeReadStatement = NativeReadStatement {
     bind_count: 4,
 };
 
-const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT];
+/// Retired TypeScript literal (byte-identical in readPmsStripePayments2/4/5/13):
+/// `SELECT * FROM pms_stripe_payments WHERE id=?`
+const SQL_STRIPE_PAYMENT_BY_ID: &str = "SELECT * FROM pms_stripe_payments WHERE id=?";
+const READ_STRIPE_PAYMENT_BY_ID: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_STRIPE_PAYMENT_BY_ID,
+    sql: SQL_STRIPE_PAYMENT_BY_ID,
+    bind_count: 1,
+};
+/// Retired TypeScript literal (byte-identical in readPmsStripePayments3/16):
+/// `SELECT * FROM pms_stripe_payments WHERE id=? AND company_id=?`
+const SQL_STRIPE_PAYMENT_BY_ID_COMPANY: &str = "SELECT * FROM pms_stripe_payments WHERE id=? AND company_id=?";
+const READ_STRIPE_PAYMENT_BY_ID_COMPANY: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_STRIPE_PAYMENT_BY_ID_COMPANY,
+    sql: SQL_STRIPE_PAYMENT_BY_ID_COMPANY,
+    bind_count: 2,
+};
+/// Retired TypeScript literal (byte-identical in readPmsStripePayments9/11):
+/// `SELECT property_id FROM pms_stripe_payments WHERE id=? AND company_id=?`
+const SQL_STRIPE_PAYMENT_PROPERTY: &str = "SELECT property_id FROM pms_stripe_payments WHERE id=? AND company_id=?";
+const READ_STRIPE_PAYMENT_PROPERTY: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_STRIPE_PAYMENT_PROPERTY,
+    sql: SQL_STRIPE_PAYMENT_PROPERTY,
+    bind_count: 2,
+};
+
+const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES, READ_POS_STRIPE_PAYMENT, READ_POS_BOOKING_PAYMENT, READ_STRIPE_PAYMENT_BY_ID, READ_STRIPE_PAYMENT_BY_ID_COMPANY, READ_STRIPE_PAYMENT_PROPERTY];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -570,6 +603,35 @@ ORDER BY id"
         assert_eq!(booking.bind_count, 4);
 
         for read in [stripe, booking] {
+            let upper = read.sql.to_ascii_uppercase();
+            assert!(upper.starts_with("SELECT"));
+            assert!(!upper.contains("INSERT INTO"));
+            assert!(!upper.contains("UPDATE "));
+            assert!(!upper.contains("DELETE FROM"));
+            assert!(!upper.contains("FOR UPDATE"));
+            assert!(!upper.contains("FOR SHARE"));
+            assert!(!upper.contains("LOCK TABLE"));
+            assert!(!upper.contains("REFUND"));
+            assert_eq!(read.sql.matches('?').count(), read.bind_count);
+            assert!(is_read(read.kind));
+        }
+    }
+
+    #[test]
+    fn stripe_plain_point_reads_match_retired_typescript_literals() {
+        let by_id = read_statement(PMS_RD_STRIPE_PAYMENT_BY_ID).expect("stripe payment by id read");
+        assert_eq!(by_id.sql, "SELECT * FROM pms_stripe_payments WHERE id=?");
+        assert_eq!(by_id.bind_count, 1);
+
+        let by_company = read_statement(PMS_RD_STRIPE_PAYMENT_BY_ID_COMPANY).expect("stripe payment by id/company read");
+        assert_eq!(by_company.sql, "SELECT * FROM pms_stripe_payments WHERE id=? AND company_id=?");
+        assert_eq!(by_company.bind_count, 2);
+
+        let property = read_statement(PMS_RD_STRIPE_PAYMENT_PROPERTY).expect("stripe payment property read");
+        assert_eq!(property.sql, "SELECT property_id FROM pms_stripe_payments WHERE id=? AND company_id=?");
+        assert_eq!(property.bind_count, 2);
+
+        for read in [by_id, by_company, property] {
             let upper = read.sql.to_ascii_uppercase();
             assert!(upper.starts_with("SELECT"));
             assert!(!upper.contains("INSERT INTO"));

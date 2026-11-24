@@ -27,6 +27,9 @@ import {
   PMS_RD_POS_GUEST_CHOICES,
   PMS_RD_POS_STRIPE_PAYMENT,
   PMS_RD_POS_BOOKING_PAYMENT,
+  PMS_RD_STRIPE_PAYMENT_BY_ID,
+  PMS_RD_STRIPE_PAYMENT_BY_ID_COMPANY,
+  PMS_RD_STRIPE_PAYMENT_PROPERTY,
 } from '../../../packages/server-pms/src/adapters/native-pms-read';
 import { readPmsInventoryCommand } from '../../../packages/server-pms/src/adapters/pms/read-repository';
 import { pmsAttachmentReadSourceImage } from '../../../packages/server-pms/src/adapters/attachment-read-sources';
@@ -771,6 +774,81 @@ describe('native PMS pos-stripe byte-identical read retirement', () => {
     expect(prepared).toEqual([
       posStripePaymentSql, posBookingPaymentSql, posStripePaymentSql, posBookingPaymentSql,
     ]);
+    for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
+  });
+});
+
+const stripePaymentByIdSql = 'SELECT * FROM pms_stripe_payments WHERE id=?';
+const stripePaymentByIdCompanySql = 'SELECT * FROM pms_stripe_payments WHERE id=? AND company_id=?';
+const stripePaymentPropertySql = 'SELECT property_id FROM pms_stripe_payments WHERE id=? AND company_id=?';
+const stripePlainKindSql: Record<string, string> = {
+  [PMS_RD_STRIPE_PAYMENT_BY_ID]: stripePaymentByIdSql,
+  [PMS_RD_STRIPE_PAYMENT_BY_ID_COMPANY]: stripePaymentByIdCompanySql,
+  [PMS_RD_STRIPE_PAYMENT_PROPERTY]: stripePaymentPropertySql,
+};
+
+describe('native PMS pms-stripe byte-identical plain read retirement', () => {
+  it('exposes fixed payment point read kinds with no SQL on the wire', () => {
+    expect(PMS_RD_STRIPE_PAYMENT_BY_ID).toBe('pms_rd_stripe_payment_by_id');
+    expect(PMS_RD_STRIPE_PAYMENT_BY_ID_COMPANY).toBe('pms_rd_stripe_payment_by_id_company');
+    expect(PMS_RD_STRIPE_PAYMENT_PROPERTY).toBe('pms_rd_stripe_payment_property');
+    for (const kind of Object.keys(stripePlainKindSql))
+      expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE|REFUND/);
+  });
+
+  it('removes the eight byte-identical TypeScript SELECT literals but keeps lock and refund reads', async () => {
+    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/pms-stripe.ts', import.meta.url), 'utf8');
+    expect(adapter).not.toContain("db.prepare('" + stripePaymentByIdSql + "')");
+    expect(adapter).not.toContain("db.prepare('" + stripePaymentByIdCompanySql + "')");
+    expect(adapter).not.toContain("db.prepare('" + stripePaymentPropertySql + "')");
+    expect(adapter).toContain('nativePmsReadFirst');
+    const routesTo = (method: string, kind: string) =>
+      expect(adapter).toMatch(new RegExp(method + ':\\s*\\(facts:[\\s\\S]{0,200}?nativePmsReadFirst[^\\n]{0,80}?' + kind + ','));
+    for (const method of ['readPmsStripePayments2', 'readPmsStripePayments4', 'readPmsStripePayments5', 'readPmsStripePayments13'])
+      routesTo(method, 'PMS_RD_STRIPE_PAYMENT_BY_ID');
+    for (const method of ['readPmsStripePayments3', 'readPmsStripePayments16'])
+      routesTo(method, 'PMS_RD_STRIPE_PAYMENT_BY_ID_COMPANY');
+    for (const method of ['readPmsStripePayments9', 'readPmsStripePayments11'])
+      routesTo(method, 'PMS_RD_STRIPE_PAYMENT_PROPERTY');
+    // Lock clauses and refund-state reads stay in the caller's TypeScript unit.
+    expect(adapter).toContain("'SELECT * FROM pms_stripe_payments WHERE id=? FOR UPDATE'");
+    expect(adapter).toContain("'SELECT * FROM pms_stripe_payments WHERE id=? AND company_id=? FOR UPDATE'");
+    expect(adapter).toContain("refund_state IN ('approved','processing','requires_action')");
+    expect(adapter).toContain('refund_state IS NOT NULL');
+  });
+
+  it('plans the three byte-identical reads in Rust and runs them on the caller unit with the same binds', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push(body);
+      const sql = stripePlainKindSql[body.kind];
+      expect(sql).toBeTruthy();
+      return new Response(JSON.stringify({ data: { statements: [{ sql, values: body.values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+    const prepared: string[] = [], bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) { prepared.push(sql); return { bind(...values: unknown[]) { bound.push(values); return this; } }; },
+      async batch<T>() { return [{ results: [{ id: 'payment-1', property_id: 'property-1' }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+    const byId = await nativePmsReadFirst(PMS_RD_STRIPE_PAYMENT_BY_ID, ['payment-1'], db as never);
+    const byCompany = await nativePmsReadFirst(PMS_RD_STRIPE_PAYMENT_BY_ID_COMPANY, ['payment-1', 'company-1'], db as never);
+    const property = await nativePmsReadFirst(PMS_RD_STRIPE_PAYMENT_PROPERTY, ['payment-1', 'company-1'], db as never);
+
+    for (const row of [byId, byCompany, property]) expect(row).toMatchObject({ id: 'payment-1' });
+    expect(bodies.map(b => b.kind)).toEqual([
+      PMS_RD_STRIPE_PAYMENT_BY_ID, PMS_RD_STRIPE_PAYMENT_BY_ID_COMPANY, PMS_RD_STRIPE_PAYMENT_PROPERTY,
+    ]);
+    expect(bodies.map(b => b.values)).toEqual([
+      ['payment-1'],
+      ['payment-1', 'company-1'],
+      ['payment-1', 'company-1'],
+    ]);
+    expect(bound).toEqual(bodies.map(b => b.values));
+    expect(prepared).toEqual([stripePaymentByIdSql, stripePaymentByIdCompanySql, stripePaymentPropertySql]);
     for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
   });
 });

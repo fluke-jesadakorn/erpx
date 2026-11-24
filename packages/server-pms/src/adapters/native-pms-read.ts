@@ -45,6 +45,13 @@ export const PMS_RD_POS_GUEST_CHOICES = 'pms_rd_pos_guest_choices';
  * FOR UPDATE reads stay in the caller's TypeScript unit. */
 export const PMS_RD_POS_STRIPE_PAYMENT = 'pms_rd_pos_stripe_payment';
 export const PMS_RD_POS_BOOKING_PAYMENT = 'pms_rd_pos_booking_payment';
+/** Native successors of the owner-local `pms-stripe.ts` byte-identical plain
+ * payment point reads. Fixed SQL with one/two positional binds, no
+ * ledger/receipt/outbox and no lock/refund path; the caller runs them on its
+ * already-open read unit. FOR UPDATE and refund-state reads stay in TS. */
+export const PMS_RD_STRIPE_PAYMENT_BY_ID = 'pms_rd_stripe_payment_by_id';
+export const PMS_RD_STRIPE_PAYMENT_BY_ID_COMPANY = 'pms_rd_stripe_payment_by_id_company';
+export const PMS_RD_STRIPE_PAYMENT_PROPERTY = 'pms_rd_stripe_payment_property';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');

@@ -48,7 +48,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
         }) => write('pms_w049', [facts.key, facts.digest, facts.propertyId, facts.guestAccountId, facts.companyId, facts.account_id, facts.livemode, facts.kind, facts.amountMinor, facts.fact9, facts.fact10, facts.userId, facts.now, facts.now2, facts.clearing]),
         readPmsStripePayments2: (facts: {
             id: string;
-        }) => db.prepare('SELECT * FROM pms_stripe_payments WHERE id=?').bind(facts.id).first<Payment>(),
+        }) => nativePmsReadFirst<Payment>(PMS_RD_STRIPE_PAYMENT_BY_ID, [facts.id], db),
         updatePmsStripePayments: (facts: {
             id: string;
             qr: string;
@@ -58,13 +58,13 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
         readPmsStripePayments3: (facts: {
             id: string;
             companyId: string;
-        }) => db.prepare('SELECT * FROM pms_stripe_payments WHERE id=? AND company_id=?').bind(facts.id, facts.companyId).first<Payment>(),
+        }) => nativePmsReadFirst<Payment>(PMS_RD_STRIPE_PAYMENT_BY_ID_COMPANY, [facts.id, facts.companyId], db),
         readPmsStripePayments4: (facts: {
             id: string;
-        }) => db.prepare('SELECT * FROM pms_stripe_payments WHERE id=?').bind(facts.id).first<Payment>(),
+        }) => nativePmsReadFirst<Payment>(PMS_RD_STRIPE_PAYMENT_BY_ID, [facts.id], db),
         readPmsStripePayments5: (facts: {
             id: string;
-        }) => db.prepare('SELECT * FROM pms_stripe_payments WHERE id=?').bind(facts.id).first<Payment>(),
+        }) => nativePmsReadFirst<Payment>(PMS_RD_STRIPE_PAYMENT_BY_ID, [facts.id], db),
         updatePmsStripePayments2: (facts: {
             now: number;
             id: string;
@@ -127,9 +127,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
         readPmsStripePayments9: (facts: {
             paymentId: string;
             companyId: string;
-        }) => db.prepare('SELECT property_id FROM pms_stripe_payments WHERE id=? AND company_id=?').bind(facts.paymentId, facts.companyId).first<{
-            property_id: string;
-        }>(),
+        }) => nativePmsReadFirst<{ property_id: string }>(PMS_RD_STRIPE_PAYMENT_PROPERTY, [facts.paymentId, facts.companyId], db),
         readPmsStripePayments10: (facts: {
             paymentId: string;
             companyId: string;
@@ -144,9 +142,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
         readPmsStripePayments11: (facts: {
             paymentId: string;
             companyId: string;
-        }) => db.prepare('SELECT property_id FROM pms_stripe_payments WHERE id=? AND company_id=?').bind(facts.paymentId, facts.companyId).first<{
-            property_id: string;
-        }>(),
+        }) => nativePmsReadFirst<{ property_id: string }>(PMS_RD_STRIPE_PAYMENT_PROPERTY, [facts.paymentId, facts.companyId], db),
         readWriteContext2: () => db.prepare("SELECT set_config('erpx.pms_write','on',true)").bind().first(),
         readPmsStripePayments12: (facts: {
             paymentId: string;
@@ -159,7 +155,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
         }) => write('pms_w062', [facts.userId, facts.fact1, facts.paymentId]),
         readPmsStripePayments13: (facts: {
             id: string;
-        }) => db.prepare('SELECT * FROM pms_stripe_payments WHERE id=?').bind(facts.id).first<Payment>(),
+        }) => nativePmsReadFirst<Payment>(PMS_RD_STRIPE_PAYMENT_BY_ID, [facts.id], db),
         insertPmsCounterRefundAttempts: (facts: {
             id: string;
             refund_generation: number;
@@ -230,7 +226,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
         readPmsStripePayments16: (facts: {
             id: string;
             companyId: string;
-        }) => db.prepare('SELECT * FROM pms_stripe_payments WHERE id=? AND company_id=?').bind(facts.id, facts.companyId).first<Payment>(),
+        }) => nativePmsReadFirst<Payment>(PMS_RD_STRIPE_PAYMENT_BY_ID_COMPANY, [facts.id, facts.companyId], db),
         readPmsStripePayments17: (facts: {
             id: string;
         }) => db.prepare('SELECT * FROM pms_stripe_payments WHERE id=? FOR UPDATE').bind(facts.id).first<Payment>(),
@@ -272,3 +268,4 @@ export function pmsStripeRefundsForFinance(actor: WorkContext) { return applicat
 export function recoverPmsStripeRefund(db: TransactionalSqlDatabase, actor: WorkContext, id: string, reason: string, payerEmail?: string) { return application.recoverPmsStripeRefund(repository(db, actor.companyId), actor, id, reason, payerEmail); }
 import { pmsCounterPaymentFacts } from "@erpx/server-pos/public/pms-counter-payment-facts";
 import { nativePmsOwnerWrite } from "@erpx/feature-pms/public/native-pms";
+import { nativePmsReadFirst, PMS_RD_STRIPE_PAYMENT_BY_ID, PMS_RD_STRIPE_PAYMENT_BY_ID_COMPANY, PMS_RD_STRIPE_PAYMENT_PROPERTY } from './native-pms-read';
