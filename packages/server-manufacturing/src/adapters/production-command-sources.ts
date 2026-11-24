@@ -24,6 +24,16 @@ const latestReportActorSelect =
 const approvedSpecGuardSql =
   "EXISTS(SELECT 1 FROM manufacturing_specifications WHERE id=? AND company_id=? AND version=? AND status='approved')";
 
+/** Owner-local fixed guard SQL: the independent-QC witness shared by the pass
+ * and fail transition guards. Both guards execute the identical EXISTS on the
+ * caller's open production unit; one definition keeps them from drifting and
+ * removes the redundant TypeScript SQL. It stays a live statement inside its
+ * assertion on the same transaction and snapshot (no fail-closed live-read
+ * replacement) and is deliberately outside the RD_* read-plan registry (an
+ * atomic witness, not a projection). */
+const independentQcGuardSql =
+  "EXISTS(SELECT 1 FROM manufacturing_order_events WHERE order_id=? AND action='report' AND version=? AND actor_id<>?)";
+
 export function productionCommandSources(db:SqlDatabase){return {async specification(value:(string | number)[],v:number|undefined){return db
     .prepare(
       `SELECT * FROM manufacturing_specifications WHERE id=? AND company_id=? ${v ? "AND version=?" : ""}`,
@@ -85,10 +95,10 @@ async lastReportActor(id:string){return db
       .prepare(latestReportActorSelect)
       .bind(id)
       .first<string>("actor_id");},
-guardIndependentPass(key:string,value:"independent-qc",id:string,expectedVersion:number,userId:string){return assertion(db, key, value, "EXISTS(SELECT 1 FROM manufacturing_order_events WHERE order_id=? AND action='report' AND version=? AND actor_id<>?)", [id, expectedVersion, userId]);},
+guardIndependentPass(key:string,value:"independent-qc",id:string,expectedVersion:number,userId:string){return assertion(db, key, value, independentQcGuardSql, [id, expectedVersion, userId]);},
 async currentReportActor(id:string,expectedVersion:number){return db.prepare("SELECT actor_id FROM manufacturing_order_events WHERE order_id=? AND action='report' AND version=?")
       .bind(id, expectedVersion).first<string>("actor_id");},
-guardIndependentFail(key:string,value:"independent-qc",id:string,expectedVersion:number,userId:string){return assertion(db, key, value, "EXISTS(SELECT 1 FROM manufacturing_order_events WHERE order_id=? AND action='report' AND version=? AND actor_id<>?)", [id, expectedVersion, userId]);},
+guardIndependentFail(key:string,value:"independent-qc",id:string,expectedVersion:number,userId:string){return assertion(db, key, value, independentQcGuardSql, [id, expectedVersion, userId]);},
 async lastOutputReportActor(id:string){return db.prepare(latestReportActorSelect).bind(id).first<string>("actor_id");},
 async operation(operationId:string,specification_id:string | number | null){return db.prepare("SELECT * FROM manufacturing_specification_operations WHERE id=? AND specification_id=?")
       .bind(operationId, specification_id).first<Row>();},
