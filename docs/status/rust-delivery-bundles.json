@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7645,
+    "revision": 7651,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -119962,7 +119962,7 @@
         "owner": "manufacturing",
         "title": "Manufacturing native read HTTP transport + per-caller parity harness",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -119985,22 +119985,43 @@
           "owner:manufacturing",
           "resource:composition"
         ],
-        "claim": {
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": "5e37cd9b45e4ca323eec6618415261f143b5dee2",
+        "lastPushedSha": null,
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-manufacturing",
+            "result": "passed",
+            "sourceSha": "dfa3b0f21"
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "dfa3b0f21"
+          },
+          {
+            "command": "cargo test -p erpx-server-manufacturing --test manufacturing_read_parity_postgres (same-transaction live-vs-native)",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          },
+          {
+            "command": "vitest manufacturing units (24) + tsc manufacturing + structure + composition test",
+            "result": "passed",
+            "sourceSha": "dfa3b0f21"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Transport dormant; caller cutover needs scope extension.",
+        "handoff": {
           "runId": "run-20261123-i",
           "agentId": "wF09man",
-          "claimedAt": "2026-11-24T00:09:20.012Z",
-          "heartbeatAt": "2026-11-24T00:39:54.838Z",
-          "expiresAt": "2026-11-24T01:09:54.838Z",
-          "generation": 161
+          "at": "2026-11-24T00:47:12.235Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Transport dormant; caller cutover needs scope extension."
         },
-        "baseSha": null,
-        "implementedCommit": null,
-        "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Add exact Holding-target HTTP transport over the registered RD_* plans, mount it, build a live-vs-native same-transaction parity harness, then cut callers in order workspace -> records/production detail -> product.get -> planning scenarios.",
-        "handoff": null,
         "scopeRefinementRequired": false
       },
       {
@@ -129016,7 +129037,7 @@
         "owner": "identity_access",
         "title": "identity_access TS read tail native cutover (r4)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -129028,22 +129049,42 @@
         "resources": [
           "owner:identity_access"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG01ida",
-          "claimedAt": "2026-11-24T00:34:22.950Z",
-          "heartbeatAt": "2026-11-24T00:39:54.838Z",
-          "expiresAt": "2026-11-24T01:09:54.838Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d",
+            "owner": "identity_access",
+            "before": 589,
+            "after": 588,
+            "note": "People roster reschedule and roster command share one iam_role_allows probe."
+          },
+          {
+            "command": "cargo check -p erpx-server-identity-access",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          },
+          {
+            "command": "vitest identity services (26) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to an owner native read; BEFORE=589 spaced statements; record strictly lower.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG01ida",
+          "at": "2026-11-24T00:47:11.877Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -129404,7 +129445,7 @@
         "owner": "customer_360",
         "title": "customer_360 TS read tail native cutover (r1)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -129416,22 +129457,42 @@
         "resources": [
           "owner:customer_360"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG09c360",
-          "claimedAt": "2026-11-24T00:34:24.556Z",
-          "heartbeatAt": "2026-11-24T00:39:54.838Z",
-          "expiresAt": "2026-11-24T01:09:54.838Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-customer_360/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d",
+            "owner": "customer_360",
+            "before": 43,
+            "after": 37,
+            "note": "Directory and visible-customer reads share one visibility EXISTS predicate."
+          },
+          {
+            "command": "cargo check -p erpx-server-customer-360",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          },
+          {
+            "command": "vitest customer timeline transport (13) + tsc customer_360",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to an owner native read; BEFORE=43 spaced statements; record strictly lower.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG09c360",
+          "at": "2026-11-24T00:47:12.053Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -129829,17 +129890,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
-        "in_progress": 21,
+        "in_progress": 18,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 374,
+        "blocked": 377,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T00:46:54.637Z",
+    "updatedAt": "2026-11-24T00:47:12.237Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
