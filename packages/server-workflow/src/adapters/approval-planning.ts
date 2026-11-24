@@ -36,6 +36,8 @@ const approvalInstanceStateExistsPrefix = "EXISTS(SELECT 1 FROM approval_instanc
 const pendingInstanceExistsSql = `${approvalInstanceStateExistsPrefix}pending' AND current_step=?)`;
 /** Byte-identical span shared by the override/non-override approval-version guards; emitted SQL is unchanged. */
 const pendingInstanceAndStepSql = `${pendingInstanceExistsSql} AND EXISTS(SELECT 1 FROM approval_steps WHERE id=? AND `;
+/** Byte-identical negative-existence prefix shared by the legacy-route (guard16) and override-independent (guard36) approval-step guards; emitted SQL is unchanged. */
+const noApprovalStepExistsPrefix = "NOT EXISTS(SELECT 1 FROM approval_steps";
 /** Byte-identical record/version EXISTS prefix shared by the legacy-record (guard17)
  * and route-version (guard49) guards; emitted SQL and bind order stay unchanged. */
 const approvalRecordVersionExists = (table: string, column: string, versionFirst = false) =>
@@ -86,7 +88,7 @@ export function nativeApprovalPlanningPorts(database: SqlDatabase, readOverrides
         readInitializeLegacyApprovalExpense(record_id: string, company_id: string) { return people_payroll_approvals(database).readInitializeLegacyApprovalExpense(record_id, company_id); },
         readInitializeLegacyApprovalRecord(recordId: string, companyId: string, pendingState: 'pending_approval' | 'in_review', kind: ApprovalKind) { return legacyApprovalRecord(database, kind, recordId, companyId, pendingState); },
         guard16(key: string, value: "legacy-route", id: string, version: number, id2: string) {
-            return assertion(database, key, value, `${approvalInstanceStateExistsPrefix}blocked') AND NOT EXISTS(SELECT 1 FROM approval_steps WHERE instance_id=?)`, [id, version, id2]);
+            return assertion(database, key, value, `${approvalInstanceStateExistsPrefix}blocked') AND ${noApprovalStepExistsPrefix} WHERE instance_id=?)`, [id, version, id2]);
         },
         guard17(key: string, value: "legacy-record", record_id: string, company_id: string, pendingState: "pending_approval" | "in_review", version: number, kind: ApprovalKind) {
             const { table, column } = nativeApprovalRecord(kind);
@@ -128,7 +130,7 @@ export function nativeApprovalPlanningPorts(database: SqlDatabase, readOverrides
         guard33(key: string, value: "appointed-approval-current", value2: (string | null)[], policyStep: boolean) { return organization_approvals(database).guard33(key, value, value2, policyStep); },
         guard34(key: string, value: "active-decision-role", assignmentId: string, value2: string) { return identity_access_approvals(database).guard34(key, value, assignmentId, value2); },
         guard35(key: string, value: "override-reporting-chain", companyId: string, approver_user_id: string, companyId2: string, companyId3: string, userId: string) { return people_payroll_approvals(database).guard35(key, value, companyId, approver_user_id, companyId2, companyId3, userId); },
-        guard36(key: string, value: "override-independent", userId: string, requester_user_id: string, company_id: string, assignee_user_id: string | null, userId2: string, assignee_user_id2: string | null, company_id2: string, id: string, ordinal: number, userId3: string, company_id3: string) { return assertion(database, key, value, `NOT iam_same_person(?, ?, ?) AND (?::text IS NULL OR NOT iam_same_person(?, ?, ?)) AND NOT EXISTS(SELECT 1 FROM approval_steps s WHERE s.instance_id=? AND s.ordinal<? AND s.state='approved' AND iam_same_person(s.approver_user_id,?,?))`, [userId, requester_user_id, company_id, assignee_user_id, userId2, assignee_user_id2, company_id2, id, ordinal, userId3, company_id3]); },
+        guard36(key: string, value: "override-independent", userId: string, requester_user_id: string, company_id: string, assignee_user_id: string | null, userId2: string, assignee_user_id2: string | null, company_id2: string, id: string, ordinal: number, userId3: string, company_id3: string) { return assertion(database, key, value, `NOT iam_same_person(?, ?, ?) AND (?::text IS NULL OR NOT iam_same_person(?, ?, ?)) AND ${noApprovalStepExistsPrefix} s WHERE s.instance_id=? AND s.ordinal<? AND s.state='approved' AND iam_same_person(s.approver_user_id,?,?))`, [userId, requester_user_id, company_id, assignee_user_id, userId2, assignee_user_id2, company_id2, id, ordinal, userId3, company_id3]); },
         guard37(key: string, value: "override-expense-preparer", id: string, company_id: string, userId: string, userId2: string) { return people_payroll_approvals(database).guard37(key, value, id, company_id, userId, userId2); },
         guard38(key: string, value: "expense-separation", id: string, userId: string, userId2: string, id2: string, ordinal: number, userId3: string) { return people_payroll_approvals(database).guard38(key, value, id, userId, userId2, id2, ordinal, userId3); },
         guard39(key: string, value: "expense-role", company_id: string, assignmentId: string, required_role: string, now: number, now2: number, branch_id: string | null, department_id: string | null) { return identity_access_approvals(database).guard39(key, value, company_id, assignmentId, required_role, now, now2, branch_id, department_id); },

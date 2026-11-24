@@ -60,7 +60,7 @@ describe('approver-pool erpx_json_each generator family (r35)', () => {
     expect(participant).toContain("jsonEachApproverPoolSql('ast.approver_pool_json')");
   });
 
-  it('retirement:ts-statements stays strictly below the recorded 58 r34 baseline', async () => {
+  it('retirement:ts-statements stays strictly below the recorded 58 r34 baseline (r36 lowers it further)', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -71,6 +71,6 @@ describe('approver-pool erpx_json_each generator family (r35)', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(58);
-    expect(total).toBe(57);
+    expect(total).toBeLessThanOrEqual(56);
   });
 });
