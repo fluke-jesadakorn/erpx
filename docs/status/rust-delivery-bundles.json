@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8552,
+    "revision": 8556,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -140727,7 +140727,7 @@
         "owner": "billing",
         "title": "billing TS read tail native cutover (r14)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -140739,22 +140739,37 @@
         "resources": [
           "owner:billing"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCybil",
-          "claimedAt": "2026-11-24T02:21:12.155Z",
-          "heartbeatAt": "2026-11-24T02:27:42.633Z",
-          "expiresAt": "2026-11-24T02:57:42.633Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-billing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "25084c1ab",
+            "owner": "billing",
+            "before": 90,
+            "after": 89,
+            "note": "Rollout usage snapshot reuses forecast_usage_snapshot native kind; billing_accounts blocked on runtime consumer."
+          },
+          {
+            "command": "vitest billing units (103)",
+            "result": "passed",
+            "sourceSha": "25084c1ab"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe native read or byte-identical dedupe; if none, report blocked. BEFORE=90.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCybil",
+          "at": "2026-11-24T02:29:08.820Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -141554,6 +141569,42 @@
         "nextAction": "Next: `SELECT i.* FROM legal_items i WHERE` in integrations.ts:15 + service.ts:50, or UNION ALL fragments in package-obligations; avoid knowledge/citations. BEFORE=279.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.organization.read-tail-r17",
+        "goalId": "G4",
+        "owner": "organization",
+        "title": "organization TS read tail native cutover (round 17)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-organization/src/**",
+          "tests/unit/organization/**",
+          "tests/integration/organization/**"
+        ],
+        "resources": [
+          "owner:organization"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCQorg",
+          "claimedAt": "2026-11-24T02:29:09.233Z",
+          "heartbeatAt": "2026-11-24T02:29:09.233Z",
+          "expiresAt": "2026-11-24T02:59:09.233Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Scout: spaced organization_nodes projection groups in identity-snapshot-sources: alias n FROM 11x (-10 cross-file with learning/collab), JOIN c 7x (-6), FROM b 6x (-5), JOIN n 6x (-5), JOIN b 5x (-4); distinct from compact r15/r16 constants. BEFORE=372.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -141562,7 +141613,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 962,
+      "totalPackets": 963,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -141570,13 +141621,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 584,
+        "blocked": 585,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:28:45.497Z",
+    "updatedAt": "2026-11-24T02:29:09.256Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
