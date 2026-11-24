@@ -89,3 +89,14 @@ export const countInitialPhysicalSourceMarkersSql = (initial: string, mfg: strin
  * and binds. */
 export const postedInitialPhysicalStockSourceSql = (source: string, posted: string) =>
   `EXISTS(SELECT 1 FROM (${source}) source JOIN inventory_counts ${posted} ON ${posted}.id=source.id AND ${posted}.company_id=source.company_id AND ${posted}.status='posted' WHERE source.company_id=scope.company_id AND source.warehouse_id=stock.warehouse_id AND source.product_id=stock.product_id)`;
+/** r21: parameterized count-source EXISTS guards. The source rows, row alias,
+ *  scope and capability/module predicates vary per consumer; only the SQL text
+ *  is shared. Every caller keeps its own binds and independent statement.
+ *  r11-r20 helpers above are left untouched. */
+export const sourceRowsExistsSql = (rows: string, alias: string, id: string, company: string, predicates: string) =>
+  `EXISTS(SELECT 1 FROM (${rows}) ${alias} WHERE ${alias}.id=${id} AND ${alias}.company_id=${company} AND ${predicates})`;
+/** r21: parameterized attachment source-proof EXISTS guard. The source rows,
+ *  row alias and feature-module predicates vary per consumer; only the SQL text
+ *  is shared. Every caller keeps its own binds and independent statement. */
+export const attachmentSourceProofExistsSql = (rows: string, alias: string, modules: string) =>
+  `EXISTS(SELECT 1 FROM (${rows}) ${alias} WHERE ${alias}.id=? AND ${alias}.company_id=? AND ${alias}.source_proof::text=? AND ${modules})`;
