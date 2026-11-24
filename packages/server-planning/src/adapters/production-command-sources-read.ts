@@ -1,7 +1,7 @@
 import {productionReadProjection as productionmanufacturingProjection} from '@erpx/server-manufacturing/public/production-read-projections';
 import {productionReadProjection as productioncommerceProjection} from '@erpx/server-commerce/public/production-read-projections';
 import {productionReadProjection as productionorganizationProjection} from '@erpx/server-organization/public/production-read-projections';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {productionResourcesExists,planningAllocatedMinutes} from "./planning-guard-sql";
 
 const sourceJoins = `
     ${productionmanufacturingProjection.executiveSpecification}
@@ -57,7 +57,7 @@ async executiveRecommendation(recordId:string,companyId:string,branchId:string |
 const eligibility=eligibilityKind==='proposed'?"r.status='proposed'":"r.status IN ('proposed','approved') AND r.required_minutes<=s.capacity_minutes";return db.prepare(`${projection}
     WHERE r.id=? AND s.company_id=? AND ${branchScope} AND r.feasible_date BETWEEN ? AND ? AND ${eligibility} LIMIT 1`)
     .bind(recordId,companyId,branchId,branchId2,from,to).first<Row>();},
-guardRoutingResource(key:string,value:string,resourceId:string,companyId:string,branchId:string | null,branchId2:string | null){return assertion(db, key, value, "EXISTS(SELECT 1 FROM production_resources WHERE id=? AND company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?))", [resourceId, companyId, branchId, branchId2]);},
+guardRoutingResource(key:string,value:string,resourceId:string,companyId:string,branchId:string | null,branchId2:string | null){return assertion(db, key, value, productionResourcesExists("status='active' AND (?::text IS NULL OR branch_id=?)"), [resourceId, companyId, branchId, branchId2]);},
 async comparison(comparisonScenarioId:string,companyId:string,branch_id:string | number | null,specificationId:string){return db.prepare(`SELECT s.id,s.version,s.shortages_json,r.required_minutes,r.feasible_date FROM planning_scenarios s
       JOIN planning_recommendations r ON r.scenario_id=s.id WHERE s.id=? AND s.company_id=? AND s.branch_id=? AND s.specification_id=?`)
       .bind(comparisonScenarioId, companyId, branch_id, specificationId).first<Row>();},
@@ -87,7 +87,7 @@ guardIndependentRecommendation(key:string,value:"recommendation",id:string,expec
         [id, expectedVersion, userId],
       );},
 prepareRecommendationReview(status:"approved" | "rejected",userId:string,now:number,id:string){throw new Error("NATIVE_PLANNING_REQUIRED");},
-guardCapacityReservation(key:string,value:string,resourceId:string,workDate:string,minutes:number,availableMinutes:number){return assertion(db, key, value, "COALESCE((SELECT sum(minutes) FROM planning_resource_allocations WHERE resource_id=? AND work_date=? AND released_at IS NULL),0)+?<=?", [resourceId, workDate, minutes, availableMinutes]);},
+guardCapacityReservation(key:string,value:string,resourceId:string,workDate:string,minutes:number,availableMinutes:number){return assertion(db, key, value, `${planningAllocatedMinutes}+?<=?`, [resourceId, workDate, minutes, availableMinutes]);},
 prepareCapacityReservation(value:string,scenario_id:string | number | null,resourceId:string,workDate:string,minutes:number,userId:string,now:number){throw new Error("NATIVE_PLANNING_REQUIRED");},
 prepareScenarioRelease(now:number,scenario_id:string | number | null){throw new Error("NATIVE_PLANNING_REQUIRED");},
 prepareReleaseEvent(value:string,userId:string,reason:string,now:number,scenario_id:string | number | null){throw new Error("NATIVE_PLANNING_REQUIRED");},
