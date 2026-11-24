@@ -8,6 +8,7 @@ import { PMS_GUEST_STAYS_CHOSEN_MEMBER_SQL } from "../pms-read-tail-r25-sql";
 import { PMS_CHOSEN_RECORDS_SQL } from "../pms-read-tail-r26-sql";
 import { PMS_RECORD_POINT_PREFIX_SQL, pmsSetupExistsSql } from "../pms-read-tail-r31-sql";
 import { PMS_RECORD_ID_PROPERTY_HEAD_SQL } from "../pms-read-tail-r35-sql";
+import { PMS_STAY_SOURCE_PROJECTION_SQL } from "../pms-read-tail-r38-sql";
 import { nativePmsReadAll, PMS_RD_INVENTORY_COMMAND } from "../native-pms-read";
 import * as application from "@erpx/server-pms/application/read-repository";
 const stayPredicate = `(data_json::jsonb->>'state' IN ('reserved','in_house') OR
@@ -118,7 +119,7 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
             propertyId3: string;
         }) => db.prepare(`WITH chosen AS (${PMS_CHOSEN_RECORDS_SQL}),
    reservations AS (SELECT id FROM chosen WHERE kind='reservation' UNION SELECT data->>'reservationId' FROM chosen),
-   stays AS (SELECT id,data_json::jsonb data FROM pms_records WHERE property_id=? AND kind='stay' AND (id IN (SELECT id FROM chosen) OR data_json::jsonb->>'reservationId' IN (SELECT id FROM reservations))),
+   stays AS (${PMS_STAY_SOURCE_PROJECTION_SQL} AND (id IN (SELECT id FROM chosen) OR data_json::jsonb->>'reservationId' IN (SELECT id FROM reservations))),
    guestAccounts AS (SELECT data->>'guestAccountId' id FROM stays),
    groups AS (${PMS_RECORD_ID_PROPERTY_HEAD_SQL} AND kind='block' AND data_json::jsonb->>'kind'='group' AND data_json::jsonb->>'state'='active' AND COALESCE(data_json::jsonb->>'bookingChangeId','')='' ORDER BY updated_at DESC,id LIMIT 50)
    ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? AND (
@@ -161,10 +162,10 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
  ), stays AS (
    SELECT id,data FROM chosen WHERE kind='stay'
    UNION SELECT st.id,st.data FROM chosen account JOIN LATERAL (
-     SELECT id,data_json::jsonb data FROM pms_records WHERE property_id=? AND kind='stay'
+     ${PMS_STAY_SOURCE_PROJECTION_SQL}
        AND data_json::jsonb->>'guestAccountId'=account.id OFFSET 0
    ) st ON true WHERE account.kind='guest_account'
-   UNION SELECT id,data_json::jsonb data FROM pms_records WHERE property_id=? AND kind='stay' AND (
+   UNION ${PMS_STAY_SOURCE_PROJECTION_SQL} AND (
      (data_json::jsonb->>'state'='in_house' AND ((? AND data_json::jsonb->>'roomId' IN (SELECT id FROM chosen WHERE kind='room')) OR ?))
      OR (? AND ((data_json::jsonb->>'state'='reserved' AND data_json::jsonb->>'arrival'<=?) OR (data_json::jsonb->>'state'='in_house')))
    ) UNION SELECT id,data FROM guest_history WHERE position<=20
