@@ -1,4 +1,5 @@
 import 'server-only';
+import { ppRd29FinanceExpenseTreasurySql } from './pp-read-tail-r29-sources';
 import { nativePeopleBatchA } from '@erpx/server-collaboration/adapters/native-people-batch-a';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
@@ -45,7 +46,7 @@ function nativeCancellation(database:SqlDatabase){
    const now=Date.now(),source=await database.prepare(`SELECT to_jsonb(d)::text draft,to_jsonb(e)::text expense FROM expense_payment_drafts d JOIN finance_expenses e ON e.id=d.expense_id AND e.company_id=d.company_id WHERE d.id=? AND d.expense_id=? AND d.company_id=?`).bind(id,expenseId,actor.companyId).first<{draft:string;expense:string}>();
    if(!source)throw new ApiError(409,'EXPENSE_PAYMENT_CHANGED','The original payment preparation changed.');
    const authority=await expenseAuthoritySnapshot(database,actor.companyId),expectedDraft={...JSON.parse(source.draft),status:'cancelled',version:input.expectedVersion+1,updated_at:now};
-   const independent=`EXISTS(SELECT 1 FROM finance_expenses e WHERE e.id=? AND e.company_id=? AND (${expensePaymentTreasurySql('e')}))`;
+   const independent=ppRd29FinanceExpenseTreasurySql(expensePaymentTreasurySql('e'));
    const independentArgs=[expenseId,actor.companyId,actor.assignmentId,actor.userId];
    const nativeSource=`EXISTS(SELECT 1 FROM expense_payment_drafts d JOIN command_receipts prepared ON prepared.operation='expense.payment.prepare' AND prepared.record_id=d.expense_id
     AND prepared.actor_id=d.created_by AND prepared.authority_json::jsonb->>'companyId'=d.company_id AND d.id='expense-payment-'||prepared.command_id

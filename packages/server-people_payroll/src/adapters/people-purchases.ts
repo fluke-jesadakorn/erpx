@@ -1,5 +1,6 @@
 import "server-only";
 import {PP_RD15_COMMAND_RECEIPT_PRIOR_SQL} from './pp-read-tail-r15-sources';
+import {PP_RD29_IAM_ROLE_ACTIVE_SQL} from './pp-read-tail-r29-sources';
 import {randomUUID} from "node:crypto";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
@@ -26,7 +27,7 @@ async function source(database:SqlDatabase,target:Target):Promise<Source|null>{
  return database.prepare(`${select} WHERE ${target.kind==="compensation"?"c.":""}id=?`).bind(target.id).first<Source>();
 }
 async function current(database:SqlDatabase,actor:WorkContext,key:string,permission?:string){
- const where=permission?assignmentReadSql("people_owner_scope",permission):`EXISTS(SELECT 1 FROM assignments a WHERE a.id=? AND a.user_id=? AND a.role=? AND a.company_id=people_owner_scope.company_id AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND EXISTS(SELECT 1 FROM iam_roles role WHERE role.id=a.role AND role.company_id IN ('*',a.company_id) AND role.status='active') AND (a.scope_kind='holding' OR a.scope_kind='branch' AND a.scope_node_id=people_owner_scope.branch_id OR a.scope_kind='department' AND a.scope_node_id=people_owner_scope.department_id))`;
+ const where=permission?assignmentReadSql("people_owner_scope",permission):`EXISTS(SELECT 1 FROM assignments a WHERE a.id=? AND a.user_id=? AND a.role=? AND a.company_id=people_owner_scope.company_id AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND ${PP_RD29_IAM_ROLE_ACTIVE_SQL} AND (a.scope_kind='holding' OR a.scope_kind='branch' AND a.scope_node_id=people_owner_scope.branch_id OR a.scope_kind='department' AND a.scope_node_id=people_owner_scope.department_id))`;
  if(permission)requirePermission(actor,permission);
  const row=await database.prepare(`SELECT ${where} allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) people_owner_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();
  if(!row?.allowed)throw new ApiError(403,"PEOPLE_ACCESS_CHANGED","Choose a current authorized People work role.");

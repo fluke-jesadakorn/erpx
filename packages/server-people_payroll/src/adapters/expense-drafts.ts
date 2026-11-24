@@ -1,4 +1,5 @@
 import { PP_RD23_FINANCE_EXPENSE_DRAFT_REJECTED_GUARD } from './pp-read-tail-r23-sources';
+import { ppRd29FinancePartySupplierSql } from './pp-read-tail-r29-sources';
 import { expenseDrafts } from '@erpx/server-collaboration/adapters/native-expense-drafts';
 import{nativeExpenseEmployment,nativeExpenseRequirements,expenseRequirements}from '@erpx/server-people_payroll/adapters/expense-requirements';
 export{nativeExpenseEmployment,nativeExpenseRequirements,expenseRequirements};
@@ -74,7 +75,7 @@ function originalNativeExpenseDrafts(write: SqlDatabase) {
     ),
   ];
 
-  if(payeePartyId)steps.push(assertion(write,key,"supplier-payee",`EXISTS(SELECT 1 FROM (${financeProjectionSources.finance_parties}) finance_parties WHERE id=? AND company_id=? AND kind='supplier' AND status='active' AND currency=?)`,[payeePartyId,actor.companyId,currency]));
+  if(payeePartyId)steps.push(assertion(write,key,"supplier-payee",ppRd29FinancePartySupplierSql(financeProjectionSources.finance_parties),[payeePartyId,actor.companyId,currency]));
   if (category)
     steps.push(
       assertion(

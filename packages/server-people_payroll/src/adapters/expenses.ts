@@ -1,6 +1,7 @@
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import { PP_RD24_UNCLAIMED_EXPENSE_GUARD } from './pp-read-tail-r24-sources';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
+import { ppRd29OpenFinancePeriodSql, ppRd29FinanceExpenseTreasurySql, ppRd29FinancePartySupplierSql } from './pp-read-tail-r29-sources';
 import{canAccountExpenses,canPostExpenses,visibility,currentExpenseReader,approvalFields,expenseSelect,originalNativeExpenseReads,listExpenses,getExpense,expenseFromDatabase,canEditExpense,canReviewExpense,nativeExpenseReads,expensePresentationRows,expenseVisibleRecordIds,type ExpenseRow}from '@erpx/server-people_payroll/adapters/expense-read';
 export{canAccountExpenses,canPostExpenses,visibility,currentExpenseReader,approvalFields,expenseSelect,originalNativeExpenseReads,listExpenses,getExpense,expenseFromDatabase,canEditExpense,canReviewExpense,nativeExpenseReads,expensePresentationRows,expenseVisibleRecordIds};
 export type{ExpenseRow};
@@ -443,7 +444,7 @@ export function nativeExpensePostingPreparation(write: SqlDatabase) {
               : `EXISTS(SELECT 1 FROM (${filesProjectionSources.attachments}) attachments WHERE owner_type='expense_claim' AND owner_id=? AND revoked_at IS NULL)`,
         [id],
       ),
-      ...(claim.request_kind==="payment"&&claim.payee_party_id ? [assertion(write,key,"payee",`EXISTS(SELECT 1 FROM (${financeProjectionSources.finance_parties}) finance_parties WHERE id=? AND company_id=? AND kind='supplier' AND status='active' AND currency=?)`,[payee,actor.companyId,claim.currency])] : [
+      ...(claim.request_kind==="payment"&&claim.payee_party_id ? [assertion(write,key,"payee",ppRd29FinancePartySupplierSql(financeProjectionSources.finance_parties),[payee,actor.companyId,claim.currency])] : [
       await financeExpenseEffects(write).retainEmployeeParty({id:payee,companyId:actor.companyId,code:`EMP-${claim.employee_id}`,name:claim.legal_name,currency:claim.currency,personId:claim.employee_id,createdAt:now,updatedAt:now}),
       assertion(
         write,
@@ -517,7 +518,7 @@ function originalNativeExpenseReversal(write: SqlDatabase) {
         write,
         key,
         "period",
-        `EXISTS(SELECT 1 FROM (${financeProjectionSources.finance_periods}) finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?)`,
+        ppRd29OpenFinancePeriodSql(financeProjectionSources.finance_periods),
         [input.periodId, actor.companyId, input.entryDate, input.entryDate],
       ),
       await financeExpenseEffects(write).retainReversalJournal({id:reversal,periodId:input.periodId,number:`REV-${key}`,date:input.entryDate,expenseId:id,reason:input.reason,createdBy:actor.userId,postedBy:actor.userId,postedAt:now,createdAt:now,updatedAt:now,originalJournalId:journal.id}),
@@ -558,7 +559,7 @@ export function nativeExpenseReversal(database: SqlDatabase){return (...args:Par
 
 export function nativeExpenseDetail(database:SqlDatabase){return (...args:Parameters<ReturnType<typeof originalNativeExpenseDetail>>)=>withExpensePurchasedRead(database,args[0],async transaction=>{
  const detail=await originalNativeExpenseDetail(transaction)(...args),actor=args[0],expense=detail.expense;
- const canCancel=expense.workflow_version===2&&['posted','reimbursed','cancelled'].includes(String(expense.status))&&!!expense.invoice_id&&!!expense.journal_id&&hasPermission(actor,'expense.pay')&&expense.expense_purchase_settle_existing!==0&&(await expensePayers(transaction,expense)).includes(actor.userId)&&Boolean(await transaction.prepare(`SELECT EXISTS(SELECT 1 FROM finance_expenses e WHERE e.id=? AND e.company_id=? AND (${expensePaymentTreasurySql('e')})) ok`).bind(expense.id,actor.companyId,actor.assignmentId,actor.userId).first<boolean>('ok'));
+ const canCancel=expense.workflow_version===2&&['posted','reimbursed','cancelled'].includes(String(expense.status))&&!!expense.invoice_id&&!!expense.journal_id&&hasPermission(actor,'expense.pay')&&expense.expense_purchase_settle_existing!==0&&(await expensePayers(transaction,expense)).includes(actor.userId)&&Boolean(await transaction.prepare(`SELECT ${ppRd29FinanceExpenseTreasurySql(expensePaymentTreasurySql('e'))} ok`).bind(expense.id,actor.companyId,actor.assignmentId,actor.userId).first<boolean>('ok'));
  return {...detail,paymentDrafts:detail.paymentDrafts.map((draft):ExpenseRow & {can_cancel_payment:number}=>({...draft,can_cancel_payment:canCancel&&draft.native_preparation===1&&draft.status==='draft'&&draft.payment_id===null?1:0})),permittedActions:detail.permittedActions.filter(action=>['save','submit'].includes(action)?expense.expense_purchase_new_work!==0:expense.expense_purchase_settle_existing!==0)};
 });}
 export function nativeExpenseOptions(database:SqlDatabase){return (...args:Parameters<ReturnType<typeof originalNativeExpenseOptions>>)=>withExpensePurchasedRead(database,args[0],transaction=>originalNativeExpenseOptions(transaction)(...args));}

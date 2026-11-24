@@ -1,4 +1,5 @@
 import { PP_RD23_FINANCE_EXPENSE_DRAFT_REJECTED_GUARD } from './pp-read-tail-r23-sources';
+import { ppRd29OpenFinancePeriodSql } from './pp-read-tail-r29-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import{nativeExpensePayers,expensePayers,nativeExpenseWorkflowFields,expenseWorkflowFields}from '@erpx/server-people_payroll/adapters/expense-workflow-read';
 export{nativeExpensePayers,expensePayers,nativeExpenseWorkflowFields,expenseWorkflowFields};
@@ -100,7 +101,7 @@ function originalNativeExpenseAccounting(write: SqlDatabase) {
         write,
         key,
         "accounting-period",
-        `EXISTS(SELECT 1 FROM (${financeProjectionSources.finance_periods}) finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?)`,
+        ppRd29OpenFinancePeriodSql(financeProjectionSources.finance_periods),
         [input.periodId, actor.companyId, input.entryDate, input.entryDate],
       ),
       nativePpStatement('pp_expense_workflow_stmt_1')

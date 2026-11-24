@@ -1,4 +1,5 @@
 import { PP_RD23_HR_ENGAGEMENTS_ACTIVE_FOR_PERSON_NOT_EXISTS } from './pp-read-tail-r23-sources';
+import { PP_RD29_LIFECYCLE_CASE_FOR_ENGAGEMENT_SQL } from './pp-read-tail-r29-sources';
 import { ppRd27IdVersionStatusInGuard } from './pp-read-tail-r27-sources';
 import { PP_RD24_PEOPLE_PERSON_USER_SAME_SQL, PP_RD24_PEOPLE_PERSON_USER_OK_SQL } from './pp-read-tail-r24-sources';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
@@ -105,7 +106,7 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
             }>();
         },
         readPeopleLifecycleDataRoster(companyId: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) {
-            return database.prepare(`SELECT p.id,p.legal_name "name",e.id "engagementId",e.position_id "positionId",e.manager_person_id "managerPersonId",e.status FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id WHERE p.company_id=? AND p.merged_into_id IS NULL AND e.worker_type='employee' AND (e.status!='ended' OR EXISTS(SELECT 1 FROM people_lifecycle_cases lc WHERE lc.engagement_id=e.id AND lc.company_id=e.company_id)) AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?) ORDER BY p.legal_name,e.id`)
+            return database.prepare(`SELECT p.id,p.legal_name "name",e.id "engagementId",e.position_id "positionId",e.manager_person_id "managerPersonId",e.status FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id WHERE p.company_id=? AND p.merged_into_id IS NULL AND e.worker_type='employee' AND (e.status!='ended' OR ${PP_RD29_LIFECYCLE_CASE_FOR_ENGAGEMENT_SQL}) AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?) ORDER BY p.legal_name,e.id`)
                 .bind(companyId, branchId, branchId2, departmentId, departmentId2)
                 .all<PeopleLifecycleData["roster"][number]>();
         },
