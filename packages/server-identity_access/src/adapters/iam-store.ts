@@ -7,6 +7,7 @@ import { createIamAuthority, type IamAuthorityMember } from "@erpx/server-identi
 import { iamDb } from "@erpx/server-identity_access/public/iam-db";
 import { publishedRoleSql } from "./iam-probe-sql";
 import { iamMemberVersionProbeSql } from "./read-tail-family-r34";
+import { revokedSessionHeadSql } from "./read-tail-family-r36";
 import "server-only";
 import type { PermissionActor, RoleRevision } from "@erpx/feature-identity_access/lib/iam";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
@@ -161,7 +162,7 @@ export function iamMutationGuards(db: SqlDatabase, actor: PermissionActor & {
     const iam = actor.iam;
     return [
         assertion(db,key,"iam-current-authority",`
- NOT EXISTS(SELECT 1 FROM iam_revoked_sessions WHERE session_id=?::text AND company_id=?::text AND user_id=?::text)
+ NOT EXISTS(${revokedSessionHeadSql('?::text','?::text','?::text','unaliased-session-first')})
  AND (?::integer IS NULL OR EXISTS(SELECT 1 FROM assignments WHERE id=?::text AND version=?::bigint))
  AND iam_assignment_active(?::text,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
  AND NOT EXISTS(SELECT 1 FROM iam_members m LEFT JOIN iam_identities i ON i.id=m.identity_id LEFT JOIN iam_connections c ON c.id=m.connection_id WHERE m.company_id=?::text AND m.user_id=?::text AND (m.status!='active' OR (?::integer IS NOT NULL AND m.version!=?::bigint) OR (m.login_policy='directory' AND (i.enabled IS DISTINCT FROM true OR c.status IS DISTINCT FROM 'active' OR i.observed_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint-300000))))

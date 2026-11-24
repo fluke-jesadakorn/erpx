@@ -8,6 +8,7 @@ import {assignmentReadSql,currentAssignmentReadScope} from '@erpx/server-identit
 import {workflowActiveContext,workflowActiveGrant} from '@erpx/server-identity_access/adapters/workflow-command-authority';
 import {lockQueuedOrganizationAuthority} from '@erpx/server-organization/public/queued-command-authority';
 import {lockQueuedPeopleAuthority} from '@erpx/server-people_payroll/public/queued-command-authority';
+import {revokedSessionHeadSql} from './read-tail-family-r36';
 /** Cover inserted and changed authority sources before any owner snapshot. */
 export async function lockQueuedCommandAuthority(database:SqlDatabase){
  await database.prepare('LOCK TABLE assignments,iam_roles,iam_role_revisions,iam_members,iam_identities,iam_connections,iam_revoked_sessions,iam_emergency_sessions,active_work_contexts,iam_access_subjects,um_attributes,um_values,um_groups,um_memberships,um_policies,um_attachments,um_candidates IN SHARE MODE').run();
@@ -17,7 +18,7 @@ export async function lockQueuedCommandAuthority(database:SqlDatabase){
  * source leases; no role is selected or fabricated for this queued identity. */
 async function queuedAuthority(database:SqlDatabase,actor:WorkContext,permission?:string){
  const scope=permission?{where:assignmentReadSql('queued_scope',permission),args:[actor.assignmentId,actor.userId,actor.role]}:currentAssignmentReadScope(actor,'workforce_actor_scope'),alias=permission?'queued_scope':'workforce_actor_scope';
- const row=await database.prepare(`SELECT ${scope.where} AND NOT EXISTS(SELECT 1 FROM iam_revoked_sessions r WHERE r.company_id=${alias}.company_id AND r.user_id=? AND r.session_id=?) AND (?::bigint IS NULL OR EXISTS(SELECT 1 FROM assignments a WHERE a.id=? AND a.version=?)) allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) ${alias}`).bind(...scope.args,actor.userId,actor.authority?.sessionId??null,actor.iam?.queuedAssignmentVersion??null,actor.assignmentId,actor.iam?.queuedAssignmentVersion??null,actor.companyId,actor.branchId,actor.departmentId).first<boolean>('allowed');
+ const row=await database.prepare(`SELECT ${scope.where} AND NOT EXISTS(${revokedSessionHeadSql('?', `${alias}.company_id`, '?', 'aliased-company-first')}) AND (?::bigint IS NULL OR EXISTS(SELECT 1 FROM assignments a WHERE a.id=? AND a.version=?)) allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) ${alias}`).bind(...scope.args,actor.userId,actor.authority?.sessionId??null,actor.iam?.queuedAssignmentVersion??null,actor.assignmentId,actor.iam?.queuedAssignmentVersion??null,actor.companyId,actor.branchId,actor.departmentId).first<boolean>('allowed');
  if(!row)throw new ApiError(403,'QUEUED_AUTHORITY_CHANGED','The original queued assignment or principal is no longer current.');
  if(actor.authority){const context=await workflowActiveContext(database,actor);if(!context||context.revision!==actor.authority.revision||context.assignment_id!==actor.assignmentId||context.assignment_version!==actor.authority.assignmentVersion||!await workflowActiveGrant(database,actor,Date.now()))throw new ApiError(403,'QUEUED_AUTHORITY_CHANGED','The original queued Work context changed.');}
  const current=await loadIamAuthority(database,actor.companyId,actor.userId,actor.role,actor.authority?.sessionId);

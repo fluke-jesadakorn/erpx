@@ -163,11 +163,11 @@ describe('Identity access read-tail r35 wiring', () => {
     const pins: [string, string][] = [
       ['adapters/read-tail-family-r35.ts', '8067ca1ffbb2a9076808a97275b1659b592eafbc2b80915e1260ffd5e2f8d442'],
       ['adapters/account-authority-snapshot.ts', '0285949693da5f29be8c591ab74f32231769fd06b3a774d54eaefe5b5106e72b'],
-      ['adapters/executive-authority-source.ts', 'c2a47376a678de2a097ec8c01f8581eec331b65280ec2c7c5f402e5f233a1e87'],
+      ['adapters/executive-authority-source.ts', 'd6526a6b37bdcaa1b17eb55e319bf936b5431d46e8ebaa8b142adcc57baa6170'],
       ['adapters/executive-report-sources.ts', 'b815a8d4913c62d311af1f876f946e322e529070fa579b7a4450725dd9a63bd5'],
       ['adapters/workflow-command-authority.ts', '53f6e57083e1e11f61ffc21d55293733894582b081ff17d6bba2661835e662d8'],
       ['adapters/record-source-authority.ts', 'c49bb0b548f25381a932bd3532dfe19b63724b67b14f33035f597ac11da84251'],
-      ['adapters/queued-social-source-authority.ts', 'b65542b771ce805714b510ea39617e76b9749c25a367a71194078c7fd986d37a'],
+      ['adapters/queued-social-source-authority.ts', 'a5379950fb6735056405839f43758dd14235fc8da7402097cb120e780a77663e'],
       ['adapters/iam-service.ts', '88976c449e7a56c77cfbfcf1775515342dbd341dd18cf9eecfe4c1637920e33c'],
       ['adapters/iam-transactions.ts', 'ba2ca1aa3d1a6ea08f20c1647e5ff0bd506e667f14b6ccd07409eb06db3174e3'],
     ];
@@ -187,6 +187,6 @@ describe('Identity access read-tail r35 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(459);
-    expect(total).toBe(454);
+    expect(total).toBe(448);
   });
 });

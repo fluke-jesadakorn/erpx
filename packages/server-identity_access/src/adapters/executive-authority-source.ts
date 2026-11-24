@@ -3,6 +3,7 @@ const organizationSources=organizationSnapshotSources();
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {iamMemberVersionProbeSql} from './read-tail-family-r34';
 import {scopeBranchExistsSql} from './read-tail-family-r35';
+import {revokedSessionHeadSql} from './read-tail-family-r36';
 export async function executiveCurrentAuthoritySource(db:SqlDatabase,a:WorkContext,now:number) {
   const iam=a.iam;
   const valid=await db.prepare(`SELECT 1 FROM assignments grant_row
@@ -16,7 +17,7 @@ export async function executiveCurrentAuthoritySource(db:SqlDatabase,a:WorkConte
     AND EXISTS(SELECT 1 FROM iam_roles r WHERE r.id=grant_row.role AND r.company_id IN ('*',grant_row.company_id) AND r.status='active' AND (?::integer IS NULL OR r.published_revision=?))
     AND (?::integer IS NULL OR COALESCE((${iamMemberVersionProbeSql('grant')}),0)=?)
     AND (?::bigint IS NULL OR ?::bigint>?)
-    AND NOT EXISTS(SELECT 1 FROM iam_revoked_sessions WHERE session_id=? AND company_id=grant_row.company_id AND user_id=grant_row.user_id)
+    AND NOT EXISTS(${revokedSessionHeadSql('?','grant_row.company_id','grant_row.user_id','unaliased-session-first')})
     AND (?::text IS NULL OR EXISTS(SELECT 1 FROM active_work_contexts w WHERE w.session_id=? AND w.company_id=grant_row.company_id AND w.user_id=grant_row.user_id AND w.assignment_id=grant_row.id AND w.revision=? AND w.assignment_version=grant_row.version AND w.expires_at>?))`)
     .bind(a.assignmentId,a.companyId,a.userId,a.role,a.branchId,a.departmentId,now,now,
       a.authority?.assignmentVersion??iam?.queuedAssignmentVersion??null,a.authority?.assignmentVersion??iam?.queuedAssignmentVersion??null,now,now,

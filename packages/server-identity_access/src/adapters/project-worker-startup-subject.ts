@@ -5,6 +5,7 @@ import {runtimeEnv} from '../../../../packages/server-runtime/src/public/runtime
 import {userAttributeByIdExtendedSql} from './identity-user-projection-family-r21';
 import {userIdNameEmailInSql} from './read-tail-family-r28';
 import {assignmentCompanyUsersSql} from './read-tail-family-r33';
+import {revokedSessionHeadSql} from './read-tail-family-r36';
 const accountNameSql = userAttributeByIdExtendedSql('id,name,email,"updatedAt"');
 /** Explicit already-authorized Company account only. A name/email never
  * chooses a Person, creates an account or grants Company membership. */
@@ -29,7 +30,7 @@ export async function projectWorkerStartupAccountOptions(database:SqlDatabase,co
  * revocation and original IAM/assignment revisions are retained. */
 export async function projectWorkerStartupJobAuthority(database:SqlDatabase,companyId:string,actorId:string,saved:Record<string,unknown>){
  const iam=saved.iam&&typeof saved.iam==='object'?saved.iam as Record<string,unknown>:{};
- const row=await database.prepare(`SELECT a.* FROM assignments a WHERE a.id=? AND a.user_id=? AND a.company_id=? AND a.role=? AND a.scope_kind='holding' AND a.version=? AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(a.role,a.company_id,'people.manage') AND iam_role_allows(a.role,a.company_id,'organization.manage') AND NOT EXISTS(SELECT 1 FROM iam_revoked_sessions r WHERE r.company_id=a.company_id AND r.user_id=a.user_id AND r.session_id=?)`).bind(saved.assignmentId,actorId,companyId,saved.role,iam.queuedAssignmentVersion??saved.assignmentVersion??null,saved.sessionId??null).first<Record<string,unknown>>();
+ const row=await database.prepare(`SELECT a.* FROM assignments a WHERE a.id=? AND a.user_id=? AND a.company_id=? AND a.role=? AND a.scope_kind='holding' AND a.version=? AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(a.role,a.company_id,'people.manage') AND iam_role_allows(a.role,a.company_id,'organization.manage') AND NOT EXISTS(${revokedSessionHeadSql('?','a.company_id','a.user_id','aliased-company-first')})`).bind(saved.assignmentId,actorId,companyId,saved.role,iam.queuedAssignmentVersion??saved.assignmentVersion??null,saved.sessionId??null).first<Record<string,unknown>>();
  if(!row)return null;
  const current=await loadIamAuthority(database,companyId,actorId,String(saved.role),typeof saved.sessionId==='string'?saved.sessionId:undefined);
  if(!current.permissions.includes('people.manage')||!current.permissions.includes('organization.manage'))return null;

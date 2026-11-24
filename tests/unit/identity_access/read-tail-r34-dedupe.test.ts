@@ -169,9 +169,9 @@ describe('Identity access read-tail r34 wiring', () => {
       ['adapters/read-tail-family-r34.ts', '95e25ead2dac0a1832535f73794691036025e14748f1c17ac342c9620b3750be'],
       ['adapters/workflow-role-facts.ts', 'be93ded1066a437cdc5f3f6e5158f318599e9ad86bfa018bd51424c4fffaddc9'],
       ['adapters/iam-service-reads.ts', '8e9e15a6e5cf9544236d8b54516d1f07ba119b479fc27a1ec2a98d85dc59532b'],
-      ['adapters/iam-store.ts', 'c5f5d5bf0a8c2fae45f06e678198b2f0c32f5f3e4d1ec0ae00e878838591292e'],
-      ['adapters/queued-social-source-authority.ts', 'b65542b771ce805714b510ea39617e76b9749c25a367a71194078c7fd986d37a'],
-      ['adapters/executive-authority-source.ts', 'c2a47376a678de2a097ec8c01f8581eec331b65280ec2c7c5f402e5f233a1e87'],
+      ['adapters/iam-store.ts', '827ec154f6723367e4974fa0e58fbf86843b779fd68166a6c8897b8a48c3c1fd'],
+      ['adapters/queued-social-source-authority.ts', 'a5379950fb6735056405839f43758dd14235fc8da7402097cb120e780a77663e'],
+      ['adapters/executive-authority-source.ts', 'd6526a6b37bdcaa1b17eb55e319bf936b5431d46e8ebaa8b142adcc57baa6170'],
       ['adapters/record-source-authority.ts', 'c49bb0b548f25381a932bd3532dfe19b63724b67b14f33035f597ac11da84251'],
       ['adapters/executive-report-sources.ts', 'b815a8d4913c62d311af1f876f946e322e529070fa579b7a4450725dd9a63bd5'],
     ];
@@ -191,6 +191,6 @@ describe('Identity access read-tail r34 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(468);
-    expect(total).toBe(454);
+    expect(total).toBe(448);
   });
 });

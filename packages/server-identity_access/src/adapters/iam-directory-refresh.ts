@@ -1,3 +1,4 @@
+import {revokedSessionHeadSql} from './read-tail-family-r36';
 import { accountAuthoritySnapshot } from '@erpx/server-identity_access/adapters/account-authority-snapshot';
 import 'server-only';import {iamDb} from '@erpx/server-identity_access/public/iam-db';import {ApiError} from '@erpx/server-runtime/public/http';import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgres';import type {ConnectionRow} from '@erpx/server-identity_access/public/directory-mapping';import {createRefreshDirectoryMember} from '@erpx/server-identity_access/application/directory-refresh';
 export async function refreshDirectoryMember(db:PostgresDatabase,companyId:string,userId:string){db=iamDb(db);return createRefreshDirectoryMember({stale:async(companyId,userId,cutoff)=>await db
@@ -13,7 +14,7 @@ export async function accountDirectoryGate(raw:PostgresDatabase,companyId:string
  const observedNow=options.observedNow??Date.now();
  let current=options.includeAccountGrants?await accountAuthoritySnapshot(raw,companyId,userId,observedNow,sessionId):undefined;
  const gate=current??await db.prepare(`WITH revoked AS MATERIALIZED (
-   SELECT EXISTS(SELECT 1 FROM iam_revoked_sessions WHERE company_id=? AND user_id=? AND session_id=?) blocked
+   SELECT EXISTS(${revokedSessionHeadSql('?','?','?','unaliased-company-first')}) blocked
  ) SELECT blocked revoked,(SELECT to_jsonb(c) FROM iam_members m
    JOIN iam_connections c ON c.id=m.connection_id JOIN iam_identities i ON i.id=m.identity_id
    WHERE NOT revoked.blocked AND m.company_id=? AND m.user_id=? AND m.status='active'

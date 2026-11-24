@@ -155,7 +155,7 @@ describe('Identity access read-tail r33 wiring', () => {
       ['adapters/payroll-recovery-grant.ts', 'f8c30abffc5fa9ba1d93f50fd2c32794d9645cf39df5387cae3ce874178ae0c0'],
       ['adapters/workflow-approvals-facts.ts', 'a73b0f0d65a33347b22b24f303bbe14940acaa3fa7f8212dfb2bcf249452d13f'],
       ['adapters/collaboration-messaging-authorization.ts', 'a424bde90984f30c8d7287b17d05180d0d33b7694d652913b9dd3f72485d2cea'],
-      ['adapters/project-worker-startup-subject.ts', 'b4620f0f7dcf75ff237fab3e3c75595378afb6051108f768768ef239d8d76290'],
+      ['adapters/project-worker-startup-subject.ts', 'c83fd8ea6b1a360d859695448d95bba90ffefcecc6f221615d9b45361c559c75'],
       ['adapters/legal-ai-actor-facts.ts', 'fb14fcf39793fe15e7ebda1fa64bc0f51dd8aa416d2987ac461b7ad32e9bfa07'],
       ['adapters/workflow-command-authority.ts', '53f6e57083e1e11f61ffc21d55293733894582b081ff17d6bba2661835e662d8'],
     ];
@@ -175,6 +175,6 @@ describe('Identity access read-tail r33 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(472);
-    expect(total).toBe(454);
+    expect(total).toBe(448);
   });
 });
