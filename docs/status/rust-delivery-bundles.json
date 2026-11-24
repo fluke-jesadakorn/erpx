@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11225,
+    "revision": 11227,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -171114,7 +171114,7 @@
         "owner": "pms",
         "title": "pms TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -171126,22 +171126,37 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMpms9",
-          "claimedAt": "2026-11-24T10:16:13.397Z",
-          "heartbeatAt": "2026-11-24T10:20:25.536Z",
-          "expiresAt": "2026-11-24T10:50:25.536Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pms/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "4a26c3048",
+            "owner": "pms",
+            "before": 344,
+            "after": 337,
+            "note": "needs_receipt_recovery fragment and seven refund-payment join variants share two closed helpers; locks, r17-r33 fragments and native registry untouched."
+          },
+          {
+            "command": "vitest pms r17-r34 (72) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "4a26c3048"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Rank 1 needs_receipt_recovery fragment (-1), then refund-payment join head variants (-6). Closed unions only; locks/fragments/registries untouched. BEFORE=344.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMpms9",
+          "at": "2026-11-24T10:24:33.599Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -171962,17 +171977,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 29,
+        "in_progress": 28,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1188,
+        "blocked": 1189,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T10:23:45.020Z",
+    "updatedAt": "2026-11-24T10:24:33.607Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
