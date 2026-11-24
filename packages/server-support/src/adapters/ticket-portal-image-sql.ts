@@ -14,3 +14,9 @@ export const portalBindingImageSql = () =>
 
 export const portalBoundImageSql = (alias: string, table: string, orderBy: string, predicate: string) =>
   `(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.${orderBy}) FROM ${table} ${alias} WHERE EXISTS(SELECT 1 FROM selected binding WHERE ${predicate}))`;
+
+/** One byte-identical outer image aggregate for the full and core portal image
+ * readers. They differ only by the bound-row image list; both keep their own
+ * selected-binding CTE, binds and independent statement. */
+export const portalImageAggregateSql = (images: string[]) =>
+  `SELECT jsonb_build_array(${images.join(',')})::text image`;
