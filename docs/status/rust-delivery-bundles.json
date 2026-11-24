@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10672,
+    "revision": 10676,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -164096,7 +164096,7 @@
         "owner": "procurement",
         "title": "procurement read tail families (round 31)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -164108,22 +164108,37 @@
         "resources": [
           "owner:procurement"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMpro4",
-          "claimedAt": "2026-11-24T08:25:29.674Z",
-          "heartbeatAt": "2026-11-24T08:25:29.674Z",
-          "expiresAt": "2026-11-24T08:55:29.674Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-procurement/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "8a39e9542",
+            "owner": "procurement",
+            "before": 125,
+            "after": 123,
+            "note": "Three attachment source image reads share sourceImage; locks and r19-r30 untouched."
+          },
+          {
+            "command": "vitest procurement r19-r31 (65) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "8a39e9542"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next families after r30: RFQ master lookups, request progress aggregates. BEFORE=131.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMpro4",
+          "at": "2026-11-24T08:34:30.300Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -165408,6 +165423,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=265.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.procurement.read-tail-r32",
+        "goalId": "G4",
+        "owner": "procurement",
+        "title": "procurement request progress variants (round 32)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-procurement/src/**",
+          "tests/unit/procurement/**",
+          "tests/integration/procurement/**"
+        ],
+        "resources": [
+          "owner:procurement"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMpro5",
+          "claimedAt": "2026-11-24T08:34:30.671Z",
+          "heartbeatAt": "2026-11-24T08:34:30.671Z",
+          "expiresAt": "2026-11-24T09:04:30.671Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Remaining request/progress variants; verify byte identity. BEFORE=123.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -165416,7 +165467,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1436,
+      "totalPackets": 1437,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
@@ -165424,13 +165475,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1066,
+        "blocked": 1067,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:34:12.713Z",
+    "updatedAt": "2026-11-24T08:34:30.675Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
