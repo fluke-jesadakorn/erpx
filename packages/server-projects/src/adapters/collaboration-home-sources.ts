@@ -12,6 +12,7 @@ import {projectMemberScopeGuard,projectMemberScopeSql} from '@erpx/server-projec
 import {projectOwnerOrMemberColumnSql} from '@erpx/server-projects/adapters/project-read-projections';
 import {projectAssignmentScopeSql} from '@erpx/server-projects/adapters/package-obligations';
 import {membersJsonSql} from '@erpx/server-projects/adapters/social-purchase-sources';
+import {staffProjectByRefHead} from './read-tail-r34';
 
 /** Owner-local fixed SQL for the Projects collaboration-home read family. The
  * selected-audience and home reads reuse the owner's shared membership,
@@ -66,8 +67,7 @@ export async function socialProjectAudienceSource(db:SqlDatabase,actor:StaffActo
 
 /** Fixed native Social aliases; no caller-provided source label or authority. */
 export function socialProjectAudienceReadPredicate(){
-    return `(p.audience_kind IS DISTINCT FROM 'project' OR EXISTS(SELECT 1 FROM staff_projects audience_project
-      WHERE audience_project.id=p.audience_id AND audience_project.company_id=p.company_id
+    return `(p.audience_kind IS DISTINCT FROM 'project' OR EXISTS(${staffProjectByRefHead('1','audience_project','p.audience_id','p.company_id','\n      ')}
       AND ${projectOwnerOrMemberColumnSql('audience_project','social_purchase_actor.user_id','m')}
       AND iam_role_allows(social_purchase_actor.role,p.company_id,'records.read')
       AND ${purchasedCapabilityPredicate('p.company_id','projects.wbs','history','social_purchase_actor.now_ms')}

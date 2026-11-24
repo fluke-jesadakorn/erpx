@@ -94,6 +94,6 @@ describe('Projects read-tail r33 point-read head and owner-or-member dedupe', ()
     };
     walk(srcRoot);
     expect(total).toBeLessThan(108);
-    expect(total).toBe(105); // r32 left 108; r33 point-read head 108->105 (108-3 inline+1 helper) and owner-or-member reuse 106->105.
+    expect(total).toBe(96); // r32 left 108; r33 point-read head 108->105 (108-3 inline+1 helper) and owner-or-member reuse 106->105. r34 staff_tasks point 4->1 (-3) and staff_projects by-ref 7->1 (-6): 105->96
   });
 });

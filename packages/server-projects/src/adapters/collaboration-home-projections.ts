@@ -1,1 +1,2 @@
-export function socialProjectAudienceName(){return '(SELECT pr.title FROM staff_projects pr WHERE pr.id=p.audience_id AND pr.company_id=p.company_id)';}
+import {staffProjectByRefHead} from './read-tail-r34';
+export function socialProjectAudienceName(){return `(${staffProjectByRefHead('pr.title','pr','p.audience_id','p.company_id')})`;}

@@ -7,6 +7,7 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import {projectsPackageEnforcementMode,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {projectPurchaseSourceHead} from './read-tail-r32';
+import {staffTaskPointHead} from './read-tail-r34';
 import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
@@ -17,7 +18,7 @@ type TaskSource={id:string;company_id:string;branch_id:string|null;department_id
 const taskCommands=new WeakMap<SqlDatabase,{id:string;userId:string}>();
 export function projectTaskOwnsAttachmentAction(database:SqlDatabase,actor:StaffActor,id:string){const command=taskCommands.get(database);return command?.id===id&&command.userId===actor.userId;}
 async function taskSource(database:SqlDatabase,actor:StaffActor,id:string,lock=false){
- return database.prepare(`SELECT id,company_id,branch_id,department_id,creator_user_id,assignee_user_id,project_id,template_id,schedule_id,state,version FROM staff_tasks WHERE id=? AND company_id=?${lock?' FOR UPDATE':''}`)
+ return database.prepare(`${staffTaskPointHead('id,company_id,branch_id,department_id,creator_user_id,assignee_user_id,project_id,template_id,schedule_id,state,version')}${lock?' FOR UPDATE':''}`)
   .bind(id,actor.companyId).first<TaskSource>();
 }
 /** Actual task.project_id chooses this foundation. Ordinary Work/routine tasks
@@ -52,7 +53,7 @@ export async function withProjectTaskPurchasedCommand<Result>(owner:SqlDatabase,
   const expectedAssignee=replay||!command.configure?before?.assignee_user_id:command.assigneeUserId;
   const projects=[...new Set([before?.project_id,expectedProject].filter((id):id is string=>!!id))];
   let acknowledgement:Record<string,unknown>|undefined,completedImage:string|null=null;
-  const taskImage=()=>database.prepare("SELECT (to_jsonb(t)-'updated_at')::text image FROM staff_tasks t WHERE id=? AND company_id=?").bind(command.id,actor.companyId).first<string>('image');
+  const taskImage=()=>database.prepare(staffTaskPointHead("(to_jsonb(t)-'updated_at')::text image",'t')).bind(command.id,actor.companyId).first<string>('image');
   const key=`project-task-source:${randomUUID()}`;
   deferProjectOwnerCheck(database,actor.companyId,async()=>{
    const after=await taskSource(database,actor,command.id);

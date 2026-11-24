@@ -80,7 +80,8 @@
     "./domain/structure": "./src/domain/structure.ts",
     "./domain/staff-projects": "./src/domain/staff-projects.ts",
     "./domain/graph": "./src/domain/graph.ts",
-    "./domain/milestones": "./src/domain/milestones.ts"
+    "./domain/milestones": "./src/domain/milestones.ts",
+    "./adapters/read-tail-r34": "./src/adapters/read-tail-r34.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
