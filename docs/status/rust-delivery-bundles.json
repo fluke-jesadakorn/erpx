@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10324,
+    "revision": 10332,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -160420,7 +160420,7 @@
         "owner": "pos",
         "title": "pos TS read tail native cutover (r23)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -160432,28 +160432,36 @@
         "resources": [
           "owner:pos"
         ],
-        "claim": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMpos",
-          "claimedAt": "2026-11-24T07:17:42.136Z",
-          "heartbeatAt": "2026-11-24T07:17:42.136Z",
-          "expiresAt": "2026-11-24T07:47:42.136Z",
-          "generation": 166
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d9f8fb159",
+            "owner": "pos",
+            "before": 248,
+            "after": 245,
+            "note": "Plain payment by id native read kind 541 covers three lock-free reads; FOR UPDATE/refund/lock kinds untouched."
+          },
+          {
+            "command": "cargo test -p erpx-server-pos --lib owner_writes + vitest pos core statement (59) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "d9f8fb159"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=248.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-m",
+          "runId": "run-20261123-n",
           "agentId": "wGCMpos",
-          "at": "2026-11-24T07:17:38.838Z",
+          "at": "2026-11-24T07:26:05.244Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long cargo/mount integration; WIP reviewed, same agents re-claimed under gen 166",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=248."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -161388,7 +161396,7 @@
         "owner": "commercial",
         "title": "commercial TS read tail native cutover (r11)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -161400,22 +161408,37 @@
         "resources": [
           "owner:commercial"
         ],
-        "claim": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMcom3",
-          "claimedAt": "2026-11-24T07:25:04.673Z",
-          "heartbeatAt": "2026-11-24T07:25:04.673Z",
-          "expiresAt": "2026-11-24T07:55:04.673Z",
-          "generation": 166
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-commercial/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d9f8fb159",
+            "owner": "commercial",
+            "before": 25,
+            "after": 24,
+            "note": "Two package source projections share one builder; r1-r10 helpers, locks and native kinds untouched."
+          },
+          {
+            "command": "vitest commercial read-tail r1-r11 (47) + owner (205) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "d9f8fb159"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=25.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMcom3",
+          "at": "2026-11-24T07:26:05.615Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -161741,6 +161764,78 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=28.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pos.read-tail-r24",
+        "goalId": "G4",
+        "owner": "pos",
+        "title": "pos TS read tail native cutover (r24)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pos/src/**",
+          "tests/unit/pos/**",
+          "tests/integration/pos/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "claim": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMpos2",
+          "claimedAt": "2026-11-24T07:26:06.030Z",
+          "heartbeatAt": "2026-11-24T07:26:06.030Z",
+          "expiresAt": "2026-11-24T07:56:06.030Z",
+          "generation": 166
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: native day-report or sale-child read family; if none, report blocked. BEFORE=245.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.commercial.read-tail-r12",
+        "goalId": "G4",
+        "owner": "commercial",
+        "title": "commercial TS read tail native cutover (r12)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-commercial/src/**",
+          "tests/unit/commercial/**",
+          "tests/integration/commercial/**"
+        ],
+        "resources": [
+          "owner:commercial"
+        ],
+        "claim": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMcom4",
+          "claimedAt": "2026-11-24T07:26:06.442Z",
+          "heartbeatAt": "2026-11-24T07:26:06.442Z",
+          "expiresAt": "2026-11-24T07:56:06.442Z",
+          "generation": 166
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: native day-report or sale-child read family; if none, report blocked. BEFORE=24.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -161749,7 +161844,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1362,
+      "totalPackets": 1364,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -161757,13 +161852,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 985,
+        "blocked": 987,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 166,
-    "updatedAt": "2026-11-24T07:25:44.631Z",
+    "updatedAt": "2026-11-24T07:26:06.452Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
