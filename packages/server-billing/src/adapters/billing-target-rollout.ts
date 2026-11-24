@@ -1,4 +1,3 @@
-import {nativeCommercialOwnerRead,COMMERCIAL_RD_USAGE_SNAPSHOT} from '@erpx/server-commercial/adapters/native-owner-read';
 import {nativeBillingOwnerQuery} from '@erpx/server-billing/adapters/native-billing-owner-write';
 import 'server-only';
 import type {PoolClient} from 'pg';
@@ -8,7 +7,7 @@ import type * as D from '@erpx/server-billing/domain/target-rollout';
 export type {TargetMarginReport,TargetRolloutReadiness} from '@erpx/server-billing/domain/target-rollout';
 export function nativeTargetRolloutRepository(c:PoolClient):TargetRolloutRepository{return {effectivePrice:async(value0)=>(await nativeBillingOwnerQuery(c,'target_rollout_effective_price',[value0])) as {rows:D.EffectivePriceRow[];rowCount:number|null},
 ratedShadowPeriod:async(value0,value1)=>(await nativeBillingOwnerQuery(c,'target_rollout_rated_shadow_period',[value0,value1])) as {rows:D.RatedShadowPeriodRow[];rowCount:number|null},
-usageSnapshot:async(value0,value1)=>c.query<D.UsageSnapshotRow>(`SELECT snapshot_id FROM (${await nativeCommercialOwnerRead(COMMERCIAL_RD_USAGE_SNAPSHOT)}) billing_usage_snapshots WHERE holding_id=$1 AND month=$2`,[value0,value1]),
+usageSnapshot:async(value0,value1)=>(await nativeBillingOwnerQuery(c,'forecast_usage_snapshot',[value0,value1])) as {rows:D.UsageSnapshotRow[];rowCount:number|null},
 availableOperatingCosts:async(value0,value1)=>(await nativeBillingOwnerQuery(c,'target_rollout_available_operating_costs',[value0,value1])) as {rows:D.AvailableOperatingCostsRow[];rowCount:number|null},
 capacityReview:async(value0,value1)=>(await nativeBillingOwnerQuery(c,'target_rollout_capacity_review',[value0,value1])) as {rows:D.CapacityReviewRow[];rowCount:number|null}}}
 import {betaLimits} from '@erpx/server-manage_erpx/public/beta-config';
