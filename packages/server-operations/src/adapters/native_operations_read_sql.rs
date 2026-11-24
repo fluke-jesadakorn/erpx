@@ -140,6 +140,32 @@ const READ_LEGACY_ROUTINE_TEMPLATES: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `operations-exceptions` workspace queue
+/// policies read. The owner plans this literal; the caller executes it on its
+/// open unit with the same `[company_id]` bind. Field-only policies are excluded.
+pub const RD_OPERATIONS_QUEUE_POLICIES: &str = "operations_rd_operations_queue_policies";
+const SQL_OPERATIONS_QUEUE_POLICIES: &str =
+    "SELECT * FROM operations_queue_policies WHERE company_id=? AND NOT (jsonb_typeof(source_kinds_json::jsonb)='array' AND source_kinds_json::jsonb<>'[]'::jsonb AND source_kinds_json::jsonb <@ '\"field_service_order\"'::jsonb) ORDER BY area,revision DESC";
+const READ_OPERATIONS_QUEUE_POLICIES: NativeReadStatement = NativeReadStatement {
+    kind: RD_OPERATIONS_QUEUE_POLICIES,
+    sql: SQL_OPERATIONS_QUEUE_POLICIES,
+    bind_count: 1,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript `operations-exceptions` detail events
+/// read. The owner plans this literal; the caller executes it on its open unit
+/// with the same `[exception_id]` bind.
+pub const RD_OPERATIONS_EXCEPTION_EVENTS: &str = "operations_rd_operations_exception_events";
+const SQL_OPERATIONS_EXCEPTION_EVENTS: &str =
+    "SELECT * FROM operations_exception_events WHERE exception_id=? ORDER BY version";
+const READ_OPERATIONS_EXCEPTION_EVENTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_OPERATIONS_EXCEPTION_EVENTS,
+    sql: SQL_OPERATIONS_EXCEPTION_EVENTS,
+    bind_count: 1,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_TASK_PROJECTION_SOURCE,
     READ_APP_UPLOAD_TASK_STATE,
@@ -150,6 +176,8 @@ const READS: &[NativeReadStatement] = &[
     READ_FIELD_EXCEPTION,
     READ_FIELD_POLICY,
     READ_LEGACY_ROUTINE_TEMPLATES,
+    READ_OPERATIONS_QUEUE_POLICIES,
+    READ_OPERATIONS_EXCEPTION_EVENTS,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -354,6 +382,36 @@ mod tests {
         assert_eq!(
             read.sql,
             "SELECT t.* FROM routine_templates t WHERE t.company_id=? AND t.project_id IS NULL AND (t.published=1 OR t.creator_user_id=? OR ?=1) ORDER BY t.id"
+        );
+    }
+
+    #[test]
+    fn operations_exceptions_plans_are_holding_scoped_and_ledger_free() {
+        for kind in [RD_OPERATIONS_QUEUE_POLICIES, RD_OPERATIONS_EXCEPTION_EVENTS] {
+            let read = read_statement(kind).expect("read kind");
+            let upper = read.sql.to_ascii_uppercase();
+            assert!(upper.starts_with("SELECT"), "{}", read.kind);
+            assert!(!upper.contains("INSERT"));
+            assert!(!upper.contains("UPDATE"));
+            assert!(!upper.contains("DELETE"));
+            assert_eq!(read.bind_count, 1);
+            assert_eq!(read.sql.matches('?').count(), 1);
+            assert_eq!(read.scope, "holding");
+            assert!(is_read(kind));
+        }
+    }
+
+    #[test]
+    fn operations_exceptions_sql_matches_retired_typescript_literals() {
+        let policies = read_statement(RD_OPERATIONS_QUEUE_POLICIES).expect("read kind");
+        assert_eq!(
+            policies.sql,
+            "SELECT * FROM operations_queue_policies WHERE company_id=? AND NOT (jsonb_typeof(source_kinds_json::jsonb)='array' AND source_kinds_json::jsonb<>'[]'::jsonb AND source_kinds_json::jsonb <@ '\"field_service_order\"'::jsonb) ORDER BY area,revision DESC"
+        );
+        let events = read_statement(RD_OPERATIONS_EXCEPTION_EVENTS).expect("read kind");
+        assert_eq!(
+            events.sql,
+            "SELECT * FROM operations_exception_events WHERE exception_id=? ORDER BY version"
         );
     }
 }

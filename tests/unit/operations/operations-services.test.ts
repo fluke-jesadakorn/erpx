@@ -297,6 +297,61 @@ describe('Legacy routine access native read',()=>{
   }finally{fetchMock.mockRestore();restore();}
  });
 });
+describe('Operations exceptions native reads',()=>{
+  const nativeConfig=JSON.stringify({privateBaseUrl:'http://127.0.0.1:3999',timeoutMs:1000,holdings:[{origin:'https://acme.jesadakorn.com',holdingSlug:'acme',holdingId:'h1',companyId:'company'}]});
+  const policiesSql='SELECT * FROM operations_queue_policies WHERE company_id=? AND NOT (jsonb_typeof(source_kinds_json::jsonb)=\'array\' AND source_kinds_json::jsonb<>\'[]\'::jsonb AND source_kinds_json::jsonb <@ \'["field_service_order"]\'::jsonb) ORDER BY area,revision DESC';
+  const eventsSql='SELECT * FROM operations_exception_events WHERE exception_id=? ORDER BY version';
+  const plan=(sql:string,values:unknown[])=>new Response(JSON.stringify({data:{statements:[{sql,values}]}}),{status:200,headers:{'content-type':'application/json'}});
+  const ex={id:'ex',source_kind:'staff_task',source_id:'src',status:'open',title:'T',issue:'I',updated_at:1,due_at:2,area:'a',owner_id:'owner',created_by:'owner',resolved_by:null,version:1};
+  const harness=(policies:unknown[],events:unknown[])=>{
+   const prepare=vi.fn((sql:unknown)=>({bind:()=>({sql,all:async()=>({results:[ex]})})}));
+   const batch=vi.fn(async(stmts:{sql:unknown}[])=>{
+    const sql=String(stmts[0]?.sql??'');
+    return [{results:sql.includes('operations_queue_policies')?policies:events,success:true,meta:{changes:0,duration:0}}];
+   });
+   const db={prepare,batch} as unknown as SqlDatabase;
+   process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG=nativeConfig;
+   vi.resetModules();
+   vi.doMock('@erpx/server-runtime/public/runtime',()=>({holdingResources:async()=>({write:db})}));
+   vi.doMock('@erpx/server-identity_access/public/operations-operations-exceptions-facts',()=>({OperationsExceptionsIdentityAccessFacts:()=>({readOperationsWorkspaceCandidatespoliciespeople3:async()=>({results:[]})})}));
+   vi.doMock('@erpx/server-identity_access/public/iam-permissions',()=>({requirePermission:()=>{}}));
+   vi.doMock('@erpx/server-records/public/source-record-policy',()=>({visibleSourceRecord:async()=>({kind:'staff_task',id:'src'})}));
+   return {db,prepare,batch};
+  };
+  const restore=()=>{
+   vi.doUnmock('@erpx/server-runtime/public/runtime');
+   vi.doUnmock('@erpx/server-identity_access/public/operations-operations-exceptions-facts');
+   vi.doUnmock('@erpx/server-identity_access/public/iam-permissions');
+   vi.doUnmock('@erpx/server-records/public/source-record-policy');
+   vi.resetModules();
+   delete process.env.ERPX_NATIVE_OPERATIONS_READ_CONFIG;
+  };
+  test('workspace queue policies delegate to the native owner plan without local SQL',async()=>{
+   harness([{area:'a'}],[]);
+   const fetchMock=vi.spyOn(globalThis,'fetch').mockResolvedValue(plan(policiesSql,['company']));
+   try{
+    const {operationsWorkspace}=await import('../../../packages/server-operations/src/adapters/operations-exceptions');
+    const result=await operationsWorkspace(actor);
+    expect(result.policies).toHaveLength(1);
+    expect(String(fetchMock.mock.calls[0]![0])).toContain('/operations/command-plan');
+    expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({kind:'operations_rd_operations_queue_policies',values:['company']});
+   }finally{fetchMock.mockRestore();restore();}
+  });
+  test('exception detail history delegates to the native owner plan without local SQL',async()=>{
+   harness([],[{version:1,action:'open'}]);
+   const fetchMock=vi.spyOn(globalThis,'fetch').mockImplementation(async(_input:RequestInfo|URL,init?:RequestInit)=>{
+    const kind=JSON.parse(String(init?.body)).kind;
+    return plan(kind==='operations_rd_operations_exception_events'?eventsSql:policiesSql,['ex']);
+   });
+   try{
+    const {operationsExceptionDetail}=await import('../../../packages/server-operations/src/adapters/operations-exceptions');
+    const result=await operationsExceptionDetail(actor,'ex');
+    expect(result.history).toHaveLength(1);
+    const kinds=fetchMock.mock.calls.map(call=>JSON.parse(String(call[1]!.body)).kind);
+    expect(kinds).toContain('operations_rd_operations_exception_events');
+   }finally{fetchMock.mockRestore();restore();}
+  });
+ });
 describe('Handover source and colleague constraints',()=>{
  test('Bangkok day derives entirely from the supplied instant',()=>{expect(bangkokToday(Date.UTC(2026,0,1,20))).toBe('2026-01-02');});
  test('duplicate recipients and source references fail validation',()=>{const source={id:'task',sourceVersion:1,kind:'staff_task' as const},base={date:'2026-01-02',body:'Shift report',sources:[source],recipientIds:['colleague']};expect(handoverPublishSchema.safeParse({...base,sources:[source,source]}).success).toBe(false);expect(handoverPublishSchema.safeParse({...base,recipientIds:['colleague','colleague']}).success).toBe(false);});

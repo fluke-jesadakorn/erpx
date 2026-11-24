@@ -11,14 +11,15 @@ import { type Row, type Exception } from '@erpx/server-operations/domain/operati
 import { createOperationsExceptionsApplication, type OperationsExceptionsRepository } from '@erpx/server-operations/application/operations-exceptions';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { OperationsExceptionsIdentityAccessFacts } from '@erpx/server-identity_access/public/operations-operations-exceptions-facts';
+import { nativeOperationsReadAll, OPERATIONS_RD_OPERATIONS_QUEUE_POLICIES, OPERATIONS_RD_OPERATIONS_EXCEPTION_EVENTS } from './native-operations-read';
 const scope = "e.company_id=? AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?)";
 function application() {
     let database!: SqlDatabase;
     const repository: OperationsExceptionsRepository<SqlStatement> = {
         readOperationsWorkspaceCandidatespoliciespeople(value: (string | null)[]) { return database.prepare(`SELECT e.* FROM operations_exceptions e WHERE ${scope} AND e.source_kind<>'field_service_order' ORDER BY e.updated_at DESC LIMIT 200`).bind(...value).all<Exception>(); },
-        readOperationsWorkspaceCandidatespoliciespeople2(companyId: string) { return database.prepare("SELECT * FROM operations_queue_policies WHERE company_id=? AND NOT (jsonb_typeof(source_kinds_json::jsonb)='array' AND source_kinds_json::jsonb<>'[]'::jsonb AND source_kinds_json::jsonb <@ '[\"field_service_order\"]'::jsonb) ORDER BY area,revision DESC").bind(companyId).all<Row>(); },
+        readOperationsWorkspaceCandidatespoliciespeople2(companyId: string) { return nativeOperationsReadAll<Row>(OPERATIONS_RD_OPERATIONS_QUEUE_POLICIES,[companyId],database); },
         readOperationsWorkspaceCandidatespoliciespeople3(...args) { return OperationsExceptionsIdentityAccessFacts(database).readOperationsWorkspaceCandidatespoliciespeople3(...args); },
-        readOperationsExceptionDetailEffect(recordId: string) { return database.prepare("SELECT * FROM operations_exception_events WHERE exception_id=? ORDER BY version").bind(recordId).all<Row>(); } };
+        readOperationsExceptionDetailEffect(recordId: string) { return nativeOperationsReadAll<Row>(OPERATIONS_RD_OPERATIONS_EXCEPTION_EVENTS,[recordId],database); } };
     return createOperationsExceptionsApplication({ repository, clock: { now: Date.now }, prepare: async (holding) => {
             database = (await nativeHoldingResources(holding)).write;
         }, requirePermission: (actor, permission) => fromNativeSync(() => requirePermission(actor, permission)), visibleSourceRecord: (...args) => fromNative(() => visibleSourceRecord(...args, database)) });
