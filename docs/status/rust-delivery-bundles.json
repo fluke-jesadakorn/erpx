@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7924,
+    "revision": 7928,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -133033,7 +133033,7 @@
         "owner": "manage_erpx",
         "title": "manage_erpx TS read tail native cutover (round 5)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -133045,22 +133045,42 @@
         "resources": [
           "owner:manage_erpx"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG77mne",
-          "claimedAt": "2026-11-24T01:17:01.408Z",
-          "heartbeatAt": "2026-11-24T01:23:27.967Z",
-          "expiresAt": "2026-11-24T01:53:27.967Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-manage_erpx/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "24d0ef4b7",
+            "owner": "manage_erpx",
+            "before": 36,
+            "after": 31,
+            "note": "Six nativeOwnerWrite placeholders share NATIVE_OWNER_WRITE_NOOP_SQL; lazy batch shape unchanged."
+          },
+          {
+            "command": "vitest manage erpx (40 + noop 3)",
+            "result": "passed",
+            "sourceSha": "24d0ef4b7"
+          },
+          {
+            "command": "tsc manage_erpx/tests-config + catalogue",
+            "result": "passed",
+            "sourceSha": "24d0ef4b7"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: six byte-identical SELECT 1 owner-write placeholders (attachments-finance-facts, beta-api x2, beta-onboarding, beta-team x2) -> one shared fragment; 36->31. BEFORE=36.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG77mne",
+          "at": "2026-11-24T01:24:44.042Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -133604,6 +133624,42 @@
         "nextAction": "Next: safe TS-only dedupe; if none, report blocked with evidence. BEFORE=87.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.manage_erpx.read-tail-r6",
+        "goalId": "G4",
+        "owner": "manage_erpx",
+        "title": "manage_erpx TS read tail native cutover (round 6)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-manage_erpx/src/**",
+          "tests/unit/manage_erpx/**",
+          "tests/integration/manage_erpx/**"
+        ],
+        "resources": [
+          "owner:manage_erpx"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG93mne",
+          "claimedAt": "2026-11-24T01:24:44.510Z",
+          "heartbeatAt": "2026-11-24T01:24:44.510Z",
+          "expiresAt": "2026-11-24T01:54:44.510Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: scan for a safe dedupe; if none, report blocked. BEFORE=31.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -133612,7 +133668,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 811,
+      "totalPackets": 812,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -133620,13 +133676,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 436,
+        "blocked": 437,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:24:24.093Z",
+    "updatedAt": "2026-11-24T01:24:44.517Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
