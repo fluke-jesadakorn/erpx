@@ -1,7 +1,7 @@
 import {productionReadProjection as productionmanufacturingProjection} from '@erpx/server-manufacturing/public/production-read-projections';
 import {productionReadProjection as productioncommerceProjection} from '@erpx/server-commerce/public/production-read-projections';
 import {productionReadProjection as productionorganizationProjection} from '@erpx/server-organization/public/production-read-projections';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {productionResourcesExists,planningAllocatedMinutes} from "./planning-guard-sql";import {planningCommandExistsGuard} from "./planning-command-guard-sql";
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {productionResourcesExists,planningAllocatedMinutes} from "./planning-guard-sql";import {planningCommandExistsGuard} from "./planning-command-guard-sql";import {planningScopedBranchList} from "./planning-scoped-list-sql";
 
 const sourceJoins = `
     ${productionmanufacturingProjection.executiveSpecification}
@@ -33,17 +33,17 @@ const projection = `SELECT s.id scenario_id,s.company_id,s.branch_id,branch.disp
     FROM planning_scenarios s ${sourceJoins} ${shortageProjection}`;
 export function productionCommandSources(db:SqlDatabase){return {async scenarios(companyId:string,branchId:string | null,branchId2:string | null){return db
           .prepare(
-            `SELECT p.*,s.name specification_name FROM planning_scenarios p ${productionmanufacturingProjection.scenarioSpecification} WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) ORDER BY p.updated_at DESC`,
+            planningScopedBranchList('p.*,s.name specification_name', `planning_scenarios p ${productionmanufacturingProjection.scenarioSpecification}`, 'p.company_id=?', 'p.branch_id=?', 'p.updated_at DESC'),
           )
           .bind(companyId, branchId, branchId2)
           .all<Row>();},
 async recommendations(companyId:string,branchId:string | null,branchId2:string | null){return db
           .prepare(
-            "SELECT r.*,s.company_id,s.branch_id FROM planning_recommendations r JOIN planning_scenarios s ON s.id=r.scenario_id WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) ORDER BY r.updated_at DESC",
+            planningScopedBranchList('r.*,s.company_id,s.branch_id', 'planning_recommendations r JOIN planning_scenarios s ON s.id=r.scenario_id', 's.company_id=?', 's.branch_id=?', 'r.updated_at DESC'),
           )
           .bind(companyId, branchId, branchId2)
           .all<Row>();},
-async resources(companyId:string,branchId:string | null,branchId2:string | null){return db.prepare("SELECT * FROM production_resources WHERE company_id=? AND (?::text IS NULL OR branch_id=?) ORDER BY name")
+async resources(companyId:string,branchId:string | null,branchId2:string | null){return db.prepare(planningScopedBranchList('*', 'production_resources', 'company_id=?', 'branch_id=?', 'name'))
           .bind(companyId, branchId, branchId2).all<Row>();},
 async calendar(companyId:string,branchId:string | null,branchId2:string | null){return db.prepare(`SELECT c.* FROM production_resource_calendar c JOIN production_resources r ON r.id=c.resource_id
           WHERE r.company_id=? AND (?::text IS NULL OR r.branch_id=?) ORDER BY c.work_date DESC LIMIT 500`)
