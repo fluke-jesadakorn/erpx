@@ -1,4 +1,5 @@
 import { createCaptureJobAuthority, createRequireJobAuthority, type JobActor } from '@erpx/server-identity_access/application/jobs';
+import { assignmentVersionSql } from './read-tail-family-r28';
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { loadIamAuthority } from "@erpx/server-identity_access/public/iam-store";
@@ -6,7 +7,7 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 /** Capture current authorization before queue insertion; never reconstruct it in a worker. */
 export async function captureJobAuthority<T extends JobActor>(db: SqlDatabase, actor: T): Promise<T> {
     return createCaptureJobAuthority({ grant: async (actor, now) => await db
-            .prepare("SELECT version FROM assignments WHERE id=? AND user_id=? AND company_id=? AND iam_assignment_active(id,?)")
+            .prepare(assignmentVersionSql("company_id=? AND iam_assignment_active(id,?)"))
             .bind(actor.assignmentId, actor.userId, actor.companyId, now)
             .first<{
             version: number;

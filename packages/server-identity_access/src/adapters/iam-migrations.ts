@@ -1,6 +1,7 @@
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
 import { samePersonQuerySql, memberForShareSql, protectedMigrationIdentitySql } from "./iam-probe-sql";
 import { iamConnectionByIdSql } from "./read-tail-family-r27";
+import { iamMfaProbeSql } from "./read-tail-family-r28";
 import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {linkMigratedPerson,linkMigratedEmployee} from "@erpx/server-people_payroll/public/identity-person-link-effects";
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
@@ -27,7 +28,7 @@ export async function applyMigration(c: PoolClient, actor: IamActor, p: Record<s
 async function localRecoveryReady(userId: string) {
     const db = (await runtimeEnv()).CONTROL_DB;
     return !!(await db
-        .prepare('SELECT 1 FROM iam_mfa m JOIN account a ON a."userId"=m.user_id WHERE m.user_id=? AND m.enabled AND a."providerId"=\'credential\' AND a.password IS NOT NULL')
+        .prepare(iamMfaProbeSql('m JOIN account a ON a."userId"=m.user_id WHERE m.user_id=? AND m.enabled AND a."providerId"=\'credential\' AND a.password IS NOT NULL'))
         .bind(userId)
         .first());
 }

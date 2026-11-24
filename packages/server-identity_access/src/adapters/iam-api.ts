@@ -1,4 +1,5 @@
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
+import { iamMfaProbeSql, iamReviewProbeSql } from './read-tail-family-r28';
 import { samePersonQuerySql, sessionByUserSql, sessionExistsSql } from "./iam-probe-sql";
 import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
@@ -164,7 +165,7 @@ export async function iamAccountApi(request: Request, path: string[]) {
         canonicalDestinationLinks({
           data: {
             mfaEnabled: !!(await env.CONTROL_DB.prepare(
-              "SELECT 1 FROM iam_mfa WHERE user_id=? AND enabled",
+              iamMfaProbeSql("WHERE user_id=? AND enabled"),
             )
               .bind(actor.userId)
               .first()),
@@ -532,7 +533,7 @@ export async function iamApi(
         z.object({ userId: z.string() }).parse(input).userId,
         key,
       );
-    else if (path[0] === "reviews" && path[1] && holdingSlug && nativeUserManagementAvailable() && await db.prepare("SELECT 1 FROM iam_reviews WHERE id=? AND company_id=? AND kind='policy.grant'").bind(path[1], actor.companyId).first())
+    else if (path[0] === "reviews" && path[1] && holdingSlug && nativeUserManagementAvailable() && await db.prepare(iamReviewProbeSql("id=? AND company_id=? AND kind='policy.grant'")).bind(path[1], actor.companyId).first())
       result = await nativeUserManagementDecideReview(request.headers, holdingSlug, path[1], reviewInput.parse(input), key);
     else if (path[0] === "reviews" && path[1])
       {

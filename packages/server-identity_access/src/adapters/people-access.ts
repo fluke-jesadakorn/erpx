@@ -1,4 +1,5 @@
 import "server-only";
+import { userIdNameEmailInSql } from "./read-tail-family-r28";
 import { createHash } from "node:crypto";
 import type { PoolClient } from "pg";
 import type { PeopleAccessSnapshot, AccessSubject, PeopleRelationshipsSnapshot } from "@erpx/feature-identity_access/lib/people-access";
@@ -61,7 +62,7 @@ async function snapshot(client: PoolClient, actor: IamActor): Promise<PeopleAcce
   const missingUsers = [...new Set([...assignments.rows.map(a => a.userId), ...members.rows.map(m => m.user_id)])].filter(userId => !subjects.some(s => s.linkedUserIds?.includes(userId)));
   if (missingUsers.length) {
     const env = await runtimeEnv();
-    const accounts = (await env.CONTROL_DB.prepare(`SELECT id,name,email FROM "user" WHERE id IN (SELECT jsonb_array_elements_text(?::jsonb)) ORDER BY name,id`).bind(JSON.stringify(missingUsers)).all<{id:string;name:string;email:string}>()).results;
+    const accounts = (await env.CONTROL_DB.prepare(userIdNameEmailInSql(`SELECT jsonb_array_elements_text(?::jsonb)) ORDER BY name,id`)).bind(JSON.stringify(missingUsers)).all<{id:string;name:string;email:string}>()).results;
     for (const account of accounts) {
       const personId = members.rows.find(m => m.user_id === account.id)?.person_id ?? null, employee = employees.find(p => p.personId === personId);
       subjects.push({ id: `account:${hash([company, account.id]).slice(0, 40)}`, name: account.name, email: account.email, userId: account.id, personId, kind: employee ? "internal" : "unclassified", classification: employee ? "employee" : "unclassified", linkedUserIds: [account.id], accountSource: members.rows.find(m => m.user_id === account.id)?.login_policy === "directory" ? "directory" : "local", departmentId: employee?.departmentId ?? null, organizationId: null, teamId: null, sponsorPersonId: null, expiresAt: null, status: "active", version: 0 });

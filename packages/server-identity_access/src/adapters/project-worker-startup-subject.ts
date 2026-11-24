@@ -3,6 +3,7 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {loadIamAuthority} from '@erpx/server-identity_access/adapters/iam-store';
 import {runtimeEnv} from '../../../../packages/server-runtime/src/public/runtime';
 import {userAttributeByIdExtendedSql} from './identity-user-projection-family-r21';
+import {userIdNameEmailInSql} from './read-tail-family-r28';
 const accountNameSql = userAttributeByIdExtendedSql('id,name,email,"updatedAt"');
 /** Explicit already-authorized Company account only. A name/email never
  * chooses a Person, creates an account or grants Company membership. */
@@ -19,7 +20,7 @@ export async function projectWorkerStartupAccountOptions(database:SqlDatabase,co
  const subjects=(await database.prepare("SELECT DISTINCT a.user_id FROM assignments a WHERE a.company_id=? AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) ORDER BY a.user_id").bind(companyId).all<{user_id:string}>()).results;
  if(!subjects.length)return [];
  const control=(await runtimeEnv()).CONTROL_DB;
- const rows=(await control.prepare('SELECT id,name,email FROM "user" WHERE id IN ('+subjects.map(()=>'?').join(',')+') AND (?=\'\' OR position(lower(?) in lower(name||\' \'||email))>0) ORDER BY lower(name),id LIMIT 50').bind(...subjects.map(row=>row.user_id),query,query).all<{id:string;name:string;email:string}>()).results;
+ const rows=(await control.prepare(userIdNameEmailInSql(subjects.map(()=>'?').join(',')+') AND (?=\'\' OR position(lower(?) in lower(name||\' \'||email))>0) ORDER BY lower(name),id LIMIT 50')).bind(...subjects.map(row=>row.user_id),query,query).all<{id:string;name:string;email:string}>()).results;
  return rows;
 }
 /** Durable HR placement rechecks its saved real author, not an invented Work

@@ -1,5 +1,6 @@
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
 import { samePersonQuerySql } from "./iam-probe-sql";
+import { iamGroupProbeSql, iamReviewProbeSql } from "./read-tail-family-r28";
 import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
 const peoplepayrollSources=peoplepayrollSnapshotSources();
@@ -101,8 +102,8 @@ export function peopleLifecycleIdentityAccessFacts(database: SqlDatabase, client
         applyValidatePackageEffect(companyId: unknown, id: unknown) { return client!.query<Record<string, unknown>>("SELECT 1 FROM um_groups WHERE company_id=$1 AND id=$2 AND NOT (definition->>'archived')::boolean", [companyId, id]); },
         readValidatePackagerole(companyId: unknown, roleId: unknown) { return client!.query<LifecycleRoleFact>("SELECT r.published_revision,v.scopes_json FROM iam_roles r JOIN iam_role_revisions v ON v.company_id=r.company_id AND v.role_id=r.id AND v.revision=r.published_revision WHERE r.company_id IN ('*',$1) AND r.id=$2 AND r.status='active'", [companyId, roleId]); },
         applyValidatePackageEffect3(companyId: unknown, connectionId: unknown, account: unknown) { return client!.query<Record<string, unknown>>("SELECT 1 FROM iam_connections WHERE company_id=$1 AND id=$2 AND status='active' AND ($3='local' OR provider=$3)", [companyId, connectionId, account]); },
-        applyValidatePackageEffect4(connectionId: unknown, id: unknown) { return client!.query<Record<string, unknown>>("SELECT 1 FROM iam_groups WHERE connection_id=$1 AND external_id=$2", [connectionId, id]); },
-        applyRequestLifecycleAccessEffect(companyId: unknown, id: unknown) { return client!.query<Record<string, unknown>>("SELECT 1 FROM iam_reviews WHERE company_id=$1 AND payload->>'caseId'=$2 AND status IN ('pending','approved')", [companyId, id]); },
+        applyValidatePackageEffect4(connectionId: unknown, id: unknown) { return client!.query<Record<string, unknown>>(iamGroupProbeSql("WHERE connection_id=$1 AND external_id=$2"), [connectionId, id]); },
+        applyRequestLifecycleAccessEffect(companyId: unknown, id: unknown) { return client!.query<Record<string, unknown>>(iamReviewProbeSql("company_id=$1 AND payload->>'caseId'=$2 AND status IN ('pending','approved')"), [companyId, id]); },
         applyApplyLifecycleReviewEffect2(id: unknown, value: unknown) { return nativeIdentityWrite("w_lifecycle_revoke_case_pg", [id, value]); },
         applyApplyLifecycleReviewEffect3(companyId: unknown, id: unknown) { return nativeIdentityWrite("w_569a11c3d974", [companyId, id]); },
         applyApplyLifecycleReviewEffect5(userId: unknown, created_by: unknown, companyId: unknown) { return client!.query<{

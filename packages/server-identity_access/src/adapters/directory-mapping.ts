@@ -1,4 +1,5 @@
 import 'server-only';
+import { iamGroupProbeSql } from './read-tail-family-r28';
 import { z } from 'zod';
 import type { PoolClient } from 'pg';
 import type { PostgresDatabase } from '@erpx/server-runtime/public/runtime/postgres';
@@ -15,7 +16,7 @@ export { mappingInput } from '@erpx/server-identity_access/domain/directories';
 
 async function knownGroup(c: PoolClient, actor: IamActor, input: z.infer<typeof mappingInput>) {
   return (await c.query(
-    'SELECT 1 FROM iam_groups g JOIN iam_connections c ON c.id=g.connection_id WHERE c.company_id=$1 AND c.id=$2 AND g.external_id=$3',
+    iamGroupProbeSql('g JOIN iam_connections c ON c.id=g.connection_id WHERE c.company_id=$1 AND c.id=$2 AND g.external_id=$3'),
     [actor.companyId, input.connectionId, input.groupId],
   )).rowCount;
 }

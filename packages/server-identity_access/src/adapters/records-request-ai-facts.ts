@@ -1,8 +1,9 @@
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import {assignmentRoleSql} from "./read-tail-family-r28";
 export function RequestAiIdentityAccessFacts(database: SqlDatabase) {
     return { readRunRequestAiGrant(assignmentId: string, userId: string, companyId: string, role: string, value: number | null, value2: number | null) {
-            return database.prepare("SELECT role FROM assignments WHERE id=? AND user_id=? AND company_id=? AND role=? AND (?::bigint IS NULL OR version=?) AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_until>(floor(extract(epoch FROM clock_timestamp())*1000)::bigint)")
+            return database.prepare(assignmentRoleSql("role=? AND (?::bigint IS NULL OR version=?) AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_from<=(floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND valid_until>(floor(extract(epoch FROM clock_timestamp())*1000)::bigint)"))
                 .bind(assignmentId, userId, companyId, role, value, value2)
                 .first<{
                 role: string;

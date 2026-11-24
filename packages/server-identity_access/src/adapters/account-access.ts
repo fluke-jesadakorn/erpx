@@ -1,4 +1,5 @@
 import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
+import { assignmentVersionSql } from './read-tail-family-r28';
 import { createHmac } from "node:crypto";
 import { iamCommand } from "@erpx/server-identity_access/public/iam-transactions";
 import { requireFreshMfa } from "@erpx/server-identity_access/public/iam-mfa";
@@ -28,7 +29,7 @@ function service() {
                 .bind(email)
                 .first();
         }, prepare: workspace, fresh: async (actor) => requireFreshMfa(iamActorFromWork(actor)),
-        grant: async (_actor, input, key) => grantIamAccess(write as PostgresDatabase, iam, grantInput.parse(input), key), target: async (actor, userId, assignmentId) => write.prepare('SELECT version FROM assignments WHERE id=? AND user_id=? AND company_id=?').bind(assignmentId, userId, actor.companyId).first<{
+        grant: async (_actor, input, key) => grantIamAccess(write as PostgresDatabase, iam, grantInput.parse(input), key), target: async (actor, userId, assignmentId) => write.prepare(assignmentVersionSql('company_id=?')).bind(assignmentId, userId, actor.companyId).first<{
             version: number;
         }>(), revoke: async (_actor, id, version, key) => revokeIamAssignment(write as PostgresDatabase, iam, id, version, 'Revoked from employee profile', key), reserve: async (_actor, key, operation, payload, id) => { await iamCommand(write as PostgresDatabase, iam, key, operation, payload, 'iam.manage', async () => ({ id })); },
         store: async (actor, personId, person, input, id, tokenHash, expiry) => {

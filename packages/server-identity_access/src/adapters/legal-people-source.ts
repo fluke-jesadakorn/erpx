@@ -1,12 +1,13 @@
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
 import {identitySnapshotSources as legalSnapshotSources} from '@erpx/server-legal/public/identity-snapshot-sources';
+import {peopleDistinctNameSql} from './read-tail-family-r28';
 const peoplepayrollSources=peoplepayrollSnapshotSources();
 const legalSources=legalSnapshotSources();
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {LegalPeopleQuery,LegalPerson} from "@erpx/server-legal/public/legal/people-contract";
-export async function legalPeopleSource(db:SqlDatabase,a:WorkContext,q:LegalPeopleQuery,scope:{branch:string|null;department:string|null;permission:string|null;itemId:string|null}):Promise<LegalPerson[]>{return (await db.prepare(`SELECT DISTINCT a.user_id id,coalesce(p.legal_name,a.user_id) name,a.role
+export async function legalPeopleSource(db:SqlDatabase,a:WorkContext,q:LegalPeopleQuery,scope:{branch:string|null;department:string|null;permission:string|null;itemId:string|null}):Promise<LegalPerson[]>{return (await db.prepare(peopleDistinctNameSql(`a.role
     FROM assignments a LEFT ${peoplepayrollSources.legal_people_source_hr_people_p_join} ON p.user_id=a.user_id AND p.company_id=a.company_id AND p.merged_into_id IS NULL
     WHERE a.company_id=? AND legal_person_eligible(a.company_id,a.user_id,?,?,?)
     AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
@@ -15,4 +16,4 @@ export async function legalPeopleSource(db:SqlDatabase,a:WorkContext,q:LegalPeop
     AND (?::text IS NULL OR a.role=?)
     AND (?='' OR strpos(lower(coalesce(p.legal_name,a.user_id)),lower(?))>0)
     AND (?::text IS NULL OR ?!='reviewer' OR EXISTS(SELECT 1 ${legalSources.legal_people_source_legal_members_m_from} WHERE m.item_id=? AND m.user_id=a.user_id))
-    ORDER BY name,id,a.role LIMIT 100`).bind(a.companyId,scope.branch,scope.department,scope.permission,scope.branch,scope.department,scope.permission,scope.permission,q.role??null,q.role??null,q.search,q.search,scope.itemId,q.purpose,scope.itemId).all<{id:string;name:string;role:string}>()).results;}
+    ORDER BY name,id,a.role LIMIT 100`)).bind(a.companyId,scope.branch,scope.department,scope.permission,scope.branch,scope.department,scope.permission,scope.permission,q.role??null,q.role??null,q.search,q.search,scope.itemId,q.purpose,scope.itemId).all<{id:string;name:string;role:string}>()).results;}
