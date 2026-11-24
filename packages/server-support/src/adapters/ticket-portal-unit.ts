@@ -14,10 +14,11 @@ import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-fea
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {supportTicketPortalInstalled,supportTicketPortalSourceLocks} from '@erpx/server-support/adapters/ticket-portal-sources';
+import {actorScopeCteSql} from './actor-scope-read-sql';
 export const ticketPortalDigest=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 export const ticketPortalChanged=()=>new ApiError(409,'SUPPORT_PORTAL_SOURCE_CHANGED','The original ticket, verified customer access or public response changed before completion.');
 export function ticketPortalKey(key:string){if(!/^[A-Za-z0-9:_.-]{8,180}$/.test(key))throw new ApiError(422,'COMMAND_KEY_REQUIRED','Use a valid Idempotency-Key.');}
-export async function ticketPortalCapability(database:SqlDatabase,companyId:string,purpose:CapabilityPurpose){for(const capability of ['support.tickets','support.portal'])await checkPurchasedCapability(database,'enforced',{companyId,capability,purpose});if(!await database.prepare(`SELECT ${scheduledFeaturePredicate('portal_scope.company_id','support')} allowed FROM (SELECT ?::text company_id) portal_scope`).bind(companyId).first<boolean>('allowed'))throw new ApiError(403,'FEATURE_COMING_SOON','Support is not released for this Company.');}
+export async function ticketPortalCapability(database:SqlDatabase,companyId:string,purpose:CapabilityPurpose){for(const capability of ['support.tickets','support.portal'])await checkPurchasedCapability(database,'enforced',{companyId,capability,purpose});if(!await database.prepare(`SELECT ${scheduledFeaturePredicate('portal_scope.company_id','support')} allowed FROM (${actorScopeCteSql('')}) portal_scope`).bind(companyId).first<boolean>('allowed'))throw new ApiError(403,'FEATURE_COMING_SOON','Support is not released for this Company.');}
 export async function ticketPortalStaffAuthority(database:SqlDatabase,actor:WorkContext,manage=false){for(const permission of ['support.read',...(manage?['support.manage']:[])]){requirePermission(actor,permission);await requireQueuedCommandAuthority(database,actor,permission);}}
 /** Package-first excludes enabled ordinary writers; receipt SRE precedes all
  * business leases for original disabled receipt-first Support/Files writers.
