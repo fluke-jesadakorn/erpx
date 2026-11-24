@@ -118,3 +118,9 @@ export const attachmentVersionGuard=(table:string,tail:string)=>`EXISTS(SELECT 1
  * list and table alias vary; the fixed `command_id=?` predicate, bind order and
  * lock semantics stay unchanged. */
 export const commandReceiptById=(cols:string,alias='')=>`SELECT ${cols} FROM command_receipts${alias ? ` ${alias}` : ''} WHERE command_id=?`;
+/** Byte-identical staff-notifications legacy CTE body shared by the list and page
+ * readers. Callers pass only fixed owner-local SQL fragments: the native rowset,
+ * clock, projected columns, partition guard and the ordered purchase-scope
+ * predicates. The fixed `company_id=? AND user_id=?` binds, `legacy_rows`
+ * identity, union and lock semantics stay at the call sites. */
+export const staffNotificationCteBody=(nativeSql:string,clock:string,cols:string,partition:string,whereFragments:string[])=>`WITH native_rows AS (${nativeSql}),legacy_rows AS (${clock}SELECT ${cols},created_at::text AS page_key FROM staff_notifications WHERE company_id=? AND user_id=? AND ${partition} AND ${whereFragments.join(' AND ')} `;
