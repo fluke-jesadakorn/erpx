@@ -1,5 +1,5 @@
 import 'server-only';
-import { assignmentsProjectionCompact, iamMembersProjection, iamIdentitiesProjection, peopleDirectoryOperationsProjection } from './assignment-projection-source';
+import { assignmentsProjectionCompact, iamMembersProjection, iamIdentitiesProjection, peopleDirectoryOperationsProjection, organizationGpoRulesProjection } from './assignment-projection-source';
 /** Fixed explicit-column owning projections; retains the consumer's supplied statement snapshot. */
 export function peoplePayrollFinalOwnerProjections(){return {
   "calendar_lifecycle_facts_people_directory_operations_o_from": `FROM (${peopleDirectoryOperationsProjection}) o`,
@@ -15,7 +15,7 @@ export function peoplePayrollFinalOwnerProjections(){return {
   "gpo_sources_iam_identities_i_join": `JOIN (${iamIdentitiesProjection}) i`,
   "organization_person_links_iam_members_m_from": `FROM (${iamMembersProjection}) m`,
   "people_lifecycle_position_gpo_jobs_j_from": "FROM (SELECT \"id\",\"company_id\",\"position_id\",\"person_id\",\"revision\",\"engagement_version\",\"connection_id\",\"gpo_id\",\"filter_group_id\",\"computer_target_ou_id\",\"desired_action\",\"status\",\"version\",\"attempts\",\"last_error\",\"directory_observed_at\",\"endpoint_observed_at\",\"created_at\",\"updated_at\",\"engagement_id\",\"account_id\",\"rule_id\",\"source_id\" FROM position_gpo_jobs) j",
-  "people_lifecycle_organization_gpo_rules_r_join": "JOIN (SELECT \"id\",\"company_id\",\"target_kind\",\"target_id\",\"version\",\"revision\",\"connection_id\",\"gpo_id\",\"user_filter_group_id\",\"computer_target_ou_id\",\"active\",\"directory_config_status\",\"directory_config_error\",\"legacy_position_id\",\"last_actor_id\",\"last_reason\",\"updated_at\" FROM organization_gpo_rules) r",
+  "people_lifecycle_organization_gpo_rules_r_join": `JOIN (${organizationGpoRulesProjection}) r`,
   "people_lifecycle_people_directory_operations_from": `FROM (${peopleDirectoryOperationsProjection}) people_directory_operations`,
   "profile_work_iam_members_m_from": `FROM (${iamMembersProjection}) m`,
   "people_directory_repository_iam_members_m_from": `FROM (${iamMembersProjection}) m`
