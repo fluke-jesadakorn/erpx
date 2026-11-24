@@ -62,7 +62,7 @@ describe('Ecommerce read-tail r14 four-family dedupe', () => {
     for (const [name, count] of [['ecommerceExistsGuard', 1], ['ecommerceOrderedList', 1], ['ecommerceListingChannelRow', 1], ['ecommerceSourceIdentity', 1]] as const) {
       expect(shared.match(new RegExp(`export const ${name} = `, 'g')) ?? []).toHaveLength(count);
     }
-    expect((src.match(/ecommerceExistsGuard\(/g) ?? []).length).toBe(3);
+    expect((src.match(/ecommerceExistsGuard\(/g) ?? []).length).toBe(6);
     expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(3);
     expect((src.match(/ecommerceListingChannelRow\(/g) ?? []).length).toBe(1);
     expect((ao.match(/ecommerceListingChannelRow\(/g) ?? []).length).toBe(1);
@@ -120,6 +120,6 @@ describe('Ecommerce read-tail r14 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(57);
-    expect(total).toBe(47);
+    expect(total).toBe(42);
   });
 });

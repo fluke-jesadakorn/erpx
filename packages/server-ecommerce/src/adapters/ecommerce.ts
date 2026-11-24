@@ -44,9 +44,10 @@ const activeChannelAssertion = ecommerceExistsGuard("ecommerce_channels", "id=? 
 const openCartAssertion = ecommerceExistsGuard("ecommerce_carts", "id=? AND version=? AND status='open'");
 const checkoutVersionAssertion = ecommerceExistsGuard("ecommerce_checkouts", "id=? AND version=?");
 /** r10: one parameterized projection-existence guard; the product and party
- *  callers rebuild byte-identically. Text only: binds and locks unchanged. */
+ *  callers rebuild byte-identically. Text only: binds and locks unchanged.
+ *  r19: composed from the shared r14 exists frame, byte-identically. */
 const activeProjectionAssertion = (source: string, alias: string, predicate: string) =>
-  `EXISTS(SELECT 1 FROM (${source}) ${alias} WHERE id=? AND company_id=? AND ${predicate})`;
+  ecommerceExistsGuard(`(${source}) ${alias}`, `id=? AND company_id=? AND ${predicate}`);
 /** r11: one parameterized source-row read; the channel, cart-line and
  *  fulfillment-link callers rebuild byte-identically. Text only: binds and
  *  locks unchanged. */
@@ -198,7 +199,7 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
     [
       money.statement,
       write.prepare('SELECT id FROM ecommerce_carts WHERE id=? FOR UPDATE').bind(i.cartId),
-      assertion(write,key,'listing-current',"EXISTS(SELECT 1 FROM ecommerce_listings l JOIN ecommerce_channels c ON c.id=l.channel_id WHERE l.id=? AND l.version=? AND l.status='published' AND c.status='active' AND c.company_id=? AND l.currency=?)",[i.listingId,i.listingVersion,a.companyId,cart.currency]),
+      assertion(write,key,'listing-current',ecommerceExistsGuard("ecommerce_listings l JOIN ecommerce_channels c ON c.id=l.channel_id","l.id=? AND l.version=? AND l.status='published' AND c.status='active' AND c.company_id=? AND l.currency=?"),[i.listingId,i.listingVersion,a.companyId,cart.currency]),
       assertion(
         write,
         key,
@@ -250,7 +251,7 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
           write,
           key,
           "record",
-          `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND version=? AND status=? AND (?='retire' OR created_by<>?))`,
+          ecommerceExistsGuard(table, "id=? AND version=? AND status=? AND (?='retire' OR created_by<>?)"),
           [id,i.expectedVersion,expected,i.action,a.userId],
         ),
       ],
