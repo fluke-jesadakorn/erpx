@@ -518,8 +518,9 @@ describe('Maintenance package settlement source fixed SQL',()=>{
   const count=(text:string,needle:string)=>text.split(needle).length-1;
   expect(source.match(/const ownerSourceSql = \(table:string,alias:string\) =>/g)).toHaveLength(1);
   // r3 removed one raw statement literal (13 -> 12); r9 shared the occurrence
-  // and work-event full-row literals through settlementEventRows (12 -> 11).
-  expect(source.match(/SELECT/g)).toHaveLength(11);
+  // and work-event full-row literals through settlementEventRows (12 -> 11);
+  // r10 shared the two upstream-source EXISTS witnesses (11 -> 10).
+  expect(source.match(/SELECT/g)).toHaveLength(10);
   expect(count(source,'SELECT work.*,COALESCE')).toBe(0);
   expect(count(source,'SELECT plan.*,COALESCE')).toBe(0);
   expect(source).toContain('ownerSourceSql("maintenance_work_orders","work")');
@@ -567,7 +568,8 @@ describe('Maintenance settlement event row fixed SQL',()=>{
   const source=await readFile(new URL(file,import.meta.url),'utf8');
   expect(source.match(/const settlementEventRows=\(table:"maintenance_preventive_occurrences"\|"maintenance_work_events"\)=>`SELECT \* FROM \$\{table\}`/g)).toHaveLength(1);
   expect(source.match(/SELECT \* FROM/g)).toHaveLength(1);
-  expect(source.match(/SELECT/g)).toHaveLength(11);
+  // r10 shared the two upstream-source EXISTS witnesses (11 -> 10).
+  expect(source.match(/SELECT/g)).toHaveLength(10);
   expect(source).not.toContain('occurrences:"SELECT * FROM maintenance_preventive_occurrences"');
   expect(source).not.toContain('workEvents:"SELECT * FROM maintenance_work_events"');
   expect(source).toContain('settlementEventRows("maintenance_preventive_occurrences")');
@@ -577,4 +579,26 @@ describe('Maintenance settlement event row fixed SQL',()=>{
   expect(maintenancePackageSettlementSources.occurrences).toBe('SELECT * FROM maintenance_preventive_occurrences');
   expect(maintenancePackageSettlementSources.workEvents).toBe('SELECT * FROM maintenance_work_events');
  });
+});
+
+/** Fixed-SQL read-tail oracle for the Maintenance upstream-source witness family
+ * (r10). The preventive-occurrence and part-consumption package scopes share one
+ * owner-local existence witness; both composed predicates stay byte-identical to
+ * their pre-dedupe literals, no duplicate TS query literal remains and the
+ * package settlement lock is untouched. */
+describe('Maintenance upstream source witness fixed SQL',()=>{
+  const file='../../../packages/server-maintenance/src/adapters/package-obligations.ts';
+  it('single-sources the upstream-source EXISTS witness and keeps both composed predicates intact',async()=>{
+   const {readFile}=await import('node:fs/promises');
+   const source=await readFile(new URL(file,import.meta.url),'utf8');
+   expect(source.match(/const workSourceExists=\(source:string,alias:string,column:string\)=>`EXISTS\(SELECT 1 FROM \$\{source\} \$\{alias\} WHERE \$\{alias\}\.\$\{column\}=work\.id\)`/g)).toHaveLength(1);
+   expect(source.match(/EXISTS\(SELECT 1 FROM/g)).toHaveLength(1);
+   expect(source.match(/SELECT/g)).toHaveLength(10);
+   expect(source).toContain('`EXISTS(SELECT 1 FROM ${source} ${alias} WHERE ${alias}.${column}=work.id)`');
+   expect(source).not.toContain('EXISTS(SELECT 1 FROM maintenance_preventive_occurrences occurrence');
+   expect(source).not.toContain('EXISTS(SELECT 1 FROM (${maintenanceSettlementConsumptions}) part');
+   expect(source).toContain('scope.package_id=\'assets-preventive\' AND ${workSourceExists("maintenance_preventive_occurrences","occurrence","work_order_id")}');
+   expect(source).toContain('scope.package_id=\'assets-parts-costs\' AND ${workSourceExists(`(${maintenanceSettlementConsumptions})`,"part","source_id")}');
+   expect(source).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
+  });
 });
