@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8876,
+    "revision": 8882,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -145197,7 +145197,7 @@
         "owner": "workflow",
         "title": "workflow TS read tail native cutover (round 29)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -145209,22 +145209,37 @@
         "resources": [
           "owner:workflow"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCDwor",
-          "claimedAt": "2026-11-24T03:25:20.652Z",
-          "heartbeatAt": "2026-11-24T03:25:20.652Z",
-          "expiresAt": "2026-11-24T03:55:20.652Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-workflow/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "efb5168da",
+            "owner": "workflow",
+            "before": 66,
+            "after": 65,
+            "note": "flow_routes by company prefix shared by route list and route read; emitted SQL byte-identical."
+          },
+          {
+            "command": "vitest workflow (35) + tsc workflow",
+            "result": "passed",
+            "sourceSha": "efb5168da"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or generator family; do not re-dedupe r24-r28. BEFORE=66.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCDwor",
+          "at": "2026-11-24T03:33:34.798Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -145305,7 +145320,7 @@
         "owner": "collaboration",
         "title": "collaboration TS read tail native cutover (round 15)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -145317,22 +145332,37 @@
         "resources": [
           "owner:collaboration"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGC7col",
-          "claimedAt": "2026-11-24T03:26:18.380Z",
-          "heartbeatAt": "2026-11-24T03:26:18.380Z",
-          "expiresAt": "2026-11-24T03:56:18.380Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "efb5168da",
+            "owner": "collaboration",
+            "before": 427,
+            "after": 424,
+            "note": "Monthly AI usage count, published comment read and social draft-by-id shared; 6/6 composed strings identical; r11-r14 untouched."
+          },
+          {
+            "command": "vitest collaboration (184 pass, 3 pre-existing mention failures) + tsc collaboration",
+            "result": "passed",
+            "sourceSha": "efb5168da"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: remaining byte-identical reads; do not re-dedupe r11-r14. BEFORE=427.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated at dedupe floor.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC7col",
+          "at": "2026-11-24T03:33:34.014Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated at dedupe floor."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -145622,6 +145652,42 @@
         "nextAction": "Next: more table-parameterized helpers with byte-identical rendered SQL; do not re-dedupe r17-r20. BEFORE=330.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.workflow.read-tail-r30",
+        "goalId": "G4",
+        "owner": "workflow",
+        "title": "workflow TS read tail native cutover (round 30)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/**",
+          "tests/unit/workflow/**",
+          "tests/integration/workflow/**"
+        ],
+        "resources": [
+          "owner:workflow"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCEwor",
+          "claimedAt": "2026-11-24T03:33:35.226Z",
+          "heartbeatAt": "2026-11-24T03:33:35.226Z",
+          "expiresAt": "2026-11-24T04:03:35.226Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: legal-approval-facts.ts lines 10/16 share FROM approval_steps WHERE instance_id=? AND ordinal=? with different selected columns; generator family. BEFORE=65.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -145630,21 +145696,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1042,
+      "totalPackets": 1043,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 33,
+        "in_progress": 32,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 663,
+        "blocked": 665,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T03:32:37.375Z",
+    "updatedAt": "2026-11-24T03:33:35.239Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
