@@ -10,6 +10,7 @@ import {holdingResources} from "../../../../packages/server-runtime/src/public/r
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {ApiError} from "@erpx/server-runtime/public/http";
+const assignmentVersionGuard = `EXISTS(SELECT 1 FROM assignments WHERE id=? AND version=?)`;
 /** Original hire consumption uses Company people.manage; it never requires a
  * Talent module assignment. This named discovery does not choose an HR role. */
 export async function talentHireProductSourceEntry(database:SqlDatabase,scope:TalentHireProductEntryScope,id:string){
@@ -21,7 +22,7 @@ export async function talentHireProductSourceEntry(database:SqlDatabase,scope:Ta
  JOIN talent_candidates c ON c.id=h.candidate_id AND c.id=a.candidate_id AND c.company_id=h.company_id
  CROSS JOIN ${talentCompanyScopeCte} hire_entry CROSS JOIN hire_entry_clock
  WHERE h.id=? AND h.company_id=hire_entry.company_id AND o.status='accepted' AND h.source_offer_version<=o.version
- AND ${assignmentReadSql("hire_entry","people.manage")} AND EXISTS(SELECT 1 FROM assignments WHERE id=? AND version=?)
+ AND ${assignmentReadSql("hire_entry","people.manage")} AND ${assignmentVersionGuard}
  AND ${scheduledFeaturePredicate("h.company_id","talent")} AND ${scheduledFeaturePredicate("h.company_id","people_payroll")}
  AND ${purchasedCapabilityPredicate("h.company_id","recruit.offers","history","hire_entry_clock.now_ms")}`)
  .bind(scope.companyId,id,scope.assignmentId,scope.userId,scope.role,scope.assignmentId,scope.assignmentVersion).first();
@@ -33,7 +34,7 @@ export async function talentCandidatePrivacyProductSourceEntry(database:SqlDatab
  if(scope.branchId||scope.departmentId||!Number.isSafeInteger(scope.assignmentVersion)||scope.assignmentVersion<1)return null;
  const permissions=["legal.hold","legal.hold.release","legal.destroy","people.manage"],row=await database.prepare(`WITH candidate_privacy_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms)
  SELECT c.id FROM talent_candidates c CROSS JOIN ${talentCompanyScopeCte} candidate_privacy_entry CROSS JOIN candidate_privacy_clock
- WHERE c.id=? AND c.company_id=candidate_privacy_entry.company_id AND (${permissions.map(permission=>assignmentReadSql("candidate_privacy_entry",permission)).join(" OR ")}) AND EXISTS(SELECT 1 FROM assignments WHERE id=? AND version=?)
+ WHERE c.id=? AND c.company_id=candidate_privacy_entry.company_id AND (${permissions.map(permission=>assignmentReadSql("candidate_privacy_entry",permission)).join(" OR ")}) AND ${assignmentVersionGuard}
  AND ${scheduledFeaturePredicate("c.company_id","talent")}
  AND ${purchasedCapabilityPredicate("c.company_id","recruit.candidates","history","candidate_privacy_clock.now_ms")}`).bind(scope.companyId,id,...permissions.flatMap(()=>[scope.assignmentId,scope.userId,scope.role]),scope.assignmentId,scope.assignmentVersion).first();
  return row?{capability:"recruit.candidates" as const,purchasePurpose:"history" as const}:null;
