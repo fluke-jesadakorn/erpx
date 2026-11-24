@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12613,
+    "revision": 12615,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261125-b",
+      "runId": "run-20261125-c",
       "agentId": "lead-opencode",
-      "startedAt": "2026-11-24T19:56:46.702Z",
-      "heartbeatAt": "2026-11-24T20:07:12.159Z",
-      "expiresAt": "2026-11-24T20:37:12.159Z",
-      "generation": 172,
-      "tokenHash": "e8af9d3fd8f17bd9386d1ec1e506093d0ed8f1552baae8311e0f510e8d011c01"
+      "startedAt": "2026-11-24T21:44:15.591Z",
+      "heartbeatAt": "2026-11-24T21:44:15.757Z",
+      "expiresAt": "2026-11-24T22:14:15.757Z",
+      "generation": 173,
+      "tokenHash": "c9181b63aab4ebefc16909f72ee35d6c69322d795013c80b0afac313c102a949"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -185887,8 +185887,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 172,
-    "updatedAt": "2026-11-24T20:07:12.162Z",
+    "lastCoordinatorGeneration": 173,
+    "updatedAt": "2026-11-24T21:44:15.760Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -185923,10 +185923,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261125-a",
-      "runId": "run-20261125-b",
-      "at": "2026-11-24T19:56:46.703Z",
-      "reason": "Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
+      "previousRunId": "run-20261125-b",
+      "runId": "run-20261125-c",
+      "at": "2026-11-24T21:44:15.591Z",
+      "reason": "Lease expired while provider rate-limited the worker fleet; reviewed WIP, previous coordinator stopped.",
       "wipReviewed": true,
       "previousRunStopped": true
     },
