@@ -52,13 +52,21 @@ export function latestReleaseIdSql(companyExpression: string, scopeExpression: s
   return `(SELECT latest.id FROM company_release_acceptances latest WHERE latest.company_id=${companyExpression} AND latest.scope_version=${scopeExpression} ORDER BY latest.created_at DESC,latest.id DESC LIMIT 1)`;
 }
 
+/** The single THB-currency probe shared by every release-currency source. Kept
+ * here once so this parameterized family has one owner-local definition; each
+ * caller supplies only its closed source projection and company predicate. The
+ * rendered SQL is byte-identical to the former inline copies. */
+export function thbCurrencyProbeSql(source: string, condition: string) {
+  return `SELECT 1 FROM (${source}) c WHERE c.company_id=scope_company.id AND ${condition}`;
+}
+
 export function releaseCurrencyPredicate(companyExpression: string) {
   // The scalar wrapper uses a parameter expression exactly once.
-  return `(SELECT NOT EXISTS(SELECT 1 FROM (${financePlatformSources.finance_charts}) c WHERE c.company_id=scope_company.id AND c.base_currency<>'THB')
-    AND NOT EXISTS(SELECT 1 FROM (${commercePlatformSources.commerce_settings}) c WHERE c.company_id=scope_company.id AND c.currency<>'THB')
-    AND NOT EXISTS(SELECT 1 FROM (${posPlatformSources.pos_settings}) c WHERE c.company_id=scope_company.id AND c.currency<>'THB')
-    AND NOT EXISTS(SELECT 1 FROM (${pmsPlatformSources.pms_properties}) c WHERE c.company_id=scope_company.id AND c.config_json::jsonb->>'currency' IS DISTINCT FROM 'THB')
-    AND NOT EXISTS(SELECT 1 FROM (${people_payrollPlatformSources.hr_pay_groups}) c WHERE c.company_id=scope_company.id AND c.status='active' AND (c.country_code<>'TH' OR c.currency<>'THB'))
+  return `(SELECT NOT EXISTS(${thbCurrencyProbeSql(financePlatformSources.finance_charts, "c.base_currency<>'THB'")})
+    AND NOT EXISTS(${thbCurrencyProbeSql(commercePlatformSources.commerce_settings, "c.currency<>'THB'")})
+    AND NOT EXISTS(${thbCurrencyProbeSql(posPlatformSources.pos_settings, "c.currency<>'THB'")})
+    AND NOT EXISTS(${thbCurrencyProbeSql(pmsPlatformSources.pms_properties, "c.config_json::jsonb->>'currency' IS DISTINCT FROM 'THB'")})
+    AND NOT EXISTS(${thbCurrencyProbeSql(people_payrollPlatformSources.hr_pay_groups, "c.status='active' AND (c.country_code<>'TH' OR c.currency<>'THB')")})
     FROM (SELECT ${companyExpression}::text AS id) scope_company)`;
 }
 
