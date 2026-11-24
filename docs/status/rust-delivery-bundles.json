@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8696,
+    "revision": 8698,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -142855,7 +142855,7 @@
         "owner": "projects",
         "title": "projects TS read tail native cutover (round r12)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -142867,22 +142867,37 @@
         "resources": [
           "owner:projects"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCDpro",
-          "claimedAt": "2026-11-24T02:39:21.135Z",
-          "heartbeatAt": "2026-11-24T02:39:21.135Z",
-          "expiresAt": "2026-11-24T03:09:21.135Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-projects/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d5d121a5b",
+            "owner": "projects",
+            "before": 145,
+            "after": 144,
+            "note": "Assignment scope subquery shared by purchase authority and metric history; emitted SQL byte-identical."
+          },
+          {
+            "command": "vitest projects (138) + tsc projects",
+            "result": "passed",
+            "sourceSha": "d5d121a5b"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=145.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated at dedupe floor; no further round without new inventory.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCDpro",
+          "at": "2026-11-24T02:47:58.293Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated at dedupe floor; no further round without new inventory."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -143415,17 +143430,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 34,
+        "in_progress": 33,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 619,
+        "blocked": 620,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:45:40.916Z",
+    "updatedAt": "2026-11-24T02:47:58.305Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
