@@ -17,6 +17,7 @@ import { commerceFinalOwnerProjectionSources as procurementProjectionSources } f
 import { commerceFinalOwnerProjectionSources as recordsProjectionSources } from "@erpx/server-records/public/commerce-final-owner-projection-sources";
 import {commerceCommerceStockEffects} from '@erpx/server-inventory/public/commerce-stock-owner-effects';
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
+import { COMMERCE_STOCK_BY_WAREHOUSE_PRODUCT_SQL } from "./stock-source-dedupe-sql";
 
 import { commerceExpensePaymentEffects } from "@erpx/server-people_payroll/public/commerce-expense-payment-effects";
 import { commerceFinancePageSources } from "@erpx/server-finance/public/commerce-page-sources";
@@ -235,7 +236,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
         readCommerceStock1: (facts: {
             warehouse_id: string | number | null;
             product_id: string | number | null;
-        }) => db.prepare(`SELECT * FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=?`).bind(facts.warehouse_id, facts.product_id).first<Row>(),
+        }) => db.prepare(COMMERCE_STOCK_BY_WAREHOUSE_PRODUCT_SQL).bind(facts.warehouse_id, facts.product_id).first<Row>(),
         prepareCommerceStock1: (facts: {
             fact0: string | number | null;
             fact1: string | number | null;

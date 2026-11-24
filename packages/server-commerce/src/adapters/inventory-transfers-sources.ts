@@ -1,5 +1,6 @@
 import {commerceInventoryTransfersSourcesStockEffects} from '@erpx/server-inventory/public/commerce-stock-owner-effects';
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
+import { COMMERCE_STOCK_BY_WAREHOUSE_PRODUCT_SQL } from "./stock-source-dedupe-sql";
 import { inventoryReadProjection as inventoryinventoryProjection } from '@erpx/server-inventory/public/inventory-read-projections';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
@@ -12,7 +13,7 @@ export function inventoryTransferSources(db: SqlDatabase) {
         async routeWarehouses(sourceWarehouseId: string, targetWarehouseId: string, companyId: string) { return db.prepare("SELECT * FROM commerce_warehouses WHERE id IN (?,?) AND company_id=? AND status='active'").bind(sourceWarehouseId, targetWarehouseId, companyId).all<TransferRow>(); },
         guardProductVersion(key: string, value: string, productId: string, product_version: string | number | null) { return assertion(db, key, value, "EXISTS(SELECT 1 FROM commerce_products WHERE id=? AND version=? AND status='active')", [productId, product_version]); },
         guardReviewProductVersion(key: string, value: string, product_id: string | number | null, product_version: string | number | null) { return assertion(db, key, value, "EXISTS(SELECT 1 FROM commerce_products WHERE id=? AND version=? AND status='active')", [product_id, product_version]); },
-        async targetStock(target_warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare(`SELECT * FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=?`).bind(target_warehouse_id, product_id).first<TransferRow>(); },
+        async targetStock(target_warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare(COMMERCE_STOCK_BY_WAREHOUSE_PRODUCT_SQL).bind(target_warehouse_id, product_id).first<TransferRow>(); },
         guardTargetStockVersion(key: string, value: string, target_warehouse_id: string | number | null, product_id: string | number | null, version: string | number | null) { return assertion(db, key, value, `EXISTS(SELECT 1 FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? AND version=?)`, [target_warehouse_id, product_id, version]); },
         guardTargetAbsent(key: string, value: string, target_warehouse_id: string | number | null, product_id: string | number | null) { return assertion(db, key, value, `NOT EXISTS(SELECT 1 FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=?)`, [target_warehouse_id, product_id]); },
         prepareTargetStock(target_warehouse_id: string | number | null, product_id: string | number | null) {

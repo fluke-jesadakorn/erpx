@@ -1,5 +1,6 @@
 import {commerceInventoryTransitSourcesStockEffects} from '@erpx/server-inventory/public/commerce-stock-owner-effects';
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
+import { COMMERCE_STOCK_BY_WAREHOUSE_PRODUCT_SQL } from "./stock-source-dedupe-sql";
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type { TransferRow as Row } from '@erpx/server-inventory/public/transfer-contract';
@@ -10,7 +11,7 @@ export function inventoryTransitSources(db: SqlDatabase) {
         prepareDispatchStock(quantity_milli: string | number | null, value_minor: string | number | null, source_warehouse_id: string | number | null, product_id: string | number | null) {
             return commerceInventoryTransitSourcesStockEffects(db).prepareDispatchStock(quantity_milli, value_minor, source_warehouse_id, product_id);
         },
-        async targetStock(target_warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare(`SELECT * FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=?`).bind(target_warehouse_id, product_id).first<Row>(); },
+        async targetStock(target_warehouse_id: string | number | null, product_id: string | number | null) { return db.prepare(COMMERCE_STOCK_BY_WAREHOUSE_PRODUCT_SQL).bind(target_warehouse_id, product_id).first<Row>(); },
         guardTargetStockVersion(key: string, value: string, target_warehouse_id: string | number | null, product_id: string | number | null, version: string | number | null) { return assertion(db, key, value, `EXISTS(SELECT 1 FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? AND version=?)`, [target_warehouse_id, product_id, version]); },
         guardTargetStockAbsent(key: string, value: string, target_warehouse_id: string | number | null, product_id: string | number | null) { return assertion(db, key, value, `NOT EXISTS(SELECT 1 FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=?)`, [target_warehouse_id, product_id]); },
         prepareTargetStock(target_warehouse_id: string | number | null, product_id: string | number | null) {

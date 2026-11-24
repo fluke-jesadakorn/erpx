@@ -1,5 +1,6 @@
 import {commerceProductionCommandSourcesStockEffects} from '@erpx/server-inventory/public/commerce-stock-owner-effects';
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
+import { COMMERCE_STOCK_BY_WAREHOUSE_PRODUCT_SQL } from "./stock-source-dedupe-sql";
 import { productionReadProjection as productioninventoryProjection } from '@erpx/server-inventory/public/production-read-projections';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import type {Row} from '@erpx/server-commerce/public/commerce';
@@ -64,7 +65,7 @@ export function productionCommandSources(db: SqlDatabase) {
         },
         async materialStock(warehouse_id: string | number | null, product_id: string | number | null) {
             return db
-                .prepare(`SELECT * FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=?`)
+                .prepare(COMMERCE_STOCK_BY_WAREHOUSE_PRODUCT_SQL)
                 .bind(warehouse_id, product_id)
                 .first<Row>();
         },

@@ -1,5 +1,6 @@
 import {commerceInventoryCountsSourcesStockEffects} from '@erpx/server-inventory/public/commerce-stock-owner-effects';
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
+import { COMMERCE_STOCK_BY_WAREHOUSE_PRODUCT_SQL } from "./stock-source-dedupe-sql";
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type { CountRow } from '@erpx/server-inventory/public/count-contract';
@@ -11,7 +12,7 @@ export function inventoryCountSources(db: SqlDatabase) {
         guardStockSnapshot(key: string, value: string, warehouse: string | number | null, product_id: string | number | null, snapshot_version: string | number | null, snapshot_quantity_milli: string | number | null, snapshot_value_minor: string | number | null) { return assertion(db, key, value, `EXISTS(SELECT 1 FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? AND version=? AND quantity_milli=? AND value_minor=?)`, [warehouse, product_id, snapshot_version, snapshot_quantity_milli, snapshot_value_minor]); },
         async activeWarehouse(warehouseId: string, companyId: string, branchId: string | null, branchId2: string | null) { return db.prepare("SELECT * FROM commerce_warehouses WHERE id=? AND company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?)").bind(warehouseId, companyId, branchId, branchId2).first<CountRow>(); },
         async activeProduct(productId: string, companyId: string) { return db.prepare("SELECT * FROM commerce_products WHERE id=? AND company_id=? AND status='active'").bind(productId, companyId).first<CountRow>(); },
-        async currentStock(id: string | number | null, productId: string) { return db.prepare(`SELECT * FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=?`).bind(id, productId).first<CountRow>(); },
+        async currentStock(id: string | number | null, productId: string) { return db.prepare(COMMERCE_STOCK_BY_WAREHOUSE_PRODUCT_SQL).bind(id, productId).first<CountRow>(); },
         guardProductVersion(key: string, value: string, productId: string, version: string | number | null) { return assertion(db, key, value, "EXISTS(SELECT 1 FROM commerce_products WHERE id=? AND version=? AND status='active')", [productId, version]); },
         guardWarehouseVersion(key: string, value: "warehouse", id: string | number | null, version: string | number | null) { return assertion(db, key, value, "EXISTS(SELECT 1 FROM commerce_warehouses WHERE id=? AND version=? AND status='active')", [id, version]); },
         guardWarehouseActive(key: string, value: "warehouse", warehouse_id: string | number | null, companyId: string) { return assertion(db, key, value, "EXISTS(SELECT 1 FROM commerce_warehouses WHERE id=? AND company_id=? AND status='active')", [warehouse_id, companyId]); },
