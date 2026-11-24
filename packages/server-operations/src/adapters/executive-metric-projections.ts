@@ -10,6 +10,10 @@ import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { operationsMetrics, operationsTaskCohort, operationsTaskVisibility, type OperationsMetricId } from '@erpx/server-runtime/public/executive/operations-access';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
+/** Canonical branch/department org-node label projection, shared by the two
+ * breakdown fragments so the COALESCE subquery cannot drift. Yields the exact
+ * prior SQL; only the node column and fallback label vary per caller. */
+const orgNodeLabel = (column: string, fallback: string) => `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=t.${column} AND n.company_id=t.company_id),'${fallback}')`;
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const access=await workMetricHistoryAccess(sourceDb,a);if(access[id as keyof typeof access]===false)throw new ApiError(403,'METRIC_SOURCE_UNAVAILABLE','This Work metric requires its retained purchase and current original authority.');
     const purchase=await workTaskProjectionReadScope(sourceDb,a);
@@ -46,8 +50,8 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         WHEN t.due_at>=${now}-604800000 THEN '1–7 days'
         WHEN t.due_at>=${now}-2592000000 THEN '8–30 days' ELSE 'Over 30 days' END`;
             const label = breakdown === "status" ? "t.state"
-                : breakdown === "branch" ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=t.branch_id AND n.company_id=t.company_id),'Company-wide')`
-                    : breakdown === "department" ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=t.department_id AND n.company_id=t.company_id),'No department')`
+                : breakdown === "branch" ? orgNodeLabel('branch_id','Company-wide')
+                    : breakdown === "department" ? orgNodeLabel('department_id','No department')
                         : breakdown === "age-band" ? ageBand
                             : metric === "operations-escalations" ? "'Overdue escalations sent to current reader'"
                                 : "'Overdue operational tasks'";
