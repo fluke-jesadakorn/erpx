@@ -9,10 +9,10 @@ import type {CalendarCommand} from '@erpx/server-work_projection/public/rules/ca
 import {purchasedCapabilityPredicate,packageClockSql} from '@erpx/server-commercial/public/purchased-capability-sql';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import { nativeOwnerWrite } from "../native-owner-write";
-import { versionById, noopSql, reminderAttendeePointSql } from '../read-tail-sql';
+import { appointmentChildImageSql, versionById, noopSql, reminderAttendeePointSql } from '../read-tail-sql';
 /** Closed native aliases a/t. Responses and mutable row versions do not change
  * the captured reminder configuration; their current policy is checked live. */
-const configuration=`jsonb_build_object('record',to_jsonb(a)-ARRAY['version','updated_at'],'attendee',to_jsonb(t)-ARRAY['response','response_at'],'series',(SELECT to_jsonb(s)-'version' FROM calendar_series s WHERE s.appointment_id=a.id AND s.company_id=a.company_id),'exceptions',(SELECT jsonb_agg(to_jsonb(e)-'version' ORDER BY e.occurrence_key) FROM calendar_occurrence_exceptions e WHERE e.appointment_id=a.id AND e.company_id=a.company_id))::text`;
+const configuration=`jsonb_build_object('record',to_jsonb(a)-ARRAY['version','updated_at'],'attendee',to_jsonb(t)-ARRAY['response','response_at'],'series',${appointmentChildImageSql("to_jsonb(s)-'version'",'calendar_series','s','a')},'exceptions',${appointmentChildImageSql("jsonb_agg(to_jsonb(e)-'version' ORDER BY e.occurrence_key)",'calendar_occurrence_exceptions','e','a')})::text`;
 const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
 export const appointmentVersionSql=versionById('calendar_appointments');
 export type CalendarReminderAuthorization={command_id:string;appointment_id:string;recipient_id:string;company_id:string;actor_id:string;assignment_id:string;authority_json:string;source_hash:string;source_version:number;action:'appointment.save'|'appointment.reschedule'|'appointment.reminder.set'};

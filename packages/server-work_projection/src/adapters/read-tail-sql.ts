@@ -39,3 +39,6 @@ export const calendarImageSql = (expression: string, table: 'calendar_announceme
 /** Appointment/attendee/series joined range read. The projection columns and predicates are the only variation between the availability and reminder fact units; the join shape and series column set are shared. */
 export const appointmentAttendeeSeriesSql = (columns: string, where: string) =>
     `SELECT ${columns} FROM calendar_appointments a JOIN calendar_attendees t ON t.appointment_id=a.id AND t.company_id=a.company_id LEFT JOIN calendar_series s ON s.appointment_id=a.id WHERE ${where}`;
+/** Nested child-image projection keyed by appointment and company. Only the projection expression, source table and aliases vary across the calendar image and reminder configuration builders. */
+export const appointmentChildImageSql = (expression: string, table: string, alias: string, row: string) =>
+    `(SELECT ${expression} FROM ${table} ${alias} WHERE ${alias}.appointment_id=${row}.id AND ${alias}.company_id=${row}.company_id)`;
