@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10644,
+    "revision": 10648,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -163784,7 +163784,7 @@
         "owner": "pos",
         "title": "POS settlement and provider reads native port (round 26)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -163796,22 +163796,37 @@
         "resources": [
           "owner:pos"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMpos4",
-          "claimedAt": "2026-11-24T08:07:40.176Z",
-          "heartbeatAt": "2026-11-24T08:15:48.647Z",
-          "expiresAt": "2026-11-24T08:45:48.647Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "8efc3ece8",
+            "owner": "pos",
+            "before": 223,
+            "after": 215,
+            "note": "Eight settlement and stripe scoped reads move to native stripe_reads kinds; row locks, advisory, PMS fragments and day-report registry untouched."
+          },
+          {
+            "command": "cargo test -p erpx-server-pos --lib (47) + vitest pos (334) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "8efc3ece8"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Port pos_settlements and stripe scoped payment/refund reads to native kinds; keep locks inline. BEFORE=223.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMpos4",
+          "at": "2026-11-24T08:31:48.061Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -165051,6 +165066,42 @@
         "nextAction": "Remaining native-read candidates: opportunity source probes, case event history/snapshot, receipt and membership authority reads. BEFORE=132.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pos.read-tail-r27",
+        "goalId": "G4",
+        "owner": "pos",
+        "title": "pos TS read tail native cutover (round 27)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pos/src/**",
+          "tests/unit/pos/**",
+          "tests/integration/pos/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMpos5",
+          "claimedAt": "2026-11-24T08:31:48.472Z",
+          "heartbeatAt": "2026-11-24T08:31:48.472Z",
+          "expiresAt": "2026-11-24T09:01:48.472Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Remaining: owner-local lock-free reads outside day-report and stripe; locks and PMS fragments stay inline. BEFORE=215.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -165059,7 +165110,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1429,
+      "totalPackets": 1430,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
@@ -165067,13 +165118,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1059,
+        "blocked": 1060,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:30:53.684Z",
+    "updatedAt": "2026-11-24T08:31:48.477Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
