@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { readFile } from 'node:fs/promises';
 
 vi.mock('server-only', () => ({}));
 vi.mock('@erpx/server-support/adapters/support-incident-read', () => ({
@@ -62,5 +63,32 @@ describe('bounded Support incident read client', () => {
     const error = await client(actor, 'incident-1').catch((value) => value);
     expect(error).toBeInstanceOf(ApiError);
     expect(error).toMatchObject({ status: 503, code: 'NATIVE_SUPPORT_INCIDENT_READ_INVALID' });
+  });
+});
+
+describe('Support incident read-tail r16 canonical projection', () => {
+  const src = (name: string) =>
+    readFile(new URL(`../../../packages/server-support/src/${name}`, import.meta.url), 'utf8');
+
+  it('keeps one canonical eligibility projection owner', async () => {
+    const source = await src('adapters/support-incident-read.ts');
+    expect(source).toContain('export const incidentEligibilitySelect');
+    expect(source.match(/SELECT t\.\*,CASE WHEN \$\{ownerEligible\}/g)).toHaveLength(1);
+    expect(source.match(/EXISTS\(SELECT 1 FROM \(\$\{identity_accessProjectionSources\.assignments\}\) m WHERE/g)).toHaveLength(1);
+    expect(source.match(/\(SELECT COUNT\(DISTINCT m\.user_id\) FROM/g)).toHaveLength(1);
+  });
+
+  it('composes the projection in both incident readers with no local copy', async () => {
+    const byId = await src('adapters/support-incident-read.ts');
+    const work = await src('adapters/support-incidents.ts');
+    expect(byId).toContain('${incidentEligibilitySelect(eligible, reviewer)}');
+    expect(work).toContain('${incidentEligibilitySelect(eligible, reviewer)}');
+    expect(work).not.toContain('owner_eligible');
+    expect(work).not.toContain('reviewer_eligible');
+  });
+
+  it('re-exports the shared helper from the owner public surface', async () => {
+    const surface = await src('public/support-incident-read.ts');
+    expect(surface).toContain('incidentEligibilitySelect');
   });
 });
