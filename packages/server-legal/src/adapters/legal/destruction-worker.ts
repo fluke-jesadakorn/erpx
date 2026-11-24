@@ -8,6 +8,7 @@ import {validateLegalDestructionSources,sealLegalDestructionSources} from "@erpx
 import {createLegalDestructionWorker,type LegalDestructionWork} from "@erpx/server-legal/application/destruction-worker";
 import { legalDestructionWorker } from '@erpx/server-collaboration/adapters/native-legal-destruction-worker';
 import {legalHoldGuardPrefix,legalHoldGuardSuffix} from '../legal-hold-guard-sources';
+import {legalHoldActiveSql} from '../legal-read-tail-r23-sources';
 import {legalFilesAdvisoryLockSql} from '../legal-read-tail-r9-sources';
 function work(db:SqlDatabase,files:FileStore,companyId:string):LegalDestructionWork{const nw=legalDestructionWorker(db,companyId);return {
 beginJournal:async ()=>{await db.prepare(legalFilesAdvisoryLockSql).run();},
@@ -32,7 +33,7 @@ executingDestruction:(facts:{id:string;})=>db.prepare("SELECT x.*,i.company_id,i
           policy_version: number;
           manifest: string;
         }>(),
-held:(facts:{item_id:string;})=>db.prepare("SELECT 1 FROM legal_hold_targets t JOIN legal_holds h ON h.id=t.hold_id WHERE t.item_id=? AND h.state!='released'").bind(facts.item_id).first(),
+held:(facts:{item_id:string;})=>db.prepare(legalHoldActiveSql('!=')).bind(facts.item_id).first(),
 countAttempt:async (facts:{id:string;})=>{await (await nw.countAttempt(facts)).run();},
 retainExecuting:async (facts:{id:string;})=>{await (await nw.retainExecuting(facts)).run();},
 retainDisposal:async (facts:{id:string;id2:string;checksum:string;now:number;})=>{await (await nw.retainDisposal(facts)).run();},

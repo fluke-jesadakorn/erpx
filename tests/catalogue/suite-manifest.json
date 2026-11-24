@@ -18442,6 +18442,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "ecommerce",
+      "modules": [
+        "ecommerce"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Ecommerce module assignment and scope row families must stay byte-identical."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-ecommerce"
+      ],
+      "id": "ecommerce.read-tail-r5-dedupe.unit",
+      "files": [
+        "tests/unit/ecommerce/ecommerce-read-tail-r5-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "ecommerce.rust-ecommerce-commands.unit",
       "lane": "unit",
       "owner": "ecommerce",
@@ -49601,6 +49626,31 @@
           "H001_DB"
         ]
       }
+    },
+    {
+      "lane": "unit",
+      "owner": "legal",
+      "modules": [
+        "legal"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Legal active hold point reads must stay one parameterized helper."
+      },
+      "apps": "legal-portal",
+      "packages": [
+        "@erpx/server-legal"
+      ],
+      "id": "legal.read-tail-r23-dedupe.unit",
+      "files": [
+        "tests/unit/legal/read-tail-r23-dedupe.test.ts"
+      ],
+      "framework": "vitest"
     },
     {
       "id": "legal.release-gates.integration",
@@ -106197,6 +106247,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "talent",
+      "modules": [
+        "talent"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Talent source row union readers must stay one parameterized family."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-talent"
+      ],
+      "id": "talent.read-tail-r22-dedupe.unit",
+      "files": [
+        "tests/unit/talent/talent-read-tail-r22-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "talent.rust-talent-application-proposal.unit",
       "lane": "unit",
       "owner": "talent",
@@ -106801,33 +106876,6 @@
       "id": "work_projection.read-tail-r10-dedupe.unit",
       "files": [
         "tests/unit/work_projection/read-tail-r10-dedupe.test.ts"
-      ],
-      "framework": "vitest"
-    },
-    {
-      "lane": "unit",
-      "owner": "work_projection",
-      "modules": [
-        "operations"
-      ],
-      "fixture": "none",
-      "requires": {
-        "jobs": false,
-        "scanner": false
-      },
-      "ci": {
-        "critical": true,
-        "reason": "Work projection native owner-write noop SQL must stay byte-identical and centralized."
-      },
-      "apps": [
-        "apps"
-      ],
-      "packages": [
-        "@erpx/server-work_projection"
-      ],
-      "id": "work_projection.read-tail-r11-dedupe.unit",
-      "files": [
-        "tests/unit/work_projection/read-tail-r11-dedupe.test.ts"
       ],
       "framework": "vitest"
     },

@@ -13,6 +13,7 @@ import {inLegalOwnerUnit} from '@erpx/server-legal/adapters/purchases';
 import {visibility} from '@erpx/server-legal/adapters/legal/access';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import { legalRetentionAuthorization } from '@erpx/server-collaboration/adapters/native-legal-retention-authorization';
+import { legalHoldActiveSql } from './legal-read-tail-r23-sources';
 type Source={id:string;item_id:string;company_id:string;kind:LegalKind;item_version:number;requested_by:string;approved_by:string|null;image:string};
 async function source(database:SqlDatabase,id:string){return database.prepare(`SELECT x.id,x.item_id,i.company_id,i.kind,i.version item_version,x.requested_by,x.approved_by,jsonb_build_object('request',x.id,'item',i.id,'company',i.company_id,'branch',i.branch_id,'department',i.department_id,'kind',i.kind,'classification',i.classification,'state',i.state,'version',i.version,'requester',x.requested_by,'approver',x.approved_by,'manifest',x.manifest,'policyId',x.policy_id,'policyVersion',x.policy_version,'policy',to_jsonb(p))::text image FROM legal_destructions x JOIN legal_items i ON i.id=x.item_id JOIN legal_retention_policies p ON p.id=x.policy_id AND p.company_id=i.company_id WHERE x.id=?`).bind(id).first<Source>();}
 const hash=(image:string)=>createHash('sha256').update(image).digest('hex');
@@ -40,7 +41,7 @@ async function assertCurrent(database:SqlDatabase,id:string){
  const actor=JSON.parse(authorization.authority_json) as WorkContext;if(actor.userId!==authorization.actor_id||actor.assignmentId!==authorization.assignment_id||actor.companyId!==original.company_id)throw new ApiError(409,'LEGAL_RETENTION_SOURCE_CHANGED','The original queued authority binding changed.');
  await requireQueuedCommandAuthority(database,actor,'legal.destroy');
  await requireSourceAccess(database,actor,original.item_id);
- if(await database.prepare("SELECT 1 FROM legal_hold_targets t JOIN legal_holds h ON h.id=t.hold_id WHERE t.item_id=? AND h.state<>'released'").bind(original.item_id).first())throw new ApiError(409,'LEGAL_HOLD','A current Legal hold prevents deletion.');
+ if(await database.prepare(legalHoldActiveSql('<>')).bind(original.item_id).first())throw new ApiError(409,'LEGAL_HOLD','A current Legal hold prevents deletion.');
  if(await database.prepare(samePersonSql).bind(actor.userId,original.requested_by,actor.companyId).first<boolean>('same'))throw new ApiError(403,'LEGAL_INDEPENDENT_REVIEW','The retained destruction requires its independent authorized reviewer.');
  const mode=await legalPackageEnforcementMode();for(const capability of [legalKindCapability(original.kind),'legal.obligations'])await checkPurchasedCapability(database,mode,{companyId:original.company_id,capability,purpose:'history'});
 }
