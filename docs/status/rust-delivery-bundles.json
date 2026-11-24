@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7621,
+    "revision": 7625,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -128812,7 +128812,7 @@
         "owner": "quality",
         "title": "quality TS read tail native cutover (round 3)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -128824,22 +128824,42 @@
         "resources": [
           "owner:quality"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wF30qua",
-          "claimedAt": "2026-11-24T00:30:56.478Z",
-          "heartbeatAt": "2026-11-24T00:31:22.515Z",
-          "expiresAt": "2026-11-24T01:01:22.515Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-quality/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "30780eef2",
+            "owner": "quality",
+            "before": 115,
+            "after": 114,
+            "note": "Metric branch label projection shared by hold/release and inspection."
+          },
+          {
+            "command": "cargo check -p erpx-server-quality",
+            "result": "passed",
+            "sourceSha": "30780eef2"
+          },
+          {
+            "command": "vitest quality targeted (20) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "30780eef2"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to the quality native read; record a strictly lower spaced count (BEFORE=115).",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wF30qua",
+          "at": "2026-11-24T00:38:16.120Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -129581,6 +129601,42 @@
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or use the read-plan port; record a strictly lower spaced count (BEFORE=1635).",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.quality.read-tail-r4",
+        "goalId": "G4",
+        "owner": "quality",
+        "title": "quality TS read tail native cutover (round 4)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-quality/src/**",
+          "tests/unit/quality/**",
+          "tests/integration/quality/**"
+        ],
+        "resources": [
+          "owner:quality"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG19qua",
+          "claimedAt": "2026-11-24T00:38:16.312Z",
+          "heartbeatAt": "2026-11-24T00:38:16.312Z",
+          "expiresAt": "2026-11-24T01:08:16.312Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or use the quality native read; record a strictly lower spaced count (BEFORE=114).",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -129589,7 +129645,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 740,
+      "totalPackets": 741,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
@@ -129597,13 +129653,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 364,
+        "blocked": 365,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T00:38:02.735Z",
+    "updatedAt": "2026-11-24T00:38:16.316Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
