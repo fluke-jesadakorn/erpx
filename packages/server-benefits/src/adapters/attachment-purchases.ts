@@ -15,15 +15,15 @@ import {peoplePackageEnforcementMode,checkPurchasedCapability,companyPurchaseRea
 import {requirePeopleCurrentAuthority} from "@erpx/server-people_payroll/public/people-purchases";
 import {benefitAttachmentPeopleSources as people} from "@erpx/server-people_payroll/public/benefits-owner-facts";
 import {benefitSourceReadLocks} from "@erpx/server-benefits/adapters/purchases";
-import {workforceActorScopeProbe} from "@erpx/server-benefits/adapters/benefits-read-sql";
+import {benefitAttachmentSourceSelect,workforceActorScopeProbe} from "@erpx/server-benefits/adapters/benefits-read-sql";
 const tables={benefit_plan:"benefit_plans",benefit_dependent:"benefit_dependents",benefit_election:"benefit_elections"} as const;
 type Target=keyof typeof tables;
 export type BenefitAttachmentPurchase={companyId:string;capability:"people.benefits";purpose:"new-work"|"settle-existing";actor:WorkContext;targetType:Target;targetId:string;purposeKey:string;witness:string};
 const target=(type:string):type is Target=>Object.hasOwn(tables,type);
 function source(type:Target){
- if(type==="benefit_plan")return `SELECT r.company_id,NULL::text branch_id,NULL::text department_id,r.status,NULL::text person_user_id,(to_jsonb(r)-'version'-'updated_at')::text image FROM benefit_plans r WHERE r.id=? AND r.company_id=?`;
+ if(type==="benefit_plan")return benefitAttachmentSourceSelect('NULL::text branch_id','NULL::text department_id','NULL::text person_user_id',"(to_jsonb(r)-'version'-'updated_at')::text",'benefit_plans r');
  const engagement=type==="benefit_election"?`JOIN (${people.engagements}) e ON e.id=r.engagement_id AND e.company_id=r.company_id`:`LEFT JOIN LATERAL(SELECT x.* FROM (${people.engagements}) x WHERE x.person_id=p.id AND x.company_id=p.company_id ORDER BY CASE WHEN x.status='active' THEN 0 ELSE 1 END,x.start_date DESC,x.id LIMIT 1) e ON TRUE`;
- return `SELECT r.company_id,e.branch_id,e.department_id,r.status,p.user_id person_user_id,jsonb_build_object('record',to_jsonb(r)-'version'-'updated_at','person',to_jsonb(p),'engagement',to_jsonb(e))::text image FROM ${tables[type]} r JOIN (${people.people}) p ON p.id=r.person_id AND p.company_id=r.company_id ${engagement} WHERE r.id=? AND r.company_id=?`;
+ return benefitAttachmentSourceSelect('e.branch_id','e.department_id','p.user_id person_user_id',"jsonb_build_object('record',to_jsonb(r)-'version'-'updated_at','person',to_jsonb(p),'engagement',to_jsonb(e))::text",`${tables[type]} r JOIN (${people.people}) p ON p.id=r.person_id AND p.company_id=r.company_id ${engagement}`);
 }
 /** Byte-identical owner-local source probe shared by the purchase-scope read
  * and the command-boundary source assertion; generated SQL is unchanged. */

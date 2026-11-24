@@ -42,3 +42,7 @@ export const benefitLearningFactArm = (kind: string, id: string, version: string
  *  version guard and the payroll-source fact guard; generated SQL is unchanged. */
 export const benefitOwnerExistsGuard = (table: string, conditions: string) =>
   `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND ${conditions})`;
+/** Parameterized owner-local attachment source projection shared by the plan
+ *  and person-backed attachment source selects; generated SQL is unchanged. */
+export const benefitAttachmentSourceSelect = (branch: string, department: string, person: string, image: string, from: string) =>
+  `SELECT r.company_id,${branch},${department},r.status,${person},${image} image FROM ${from} WHERE r.id=? AND r.company_id=?`;
