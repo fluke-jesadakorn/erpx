@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12484,
+    "revision": 12486,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261124-d",
+      "runId": "run-20261125-a",
       "agentId": "lead-opencode",
-      "startedAt": "2026-11-24T15:07:42.843Z",
-      "heartbeatAt": "2026-11-24T16:30:27.050Z",
-      "expiresAt": "2026-11-24T17:00:27.050Z",
-      "generation": 170,
-      "tokenHash": "d86592cf1e9e0370a3a84de40c2d9276be4f7361a78149ffdd8e138eaef2dc28"
+      "startedAt": "2026-11-24T17:08:29.681Z",
+      "heartbeatAt": "2026-11-24T17:08:29.848Z",
+      "expiresAt": "2026-11-24T17:38:29.848Z",
+      "generation": 171,
+      "tokenHash": "98fdc44ca7a631939ed6a32e9fddab85f54c2018551b07af03f6a7764511add0"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -184123,7 +184123,7 @@
         "owner": "inventory",
         "title": "inventory next read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -184134,22 +184134,22 @@
         "resources": [
           "owner:inventory"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n84",
-          "claimedAt": "2026-11-24T16:04:35.705Z",
-          "heartbeatAt": "2026-11-24T16:30:27.050Z",
-          "expiresAt": "2026-11-24T17:00:27.050Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during long integration session; reviewed WIP, previous coordinator stopped.",
         "nextAction": "Native read ports for commerce-facts order reservations/lot balance (-2) and transit lookups (-5) with registry + parity tests; no mount change. BEFORE=314.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n84",
+          "at": "2026-11-24T17:08:29.681Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during long integration session; reviewed WIP, previous coordinator stopped.",
+          "nextAction": "Native read ports for commerce-facts order reservations/lot balance (-2) and transit lookups (-5) with registry + parity tests; no mount change. BEFORE=314."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -184158,7 +184158,7 @@
         "owner": "commerce",
         "title": "commerce settings read kinds",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -184169,22 +184169,22 @@
         "resources": [
           "owner:commerce"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n97",
-          "claimedAt": "2026-11-24T16:14:34.459Z",
-          "heartbeatAt": "2026-11-24T16:30:27.050Z",
-          "expiresAt": "2026-11-24T17:00:27.050Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during long integration session; reviewed WIP, previous coordinator stopped.",
         "nextAction": "Add 3 commerce_rd settings kinds (6->9) and delegate settings-dedupe-sql.ts literals (-3): 457->454. BEFORE=457.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n97",
+          "at": "2026-11-24T17:08:29.681Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during long integration session; reviewed WIP, previous coordinator stopped.",
+          "nextAction": "Add 3 commerce_rd settings kinds (6->9) and delegate settings-dedupe-sql.ts literals (-3): 457->454. BEFORE=457."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -184348,17 +184348,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 2,
+        "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1455,
+        "blocked": 1457,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:45:08.295Z",
+    "lastCoordinatorGeneration": 171,
+    "updatedAt": "2026-11-24T17:08:29.851Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -184393,10 +184393,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261124-c",
-      "runId": "run-20261124-d",
-      "at": "2026-11-24T15:07:42.844Z",
-      "reason": "lease expired; same operator resumes with reviewed WIP",
+      "previousRunId": "run-20261124-d",
+      "runId": "run-20261125-a",
+      "at": "2026-11-24T17:08:29.682Z",
+      "reason": "Lease expired during long integration session; reviewed WIP, previous coordinator stopped.",
       "wipReviewed": true,
       "previousRunStopped": true
     },
