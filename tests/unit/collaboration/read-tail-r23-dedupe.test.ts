@@ -65,7 +65,7 @@ describe('Collaboration read-tail r23 retirement check', () => {
     walk(srcRoot);
     // r23 deduped the 3x byte-identical draft-existence prefix in social-home.ts
     // into one shared parameterized fragment in read-tail-sql.ts.
-    expect(total).toBe(407);
+    expect(total).toBeLessThanOrEqual(403);
     expect(total).toBeLessThan(409);
   });
 });

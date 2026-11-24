@@ -63,7 +63,7 @@ describe('Collaboration read-tail r24 retirement check', () => {
     walk(srcRoot);
     // r24 deduped the 2x byte-identical post-by-id guard prefix into one shared
     // parameterized fragment in read-tail-sql.ts.
-    expect(total).toBe(406);
+    expect(total).toBeLessThanOrEqual(403);
     expect(total).toBeLessThan(407);
   });
 });

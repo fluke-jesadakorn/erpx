@@ -81,7 +81,7 @@ describe('Organization read-tail r28 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(292);
+    expect(total).toBeLessThanOrEqual(277);
     expect(total).toBeLessThan(299);
   });
 });

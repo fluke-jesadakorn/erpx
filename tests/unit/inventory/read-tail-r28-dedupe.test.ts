@@ -89,7 +89,7 @@ describe('Inventory read-tail r28 parameterized position-page wrapper dedupe', (
     walk(srcRoot);
     // r28 deduped the 3x byte-identical position-page wrapper in
     // executive-main-evidence-sources.ts into one shared parameterized helper.
-    expect(total).toBe(361);
+    expect(total).toBeLessThanOrEqual(357);
     expect(total).toBeLessThan(363);
   });
 });

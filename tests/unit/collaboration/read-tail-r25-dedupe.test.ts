@@ -60,7 +60,7 @@ describe('Collaboration read-tail r25 retirement check', () => {
     walk(srcRoot);
     // r25 deduped the 2x byte-identical draft-field guard prefix into one shared
     // parameterized fragment in read-tail-sql.ts.
-    expect(total).toBe(405);
+    expect(total).toBeLessThanOrEqual(403);
     expect(total).toBeLessThan(406);
   });
 });

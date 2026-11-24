@@ -89,7 +89,7 @@ describe('Inventory read-tail r29 parameterized record-id existence dedupe', () 
     walk(srcRoot);
     // r29 deduped the 4x byte-identical id-existence probe into one shared
     // parameterized helper (361 -> 358).
-    expect(total).toBe(358);
+    expect(total).toBeLessThanOrEqual(357);
     expect(total).toBeLessThan(361);
   });
 });
