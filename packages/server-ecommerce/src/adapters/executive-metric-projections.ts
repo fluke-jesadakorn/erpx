@@ -12,12 +12,14 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     const spec = specs[id], scopedAlias = (alias: string) => `${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?)`, scopeArgs = [a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId];
     let sql = '', values: unknown[] = [];
     const referenceAtOverride: number | null = null;
+    const countBy = (label: string, relation: string, extra: string) =>
+        `SELECT ${label} label,count(*)::text value FROM ${relation} WHERE ${scopedAlias("c")} AND ${extra} GROUP BY 1 ORDER BY 1`;
     if (id === "open-ecommerce-carts") {
         const label = breakdown === "status" ? "c.status"
             : breakdown === "branch" ? branchNameLabel
                 : breakdown === "department" ? departmentNameLabel
                     : "to_char(to_timestamp(c.created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')";
-        sql = `SELECT ${label} label,count(*)::text value FROM ecommerce_carts c WHERE ${scopedAlias("c")} AND c.status='open' GROUP BY 1 ORDER BY 1`;
+        sql = countBy(label, "ecommerce_carts c", "c.status='open'");
         values = scopeArgs;
     }
     if (id === "completed-ecommerce-checkouts") {
@@ -25,7 +27,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
             : breakdown === "branch" ? branchNameLabel
                 : breakdown === "department" ? departmentNameLabel
                     : "to_char(to_timestamp(x.created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')";
-        sql = `SELECT ${label} label,count(*)::text value FROM ecommerce_checkouts x JOIN ecommerce_carts c ON c.id=x.cart_id WHERE ${scopedAlias("c")} AND x.status IN ('confirmed','partially_fulfilled','fulfilled') AND x.created_at>=? AND x.created_at<? GROUP BY 1 ORDER BY 1`;
+        sql = countBy(label, "ecommerce_checkouts x JOIN ecommerce_carts c ON c.id=x.cart_id", "x.status IN ('confirmed','partially_fulfilled','fulfilled') AND x.created_at>=? AND x.created_at<?");
         values = [...scopeArgs, Date.parse(f.from), Date.parse(f.to) + 86400000];
     }
     if (["ecommerce-return-links", "ecommerce-fulfillment-links"].includes(id)) {
@@ -38,7 +40,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
             ? "ecommerce_return_links r JOIN ecommerce_checkouts x ON x.id=r.checkout_id JOIN ecommerce_carts c ON c.id=x.cart_id"
             : "ecommerce_fulfillment_links l JOIN ecommerce_checkouts x ON x.id=l.checkout_id JOIN ecommerce_carts c ON c.id=x.cart_id";
         const alias = returns ? "r" : "l";
-        sql = `SELECT ${label} label,count(*)::text value FROM ${relation} WHERE ${scopedAlias("c")} AND ${alias}.created_at>=? AND ${alias}.created_at<? GROUP BY 1 ORDER BY 1`;
+        sql = countBy(label, relation, `${alias}.created_at>=? AND ${alias}.created_at<?`);
         values = [...scopeArgs, Date.parse(f.from), Date.parse(f.to) + 86400000];
     }
     const raw = (await sourceDb.prepare(sql).bind(...values).all<RawMetricRow>()).results;
