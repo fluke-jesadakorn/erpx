@@ -2,6 +2,7 @@ import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {commerceQualityAttachmentReadSourceLocks,commerceQualityAttachmentReadSourceRows} from '@erpx/server-commerce/public/quality-attachment-read-sources';
 import {qualityPurchaseSourceRows} from '@erpx/server-quality/adapters/purchase-sources';
+import {qualityChildAggSql} from './quality-child-agg-sql';
 
 export function isQualityAttachmentReadTarget(target:string){return target==='quality_hold'||target==='inventory_quality_hold'||target==='inventory_quality_spec';}
 export function qualityAttachmentReadSourceLocks(database:SqlDatabase){return [
@@ -16,11 +17,11 @@ export function qualityAttachmentReadSourceImage(database:SqlDatabase,companyId:
  if(!isQualityAttachmentReadTarget(target))throw new Error('QUALITY_FILE_SOURCE_TARGET_REQUIRED');
  const query=target==='inventory_quality_spec'?`SELECT s.image::text image FROM (${specs}) s WHERE s.id=? AND s.company_id=?`:
  `SELECT jsonb_build_object('hold',to_jsonb(h),'root',to_jsonb(root),'purchase',source.witness,'commerce',origin.image,'specification',spec.image,
- 'inspections',(SELECT jsonb_agg(to_jsonb(i) ORDER BY i.id) FROM inventory_quality_inspections i WHERE i.hold_id=h.id),
+ 'inspections',${qualityChildAggSql('inventory_quality_inspections','i','hold_id','h.id')},
  'measurements',(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.id) FROM inventory_quality_measurements m JOIN inventory_quality_inspections i ON i.id=m.inspection_id WHERE i.hold_id=h.id),
  'inspectionAttachments',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.inspection_id,a.attachment_id) FROM inventory_quality_inspection_attachments a JOIN inventory_quality_inspections i ON i.id=a.inspection_id WHERE i.hold_id=h.id),
- 'cancellations',(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM inventory_quality_cancellations c WHERE c.hold_id=h.id),
- 'dispositions',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM inventory_quality_disposition_events d WHERE d.hold_id=h.id))::text image
+ 'cancellations',${qualityChildAggSql('inventory_quality_cancellations','c','hold_id','h.id')},
+ 'dispositions',${qualityChildAggSql('inventory_quality_disposition_events','d','hold_id','h.id')})::text image
  FROM inventory_quality_holds h LEFT JOIN (${qualityPurchaseSourceRows}) source ON source.id=h.id AND source.company_id=h.company_id
  LEFT JOIN inventory_quality_holds root ON root.id=source.root_id AND root.company_id=h.company_id
  LEFT JOIN (${commerceQualityAttachmentReadSourceRows}) origin ON origin.hold_id=root.id AND origin.company_id=h.company_id

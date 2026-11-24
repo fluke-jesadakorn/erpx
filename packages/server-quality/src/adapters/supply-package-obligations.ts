@@ -6,6 +6,7 @@ import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/se
 import {assertSupplyInventoryPackageObligationSources,supplyInventorySettlementSources as inventory} from "@erpx/server-inventory/public/supply-package-obligations";
 import {qualityPurchaseSourceRows,qualityPurchaseSourceReadLocks} from "@erpx/server-quality/adapters/purchase-sources";
 import {qualityPackageScopeCte} from "@erpx/server-quality/adapters/quality-scope-sql";
+import {qualityChildAggSql} from "./quality-child-agg-sql";
 
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
@@ -28,9 +29,9 @@ export async function supplyQualityPackageObligations(owner:PostgresDatabase,dat
  LEFT JOIN (${qualityPurchaseSourceRows}) source ON source.id=hold.id AND source.company_id=hold.company_id
  WHERE hold.company_id=scope.company_id AND source.kind IS DISTINCT FROM 'customer-return' AND (scope.full OR source.kind IS DISTINCT FROM 'receipt'))
  SELECT 'hold' kind,hold.id,jsonb_build_array(to_jsonb(hold),
- (SELECT jsonb_agg(to_jsonb(inspection) ORDER BY inspection.id) FROM inventory_quality_inspections inspection WHERE inspection.hold_id=hold.id),
- (SELECT jsonb_agg(to_jsonb(event) ORDER BY event.id) FROM inventory_quality_cancellations event WHERE event.hold_id=hold.id),
- (SELECT jsonb_agg(to_jsonb(event) ORDER BY event.id) FROM inventory_quality_disposition_events event WHERE event.hold_id=hold.id)) fact,
+ ${qualityChildAggSql('inventory_quality_inspections','inspection','hold_id','hold.id')},
+ ${qualityChildAggSql('inventory_quality_cancellations','event','hold_id','hold.id')},
+ ${qualityChildAggSql('inventory_quality_disposition_events','event','hold_id','hold.id')}) fact,
  NOT COALESCE((hold.status='released' AND hold.last_result='pass' AND hold.released_at IS NOT NULL AND hold.released_by IS NOT NULL
  AND EXISTS(SELECT 1 FROM inventory_quality_inspections inspection WHERE inspection.hold_id=hold.id AND inspection.result='pass' AND inspection.inspected_by=hold.last_inspector)
  AND EXISTS(SELECT 1 FROM command_receipts receipt WHERE receipt.record_id=hold.id AND receipt.operation='quality.hold.release' AND receipt.actor_id=hold.released_by

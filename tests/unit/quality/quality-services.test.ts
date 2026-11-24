@@ -202,9 +202,33 @@ describe('quality package-obligation scope and clock CTE dedupe',()=>{
   const clockSites=[['packages/server-quality/src/adapters/record-purchases.ts','quality_source_clock'],['packages/server-quality/src/adapters/product-entry.ts','quality_entry_clock'],['packages/server-quality/src/adapters/calendar-quality-facts.ts','quality_calendar_clock']] as const;
   for(const [path,name] of clockSites){const text=readFileSync(source(path),'utf8');expect(text).toContain(`qualityClockCte("${name}")`);expect(text).not.toContain(`WITH ${name} AS MATERIALIZED (SELECT`);}
  });
- test('the owner TS statement KPI stays strictly below 108',()=>{
+ test('the owner TS statement KPI stays strictly below 105',()=>{
   const count=files(source('packages/server-quality/src')).reduce((total,path)=>total+(readFileSync(path,'utf8').match(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)?.length??0),0);
-  expect(count).toBeLessThan(108);
-  expect(count).toBe(105);
+  expect(count).toBeLessThan(105);
+  expect(count).toBe(100);
+ });
+});
+describe('quality hold child aggregate dedupe',()=>{
+ const source=(path:string)=>resolve(process.cwd(),path);
+ test('one parameterized helper reproduces the six hold-keyed child aggregates byte-for-byte',async()=>{
+  const {qualityChildAggSql}=await import('../../../packages/server-quality/src/adapters/quality-child-agg-sql');
+  const cases=[
+   ['inventory_quality_inspections','i','hold_id','h.id'],
+   ['inventory_quality_cancellations','c','hold_id','h.id'],
+   ['inventory_quality_disposition_events','d','hold_id','h.id'],
+   ['inventory_quality_inspections','inspection','hold_id','hold.id'],
+   ['inventory_quality_cancellations','event','hold_id','hold.id'],
+   ['inventory_quality_disposition_events','event','hold_id','hold.id'],
+  ] as const;
+  for(const [table,alias,key,parent] of cases){
+   const sql=qualityChildAggSql(table,alias,key,parent);
+   expect(sql).toBe(`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${table} ${alias} WHERE ${alias}.${key}=${parent})`);
+   expect(sql.match(/SELECT /g)).toHaveLength(1);
+  }
+  for(const path of ['packages/server-quality/src/adapters/attachment-read-sources.ts','packages/server-quality/src/adapters/supply-package-obligations.ts']){
+   const text=readFileSync(source(path),'utf8');
+   expect(text).toContain('qualityChildAggSql(');
+   expect(text).not.toMatch(/jsonb_agg\(to_jsonb\((i|c|d|inspection|event)\) ORDER BY \1\.id\) FROM inventory_quality_/);
+  }
  });
 });
