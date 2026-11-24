@@ -44,16 +44,20 @@ describe('crm read-tail r34 byte-identical owned-source row-head family', () => 
     expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
 
     const p = src('purchases.ts'), rp = src('record-purchases.ts');
-    expect(p.match(/crmOwnedSourceRowSql\(/g)).toHaveLength(3);
+    expect(p.match(/crmOwnedSourceRowSql\(/g)).toHaveLength(5);
     expect(rp.match(/crmOwnedSourceRowSql\(/g)).toHaveLength(1);
     expect(p).toContain("crmOwnedSourceRowSql('witness::text witness',crmPurchaseOpportunityRows,'opportunity')");
     expect(p).toContain("crmOwnedSourceRowSql('id,company_id,branch_id,department_id,witness::text witness',sourceRows[target.kind],'actual',` AND ${scoped}`)");
     expect(p).toContain("crmOwnedSourceRowSql('id',rows,'actual',` AND (?::text IS NULL OR branch_id=?) ${kind===\"reservation\"?\"\":\"AND kind=? AND (?::text IS NULL OR department_id=?)\"}`)");
+    expect(p).toContain("crmOwnedSourceRowSql('1',source,alias,tail)");
+    expect(p).toContain("crmOwnedSourceRowSql('*',crmMarketingCandidateSources,'candidate')");
     expect(rp).toContain("crmOwnedSourceRowSql('kind,target_id',recordRows,'actual')");
 
     expect(p).not.toContain('`SELECT witness::text witness FROM (${crmPurchaseOpportunityRows})');
     expect(p).not.toContain('`SELECT id,company_id,branch_id,department_id,witness::text witness FROM (');
     expect(p).not.toContain('`SELECT id FROM (${rows})');
+    expect(p).not.toContain('`SELECT 1 FROM (${source})');
+    expect(p).not.toContain('`SELECT * FROM (${crmMarketingCandidateSources})');
     expect(rp).not.toContain('`SELECT kind,target_id FROM (${recordRows})');
   });
 
@@ -90,7 +94,7 @@ describe('crm read-tail r34 byte-identical owned-source row-head family', () => 
   });
 
   test('retirement:ts-statements stays strictly below the recorded BEFORE=119', () => {
-    expect(totalSelects()).toBe(110);
+    expect(totalSelects()).toBe(104);
     expect(totalSelects()).toBeLessThan(114);
   });
 });

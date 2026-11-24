@@ -26,8 +26,10 @@ import {crmCreatorLeadScopeSql} from "./read-tail-r24-sql";
 import {crmPurchaseRowProjection} from "./read-tail-r25-sql";
 import {crmCaseEventReadSql,crmOpportunityProbeSql} from "./read-tail-r28-sql";
 import {crmLeadEligibleOwnerSql} from "./read-tail-r29-sql";
+import {crmCurrentScopeAllowedSql} from "./read-tail-r30-sql";
 import {crmOwnedSourceRowSql} from "./read-tail-r34-sql";
 import {crmAssignmentModuleExistsSql} from "./read-tail-r35-sql";
+import {crmSalesOpportunitySql} from "./read-tail-r37-sql";
 
 export type CRMPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type CRMPurchaseTarget={kind:"lead"|"activity"|"account"|"contact"|"guest-link";id:string};
@@ -42,7 +44,7 @@ export const actorScopeSql=`(SELECT ?::text company_id,?::text branch_id,?::text
 /** r16: one parameterized read for the assignment-authorization guard shared by
  * the CRM command-authority check and the cross-owner reference check. Callers
  * pass only their scope alias and permission; rendered text stays byte-identical. */
-const crmAssignmentAllowedSql=(alias:string,permission:string)=>`SELECT ${assignmentReadSql(alias,permission)} allowed FROM ${actorScopeSql} ${alias}`;
+const crmAssignmentAllowedSql=(alias:string,permission:string)=>crmCurrentScopeAllowedSql(assignmentReadSql(alias,permission),actorScopeSql,alias);
 /** r22: one renderer for the assignment-scoped EXISTS guard shared by the
  * analytics option/cost reads and the CRM record read scope. Callers pass only
  * the inner scope projection, the scope alias and the permission; rendered
@@ -52,9 +54,9 @@ export const crmAssignmentScopeExistsSql=(columns:string,alias:string,permission
  * and form-candidate reference checks. Callers pass only the owned source, its
  * alias and any scope tail; rendered text stays byte-identical to the retired
  * inline literals. */
-const crmSourceExistsSql=(source:string,alias:string,tail='')=>`SELECT 1 FROM (${source}) ${alias} WHERE id=? AND company_id=?${tail}`;
-export const crmMarketingCandidateRows=`SELECT * FROM (${crmMarketingCandidateSources}) candidate WHERE id=? AND company_id=?`;
-export const crmLeadActivityExists=`SELECT 1 FROM crm_lead_activities c JOIN crm_leads l ON l.id=c.lead_id AND l.company_id=c.company_id WHERE c.id=`;
+const crmSourceExistsSql=(source:string,alias:string,tail='')=>crmOwnedSourceRowSql('1',source,alias,tail);
+export const crmMarketingCandidateRows=crmOwnedSourceRowSql('*',crmMarketingCandidateSources,'candidate');
+export const crmLeadActivityExists=crmSalesOpportunitySql('1','crm_lead_activities c JOIN crm_leads l ON l.id=c.lead_id AND l.company_id=c.company_id','c.id=');
 export const crmAssignmentModuleExists=crmAssignmentModuleExistsSql('selected','');
 export const crmLeadVersionProjection=`SELECT v.id,v.lead_id,l.title,l.status lead_status,l.version lead_version,`;
 export const crmObligationScopeSql=`WITH scope AS(SELECT ?::text company_id),`;
@@ -80,11 +82,11 @@ export const crmPurchaseOpportunityRows=`${crmPurchaseRowProjection('lead','lead
  LEFT JOIN (${crmCommerceOrderSources}) sale ON sale.id=opportunity.sales_id AND sale.company_id=lead.company_id AND sale.branch_id=lead.branch_id AND sale.department_id IS NOT DISTINCT FROM lead.department_id AND sale.party_id=customer.id AND sale.currency=opportunity.currency AND sale.kind='sales' AND sale.source_id=quote.id
  LEFT JOIN (${crmHotelReservationSources}) reservation ON reservation.id=opportunity.reservation_id AND reservation.company_id=lead.company_id AND reservation.branch_id=lead.branch_id AND EXISTS(SELECT 1 FROM crm_guest_links guest_link WHERE guest_link.contact_id=native.contact_id AND guest_link.company_id=lead.company_id AND guest_link.guest_id=reservation.guest_id AND guest_link.property_id=reservation.property_id)
  WHERE (opportunity.quote_id IS NULL OR quote.id IS NOT NULL) AND (opportunity.sales_id IS NULL OR sale.id IS NOT NULL) AND (opportunity.reservation_id IS NULL OR reservation.id IS NOT NULL)`;
-export const crmOpportunityExistsSql=`SELECT 1 FROM (${crmPurchaseOpportunityRows}) opportunity WHERE `;
+export const crmOpportunityExistsSql=crmSalesOpportunitySql('1',`(${crmPurchaseOpportunityRows}) opportunity`,'');
 /** r14: one owner literal for the retained-customer opportunity lead probe.
  * The record-scope and Sales-obligation fact sites pass only their differing
  * tails; rendered SQL stays byte-identical to the pre-dedupe text. */
-export const crmOpportunityLeadSql=`SELECT 1 FROM crm_opportunities opportunity WHERE opportunity.lead_id=`;
+export const crmOpportunityLeadSql=crmSalesOpportunitySql('1','crm_opportunities opportunity','opportunity.lead_id=');
 /** r14: one owner literal for the fixed Hotel reservation probe prefix. The
  * Marketing/Sales obligation joins and the reference guard pass their own
  * tails; rendered SQL stays byte-identical to the pre-dedupe text. */

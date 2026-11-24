@@ -4,6 +4,9 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { crmCreatorLeadScopeSql } from '../../../packages/server-crm/src/adapters/read-tail-r24-sql';
+import { crmCurrentScopeAllowedSql } from '../../../packages/server-crm/src/adapters/read-tail-r30-sql';
+import { crmOwnedSourceRowSql } from '../../../packages/server-crm/src/adapters/read-tail-r34-sql';
+import { crmSalesOpportunitySql } from '../../../packages/server-crm/src/adapters/read-tail-r37-sql';
 
 const purchasesUrl = new URL('../../../packages/server-crm/src/adapters/purchases.ts', import.meta.url);
 const adapter = (name: string) => new URL(`../../../packages/server-crm/src/adapters/${name}`, import.meta.url);
@@ -52,18 +55,16 @@ describe('crm purchase opportunity witness read family', () => {
 
   it('keeps one marketing candidate row prefix shared by the handoff read and recheck', async () => {
     const src = await readFile(purchasesUrl, 'utf8');
-    const literal = '`SELECT * FROM (${crmMarketingCandidateSources}) candidate WHERE id=? AND company_id=?`';
-    expect(src.split(literal).length - 1).toBe(1);
-    expect(src).toContain('export const crmMarketingCandidateRows=' + literal);
+    expect(crmOwnedSourceRowSql('*', 'CANDIDATE_SOURCES', 'candidate')).toBe('SELECT * FROM (CANDIDATE_SOURCES) candidate WHERE id=? AND company_id=?');
+    expect(src).toContain("export const crmMarketingCandidateRows=crmOwnedSourceRowSql('*',crmMarketingCandidateSources,'candidate');");
     expect(src.match(/(?:prepare\(crmMarketingCandidateRows\)|\$\{crmMarketingCandidateRows\})/g)).toHaveLength(2);
   });
 
   it('keeps one lead-activity existence probe shared by the purchase and work families', async () => {
     const purchases = await readFile(purchasesUrl, 'utf8');
     const record = await readFile(adapter('record-purchases.ts'), 'utf8');
-    const literal = '`SELECT 1 FROM crm_lead_activities c JOIN crm_leads l ON l.id=c.lead_id AND l.company_id=c.company_id WHERE c.id=`';
-    expect(purchases.split(literal).length - 1).toBe(1);
-    expect(purchases).toContain('export const crmLeadActivityExists=' + literal);
+    expect(crmSalesOpportunitySql('1', 'crm_lead_activities c JOIN crm_leads l ON l.id=c.lead_id AND l.company_id=c.company_id', 'c.id=')).toBe('SELECT 1 FROM crm_lead_activities c JOIN crm_leads l ON l.id=c.lead_id AND l.company_id=c.company_id WHERE c.id=');
+    expect(purchases).toContain("export const crmLeadActivityExists=crmSalesOpportunitySql('1','crm_lead_activities c JOIN crm_leads l ON l.id=c.lead_id AND l.company_id=c.company_id','c.id=');");
     expect(purchases.match(/\$\{crmLeadActivityExists\}/g)).toHaveLength(1);
     expect(record).not.toMatch(/SELECT 1 FROM crm_lead_activities c JOIN crm_leads l/);
     expect(record.match(/\$\{crmLeadActivityExists\}/g)).toHaveLength(1);
@@ -109,14 +110,15 @@ describe('crm purchase opportunity witness read family', () => {
     const opportunity = 'SELECT 1 FROM (${crmPurchaseOpportunityRows}) opportunity WHERE ';
     expect(purchases.split('export const crmClockCteSql=`' + clock + '`;').length - 1).toBe(1);
     expect(purchases.split('export const crmObligationScopeSql=`' + scope + '`;').length - 1).toBe(1);
-    expect(purchases.split('export const crmOpportunityExistsSql=`' + opportunity + '`;').length - 1).toBe(1);
+    expect(crmSalesOpportunitySql('1', '(OPPORTUNITY_ROWS) opportunity', '')).toBe('SELECT 1 FROM (OPPORTUNITY_ROWS) opportunity WHERE ');
+    expect(purchases).toContain("export const crmOpportunityExistsSql=crmSalesOpportunitySql('1',`(${crmPurchaseOpportunityRows}) opportunity`,'');");
     expect(analytics).not.toContain(clock);
     expect(record).not.toContain(clock);
     expect(record).not.toContain(opportunity);
     expect(marketing).not.toContain(scope);
     expect(sales).not.toContain(scope);
     expect(analytics.match(/\$\{crmClockCteSql\}/g)).toHaveLength(1);
-    expect(record.match(/\$\{crmClockCteSql\}/g)).toHaveLength(2);
+    expect(record.match(/,crmClockCteSql,(?:recordRows|validLeads)/g)).toHaveLength(2);
     expect(record.match(/\$\{crmOpportunityExistsSql\}/g)).toHaveLength(1);
     expect(purchases.match(/\$\{crmOpportunityExistsSql\}/g)).toHaveLength(1);
     expect(marketing.match(/\$\{crmObligationScopeSql\}/g)).toHaveLength(1);
@@ -180,8 +182,9 @@ describe('crm read-tail r14 parameterized families', () => {
 
   it('owns the opportunity lead probe once and renders both fact sites byte-identically', () => {
     const purchases = src('purchases.ts'), record = src('record-purchases.ts'), sales = src('sales-package-obligations.ts');
-    const prefix = bodyOf(purchases, 'export const crmOpportunityLeadSql=');
+    const prefix = crmSalesOpportunitySql('1', 'crm_opportunities opportunity', 'opportunity.lead_id=');
     expect(prefix).toBe('SELECT 1 FROM crm_opportunities opportunity WHERE opportunity.lead_id=');
+    expect(purchases).toContain("export const crmOpportunityLeadSql=crmSalesOpportunitySql('1','crm_opportunities opportunity','opportunity.lead_id=');");
     expect(purchases.match(/export const crmOpportunityLeadSql=/g)).toHaveLength(1);
     expect(record.match(/\$\{crmOpportunityLeadSql\}/g)).toHaveLength(1);
     expect(sales.match(/\$\{crmOpportunityLeadSql\}/g)).toHaveLength(1);
@@ -288,7 +291,8 @@ describe('crm read-tail r16 parameterized families', () => {
     // The single shared builder parameterizes only the alias and permission;
     // every other token is fixed, so both sites render their original text.
     const line = purchases.split('\n').find(value => value.includes('const crmAssignmentAllowedSql=')) ?? '';
-    expect(line).toBe("const crmAssignmentAllowedSql=(alias:string,permission:string)=>`SELECT ${assignmentReadSql(alias,permission)} allowed FROM ${actorScopeSql} ${alias}`;");
+    expect(line).toBe("const crmAssignmentAllowedSql=(alias:string,permission:string)=>crmCurrentScopeAllowedSql(assignmentReadSql(alias,permission),actorScopeSql,alias);");
+    expect(crmCurrentScopeAllowedSql('ASSIGN', '(SCOPE)', 'crm_scope')).toBe('SELECT ASSIGN allowed FROM (SCOPE) crm_scope');
   });
 
   it('keeps the owner SELECT KPI strictly below the r16 BEFORE=166 baseline', () => {
@@ -331,7 +335,7 @@ describe('crm read-tail r18 parameterized families', () => {
     // r8-r17 helpers stay in place.
     expect(record).toContain('${crmOpportunityLeadSql}');
     expect(record).toContain('${crmOpportunityExistsSql}');
-    expect(record).toContain('${crmClockCteSql}');
+    expect(record).toContain(',crmClockCteSql,');
   });
 
   it('keeps the owner SELECT KPI strictly below the r18 BEFORE=163 baseline', () => {
@@ -386,7 +390,7 @@ describe('crm read-tail r19 parameterized projection families', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r18 AFTER=158 baseline', () => {
-    expect(totalSelects()).toBeLessThanOrEqual(130);
+    expect(totalSelects()).toBeLessThanOrEqual(104);
     expect(totalSelects()).toBeLessThan(158);
   });
 });
@@ -432,7 +436,7 @@ describe('crm read-tail r20 parameterized history families', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r19 AFTER=153 baseline', () => {
-    expect(totalSelects()).toBeLessThanOrEqual(130);
+    expect(totalSelects()).toBeLessThanOrEqual(104);
     expect(totalSelects()).toBeLessThan(153);
   });
 });
@@ -478,7 +482,7 @@ describe('crm read-tail r21 parameterized branch option family', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r20 BEFORE=151 baseline', () => {
-    expect(totalSelects()).toBeLessThanOrEqual(130);
+    expect(totalSelects()).toBeLessThanOrEqual(104);
     expect(totalSelects()).toBeLessThan(151);
   });
 });
@@ -536,7 +540,7 @@ describe('crm read-tail r22 assignment-scope EXISTS family', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r21 BEFORE=150 baseline', () => {
-    expect(totalSelects()).toBeLessThanOrEqual(130);
+    expect(totalSelects()).toBeLessThanOrEqual(104);
     expect(totalSelects()).toBeLessThan(150);
   });
 });
@@ -555,14 +559,9 @@ describe('crm read-tail r23 reference-existence and account-scope families', () 
 
   it('renders both reference-existence probes byte-identically from one parameterized helper', () => {
     const purchases = src('purchases.ts');
-    const line = purchases.split('\n').find(value => value.includes('const crmSourceExistsSql=')) ?? '';
-    const body = line.slice(line.indexOf('`') + 1, line.lastIndexOf('`'));
-    const render = (source: string, alias: string, tail: string) => body
-      .replace('${source}', source)
-      .replace('${alias}', alias)
-      .replace('${tail}', tail);
-    expect(render('crmMarketingCampaignSources', 'campaign', '')).toBe('SELECT 1 FROM (crmMarketingCampaignSources) campaign WHERE id=? AND company_id=?');
-    expect(render('crmMarketingCandidateSources', 'candidate', ' AND branch_id=? AND (?::text IS NULL OR department_id=?)')).toBe('SELECT 1 FROM (crmMarketingCandidateSources) candidate WHERE id=? AND company_id=? AND branch_id=? AND (?::text IS NULL OR department_id=?)');
+    expect(crmOwnedSourceRowSql('1', 'CAMPAIGN_SOURCES', 'campaign')).toBe('SELECT 1 FROM (CAMPAIGN_SOURCES) campaign WHERE id=? AND company_id=?');
+    expect(crmOwnedSourceRowSql('1', 'CANDIDATE_SOURCES', 'candidate', ' AND branch_id=? AND (?::text IS NULL OR department_id=?)')).toBe('SELECT 1 FROM (CANDIDATE_SOURCES) candidate WHERE id=? AND company_id=? AND branch_id=? AND (?::text IS NULL OR department_id=?)');
+    expect(purchases).toContain("const crmSourceExistsSql=(source:string,alias:string,tail='')=>crmOwnedSourceRowSql('1',source,alias,tail);");
     expect(purchases.match(/const crmSourceExistsSql=/g)).toHaveLength(1);
   });
 
@@ -580,7 +579,7 @@ describe('crm read-tail r23 reference-existence and account-scope families', () 
   });
 
   it('keeps the owner SELECT KPI strictly below the r22 BEFORE=146 baseline', () => {
-    expect(totalSelects()).toBeLessThanOrEqual(130);
+    expect(totalSelects()).toBeLessThanOrEqual(104);
     expect(totalSelects()).toBeLessThan(146);
   });
 });
@@ -638,7 +637,7 @@ describe('crm read-tail r24 creator EXISTS lead-scope family', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r24 BEFORE=144 baseline', () => {
-    expect(totalSelects()).toBeLessThanOrEqual(130);
+    expect(totalSelects()).toBeLessThanOrEqual(104);
     expect(totalSelects()).toBeLessThan(144);
   });
 });

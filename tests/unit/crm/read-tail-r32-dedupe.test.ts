@@ -55,7 +55,7 @@ describe('crm read-tail r32 byte-identical commerce-order read-head family', () 
 
   test('leaves locks, command receipts, native kinds and r8-r31 helpers untouched', () => {
     const purchases = src('purchases.ts'), analytics = src('analytics.ts'), ledger = src('leads.ts');
-    expect(purchases).toContain('const crmAssignmentAllowedSql=(alias:string,permission:string)=>`SELECT ${assignmentReadSql(alias,permission)} allowed FROM ${actorScopeSql} ${alias}`;');
+    expect(purchases).toContain('const crmAssignmentAllowedSql=(alias:string,permission:string)=>crmCurrentScopeAllowedSql(assignmentReadSql(alias,permission),actorScopeSql,alias);');
     expect(purchases).toContain('LOCK TABLE crm_accounts,crm_contacts,crm_guest_links,crm_guest_sharing_events,crm_leads,crm_opportunities,crm_case_events,crm_lead_activities,crm_lead_activity_events IN SHARE ROW EXCLUSIVE MODE');
     expect(purchases).toContain('SELECT 1 FROM command_receipts WHERE command_id=?');
     expect(purchases).toContain("SELECT (jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array('marketing'::text)) allowed FROM assignments WHERE id=?");
@@ -75,7 +75,7 @@ describe('crm read-tail r32 byte-identical commerce-order read-head family', () 
   });
 
   test('retirement:ts-statements stays strictly below the recorded BEFORE=122', () => {
-    expect(totalSelects()).toBe(120);
+    expect(totalSelects()).toBe(104);
     expect(totalSelects()).toBeLessThan(122);
   });
 });
