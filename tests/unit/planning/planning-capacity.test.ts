@@ -1,4 +1,6 @@
-import { expect, it } from "vitest";
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
+import { describe, expect, it } from "vitest";
 import { createCapacityPlanner, type CapacityRepository } from "@erpx/server-planning/application/capacity";
 import type { CapacityOperation } from "@erpx/server-planning/domain/capacity";
 
@@ -27,4 +29,26 @@ it("rejects stale resource eligibility and unavailable capacity; an unconfigured
   await expect(planner([operation({ branch_id: "foreign" })])("company", input)).rejects.toThrow("PLANNING_RESOURCE_CHANGED");
   await expect(planner([operation({ daily_minutes: 0 })])("company", input)).rejects.toThrow("PLANNING_CAPACITY_UNAVAILABLE");
   await expect(planner([])("company", input)).resolves.toBeNull();
+});
+
+describe("planning metric branch-label dedupe", () => {
+  const source = (path: string) => resolve(process.cwd(), path);
+  it("one fixed Organization node label fragment guards both metric breakdowns", async () => {
+    const { planningBranchDisplayLabelSql, readExecutiveMetricProjection } = await import("@erpx/server-planning/adapters/executive-metric-projections");
+    expect(typeof readExecutiveMetricProjection).toBe("function");
+    expect(planningBranchDisplayLabelSql.match(/SELECT n\.display_name/g)).toHaveLength(1);
+    expect(planningBranchDisplayLabelSql).toContain("organization_nodes");
+    const text = readFileSync(source("packages/server-planning/src/adapters/executive-metric-projections.ts"), "utf8");
+    expect(text.match(/SELECT n\.display_name/g) ?? []).toHaveLength(1);
+    expect(text.match(/planningBranchDisplayLabelSql/g) ?? []).toHaveLength(3);
+    const sql: string[] = [];
+    const db = { prepare(statement: string) { sql.push(statement); return { bind() { return { all: () => ({ results: [] }) }; } }; } };
+    const actor = { companyId: "company", branchId: "branch" } as never;
+    const filters = { from: "2026-01-01", to: "2026-01-31" } as never;
+    await readExecutiveMetricProjection(db as never, actor, "planning-shortage-scenarios", filters, "branch");
+    await readExecutiveMetricProjection(db as never, actor, "proposed-planning-recommendations", filters, "branch");
+    const labeled = sql.filter(statement => statement.includes(planningBranchDisplayLabelSql));
+    expect(labeled).toHaveLength(2);
+    for (const statement of labeled) expect(statement.match(/SELECT n\.display_name/g)).toHaveLength(1);
+  });
 });
