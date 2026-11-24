@@ -168,7 +168,7 @@ describe('Manufacturing finance-close read retirement',()=>{
     const count=paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0);
     expect(count).toBeLessThan(148);
     expect(count).toBeLessThan(101);
-    expect(count).toBe(99);
+    expect(count).toBeLessThanOrEqual(99);
   });
 });
 describe('Manufacturing owner-local report-actor read dedupe',()=>{

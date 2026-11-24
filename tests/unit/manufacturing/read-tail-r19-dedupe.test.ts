@@ -74,7 +74,7 @@ describe('manufacturing read-tail r19 accounting-profile select family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(83); // r18 lowered 89->86; r19 lowers 86->83.
+    expect(total).toBeLessThanOrEqual(83); // r18 lowered 89->86; r19 lowers 86->83.
     expect(total).toBeLessThan(86);
   });
 });

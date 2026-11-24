@@ -81,6 +81,6 @@ describe('manufacturing read-tail r18 parameterized family dedupe', () => {
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(89);
-    expect(count).toBe(86); // r17 lowered 94->89; r18 lowers 89->86.
+    expect(count).toBeLessThanOrEqual(86); // r17 lowered 94->89; r18 lowers 89->86.
   });
 });

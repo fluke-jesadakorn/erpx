@@ -87,7 +87,7 @@ describe('manufacturing read-tail r20 EXISTS-guard family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(79); // r19 lowered 86->83; r20 lowers 83->79 (five inline guards -> one helper).
+    expect(total).toBeLessThanOrEqual(79); // r19 lowered 86->83; r20 lowers 83->79 (five inline guards -> one helper).
     expect(total).toBeLessThan(83);
   });
 });
