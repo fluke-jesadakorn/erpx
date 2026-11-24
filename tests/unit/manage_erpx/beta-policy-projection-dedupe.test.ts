@@ -130,3 +130,32 @@ describe('manage_erpx document page storage-limit projection dedupe', () => {
     expect(documentPageStorageLimitSql).toBe(OLD_DOCUMENT_PAGE_STORAGE_LIMIT);
   });
 });
+
+describe('manage_erpx beta_policy point-read parameterized family', () => {
+  it('emits byte-identical point-read SQL for every admitted projection', async () => {
+    const { betaPolicyPointSql } = await import(
+      '../../../packages/server-manage_erpx/src/adapters/beta-policy-point-sql'
+    );
+    expect(betaPolicyPointSql('*')).toBe('SELECT * FROM beta_policy WHERE company_id=?');
+    expect(betaPolicyPointSql('member_limit')).toBe(
+      'SELECT member_limit FROM beta_policy WHERE company_id=?',
+    );
+    expect(betaPolicyPointSql('branch_limit')).toBe(
+      'SELECT branch_limit FROM beta_policy WHERE company_id=?',
+    );
+  });
+
+  it('keeps one point-read declaration and reuses it at every owner call site', async () => {
+    const helper = await readFile(adapter('beta-policy-point-sql.ts'), 'utf8');
+    expect(
+      helper.match(/SELECT \$\{projection\} FROM beta_policy WHERE company_id=\?/g),
+    ).toHaveLength(1);
+    for (const file of ['beta-api.ts', 'beta-team.ts']) {
+      const text = await readFile(adapter(file), 'utf8');
+      expect(text).not.toMatch(
+        /SELECT (?:\*|member_limit|branch_limit) FROM beta_policy WHERE company_id=\?/,
+      );
+      expect(text).toContain('betaPolicyPointSql(');
+    }
+  });
+});

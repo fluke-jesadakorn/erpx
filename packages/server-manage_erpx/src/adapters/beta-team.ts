@@ -23,6 +23,7 @@ import {
 } from "@erpx/server-manage_erpx/adapters/beta-onboarding";
 import { sha256 } from "@erpx/server-runtime/public/crypto";
 import { nativeOwnerWrite, NATIVE_OWNER_WRITE_NOOP_SQL } from "./native-owner-write";
+import { betaPolicyPointSql } from "./beta-policy-point-sql";
 import { nativeWorkflowWrite } from "@erpx/server-workflow/public/native-workflow-evidence";
 
 import type {SqlStatement} from '@erpx/server-runtime/public/runtime/types';
@@ -70,7 +71,7 @@ guardCapacity(key:string,value:"capacity",company_id:string,company_id2:string){
         db,
         key,
         value,
-        `(SELECT count(*) FROM beta_members m ${people.memberCompanySource})<(SELECT member_limit FROM beta_policy WHERE company_id=?)`,
+        `(SELECT count(*) FROM beta_members m ${people.memberCompanySource})<(${betaPolicyPointSql('member_limit')})`,
         [company_id, company_id2],
       );},
 async prepareAcceptedInvitation(id:string,now:number,id2:string){return nativeOwnerWrite('me_beta_invitation_accept',[id,now,id2],`me-invite-accept:${id}`,{now},()=>db.prepare(NATIVE_OWNER_WRITE_NOOP_SQL));},
@@ -84,7 +85,7 @@ guardBranchCapacity(key:string,value:"branch-capacity",companyId:string,companyI
         db,
         key,
         value,
-        `${organization.companyBranchCount}<(SELECT branch_limit FROM beta_policy WHERE company_id=?)`,
+        `${organization.companyBranchCount}<(${betaPolicyPointSql('branch_limit')})`,
         [companyId, companyId2],
       );},...owner0(db),...owner1(db),...owner2(db),...owner3(db),prepareAcceptanceAudit(value:string,key:string,id:string,value2:string,id2:string,now:number){return nativeWorkflowWrite('wf_native_beta_invitation_sources_2',[value,key,id,value2,id2,now]);},async batch(effects){await db.batch(effects);},commit:(...args)=>executeCommand(db,...args),authorityGuard:(...args)=>authorityGuard(db,...args),memberStatements:(...args)=>memberStatements(db,...args),branchStatements:(...args)=>branchStatements(db,...args)};}
 function application(db:SqlDatabase){return createBetaTeamApplication({parseGrant:input=>grantInput.parse(input),repository:repository(db),clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},hash:sha256,requireCompanyAuthority:(...args)=>inward(()=>requireCompanyAuthority(db,...args)),requireFreshMfa:(...args)=>inward(()=>requireFreshMfa(...args)),invitationCommand:(actor,key,operation,input,permission,action)=>inward(()=>iamCommand(db as PostgresDatabase,actor,key,operation,input,permission,c=>action(invitation(db,c))))});}
