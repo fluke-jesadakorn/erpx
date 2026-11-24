@@ -1,4 +1,5 @@
 import {benefitDependentParticipants,benefitElectionParticipants} from "@erpx/server-people_payroll/public/benefits-owner-facts";
+import {benefitOwnerExistsGuard} from "@erpx/server-benefits/adapters/benefits-read-sql";
 import "server-only";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
@@ -33,7 +34,7 @@ function sensitiveAttachmentTargetVersionGuard(
     db,
     commandId,
     `sensitive-attachment-owner-${index}`,
-    `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=?)`,
+    benefitOwnerExistsGuard(table, `company_id=? AND version=?`),
     [targetId, companyId, version],
   );
 }

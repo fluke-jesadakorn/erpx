@@ -38,3 +38,7 @@ export const benefitFactFinalSelect = (pending: string, tail: string) =>
  *  Benefits learning-consumption settlement UNION arms; generated SQL is unchanged. */
 export const benefitLearningFactArm = (kind: string, id: string, version: string, state: string, image: string, tail: string) =>
   `UNION ALL SELECT '${kind}',${id},${version},${state},${image},${tail}`;
+/** Parameterized owner-local existence guard shared by the sensitive-attachment
+ *  version guard and the payroll-source fact guard; generated SQL is unchanged. */
+export const benefitOwnerExistsGuard = (table: string, conditions: string) =>
+  `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND ${conditions})`;
