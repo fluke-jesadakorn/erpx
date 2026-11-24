@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8888,
+    "revision": 8890,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -145754,6 +145754,42 @@
         "nextAction": "Next: remaining parameterized groups; registry untouched. BEFORE=463.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.manufacturing.read-tail-r13",
+        "goalId": "G4",
+        "owner": "manufacturing",
+        "title": "manufacturing TS read tail native cutover (round 13)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-manufacturing/src/**",
+          "tests/unit/manufacturing/**",
+          "tests/integration/manufacturing/**"
+        ],
+        "resources": [
+          "owner:manufacturing"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCDman",
+          "claimedAt": "2026-11-24T03:35:29.757Z",
+          "heartbeatAt": "2026-11-24T03:35:29.757Z",
+          "expiresAt": "2026-11-24T04:05:29.757Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "nextAction": "Next: three EXISTS economics guards in posting-setup-sources.ts line 13. BEFORE=101.",
+        "handoff": null,
+        "scopeRefinementRequired": false,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null
       }
     ],
     "migrationProgress": {
@@ -145762,11 +145798,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1044,
+      "totalPackets": 1045,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 31,
+        "in_progress": 32,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -145776,7 +145812,7 @@
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T03:35:02.138Z",
+    "updatedAt": "2026-11-24T03:35:29.766Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
