@@ -86,9 +86,9 @@ describe('marketing NULL-scope analytics row-frame dedupe (r39)', () => {
     expect(await src('marketing.ts')).toContain('from "./native-marketing-read"');
   });
 
-  it('retirement:ts-statements KPI is 49 (strictly below BEFORE=55)', async () => {
-    // r41 dedupes the company-list, clocked-report and purchase-union heads;
-    // this round only pins the drop below the r40 AFTER=55 baseline.
-    expect(await selectTokens()).toBe(49);
+  it('retirement:ts-statements KPI is 48 (strictly below BEFORE=55)', async () => {
+    // r42 merges the evidence-row tail from two tokens to one; this round
+    // pins the new owner floor after that drop.
+    expect(await selectTokens()).toBe(48);
   });
 });

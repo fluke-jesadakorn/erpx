@@ -209,13 +209,14 @@ describe('Marketing owner-local campaign read tail', () => {
 
     const candidatePredicate = 'SELECT c.id,c.contact_name,c.status,c.form_version,c.version,c.created_at,c.updated_at,c.branch_id,c.department_id,f.name form_name';
     const eventPredicate = 'SELECT e.id,e.candidate_id,e.event_type,e.channel,e.version event_version,e.created_at,c.contact_name,c.status candidate_status,c.version candidate_version,c.branch_id,c.department_id,f.name form_name';
-    // One canonical SELECT per row shape; its comment must not smuggle extra
-    // "SELECT" tokens into the retirement KPI.
-    expect(helper.match(/SELECT/g)).toHaveLength(2);
+    // r42 merges both tails into one closed-variant builder: one SELECT token
+    // and one asset join; the two projections stay owner-local column lists.
+    expect(helper.match(/SELECT/g)).toHaveLength(1);
+    expect(helper.match(/ JOIN marketing_assets f ON f.id=c.form_id AND f.company_id=c.company_id/g)).toHaveLength(1);
     expect(helper).toContain('export function marketingEvidenceCandidateRows');
     expect(helper).toContain('export function marketingEvidenceEventRows');
-    expect(helper).toContain(candidatePredicate);
-    expect(helper).toContain(eventPredicate);
+    expect(helper).toContain(candidatePredicate.slice('SELECT '.length));
+    expect(helper).toContain(eventPredicate.slice('SELECT '.length));
 
     for (const consumer of [evidence, workspace]) {
       expect(consumer).toMatch(/from ['"]\.\/executive-evidence-rows['"]/);
