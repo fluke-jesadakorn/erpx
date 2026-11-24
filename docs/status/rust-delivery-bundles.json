@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8776,
+    "revision": 8780,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -144163,7 +144163,7 @@
         "owner": "crm",
         "title": "crm TS read tail native cutover",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -144175,22 +144175,37 @@
         "resources": [
           "owner:crm"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGACcrm",
-          "claimedAt": "2026-11-24T03:06:21.843Z",
-          "heartbeatAt": "2026-11-24T03:10:12.951Z",
-          "expiresAt": "2026-11-24T03:40:12.951Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-crm/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "be15674d7",
+            "owner": "crm",
+            "before": 184,
+            "after": 182,
+            "note": "Branch/department label subquery shared by three breakdown sites; rendered SQL byte-identical."
+          },
+          {
+            "command": "vitest crm (53) + edited-file syntax check",
+            "result": "passed",
+            "sourceSha": "be15674d7"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=184.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGACcrm",
+          "at": "2026-11-24T03:14:04.845Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -144408,6 +144423,42 @@
         "nextAction": "Next: final 5 TS SELECTs; byte-identical or native read; locks/cross-owner may block. BEFORE=5.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.crm.read-tail-r9",
+        "goalId": "G4",
+        "owner": "crm",
+        "title": "crm TS read tail native cutover (round 9)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-crm/src/**",
+          "tests/unit/crm/**",
+          "tests/integration/crm/**"
+        ],
+        "resources": [
+          "owner:crm"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGADcrm",
+          "claimedAt": "2026-11-24T03:14:05.744Z",
+          "heartbeatAt": "2026-11-24T03:14:05.744Z",
+          "expiresAt": "2026-11-24T03:44:05.744Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: remaining count=2 pairs from scout (assignment prefix, lead-activity exists, account lead prefix, marketing candidate rows, lead version projection); INSERTs are tests-only. BEFORE=182.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -144416,7 +144467,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1019,
+      "totalPackets": 1020,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -144424,13 +144475,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 638,
+        "blocked": 639,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T03:10:55.450Z",
+    "updatedAt": "2026-11-24T03:14:05.754Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
