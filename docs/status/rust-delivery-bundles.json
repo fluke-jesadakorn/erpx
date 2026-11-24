@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8188,
+    "revision": 8192,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -136258,7 +136258,7 @@
         "owner": "runtime",
         "title": "runtime TS read tail native cutover (new lane)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -136270,22 +136270,42 @@
         "resources": [
           "owner:runtime"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGB0run",
-          "claimedAt": "2026-11-24T01:41:32.367Z",
-          "heartbeatAt": "2026-11-24T01:48:55.159Z",
-          "expiresAt": "2026-11-24T02:18:55.159Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-runtime/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0740bbba8",
+            "owner": "runtime",
+            "before": 71,
+            "after": 64,
+            "note": "Report FOR UPDATE, version guard, migration advisory lock/unlock literals shared as constants; each call still executes."
+          },
+          {
+            "command": "vitest runtime executive services (52)",
+            "result": "passed",
+            "sourceSha": "0740bbba8"
+          },
+          {
+            "command": "tsc runtime",
+            "result": "passed",
+            "sourceSha": "0740bbba8"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: own-local byte-identical dedupe; avoid executive metric source regex; BEFORE=71. wGB0run",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGB0run",
+          "at": "2026-11-24T01:49:34.910Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -137114,6 +137134,42 @@
         "nextAction": "Next: candidate guard SELECT id prefix keeping SHARE/UPDATE distinct, or another byte-identical fragment. BEFORE=73.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.runtime.read-tail-r2",
+        "goalId": "G4",
+        "owner": "runtime",
+        "title": "runtime TS read tail native cutover (round 2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-runtime/src/**",
+          "tests/unit/runtime/**",
+          "tests/integration/runtime/**"
+        ],
+        "resources": [
+          "owner:runtime"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGBQrun",
+          "claimedAt": "2026-11-24T01:49:35.272Z",
+          "heartbeatAt": "2026-11-24T01:49:35.272Z",
+          "expiresAt": "2026-11-24T02:19:35.272Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: three identical holding_bindings projection prefixes in runtime.ts only after confirming no source-drawer/regex coupling, or another safe dedupe. BEFORE=64.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -137122,7 +137178,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 875,
+      "totalPackets": 876,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
@@ -137130,13 +137186,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 496,
+        "blocked": 497,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:49:15.426Z",
+    "updatedAt": "2026-11-24T01:49:35.282Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
