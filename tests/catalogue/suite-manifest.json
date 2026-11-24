@@ -65587,6 +65587,31 @@
       }
     },
     {
+      "lane": "unit",
+      "owner": "platform_administration",
+      "modules": [
+        "platform_administration"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Platform release currency probes must stay byte-identical."
+      },
+      "apps": "admin",
+      "packages": [
+        "@erpx/server-platform_administration"
+      ],
+      "id": "platform_administration.release-currency-probe-dedupe.unit",
+      "files": [
+        "tests/unit/platform_administration/release-currency-probe-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "platform_administration.rust-legal-release.unit",
       "lane": "unit",
       "owner": "platform_administration",
@@ -77024,6 +77049,31 @@
         "@erpx/server-workflow",
         "@erpx/ui"
       ]
+    },
+    {
+      "lane": "unit",
+      "owner": "runtime",
+      "modules": [
+        "shared.runtime"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Runtime holding bindings reads must stay one literal family."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-runtime"
+      ],
+      "id": "runtime.read-tail-r5-dedupe.unit",
+      "files": [
+        "tests/unit/runtime/read-tail-r5-dedupe.test.ts"
+      ],
+      "framework": "vitest"
     },
     {
       "id": "runtime.rust-executive-connections-postgres.integration",
