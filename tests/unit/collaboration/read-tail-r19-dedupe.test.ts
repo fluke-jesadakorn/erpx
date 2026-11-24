@@ -42,7 +42,8 @@ describe('Collaboration read-tail r19 retirement check', () => {
     };
     walk(srcRoot);
     // r19 deduped the 2x byte-identical recursive ancestor-step fragment in social-home.ts.
-    expect(total).toBe(412);
+    // r20 lowers the exact count further, so assert the r19 ceiling (as r17/r18 do)
+    // instead of freezing a total that the next retirement slice must reduce.
     expect(total).toBeLessThan(413);
   });
 });
