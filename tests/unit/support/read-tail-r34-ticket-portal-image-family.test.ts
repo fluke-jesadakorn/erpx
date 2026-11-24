@@ -26,7 +26,7 @@ function selectCount() {
 
 describe('Support read-tail r34 ticket-portal ticket-image native kind', () => {
     test('the TS wrapper is a bridge call with one bind and no private SELECT', () => {
-        expect(portalSources).toContain("import {nativeSupportReadAll,SUPPORT_RD_TICKET_PORTAL_TICKET_IMAGE} from './native-support-read';");
+        expect(portalSources).toContain("import {nativeSupportReadAll,SUPPORT_RD_TICKET_PORTAL_INSTALLED,SUPPORT_RD_TICKET_PORTAL_TICKET_IMAGE} from './native-support-read';");
         expect(portalSources).toContain(
             'export async function supportTicketPortalTicketImage(database:SqlDatabase,ticketId:string){return nativeSupportReadAll<{image:string}>(SUPPORT_RD_TICKET_PORTAL_TICKET_IMAGE,[ticketId],database).then(result => result.results[0]?.image ?? null);}'
         );
@@ -45,7 +45,7 @@ describe('Support read-tail r34 ticket-portal ticket-image native kind', () => {
         expect(registry).toContain(`"${retiredSelect}"`);
         expect(registry).toContain('kind: RD_TICKET_PORTAL_TICKET_IMAGE,');
         expect(registry).toContain('    READ_TICKET_PORTAL_TICKET_IMAGE,\n');
-        expect(registry).toContain('assert_eq!(STATEMENTS.len(), 37);');
+        expect(registry).toContain('assert_eq!(STATEMENTS.len(), 38);');
         expect(registry).toContain('                RD_TICKET_PORTAL_TICKET_IMAGE,\n                SQL_TICKET_PORTAL_TICKET_IMAGE,\n                1usize,');
         expect(registry).toContain('ticket_portal_ticket_image_read_renders_the_retired_owner_literal_byte_for_byte');
     });
@@ -69,7 +69,7 @@ describe('Support read-tail r34 ticket-portal ticket-image native kind', () => {
     });
 
     test('retirement:ts-statements is strictly below the r34 BEFORE=45 baseline', () => {
-        expect(selectCount()).toBe(43);
+        expect(selectCount()).toBe(42);
         expect(selectCount()).toBeLessThan(44);
     });
 });

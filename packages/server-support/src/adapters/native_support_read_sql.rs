@@ -19,8 +19,9 @@
 //! `support_incident_tickets`, the SLA workspace active-ticket read on
 //! `support_tickets` and the SLA policy point/approved reads on
 //! `support_sla_policies`. It finally plans the package-obligation/Portal read
-//! family: the Portal table fence probe, the binding/response/identity/ack
-//! aggregate and the Company-wide ticket/incident/session/SLA obligation facts.
+//! family: the Portal table fence probe, the both-table portal installed probe,
+//! the binding/response/identity/ack aggregate and the Company-wide
+//! ticket/incident/session/SLA obligation facts.
 //! It also plans the Support Calendar family: the scoped open-ticket and
 //! open-incident calendar feeds on `support_tickets` and `support_incidents`,
 //! carrying the owner-name/team projection and the actor-scoped read predicate
@@ -226,6 +227,19 @@ const SQL_PORTAL_BINDINGS_INSTALLED: &str =
 const READ_PORTAL_BINDINGS_INSTALLED: NativeSupportReadStatement = NativeSupportReadStatement {
     kind: RD_PORTAL_BINDINGS_INSTALLED,
     sql: SQL_PORTAL_BINDINGS_INSTALLED,
+    bind_count: 0,
+};
+
+/// Native successor of the TypeScript `supportTicketPortalInstalled` fence
+/// probe. Both portal tables must exist; the caller binds `[]` and receives
+/// the `installed` alias. The single-table `support_rd_portal_bindings_installed`
+/// kind stays registered unchanged for its own callers.
+pub const RD_TICKET_PORTAL_INSTALLED: &str = "support_rd_ticket_portal_installed";
+const SQL_TICKET_PORTAL_INSTALLED: &str =
+    "SELECT to_regclass('support_ticket_portal_bindings') IS NOT NULL AND to_regclass('support_ticket_portal_acknowledgements') IS NOT NULL installed";
+const READ_TICKET_PORTAL_INSTALLED: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_TICKET_PORTAL_INSTALLED,
+    sql: SQL_TICKET_PORTAL_INSTALLED,
     bind_count: 0,
 };
 
@@ -530,6 +544,7 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SLA_POLICY_POINT,
     READ_SLA_POLICY_APPROVED,
     READ_PORTAL_BINDINGS_INSTALLED,
+    READ_TICKET_PORTAL_INSTALLED,
     READ_SUPPORT_PACKAGE_PORTAL_BINDINGS,
     READ_SUPPORT_PACKAGE_OBLIGATION_FACTS,
     READ_TICKET_SOURCE_IMAGE,
@@ -634,6 +649,11 @@ mod tests {
                 0usize,
             ),
             (
+                RD_TICKET_PORTAL_INSTALLED,
+                SQL_TICKET_PORTAL_INSTALLED,
+                0usize,
+            ),
+            (
                 RD_SUPPORT_PACKAGE_PORTAL_BINDINGS,
                 SQL_SUPPORT_PACKAGE_PORTAL_BINDINGS,
                 2usize,
@@ -731,7 +751,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 37);
+        assert_eq!(STATEMENTS.len(), 38);
     }
 
     #[test]
@@ -768,6 +788,8 @@ mod tests {
         assert_eq!(policy_approved.bind_count, 1);
         let installed = read_statement(RD_PORTAL_BINDINGS_INSTALLED).expect("portal fence probe");
         assert_eq!(installed.bind_count, 0);
+        let ticket_portal_installed = read_statement(RD_TICKET_PORTAL_INSTALLED).expect("both-table portal installed probe");
+        assert_eq!(ticket_portal_installed.bind_count, 0);
         let bindings = read_statement(RD_SUPPORT_PACKAGE_PORTAL_BINDINGS).expect("portal binding aggregate");
         assert_eq!(bindings.bind_count, 2);
         let facts = read_statement(RD_SUPPORT_PACKAGE_OBLIGATION_FACTS).expect("obligation facts");
@@ -890,6 +912,21 @@ mod tests {
         assert!(image.sql.starts_with("SELECT "));
         assert!(!image.sql.contains(';'));
         assert!(read_statement("support_rd_ticket_portal_ticket_image_select").is_none());
+    }
+
+    #[test]
+    fn ticket_portal_installed_read_renders_the_retired_owner_literal_byte_for_byte() {
+        let installed = read_statement(RD_TICKET_PORTAL_INSTALLED).expect("portal installed probe");
+        assert_eq!(
+            installed.sql,
+            "SELECT to_regclass('support_ticket_portal_bindings') IS NOT NULL AND to_regclass('support_ticket_portal_acknowledgements') IS NOT NULL installed"
+        );
+        assert_eq!(installed.bind_count, 0);
+        assert_eq!(installed.sql.matches('?').count(), 0);
+        assert!(installed.sql.ends_with(" IS NOT NULL installed"));
+        assert!(installed.sql.starts_with("SELECT "));
+        assert!(!installed.sql.contains(';'));
+        assert!(read_statement("support_rd_ticket_portal_installed_select").is_none());
     }
 
     #[test]

@@ -49,7 +49,7 @@ describe('Support read-tail r35 customer-contact-notes native kind', () => {
         expect(registry).toContain(`"${rustLiteral}"`);
         expect(registry).toContain('kind: RD_CUSTOMER_CONTACT_NOTES,');
         expect(registry).toContain('    READ_CUSTOMER_CONTACT_NOTES,\n');
-        expect(registry).toContain('assert_eq!(STATEMENTS.len(), 37);');
+        expect(registry).toContain('assert_eq!(STATEMENTS.len(), 38);');
         expect(registry).toContain('RD_CUSTOMER_CONTACT_NOTES, SQL_CUSTOMER_CONTACT_NOTES, 2usize');
         expect(registry).toContain('customer_contact_notes_read_renders_the_retired_owner_literal_byte_for_byte');
         expect(registry).toContain('let notes = read_statement(RD_CUSTOMER_CONTACT_NOTES).expect("customer contact notes read");');
@@ -75,7 +75,7 @@ describe('Support read-tail r35 customer-contact-notes native kind', () => {
     });
 
     test('retirement:ts-statements is strictly below the r34 AFTER=44 baseline', () => {
-        expect(selectCount()).toBe(43);
+        expect(selectCount()).toBe(42);
         expect(selectCount()).toBeLessThan(44);
     });
 });
