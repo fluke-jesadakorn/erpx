@@ -2,6 +2,7 @@ import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {commerceQualityOriginRows,commerceQualityHoldOrigin,commerceQualitySourceReadLocks} from "@erpx/server-commerce/public/quality-purchase-sources";
+import {qualityLineageSeedSql,qualityLineageStepSql} from "./quality-lineage-recursion-sql";
 export type QualitySource={id:string;company_id:string;branch_id:string;warehouse_id:string;product_id:string;lot_id:string|null;source_type:string|null;source_id:string|null;spec_id:string|null;spec_version:number|null;created_by:string;held_quantity_milli:number};
 export type QualityPurchaseSource={hold:QualitySource;kind:"advanced"|"receipt"|"customer-return";capabilities:readonly string[];stockCapability:"supply.stock"|"inventory.stock-core";financeCapability:"finance.inventory-valuation"|"finance.sales-posting";witness:string};
 const image=(row:QualitySource)=>JSON.stringify({id:row.id,company:row.company_id,branch:row.branch_id,warehouse:row.warehouse_id,product:row.product_id,lot:row.lot_id,sourceType:row.source_type,sourceId:row.source_id,spec:row.spec_id,specVersion:row.spec_version,creator:row.created_by,quantity:row.held_quantity_milli});
@@ -11,8 +12,8 @@ export async function qualityHoldPurchaseSource(database:SqlDatabase,scope:{comp
  const hold=await database.prepare("SELECT * FROM inventory_quality_holds WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)").bind(id,scope.companyId,scope.branchId,scope.branchId).first<QualitySource>();
  if(!hold)throw new ApiError(404,"QUALITY_HOLD_NOT_FOUND","Quality hold not found in the current workspace.");
  const root=await database.prepare(`WITH RECURSIVE lineage AS (
-  SELECT h.*,0 depth FROM inventory_quality_holds h WHERE h.id=? AND h.company_id=?
-  UNION ALL SELECT parent.*,child.depth+1 FROM lineage child
+  ${qualityLineageSeedSql("h.*","inventory_quality_holds h")} WHERE h.id=? AND h.company_id=?
+  UNION ALL ${qualityLineageStepSql("parent.*","child")}
    JOIN inventory_quality_holds parent ON parent.company_id=child.company_id AND parent.branch_id=child.branch_id AND parent.warehouse_id=child.warehouse_id AND parent.product_id=child.product_id AND parent.lot_id IS NOT DISTINCT FROM child.lot_id AND parent.created_by=child.created_by AND parent.spec_id IS NOT DISTINCT FROM child.spec_id AND parent.spec_version IS NOT DISTINCT FROM child.spec_version AND parent.source_type IS NOT DISTINCT FROM child.source_type AND parent.status='disposed'
    JOIN inventory_counts c ON c.id=parent.disposition_count_id AND c.quality_hold_id=parent.id AND c.company_id=parent.company_id AND c.branch_id=parent.branch_id AND c.warehouse_id=parent.warehouse_id AND c.status='posted'
    JOIN inventory_quality_disposition_events e ON e.hold_id=parent.id AND e.count_id=c.id AND e.action='post'
@@ -35,8 +36,8 @@ const lineageParents=`JOIN inventory_quality_holds parent ON parent.company_id=c
  JOIN inventory_quality_disposition_events e ON e.hold_id=parent.id AND e.count_id=c.id AND e.action='post'`;
 const core=(alias:string)=>`jsonb_build_object('id',${alias}.id,'company',${alias}.company_id,'branch',${alias}.branch_id,'warehouse',${alias}.warehouse_id,'product',${alias}.product_id,'lot',${alias}.lot_id,'sourceType',${alias}.source_type,'sourceId',${alias}.source_id,'spec',${alias}.spec_id,'specVersion',${alias}.spec_version,'creator',${alias}.created_by,'quantity',${alias}.held_quantity_milli)`;
 export const qualityPurchaseSourceRows=`WITH RECURSIVE lineage AS (
- SELECT id hold_id,id root_id,0 depth FROM inventory_quality_holds
- UNION ALL SELECT walk.hold_id,parent.id,walk.depth+1 FROM lineage walk JOIN inventory_quality_holds child ON child.id=walk.root_id ${lineageParents}
+ ${qualityLineageSeedSql("id hold_id,id root_id","inventory_quality_holds")}
+ UNION ALL ${qualityLineageStepSql("walk.hold_id,parent.id","walk")} JOIN inventory_quality_holds child ON child.id=walk.root_id ${lineageParents}
  WHERE walk.depth<64 AND child.id=parent.id||'-remaining-'||c.id AND child.source_id=parent.source_id||':remaining:'||c.id AND child.held_quantity_milli=parent.held_quantity_milli-parent.disposition_quantity_milli AND child.held_quantity_milli>0
  ), roots AS (SELECT DISTINCT ON(hold_id) hold_id,root_id FROM lineage ORDER BY hold_id,depth DESC)
  SELECT h.id,h.company_id,h.branch_id,h.warehouse_id,h.product_id,h.lot_id,root.id root_id,

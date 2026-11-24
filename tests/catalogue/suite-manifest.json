@@ -5024,6 +5024,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Collaboration project purchase source absence family must stay one fragment."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-collaboration"
+      ],
+      "id": "collaboration.read-tail-r21-dedupe.unit",
+      "files": [
+        "tests/unit/collaboration/read-tail-r21-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "collaboration.rust-collaboration-pg-postgres.integration",
       "lane": "integration",
       "owner": "collaboration",
@@ -76818,6 +76843,31 @@
       "id": "quality.read-tail-r13-dedupe.unit",
       "files": [
         "tests/unit/quality/read-tail-r13-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "quality",
+      "modules": [
+        "quality"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Quality remaining hold lineage recursion family must stay two generators."
+      },
+      "apps": "quality",
+      "packages": [
+        "@erpx/server-quality"
+      ],
+      "id": "quality.read-tail-r14-dedupe.unit",
+      "files": [
+        "tests/unit/quality/read-tail-r14-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
