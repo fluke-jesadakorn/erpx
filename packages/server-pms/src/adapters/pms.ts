@@ -1,6 +1,7 @@
 import {decodePmsRecord,type PmsStoredRecord} from "@erpx/server-pms/domain/stored-record";
 import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
 import { PMS_STRIPE_REFUND_COLUMNS_SQL } from "./pms-read-tail-r22-sql";
+import { PMS_SCOPED_RECORDS_SQL } from "./pms-read-tail-r23-sql";
 import { roomChargeReversalWork } from "@erpx/server-pos/public/room-charge-reversal-queue";
 import { withPmsPurchasedCommand } from "@erpx/server-pms/adapters/purchase-boundary";
 import { readPurchasedAccesses, pmsPackageEnforcementMode, type PurchasedAccess } from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -522,26 +523,26 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
           SELECT ?::text property_id, ?::text target_id, ?::text target_kind,
             ?::text guest_id, ?::text account_id, ?::text room_id
         ), target AS MATERIALIZED (
-          SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          ${PMS_SCOPED_RECORDS_SQL}
           WHERE r.property_id=q.property_id AND r.kind=q.target_kind AND r.id=q.target_id
         ), booking_ids AS (
           SELECT CASE WHEN kind='reservation' THEN id ELSE data_json::jsonb->>'reservationId' END id FROM target
         ), siblings AS MATERIALIZED (
-          SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          ${PMS_SCOPED_RECORDS_SQL}
           WHERE r.property_id=q.property_id AND r.kind='stay'
             AND r.data_json::jsonb->>'reservationId' IN (SELECT id FROM booking_ids)
         ), account_candidates AS MATERIALIZED (
-          SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          ${PMS_SCOPED_RECORDS_SQL}
           WHERE r.property_id=q.property_id AND r.kind='guest_account'
             AND r.data_json::jsonb->>'reservationId' IN (SELECT id FROM booking_ids)
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='guest_account'
               AND r.id IN (SELECT data_json::jsonb->>'guestAccountId' FROM siblings)
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='guest_account' AND r.id=q.account_id
         ), accounts AS MATERIALIZED (
           SELECT * FROM account_candidates
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='guest_account' AND r.data_json::jsonb->>'state'='credit'
               AND r.data_json::jsonb->>'partyId' IN (SELECT data_json::jsonb->>'partyId' FROM account_candidates WHERE data_json::jsonb->>'state'='credit')
         ), affected_rooms AS (
@@ -551,49 +552,49 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
           SELECT * FROM target
           UNION SELECT * FROM siblings
           UNION SELECT * FROM accounts
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind IN ('room_type','room','rate','block','item','credit')
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='stay' AND r.data_json::jsonb->>'state' IN ('reserved','in_house')
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='reservation' AND r.id IN (SELECT id FROM booking_ids)
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind IN ('entry','refund') AND r.data_json::jsonb->>'guestAccountId' IN (SELECT id FROM accounts)
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='guest' AND (r.id=q.guest_id
               OR r.id IN (SELECT data_json::jsonb->>'guestId' FROM siblings)
               OR r.id IN (SELECT data_json::jsonb->>'guestId' FROM accounts)
               OR r.id IN (SELECT data_json::jsonb->>'guestId' FROM pms_records WHERE property_id=q.property_id AND kind='reservation' AND id IN (SELECT id FROM booking_ids)))
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='task' AND r.data_json::jsonb->>'roomId' IN (SELECT id FROM affected_rooms)
         ) SELECT * FROM selected ORDER BY updated_at,id`).bind(propertyId,targetId,targetKind,guestId,guestAccountId,roomId)
             .all<PmsStoredRecord>().then(rows=>rows.results.map(decodePmsRecord)),
         readPmsCashierCommand: (propertyId, targetId, targetKind, shiftId, userId) => db.prepare(`WITH scope AS (
           SELECT ?::text property_id, ?::text target_id, ?::text target_kind, ?::text shift_id, ?::text user_id
         ), target AS MATERIALIZED (
-          SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          ${PMS_SCOPED_RECORDS_SQL}
           WHERE r.property_id=q.property_id AND r.kind=CASE WHEN q.target_kind='account_close' THEN 'guest_account' ELSE q.target_kind END AND r.id=q.target_id
         ), account_ids AS (
           SELECT CASE WHEN kind='refund' THEN data_json::jsonb->>'guestAccountId' ELSE id END id
           FROM target WHERE kind IN ('guest_account','refund')
         ), accounts AS MATERIALIZED (
-          SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          ${PMS_SCOPED_RECORDS_SQL}
           WHERE r.property_id=q.property_id AND r.kind='guest_account' AND r.id IN (SELECT id FROM account_ids)
         ), selected AS (
           SELECT * FROM target
           UNION SELECT * FROM accounts
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind IN ('rate','credit','item')
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind IN ('entry','refund')
               AND r.data_json::jsonb->>'guestAccountId' IN (SELECT id FROM account_ids)
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='guest'
               AND r.id IN (SELECT data_json::jsonb->>'guestId' FROM accounts)
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND q.target_kind='account_close' AND r.kind='stay'
               AND r.data_json::jsonb->>'guestAccountId' IN (SELECT id FROM account_ids)
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='shift' AND (r.id=q.shift_id OR
               (q.target_kind='new_shift' AND r.data_json::jsonb->>'userId'=q.user_id AND r.data_json::jsonb->>'state'='open'))
         ) SELECT * FROM selected ORDER BY updated_at,id`)
@@ -601,26 +602,26 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
         readPmsPosCommand: (propertyId,stayId,sourceKey) => db.prepare(`WITH scope AS (
           SELECT ?::text property_id,?::text stay_id,?::text source_key
         ), source AS MATERIALIZED (
-          SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='entry' AND r.data_json::jsonb->>'sourceKey'=q.source_key
         ), stays AS MATERIALIZED (
-          SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='stay' AND r.id=q.stay_id
         ), account_ids AS (
           SELECT data_json::jsonb->>'guestAccountId' id FROM source
           UNION SELECT data_json::jsonb->>'guestAccountId' id FROM stays
         ), accounts AS MATERIALIZED (
-          SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='guest_account' AND r.id IN (SELECT id FROM account_ids)
         ), selected AS (
           SELECT * FROM source UNION SELECT * FROM stays UNION SELECT * FROM accounts
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind IN ('entry','refund')
               AND r.data_json::jsonb->>'guestAccountId' IN (SELECT id FROM account_ids)
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='entry'
               AND r.data_json::jsonb->>'originalId' IN (SELECT id FROM source)
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='guest'
               AND r.id IN (SELECT data_json::jsonb->>'guestId' FROM accounts UNION SELECT data_json::jsonb->>'guestId' FROM stays)
         ) SELECT * FROM selected ORDER BY updated_at,id`).bind(propertyId,stayId,sourceKey)
@@ -628,31 +629,31 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
         readPmsNightCommand: (propertyId, businessDate, targetId) => db.prepare(`WITH scope AS (
           SELECT ?::text property_id,?::text business_date,?::text target_id
         ), stays AS MATERIALIZED (
-          SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='stay' AND r.data_json::jsonb->>'state' IN ('reserved','in_house')
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='stay'
               AND r.data_json::jsonb->>'departure'>q.business_date AND r.data_json::jsonb->>'arrival'<=q.business_date
         ), accounts AS MATERIALIZED (
-          SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='guest_account'
               AND r.id IN (SELECT data_json::jsonb->>'guestAccountId' FROM stays)
         ), selected AS (
           SELECT * FROM stays UNION SELECT * FROM accounts
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind IN ('room_type','room','rate','block','item','credit')
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind IN ('entry','refund')
               AND r.data_json::jsonb->>'guestAccountId' IN (SELECT id FROM accounts)
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='guest' AND r.id IN (
               SELECT data_json::jsonb->>'guestId' FROM stays UNION SELECT data_json::jsonb->>'guestId' FROM accounts)
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='night' AND (r.id=q.target_id OR r.data_json::jsonb->>'date'=q.business_date)
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='shift' AND (
               r.data_json::jsonb->>'state'='open' OR (r.data_json::jsonb->>'state'='closed' AND r.data_json::jsonb->'variance' IS DISTINCT FROM '0'::jsonb))
-          UNION SELECT r.id,r.kind,r.data_json,r.version,r.updated_at FROM pms_records r,scope q
+          UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='task' AND r.data_json::jsonb->>'type'='stayover'
               AND r.data_json::jsonb->>'date'=(q.business_date::date+1)::text
               AND r.data_json::jsonb->>'roomId' IN (SELECT data_json::jsonb->>'roomId' FROM stays)
