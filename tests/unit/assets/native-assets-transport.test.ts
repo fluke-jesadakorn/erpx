@@ -1,6 +1,7 @@
 import {describe,it,expect,vi} from 'vitest';
 import {readFile} from 'node:fs/promises';
-import {readFileSync} from 'node:fs';
+import {readFileSync,readdirSync} from 'node:fs';
+import {resolve} from 'node:path';
 import {capabilityDelivery} from '../../../packages/catalogue/src/capability-delivery';
 vi.mock('server-only',()=>({}));
 vi.mock('next/headers',()=>({headers:async()=>new Headers({host:'acme.example.com',cookie:'__Host-erpx-product=session'})}));
@@ -533,8 +534,9 @@ describe('Assets read-tail r17 byte-identical family dedupe',()=>{
   expect(selects).toBeLessThan(32);
   // r20 retired the image-witness literal; r21 shares the keyed-row read;
   // r22 shares the Finance-link keyed reads; r23 shares the all-rows projection;
-  // r24 shares the fixed operational_assets projection (24->23->22->21).
-  expect(selects).toBe(21);
+  // r24 shares the fixed operational_assets projection;
+  // r25 retires the field-service image literal already byte-identical to the native plan.
+  expect(selects).toBe(20);
   const financial=readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8');
   expect(financial).toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
   const purchases=readFileSync(resolve(srcRoot,'adapters/purchases.ts'),'utf8');
@@ -578,8 +580,9 @@ describe('Assets read-tail r21 id+company keyed-row family',()=>{
    }
   };
   walk(srcRoot);
-  // r23 shares the all-rows projection; r24 shares the fixed operational_assets projection.
-  expect(selects).toBe(21);
+  // r23 shares the all-rows projection; r24 shares the fixed operational_assets projection;
+  // r25 retires the field-service image literal byte-identical to PLAN_FS_IMAGE.
+  expect(selects).toBe(20);
   // r2-r20 lock/cascade families are untouched.
   expect(readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8'))
    .toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
@@ -729,7 +732,8 @@ describe('Assets read-tail r24 fixed operational_assets projection family',()=>{
   expect(root).toContain('operational_assets: assetOperationalRowsSql(');
   expect(root).not.toMatch(/operational_assets: "SELECT/);
   expect((root.match(/SELECT/g)??[])).toHaveLength(0);
-  expect((field.match(/SELECT/g)??[])).toHaveLength(1);
+  // r25 retired the byte-identical image fallback from this file (1 -> 0 SELECT).
+  expect((field.match(/SELECT/g)??[])).toHaveLength(0);
   expect(fieldServiceAssetSourceRows).toContain(' FROM operational_assets');
   expect(finalRootOwnerProjectionSources.operational_assets).toContain('"finance_asset_version" FROM operational_assets');
  });
@@ -742,5 +746,37 @@ describe('Assets read-tail r24 fixed operational_assets projection family',()=>{
   expect(native).toContain('ASSETS_RD_PKG_LINKS');
   expect(native).not.toContain('SELECT * FROM');
   expect(native).toContain('ASSETS_RD_FS_ASSET_ATTACHMENT_IMAGE');
+ });
+});
+
+describe('Assets read-tail r25 byte-identical field-service image family',()=>{
+ const retired='SELECT to_jsonb(source)::text image FROM operational_assets source WHERE source.id=? AND source.company_id=?';
+ const root=resolve(__dirname,'../../../packages/server-assets/src');
+ const read=(p:string)=>readFileSync(resolve(root,p),'utf8');
+ const ownerSelectCount=()=>{
+  let selects=0;
+  const walk=(dir:string)=>{
+   for(const entry of readdirSync(dir,{withFileTypes:true})){
+    const path=resolve(dir,entry.name);
+    if(entry.isDirectory())walk(path);
+    else if(entry.name.endsWith('.ts'))selects+=(readFileSync(path,'utf8').match(/SELECT/g)??[]).length;
+   }
+  };
+  walk(root);
+  return selects;
+ };
+ it('lowers the owner TS SELECT tail strictly below BEFORE=21',()=>{
+  expect(ownerSelectCount()).toBe(20);
+ });
+ it('routes the field-service image unconditionally to the byte-identical native plan',()=>{
+  const field=read('adapters/field-service-references.ts');
+  expect(field).toContain('nativeAssetsReadFirst<string>(ASSETS_RD_FS_ASSET_ATTACHMENT_IMAGE,{assetId:id,companyId},database)');
+  expect(field).not.toContain(retired);
+  expect(field).not.toContain('nativeAssetsReadConfigured');
+  expect(field).toContain('LOCK TABLE operational_assets IN SHARE ROW EXCLUSIVE MODE');
+  expect(read('public/field-service-references.ts')).toContain('fieldServiceAssetAttachmentSourceImage');
+ });
+ it('keeps the registered native plan SQL byte-identical to the retired literal',()=>{
+  expect(read('public/native_read.rs')).toContain(`"${retired}"`);
  });
 });
