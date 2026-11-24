@@ -5,6 +5,7 @@ vi.mock('server-only', () => ({}));
 
 import {
   SALES_RD_NOTIFICATION_ATTEMPT,
+  SALES_RD_NOTIFICATION_RECONCILIATION_INSTALLED,
   SALES_RD_PRICE_LIST_ACTIVE,
   SALES_RD_PRICE_LIST_ITEMS_ACTIVE,
   nativeSalesReadAll,
@@ -157,6 +158,29 @@ describe('native Sales command-plan read transport', () => {
       values: ['notice', company, 2],
     });
     expect(calls).toEqual([{ sql, values: ['notice', company, 2], first: false }]);
+  });
+
+  it('supports the zero-bind reconciliation-installed read on the caller unit', async () => {
+    const sql = "SELECT to_regclass('sales_notification_reconciliations') IS NOT NULL installed";
+    let request: { body: string } | undefined;
+    const base = await listen(req => {
+      request = req;
+      return { status: 200, value: { data: { statements: [{ sql, values: [] }] } } };
+    });
+    process.env.ERPX_NATIVE_SALES_DOCUMENTS_CONFIG = config(base);
+    const calls: Call[] = [];
+    await expect(
+      nativeSalesReadFirst<{ installed: boolean }>(
+        SALES_RD_NOTIFICATION_RECONCILIATION_INSTALLED,
+        [],
+        database(calls, { installed: true }),
+      ),
+    ).resolves.toEqual({ installed: true });
+    expect(JSON.parse(request!.body)).toMatchObject({
+      kind: SALES_RD_NOTIFICATION_RECONCILIATION_INSTALLED,
+      values: [],
+    });
+    expect(calls).toEqual([{ sql, values: [], first: false }]);
   });
 
   it('fails closed on a malformed native plan reply', async () => {

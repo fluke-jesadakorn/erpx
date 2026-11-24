@@ -8,7 +8,7 @@ import {salesNotificationCustomerSources} from '@erpx/server-finance/public/sale
 import {commercePackageEnforcementMode,checkPurchasedCapability} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-import {nativeSalesReadFirst,SALES_RD_NOTIFICATION_ATTEMPT} from "./native-sales-read";
+import {nativeSalesReadFirst,SALES_RD_NOTIFICATION_ATTEMPT,SALES_RD_NOTIFICATION_RECONCILIATION_INSTALLED} from "./native-sales-read";
 import {ApiError} from '@erpx/server-runtime/public/http';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import type {CustomerMail} from '@erpx/server-sales/domain/notifications';
@@ -36,6 +36,6 @@ export async function customerNotificationReconciliationControls(actor:WorkConte
  if(!source||source.company_id!==actor.companyId||source.source_company!==actor.companyId||source.customer_company!==actor.companyId||actor.branchId&&actor.branchId!==source.branch_id||actor.departmentId&&actor.departmentId!==source.department_id)throw new ApiError(404,'CUSTOMER_NOTIFICATION_NOT_FOUND','The original customer notice is unavailable in this work scope.');
  const attempt=source.status==='unknown'?await nativeSalesReadFirst<{id:string;source_hash:string;provider_message_id:string|null;actor_id:string}>(SALES_RD_NOTIFICATION_ATTEMPT,[id,actor.companyId,source.attempts],database):null;
  if(!attempt)return undefined;const hasProviderIdentity=source.adapter==='resend'&&!!attempt.provider_message_id&&attempt.provider_message_id===source.provider_message_id&&attempt.source_hash===salesNotificationSourceHash(source);let canReview=false;
- if(hasProviderIdentity&&source.release_ready&&!samePerson(actor,source.created_by)&&!samePerson(actor,attempt.actor_id)&&await database.prepare("SELECT to_regclass('sales_notification_reconciliations') IS NOT NULL installed").first<boolean>('installed'))try{await requireQueuedCommandAuthority(database,actor,'commerce.approve');await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability:'sales.orders',purpose:'settle-existing'});canReview=true;}catch(error){if(!(error instanceof ApiError)||![403,409,402].includes(error.status))throw error;}
+ if(hasProviderIdentity&&source.release_ready&&!samePerson(actor,source.created_by)&&!samePerson(actor,attempt.actor_id)&&(await nativeSalesReadFirst<{installed:boolean}>(SALES_RD_NOTIFICATION_RECONCILIATION_INSTALLED,[],database))?.installed)try{await requireQueuedCommandAuthority(database,actor,'commerce.approve');await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability:'sales.orders',purpose:'settle-existing'});canReview=true;}catch(error){if(!(error instanceof ApiError)||![403,409,402].includes(error.status))throw error;}
  return {attemptId:attempt.id,hasProviderIdentity,canReview};
 }

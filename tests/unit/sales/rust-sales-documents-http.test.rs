@@ -359,7 +359,7 @@ async fn response_headers_are_private_and_bounded() {
 #[tokio::test]
 async fn command_plan_returns_only_registered_owner_reads() {
     use erpx_server_sales::public::native_sales_read_sql::{
-        RD_PRICE_LIST_ACTIVE, RD_PRICE_LIST_ITEMS_ACTIVE,
+        RD_NOTIFICATION_RECONCILIATION_INSTALLED, RD_PRICE_LIST_ACTIVE, RD_PRICE_LIST_ITEMS_ACTIVE,
     };
 
     let router = sales_documents_router(vec![SalesDocumentsHttpTarget {
@@ -405,6 +405,25 @@ async fn command_plan_returns_only_registered_owner_reads() {
         erpx_server_sales::public::native_sales_read_sql::read_statement(RD_PRICE_LIST_ITEMS_ACTIVE)
             .unwrap()
             .sql
+    );
+
+    let (status, body, _) = http(
+        addr,
+        post(
+            "/api/v1/holdings/acme/sales/command-plan",
+            "acme.example.test",
+            &format!("{{\"kind\":\"{RD_NOTIFICATION_RECONCILIATION_INSTALLED}\",\"values\":[]}}"),
+        ),
+    )
+    .await;
+    assert_eq!(status, 200);
+    assert_eq!(
+        body["data"]["statements"][0]["sql"],
+        erpx_server_sales::public::native_sales_read_sql::read_statement(
+            RD_NOTIFICATION_RECONCILIATION_INSTALLED
+        )
+        .unwrap()
+        .sql
     );
 
     // Unknown kinds, wrong bind counts, queries, writes and foreign hosts are rejected.

@@ -58,10 +58,27 @@ const READ_NOTIFICATION_ATTEMPT: NativeSalesReadStatement = NativeSalesReadState
     scope: "holding",
 };
 
+/// Native successor of the TypeScript notification-purchases
+/// `customerNotificationReconciliationControls` reconciliation-installed check.
+/// The caller binds no values; the SQL is byte-identical to the retired owner
+/// literal.
+pub const RD_NOTIFICATION_RECONCILIATION_INSTALLED: &str =
+    "sales_rd_notification_reconciliation_installed";
+const SQL_NOTIFICATION_RECONCILIATION_INSTALLED: &str =
+    "SELECT to_regclass('sales_notification_reconciliations') IS NOT NULL installed";
+const READ_NOTIFICATION_RECONCILIATION_INSTALLED: NativeSalesReadStatement =
+    NativeSalesReadStatement {
+        kind: RD_NOTIFICATION_RECONCILIATION_INSTALLED,
+        sql: SQL_NOTIFICATION_RECONCILIATION_INSTALLED,
+        bind_count: 0,
+        scope: "holding",
+    };
+
 const READS: &[NativeSalesReadStatement] = &[
     READ_PRICE_LIST_ACTIVE,
     READ_PRICE_LIST_ITEMS_ACTIVE,
     READ_NOTIFICATION_ATTEMPT,
+    READ_NOTIFICATION_RECONCILIATION_INSTALLED,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -151,8 +168,32 @@ mod tests {
     }
 
     #[test]
+    fn reconciliation_installed_read_plan_is_holding_scoped_with_no_binds() {
+        let read = read_statement(RD_NOTIFICATION_RECONCILIATION_INSTALLED).expect("read kind");
+        let upper = read.sql.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT"), "{}", read.kind);
+        assert!(!upper.contains("INSERT"));
+        assert!(!upper.contains("UPDATE"));
+        assert!(!upper.contains("DELETE"));
+        assert_eq!(read.bind_count, 0);
+        assert_eq!(read.sql.matches('?').count(), 0);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_NOTIFICATION_RECONCILIATION_INSTALLED));
+    }
+
+    #[test]
+    fn reconciliation_installed_read_sql_matches_retired_typescript_literal() {
+        let read = read_statement(RD_NOTIFICATION_RECONCILIATION_INSTALLED).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT to_regclass('sales_notification_reconciliations') IS NOT NULL installed"
+        );
+        assert_eq!(read.sql.len(), 78);
+    }
+
+    #[test]
     fn only_owner_read_kinds_are_registered() {
-        assert_eq!(READS.len(), 3);
+        assert_eq!(READS.len(), 4);
         assert!(READS.iter().all(|read| is_read(read.kind)));
         assert!(!is_read("sales_price_lists"));
         assert!(!is_read("SELECT 1"));

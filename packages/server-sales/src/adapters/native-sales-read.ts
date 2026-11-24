@@ -20,6 +20,7 @@ type Settings = Readonly<{ privateBaseUrl: string; timeoutMs: number; holdings: 
 export const SALES_RD_PRICE_LIST_ACTIVE = 'sales_rd_price_list_active';
 export const SALES_RD_PRICE_LIST_ITEMS_ACTIVE = 'sales_rd_price_list_items_active';
 export const SALES_RD_NOTIFICATION_ATTEMPT = 'sales_rd_notification_attempt';
+export const SALES_RD_NOTIFICATION_RECONCILIATION_INSTALLED = 'sales_rd_notification_reconciliation_installed';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'SALES_NATIVE_READ_UNAVAILABLE', 'The native Sales read service is unavailable.');
