@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12047,
+    "revision": 12051,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -179646,6 +179646,79 @@
           "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.support.read-tail-r34",
+        "goalId": "G4",
+        "owner": "support",
+        "title": "support TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4l01",
+          "claimedAt": "2026-11-24T13:13:07.774Z",
+          "heartbeatAt": "2026-11-24T13:13:07.774Z",
+          "expiresAt": "2026-11-24T13:43:07.774Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Portal ticket image native kind (1 bind): 45->44. BEFORE=45.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.workflow.read-tail-r47",
+        "goalId": "G4",
+        "owner": "workflow",
+        "title": "workflow TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/**",
+          "packages/server-records/src/**",
+          "tests/unit/workflow/**",
+          "tests/unit/records/**"
+        ],
+        "resources": [
+          "owner:workflow"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4l02",
+          "claimedAt": "2026-11-24T13:13:20.431Z",
+          "heartbeatAt": "2026-11-24T13:13:20.431Z",
+          "expiresAt": "2026-11-24T13:43:20.431Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Calendar index facts (3 binds) and record details history (1 bind) native kinds; add companyId to records port: 41->37. BEFORE=41.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -179654,11 +179727,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1712,
+      "totalPackets": 1714,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 1,
+        "in_progress": 3,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -179668,7 +179741,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:12:32.927Z",
+    "updatedAt": "2026-11-24T13:13:20.435Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
