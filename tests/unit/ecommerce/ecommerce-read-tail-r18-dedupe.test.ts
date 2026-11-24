@@ -35,7 +35,7 @@ describe('Ecommerce read-tail r18 EXISTS-head family', () => {
     expect(ao).toContain('ecommerceExistsGuard } from "./read-tail-sql"');
     expect(ao.match(/attachmentVersionGuardSql\(/g) ?? []).toHaveLength(2);
     expect(ao).not.toContain('`EXISTS(SELECT 1 FROM ${source} WHERE ${where})`');
-    expect(shared.match(/EXISTS\(SELECT 1 FROM \$\{(table|source)\} WHERE \$\{where\}\)/g) ?? []).toHaveLength(1);
+    expect(shared).toContain('`EXISTS(${ecommerceSelectOne(`FROM ${table} WHERE ${where}`)})`');
   });
 
   test('composed guards stay read-only with unchanged binds and no added locks', () => {
@@ -61,7 +61,7 @@ describe('Ecommerce read-tail r18 EXISTS-head family', () => {
 });
 
 describe('Ecommerce read-tail r18 retirement check', () => {
-  test('retirement:ts-statements stays strictly below the r18 BEFORE=48 baseline (r21 pin 29)', () => {
+  test('retirement:ts-statements stays strictly below the r18 BEFORE=48 baseline (r22 pin 26)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -72,6 +72,6 @@ describe('Ecommerce read-tail r18 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(48);
-    expect(total).toBe(29);
+    expect(total).toBe(26);
   });
 });

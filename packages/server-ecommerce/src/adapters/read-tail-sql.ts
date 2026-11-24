@@ -1,7 +1,10 @@
 /** Ecommerce read-tail fragments shared across owner adapters. Text only: binds and locks are unchanged. */
+/** r22: one parameterized one-row probe frame; every probe site rebuilds
+ *  byte-identically. Text only: binds, locks and emitted SQL unchanged. */
+export const ecommerceSelectOne = (tail: string) => `SELECT 1 ${tail}`;
 export const ecommerceModuleAssignment = (alias = '') => {
  const p = alias ? `${alias}.` : '';
- return `SELECT 1 FROM assignments${alias ? ` ${alias}` : ''} WHERE ${p}id=? AND ${p}company_id=? AND (jsonb_array_length(${p}modules_json::jsonb)=0 OR ${p}modules_json::jsonb @> '["ecommerce"]'::jsonb)`;
+ return ecommerceSelectOne(`FROM assignments${alias ? ` ${alias}` : ''} WHERE ${p}id=? AND ${p}company_id=? AND (jsonb_array_length(${p}modules_json::jsonb)=0 OR ${p}modules_json::jsonb @> '["ecommerce"]'::jsonb)`);
 };
 /** r21: one scoped-row frame emits both column shapes byte-identically. The
  *  r20 separator stays configurable; text only, binds and locks unchanged. */
@@ -14,7 +17,7 @@ export const ecommerceReleaseGate = (scope: string, predicate: string, selectAli
 /** r14: one parameterized EXISTS row guard; the channel, cart and checkout
  *  assertion callers rebuild byte-identically. Text only: binds unchanged. */
 export const ecommerceExistsGuard = (table: string, where: string) =>
-  `EXISTS(SELECT 1 FROM ${table} WHERE ${where})`;
+  `EXISTS(${ecommerceSelectOne(`FROM ${table} WHERE ${where}`)})`;
 /** r14: one parameterized ordered list read; the listing, cart and checkout
  *  workspace callers rebuild byte-identically. Text only: binds unchanged. */
 export const ecommerceOrderedList = (columns: string, from: string, where: string, order: string) =>

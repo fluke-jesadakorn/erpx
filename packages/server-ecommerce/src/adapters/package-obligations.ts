@@ -9,12 +9,13 @@ import {ecommerceCommerceSourceReadLocks} from '@erpx/server-ecommerce/adapters/
 import {ecommerceCommerceSettlementSources as commerce} from '@erpx/server-commerce/public/ecommerce-package-sources';
 import {commercialOwnerProjectionSources as finance} from '@erpx/server-finance/public/commercial-owner-projection-sources';
 import {ecommerceExistsGuard} from './read-tail-sql';
+import {ecommerceSelectOne} from './read-tail-sql';
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
 /** r17: one parameterized receipt-audit frame emits every guard byte-identically.
  * Text only: binds, source locks and the emitted SQL are unchanged. */
-const receiptAuditGuard=(kind:string,join:string,where:string)=>`${kind}(SELECT 1 FROM command_receipts receipt${join} WHERE ${where})`;
+const receiptAuditGuard=(kind:string,join:string,where:string)=>`${kind}(${ecommerceSelectOne(`FROM command_receipts receipt${join} WHERE ${where}`)})`;
 const reviewReceiptGuard=(entity:string)=>receiptAuditGuard('NOT EXISTS',` JOIN audit_events audit ON audit.command_id=receipt.command_id AND audit.record_id=${entity}.id AND audit.action=receipt.operation`,`receipt.record_id=${entity}.id AND receipt.operation=CASE ${entity}.status WHEN 'rejected' THEN 'ecommerce.${entity}.reject' WHEN 'retired' THEN 'ecommerce.${entity}.retire' END AND receipt.actor_id=${entity}.reviewed_by AND receipt.authority_json::jsonb->>'companyId'=channel.company_id AND receipt.result_json::jsonb->>'status'=${entity}.status AND (receipt.result_json::jsonb->>'version')::bigint<=${entity}.version`);
-const cartHasCheckout='SELECT 1 FROM checkouts checkout WHERE checkout.cart_id=cart.id';
+const cartHasCheckout=ecommerceSelectOne('FROM checkouts checkout WHERE checkout.cart_id=cart.id');
 /** r19: the two checkout receipt probes emit from the r17 frame, byte-identically. */
 const checkoutSyncGuard=receiptAuditGuard('EXISTS','',`receipt.operation='ecommerce.checkout.sync-fulfillment' AND receipt.record_id=checkout.id AND receipt.authority_json::jsonb->>'companyId'=checkout.company_id AND receipt.result_json::jsonb->>'status'=checkout.status AND (receipt.result_json::jsonb->>'version')::bigint<=checkout.version`);
 const checkoutReturnGuard=receiptAuditGuard('NOT EXISTS','',`receipt.record_id=checkout.id AND receipt.operation='ecommerce.checkout.request-return' AND receipt.authority_json::jsonb->>'companyId'=checkout.company_id AND receipt.result_json::jsonb->>'commerceReturnId'=link.commerce_return_id`);
