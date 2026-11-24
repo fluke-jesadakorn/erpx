@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8077,
+    "revision": 8078,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -114502,7 +114502,7 @@
         "owner": "planning",
         "title": "Retire planning executive-evidence cross-owner projections (retained search)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -114521,22 +114521,22 @@
           "owner:planning",
           "owner:manufacturing"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG42pln",
-          "claimedAt": "2026-11-24T00:58:06.926Z",
-          "heartbeatAt": "2026-11-24T01:36:09.340Z",
-          "expiresAt": "2026-11-24T02:06:09.340Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Needs a native planning-evidence SEARCH port returning full EvidenceRow incl spec/product/warehouse/branch labels; then delete evidence-sources + manufacturing projection",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Migrated; claim released.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG42pln",
+          "at": "2026-11-24T01:39:39.577Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Migrated; claim released."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -135665,17 +135665,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
-        "in_progress": 28,
+        "in_progress": 27,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 474,
+        "blocked": 475,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:39:23.291Z",
+    "updatedAt": "2026-11-24T01:39:39.581Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
