@@ -1,13 +1,14 @@
 import 'server-only';
+import { assignmentsProjectionCompact } from './assignment-projection-source';
 /** Fixed explicit-column owning projections; retains the consumer's supplied statement snapshot. */
 export function peoplePayrollFinalOwnerProjections(){return {
   "calendar_lifecycle_facts_people_directory_operations_o_from": "FROM (SELECT \"id\",\"company_id\",\"connection_id\",\"connection_version\",\"state_version\",\"version\",\"status\",\"definition\",\"evidence\",\"review_id\",\"created_by\",\"assignment_id\",\"created_at\",\"updated_at\",\"attempts\",\"next_attempt_at\",\"last_error\",\"result\",\"approval_mode\",\"mfa_session_id\",\"steps\",\"provision_id\" FROM people_directory_operations) o",
   "directory_operation_facts_iam_members_m_join": "JOIN (SELECT \"company_id\",\"user_id\",\"principal_id\",\"person_id\",\"status\",\"login_policy\",\"connection_id\",\"identity_id\",\"version\",\"emergency_until\" FROM iam_members) m",
   "directory_operation_facts_iam_identities_i_from": "FROM (SELECT \"id\",\"company_id\",\"connection_id\",\"external_id\",\"username\",\"name\",\"email\",\"enabled\",\"groups_json\",\"observed_at\",\"user_id\",\"person_id\" FROM iam_identities) i",
-  "executive_report_sources_assignments_a_from": "FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) a",
-  "executive_report_sources_assignments_r_from": "FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) r",
-  "executive_report_sources_assignments_from": "FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) assignments",
-  "executive_report_sources_assignments_a_join": "JOIN (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) a",
+  "executive_report_sources_assignments_a_from": `FROM (${assignmentsProjectionCompact}) a`,
+  "executive_report_sources_assignments_r_from": `FROM (${assignmentsProjectionCompact}) r`,
+  "executive_report_sources_assignments_from": `FROM (${assignmentsProjectionCompact}) assignments`,
+  "executive_report_sources_assignments_a_join": `JOIN (${assignmentsProjectionCompact}) a`,
   "executive_report_sources_iam_roles_r_from": "FROM (SELECT \"company_id\",\"id\",\"name\",\"built_in\",\"published_revision\",\"status\" FROM iam_roles) r",
   "executive_report_sources_iam_role_revisions_rv_join": "JOIN (SELECT \"company_id\",\"role_id\",\"revision\",\"permissions_json\",\"grantable_json\",\"scopes_json\",\"created_by\",\"created_at\" FROM iam_role_revisions) rv",
   "gpo_sources_iam_members_m_from": "FROM (SELECT \"company_id\",\"user_id\",\"principal_id\",\"person_id\",\"status\",\"login_policy\",\"connection_id\",\"identity_id\",\"version\",\"emergency_until\" FROM iam_members) m",
