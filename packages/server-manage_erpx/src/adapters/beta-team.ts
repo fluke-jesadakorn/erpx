@@ -24,6 +24,7 @@ import {
 import { sha256 } from "@erpx/server-runtime/public/crypto";
 import { nativeOwnerWrite, NATIVE_OWNER_WRITE_NOOP_SQL } from "./native-owner-write";
 import { betaPolicyPointSql } from "./beta-policy-point-sql";
+import { betaInvitationPointSql } from "./beta-invitation-point-sql";
 import { nativeWorkflowWrite } from "@erpx/server-workflow/public/native-workflow-evidence";
 
 import type {SqlStatement} from '@erpx/server-runtime/public/runtime/types';
@@ -48,7 +49,7 @@ async insertInvitation(id:string,email:string,branchId:string,userId:string,valu
       void c;
     },...owner0(db,c),...owner1(db,c),...owner2(db),...owner3(db),validateGrant:async(actor,grant)=>{await inward(()=>validateIamGrant(c,actor,grant));},review:(...args)=>inward(()=>proposeIamReview(c,...args))};}
 function repository(db:SqlDatabase):BetaTeamRepository<SqlStatement>{const people=betaManagementPeopleSources(db),organization=betaManagementOrganizationSources(db);return {async invitation(value:string){return db
-    .prepare("SELECT * FROM beta_team_invitations WHERE token_hash=?")
+    .prepare(betaInvitationPointSql('*','token_hash'))
     .bind(value)
     .first<{
       id: string;
@@ -77,7 +78,7 @@ guardCapacity(key:string,value:"capacity",company_id:string,company_id2:string){
 async prepareAcceptedInvitation(id:string,now:number,id2:string){return nativeOwnerWrite('me_beta_invitation_accept',[id,now,id2],`me-invite-accept:${id}`,{now},()=>db.prepare(NATIVE_OWNER_WRITE_NOOP_SQL));},
 async acceptedUser(id:string){return db
           .prepare(
-            "SELECT accepted_user_id FROM beta_team_invitations WHERE id=?",
+            betaInvitationPointSql('accepted_user_id','id'),
           )
           .bind(id)
           .first<{ accepted_user_id: string }>();},
