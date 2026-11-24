@@ -13,6 +13,7 @@ import {inLegalCanonicalDocumentReadUnit,legalSourceWitness} from '@erpx/server-
 import {legalActorScopeProjectionSql} from './legal-read-tail-r18-sources';
 import {legalJsonbAggByItemSql} from './legal-read-tail-r25-sources';
 import {legalExternalUploadShareJoinHead} from './legal-read-tail-r44-sources';
+import {legalItemsByIdCompanyHead} from './legal-read-tail-r45-sources';
 
 const identity=(actor:WorkContext)=>JSON.stringify([actor.holdingId,actor.companyId,actor.userId,actor.email,actor.assignmentId,actor.role,actor.branchId,actor.departmentId,actor.scope,actor.assignmentScope,actor.modules,actor.authority??null,actor.iam??null]);
 const parents=new WeakMap<SqlDatabase,string>();
@@ -27,7 +28,7 @@ export async function prepareLegalCanonicalAttachmentParentRead(database:SqlData
 }
 /** Finish every business owner lease before acquiring shared File/IAM leases. */
 export async function prepareLegalCanonicalAttachmentSharedSources(database:SqlDatabase){await attachmentPrivateReadSourceLocks(database).run();await database.batch(privateFileDenialAuthoritySourceLocks(database));await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);}
-async function image(database:SqlDatabase,actor:WorkContext,id:string){const original=await legalSourceWitness(database,actor,id);if(!original)return null;return database.prepare(`SELECT jsonb_build_object('owner',?::jsonb,'settings',(SELECT to_jsonb(s) FROM legal_settings s WHERE s.company_id=i.company_id),'holds',${legalJsonbAggByItemSql("h","legal_holds")},'disposals',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.document_id) FROM legal_disposals d JOIN legal_documents doc ON doc.id=d.document_id WHERE doc.item_id=i.id),'destructions',${legalJsonbAggByItemSql("d","legal_destructions")},'uploads',(${legalExternalUploadShareJoinHead('jsonb_agg(to_jsonb(u) ORDER BY u.id)','u','share')}WHERE share.item_id=i.id))::text image FROM legal_items i WHERE i.id=? AND i.company_id=?`).bind(original,id,actor.companyId).first<string>('image');}
+async function image(database:SqlDatabase,actor:WorkContext,id:string){const original=await legalSourceWitness(database,actor,id);if(!original)return null;return database.prepare(`${legalItemsByIdCompanyHead(`jsonb_build_object('owner',?::jsonb,'settings',(SELECT to_jsonb(s) FROM legal_settings s WHERE s.company_id=i.company_id),'holds',${legalJsonbAggByItemSql("h","legal_holds")},'disposals',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.document_id) FROM legal_disposals d JOIN legal_documents doc ON doc.id=d.document_id WHERE doc.item_id=i.id),'destructions',${legalJsonbAggByItemSql("d","legal_destructions")},'uploads',(${legalExternalUploadShareJoinHead('jsonb_agg(to_jsonb(u) ORDER BY u.id)','u','share')}WHERE share.item_id=i.id))::text image`,'i.')}`).bind(original,id,actor.companyId).first<string>('image');}
 /** Stored text and legacy evidence can bypass FileStore. Their actual Legal
  * source still belongs to the same final whole-parent source check. */
 export async function deferLegalCanonicalDocumentSourceRead(database:SqlDatabase,actor:WorkContext,itemId:string){
