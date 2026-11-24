@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10660,
+    "revision": 10664,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -164764,7 +164764,7 @@
         "owner": "people_payroll",
         "title": "payroll four column and select star families (round 33)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -164776,22 +164776,37 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMppl4",
-          "claimedAt": "2026-11-24T08:23:56.264Z",
-          "heartbeatAt": "2026-11-24T08:23:56.264Z",
-          "expiresAt": "2026-11-24T08:53:56.264Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "749668328",
+            "owner": "people_payroll",
+            "before": 1399,
+            "after": 1393,
+            "note": "Four column by id+company and select star by two predicate families share two builders; lock sites and r1-r32 untouched."
+          },
+          {
+            "command": "vitest payroll r20-r33 (63) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "749668328"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Four column by id+company and select star by two predicates families share builders; active pay group projection can follow. BEFORE=1399.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMppl4",
+          "at": "2026-11-24T08:33:34.283Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -165255,6 +165270,42 @@
         "nextAction": "Learn assignments existence probe head is the next candidate; verify byte identity. BEFORE=71.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.people_payroll.read-tail-r34",
+        "goalId": "G4",
+        "owner": "people_payroll",
+        "title": "payroll active pay group projection family (round 34)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/**",
+          "tests/unit/people_payroll/**",
+          "tests/integration/people_payroll/**"
+        ],
+        "resources": [
+          "owner:people_payroll"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMppl5",
+          "claimedAt": "2026-11-24T08:33:34.695Z",
+          "heartbeatAt": "2026-11-24T08:33:34.695Z",
+          "expiresAt": "2026-11-24T09:03:34.695Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Active pay group projection family at four sites; verify byte identity against r23 guards. BEFORE=1393.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -165263,7 +165314,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1433,
+      "totalPackets": 1434,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
@@ -165271,13 +165322,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1063,
+        "blocked": 1064,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:33:08.195Z",
+    "updatedAt": "2026-11-24T08:33:34.700Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
