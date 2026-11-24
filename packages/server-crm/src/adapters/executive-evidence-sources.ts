@@ -1,5 +1,6 @@
 import "server-only";
 import {crmMetricSource} from "@erpx/server-crm/adapters/metric-purchases";
+import {crmLeadVersionProjection} from "@erpx/server-crm/adapters/purchases";
 import { z } from "zod";
 import { type Filters } from "@erpx/feature-shared/lib/executive/canvas";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -28,7 +29,7 @@ export function executiveEvidenceSources(database: SqlDatabase) {
                 conditions.push("(v.close_date>? OR (v.close_date=? AND v.id>?))");
                 values.push(cursor.closeDate, cursor.closeDate, cursor.id);
             }
-            const rows = (await db.prepare(`SELECT v.id,v.lead_id,l.title,l.status lead_status,l.version lead_version,
+            const rows = (await db.prepare(`${crmLeadVersionProjection}
       v.stage,v.expected_minor,v.currency,v.close_date,v.version
     FROM crm_opportunities v JOIN (${purchased.sql}) l ON l.id=v.lead_id
     WHERE ${conditions.join(" AND ")} ORDER BY v.close_date,v.id LIMIT ?`)

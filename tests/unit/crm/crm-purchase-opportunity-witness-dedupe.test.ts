@@ -62,4 +62,33 @@ describe('crm purchase opportunity witness read family', () => {
     expect(record).not.toMatch(/SELECT 1 FROM crm_lead_activities c JOIN crm_leads l/);
     expect(record.match(/\$\{crmLeadActivityExists\}/g)).toHaveLength(1);
   });
+
+  it('keeps one assignment-modules EXISTS prefix shared by metric and analytics purchases', async () => {
+    const purchases = await readFile(purchasesUrl, 'utf8');
+    const metric = await readFile(adapter('metric-purchases.ts'), 'utf8');
+    const analytics = await readFile(adapter('analytics-purchases.ts'), 'utf8');
+    const prefix = 'EXISTS(SELECT 1 FROM assignments selected WHERE selected.id=? AND (jsonb_array_length(selected.modules_json::jsonb)=0 OR selected.modules_json::jsonb @> jsonb_build_array(';
+    expect(purchases.split('export const crmAssignmentModuleExists=`' + prefix + '`;').length - 1).toBe(1);
+    expect(metric).not.toContain(prefix);
+    expect(analytics).not.toContain(prefix);
+    expect(metric.match(/\$\{crmAssignmentModuleExists\}/g)).toHaveLength(1);
+    expect(analytics.match(/\$\{crmAssignmentModuleExists\}/g)).toHaveLength(1);
+    // Differing tails stay inline so rendered SQL stays byte-identical.
+    expect(metric).toContain("${crmAssignmentModuleExists}'crm'::text)))");
+    expect(analytics).toContain('${crmAssignmentModuleExists}?::text)))');
+  });
+
+  it('keeps one lead-version projection prefix shared by executive evidence and leads', async () => {
+    const purchases = await readFile(purchasesUrl, 'utf8');
+    const executive = await readFile(adapter('executive-evidence-sources.ts'), 'utf8');
+    const leads = await readFile(adapter('leads.ts'), 'utf8');
+    const prefix = 'SELECT v.id,v.lead_id,l.title,l.status lead_status,l.version lead_version,';
+    expect(purchases.split('export const crmLeadVersionProjection=`' + prefix + '`;').length - 1).toBe(1);
+    expect(executive).not.toContain(prefix);
+    expect(leads).not.toContain(prefix);
+    expect(executive.match(/\$\{crmLeadVersionProjection\}/g)).toHaveLength(1);
+    expect(leads.match(/\$\{crmLeadVersionProjection\}/g)).toHaveLength(1);
+    expect(executive).toContain('${crmLeadVersionProjection}\n');
+    expect(leads).toContain('${crmLeadVersionProjection}v.stage,v.expected_minor,v.currency,v.close_date,v.version opportunity_version');
+  });
 });

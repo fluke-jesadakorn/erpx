@@ -7,7 +7,7 @@ import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {commercePackageEnforcementMode,readPurchasedAccesses} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {salesFollowupMetricHistoryAccess,salesFollowupMetricSource} from "@erpx/server-sales/public/metric-purchases";
-import {actorScopeSql,crmPurchaseOpportunityRows} from "@erpx/server-crm/adapters/purchases";
+import {actorScopeSql,crmPurchaseOpportunityRows,crmAssignmentModuleExists} from "@erpx/server-crm/adapters/purchases";
 const rows=`SELECT lead.* FROM crm_leads lead JOIN (${crmPurchaseOpportunityRows}) actual ON actual.id=lead.id AND actual.company_id=lead.company_id`;
 export async function crmMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){
  const mode=await commercePackageEnforcementMode(),access=await readPurchasedAccesses(database,mode,actor.companyId,["sales.crm"]),followups=await salesFollowupMetricHistoryAccess(database,actor);if(mode!=="enforced")return {"opportunity-pipeline":true,...followups};
@@ -19,5 +19,5 @@ export async function crmMetricSource(database:SqlDatabase,actor:WorkContext,id:
  if(id!=="opportunity-pipeline")throw new ApiError(422,"METRIC_UNSUPPORTED","This CRM metric has no original owner source.");
  if(!(await crmMetricHistoryAccess(database,actor))[id])throw new ApiError(403,"METRIC_SOURCE_UNAVAILABLE","Original CRM history and current source authority are required.");
  if(await commercePackageEnforcementMode()!=="enforced")return {sql:"SELECT * FROM crm_leads",args:[] as unknown[]};
- return {sql:`WITH crm_metric_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms) SELECT crm_metric_owned.* FROM (${rows}) crm_metric_owned CROSS JOIN crm_metric_clock WHERE ${assignmentReadSql("crm_metric_owned","commerce.read")} AND ${purchasedCapabilityPredicate("crm_metric_owned.company_id","sales.crm","history","crm_metric_clock.now_ms")} AND EXISTS(SELECT 1 FROM assignments selected WHERE selected.id=? AND (jsonb_array_length(selected.modules_json::jsonb)=0 OR selected.modules_json::jsonb @> jsonb_build_array('crm'::text)))`,args:[actor.assignmentId,actor.userId,actor.role,actor.assignmentId]};
+ return {sql:`WITH crm_metric_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms) SELECT crm_metric_owned.* FROM (${rows}) crm_metric_owned CROSS JOIN crm_metric_clock WHERE ${assignmentReadSql("crm_metric_owned","commerce.read")} AND ${purchasedCapabilityPredicate("crm_metric_owned.company_id","sales.crm","history","crm_metric_clock.now_ms")} AND ${crmAssignmentModuleExists}'crm'::text)))`,args:[actor.assignmentId,actor.userId,actor.role,actor.assignmentId]};
 }
