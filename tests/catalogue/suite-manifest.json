@@ -105407,6 +105407,33 @@
       ]
     },
     {
+      "lane": "unit",
+      "owner": "support",
+      "modules": [
+        "support"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Support ticket portal replay proof family must stay one helper."
+      },
+      "apps": [
+        "support"
+      ],
+      "packages": [
+        "@erpx/server-support"
+      ],
+      "id": "support.read-tail-r18-replay-proof-family.unit",
+      "files": [
+        "tests/unit/support/read-tail-r18-replay-proof-family.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "support.rust-record-source-postgres.integration",
       "lane": "integration",
       "owner": "support",
