@@ -383,4 +383,16 @@ describe('Organization owner-local read tail', () => {
       ownerVersionGuardSource('t').replace('t', 'T'));
   });
 
+  it('renders one byte-identical alias-parameterized level_leave_defaults projection', async () => {
+    const {peopleVerifiedContextProjections} = await import('../../../packages/server-organization/src/adapters/people-payroll-verified-context-projections');
+    const p = peopleVerifiedContextProjections();
+    const d = p.people_payroll_level_leave_defaults_d_from;
+    const x = p.people_payroll_level_leave_defaults_x_from;
+    const cols = '"id","company_id","level_id","version","policy_version_id","created_by","created_at"';
+    expect(d).toBe(`FROM (SELECT ${cols} FROM level_leave_defaults) d`);
+    expect(x).toBe(`FROM (SELECT ${cols} FROM level_leave_defaults) x`);
+    expect(d.replace(' d', ' A')).toBe(x.replace(' x', ' A'));
+    expect(p.people_payroll_position_pay_defaults_from).toContain('FROM position_pay_defaults) position_pay_defaults');
+  });
+
 });
