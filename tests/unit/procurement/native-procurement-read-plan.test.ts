@@ -20,6 +20,8 @@ import {
   PROCUREMENT_RD_BILL_MATCH_EVENTS,
   PROCUREMENT_RD_BILL_MATCH_LINES_FOR_INVOICE,
   PROCUREMENT_RD_POSTED_BILL_MATCH_FOR_INVOICE,
+  PROCUREMENT_RD_EMPLOYEE_REQUEST_ORDERED_QUOTATION,
+  PROCUREMENT_RD_HANDOFF_APPROVED_QUOTATION,
 } from '../../../packages/server-procurement/src/adapters/native-procurement-read';
 import { procurementInvoiceMatchForFinance } from '../../../packages/server-procurement/src/adapters/finance-entrypoint-queries';
 import { requestQuotation } from '../../../packages/server-procurement/src/adapters/people-app-entrypoint-facts';
@@ -47,6 +49,8 @@ const planned = {
   [PROCUREMENT_RD_BILL_MATCH_EVENTS]: 'SELECT * FROM procurement_bill_match_events WHERE match_id=? ORDER BY version DESC',
   [PROCUREMENT_RD_BILL_MATCH_LINES_FOR_INVOICE]: "SELECT l.subtotal_minor,l.tax_minor FROM procurement_bill_match_lines l JOIN procurement_bill_matches m ON m.id=l.match_id WHERE m.invoice_id=? AND m.status='posted' AND l.fulfillment_line_id=?",
   [PROCUREMENT_RD_POSTED_BILL_MATCH_FOR_INVOICE]: "SELECT * FROM procurement_bill_matches WHERE invoice_id=? AND company_id=? AND status='posted'",
+  [PROCUREMENT_RD_EMPLOYEE_REQUEST_ORDERED_QUOTATION]: "SELECT id,order_id FROM procurement_rfqs WHERE request_id=? AND order_id=? AND status='ordered'",
+  [PROCUREMENT_RD_HANDOFF_APPROVED_QUOTATION]: "SELECT id FROM procurement_rfqs WHERE request_id=? AND id=? AND status='approved'",
 };
 const stubFetch = (payload: unknown, status = 200) => {
   const fetchMock = vi.fn(async () => ({
@@ -109,7 +113,9 @@ describe('native Procurement caller-unit read plan', () => {
     expect(PROCUREMENT_RD_BILL_MATCH_EVENTS).toBe('procurement_rd_bill_match_events');
     expect(PROCUREMENT_RD_BILL_MATCH_LINES_FOR_INVOICE).toBe('procurement_rd_bill_match_lines_for_invoice');
     expect(PROCUREMENT_RD_POSTED_BILL_MATCH_FOR_INVOICE).toBe('procurement_rd_posted_bill_match_for_invoice');
-    for (const kind of [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE, PROCUREMENT_RD_REQUEST_QUOTATION, PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH, PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL, PROCUREMENT_RD_BILL_MATCH_RECEIPTS, PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT, PROCUREMENT_RD_REQUEST_ALLOCATIONS, PROCUREMENT_RD_REQUEST_ORDER_LINK, PROCUREMENT_RD_BILL_MATCH_VARIANCE, PROCUREMENT_RD_BILL_MATCH_RECEIPT_HISTORY, PROCUREMENT_RD_INVOICE_POLICY_MATCHING_REQUIRED, PROCUREMENT_RD_RECORD_BILL_MATCH_EXISTS, PROCUREMENT_RD_RECORD_RFQ_EXISTS, PROCUREMENT_RD_BILL_MATCH_EVENTS, PROCUREMENT_RD_BILL_MATCH_LINES_FOR_INVOICE, PROCUREMENT_RD_POSTED_BILL_MATCH_FOR_INVOICE]) {
+    expect(PROCUREMENT_RD_EMPLOYEE_REQUEST_ORDERED_QUOTATION).toBe('procurement_rd_employee_request_ordered_quotation');
+    expect(PROCUREMENT_RD_HANDOFF_APPROVED_QUOTATION).toBe('procurement_rd_handoff_approved_quotation');
+    for (const kind of [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE, PROCUREMENT_RD_REQUEST_QUOTATION, PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH, PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL, PROCUREMENT_RD_BILL_MATCH_RECEIPTS, PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT, PROCUREMENT_RD_REQUEST_ALLOCATIONS, PROCUREMENT_RD_REQUEST_ORDER_LINK, PROCUREMENT_RD_BILL_MATCH_VARIANCE, PROCUREMENT_RD_BILL_MATCH_RECEIPT_HISTORY, PROCUREMENT_RD_INVOICE_POLICY_MATCHING_REQUIRED, PROCUREMENT_RD_RECORD_BILL_MATCH_EXISTS, PROCUREMENT_RD_RECORD_RFQ_EXISTS, PROCUREMENT_RD_BILL_MATCH_EVENTS, PROCUREMENT_RD_BILL_MATCH_LINES_FOR_INVOICE, PROCUREMENT_RD_POSTED_BILL_MATCH_FOR_INVOICE, PROCUREMENT_RD_EMPLOYEE_REQUEST_ORDERED_QUOTATION, PROCUREMENT_RD_HANDOFF_APPROVED_QUOTATION]) {
       expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
     }
   });
@@ -435,6 +441,43 @@ describe('native Procurement caller-unit read plan', () => {
       expect(body.values).toEqual([...values]);
       expect(JSON.stringify(body)).not.toContain('SELECT');
     }
+  });
+
+  it('plans both employee-request quotation lookups and retires the TypeScript literals', async () => {
+    const ordered = { id: 'rfq-1', order_id: 'order-1' };
+    const orderedMock = stubFetch({ data: { statements: [{ sql: planned[PROCUREMENT_RD_EMPLOYEE_REQUEST_ORDERED_QUOTATION], values: ['req-1', 'order-1'] }] } });
+    const orderedDb = fakeDb([ordered]);
+    const facts = EmployeeRequestsProcurementOwnedFacts(orderedDb.db as never);
+    expect(await facts.readActOnEmployeeRequestQuotation('req-1', 'order-1')).toEqual(ordered);
+    expect(orderedDb.prepared).toEqual([planned[PROCUREMENT_RD_EMPLOYEE_REQUEST_ORDERED_QUOTATION]]);
+    expect(orderedDb.bound).toEqual([['req-1', 'order-1']]);
+    const [, orderedInit] = orderedMock.mock.calls[0] as unknown as [URL, RequestInit];
+    const orderedBody = JSON.parse(orderedInit.body as string) as { kind: string; values: unknown[] };
+    expect(orderedBody.kind).toBe('procurement_rd_employee_request_ordered_quotation');
+    expect(orderedBody.values).toEqual(['req-1', 'order-1']);
+    expect(JSON.stringify(orderedBody)).not.toContain('SELECT');
+
+    const approved = { id: 'rfq-2' };
+    const approvedMock = stubFetch({ data: { statements: [{ sql: planned[PROCUREMENT_RD_HANDOFF_APPROVED_QUOTATION], values: ['req-1', 'rfq-2'] }] } });
+    const approvedDb = fakeDb([approved]);
+    const handoffFacts = EmployeeRequestsProcurementOwnedFacts(approvedDb.db as never);
+    expect(await handoffFacts.readPrepareRequestOrderHandoffQuotation('req-1', 'rfq-2')).toEqual(approved);
+    expect(approvedDb.prepared).toEqual([planned[PROCUREMENT_RD_HANDOFF_APPROVED_QUOTATION]]);
+    expect(approvedDb.bound).toEqual([['req-1', 'rfq-2']]);
+    const [, approvedInit] = approvedMock.mock.calls[0] as unknown as [URL, RequestInit];
+    const approvedBody = JSON.parse(approvedInit.body as string) as { kind: string; values: unknown[] };
+    expect(approvedBody.kind).toBe('procurement_rd_handoff_approved_quotation');
+    expect(approvedBody.values).toEqual(['req-1', 'rfq-2']);
+    expect(JSON.stringify(approvedBody)).not.toContain('SELECT');
+
+    const source = readFileSync(
+      new URL('../../../packages/server-procurement/src/adapters/records-employee-requests-owned-facts.ts', import.meta.url),
+      'utf8',
+    );
+    expect(source).not.toContain("SELECT id,order_id FROM procurement_rfqs WHERE request_id=? AND order_id=? AND status='ordered'");
+    expect(source).not.toContain("SELECT id FROM procurement_rfqs WHERE request_id=? AND id=? AND status='approved'");
+    expect(source).toContain('PROCUREMENT_RD_EMPLOYEE_REQUEST_ORDERED_QUOTATION');
+    expect(source).toContain('PROCUREMENT_RD_HANDOFF_APPROVED_QUOTATION');
   });
 
   it('fails closed when the native transport is not configured', async () => {

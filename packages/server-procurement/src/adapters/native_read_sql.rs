@@ -236,6 +236,34 @@ const READ_POSTED_BILL_MATCH_FOR_INVOICE: NativeReadStatement = NativeReadStatem
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `records-employee-requests-owned-facts`
+/// `readActOnEmployeeRequestQuotation` literal. The owner plans this exact
+/// statement; the caller executes it on its open unit with the same
+/// `[requestId, purchaseOrderId]` binds.
+pub const RD_EMPLOYEE_REQUEST_ORDERED_QUOTATION: &str =
+    "procurement_rd_employee_request_ordered_quotation";
+const SQL_EMPLOYEE_REQUEST_ORDERED_QUOTATION: &str =
+    "SELECT id,order_id FROM procurement_rfqs WHERE request_id=? AND order_id=? AND status='ordered'";
+const READ_EMPLOYEE_REQUEST_ORDERED_QUOTATION: NativeReadStatement = NativeReadStatement {
+    kind: RD_EMPLOYEE_REQUEST_ORDERED_QUOTATION,
+    sql: SQL_EMPLOYEE_REQUEST_ORDERED_QUOTATION,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript `records-employee-requests-owned-facts`
+/// `readPrepareRequestOrderHandoffQuotation` literal. Same owner literal and
+/// `[requestId, rfqId]` binds.
+pub const RD_HANDOFF_APPROVED_QUOTATION: &str = "procurement_rd_handoff_approved_quotation";
+const SQL_HANDOFF_APPROVED_QUOTATION: &str =
+    "SELECT id FROM procurement_rfqs WHERE request_id=? AND id=? AND status='approved'";
+const READ_HANDOFF_APPROVED_QUOTATION: NativeReadStatement = NativeReadStatement {
+    kind: RD_HANDOFF_APPROVED_QUOTATION,
+    sql: SQL_HANDOFF_APPROVED_QUOTATION,
+    bind_count: 2,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_INVOICE_MATCH_FOR_FINANCE,
     READ_REQUEST_QUOTATION,
@@ -253,6 +281,8 @@ const READS: &[NativeReadStatement] = &[
     READ_BILL_MATCH_EVENTS,
     READ_BILL_MATCH_LINES_FOR_INVOICE,
     READ_POSTED_BILL_MATCH_FOR_INVOICE,
+    READ_EMPLOYEE_REQUEST_ORDERED_QUOTATION,
+    READ_HANDOFF_APPROVED_QUOTATION,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -287,6 +317,8 @@ mod tests {
         assert!(is_read(RD_BILL_MATCH_EVENTS));
         assert!(is_read(RD_BILL_MATCH_LINES_FOR_INVOICE));
         assert!(is_read(RD_POSTED_BILL_MATCH_FOR_INVOICE));
+        assert!(is_read(RD_EMPLOYEE_REQUEST_ORDERED_QUOTATION));
+        assert!(is_read(RD_HANDOFF_APPROVED_QUOTATION));
         assert!(!is_read("procurement_stmt_1"));
         assert!(read_statement("not_a_native_read").is_none());
     }
@@ -366,6 +398,12 @@ mod tests {
                 2usize,
                 "procurement_bill_matches",
             ),
+            (
+                RD_EMPLOYEE_REQUEST_ORDERED_QUOTATION,
+                2usize,
+                "procurement_rfqs",
+            ),
+            (RD_HANDOFF_APPROVED_QUOTATION, 2usize, "procurement_rfqs"),
         ] {
             let read = read_statement(kind).expect("read kind");
             let upper = read.sql.to_ascii_uppercase();
@@ -566,6 +604,34 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 2);
         assert_eq!(read.scope, "holding");
         assert!(is_read(RD_POSTED_BILL_MATCH_FOR_INVOICE));
+        assert!(!is_read("procurement_stmt_1"));
+    }
+
+    #[test]
+    fn employee_request_ordered_quotation_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_EMPLOYEE_REQUEST_ORDERED_QUOTATION).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT id,order_id FROM procurement_rfqs WHERE request_id=? AND order_id=? AND status='ordered'"
+        );
+        assert_eq!(read.bind_count, 2);
+        assert_eq!(read.sql.matches('?').count(), 2);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_EMPLOYEE_REQUEST_ORDERED_QUOTATION));
+        assert!(!is_read("procurement_stmt_1"));
+    }
+
+    #[test]
+    fn handoff_approved_quotation_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_HANDOFF_APPROVED_QUOTATION).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT id FROM procurement_rfqs WHERE request_id=? AND id=? AND status='approved'"
+        );
+        assert_eq!(read.bind_count, 2);
+        assert_eq!(read.sql.matches('?').count(), 2);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_HANDOFF_APPROVED_QUOTATION));
         assert!(!is_read("procurement_stmt_1"));
     }
 }
