@@ -3,6 +3,7 @@ import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type {Row} from "@erpx/server-files/public/contracts/attachments-finance";
 import { nativeOrgStatement } from "./native-organization-owner-write";
+import {ownerVersionGuardSource} from './organization-read-tail-sources';
 const versionDescriptors:Record<string,{table:string;column?:string;extra?:string}>={"organization_change": {"table": "organization_node_changes"}};
 const allowedTargets=new Set(["organization_change", "organization_node"]);
 function financeOperationsAttachmentTargetVersionGuard(
@@ -20,7 +21,7 @@ if(!allowedTargets.has(targetType))return null;
   const item = versionDescriptors[targetType];
   if (!item) return null;
   const column = item.column ?? "version";
-  return assertion(db, commandId, `attachment-owner-${index}`, `EXISTS(SELECT 1 FROM ${item.table} WHERE id=? AND company_id=? AND ${column}=?${item.extra ? ` AND ${item.extra}` : ""})`, [targetId, companyId, version]);
+  return assertion(db, commandId, `attachment-owner-${index}`, ownerVersionGuardSource(item.table, column, item.extra), [targetId, companyId, version]);
 }
 /** Owner-owned version step. The SQL is selected by the native owner registry
  * from a typed kind; no SQL text is assembled here. */

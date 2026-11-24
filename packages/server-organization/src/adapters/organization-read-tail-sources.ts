@@ -10,3 +10,8 @@ export const NODE_BRANCH_ACTIVE =
  * guards render the exact same SQL; only the relation name varies. Text only:
  * callers keep their own binds and supplied statement. */
 export const departmentSnapshotMissing = (table: string) => `NOT EXISTS(SELECT 1 FROM ${table} WHERE company_id=? AND department_id=?)`;
+/** Table-parameterized atomic owner version guard. Both attachment owner facts
+ * render byte-identical SQL; only the relation (and optional column/extra)
+ * varies. Text only: callers keep their own binds and supplied statement. */
+export const ownerVersionGuardSource = (table: string, column = 'version', extra?: string) =>
+  `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND ${column}=?${extra ? ` AND ${extra}` : ''})`;

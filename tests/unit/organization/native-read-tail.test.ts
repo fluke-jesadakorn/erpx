@@ -369,4 +369,18 @@ describe('Organization owner-local read tail', () => {
       departmentSnapshotMissing('department_flow_versions').replace('department_flow_versions', 'T'));
   });
 
+  it('renders one byte-identical table-parameterized attachment version guard', async () => {
+    const {ownerVersionGuardSource} = await import('../../../packages/server-organization/src/adapters/organization-read-tail-sources');
+    // The Finance and Service attachment facts previously inlined the same
+    // guard; only the relation varied. The shared helper renders it unchanged.
+    expect(ownerVersionGuardSource('organization_node_changes')).toBe(
+      'EXISTS(SELECT 1 FROM organization_node_changes WHERE id=? AND company_id=? AND version=?)');
+    expect(ownerVersionGuardSource('organization_node_changes', 'version')).toBe(
+      'EXISTS(SELECT 1 FROM organization_node_changes WHERE id=? AND company_id=? AND version=?)');
+    expect(ownerVersionGuardSource('t', 'version', 'active=1')).toBe(
+      'EXISTS(SELECT 1 FROM t WHERE id=? AND company_id=? AND version=? AND active=1)');
+    expect(ownerVersionGuardSource('organization_node_changes').replace('organization_node_changes', 'T')).toBe(
+      ownerVersionGuardSource('t').replace('t', 'T'));
+  });
+
 });
