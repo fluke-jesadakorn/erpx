@@ -12,13 +12,13 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import type {AttachmentOperation} from "@erpx/server-files/public/attachments/types";
 import {learningOwnsAttachmentAction} from "@erpx/server-learning/adapters/purchases";
+import {assignmentCourseJoinHead,learningCourseProjection} from "./learning-read-sql";
 
 type Target="learning_course"|"learning_assignment";
 export type LearningAttachmentPurchase={companyId:string;capability:"learn.courses"|"learn.certificates";purpose:CapabilityPurpose;actor:WorkContext;targetType:Target;targetId:string;witness:string;ownedCompletion:boolean};
 function source(type:Target,ownedCompletion=false){
- if(type==="learning_course")return "SELECT c.*,NULL::text branch_id,NULL::text department_id,(to_jsonb(c)-'version'-'updated_at')::text image FROM learning_courses c WHERE c.id=? AND c.company_id=?";
- return `SELECT a.*,jsonb_build_object('assignment',to_jsonb(a)-'version'-'updated_at'${ownedCompletion?"-'status'-'attendance'-'score_bps'-'result_evidence'-'completion_reason'":""},'course',to_jsonb(c)-'version'-'updated_at')::text image
- FROM learning_assignments a JOIN learning_courses c ON c.id=a.course_id AND c.company_id=a.company_id WHERE a.id=? AND a.company_id=?`;
+ if(type==="learning_course")return learningCourseProjection("c.*,NULL::text branch_id,NULL::text department_id,(to_jsonb(c)-'version'-'updated_at')::text image");
+ return `${assignmentCourseJoinHead(`a.*,jsonb_build_object('assignment',to_jsonb(a)-'version'-'updated_at'${ownedCompletion?"-'status'-'attendance'-'score_bps'-'result_evidence'-'completion_reason'":""},'course',to_jsonb(c)-'version'-'updated_at')::text image`,'\n ')} WHERE a.id=? AND a.company_id=?`;
 }
 export async function learningAttachmentPurchaseScope(database:SqlDatabase,actor:WorkContext,type:string,id:string):Promise<LearningAttachmentPurchase|null>{
  if(!["learning_course","learning_assignment"].includes(type)||await learningPackageEnforcementMode()==="disabled")return null;

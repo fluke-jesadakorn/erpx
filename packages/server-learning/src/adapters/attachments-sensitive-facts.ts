@@ -1,7 +1,7 @@
 import "server-only";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {learningAssignmentsExistsProbe} from "./learning-read-sql";
+import {learningAssignmentsExistsProbe,learningCourseProjection} from "./learning-read-sql";
 const sensitiveTables:Record<string,string>={learning_course:"learning_courses",learning_assignment:"learning_assignments"};
 const sensitiveRecordTables = new Set([
   "hr_evaluation_assessment",
@@ -52,9 +52,8 @@ function sensitiveAttachmentRecordVersionStep(
     .bind(now, targetId, expectedVersion);
 }
 export function SensitiveAttachmentLearningFacts(db:SqlDatabase){return {
-readLearningAssignments1:(facts:{userId:string;targetId:string;companyId:string;})=>db.prepare(`SELECT c.company_id,c.version,NULL::text branch_id,NULL::text department_id,c.status,
-        CASE WHEN ${learningAssignmentsExistsProbe('a',"a.course_id=c.id AND a.company_id=c.company_id AND a.learner_id=? AND a.status!='cancelled'")} THEN 1 ELSE 0 END is_learner
-      FROM learning_courses c WHERE c.id=? AND c.company_id=?`).bind(facts.userId,facts.targetId,facts.companyId).first<{
+readLearningAssignments1:(facts:{userId:string;targetId:string;companyId:string;})=>db.prepare(learningCourseProjection(`c.company_id,c.version,NULL::text branch_id,NULL::text department_id,c.status,
+        CASE WHEN ${learningAssignmentsExistsProbe('a',"a.course_id=c.id AND a.company_id=c.company_id AND a.learner_id=? AND a.status!='cancelled'")} THEN 1 ELSE 0 END is_learner`,'\n      ')).bind(facts.userId,facts.targetId,facts.companyId).first<{
       company_id: string;
       version: number;
       branch_id: null;

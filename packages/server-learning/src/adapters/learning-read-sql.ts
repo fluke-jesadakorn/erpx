@@ -65,3 +65,15 @@ export const learningAssignmentsExistsProbe = (alias: string, conditions: string
  * keeps both rendered queries equal. */
 export const currentAssignmentScopeHead = (alias: string, permission: string, grant = '', separator = ' ') =>
   `SELECT ${assignmentReadSql(alias, permission)}${grant} allowed FROM${separator}${actorScopeProbe}) ${alias}`;
+
+/** r10 — single-row learning_courses reads share the same FROM/WHERE tail and differ
+ * only by projected columns. Only the projection and its separator vary, so every
+ * rendered query keeps its exact pre-dedupe bytes. */
+export const learningCourseProjection = (projection: string, separator = ' ') =>
+  `SELECT ${projection}${separator}FROM learning_courses c WHERE c.id=? AND c.company_id=?`;
+
+/** r10 — assignment x course single-row reads share the same join head and differ
+ * only by projected columns and WHERE tail. Only the projection and its separator
+ * vary, so every rendered query keeps its exact pre-dedupe bytes. */
+export const assignmentCourseJoinHead = (projection: string, separator = ' ') =>
+  `SELECT ${projection}${separator}FROM learning_assignments a JOIN learning_courses c ON c.id=a.course_id AND c.company_id=a.company_id`;
