@@ -161,6 +161,19 @@ const READ_PAYROLL_OPTIONS_GROUPS: NativeReadStatement = NativeReadStatement {
     bind_count: 1,
 };
 
+/// Native successor of the two identical TypeScript
+/// `project-worker-startup-state` and `project-worker-startup-jobs`
+/// person-user reads. The owner plans this literal once; the caller executes it
+/// on its open unit with the same `[person_id, company_id]` binds. Deduped into
+/// one owner read kind.
+pub const RD_PROJECT_WORKER_PERSON_USER: &str = "people_payroll_rd_project_worker_person_user";
+const SQL_PROJECT_WORKER_PERSON_USER: &str = "SELECT user_id FROM hr_people WHERE id=? AND company_id=? AND merged_into_id IS NULL";
+const READ_PROJECT_WORKER_PERSON_USER: NativeReadStatement = NativeReadStatement {
+    kind: RD_PROJECT_WORKER_PERSON_USER,
+    sql: SQL_PROJECT_WORKER_PERSON_USER,
+    bind_count: 2,
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_RECORD_SUPPLEMENT_ROWS,
     READ_ORG_ROSTER_EXIT_ENGAGEMENT_IDS,
@@ -175,6 +188,7 @@ const READS: &[NativeReadStatement] = &[
     READ_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID,
     READ_LEAVE_LEGACY_EMPLOYEE,
     READ_PAYROLL_OPTIONS_GROUPS,
+    READ_PROJECT_WORKER_PERSON_USER,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -321,6 +335,19 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 1);
         assert!(read.sql.contains("hr_pay_groups"));
         assert!(is_read(RD_PAYROLL_OPTIONS_GROUPS));
+    }
+
+    #[test]
+    fn project_worker_person_user_read_plan_is_ledger_free_and_bounded() {
+        let read = read_statement(RD_PROJECT_WORKER_PERSON_USER).expect("read kind");
+        assert!(read.sql.to_ascii_uppercase().starts_with("SELECT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("INSERT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("UPDATE"));
+        assert!(!read.sql.to_ascii_uppercase().contains("DELETE"));
+        assert_eq!(read.bind_count, 2);
+        assert_eq!(read.sql.matches('?').count(), 2);
+        assert!(read.sql.contains("merged_into_id"));
+        assert!(is_read(RD_PROJECT_WORKER_PERSON_USER));
     }
 
     #[test]

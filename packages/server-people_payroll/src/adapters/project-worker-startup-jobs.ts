@@ -9,7 +9,7 @@ import { assertProductionModuleEnabled } from "@erpx/server-pms/public/feature-a
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {workerStartupSourcePolicy,workerPlacementSourceRows,workerPlacementMarkedRows,learningWorkerPlacementMarkedRows,projectWorkerPlacementTerminalRows,type WorkerStartupConsumer} from '@erpx/server-people_payroll/adapters/project-worker-startup-source-sql';
 import {projectWorkerSourceChanged,projectWorkerSourceLocks} from '@erpx/server-people_payroll/adapters/project-worker-startup-unit';
-import {projectWorkerPersonImage,parseJson} from '@erpx/server-people_payroll/adapters/project-worker-startup-state';
+import {projectWorkerPersonImage,parseJson,projectWorkerPersonUser} from '@erpx/server-people_payroll/adapters/project-worker-startup-state';
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 /** Fixed raw marker detection, existing tables only and safe before1063. */
 export const projectWorkerJobMarkedPredicate=`EXISTS(SELECT 1 FROM (${workerPlacementMarkedRows}) project_worker_marked WHERE project_worker_marked.id=c.id)`;
@@ -24,7 +24,7 @@ export async function prepareProjectWorkerJob(database:SqlDatabase,target:{id:st
  const saved=parseJson<Record<string,unknown>>(source.authority_json),definition=parseJson<Record<string,unknown>>(source.definition),beforeAccount=await projectWorkerStartupSubject(database,source.company_id,source.account_id),beforeAuthority=await projectWorkerStartupJobAuthority(database,source.company_id,source.actor_id,saved),beforeOrg=await projectWorkerOrganizationSource(database,source.company_id),beforeEngagement=await database.prepare('SELECT * FROM hr_engagements WHERE id=? AND person_id=? AND company_id=?').bind(source.engagement_id,source.person_id,source.company_id).first<Record<string,unknown>>();
  if(!beforeAccount||!beforeAuthority||!beforeEngagement||saved.assignmentId!==source.authorizing_assignment_id||source.created_by!==source.actor_id)throw changed();
  const managerImage=typeof definition.managerPersonId==='string'?await projectWorkerPersonImage(database,source.company_id,definition.managerPersonId):null;
- const person=await database.prepare('SELECT user_id FROM hr_people WHERE id=? AND company_id=? AND merged_into_id IS NULL').bind(source.person_id,source.company_id).first<{user_id:string|null}>();if(person?.user_id!==source.account_id)throw changed();
+ const person=await projectWorkerPersonUser(database,source.person_id,source.company_id);if(person?.user_id!==source.account_id)throw changed();
  for(const feature of policy.releases)await assertProductionModuleEnabled(database,source.company_id,feature);
  for(const capability of projectWorkerCapabilities)await checkPurchasedCapability(database,'enforced',{companyId:source.company_id,capability,purpose:'settle-existing'});
  const key=`project-worker-job:${randomUUID()}`,boundaries=projectWorkerCapabilities.map((capability,index)=>({key:`${key}:${index}`,boundary:purchaseCommandBoundary(database,'enforced',`${key}:${index}`,{companyId:source.company_id,capability,purpose:'settle-existing'})!}));await database.batch(boundaries.flatMap(item=>item.boundary.before));

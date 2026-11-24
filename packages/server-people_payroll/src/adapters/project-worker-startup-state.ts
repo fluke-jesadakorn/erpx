@@ -1,5 +1,6 @@
 import 'server-only';
 import {createHash} from 'node:crypto';
+import {nativePeoplePayrollReadAll,PEOPLE_PAYROLL_RD_PROJECT_WORKER_PERSON_USER} from './native-people-payroll-read';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {projectWorkerStartupSubject,projectWorkerStartupRetainedSubject} from '@erpx/server-identity_access/public/project-worker-startup-subject';
@@ -7,10 +8,11 @@ import {projectWorkerOrganizationSource} from '@erpx/server-organization/public/
 import {workerStartupSourcePolicy,workerStartupMarkedRows,type WorkerStartupConsumer} from '@erpx/server-people_payroll/adapters/project-worker-startup-source-sql';
 import type {ProjectWorkerSelection} from '@erpx/server-people_payroll/domain/project-worker-startup';
 export const parseJson=<T>(value:unknown):T=>typeof value==='string'?JSON.parse(value) as T:value as T;
+export async function projectWorkerPersonUser(database:SqlDatabase,personId:string,companyId:string){return (await nativePeoplePayrollReadAll<{user_id:string|null}>(PEOPLE_PAYROLL_RD_PROJECT_WORKER_PERSON_USER,[personId,companyId],database)).results[0]??null;}
 export async function projectWorkerState(database:SqlDatabase,actor:WorkContext,selection:ProjectWorkerSelection,consumer:WorkerStartupConsumer='projects'){
  const policy=workerStartupSourcePolicy(consumer),projectWorkerSourceRows=policy.sourceRows,projectWorkerPlacementRows=policy.placementRows,projectWorkerMarkedRows=workerStartupMarkedRows;
  let personId='personId' in selection?selection.personId:undefined,accountId='accountId' in selection?selection.accountId:undefined;
- if(personId&&!accountId){const person=await database.prepare('SELECT user_id FROM hr_people WHERE id=? AND company_id=? AND merged_into_id IS NULL').bind(personId,actor.companyId).first<{user_id:string|null}>();const retained=await database.prepare(`SELECT account_id FROM (${projectWorkerSourceRows}) source WHERE source.person_id=? AND source.company_id=?`).bind(personId,actor.companyId).first<{account_id:string}>();accountId=retained?.account_id??person?.user_id??undefined;}
+ if(personId&&!accountId){const person=await projectWorkerPersonUser(database,personId,actor.companyId);const retained=await database.prepare(`SELECT account_id FROM (${projectWorkerSourceRows}) source WHERE source.person_id=? AND source.company_id=?`).bind(personId,actor.companyId).first<{account_id:string}>();accountId=retained?.account_id??person?.user_id??undefined;}
  const retainedSelection='personId'in selection&&!('accountId'in selection);const account=accountId?await (retainedSelection?projectWorkerStartupRetainedSubject:projectWorkerStartupSubject)(database,actor.companyId,accountId):null;
  const people=account?(await database.prepare('SELECT * FROM hr_people WHERE company_id=? AND merged_into_id IS NULL AND (user_id=? OR lower(email)=lower(?) OR id=?) ORDER BY id').bind(actor.companyId,account.id,account.email,personId??'').all<Record<string,unknown>>()).results:personId?(await database.prepare('SELECT * FROM hr_people WHERE company_id=? AND id=? AND merged_into_id IS NULL').bind(actor.companyId,personId).all<Record<string,unknown>>()).results:[];
  if(!personId&&account){const linked=people.filter(row=>row.user_id===account.id||account.personIds.includes(String(row.id)));if(linked.length===1)personId=String(linked[0].id);}
