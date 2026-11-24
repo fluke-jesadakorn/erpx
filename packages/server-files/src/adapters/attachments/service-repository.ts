@@ -15,6 +15,7 @@ import {ATTACHMENT_LINK_PROJECTION_HEAD_SQL} from "../read-tail-r37-source-sql";
 import {ATTACHMENT_EVENT_EVENT_HEAD_SQL} from "../read-tail-r38-source-sql";
 import {SANITIZATION_ATTESTED_HEAD_SQL} from "../read-tail-r40-source-sql";
 import {LEDGER_OBJECT_KEY_PROJECTION_HEAD_SQL} from "../read-tail-r42-source-sql";
+import {ATTACHMENT_STAR_ID_HEAD_SQL} from "../read-tail-r44-source-sql";
 const setByIdSql = "SELECT * FROM attachment_sets WHERE id=? AND company_id=?";
 export const usedStorageSql = "SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')";
 export const pendingStorageSql = "SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?";
@@ -788,7 +789,7 @@ export function repository(db: SqlDatabase) {
         },
         readAttachments107: (facts: {
             attachment_id: unknown;
-        }) => { return db.prepare("SELECT * FROM attachments WHERE id=?").bind(facts.attachment_id).first<Record<string, unknown>>(); },
+        }) => { return db.prepare(ATTACHMENT_STAR_ID_HEAD_SQL).bind(facts.attachment_id).first<Record<string, unknown>>(); },
         stepAttachmentScanAttempts109: (facts: {
             engine: string;
             signature: string | null;

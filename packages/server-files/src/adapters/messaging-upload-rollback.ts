@@ -5,6 +5,7 @@ import {runtimePreservationAuthority} from '@erpx/server-legal/public/runtime-pr
 import {PUBLICATION_EXISTS_SQL} from './read-tail-r29-source-sql';
 import {ATTACHMENT_REFERENCE_HEAD_SQL} from './read-tail-r34-source-sql';
 import {STORAGE_LEDGER_OBJECT_KEY_HEAD_SQL} from './read-tail-r41-source-sql';
+import {UPLOAD_INTENTS_EXISTS_HEAD_SQL} from './read-tail-r44-source-sql';
 
 /** The caller supplies only normal reserve results. Keys eligible for rollback
  * are observed successful create-only puts, never an HTTP supplied object key.
@@ -22,7 +23,7 @@ export async function withMessagingUploadRollback<Result>(owner:SqlDatabase,stor
    for(const intent of [...new Set([...created.values()].map(item=>item.intent))].sort())await database.prepare('SELECT pg_advisory_xact_lock(hashtextextended(?,0))').bind(`attachment-upload:${scope.companyId}:${intent}`).run();
    const preservation=runtimePreservationAuthority(database);
    for(const [key,item] of created){
-    const referenced=await database.prepare(`${ATTACHMENT_REFERENCE_HEAD_SQL}object_key=? OR preview_object_key=?) OR EXISTS(SELECT 1 FROM upload_intents WHERE quarantine_key=? OR staging_key=?) OR EXISTS(${STORAGE_LEDGER_OBJECT_KEY_HEAD_SQL}) OR ${PUBLICATION_EXISTS_SQL} WHERE derivative_object_key=?) OR EXISTS(SELECT 1 FROM attachment_orphan_preservations WHERE object_key=?)`).bind(key,key,key,key,key,key,key).first();
+    const referenced=await database.prepare(`${ATTACHMENT_REFERENCE_HEAD_SQL}object_key=? OR preview_object_key=?) OR ${UPLOAD_INTENTS_EXISTS_HEAD_SQL}quarantine_key=? OR staging_key=?) OR EXISTS(${STORAGE_LEDGER_OBJECT_KEY_HEAD_SQL}) OR ${PUBLICATION_EXISTS_SQL} WHERE derivative_object_key=?) OR EXISTS(SELECT 1 FROM attachment_orphan_preservations WHERE object_key=?)`).bind(key,key,key,key,key,key,key).first();
     if(referenced)continue;
     const current=await store.head(key);if(!current||current.key!==key||current.etag!==item.metadata.etag||current.size!==item.metadata.size)continue;
     await preservation.assertMutation([key]);

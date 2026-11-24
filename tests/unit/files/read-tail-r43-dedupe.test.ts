@@ -138,7 +138,7 @@ describe('Files read-tail r43 byte-oracle dedupe', () => {
     }
   });
 
-  test('retirement:ts-statements is 246, strictly below the r42 BEFORE=248 (248->246)', () => {
+  test('retirement:ts-statements is 242, strictly below the r42 BEFORE=248 (248->246->242)', () => {
     let literal = 0, total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -155,8 +155,9 @@ describe('Files read-tail r43 byte-oracle dedupe', () => {
     // r42 left 248. The Field upload-ancestor and upload_intents OR heads each
     // carry one SELECT and are folded from two sites (-1 each). The id/AND head
     // carries no SELECT and both commerce sites keep their projections (0).
-    expect(literal).toBe(246);
-    expect(total).toBe(247);
+    // r44 lowers 246->242 (three more shared heads folded).
+    expect(literal).toBe(242);
+    expect(total).toBe(243);
     expect(literal).toBeLessThan(248);
     expect(total).toBeLessThan(249);
   });

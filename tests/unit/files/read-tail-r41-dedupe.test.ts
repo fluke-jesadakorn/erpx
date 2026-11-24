@@ -111,10 +111,19 @@ describe('Files read-tail r41 byte-oracle dedupe', () => {
       'packages/server-files/src/adapters/leave-review-evidence-facts.ts',
       'packages/server-files/src/adapters/attachments/migration.ts',
       'packages/server-files/src/adapters/attachments/service-repository.ts',
+      // r44 read-tail call sites and helper (assigned owner paths).
+      'packages/server-files/src/adapters/read-tail-r44-source-sql.ts',
+      'packages/server-files/src/adapters/collaboration-home-sources.ts',
+      'packages/server-files/src/adapters/document-derivatives.ts',
+      'packages/server-files/src/adapters/messaging-file-settlements.ts',
+      'packages/server-files/src/adapters/portal-package-obligation-sources.ts',
+      'packages/server-files/src/adapters/attachments/service.ts',
+      'packages/server-files/src/adapters/attachments/service-repository.ts',
+      'packages/server-files/src/adapters/messaging-upload-rollback.ts',
     ].includes(p))).toBe(true);
   });
 
-  test('retirement:ts-statements is strictly below the r40 BEFORE=254 baseline (254->251->248->246)', () => {
+  test('retirement:ts-statements is strictly below the r40 BEFORE=254 baseline (254->251->248->246->242)', () => {
     let literal = 0, total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -129,8 +138,9 @@ describe('Files read-tail r41 byte-oracle dedupe', () => {
     };
     walk(srcRoot);
     // r42 left 248; r43 lowers 248->246 (two SELECT-bearing shared heads folded).
-    expect(literal).toBe(246);
-    expect(total).toBe(247);
+    // r44 lowers 246->242 (three more shared heads folded).
+    expect(literal).toBe(242);
+    expect(total).toBe(243);
     expect(literal).toBeLessThan(254);
     expect(total).toBeLessThan(255);
   });

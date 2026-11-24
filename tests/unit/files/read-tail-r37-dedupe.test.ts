@@ -82,6 +82,15 @@ describe('Files read-tail r37 parameterized family', () => {
       'packages/server-files/src/adapters/leave-review-evidence-facts.ts',
       'packages/server-files/src/adapters/attachments/migration.ts',
       'packages/server-files/src/adapters/attachments/service-repository.ts',
+      // r44 read-tail call sites and helper (assigned owner paths).
+      'packages/server-files/src/adapters/read-tail-r44-source-sql.ts',
+      'packages/server-files/src/adapters/collaboration-home-sources.ts',
+      'packages/server-files/src/adapters/document-derivatives.ts',
+      'packages/server-files/src/adapters/messaging-file-settlements.ts',
+      'packages/server-files/src/adapters/portal-package-obligation-sources.ts',
+      'packages/server-files/src/adapters/attachments/service.ts',
+      'packages/server-files/src/adapters/attachments/service-repository.ts',
+      'packages/server-files/src/adapters/messaging-upload-rollback.ts',
     ].includes(p))).toBe(true);
   });
 
@@ -101,8 +110,9 @@ describe('Files read-tail r37 parameterized family', () => {
     };
     walk(srcRoot);
     // r42 left 248; r43 lowers 248->246 (two SELECT-bearing shared heads folded).
-    expect(literal).toBe(246);
-    expect(total).toBe(247);
+    // r44 lowers 246->242 (three more shared heads folded).
+    expect(literal).toBe(242);
+    expect(total).toBe(243);
     expect(literal).toBeLessThan(255);
     expect(total).toBeLessThan(256);
   });

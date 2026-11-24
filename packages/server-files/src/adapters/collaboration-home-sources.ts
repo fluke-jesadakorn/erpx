@@ -4,6 +4,7 @@ import { socialDraftFilesReadSql } from '@erpx/server-collaboration/public/socia
 import { nativeWrite } from './native-files-command';
 import { socialDraftImageExistsSql } from './social-draft-image-guard-sql';
 import { SELECT_ATTACHMENT_ID_SQL } from './read-tail-r27-source-sql';
+import { UPLOAD_INTENTS_EXISTS_HEAD_SQL } from './read-tail-r44-source-sql';
 export function collaborationHomeSources(db: SqlDatabase) {
     return { revokeUnusedDraftFiles(now: number, recordId: string, keptAttachmentIds: string[]) {
             return nativeWrite('SF_REVOKE_DRAFT', [now, recordId, JSON.stringify(keptAttachmentIds)]);
@@ -21,7 +22,7 @@ export function collaborationHomeSources(db: SqlDatabase) {
           WHERE a.id=? AND a.owner_type='social_draft' AND a.owner_id=? AND d.company_id=? AND a.revoked_at IS NULL
           AND a.media_type IN ('image/jpeg','image/png','image/webp') AND u.owner_type='social_draft' AND u.owner_id=d.id AND u.status='ready')`, [attachmentId, id, companyId]);
         }, guardNoPendingUploads(key: string, value: "uploads", id: string, now: number) {
-            return assertion(db, key, value, "NOT EXISTS(SELECT 1 FROM upload_intents WHERE owner_type='social_draft' AND owner_id=? AND status IN ('pending','uploaded') AND expires_at>?)", [id, now]);
+            return assertion(db, key, value, "NOT " + UPLOAD_INTENTS_EXISTS_HEAD_SQL + "owner_type='social_draft' AND owner_id=? AND status IN ('pending','uploaded') AND expires_at>?)", [id, now]);
         }, async images(allowed: string[], allowed2: string[]) {
             return db.prepare(`SELECT COALESCE(d.published_post_id,d.edit_post_id) AS post_id,a.id,a.original_name,a.media_type FROM attachments a JOIN (${socialDraftFilesReadSql}) d ON d.id=a.owner_id
       WHERE a.owner_type='social_draft' AND (d.published_post_id IN (${allowed.map(() => '?').join(',')}) OR (d.edit_post_id IN (${allowed.map(() => '?').join(',')}) AND d.edit_saved_version IS NOT NULL))

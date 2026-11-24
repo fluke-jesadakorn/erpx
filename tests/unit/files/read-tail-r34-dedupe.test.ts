@@ -33,8 +33,13 @@ describe('Files read-tail r34 parameterized family', () => {
   });
 
   test('both call sites compose the head and render byte-identically', () => {
-    const svc = src('attachments/service.ts');
-    const msg = src('messaging-upload-rollback.ts');
+    // Render the r44 upload_intents splice back to its pre-r44 literal bytes.
+    const head44 = 'EXISTS(SELECT 1 FROM upload_intents WHERE ';
+    const renderR44 = (t: string) => t
+      .replaceAll('" + UPLOAD_INTENTS_EXISTS_HEAD_SQL + "', head44)
+      .replaceAll('${UPLOAD_INTENTS_EXISTS_HEAD_SQL}', head44);
+    const svc = renderR44(src('attachments/service.ts'));
+    const msg = renderR44(src('messaging-upload-rollback.ts'));
     expect((svc.match(/ATTACHMENT_REFERENCE_HEAD_SQL/g) ?? []).length).toBe(2); // import + call site
     expect((msg.match(/ATTACHMENT_REFERENCE_HEAD_SQL/g) ?? []).length).toBe(2); // import + call site
     const svcTail = svc.match(/ATTACHMENT_REFERENCE_HEAD_SQL \+ "(company_id=\?[^"]*)"/)![1];
@@ -90,8 +95,10 @@ describe('Files read-tail r34 parameterized family', () => {
       }
     };
     walk(srcRoot);
-    expect(literal).toBe(246); // r42 left 248; r43 lowers 248->246 (two SELECT-bearing shared heads folded).
-    expect(total).toBe(247);
+    // r42 left 248; r43 lowers 248->246 (two SELECT-bearing shared heads folded).
+    // r44 lowers 246->242 (three more shared heads folded).
+    expect(literal).toBe(242);
+    expect(total).toBe(243);
     expect(literal).toBeLessThan(264);
     expect(total).toBeLessThan(265);
   });
