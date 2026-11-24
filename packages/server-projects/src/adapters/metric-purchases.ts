@@ -7,14 +7,14 @@ import {assignmentReadSql} from "@erpx/server-identity_access/public/record-sour
 import {projectsPackageEnforcementMode,readPurchasedAccesses} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
-import {projectRowsSql} from "@erpx/server-projects/adapters/package-obligations";
+import {projectRowsSql,projectAssignmentScopeSql} from "@erpx/server-projects/adapters/package-obligations";
 const capabilities={projects:"projects.wbs","overdue-project-milestones":"projects.wbs","project-dependency-blockers":"projects.wbs","project-actual-hours":"projects.time","project-posted-cost":"projects.costs"} as const;
 type ProjectMetric=keyof typeof capabilities;
 export async function projectMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){
  const mode=await projectsPackageEnforcementMode(),access=await readPurchasedAccesses(database,mode,actor.companyId,[...new Set(Object.values(capabilities))]);
  if(mode!=="enforced")return Object.fromEntries(Object.keys(capabilities).map(id=>[id,true])) as Record<ProjectMetric,boolean>;
  const permissions=["records.read","finance.read"],current=new Map<string,boolean>();
- for(const permission of permissions)current.set(permission,hasPermission(actor,permission)&&!!await database.prepare(`SELECT ${assignmentReadSql("project_metric_scope",permission)} allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) project_metric_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first("allowed"));
+ for(const permission of permissions)current.set(permission,hasPermission(actor,permission)&&!!await database.prepare(`SELECT ${assignmentReadSql("project_metric_scope",permission)} allowed FROM ${projectAssignmentScopeSql("project_metric_scope")}`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first("allowed"));
  return Object.fromEntries(Object.entries(capabilities).map(([id,capability])=>[id,access['projects.wbs'].history&&access[capability].history&&current.get('records.read')&&(id!=="project-posted-cost"||current.get('finance.read'))])) as Record<ProjectMetric,boolean>;
 }
 export async function requireProjectMetricPurchase(database:SqlDatabase,actor:WorkContext,id:string){if(!(await projectMetricHistoryAccess(database,actor))[id as ProjectMetric])throw new ApiError(403,"METRIC_SOURCE_UNAVAILABLE","This Project metric requires its purchased source history and current source authority.");}

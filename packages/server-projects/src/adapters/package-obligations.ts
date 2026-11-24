@@ -21,6 +21,10 @@ export const projectRowsSql="SELECT * FROM staff_projects";
 /** Byte-identical fixed row-source prefix shared by the settlement table reads;
  * one definition keeps every source relation identical. */
 const tableRowsSql=`SELECT * FROM `;
+/** Byte-identical assignment-scope subquery shared by the Project purchase and
+ * metric authority reads; one definition keeps the emitted SQL unchanged and
+ * only the scope alias varies per caller. */
+export const projectAssignmentScopeSql=(alias:string)=>`(SELECT ?::text company_id,?::text branch_id,?::text department_id) ${alias}`;
 export const projectPackageSettlementSources={
  projects:projectRowsSql,members:`${tableRowsSql}staff_project_members`,milestones:`${tableRowsSql}staff_project_milestones`,
  workLogs:`${tableRowsSql}staff_project_work_logs`,costs:`${tableRowsSql}staff_project_cost_allocations`,actuals:`${tableRowsSql}staff_project_package_actuals`,handoffs:`${tableRowsSql}staff_project_handoffs`,
