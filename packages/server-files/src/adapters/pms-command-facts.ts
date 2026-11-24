@@ -1,6 +1,7 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { attachmentSetPurposeSql } from "./read-tail-dedupe-sql";
+import { PUBLICATION_ID_PREFIX_SQL } from "./read-tail-r29-source-sql";
 export function pmsFilesFacts(db: SqlDatabase) {
     return {
         readAttachmentSets: (facts: {
@@ -17,6 +18,6 @@ export function pmsFilesFacts(db: SqlDatabase) {
             companyId: string;
             targetType: string;
             targetId: string;
-        }) => db.prepare("SELECT id FROM attachment_publications WHERE id=? AND company_id=? AND target_type=? AND target_id=? AND state='approved'").bind(facts.publicationId, facts.companyId, facts.targetType, facts.targetId).first()
+        }) => db.prepare(`${PUBLICATION_ID_PREFIX_SQL} WHERE id=? AND company_id=? AND target_type=? AND target_id=? AND state='approved'`).bind(facts.publicationId, facts.companyId, facts.targetType, facts.targetId).first()
     };
 }

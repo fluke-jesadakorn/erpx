@@ -2,6 +2,7 @@ import 'server-only';
 import type {FileMetadata,FileStore,SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {isTransactionalSqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {runtimePreservationAuthority} from '@erpx/server-legal/public/runtime-preservation-authority';
+import {PUBLICATION_EXISTS_SQL} from './read-tail-r29-source-sql';
 
 /** The caller supplies only normal reserve results. Keys eligible for rollback
  * are observed successful create-only puts, never an HTTP supplied object key.
@@ -19,7 +20,7 @@ export async function withMessagingUploadRollback<Result>(owner:SqlDatabase,stor
    for(const intent of [...new Set([...created.values()].map(item=>item.intent))].sort())await database.prepare('SELECT pg_advisory_xact_lock(hashtextextended(?,0))').bind(`attachment-upload:${scope.companyId}:${intent}`).run();
    const preservation=runtimePreservationAuthority(database);
    for(const [key,item] of created){
-    const referenced=await database.prepare(`SELECT 1 WHERE EXISTS(SELECT 1 FROM attachments WHERE object_key=? OR preview_object_key=?) OR EXISTS(SELECT 1 FROM upload_intents WHERE quarantine_key=? OR staging_key=?) OR EXISTS(SELECT 1 FROM attachment_storage_ledger WHERE object_key=?) OR EXISTS(SELECT 1 FROM attachment_publications WHERE derivative_object_key=?) OR EXISTS(SELECT 1 FROM attachment_orphan_preservations WHERE object_key=?)`).bind(key,key,key,key,key,key,key).first();
+    const referenced=await database.prepare(`SELECT 1 WHERE EXISTS(SELECT 1 FROM attachments WHERE object_key=? OR preview_object_key=?) OR EXISTS(SELECT 1 FROM upload_intents WHERE quarantine_key=? OR staging_key=?) OR EXISTS(SELECT 1 FROM attachment_storage_ledger WHERE object_key=?) OR ${PUBLICATION_EXISTS_SQL} WHERE derivative_object_key=?) OR EXISTS(SELECT 1 FROM attachment_orphan_preservations WHERE object_key=?)`).bind(key,key,key,key,key,key,key).first();
     if(referenced)continue;
     const current=await store.head(key);if(!current||current.key!==key||current.etag!==item.metadata.etag||current.size!==item.metadata.size)continue;
     await preservation.assertMutation([key]);

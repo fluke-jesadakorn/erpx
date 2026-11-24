@@ -9,6 +9,7 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {LINK_ATTACHMENT_SELECT_SQL, LINK_SET_ATTACHMENT_EXISTS_SQL, LINK_SET_ID_SELECT_SQL, LINK_SET_WHERE_EXISTS_SQL} from "../read-tail-dedupe-sql";
 import {attachmentsByIdCompanySql} from "../read-tail-r26-source-sql";
 import {SELECT_ATTACHMENT_ID_SQL} from "../read-tail-r27-source-sql";
+import {LINK_SET_JOIN_SQL} from "../read-tail-r29-source-sql";
 const setByIdSql = "SELECT * FROM attachment_sets WHERE id=? AND company_id=?";
 export const usedStorageSql = "SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')";
 export const pendingStorageSql = "SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?";
@@ -641,7 +642,7 @@ export function repository(db: SqlDatabase) {
             canManage: boolean;
         }) => {
             return db.prepare(`SELECT id,source_link_id,target_type,target_id,derivative_media_type,derivative_checksum_sha256,derivative_bytes,alt_text,ordinal,revision,state,created_by,created_at,approved_by,approved_at,revoked_by,revoked_at,revocation_reason FROM attachment_publications publication WHERE company_id=? AND target_type=? AND target_id=?
-    AND EXISTS(SELECT 1 FROM attachment_links link JOIN attachment_sets set_row ON set_row.id=link.set_id WHERE link.id=publication.source_link_id AND set_row.company_id=publication.company_id)
+    AND EXISTS(${LINK_SET_JOIN_SQL} set_row ON set_row.id=link.set_id WHERE link.id=publication.source_link_id AND set_row.company_id=publication.company_id)
     ${facts.canManage ? "" : "AND state='approved'"} ORDER BY ordinal,revision,id`).bind(facts.companyId, facts.targetType, facts.targetId).all<Record<string, unknown>>();
         },
         readAttachmentPublicationOrders86: (facts: {
