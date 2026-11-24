@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9519,
+    "revision": 9523,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -150763,7 +150763,7 @@
         "owner": "finance",
         "title": "finance TS read tail native cutover (round 24)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -150775,28 +150775,36 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261123-k",
-          "agentId": "wGCDfin",
-          "claimedAt": "2026-11-24T05:25:32.402Z",
-          "heartbeatAt": "2026-11-24T05:25:39.041Z",
-          "expiresAt": "2026-11-24T05:55:39.041Z",
-          "generation": 163
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "c1ebbd52e",
+            "owner": "finance",
+            "before": 2051,
+            "after": 2038,
+            "note": "Pos/pms package obligation skeleton, asset policy guards and tax register NOT EXISTS guards shared; locks inline; r15-r23 untouched."
+          },
+          {
+            "command": "vitest finance read plan (57) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "c1ebbd52e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: pos/pms package-obligation skeletons, asset-policy and tax-register guard families. BEFORE=2051.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-j",
+          "runId": "run-20261123-k",
           "agentId": "wGCDfin",
-          "at": "2026-11-24T05:25:21.119Z",
+          "at": "2026-11-24T05:30:24.226Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired at 05:16Z; all claims and WIP reviewed in shared checkout; release claims and continue under new generation.",
-          "nextAction": "Next: pos/pms package-obligation skeletons, asset-policy and tax-register guard families. BEFORE=2051."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -151693,7 +151701,7 @@
         "owner": "files",
         "title": "files TS read tail native cutover (r22)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -151705,28 +151713,36 @@
         "resources": [
           "owner:files"
         ],
-        "claim": {
-          "runId": "run-20261123-k",
-          "agentId": "wGCFfil",
-          "claimedAt": "2026-11-24T05:25:35.168Z",
-          "heartbeatAt": "2026-11-24T05:25:39.041Z",
-          "expiresAt": "2026-11-24T05:55:39.041Z",
-          "generation": 163
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "c1ebbd52e",
+            "owner": "files",
+            "before": 314,
+            "after": 304,
+            "note": "Link set WHERE EXISTS and package obligation scope families shared; locks and count pairs excluded; r10-r21 untouched."
+          },
+          {
+            "command": "vitest files r21/r22 (13) + tsc files",
+            "result": "passed",
+            "sourceSha": "c1ebbd52e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=314.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-j",
+          "runId": "run-20261123-k",
           "agentId": "wGCFfil",
-          "at": "2026-11-24T05:25:21.119Z",
+          "at": "2026-11-24T05:30:24.733Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired at 05:16Z; all claims and WIP reviewed in shared checkout; release claims and continue under new generation.",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=314."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -152726,17 +152742,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 31,
+        "in_progress": 29,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 799,
+        "blocked": 801,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 163,
-    "updatedAt": "2026-11-24T05:30:06.844Z",
+    "updatedAt": "2026-11-24T05:30:24.744Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
