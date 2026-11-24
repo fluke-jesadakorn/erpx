@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10607,
+    "revision": 10615,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -160591,7 +160591,7 @@
         "owner": "learning",
         "title": "learning TS read tail native cutover (r6)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -160603,28 +160603,36 @@
         "resources": [
           "owner:learning"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMlrn",
-          "claimedAt": "2026-11-24T07:54:21.436Z",
-          "heartbeatAt": "2026-11-24T08:15:48.647Z",
-          "expiresAt": "2026-11-24T08:45:48.647Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-learning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "88194eea9",
+            "owner": "learning",
+            "before": 77,
+            "after": 72,
+            "note": "Module grant probe, actor scope probe, assignments image and SELECT star literals share four helpers; 7 LOCK TABLE statements and r1-r6 untouched."
+          },
+          {
+            "command": "vitest learning r3/r4/r6/r7 (26) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "88194eea9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=78.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-n",
+          "runId": "run-20261124-a",
           "agentId": "wGCMlrn",
-          "at": "2026-11-24T07:53:21.211Z",
+          "at": "2026-11-24T08:24:26.797Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long worker integration; WIP reviewed by lead; all live claims re-claimed with the same agents under a new generation",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=78."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -164367,7 +164375,7 @@
         "owner": "files",
         "title": "files TS read tail native cutover (round 25)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -164379,22 +164387,37 @@
         "resources": [
           "owner:files"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMfil3",
-          "claimedAt": "2026-11-24T08:17:43.235Z",
-          "heartbeatAt": "2026-11-24T08:17:43.235Z",
-          "expiresAt": "2026-11-24T08:47:43.235Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "88194eea9",
+            "owner": "files",
+            "before": 292,
+            "after": 290,
+            "note": "Three social draft image guards share socialDraftImageExistsSql; guardPublishImage, locks, advisory statements and r10-r24 untouched."
+          },
+          {
+            "command": "vitest files r25 (4) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "88194eea9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=292.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMfil3",
+          "at": "2026-11-24T08:24:27.190Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -164627,6 +164650,78 @@
         "nextAction": "Four column by id+company and select star by two predicates families share builders; active pay group projection can follow. BEFORE=1399.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.learning.read-tail-r7",
+        "goalId": "G4",
+        "owner": "learning",
+        "title": "learning TS read tail native cutover (round 7)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-learning/src/**",
+          "tests/unit/learning/**",
+          "tests/integration/learning/**"
+        ],
+        "resources": [
+          "owner:learning"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMlrn2",
+          "claimedAt": "2026-11-24T08:24:27.796Z",
+          "heartbeatAt": "2026-11-24T08:24:27.796Z",
+          "expiresAt": "2026-11-24T08:54:27.796Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=72.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.files.read-tail-r26",
+        "goalId": "G4",
+        "owner": "files",
+        "title": "files TS read tail native cutover (round 26)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "tests/unit/files/**",
+          "tests/integration/files/**"
+        ],
+        "resources": [
+          "owner:files"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMfil4",
+          "claimedAt": "2026-11-24T08:24:27.983Z",
+          "heartbeatAt": "2026-11-24T08:24:27.983Z",
+          "expiresAt": "2026-11-24T08:54:27.983Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=290.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -164635,7 +164730,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1421,
+      "totalPackets": 1423,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 20,
@@ -164643,13 +164738,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1049,
+        "blocked": 1051,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:23:56.270Z",
+    "updatedAt": "2026-11-24T08:24:27.988Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
