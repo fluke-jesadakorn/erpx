@@ -20,11 +20,14 @@ import {
   COMMERCE_POSTING_RECEIPT_RECORD_GUARD_SQL,
   COMMERCE_PRODUCT_ACTIVE_SQL,
   COMMERCE_PRODUCT_COMPANY_ACTIVE_GUARD_SQL,
+  COMMERCE_PURCHASE_ORDER_VERSION_GUARD_SQL,
+  COMMERCE_RETURN_INVOICE_UNREJECTED_GUARD_SQL,
+  COMMERCE_RETURN_REQUESTED_VERSION_GUARD_SQL,
   COMMERCE_WAREHOUSE_ACTIVE_SQL,
   COMMERCE_WAREHOUSE_BRANCH_ACTIVE_SQL,
   COMMERCE_WAREHOUSE_IDENTITY_SQL,
 } from '../../../packages/server-commerce/src/adapters/guarded-source-dedupe-sql';
-import { COMMERCE_BRANCH_LABEL_SQL, COMMERCE_FLOW_PARENT_SQL } from '../../../packages/server-commerce/src/adapters/projection-source-dedupe-sql';
+import { COMMERCE_BRANCH_LABEL_SQL, COMMERCE_FLOW_PARENT_SQL, COMMERCE_FULFILLMENT_ORDER_ID_SQL } from '../../../packages/server-commerce/src/adapters/projection-source-dedupe-sql';
 import { COMMERCE_STOCK_PRODUCT_FOR_UPDATE_SQL, COMMERCE_STOCK_WAREHOUSE_FOR_UPDATE_SQL } from '../../../packages/server-commerce/src/adapters/stock-source-dedupe-sql';
 import { COMMERCE_POSTING_MAPPING_STATE_SQL } from '../../../packages/server-commerce/src/adapters/settings-dedupe-sql';
 import { commercialOwnerProjectionSources } from '@erpx/server-inventory/public/commercial-owner-projection-sources';
@@ -216,8 +219,9 @@ describe('commerce read-tail r11 warehouse/product guard dedupe', () => {
       expect(value, name).toBe(literal);
       expect(shared.split(literal).length - 1, name).toBe(1);
     }
-    // Pre-existing posting constants, nine r11 literals and three r13 guards.
-    expect(shared.split('SELECT').length - 1).toBe(15);
+    // Pre-existing posting constants, nine r11 literals, three r13 guards and
+    // three r14 projection-guard literals added to this shared file.
+    expect(shared.split('SELECT').length - 1).toBe(18);
   });
 
   it('backs every call site with its shared constant and no inline literal', async () => {
@@ -343,5 +347,72 @@ describe('commerce read-tail r13 posting/flow guard dedupe', () => {
       expect(text.split(COMMERCE_POSTING_RECEIPT_RECORD_GUARD_SQL).length - 1, file).toBe(0);
       expect(text.split('database.prepare(COMMERCE_POSTING_RECEIPT_RECORD_GUARD_SQL)').length - 1, file).toBe(1);
     }
+  });
+});
+
+describe('commerce read-tail r14 projection guard / adapter pair dedupe', () => {
+  const guards = [
+    {
+      name: 'COMMERCE_RETURN_REQUESTED_VERSION_GUARD_SQL',
+      value: COMMERCE_RETURN_REQUESTED_VERSION_GUARD_SQL,
+      literal: "EXISTS(SELECT 1 FROM commerce_returns WHERE id=? AND company_id=? AND status='requested' AND version=?)",
+      file: 'commerce.ts',
+      call: 'assertion(db, facts.key, facts.guardId, COMMERCE_RETURN_REQUESTED_VERSION_GUARD_SQL',
+      uses: 2,
+    },
+    {
+      name: 'COMMERCE_PURCHASE_ORDER_VERSION_GUARD_SQL',
+      value: COMMERCE_PURCHASE_ORDER_VERSION_GUARD_SQL,
+      literal: "EXISTS(SELECT 1 FROM commerce_orders WHERE id=? AND company_id=? AND version=? AND state=? AND kind='purchase' AND branch_id IS NOT DISTINCT FROM ? AND department_id IS NOT DISTINCT FROM ?)",
+      file: 'records-employee-requests-owned-facts.ts',
+      call: 'assertion(database, key, value, COMMERCE_PURCHASE_ORDER_VERSION_GUARD_SQL',
+      uses: 2,
+    },
+    {
+      name: 'COMMERCE_RETURN_INVOICE_UNREJECTED_GUARD_SQL',
+      value: COMMERCE_RETURN_INVOICE_UNREJECTED_GUARD_SQL,
+      literal: "NOT EXISTS(SELECT 1 FROM commerce_returns WHERE invoice_id=? AND status!='rejected')",
+      file: 'finance-close-source.ts',
+      call: null,
+      uses: 0,
+    },
+  ] as const;
+
+  it('keeps one byte-identical literal per shared guard constant', async () => {
+    const shared = await readFile(adapters('guarded-source-dedupe-sql.ts'), 'utf8');
+    for (const { name, value, literal } of guards) {
+      expect(value, name).toBe(literal);
+      expect(shared.split(literal).length - 1, name).toBe(1);
+    }
+    expect(COMMERCE_FULFILLMENT_ORDER_ID_SQL).toBe('SELECT order_id FROM commerce_fulfillments WHERE id=?');
+    const projection = await readFile(adapters('projection-source-dedupe-sql.ts'), 'utf8');
+    expect(projection.split('SELECT order_id FROM commerce_fulfillments WHERE id=?').length - 1).toBe(1);
+  });
+
+  it('backs every call site with its constant and keeps prepares independent', async () => {
+    for (const { name, literal, file, call, uses } of guards) {
+      const text = await readFile(adapters(file), 'utf8');
+      expect(text.split(literal).length - 1, `${name} inline in ${file}`).toBe(0);
+      expect(text, `${name} import in ${file}`).toContain(name);
+      if (call) expect(text.split(call).length - 1, `${name} call sites`).toBe(uses);
+    }
+    const withholding = await readFile(adapters('finance-withholding-source.ts'), 'utf8');
+    expect(withholding.split(guards[2].literal).length - 1).toBe(0);
+    expect(withholding).toContain('COMMERCE_RETURN_INVOICE_UNREJECTED_GUARD_SQL');
+
+    for (const file of ['commerce.ts', 'workflow-flow-routing-facts.ts']) {
+      const text = await readFile(adapters(file), 'utf8');
+      expect(text.split('SELECT order_id FROM commerce_fulfillments WHERE id=?').length - 1, file).toBe(0);
+      expect(text).toContain('COMMERCE_FULFILLMENT_ORDER_ID_SQL');
+    }
+    const finance = await readFile(adapters('finance-record-sources.ts'), 'utf8');
+    expect(finance.split('SELECT company_id,id FROM finance_payments WHERE FALSE').length - 1).toBe(1); // shared const only
+    expect(finance.split('COMMERCE_PAYMENT_EMPTY_SOURCE_SQL').length - 1).toBe(3);
+
+    const attachment = await readFile(adapters('attachment-read-sources.ts'), 'utf8');
+    expect(attachment.split('EXISTS(SELECT 1 FROM commerce_fulfillments f WHERE f.id=child.fulfillment_id AND f.order_id=o.id)').length - 1).toBe(2); // shared const + remaining distinct valuations fragment
+    expect(attachment.split('EXISTS(SELECT 1 FROM commerce_returns r WHERE r.id=child.return_id AND r.order_id=o.id AND r.company_id=o.company_id)').length - 1).toBe(1); // shared const only
+    expect(attachment.split('FULFILLMENT_LINE_PARENT_GUARD').length - 1).toBe(3); // const + 2 rows() calls
+    expect(attachment.split('RETURN_LINE_PARENT_GUARD').length - 1).toBe(3); // const + 2 rows() calls
   });
 });

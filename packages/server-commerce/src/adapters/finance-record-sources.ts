@@ -3,6 +3,10 @@ import {supplierPaymentOriginalSources,financePaymentReversalSources} from "@erp
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 
+/** Byte-identical empty correction source shared by the two same-kind branches.
+ * Text only: each branch still composes its own union CTE and prepares once. */
+const COMMERCE_PAYMENT_EMPTY_SOURCE_SQL="SELECT company_id,id FROM finance_payments WHERE FALSE";
+
 /** Physical Commerce ownership does not distinguish Sales from Supply. These
  * closed declarations follow actual same-Company order/fulfillment/return FKs.
  * A payment is included only when all its allocations belong to this owner;
@@ -16,12 +20,12 @@ function sources(kind:"sales"|"purchase",retainedCorrections=true){
    (EXISTS(SELECT 1 FROM finance_allocations a JOIN (${invoice}) owned_invoice ON owned_invoice.id=a.invoice_id AND owned_invoice.company_id=a.company_id WHERE a.payment_id=p.id AND a.company_id=p.company_id)
     AND NOT EXISTS(SELECT 1 FROM finance_allocations a WHERE a.payment_id=p.id AND (a.company_id<>p.company_id OR NOT EXISTS(SELECT 1 FROM (${invoice}) owned_invoice WHERE owned_invoice.id=a.invoice_id AND owned_invoice.company_id=a.company_id))))
    OR (NOT EXISTS(SELECT 1 FROM finance_allocations a WHERE a.payment_id=p.id) AND EXISTS(SELECT 1 FROM finance_refund_instructions instruction JOIN (${refund}) owned_refund ON owned_refund.id=instruction.obligation_id AND owned_refund.company_id=instruction.company_id WHERE instruction.payment_id=p.id AND instruction.company_id=p.company_id AND instruction.status='confirmed')))`;
- const originalCorrection=kind==="purchase"?`SELECT original.company_id,original.id FROM purchasing_original_payments original JOIN purchasing_reversed_payments reversal ON reversal.id=original.id AND reversal.company_id=original.company_id JOIN (${invoice}) actual_invoice ON actual_invoice.id=original.invoice_id AND actual_invoice.company_id=original.company_id`:"SELECT company_id,id FROM finance_payments WHERE FALSE";
+ const originalCorrection=kind==="purchase"?`SELECT original.company_id,original.id FROM purchasing_original_payments original JOIN purchasing_reversed_payments reversal ON reversal.id=original.id AND reversal.company_id=original.company_id JOIN (${invoice}) actual_invoice ON actual_invoice.id=original.invoice_id AND actual_invoice.company_id=original.company_id`:COMMERCE_PAYMENT_EMPTY_SOURCE_SQL;
  const controlledCorrection=kind==="purchase"?`SELECT payment.company_id,payment.id FROM finance_payments payment JOIN command_receipts created ON created.record_id=payment.id AND created.operation='finance.payment.create' AND created.actor_id=payment.created_by AND created.authority_json::jsonb->>'companyId'=payment.company_id
  JOIN purchasing_original_payments original ON original.id=created.result_json::jsonb->>'correctionPaymentId' AND original.company_id=payment.company_id AND original.invoice_id=created.result_json::jsonb->>'settlementInvoiceId'
  JOIN purchasing_reversed_payments reversal ON reversal.id=original.id AND reversal.company_id=original.company_id JOIN (${invoice}) actual_invoice ON actual_invoice.id=original.invoice_id AND actual_invoice.company_id=original.company_id
  WHERE payment.kind='payment' AND payment.party_id=original.party_id AND payment.currency=original.currency AND payment.bank_account=original.bank_account AND payment.amount_minor=original.amount_minor
- AND NOT EXISTS(SELECT 1 FROM finance_allocations allocation WHERE allocation.payment_id=payment.id AND (allocation.company_id<>payment.company_id OR allocation.invoice_id<>original.invoice_id))`:"SELECT company_id,id FROM finance_payments WHERE FALSE";
+ AND NOT EXISTS(SELECT 1 FROM finance_allocations allocation WHERE allocation.payment_id=payment.id AND (allocation.company_id<>payment.company_id OR allocation.invoice_id<>original.invoice_id))`:COMMERCE_PAYMENT_EMPTY_SOURCE_SQL;
  // Keep one exact immutable correction proof per declaration. Repeating the
  // full reversal/book query in every journal UNION caused source-only record
  // reads to spend seconds planning/evaluating the same closed relation.

@@ -1,4 +1,6 @@
 import{commercePages,commerceSalesDocuments}from '@erpx/server-commerce/adapters/commerce-pages';
+import {COMMERCE_RETURN_REQUESTED_VERSION_GUARD_SQL} from "./guarded-source-dedupe-sql";
+import {COMMERCE_FULFILLMENT_ORDER_ID_SQL} from "./projection-source-dedupe-sql";
 
 import { nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/server-commerce/adapters/native-owner-write";
 import { ApiError as NativeApiError } from "@erpx/server-runtime/public/http";
@@ -440,7 +442,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
         readFinanceInvoices1: facts => CommerceFinanceFacts(db).readFinanceInvoices1(facts),
         readCommerceFulfillments6: (facts: {
             source_id: string | number | null;
-        }) => db.prepare("SELECT order_id FROM commerce_fulfillments WHERE id=?").bind(facts.source_id).first<{
+        }) => db.prepare(COMMERCE_FULFILLMENT_ORDER_ID_SQL).bind(facts.source_id).first<{
             order_id: string;
         }>(),
         readFinanceExpenses1: facts => CommerceFinanceFacts(db).readFinanceExpenses1(facts),
@@ -505,13 +507,13 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             key: string;
             guardId: string;
             values: (string | number)[];
-        }) => assertion(db, facts.key, facts.guardId, "EXISTS(SELECT 1 FROM commerce_returns WHERE id=? AND company_id=? AND status='requested' AND version=?)", facts.values),
+        }) => assertion(db, facts.key, facts.guardId, COMMERCE_RETURN_REQUESTED_VERSION_GUARD_SQL, facts.values),
         guardRule7: facts => CommerceFinanceFacts(db).guardRule7(facts),
         guardRule8: (facts: {
             key: string;
             guardId: string;
             values: (string | number)[];
-        }) => assertion(db, facts.key, facts.guardId, "EXISTS(SELECT 1 FROM commerce_returns WHERE id=? AND company_id=? AND status='requested' AND version=?)", facts.values),
+        }) => assertion(db, facts.key, facts.guardId, COMMERCE_RETURN_REQUESTED_VERSION_GUARD_SQL, facts.values),
         guardRule9: facts => CommerceInventoryFacts(db).guardRule9(facts),
         guardRule10: (facts: {
             key: string;

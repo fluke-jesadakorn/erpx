@@ -16,3 +16,10 @@ export const COMMERCE_PRODUCT_ACTIVE_SQL = "SELECT * FROM commerce_products WHER
 export const COMMERCE_BILLING_TEST_SOURCE_KEY_SQL = 'SELECT 1 FROM billing_test_finance_entries WHERE source_key=?';
 export const COMMERCE_OWN_RECEIPT_SOURCE_SQL = "SELECT to_jsonb(receipt)::text source FROM command_receipts receipt WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
 export const COMMERCE_MASTER_SOURCE_SQL = (table: string, warehouses: boolean) => `SELECT to_jsonb(master)::text source FROM ${table} master WHERE id=? AND company_id=? ${warehouses ? 'AND (?::text IS NULL OR branch_id=?)' : ''}`;
+
+/** Round-14 byte-identical projection/return guards shared by the read-tail
+ * call sites. Text only: each caller still prepares/asserts its own statement
+ * with its own binds in its own transaction and no result is cached here. */
+export const COMMERCE_RETURN_REQUESTED_VERSION_GUARD_SQL = "EXISTS(SELECT 1 FROM commerce_returns WHERE id=? AND company_id=? AND status='requested' AND version=?)";
+export const COMMERCE_PURCHASE_ORDER_VERSION_GUARD_SQL = "EXISTS(SELECT 1 FROM commerce_orders WHERE id=? AND company_id=? AND version=? AND state=? AND kind='purchase' AND branch_id IS NOT DISTINCT FROM ? AND department_id IS NOT DISTINCT FROM ?)";
+export const COMMERCE_RETURN_INVOICE_UNREJECTED_GUARD_SQL = "NOT EXISTS(SELECT 1 FROM commerce_returns WHERE invoice_id=? AND status!='rejected')";

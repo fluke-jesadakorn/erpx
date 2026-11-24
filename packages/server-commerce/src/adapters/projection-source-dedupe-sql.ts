@@ -16,3 +16,6 @@ export const COMMERCE_BRANCH_LABEL_SQL = `COALESCE((SELECT n.display_name FROM (
  * assign-primary call sites. Text only: each call site still prepares and
  * executes its own statement in its supplied transaction; no result cached. */
 export const COMMERCE_FLOW_PARENT_SQL = `SELECT f.order_id FROM commerce_fulfillments f JOIN (${financeProjectionSources.finance_journals}) j ON j.id=f.journal_id WHERE j.id=? AND j.company_id=?`;
+/** Byte-identical fulfillment order-id read shared by the commerce and
+ * workflow flow-routing adapters. Text only; each caller prepares its own. */
+export const COMMERCE_FULFILLMENT_ORDER_ID_SQL = "SELECT order_id FROM commerce_fulfillments WHERE id=?";
