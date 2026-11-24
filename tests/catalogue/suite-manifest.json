@@ -74820,6 +74820,33 @@
       }
     },
     {
+      "lane": "unit",
+      "owner": "platform_administration",
+      "modules": [
+        "platform_administration"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Release existence guards and projection heads must stay byte-identical."
+      },
+      "apps": [
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-platform_administration"
+      ],
+      "id": "platform_administration.read-tail-r16-dedupe.unit",
+      "files": [
+        "tests/unit/platform_administration/read-tail-r16-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "platform_administration.recovery-simulation.integration",
       "lane": "integration",
       "owner": "platform_administration",

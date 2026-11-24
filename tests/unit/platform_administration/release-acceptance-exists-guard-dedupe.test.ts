@@ -29,7 +29,10 @@ describe('Platform Administration release-acceptance existence-guard parameteriz
     const attachment = source('adapters/attachments-finance-facts.ts');
     const all = `${predicate}\n${acceptance}\n${attachment}`;
     expect(predicate.match(/export function releaseAcceptanceExistsSql/g)).toHaveLength(1);
-    expect(all.split('EXISTS(SELECT 1 FROM company_release_acceptances WHERE ').length - 1).toBe(1);
+    // The guard head now lives once in the shared fixed-table helper; the
+    // wrapper delegates and no longer inlines the literal.
+    expect(predicate).toContain("releaseTableExistsSql('company_release_acceptances', where)");
+    expect(all.split('EXISTS(SELECT 1 FROM company_release_acceptances WHERE ').length - 1).toBe(0);
     expect(acceptance).toContain("releaseAcceptanceExistsSql('company_id=? AND id=? AND version=? AND revoked_at IS NULL')");
     expect(acceptance).toContain('releaseAcceptanceExistsSql(`company_id=? AND id=? AND id=${latestReleaseIdSql(\'?\', \'?\')}`)');
     expect(attachment).toContain('releaseAcceptanceExistsSql("id=? AND company_id=? AND version=?")');

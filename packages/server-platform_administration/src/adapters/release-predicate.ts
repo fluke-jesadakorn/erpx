@@ -18,7 +18,7 @@ export function releaseRevisionTable(scope: ReleaseScopeVersion) {
  * one owner-local definition; each caller supplies only its WHERE predicate.
  * The rendered SQL is byte-identical to the former inline copies. */
 export function releaseAcceptanceExistsSql(where: string) {
-  return `EXISTS(SELECT 1 FROM company_release_acceptances WHERE ${where})`;
+  return releaseTableExistsSql('company_release_acceptances', where);
 }
 
 /** The parameterized EXISTS SELECT-head shared by the release-configuration
@@ -45,13 +45,21 @@ export function releaseRevisionShareLockSql(scope: ReleaseScopeVersion) {
   return releaseRevisionReadSql(scope, ' FOR SHARE');
 }
 
+/** The single closed head shared by every owner-projection source read. Kept
+ * here once so active-branch counts, Company setup reads and currency probes
+ * emit byte-identical SQL from one owner-local definition; only columns,
+ * projection, alias and predicate vary per caller. */
+export function projectionSourceHeadSql(columns: string, projection: string, alias: string, predicate: string) {
+  return `SELECT ${columns} FROM (${projection}) ${alias} WHERE ${predicate}`;
+}
+
 /** The single active-branch count subquery shared by release acceptance guards,
  * inputs reads and the native acceptance predicate. Kept here once so the
  * "exactly one active branch" rule has one owner-local definition. */
 export function activeBranchCountSql(companyExpression: string, options: {qualifier?: string; countAlias?: string} = {}) {
   const q = options.qualifier ? `${options.qualifier}.` : '';
   const count = options.countAlias ? `count(*) ${options.countAlias}` : 'count(*)';
-  return `SELECT ${count} FROM (${organizationPlatformSources.organization_nodes}) ${options.qualifier ?? 'organization_nodes'} WHERE ${q}company_id=${companyExpression} AND ${q}kind='branch' AND ${q}status='active'`;
+  return projectionSourceHeadSql(count, organizationPlatformSources.organization_nodes, options.qualifier ?? 'organization_nodes', `${q}company_id=${companyExpression} AND ${q}kind='branch' AND ${q}status='active'`);
 }
 
 /** The single Company setup (business acceptance) projection read shared by
@@ -60,7 +68,7 @@ export function activeBranchCountSql(companyExpression: string, options: {qualif
 export function businessAcceptanceSetupSql(companyExpression: string, options: { columns?: string; acceptedVersion?: string } = {}) {
   const columns = options.columns ?? '1';
   const suffix = options.acceptedVersion ? ` AND status='accepted' AND version=${options.acceptedVersion}` : '';
-  return `SELECT ${columns} FROM (${organizationPlatformSources.company_business_acceptance}) company_business_acceptance WHERE company_id=${companyExpression}${suffix}`;
+  return projectionSourceHeadSql(columns, organizationPlatformSources.company_business_acceptance, 'company_business_acceptance', `company_id=${companyExpression}${suffix}`);
 }
 
 /** The single latest-acceptance subquery shared by release acceptance guards and
@@ -90,7 +98,7 @@ export function latestReleaseRowSql(columns: string, idPredicate: string) {
  * caller supplies only its closed source projection and company predicate. The
  * rendered SQL is byte-identical to the former inline copies. */
 export function thbCurrencyProbeSql(source: string, condition: string) {
-  return `SELECT 1 FROM (${source}) c WHERE c.company_id=scope_company.id AND ${condition}`;
+  return projectionSourceHeadSql('1', source, 'c', `c.company_id=scope_company.id AND ${condition}`);
 }
 
 export function releaseCurrencyPredicate(companyExpression: string) {

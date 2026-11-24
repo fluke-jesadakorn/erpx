@@ -77,8 +77,9 @@ describe('platform administration native owner-write no-op dedupe', () => {
     const branchBody = "organization_nodes) organization_nodes WHERE company_id=? AND kind='branch' AND status='active'";
     const predicate = source('adapters/release-predicate.ts');
     const acceptance = source('adapters/release-acceptance.ts');
-    // The literal body survives once in the helper definition only.
-    expect(`${predicate}\n${acceptance}`.split("organization_nodes}) ${options.qualifier ?? 'organization_nodes'} WHERE").length - 1).toBe(1);
+    // The branch head is now composed through the shared projection-source head.
+    expect(predicate).toContain('projectionSourceHeadSql(count, organizationPlatformSources.organization_nodes,');
+    expect(`${predicate}\n${acceptance}`.split("organization_nodes}) ${options.qualifier ?? 'organization_nodes'} WHERE").length - 1).toBe(0);
     expect(predicate).toContain("activeBranchCountSql('release.company_id', { qualifier: 'branch' })");
     expect(acceptance).toContain("activeBranchCountSql('?')");
     expect(acceptance).toContain("activeBranchCountSql('?', { countAlias: 'count' })");
@@ -90,8 +91,9 @@ describe('platform administration native owner-write no-op dedupe', () => {
     const setupBody = "FROM (${organizationPlatformSources.company_business_acceptance}) company_business_acceptance WHERE company_id=";
     const predicate = source('adapters/release-predicate.ts');
     const acceptance = source('adapters/release-acceptance.ts');
-    // The literal projection body survives once in the helper definition only.
-    expect(`${predicate}\n${acceptance}`.split(setupBody).length - 1).toBe(1);
+    // The setup projection head is now composed through the shared projection-source head.
+    expect(predicate).toContain("projectionSourceHeadSql(columns, organizationPlatformSources.company_business_acceptance, 'company_business_acceptance'");
+    expect(`${predicate}\n${acceptance}`.split(setupBody).length - 1).toBe(0);
     expect(predicate).toContain("businessAcceptanceSetupSql");
     expect(acceptance).toContain("businessAcceptanceSetupSql('?', { acceptedVersion: '?' })");
     expect(acceptance).toContain("businessAcceptanceSetupSql('?', { columns: 'version,status' })");
