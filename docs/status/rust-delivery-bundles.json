@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10823,
+    "revision": 10827,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -165460,7 +165460,7 @@
         "owner": "quality",
         "title": "quality TS read tail native cutover (round 17)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -165472,22 +165472,37 @@
         "resources": [
           "owner:quality"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCUquc",
-          "claimedAt": "2026-11-24T08:32:50.120Z",
-          "heartbeatAt": "2026-11-24T08:55:35.488Z",
-          "expiresAt": "2026-11-24T09:25:35.488Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-quality/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "56ad3b5e8",
+            "owner": "quality",
+            "before": 76,
+            "after": 75,
+            "note": "Alert can-ack existence and recipient count share qualityAlertRecipientSql; descriptor cutover, locks and r1-r16 untouched."
+          },
+          {
+            "command": "vitest quality (56) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "56ad3b5e8"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=76.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCUquc",
+          "at": "2026-11-24T09:05:04.707Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -167323,6 +167338,42 @@
         "nextAction": "Add WF_NATIVE_FLOW_ROUTES_BY_COMPANY and cut flow-planning-ports.ts:97/:107 to nativeWorkflowReadAll. BEFORE=54.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.quality.read-tail-r18",
+        "goalId": "G4",
+        "owner": "quality",
+        "title": "quality TS read tail native cutover (round 18)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-quality/src/**",
+          "tests/unit/quality/**",
+          "tests/integration/quality/**"
+        ],
+        "resources": [
+          "owner:quality"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCUqud",
+          "claimedAt": "2026-11-24T09:05:05.210Z",
+          "heartbeatAt": "2026-11-24T09:05:05.210Z",
+          "expiresAt": "2026-11-24T09:35:05.210Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=75.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -167331,7 +167382,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1476,
+      "totalPackets": 1477,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 23,
@@ -167339,13 +167390,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1102,
+        "blocked": 1103,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:04:40.326Z",
+    "updatedAt": "2026-11-24T09:05:05.216Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
