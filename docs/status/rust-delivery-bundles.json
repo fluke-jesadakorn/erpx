@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7768,
+    "revision": 7772,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -131279,7 +131279,7 @@
         "owner": "ecommerce",
         "title": "ecommerce TS read tail native cutover (round 2)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -131291,22 +131291,37 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG50eco",
-          "claimedAt": "2026-11-24T01:03:50.392Z",
-          "heartbeatAt": "2026-11-24T01:07:51.653Z",
-          "expiresAt": "2026-11-24T01:37:51.653Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-ecommerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "fcbaaea14",
+            "owner": "ecommerce",
+            "before": 83,
+            "after": 76,
+            "note": "Three assertion pairs and two 3-way label groups collapsed to byte-identical constants."
+          },
+          {
+            "command": "typecheck ecommerce + native catalog transport (8)",
+            "result": "passed",
+            "sourceSha": "fcbaaea14"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: owner-local witness SQL only; no composition changes; BEFORE=83.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG50eco",
+          "at": "2026-11-24T01:08:23.568Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -131554,6 +131569,42 @@
         "nextAction": "Next: beta-api policy/feedback reads or dashboard beta_bootstrap scope dedupe; avoid onboarding-command and sandbox-email; BEFORE=38.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.ecommerce.read-tail-r3",
+        "goalId": "G4",
+        "owner": "ecommerce",
+        "title": "ecommerce TS read tail native cutover (round 3)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-ecommerce/src/**",
+          "tests/unit/ecommerce/**",
+          "tests/integration/ecommerce/**"
+        ],
+        "resources": [
+          "owner:ecommerce"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG57eco",
+          "claimedAt": "2026-11-24T01:08:23.803Z",
+          "heartbeatAt": "2026-11-24T01:08:23.803Z",
+          "expiresAt": "2026-11-24T01:38:23.803Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: exact-string duplicate scan again (ecommerce.ts/executive-metric-projections.ts remaining) or owner-local family; BEFORE=76.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -131562,7 +131613,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 775,
+      "totalPackets": 776,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -131570,13 +131621,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 397,
+        "blocked": 398,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:08:13.048Z",
+    "updatedAt": "2026-11-24T01:08:23.809Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
