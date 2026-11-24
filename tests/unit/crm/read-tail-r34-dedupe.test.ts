@@ -90,7 +90,7 @@ describe('crm read-tail r34 byte-identical owned-source row-head family', () => 
   });
 
   test('retirement:ts-statements stays strictly below the recorded BEFORE=119', () => {
-    expect(totalSelects()).toBe(114);
-    expect(totalSelects()).toBeLessThan(116);
+    expect(totalSelects()).toBe(113);
+    expect(totalSelects()).toBeLessThan(114);
   });
 });

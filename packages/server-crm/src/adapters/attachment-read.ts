@@ -16,6 +16,7 @@ import {isTransactionalSqlDatabase,type SqlDatabase,type StoredFile} from '@erpx
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {actorScopeSql,crmPurchaseAccountRows,crmPurchaseOpportunityRows,crmPurchaseSourceReadLocks} from '@erpx/server-crm/adapters/purchases';
 import {crmAccountImageReadSql} from './read-tail-r29-sql';
+import {crmOpportunitySourceAnchorSql} from './read-tail-r36-sql';
 
 /** One parameterized native-source image fragment for both CRM attachment
  * witnesses; callers pass the owned row projection and their alias predicate so
@@ -36,13 +37,16 @@ async function image(database:SqlDatabase,companyId:string,target:Target,id:stri
   crmRelatedAggSql('lead','crm_leads lead WHERE lead.account_id=account.id AND lead.company_id=account.company_id'),
   nativeImageSql(crmPurchaseAccountRows,'native.id=account.id AND native.company_id=account.company_id'),
  )).bind(id,companyId).first<Source>()
- :await database.prepare(`SELECT jsonb_build_object('opportunity',to_jsonb(opportunity),'lead',to_jsonb(lead),'account',to_jsonb(account),'contact',to_jsonb(contact),
+ :await database.prepare(crmOpportunitySourceAnchorSql(
+  `jsonb_build_object('opportunity',to_jsonb(opportunity),'lead',to_jsonb(lead),'account',to_jsonb(account),'contact',to_jsonb(contact),
   'guestLinks',(${crmRelatedAggSql('link','crm_guest_links link WHERE link.company_id=lead.company_id AND link.contact_id=lead.contact_id')}),
   ${nativeImageSql(crmPurchaseOpportunityRows,'native.id=lead.id AND native.company_id=lead.company_id')})::text image,
-  opportunity.customer_id,opportunity.quote_id,opportunity.sales_id,opportunity.reservation_id FROM crm_opportunities opportunity JOIN crm_leads lead ON lead.id=opportunity.lead_id
+  opportunity.customer_id,opportunity.quote_id,opportunity.sales_id,opportunity.reservation_id`,
+  `
   LEFT JOIN crm_accounts account ON account.id=lead.account_id AND account.company_id=lead.company_id
   LEFT JOIN crm_contacts contact ON contact.id=lead.contact_id AND contact.account_id=account.id AND contact.company_id=lead.company_id
-  WHERE opportunity.id=? AND lead.company_id=?`).bind(id,companyId).first<Source>();
+  WHERE opportunity.id=? AND lead.company_id=?`,
+ )).bind(id,companyId).first<Source>();
  if(!row)return null;
  return JSON.stringify([row.image,row.customer_id?await crmAttachmentCustomerSourceImage(database,companyId,row.customer_id):null,row.quote_id?await crmAttachmentOrderSourceImage(database,companyId,row.quote_id):null,row.sales_id?await crmAttachmentOrderSourceImage(database,companyId,row.sales_id):null,row.reservation_id?await crmAttachmentHotelSourceImage(database,companyId,row.reservation_id):null]);
 }

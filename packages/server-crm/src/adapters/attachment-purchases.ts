@@ -14,13 +14,16 @@ import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {financeDeferredEffectStatements} from "@erpx/server-finance/public/finance-transactions";
 import {actorScopeSql,crmPurchaseAccountRows,crmPurchaseOpportunityRows,crmAccountCreatedByScopeSql,crmPurchaseSourceReadLocks,requireCRMCurrentAuthority} from "@erpx/server-crm/adapters/purchases";
 import {crmAccountAttachmentSourceSql} from "./read-tail-r29-sql";
+import {crmOpportunitySourceAnchorSql} from "./read-tail-r36-sql";
 
 type Target={kind:"account"|"opportunity";id:string};
 export type CRMAttachmentPurchase={companyId:string;capability:"sales.crm";purpose:CapabilityPurpose;actor:WorkContext;target:Target;witness:string};
 function sourceQuery(kind:Target["kind"]){return kind==="account"?crmAccountAttachmentSourceSql(crmPurchaseAccountRows,`${crmAccountCreatedByScopeSql}`)
- :`SELECT jsonb_build_object('opportunity',to_jsonb(opportunity)-'version'-'updated_at','lead',to_jsonb(lead)-'version'-'updated_at','native',native.witness)::text
- FROM crm_opportunities opportunity JOIN crm_leads lead ON lead.id=opportunity.lead_id JOIN (${crmPurchaseOpportunityRows}) native ON native.id=lead.id AND native.company_id=lead.company_id
- WHERE opportunity.id=? AND lead.company_id=? AND (?::text IS NULL OR lead.branch_id=?) AND (?::text IS NULL OR lead.department_id=?)`;}
+ :crmOpportunitySourceAnchorSql(
+   `jsonb_build_object('opportunity',to_jsonb(opportunity)-'version'-'updated_at','lead',to_jsonb(lead)-'version'-'updated_at','native',native.witness)::text\n`,
+   ` JOIN (${crmPurchaseOpportunityRows}) native ON native.id=lead.id AND native.company_id=lead.company_id
+ WHERE opportunity.id=? AND lead.company_id=? AND (?::text IS NULL OR lead.branch_id=?) AND (?::text IS NULL OR lead.department_id=?)`,
+ );}
 function sourceArgs(actor:WorkContext,target:Target){return target.kind==="account"?[target.id,actor.companyId,actor.branchId,actor.userId,actor.branchId,actor.departmentId,actor.departmentId]:[target.id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId];}
 export async function crmAttachmentPurchaseScope(database:SqlDatabase,actor:WorkContext,policy:Pick<AttachmentPolicy,"targetType"|"purposeKey">,id:string,purpose:CapabilityPurpose="settle-existing"):Promise<CRMAttachmentPurchase|null>{
  if(!["crm_account","crm_opportunity"].includes(policy.targetType)||await commercePackageEnforcementMode()==="disabled")return null;
