@@ -154,6 +154,20 @@ const READ_BILL_MATCH_RECEIPT_HISTORY: NativeReadStatement = NativeReadStatement
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `supplier-bills` `matchingRequired`
+/// policy-existence read. The owner plans this literal; the caller executes it
+/// on its open unit with the same `[companyId]` bind.
+pub const RD_INVOICE_POLICY_MATCHING_REQUIRED: &str =
+    "procurement_rd_invoice_policy_matching_required";
+const SQL_INVOICE_POLICY_MATCHING_REQUIRED: &str =
+    "SELECT 1 FROM procurement_invoice_policies WHERE company_id=? AND matching_mode='required'";
+const READ_INVOICE_POLICY_MATCHING_REQUIRED: NativeReadStatement = NativeReadStatement {
+    kind: RD_INVOICE_POLICY_MATCHING_REQUIRED,
+    sql: SQL_INVOICE_POLICY_MATCHING_REQUIRED,
+    bind_count: 1,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_INVOICE_MATCH_FOR_FINANCE,
     READ_REQUEST_QUOTATION,
@@ -165,6 +179,7 @@ const READS: &[NativeReadStatement] = &[
     READ_REQUEST_ORDER_LINK,
     READ_BILL_MATCH_VARIANCE,
     READ_BILL_MATCH_RECEIPT_HISTORY,
+    READ_INVOICE_POLICY_MATCHING_REQUIRED,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -193,6 +208,7 @@ mod tests {
         assert!(is_read(RD_REQUEST_ORDER_LINK));
         assert!(is_read(RD_BILL_MATCH_VARIANCE));
         assert!(is_read(RD_BILL_MATCH_RECEIPT_HISTORY));
+        assert!(is_read(RD_INVOICE_POLICY_MATCHING_REQUIRED));
         assert!(!is_read("procurement_stmt_1"));
         assert!(read_statement("not_a_native_read").is_none());
     }
@@ -245,6 +261,11 @@ mod tests {
                 RD_BILL_MATCH_RECEIPT_HISTORY,
                 1usize,
                 "procurement_bill_match_receipts",
+            ),
+            (
+                RD_INVOICE_POLICY_MATCHING_REQUIRED,
+                1usize,
+                "procurement_invoice_policies",
             ),
         ] {
             let read = read_statement(kind).expect("read kind");
@@ -368,6 +389,20 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 1);
         assert_eq!(read.scope, "holding");
         assert!(is_read(RD_BILL_MATCH_RECEIPT_HISTORY));
+        assert!(!is_read("procurement_stmt_1"));
+    }
+
+    #[test]
+    fn invoice_policy_matching_required_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_INVOICE_POLICY_MATCHING_REQUIRED).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT 1 FROM procurement_invoice_policies WHERE company_id=? AND matching_mode='required'"
+        );
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_INVOICE_POLICY_MATCHING_REQUIRED));
         assert!(!is_read("procurement_stmt_1"));
     }
 }

@@ -15,7 +15,7 @@ import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {stageSupplierBillReceiptVersion,stageSupplierBillReceiptLinks} from "@erpx/server-commerce/public/supplier-bill-receipts";
 import {stageSupplierBillDraftVoid} from "@erpx/server-finance/public/supplier-bill-draft-void";
 import {nativeSupplierBillNotification} from "./native-supplier-bill-notification";
-import {nativeProcurementReadAll,nativeProcurementReadFirst,PROCUREMENT_RD_BILL_MATCH_RECEIPTS,PROCUREMENT_RD_BILL_MATCH_VARIANCE,PROCUREMENT_RD_BILL_MATCH_RECEIPT_HISTORY} from "./native-procurement-read";
+import {nativeProcurementReadAll,nativeProcurementReadFirst,PROCUREMENT_RD_BILL_MATCH_RECEIPTS,PROCUREMENT_RD_BILL_MATCH_VARIANCE,PROCUREMENT_RD_BILL_MATCH_RECEIPT_HISTORY,PROCUREMENT_RD_INVOICE_POLICY_MATCHING_REQUIRED} from "./native-procurement-read";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {samePerson} from "@erpx/feature-identity_access/lib/iam";
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
@@ -129,7 +129,7 @@ return {lines:lines.results,receipts:receipts.results,events:events.results,acco
  varianceAccount:async(id,chartId)=>!!await (await database()).prepare(`SELECT a.id FROM (${financePlatformSources.finance_accounts}) a JOIN (${financePlatformSources.finance_charts}) c ON c.id=a.chart_id AND c.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND a.chart_id=? AND a.currency=c.base_currency AND a.category='expense' AND a.status='active'`).bind(id,actor.companyId,chartId).first(),
  commit:async(m,result)=>commit(await database(),actor,m,result),
  receiptHistory:async(id)=>nativeProcurementReadFirst<Row>(PROCUREMENT_RD_BILL_MATCH_RECEIPT_HISTORY,[id],await database()),
- matchingRequired:async()=>!!await (await database()).prepare("SELECT 1 FROM procurement_invoice_policies WHERE company_id=? AND matching_mode='required'").bind(actor.companyId).first(),
+ matchingRequired:async()=>!!await nativeProcurementReadFirst(PROCUREMENT_RD_INVOICE_POLICY_MATCHING_REQUIRED,[actor.companyId],await database()),
  billReceipts:async(id)=>(await nativeProcurementReadAll<Row>(PROCUREMENT_RD_BILL_MATCH_RECEIPTS,[id],await database())).results,
  stageInvoice:async(h)=>{const db=await database(),bill=h.bill,nextVersion=Number(bill.version)+1;
  const steps:SqlStatement[]=[assertion(db,h.key,'supplier-bill-handoff',"EXISTS(SELECT 1 FROM procurement_bill_matches WHERE id=? AND company_id=? AND fulfillment_id=? AND status='approved' AND version=? AND invoice_id IS NULL)",[bill.id,actor.companyId,h.fulfillment.id,h.matchVersion])];
