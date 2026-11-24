@@ -1,4 +1,5 @@
 import { PP_RD22_ENGAGEMENT_VERSION_GUARD } from './pp-read-tail-r22-sources';
+import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import {peoplePayrollFinalOwnerProjections as organizationFinalOwnerProjections} from "@erpx/server-organization/public/people-payroll-final-owner-projections";
 import { nativePeopleBatchC } from '@erpx/server-collaboration/adapters/native-people-batch-c';
 const organizationFinalSources=organizationFinalOwnerProjections();
@@ -19,7 +20,7 @@ export function StaffSettingsPeoplePayrollFacts(database: SqlDatabase) {
         },
         readSaveLevelEffect(id: string, id2: string) { return database.prepare(`SELECT 1 FROM hr_engagements WHERE level_id=? AND status='active' UNION ALL SELECT 1 ${organizationFinalSources.operations_staff_settings_facts_organization_positions_from} WHERE level_id=? AND active=1 LIMIT 1`).bind(id, id2).first(); },
         readAssignLevelEngagement(id: string, companyId: string) {
-            return database.prepare("SELECT * FROM hr_engagements WHERE id=? AND company_id=?")
+            return database.prepare(ppRd25ByIdCompany('hr_engagements'))
                 .bind(id, companyId)
                 .first<{
                 person_id: string;

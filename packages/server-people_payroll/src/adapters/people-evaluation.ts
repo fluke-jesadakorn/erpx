@@ -1,3 +1,4 @@
+import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { PP_RD23_EVAL_ASSESSMENT_VERSION_GUARD } from './pp-read-tail-r23-sources';
 import { PP_RD22_ENGAGEMENT_VERSION_GUARD } from './pp-read-tail-r22-sources';
 import { ppRd21IdVersionStatusGuard } from './pp-read-tail-r21-sources';
@@ -119,7 +120,7 @@ function application(provided?: SqlDatabase) {
         guard62(key: string, value: "cycle-open", cycle_id: string, version: number) { return assertion(database, key, value, PP_RD19_EVAL_DEF_OPEN_EXISTS_SQL, [cycle_id, version]); },
         stageAddEvaluationEvidenceEffect4(id: string, companyId: string, assessmentId: string, sourceType: "file" | "kpi" | "task" | "project" | "learning", sourceId: string | null, description: string, observedOn: string, value: string, userId: string, now: number) { return nativePpStatement('people_eval_stmt_7').bind(id, companyId, assessmentId, sourceType, sourceId, description, observedOn, value, userId, now); },
         stageAddEvaluationEvidenceEffect5(userId: string, userId2: string, now: number, assessmentId: string) { return nativePpStatement('people_eval_stmt_8').bind(userId, userId2, now, assessmentId); },
-        readReadEvaluationEvidenceEvidence(evidenceId: string, companyId: string) { return database.prepare("SELECT * FROM hr_evaluation_evidence WHERE id=? AND company_id=?").bind(evidenceId, companyId).first<Row>(); },
+        readReadEvaluationEvidenceEvidence(evidenceId: string, companyId: string) { return database.prepare(ppRd25ByIdCompany('hr_evaluation_evidence')).bind(evidenceId, companyId).first<Row>(); },
         stageConfirmEvaluationPayBasisEffect(engagementId: string) { return database.prepare("SELECT id FROM hr_engagements WHERE id=? FOR UPDATE").bind(engagementId); },
         guard67(key: string, value: "engagement-version", engagementId: string, version: number) { return assertion(database, key, value, PP_RD19_HR_ENGAGEMENT_VERSION_EXISTS_SQL, [engagementId, version]); },
         guard68(key: string, value: "basis-version", engagementId: string, expectedVersion: number) { return assertion(database, key, value, "COALESCE((SELECT max(version) FROM hr_evaluation_pay_basis WHERE engagement_id=?),0)=?", [engagementId, expectedVersion]); },
@@ -167,7 +168,7 @@ function application(provided?: SqlDatabase) {
         stageApproveEvaluationCompensationEffect4(userId: string, now: number, compensation_id: unknown) { return nativePpStatement('people_eval_stmt_13').bind(userId, now, compensation_id); },
         stageApproveEvaluationCompensationEffect5(userId: string, reason: string, now: number, draftId: string) { return nativePpStatement('people_eval_stmt_14').bind(userId, reason, now, draftId); },
         stageApproveEvaluationCompensationEffect6(...args) { return peopleEvaluationWorkflowFacts(database).stageApproveEvaluationCompensationEffect6(...args); },
-        readCancelEvaluationCompensationDraft(draftId: string, companyId: string) { return database.prepare("SELECT * FROM hr_evaluation_compensation_drafts WHERE id=? AND company_id=?").bind(draftId, companyId).first<Row>(); },
+        readCancelEvaluationCompensationDraft(draftId: string, companyId: string) { return database.prepare(ppRd25ByIdCompany('hr_evaluation_compensation_drafts')).bind(draftId, companyId).first<Row>(); },
         stageCancelEvaluationCompensationEffect(id: string) { return database.prepare("SELECT id FROM hr_engagements WHERE id=? FOR UPDATE").bind(id); },
         guard100(key: string, value: "engagement-version", id: string, version: number) { return assertion(database, key, value, PP_RD19_HR_ENGAGEMENT_VERSION_EXISTS_SQL, [id, version]); },
         stageCancelEvaluationCompensationEffect2(draftId: string) { return database.prepare("SELECT id FROM hr_evaluation_compensation_drafts WHERE id=? FOR UPDATE").bind(draftId); },

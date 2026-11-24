@@ -1,4 +1,5 @@
 import { PP_RD20_ROSTER_ASSIGN_BY_ID_SQL, PP_RD20_ROSTER_ASSIGN_BY_SHIFT_SQL } from './pp-read-tail-r20-sources';
+import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import "server-only";
 import { rosterMonday, type RosterWeek, type RosterShift, type RosterAssignment, type RosterRequest, type ShiftTemplate, type RosterHistory } from "@erpx/feature-people_payroll/lib/people-roster";
@@ -21,7 +22,7 @@ const pending = "('pending_coworker','pending_manager')";
 const shiftSelect = "SELECT s.*,w.company_id,w.branch_id,w.department_id,w.week_start,w.timezone,w.state week_state FROM people_roster_shifts s JOIN people_roster_weeks w ON w.id=s.week_id";
 function context(database: SqlDatabase, purchase?: {actor: WorkContext; input: RosterCommand; key: string}, coverage?: (companyId: string) => Promise<boolean>): PeopleRosterPorts<SqlStatement> {
     return { repository: { readDepartments(...args) { return rosterOrganizationFacts(database).readDepartments(...args); },
-            readWeek(fact0: string, fact1: string) { return database.prepare("SELECT * FROM people_roster_weeks WHERE id=? AND company_id=?").bind(fact0, fact1).first<RosterWeek>(); },
+            readWeek(fact0: string, fact1: string) { return database.prepare(ppRd25ByIdCompany('people_roster_weeks')).bind(fact0, fact1).first<RosterWeek>(); },
             readShift(fact0: string, fact1: string) { return database.prepare(`${shiftSelect} WHERE s.id=? AND w.company_id=?`).bind(fact0, fact1).first<ShiftWithWeek>(); },
             readTimes(fact0: string, fact1: string, fact2: string, fact3: string, fact4: string, fact5: string, fact6: string, fact7: string, fact8: string, fact9: string) {
                 return database.prepare(`SELECT
@@ -86,7 +87,7 @@ function context(database: SqlDatabase, purchase?: {actor: WorkContext; input: R
             async readRescheduleRosterShift2(fact0: string) { return (await database.prepare("SELECT * FROM people_roster_assignments WHERE shift_id=? AND state='assigned' FOR UPDATE").bind(fact0).all<RosterAssignment>()).results; },
             applyRescheduleRosterShift2(fact0: string, fact1: string, fact2: string, fact3: number, fact4: number, fact5: string) { return nativePpStatement('people_roster_stmt_5').bind(fact0, fact1, fact2, fact3, fact4, fact5).run(); },
             readRescheduleRosterShift3(fact0: number, fact1: string) { return nativePpStatement('people_roster_stmt_6').bind(fact0, fact1).first<RosterWeek>(); },
-            readReadRequest(fact0: string, fact1: string) { return database.prepare("SELECT * FROM people_roster_requests WHERE id=? AND company_id=?").bind(fact0, fact1).first<RosterRequest>(); },
+            readReadRequest(fact0: string, fact1: string) { return database.prepare(ppRd25ByIdCompany('people_roster_requests')).bind(fact0, fact1).first<RosterRequest>(); },
             readRequestParticipants(fact0: string, fact1: string, fact2: string) { return database.prepare("SELECT 1 FROM hr_people WHERE id=? AND company_id=? AND iam_same_person(user_id,?,company_id)").bind(fact0, fact1, fact2).first<Record<string, unknown>>(); },
             readRequestCheck(fact0: string) { return database.prepare(PP_RD20_ROSTER_ASSIGN_BY_ID_SQL).bind(fact0).first<RosterAssignment>(); },
             readRequestCheck2(fact0: string) { return database.prepare(PP_RD20_ROSTER_ASSIGN_BY_ID_SQL).bind(fact0).first<RosterAssignment>(); },

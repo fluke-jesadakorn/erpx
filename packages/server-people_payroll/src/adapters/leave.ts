@@ -1,5 +1,6 @@
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import { PP_RD19_HR_ENGAGEMENT_VERSION_EXISTS_SQL } from './pp-read-tail-r19-sources';
+import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import{nativeLeaveReadRepository,getLeave}from '@erpx/server-people_payroll/adapters/leave-read';
 export{getLeave};
 import { withWorkforcePurchasedCommand } from "@erpx/server-people_payroll/adapters/workforce-purchases";
@@ -60,7 +61,7 @@ function application(provided?: SqlDatabase) {
                 evidence_privacy: "requester_approvers_hr";
             }>();
         },
-        readDecideRow(id: string, companyId: string) { return database.prepare("SELECT * FROM leave_requests WHERE id=? AND company_id=?").bind(id, companyId).first<LeaveRequest>(); },
+        readDecideRow(id: string, companyId: string) { return database.prepare(ppRd25ByIdCompany('leave_requests')).bind(id, companyId).first<LeaveRequest>(); },
         guard11(...args) { return leaveReviewEvidenceFacts(database).guard11(...args); },
         guard12(...args) { return leaveReviewEvidenceFacts(database).guard12(...args); },
         guard13(...args) { return leaveReviewEvidenceFacts(database).guard13(...args); },

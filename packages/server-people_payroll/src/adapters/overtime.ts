@@ -1,3 +1,4 @@
+import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import{nativeOvertimeReadRepository}from '@erpx/server-people_payroll/adapters/overtime-read';
 import type{getOvertime}from '@erpx/server-people_payroll/public/overtime-read';
@@ -57,7 +58,7 @@ function serviceContext(actor: WorkContext, provided?: SqlDatabase,providedOwned
         },
         stageCreateOvertimeEffect(id: string, companyId: string, engagement_id: string, person_id: string, branch_id: string | null, department_id: string | null, userId: string, mode: "advance" | "retrospective", timezone: string, startLocal: string, endLocal: string, startsAt: number, endsAt: number, breakMinutes: number, minutes: number, reason: string, lateExplanation: string, rosterShiftId: string | null, now: number, now2: number) { return nativePpStatement('pp_overtime_stmt_1').bind(id, companyId, engagement_id, person_id, branch_id, department_id, userId, mode, timezone, startLocal, endLocal, startsAt, endsAt, breakMinutes, minutes, reason, lateExplanation, rosterShiftId, now, now2); },
         readCommandOvertimeEffect(id: string, companyId: string) { return database.prepare('SELECT id FROM overtime_requests WHERE id=? AND company_id=? FOR UPDATE').bind(id, companyId).first(); },
-        readCommandOvertimeRecord(id: string, companyId: string) { return database.prepare("SELECT * FROM overtime_requests WHERE id=? AND company_id=?").bind(id, companyId).first<OvertimeRow>(); },
+        readCommandOvertimeRecord(id: string, companyId: string) { return database.prepare(ppRd25ByIdCompany('overtime_requests')).bind(id, companyId).first<OvertimeRow>(); },
         readCommandOvertimeSets(...args) { return overtimeEvidenceFacts(database).readCommandOvertimeSets(...args); },
         stageCommandOvertimeEffect(startLocal: string, endLocal: string, timezone: string, startsAt: number, endsAt: number, breakMinutes: number, minutes: number, reason: string, lateExplanation: string, rosterShiftId: string | null, id: string) { return nativePpStatement('pp_overtime_stmt_2').bind(startLocal, endLocal, timezone, startsAt, endsAt, breakMinutes, minutes, reason, lateExplanation, rosterShiftId, id); },
         stageCommandOvertimeEffect2(value: string, id: string, authorization: boolean) { return nativePpStatement('pp_overtime_stmt_3').bind(value, id); },

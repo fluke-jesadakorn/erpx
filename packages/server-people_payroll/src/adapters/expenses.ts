@@ -1,5 +1,6 @@
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import { PP_RD24_UNCLAIMED_EXPENSE_GUARD } from './pp-read-tail-r24-sources';
+import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import{canAccountExpenses,canPostExpenses,visibility,currentExpenseReader,approvalFields,expenseSelect,originalNativeExpenseReads,listExpenses,getExpense,expenseFromDatabase,canEditExpense,canReviewExpense,nativeExpenseReads,expensePresentationRows,expenseVisibleRecordIds,type ExpenseRow}from '@erpx/server-people_payroll/adapters/expense-read';
 export{canAccountExpenses,canPostExpenses,visibility,currentExpenseReader,approvalFields,expenseSelect,originalNativeExpenseReads,listExpenses,getExpense,expenseFromDatabase,canEditExpense,canReviewExpense,nativeExpenseReads,expensePresentationRows,expenseVisibleRecordIds};
 export type{ExpenseRow};
@@ -206,7 +207,7 @@ function versionGuard(
 function originalNativeExpenseLifecycle(write: SqlDatabase) {
   return createTransitionExpense({
     ...expenseCommandPort(write),
-    expense: (actor, id, override) => override ? write.prepare("SELECT * FROM finance_expenses WHERE id=? AND company_id=?").bind(id, actor.companyId).first<ExpenseRow>() : expenseFromDatabase(write, actor, id),
+    expense: (actor, id, override) => override ? write.prepare(ppRd25ByIdCompany('finance_expenses')).bind(id, actor.companyId).first<ExpenseRow>() : expenseFromDatabase(write, actor, id),
     current: (actor, row, action, input, key) => nativeExpenseTransitions(write)(actor, row, action, input, key),
     async canOverride(actor, id) { return (await approvalView(write, "expense", id, actor)).canOverride; },
     async decision(actor, id, action, input, key) {

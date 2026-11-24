@@ -1,5 +1,6 @@
 import { PP_RD23_HR_ENGAGEMENTS_ACTIVE_FOR_PERSON_NOT_EXISTS } from './pp-read-tail-r23-sources';
 import { PP_RD24_PEOPLE_PERSON_USER_SAME_SQL, PP_RD24_PEOPLE_PERSON_USER_OK_SQL } from './pp-read-tail-r24-sources';
+import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { nativePpStatement, nativePpQuery } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import {projectWorkerNativeCommands,requireProjectWorkerNativeCommand,requireProjectWorkerUnit} from '@erpx/server-people_payroll/adapters/project-worker-startup-binding';
 import {filterPeopleLifecycleWork} from "@erpx/server-people_payroll/adapters/record-purchases";
@@ -197,7 +198,7 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
         },
         readPreviewLifecycleOld(...args) { return peopleLifecycleIdentityAccessFacts(database, client).readPreviewLifecycleOld(...args); },
         readSaveLifecycleCurrent(id: string, companyId: string) {
-            return database.prepare("SELECT * FROM people_lifecycle_cases WHERE id=? AND company_id=?")
+            return database.prepare(ppRd25ByIdCompany('people_lifecycle_cases'))
                 .bind(id, companyId)
                 .first<LifecycleCase>();
         },

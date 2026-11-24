@@ -1,3 +1,4 @@
+import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { withExpensePurchasedRead } from "@erpx/server-people_payroll/adapters/expense-purchases";
 
 import { createExpensePaymentReader } from "@erpx/server-people_payroll/application/expense-projections";
@@ -19,7 +20,7 @@ export async function paymentDraft(actor: WorkContext, id: string, editable = fa
 export function nativeExpensePaymentReader(write: SqlDatabase) {
   return createExpensePaymentReader({
     error: violation => new ApiError(violation.status, violation.code, violation.message),
-    draft: (actor, id) => write.prepare("SELECT * FROM expense_payment_drafts WHERE id=? AND company_id=?").bind(id, actor.companyId).first<ExpenseRow>(),
+    draft: (actor, id) => write.prepare(ppRd25ByIdCompany('expense_payment_drafts')).bind(id, actor.companyId).first<ExpenseRow>(),
     expense: (actor, id) => expenseFromDatabase(write, actor, id),
     payers: row => expensePayers(write, row),
   });

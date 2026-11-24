@@ -1,3 +1,4 @@
+import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { requirePerformanceHistory, withPerformancePurchasedRead } from '@erpx/server-people_payroll/adapters/performance-purchases';
 import {peoplePayrollFinalOwnerProjections as organizationFinalOwnerProjections} from "@erpx/server-organization/public/people-payroll-final-owner-projections";
 
@@ -38,7 +39,7 @@ export function nativeEvaluationReadRepository(database:SqlDatabase):PeopleEvalu
                 payload_json: string;
                 updated_at: number;
             }>();
-        },readEvaluationAssessmentRow(assessmentId: string, companyId: string) { return database.prepare("SELECT * FROM hr_evaluation_assessments WHERE id=? AND company_id=?").bind(assessmentId, companyId).first<AssessmentRow>(); }};}
+        },readEvaluationAssessmentRow(assessmentId: string, companyId: string) { return database.prepare(ppRd25ByIdCompany('hr_evaluation_assessments')).bind(assessmentId, companyId).first<AssessmentRow>(); }};}
 function application(database?:SqlDatabase){return createPeopleEvaluationRead({repository:nativeEvaluationReadRepository(database!),ids:{newId:()=>crypto.randomUUID()},authorize:requirePermission,batch:effects=>database!.batch(effects),purchasedHistory:actor=>fromNative(()=>requirePerformanceHistory(database!,actor)),captureAuthority:(...args)=>fromNative(()=>captureJobAuthority(database!,...args)),authorityGuards:(...args)=>iamMutationGuards(database!,...args)});}
 async function fromNative<Result>(run: () => Promise<Result> | Result): Promise<Result> {
     try {
