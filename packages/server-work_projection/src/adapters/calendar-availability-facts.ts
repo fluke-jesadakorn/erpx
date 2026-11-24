@@ -2,6 +2,18 @@ import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { type RecurrenceRule } from "@erpx/feature-work_projection/lib/calendar-recurrence";
 export function calendarAvailabilityWorkProjectionFacts(db: SqlDatabase) {
+    // read4 and read6 are the same fixed occurrence-response lookup; one
+    // implementation serves both the series and moved-exception paths.
+    const readResponse = (facts: {
+            value1: string;
+            value2: string;
+            value3: string;
+            value4: string;
+        }) => {
+            return db.prepare("SELECT response FROM calendar_occurrence_responses WHERE appointment_id=? AND company_id=? AND occurrence_key=? AND user_id=?").bind(facts.value1, facts.value2, facts.value3, facts.value4).first<{
+                response: string;
+            }>();
+        };
     return { read2: (facts: {
             value1: string;
             value2: number;
@@ -37,16 +49,7 @@ export function calendarAvailabilityWorkProjectionFacts(db: SqlDatabase) {
                 cancelled: boolean;
             }>();
         },
-        read4: (facts: {
-            value1: string;
-            value2: string;
-            value3: string;
-            value4: string;
-        }) => {
-            return db.prepare("SELECT response FROM calendar_occurrence_responses WHERE appointment_id=? AND company_id=? AND occurrence_key=? AND user_id=?").bind(facts.value1, facts.value2, facts.value3, facts.value4).first<{
-                response: string;
-            }>();
-        },
+        read4: readResponse,
         read5: (facts: {
             value1: string;
             value2: string;
@@ -57,14 +60,5 @@ export function calendarAvailabilityWorkProjectionFacts(db: SqlDatabase) {
                 end_local: string;
             }>();
         },
-        read6: (facts: {
-            value1: string;
-            value2: string;
-            value3: string;
-            value4: string;
-        }) => {
-            return db.prepare("SELECT response FROM calendar_occurrence_responses WHERE appointment_id=? AND company_id=? AND occurrence_key=? AND user_id=?").bind(facts.value1, facts.value2, facts.value3, facts.value4).first<{
-                response: string;
-            }>();
-        } };
+        read6: readResponse };
 }
