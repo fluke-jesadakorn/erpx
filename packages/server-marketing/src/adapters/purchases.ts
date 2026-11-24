@@ -16,6 +16,7 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import {crmMarketingSourceReadLocks,publicSubmissionReceiptWitness} from "@erpx/server-marketing/adapters/crm-purchase-sources";
 import type {PublicMarketingForm} from "@erpx/server-marketing/application/public-form";
 import {marketingActorScopeSql} from "./marketing-actor-scope-sql";
+import {marketingModuleMemberSql} from "./module-membership";
 import {marketingPurchaseRowsSql} from "./marketing-purchase-rows-sql";
 export type MarketingPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type MarketingPurchaseTarget={kind:"asset"|"candidate"|"campaign"|"campaign-cost";id:string};
@@ -39,7 +40,7 @@ export async function requireMarketingCurrentAuthority(database:SqlDatabase,acto
   if(!hasPermission(actor,permission))throw new ApiError(403,'MARKETING_ACCESS_CHANGED','Choose a current Marketing work role.');
   const row=await database.prepare(marketingAssignmentAllowedSql('marketing_scope',permission)).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();if(!row?.allowed)throw new ApiError(403,'MARKETING_ACCESS_CHANGED','The original Marketing assignment is no longer current.');
  }
- const selected=await database.prepare("SELECT (jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array('marketing'::text)) allowed FROM assignments WHERE id=?").bind(actor.assignmentId).first<{allowed:boolean}>();if(!selected?.allowed)throw new ApiError(403,'MARKETING_ACCESS_CHANGED','The original Marketing module is no longer selected.');
+ const selected=await database.prepare(marketingModuleMemberSql("", "allowed")).bind(actor.assignmentId).first<{allowed:boolean}>();if(!selected?.allowed)throw new ApiError(403,'MARKETING_ACCESS_CHANGED','The original Marketing module is no longer selected.');
  await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await nativeClearCommandAssertions(database, actor.companyId, key)]);
 }
 export async function marketingSourceAccess(database:SqlDatabase,actor:WorkContext,target?:MarketingPurchaseTarget):Promise<MarketingPurchaseControls|undefined>{const mode=await commercePackageEnforcementMode();if(mode==='disabled')return undefined;await requireMarketingCurrentAuthority(database,actor,['records.read'],`marketing-read:${randomUUID()}`);if(target)await source(database,actor,target);const access=(await readPurchasedAccesses(database,mode,actor.companyId,['sales.marketing']))['sales.marketing'];return {newWork:access.newWork,settleExisting:access.settleExisting,history:access.history,revision:access.revision};}
