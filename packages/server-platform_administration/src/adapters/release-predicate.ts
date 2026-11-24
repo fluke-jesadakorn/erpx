@@ -68,6 +68,14 @@ export function latestReleaseRowSql(columns: string, idPredicate: string) {
   return `SELECT ${columns} FROM company_release_acceptances WHERE company_id=? ${idPredicate} ORDER BY created_at DESC,id DESC LIMIT 1`;
 }
 
+/** The single base release-acceptance row read shared by the evidence-row and
+ * finance-attachment owner reads. Kept here once so this parameterized family
+ * has one owner-local definition; each caller supplies its columns and WHERE
+ * predicate. The rendered SQL is byte-identical to the former inline copies. */
+export function releaseAcceptanceRowSql(columns: string, predicate: string) {
+  return `SELECT ${columns} FROM company_release_acceptances WHERE ${predicate}`;
+}
+
 /** The single THB-currency probe shared by every release-currency source. Kept
  * here once so this parameterized family has one owner-local definition; each
  * caller supplies only its closed source projection and company predicate. The

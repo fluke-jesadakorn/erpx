@@ -1,4 +1,4 @@
-import {releaseRevisionTable,releaseCurrencyPredicate,releaseRevisionShareLockSql,releaseRevisionReadSql,latestReleaseIdSql,latestReleaseRowSql,activeBranchCountSql,businessAcceptanceSetupSql,releaseAcceptanceExistsSql} from "@erpx/server-platform_administration/adapters/release-predicate";
+import {releaseRevisionTable,releaseCurrencyPredicate,releaseRevisionShareLockSql,releaseRevisionReadSql,latestReleaseIdSql,latestReleaseRowSql,releaseAcceptanceRowSql,activeBranchCountSql,businessAcceptanceSetupSql,releaseAcceptanceExistsSql} from "@erpx/server-platform_administration/adapters/release-predicate";
 import { platformOwnerProjectionSources as identity_accessPlatformSources } from "@erpx/server-identity_access/public/platform-owner-projection-sources";
 import { platformOwnerProjectionSources as organizationPlatformSources } from "@erpx/server-organization/public/platform-owner-projection-sources";
 import "server-only";
@@ -85,7 +85,7 @@ function repository(db:SqlDatabase,companyId:string,work?:WorkContext):ReleaseRe
     await nativeOwnerWrite('pl_release_revoke',[now,version,now,actor.companyId,id],`pl-revoke:${key}`,{companyId:actor.companyId,now},()=>db.prepare(NATIVE_OWNER_WRITE_NOOP_SQL)),
     await nativeReleaseEvents(db).revoked({ key, companyId: actor.companyId, releaseId: id, version, userId: actor.userId, detail: JSON.stringify(input), now }),
   ]);},
- evidenceRow:id=>db.prepare('SELECT version,revoked_at FROM company_release_acceptances WHERE company_id=? AND id=?').bind(companyId,id).first<{version:number;revoked_at:number|null}>(),
+ evidenceRow:id=>db.prepare(releaseAcceptanceRowSql('version,revoked_at','company_id=? AND id=?')).bind(companyId,id).first<{version:number;revoked_at:number|null}>(),
  prepareEvidence:async(command,version)=>{const {key,operation,id,input}=command,a=workActor(),actor=a,prepared=await prepareAttachmentBinding(db,actor,{
   attachmentSetIds:input.attachmentSetIds,
   bindingContract:{targetType:'company_release_acceptance',bindingType:'release_acceptance_evidence',contexts:[{purposeKey:'sanitized_release_evidence',componentKind:'action',componentRef:'company_release_acceptance:evidence'}]},
