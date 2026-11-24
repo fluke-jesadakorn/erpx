@@ -1,5 +1,6 @@
 import {followupProjectionScope,followupPurchasedAccess,requireFollowupPurchasedRead,filterFollowupPurchasedWork} from '@erpx/server-sales/adapters/followup-purchases';
 import {followupEvidencePrefix,ownerNameProjection} from './followup-source-sql';
+import {pointRead} from './point-read';
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
 import { commercialOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/commercial-owner-projection-sources";
 import { commercialOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/commercial-owner-projection-sources";
@@ -37,7 +38,7 @@ function repository(write:SqlDatabase,a:WorkContext):FollowupRepository{return {
  JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=c.order_id AND o.company_id=c.company_id JOIN (${financeProjectionSources.finance_parties}) p ON p.id=o.party_id AND p.company_id=o.company_id
  WHERE ${scope} AND ${purchase.where} AND c.id=? AND o.kind IN ('sales','quote') AND c.status='open' AND c.due_date BETWEEN ? AND ? AND c.due_date<? LIMIT 1`)
  .bind(...args(a),...purchase.args,id,from,to,beforeDate).first<Row>();},
- recipients:orderId=>recipients(write,a,orderId),history:async id=>(await write.prepare('SELECT * FROM customer_followup_events WHERE followup_id=? ORDER BY version DESC').bind(id).all<Row>()).results,order:async id=>(await getOrder(a,id,write)).order,
+ recipients:orderId=>recipients(write,a,orderId),history:async id=>(await write.prepare(pointRead('*','customer_followup_events','followup_id',' ORDER BY version DESC')).bind(id).all<Row>()).results,order:async id=>(await getOrder(a,id,write)).order,
  };}
 async function translated<Result>(action:()=>Promise<Result>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 export function getCustomerFollowup(a:WorkContext,id:string){return translated(async()=>{const db=(await holdingResources(a.holdingId)).write;await requireFollowupPurchasedRead(db,a,{kind:'followup',id});return application(a,db).get(id);});}

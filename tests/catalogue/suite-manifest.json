@@ -46069,6 +46069,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Inventory package-obligation document row family must stay one builder."
+      },
+      "apps": [
+        "supply"
+      ],
+      "packages": [
+        "@erpx/server-inventory"
+      ],
+      "id": "inventory.read-tail-r27-dedupe.unit",
+      "files": [
+        "tests/unit/inventory/read-tail-r27-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "inventory.rust-commerce-order-cancellation-postgres.integration",
       "lane": "integration",
       "owner": "inventory",
@@ -81317,6 +81344,33 @@
       "id": "sales.read-tail-r19-dedupe.unit",
       "files": [
         "tests/unit/sales/read-tail-r19-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Sales point reads with projection and order must stay one generator."
+      },
+      "apps": [
+        "sales"
+      ],
+      "packages": [
+        "@erpx/server-sales"
+      ],
+      "id": "sales.read-tail-r20-dedupe.unit",
+      "files": [
+        "tests/unit/sales/read-tail-r20-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
