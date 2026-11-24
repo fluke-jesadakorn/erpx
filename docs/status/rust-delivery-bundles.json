@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9204,
+    "revision": 9208,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -140246,7 +140246,7 @@
         "owner": "learning",
         "title": "learning TS read tail native cutover (r3)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -140259,28 +140259,36 @@
         "resources": [
           "owner:learning"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCJlea",
-          "claimedAt": "2026-11-24T04:50:10.350Z",
-          "heartbeatAt": "2026-11-24T04:54:05.688Z",
-          "expiresAt": "2026-11-24T05:24:05.688Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-learning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "74ef740aa",
+            "owner": "learning",
+            "before": 86,
+            "after": 82,
+            "note": "Native source union probes, overdue evidence head and erpx_json_each grant probe shared; locks untouched."
+          },
+          {
+            "command": "vitest learning r3 (7) + tsc learning",
+            "result": "passed",
+            "sourceSha": "74ef740aa"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=86.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261123-j",
-          "agentId": "wGCilea",
-          "at": "2026-11-24T04:50:09.918Z",
+          "agentId": "wGCJlea",
+          "at": "2026-11-24T05:05:45.706Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=86."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -148534,7 +148542,7 @@
         "owner": "sales",
         "title": "sales TS read tail native cutover (r13)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -148546,22 +148554,37 @@
         "resources": [
           "owner:sales"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCIsal",
-          "claimedAt": "2026-11-24T04:58:52.805Z",
-          "heartbeatAt": "2026-11-24T04:58:52.805Z",
-          "expiresAt": "2026-11-24T05:28:52.805Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-sales/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "74ef740aa",
+            "owner": "sales",
+            "before": 97,
+            "after": 93,
+            "note": "allRows generator covers five settlement sources; lock statements unchanged."
+          },
+          {
+            "command": "vitest sales r13 + services (118) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "74ef740aa"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=97.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-j",
+          "agentId": "wGCIsal",
+          "at": "2026-11-24T05:05:46.361Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -149086,17 +149109,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
-        "in_progress": 25,
+        "in_progress": 23,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 733,
+        "blocked": 735,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 162,
-    "updatedAt": "2026-11-24T05:05:27.165Z",
+    "updatedAt": "2026-11-24T05:05:46.366Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
