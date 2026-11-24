@@ -1,4 +1,5 @@
 import { ACTIVE_ACCOUNT_CATEGORY_PROBE_SQL } from './finance-read-tail-r40-sql';
+import { paymentSlipChecksumGuardSql } from './finance-read-tail-r50-sql';
 import { accountChartGuardSql, partyKindGuardSql } from './finance-read-tail-r46-sql';
 import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
 import { ACCOUNT_SELECT_PREFIX, JOURNAL_SELECT_PREFIX } from './finance-read-tail-r30-sql';
@@ -57,8 +58,8 @@ guardRule20:(facts:{key:string;guardId:string;values:(string | number | null)[];
         )`,facts.values),
 guardRule21:(facts:{key:string;guardId:string;values:string[];})=>assertion(db,facts.key,facts.guardId,OPEN_PERIOD_GUARD_SQL,facts.values),
 guardRule22:(facts:{key:string;guardId:string;values:(string | number | null)[];})=>assertion(db,facts.key,facts.guardId,accountChartGuardSql(" AND status='active'"),facts.values),
-guardRule31:(facts:{key:string;guardId:string;values:string[];})=>assertion(db,facts.key,facts.guardId,`NOT EXISTS(SELECT 1 FROM finance_payments p ${filesSnapshotSources().commerce_facts_attachments_used_join} ON used.id=p.payment_slip_id ${filesSnapshotSources().commerce_facts_attachments_proposed_join} ON proposed.id=? WHERE p.company_id=? AND used.checksum_sha256=proposed.checksum_sha256)`,facts.values),
-guardRule33:(facts:{key:string;guardId:string;values:(string | null)[];})=>assertion(db,facts.key,facts.guardId,`NOT EXISTS(SELECT 1 FROM finance_payments p ${filesSnapshotSources().commerce_facts_attachments_used_join} ON used.id=p.payment_slip_id ${filesSnapshotSources().commerce_facts_attachments_proposed_join} ON proposed.id=? WHERE p.company_id=? AND used.checksum_sha256=proposed.checksum_sha256)`,facts.values),
+guardRule31:(facts:{key:string;guardId:string;values:string[];})=>assertion(db,facts.key,facts.guardId,paymentSlipChecksumGuardSql(filesSnapshotSources().commerce_facts_attachments_used_join,filesSnapshotSources().commerce_facts_attachments_proposed_join),facts.values),
+guardRule33:(facts:{key:string;guardId:string;values:(string | null)[];})=>assertion(db,facts.key,facts.guardId,paymentSlipChecksumGuardSql(filesSnapshotSources().commerce_facts_attachments_used_join,filesSnapshotSources().commerce_facts_attachments_proposed_join),facts.values),
 guardRule34:(facts:{key:string;guardId:string;values:(string | number | null)[];})=>assertion(db,facts.key,facts.guardId,accountChartGuardSql(" AND currency=? AND category='asset' AND control_kind='bank' AND status='active'"),facts.values),
 guardRule35:(facts:{key:string;guardId:string;values:(string | number | null)[];})=>assertion(db,facts.key,facts.guardId,"EXISTS(SELECT 1 FROM finance_charts WHERE id=? AND company_id=? AND base_currency=?) AND EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND fx_rate_micros=1000000)",facts.values),
 guardRule36:(facts:{key:string;guardId:string;values:string[];})=>assertion(db,facts.key,facts.guardId,SUPPLIER_RESERVATION_GUARD_SQL,facts.values),

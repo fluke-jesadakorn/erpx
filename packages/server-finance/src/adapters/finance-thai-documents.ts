@@ -1,4 +1,5 @@
 import { tableByIdSql } from './finance-read-tail-r49-sql';
+import { THAI_DOC_ACTIVE_GUARD_SQL } from './finance-read-tail-r50-sql';
 import { sourcePartyIdSql, sourcePartyStatusSql, thaiDocumentRowsSql } from './finance-read-tail-r40-sql';
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { INVOICE_EXISTS_PREFIX } from './finance-read-tail-r30-sql';
@@ -84,7 +85,7 @@ function documentService(provided?: SqlDatabase) {
             const write = await db(actor);
             return executeCommand(write, actor, commandId, "finance.thai-document.change.prepare", input, id, 1, { id, status: "draft", version: 1 }, [
                 ...taxIdentityGuards(write, actor, commandId, [payer, payee]),
-                assertion(write, commandId, "current-document", "NOT EXISTS(SELECT 1 FROM finance_thai_document_events WHERE document_id=? AND action IN ('cancelled','superseded'))", [documentId]),
+                assertion(write, commandId, "current-document", THAI_DOC_ACTIVE_GUARD_SQL, [documentId]),
                 await nativeFinanceThaiDocuments(write, actor.companyId).changeInsert([id, actor.companyId, documentId, payer.id, payee.id, input.issueDate, input.reason, taxSourceDigest(source), JSON.stringify(source), actor.userId, now, now]),
             ]);
         }, pendingChange: async (facts) => { const { id, actor } = facts; const write = await db(actor); return write.prepare(tableByIdSql('finance_thai_document_changes')).bind(id, actor.companyId).first<Record<string, string | number | null>>(); }, originalForDecision: async (facts) => { const { change, actor } = facts; const write = await db(actor); return write.prepare(ISSUED_THAI_DOCUMENT_BY_ID_SQL).bind(change.document_id, actor.companyId).first<IssuedDocument>(); }, financialSourceForDecision: async (facts) => {
@@ -98,7 +99,7 @@ function documentService(provided?: SqlDatabase) {
             const { actor, commandId, operation, input, id, status, issue, original, now } = facts;
             const write = await db(actor);
             const nativeIssue = issue ? issues.get(issue.id)! : null;
-            const guards = [assertion(write, commandId, 'amendment', idCompanyStatusVersionGuard("finance_thai_document_changes", "draft"), [id, actor.companyId, input.expectedVersion]), assertion(write, commandId, 'current-document', "NOT EXISTS(SELECT 1 FROM finance_thai_document_events WHERE document_id=? AND action IN ('cancelled','superseded'))", [original.id])];
+            const guards = [assertion(write, commandId, 'amendment', idCompanyStatusVersionGuard("finance_thai_document_changes", "draft"), [id, actor.companyId, input.expectedVersion]), assertion(write, commandId, 'current-document', THAI_DOC_ACTIVE_GUARD_SQL, [original.id])];
             if (issue)
                 guards.push(assertion(write, commandId, 'financial-source', original.payment_id ? "EXISTS(SELECT 1 FROM finance_payments WHERE id=? AND company_id=? AND status='settled')" : INVOICE_EXISTS_PREFIX + " AND status IN ('posted','partially_paid','paid'))", [original.payment_id ?? original.invoice_id, actor.companyId]));
             return executeCommand(write, actor, commandId, operation, input, id, input.expectedVersion + 1, { id, status, version: input.expectedVersion + 1, replacementDocumentId: issue?.id ?? null }, [

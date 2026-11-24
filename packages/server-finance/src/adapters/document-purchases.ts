@@ -1,4 +1,5 @@
 import { FINANCE_SCOPE_BIND_SQL } from './finance-read-tail-r44-sql';
+import { clockProbeSql } from './finance-read-tail-r50-sql';
 import { ownedDocumentExistsSql } from './finance-read-tail-r40-sql';
 import {rootOwnerExistsSql, materializedClockCteSql} from './finance-read-tail-r19-sql';
 import { JOURNAL_SELECT_PREFIX } from './finance-read-tail-r30-sql';
@@ -198,9 +199,9 @@ export function withFinanceFlowAssignment<Result>(actor:WorkContext,key:string,r
 export async function financeWorkspaceSearchScope(database:SqlDatabase,actor:WorkContext){
  const mode=await financePackageEnforcementMode();
  if(mode==='shadow')await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability:'finance.accounting',purpose:'history'});
- const purchase=mode==='enforced'?`(SELECT ${purchasedCapabilityPredicate('workspace_records.company_id','finance.accounting','history','finance_search_clock.now_ms')} FROM finance_search_clock)`:'TRUE';
+ const purchase=mode==='enforced'?clockProbeSql(purchasedCapabilityPredicate('workspace_records.company_id','finance.accounting','history','finance_search_clock.now_ms'),'finance_search_clock'):'TRUE';
  const initial=`EXISTS(SELECT 1 FROM finance_journals d WHERE d.id=workspace_records.id AND d.company_id=workspace_records.company_id AND (${initialStockJournalPredicate} OR ${manufacturingInitialStockJournalPredicate('d')} OR ${posInitialStockJournalPredicate('d')} OR ${serviceInitialStockJournalPredicate('d')}))`;
- const rowFilter=`(SELECT ${initialPhysicalStockFinanceJournalFilter('workspace_records','finance_search_clock.now_ms')} FROM finance_search_clock)`;
+ const rowFilter=clockProbeSql(initialPhysicalStockFinanceJournalFilter('workspace_records','finance_search_clock.now_ms'),'finance_search_clock');
  const authority=assignmentReadSql('workspace_records','finance.read');
  return {clock:`${materializedClockCteSql('finance_search_clock', packageClockSql)} `,where:`(module_id<>'finance' OR ((CASE WHEN ${initial} THEN ${rowFilter} AND ${authority} ELSE ${rowFilter} AND ${purchase}${mode==='enforced'?` AND ${authority}`:''} END)))`,args:mode==='enforced'?[actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.userId,actor.role]:[actor.assignmentId,actor.userId,actor.role]};
 }
@@ -210,11 +211,11 @@ export async function financeWorkspaceSearchScope(database:SqlDatabase,actor:Wor
 export async function financeNotificationReadScope(database:SqlDatabase,actor:WorkContext,surface:"staff"|"inbox"){
   const mode=await financePackageEnforcementMode();
   const type=surface==="staff"?"record_type":"e.source_type",id=surface==="staff"?"record_id":"e.source_id",company=surface==="staff"?"staff_notifications.company_id":"e.company_id";
-  const purchase=(capability:string)=>`(SELECT ${purchasedCapabilityPredicate("d.company_id",capability,"history","finance_notice_clock.now_ms")} FROM finance_notice_clock)`;
+  const purchase=(capability:string)=>clockProbeSql(purchasedCapabilityPredicate("d.company_id",capability,"history","finance_notice_clock.now_ms"),'finance_notice_clock');
   const document=(kind:"invoice"|"journal"|"refund"|"supplier-batch")=>`(${type}='${kind==="supplier-batch"?"supplier_batch":kind}' AND EXISTS(SELECT 1 FROM ${tables[kind]} d WHERE d.id=${id} AND d.company_id=${company} AND (${purchase(base(kind))} OR ${foundations.map(capability=>`(${purchase(capability)} AND ${ownerPredicate(kind,capability)}${capability==="finance.service-invoice"&&kind==="journal"?` AND (NOT ${servicePartsPredicate(kind)} OR ${purchase("service.parts-assets")})`:""})`).join(" OR ")})))`;
   const initialRow=`EXISTS(SELECT 1 FROM finance_journals d WHERE d.id=${id} AND d.company_id=${company} AND (${initialStockJournalPredicate} OR ${manufacturingInitialStockJournalPredicate('d')} OR ${posInitialStockJournalPredicate('d')} OR ${serviceInitialStockJournalPredicate('d')}))`;
   const knownInitial=`EXISTS(SELECT 1 FROM finance_journals d WHERE d.id=${id} AND d.company_id=${company} AND (${rootOwnerExistsSql(roots('journal'), inventoryFinanceRecordSources.initialPhysicalCountMarkedJournal, 'marker')} OR ${manufacturingInitialStockJournalMarkedPredicate('d')} OR ${posInitialStockJournalMarkedPredicate('d')} OR ${serviceInitialStockJournalMarkedPredicate('d')}))`;
-  const initialAllowed=`EXISTS(SELECT 1 FROM finance_journals d WHERE d.id=${id} AND d.company_id=${company} AND (SELECT ${initialPhysicalStockFinanceJournalFilter('d','finance_notice_clock.now_ms')} FROM finance_notice_clock))`;
+  const initialAllowed=`EXISTS(SELECT 1 FROM finance_journals d WHERE d.id=${id} AND d.company_id=${company} AND ${clockProbeSql(initialPhysicalStockFinanceJournalFilter('d','finance_notice_clock.now_ms'),'finance_notice_clock')})`;
   const current=`(SELECT ${assignmentReadSql('finance_notice_scope','finance.read')} FROM (${FINANCE_SCOPE_BIND_SQL}) finance_notice_scope)`;
   const ordinary=mode==='enforced'?`(${document('invoice')} OR ${document('journal')} OR ${document('refund')} OR ${document('supplier-batch')})`:'TRUE';
   return {clock:`${materializedClockCteSql('finance_notice_clock', packageClockSql)} `,where:`(${type} NOT IN ('invoice','journal','refund','supplier_batch') OR CASE WHEN ${type}='journal' AND ${knownInitial} THEN ${initialRow} AND ${initialAllowed} AND ${current} ELSE ${mode==='enforced'?`${current} AND `:''}${ordinary} END)`,args:mode==='enforced'?[actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId,actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId]:[actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId]};

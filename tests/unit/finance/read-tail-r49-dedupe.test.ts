@@ -122,7 +122,7 @@ describe('Finance read-tail r49 protected families and retirement', () => {
     }
   });
 
-  test('retirement:ts-statements reaches the r49 target of 1812', () => {
+  test('retirement:ts-statements stays below the r49 target of 1812 at 1805', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -133,8 +133,8 @@ describe('Finance read-tail r49 protected families and retirement', () => {
     };
     walk(srcRoot);
     // 25 table-by-id + 7 journal guards + 4 consolidation SELECTs collapse into
-    // four r49 helpers (-32: 1844 -> 1812).
-    expect(total).toBe(1812);
-    expect(total).toBeLessThan(1844);
+    // four r49 helpers (-32: 1844 -> 1812); r50 removes seven more (-> 1805).
+    expect(total).toBe(1805);
+    expect(total).toBeLessThan(1812);
   });
 });
