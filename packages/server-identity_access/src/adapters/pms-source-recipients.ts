@@ -1,11 +1,11 @@
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
+import {pmsRecipientProjectionSql} from './pms-recipient-projection-family-r26';
 const peoplepayrollSources=peoplepayrollSnapshotSources();
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 export async function pmsSourceRecipients(db: SqlDatabase, actor: WorkContext, now: number) {
-    return (await db.prepare(`SELECT DISTINCT a.user_id id,COALESCE(h.legal_name,a.user_id) name
-    FROM assignments a LEFT ${peoplepayrollSources.pms_source_recipients_hr_people_h_join} ON h.user_id=a.user_id AND h.company_id=a.company_id
+    return (await db.prepare(`${pmsRecipientProjectionSql(peoplepayrollSources.pms_source_recipients_hr_people_h_join)}
     AND h.status='active' AND h.merged_into_id IS NULL
     WHERE a.company_id=? AND a.user_id<>? AND a.revoked_at IS NULL AND a.valid_from<=? AND a.valid_until>?
     AND iam_assignment_active(a.id,?) AND iam_principal_active(a.user_id,a.company_id,?)
