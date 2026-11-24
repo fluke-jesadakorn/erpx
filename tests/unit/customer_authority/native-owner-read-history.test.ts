@@ -322,18 +322,29 @@ describe('customer authority portal support responses source dedupe', () => {
   const sources = () => new URL('../../../packages/server-customer_authority/src/adapters/portal-support-sources.ts', import.meta.url);
   const support = () => new URL('../../../packages/server-customer_authority/src/adapters/portal-support.ts', import.meta.url);
 
-  it('keeps one responses source literal shared by settlement facts and the thread lateral', async () => {
+  it('keeps one byte-identical support source core shared by settlement facts and the thread lateral', async () => {
     const src = await readFile(sources(), 'utf8');
     const consumer = await readFile(support(), 'utf8');
-    // The settlement map and the portal thread LATERAL must read the same
-    // customer_portal_support_responses source; one literal prevents drift and
-    // drops a duplicate SELECT from the owner KPI.
-    expect(src).toContain("export const portalSupportResponsesSource='SELECT * FROM customer_portal_support_responses';");
-    expect(src).toContain('responses:portalSupportResponsesSource');
-    expect(src.match(/SELECT \* FROM customer_portal_support_responses/g)).toHaveLength(1);
+    // Every support-table reader renders its SQL from one closed core. The
+    // caller-owned suffix keeps each verified statement byte-identical while
+    // two duplicate SELECTs leave the owner KPI.
+    expect(src).toContain("const supportSource=(table:'responses'|'acknowledgements'|'closures')=>`SELECT * FROM customer_portal_support_${table}`;");
+    expect(src).toContain("export const portalSupportResponsesSource=supportSource('responses');");
+    expect(src).toContain("responses:portalSupportResponsesSource,acknowledgements:supportSource('acknowledgements'),closures:supportSource('closures')");
+    expect(src.match(/SELECT \* FROM customer_portal_support_\$\{table\}/g)).toHaveLength(1);
     expect(consumer).toContain('portalSupportInstalled,portalSupportResponsesSource,portalSupportSourceReadLocks');
     expect(consumer).toContain('LEFT JOIN LATERAL(${portalSupportResponsesSource} response WHERE');
     expect(consumer).not.toContain('SELECT * FROM customer_portal_support_responses');
+  });
+
+  it('renders the same support-table SQL for every settlement and lateral caller', async () => {
+    const { portalSupportResponsesSource, portalSupportSettlementSources } = await import('../../../packages/server-customer_authority/src/adapters/portal-support-sources');
+    expect(portalSupportResponsesSource).toBe('SELECT * FROM customer_portal_support_responses');
+    expect(portalSupportSettlementSources).toEqual({
+      responses: 'SELECT * FROM customer_portal_support_responses',
+      acknowledgements: 'SELECT * FROM customer_portal_support_acknowledgements',
+      closures: 'SELECT * FROM customer_portal_support_closures',
+    });
   });
 });
 
