@@ -39,3 +39,7 @@ export const socialPostPublishReceipt=(postId:string,actorId:string)=>`SELECT 1 
  * home call sites. Only the trailing field predicate varies; the fixed
  * `id=? AND author_id=?` prefix, bind order and lock semantics stay unchanged. */
 export const socialPostDraftExists=(tail:string)=>`EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND ${tail})`;
+/** Byte-identical owner-scoped post existence guard shared by the retained Social
+ * publish and draft-policy readers. Only the trailing predicate varies; the fixed
+ * `id=? AND company_id=?` prefix, bind order and lock semantics stay unchanged. */
+export const socialPostByIdGuard=(tail:string)=>`SELECT 1 FROM social_posts WHERE id=? AND company_id=? AND ${tail}`;

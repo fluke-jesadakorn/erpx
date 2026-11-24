@@ -22,7 +22,7 @@ import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import { appsPackageEnforcementMode, projectsPackageEnforcementMode, readPurchasedAccesses, checkPurchasedCapability } from '@erpx/server-commercial/public/purchase-command-boundary';
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import { operationalHandoverReceiptPredicate } from '@erpx/server-collaboration/adapters/work-social-source';
-import {requestedSourcesJsonb,socialPurchaseActorFeature,socialPostByIdPredicate} from './read-tail-sql';
+import {requestedSourcesJsonb,socialPurchaseActorFeature,socialPostByIdPredicate,socialPostByIdGuard} from './read-tail-sql';
 
 export type Source={kind:'staff_task'|'staff_project'|'pms_record';id:string};
 export type Command={key:string;operation:string;purpose:CapabilityPurpose;type:'post'|'draft'|'story';id?:string;sources?:Source[];audienceProjectId?:string|null;publishedDraftReplay?:boolean;privateImages?:true;providerSources?:true};
@@ -40,7 +40,7 @@ export async function capabilities(database:SqlDatabase,actor:StaffActor,command
  if(typedUnit||typedPost){for(const row of rows){if(row.kind==='staff_task'&&row.task_id&&!row.project_id){codes.add('work.actions');if(row.template_id)codes.add('work.advanced-routines');}else if(row.project_id&&project==='enforced'){codes.add('projects.wbs');codes.add('projects.handover');if(row.kind==='staff_task')codes.add('projects.tasks');}else if(!row.pms&&!row.project_id)codes.add('work.social');}return [...codes];}
  if(socialAllowed||!rows.length||rows.some(row=>!row.project_id&&!row.pms))codes.add('work.social');
  // System posts are original owner projections rather than human freeform.
- if(command.type==='post'&&command.id&&await database.prepare("SELECT 1 FROM social_posts WHERE id=? AND company_id=? AND kind='system'").bind(command.id,actor.companyId).first())codes.delete('work.social');
+ if(command.type==='post'&&command.id&&await database.prepare(socialPostByIdGuard("kind='system'")).bind(command.id,actor.companyId).first())codes.delete('work.social');
  for(const row of rows)if(row.project_id&&project==='enforced'){codes.add('projects.wbs');if(row.kind==='staff_task')codes.add('projects.tasks');}
  return [...codes];
 }
