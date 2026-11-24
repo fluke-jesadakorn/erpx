@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12238,
+    "revision": 12240,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -181809,7 +181809,7 @@
         "owner": "marketing",
         "title": "marketing TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -181820,22 +181820,37 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n36",
-          "claimedAt": "2026-11-24T14:00:08.096Z",
-          "heartbeatAt": "2026-11-24T14:04:54.024Z",
-          "expiresAt": "2026-11-24T14:34:54.024Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-marketing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ed8316c45",
+            "owner": "marketing",
+            "before": 55,
+            "after": 49,
+            "note": "Company list head, clocked report frame and purchase UNION arm builder shared; FOR SHARE/settlement/native untouched."
+          },
+          {
+            "command": "vitest marketing (119) + scoped tsc + 9 byte oracles",
+            "result": "passed",
+            "sourceSha": "ed8316c45"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Company list (-1), clocked report frame (-2), purchase UNION arm head (-3): 55->49. BEFORE=55.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n36",
+          "at": "2026-11-24T14:10:40.753Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -181972,17 +181987,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 3,
+        "in_progress": 2,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1406,
+        "blocked": 1407,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:10:18.166Z",
+    "updatedAt": "2026-11-24T14:10:40.757Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
