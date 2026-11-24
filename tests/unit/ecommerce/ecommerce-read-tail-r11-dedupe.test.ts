@@ -48,7 +48,7 @@ describe('Ecommerce read-tail r11 source-row read family', () => {
     for (const token of [
       'activeChannelAssertion', 'openCartAssertion', 'checkoutVersionAssertion',
       'activeProjectionAssertion', 'cartScope',
-      'SELECT id FROM ecommerce_carts WHERE id=? FOR UPDATE',
+      "ecommerceOrderedList('id', 'ecommerce_carts', 'id=? FOR UPDATE')",
       'FOR UPDATE OF x,c,o',
       'lock ? " FOR UPDATE" : ""',
     ]) {

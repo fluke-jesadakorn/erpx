@@ -198,7 +198,7 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
     { id: i.cartId, lineId, status: "open", version: i.expectedVersion + 1 },
     [
       money.statement,
-      write.prepare('SELECT id FROM ecommerce_carts WHERE id=? FOR UPDATE').bind(i.cartId),
+      write.prepare(ecommerceOrderedList('id', 'ecommerce_carts', 'id=? FOR UPDATE')).bind(i.cartId),
       assertion(write,key,'listing-current',ecommerceExistsGuard("ecommerce_listings l JOIN ecommerce_channels c ON c.id=l.channel_id","l.id=? AND l.version=? AND l.status='published' AND c.status='active' AND c.company_id=? AND l.currency=?"),[i.listingId,i.listingVersion,a.companyId,cart.currency]),
       assertion(
         write,

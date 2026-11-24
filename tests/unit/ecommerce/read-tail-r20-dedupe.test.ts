@@ -106,7 +106,7 @@ describe('Ecommerce read-tail r20 C5-C9 dedupe', () => {
     }
     expect(read('adapters/attachment-purchases.ts')).toContain('LOCK TABLE commerce_products IN SHARE MODE');
     expect(read('adapters/commerce-source-locks.ts')).toContain('LOCK TABLE ecommerce_channels,ecommerce_listings,ecommerce_carts,ecommerce_cart_lines,ecommerce_checkouts,ecommerce_fulfillment_links,ecommerce_return_links IN SHARE ROW EXCLUSIVE MODE');
-    expect(ecommerce).toContain('SELECT id FROM ecommerce_carts WHERE id=? FOR UPDATE');
+    expect(ecommerce).toContain("ecommerceOrderedList('id', 'ecommerce_carts', 'id=? FOR UPDATE')");
     expect(ecommerce).toContain('FOR UPDATE OF x,c,o');
     expect(ecommerce).toContain('lock ? " FOR UPDATE" : ""');
     expect(ecommerce).toContain('nativeWrite(');
@@ -127,6 +127,6 @@ describe('Ecommerce read-tail r20 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(7);
+    expect(total).toBe(5);
   });
 });

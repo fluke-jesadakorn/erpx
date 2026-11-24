@@ -68,7 +68,7 @@ describe('Ecommerce read-tail r27 source-identity alias fold', () => {
   test('the alias parameter is closed and existing callers keep x.id=? bytes', () => {
     expect(shared.match(/export const ecommerceSourceIdentity =/g) ?? []).toHaveLength(1);
     expect(shared).toContain("export const ecommerceSourceIdentity = (columns: string, from: string, alias = 'x') =>");
-    expect(shared).toContain('`SELECT ${columns} FROM ${from} WHERE ${alias}.id=?`');
+    expect(shared).toContain('ecommerceOrderedList(columns, from, `${alias}.id=?`)');
     expect(ecommerceSourceIdentity('COL', 'FROM')).toBe('SELECT COL FROM FROM WHERE x.id=?');
     expect(ecommerceSourceIdentity('COL', 'FROM', 'x')).toBe('SELECT COL FROM FROM WHERE x.id=?');
     expect(ecommerceSourceIdentity('COL', 'FROM', 'c')).toBe('SELECT COL FROM FROM WHERE c.id=?');
@@ -79,7 +79,7 @@ describe('Ecommerce read-tail r27 source-identity alias fold', () => {
   });
 
   test('protected locks, native source and executive metric port are untouched', () => {
-    expect(src).toContain('SELECT id FROM ecommerce_carts WHERE id=? FOR UPDATE');
+    expect(src).toContain("ecommerceOrderedList('id', 'ecommerce_carts', 'id=? FOR UPDATE')");
     expect(src).toContain('FOR UPDATE OF x,c,o');
     expect(po).toContain('LOCK TABLE command_receipts,audit_events,money_transaction_snapshots IN SHARE MODE');
     expect(read('adapters/commerce-source-locks.ts')).toContain('LOCK TABLE ecommerce_channels,ecommerce_listings,ecommerce_carts,ecommerce_cart_lines,ecommerce_checkouts,ecommerce_fulfillment_links,ecommerce_return_links IN SHARE ROW EXCLUSIVE MODE');
@@ -90,7 +90,7 @@ describe('Ecommerce read-tail r27 source-identity alias fold', () => {
 });
 
 describe('Ecommerce read-tail r27 retirement check', () => {
-  test('retirement:ts-statements === 7 (r28 BEFORE=10)', () => {
+  test('retirement:ts-statements === 5 (r29 BEFORE=7)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -100,7 +100,7 @@ describe('Ecommerce read-tail r27 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(7);
+    expect(total).toBe(5);
     expect(total).toBeLessThan(10);
   });
 });

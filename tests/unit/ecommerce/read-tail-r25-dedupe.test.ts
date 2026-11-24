@@ -51,7 +51,7 @@ describe('Ecommerce read-tail r25 three-rank dedupe', () => {
     expect(src).toContain('ecommerceOrderedList("l.*,r.status current_return_status,r.version current_return_version"');
     expect(src).toContain('"l.checkout_id=?")).bind(id).all<Row>()).results');
     expect(src).not.toContain('`SELECT l.*,r.status current_return_status,r.version current_return_version FROM ecommerce_return_links');
-    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(7);
+    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(8);
   });
 
   test('F2: file authority rebuilds from ecommerceReleaseGate byte-identically (689 chars, six binds)', () => {
@@ -115,7 +115,7 @@ describe('Ecommerce read-tail r25 three-rank dedupe', () => {
     ]) {
       expect(shared).toContain(`export const ${token} =`);
     }
-    expect(src).toContain('SELECT id FROM ecommerce_carts WHERE id=? FOR UPDATE');
+    expect(src).toContain("ecommerceOrderedList('id', 'ecommerce_carts', 'id=? FOR UPDATE')");
     expect(src).toContain('FOR UPDATE OF x,c,o');
     expect(src).toContain('lock ? " FOR UPDATE" : ""');
     expect((src.match(/FOR UPDATE/g) ?? []).length).toBe(3);
@@ -137,7 +137,7 @@ describe('Ecommerce read-tail r25 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(7);
+    expect(total).toBe(5);
     expect(total).toBeLessThan(22);
   });
 });

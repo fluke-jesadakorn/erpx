@@ -86,7 +86,7 @@ describe('Ecommerce read-tail r22 select-one probe dedupe', () => {
     expect((po.match(/\$\{receiptAuditGuard\(/g) ?? []).length).toBe(2);
     expect((po.match(/\$\{cartHasCheckout\}/g) ?? []).length).toBe(2);
     const ecommerce = read('adapters/ecommerce.ts');
-    expect(ecommerce).toContain('SELECT id FROM ecommerce_carts WHERE id=? FOR UPDATE');
+    expect(ecommerce).toContain("ecommerceOrderedList('id', 'ecommerce_carts', 'id=? FOR UPDATE')");
     expect(ecommerce).toContain('FOR UPDATE OF x,c,o');
     expect(ecommerce).toContain('nativeWrite(');
   });
@@ -103,6 +103,6 @@ describe('Ecommerce read-tail r22 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(7);
+    expect(total).toBe(5);
   });
 });

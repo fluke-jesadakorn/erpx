@@ -59,7 +59,7 @@ describe('Ecommerce read-tail r15 listing-evidence dedupe', () => {
     expect(shared.match(/export const ecommerceSourceIdentity =/g) ?? []).toHaveLength(1);
     expect(ap).toContain('sourceQuery');
     expect(ap).toContain('ecommerceCommerceSourceReadLocks');
-    expect(src).toContain('SELECT id FROM ecommerce_carts WHERE id=? FOR UPDATE');
+    expect(src).toContain("ecommerceOrderedList('id', 'ecommerce_carts', 'id=? FOR UPDATE')");
     expect(src).toContain('FOR UPDATE OF x,c,o');
     expect(src).toContain('lock ? " FOR UPDATE" : ""');
     expect(ap).toContain('LOCK TABLE commerce_products IN SHARE MODE');
@@ -79,6 +79,6 @@ describe('Ecommerce read-tail r15 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(51);
-    expect(total).toBe(7);
+    expect(total).toBe(5);
   });
 });

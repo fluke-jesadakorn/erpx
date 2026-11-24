@@ -75,7 +75,7 @@ describe('Ecommerce read-tail r28 scalar-head fold', () => {
   });
 
   test('protected FOR UPDATE and LOCK TABLE families stay untouched', () => {
-    expect(src).toContain('SELECT id FROM ecommerce_carts WHERE id=? FOR UPDATE');
+    expect(src).toContain("ecommerceOrderedList('id', 'ecommerce_carts', 'id=? FOR UPDATE')");
     expect(src).toContain('FOR UPDATE OF x,c,o');
     expect(po).toContain('LOCK TABLE command_receipts,audit_events,money_transaction_snapshots IN SHARE MODE');
     expect(read('adapters/commerce-source-locks.ts')).toContain('LOCK TABLE ecommerce_channels,ecommerce_listings,ecommerce_carts,ecommerce_cart_lines,ecommerce_checkouts,ecommerce_fulfillment_links,ecommerce_return_links IN SHARE ROW EXCLUSIVE MODE');
@@ -83,7 +83,7 @@ describe('Ecommerce read-tail r28 scalar-head fold', () => {
 });
 
 describe('Ecommerce read-tail r28 retirement check', () => {
-  test('KPI: ts SELECT tokens === 7 (r28 BEFORE=10)', () => {
+  test('KPI: ts SELECT tokens === 5 (r29 BEFORE=7)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -93,7 +93,7 @@ describe('Ecommerce read-tail r28 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(7);
+    expect(total).toBe(5);
     expect(total).toBeLessThan(10);
   });
 });

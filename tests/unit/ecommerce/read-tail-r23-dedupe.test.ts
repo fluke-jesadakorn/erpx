@@ -61,7 +61,7 @@ describe('Ecommerce read-tail r23 bare one-row probe dedupe', () => {
     expect((read('adapters/package-obligations.ts').match(/ecommerceSelectOne\(/g) ?? []).length).toBe(2);
     expect(ar).toContain('ecommerceCommerceSourceReadLocks');
     expect(pb).toContain('commerceOwnerTransaction(');
-    expect(src).toContain('SELECT id FROM ecommerce_carts WHERE id=? FOR UPDATE');
+    expect(src).toContain("ecommerceOrderedList('id', 'ecommerce_carts', 'id=? FOR UPDATE')");
     expect(src).toContain('FOR UPDATE OF x,c,o');
     expect(src).toContain('lock ? " FOR UPDATE" : ""');
     expect(src).toContain('nativeWrite(');
@@ -81,7 +81,7 @@ describe('Ecommerce read-tail r23 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(7);
+    expect(total).toBe(5);
     expect(total).toBeLessThan(22);
   });
 });

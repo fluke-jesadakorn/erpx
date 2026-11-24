@@ -125,7 +125,7 @@ describe('Ecommerce read-tail r21 fact-arm, gate and scope-row dedupe', () => {
     expect(po).toContain('OR ${checkoutReturnGuard} FROM ecommerce_return_links');
     expect((po.match(/\$\{receiptAuditGuard\(/g) ?? []).length).toBe(2);
     const src = read('adapters/ecommerce.ts');
-    expect(src).toContain('SELECT id FROM ecommerce_carts WHERE id=? FOR UPDATE');
+    expect(src).toContain("ecommerceOrderedList('id', 'ecommerce_carts', 'id=? FOR UPDATE')");
     expect(src).toContain('FOR UPDATE OF x,c,o');
     expect(src).toContain('nativeWrite(');
   });
@@ -142,6 +142,6 @@ describe('Ecommerce read-tail r21 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(7);
+    expect(total).toBe(5);
   });
 });

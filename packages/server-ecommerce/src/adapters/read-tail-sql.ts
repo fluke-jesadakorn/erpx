@@ -49,9 +49,10 @@ export const ecommerceListingChannelRow = (columns: string) =>
   ecommerceListingFrame(columns, { withProduct: false });
 /** r14: one parameterized source-identity read; the channel and listing source
  *  callers rebuild byte-identically. r27: closed alias param (default x; cart
- *  variant c) folds the cart/checkout source identity. Binds unchanged. */
+ *  variant c) folds the cart/checkout source identity. r29: composes from the
+ *  shared ecommerceOrderedList frame. Binds unchanged. */
 export const ecommerceSourceIdentity = (columns: string, from: string, alias = 'x') =>
-  `SELECT ${columns} FROM ${from} WHERE ${alias}.id=?`;
+  ecommerceOrderedList(columns, from, `${alias}.id=?`);
 /** r15: one parameterized listing-evidence read; the attachment content and
  *  purchase-witness callers rebuild byte-identically. Binds unchanged. The
  *  projection may carry a trailing newline to preserve the caller's line break.

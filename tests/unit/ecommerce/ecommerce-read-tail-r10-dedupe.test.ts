@@ -45,7 +45,7 @@ describe('Ecommerce read-tail r10 projection-existence guard family', () => {
   test('r1-r9 helpers and checkout locks are untouched', () => {
     for (const token of [
       'activeChannelAssertion', 'openCartAssertion', 'checkoutVersionAssertion', 'cartScope',
-      'SELECT id FROM ecommerce_carts WHERE id=? FOR UPDATE',
+      "ecommerceOrderedList('id', 'ecommerce_carts', 'id=? FOR UPDATE')",
       'FOR UPDATE OF x,c,o',
       'lock ? " FOR UPDATE" : ""',
     ]) {

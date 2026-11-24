@@ -65,7 +65,7 @@ describe('Ecommerce read-tail r26 three-rank dedupe', () => {
     expect((preR26.cartLocked.match(/\?/g) ?? []).length).toBe(6);
     expect((preR26.reviewChannel.match(/\?/g) ?? []).length).toBe(2);
     expect((preR26.reviewListing.match(/\?/g) ?? []).length).toBe(2);
-    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(7);
+    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(8);
   });
 
   test('F2: optional WHERE rebuilds both CTE frames byte-identically with zero binds', () => {
@@ -117,7 +117,7 @@ describe('Ecommerce read-tail r26 three-rank dedupe', () => {
     ]) {
       expect(shared).toContain(`export const ${token} =`);
     }
-    expect(src).toContain('SELECT id FROM ecommerce_carts WHERE id=? FOR UPDATE');
+    expect(src).toContain("ecommerceOrderedList('id', 'ecommerce_carts', 'id=? FOR UPDATE')");
     expect(src).toContain('FOR UPDATE OF x,c,o');
     expect(src).toContain('lock ? " FOR UPDATE" : ""');
     expect((src.match(/FOR UPDATE/g) ?? []).length).toBe(3);
@@ -155,7 +155,7 @@ describe('Ecommerce read-tail r26 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(7);
+    expect(total).toBe(5);
     expect(total).toBeLessThan(10);
   });
 });

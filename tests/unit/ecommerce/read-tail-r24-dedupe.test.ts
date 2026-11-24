@@ -62,7 +62,7 @@ describe('Ecommerce read-tail r24 three-family dedupe', () => {
     expect(src).toContain("const readSource = ecommerceOrderedList.bind(null, '*');");
     expect((src.match(/const readSource = /g) ?? []).length).toBe(1);
     expect((src.match(/readSource\(/g) ?? []).length).toBe(3);
-    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(7);
+    expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(8);
     expect(src).not.toContain('const readSource = (table: string, scope: string');
     expect(src).toContain('readSource("ecommerce_channels", "company_id=?", "updated_at DESC")');
     expect(src).toContain('readSource("ecommerce_cart_lines", "cart_id=?", "ordinal")');
@@ -110,7 +110,7 @@ describe('Ecommerce read-tail r24 three-family dedupe', () => {
     ]) {
       expect(shared).toContain(`export const ${token} =`);
     }
-    expect(src).toContain('SELECT id FROM ecommerce_carts WHERE id=? FOR UPDATE');
+    expect(src).toContain("ecommerceOrderedList('id', 'ecommerce_carts', 'id=? FOR UPDATE')");
     expect(src).toContain('FOR UPDATE OF x,c,o');
     expect(src).toContain('lock ? " FOR UPDATE" : ""');
     expect((src.match(/FOR UPDATE/g) ?? []).length).toBe(3);
@@ -132,7 +132,7 @@ describe('Ecommerce read-tail r24 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(7);
+    expect(total).toBe(5);
     expect(total).toBeLessThan(22);
   });
 });
