@@ -1,3 +1,4 @@
+import { PP_RD20_PAYROLL_RUNS_SQL, PP_RD20_PAYROLL_POSTINGS_SQL, PP_RD20_STATUTORY_REMITTANCES_SQL } from './pp-read-tail-r20-sources';
 import 'server-only';
 import {createHash} from 'node:crypto';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
@@ -5,7 +6,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {nativePeoplePayrollReadAll,PEOPLE_PAYROLL_RD_PAYROLL_OTHER_SCHEMA_AVAILABLE} from './native-people-payroll-read';
 export type PayrollOtherRun={id:string;company_id:string;version:number;currency:string;period_end:string;status:string;created_by:string;approved_by:string;posted_by:string};
 export type PayrollOtherSource={run:PayrollOtherRun;journalId:string;postingCommandId:string;image:string;identity:string};
-export const payrollOtherRemittanceTables={runs:'SELECT * FROM hr_payroll_runs',postings:'SELECT * FROM hr_payroll_postings',remittances:'SELECT * FROM hr_payroll_statutory_remittances'} as const;
+export const payrollOtherRemittanceTables={runs:PP_RD20_PAYROLL_RUNS_SQL,postings:PP_RD20_PAYROLL_POSTINGS_SQL,remittances:PP_RD20_STATUTORY_REMITTANCES_SQL} as const;
 export function payrollOtherSourceLeases(database:SqlDatabase,write:boolean){return [database.prepare(`LOCK TABLE hr_payroll_runs,hr_payroll_postings,hr_payroll_items,hr_payroll_statutory_remittances IN ${write?'SHARE ROW EXCLUSIVE':'SHARE'} MODE`)];}
 export async function payrollOtherSource(database:SqlDatabase,companyId:string,runId:string):Promise<PayrollOtherSource>{
  const source=await database.prepare(`SELECT to_jsonb(r)::text run,p.journal_id,to_jsonb(p)::text posting,to_jsonb(c)::text receipt FROM hr_payroll_runs r JOIN hr_payroll_postings p ON p.run_id=r.id JOIN command_receipts c ON c.operation='people.payroll.post' AND c.record_id=r.id AND c.actor_id=r.posted_by AND c.authority_json::jsonb->>'companyId'=r.company_id AND c.result_json::jsonb->>'id'=r.id AND c.result_json::jsonb->>'status'='posted' AND c.result_json::jsonb->>'journalId'=p.journal_id WHERE r.id=? AND r.company_id=? AND r.status='posted'`).bind(runId,companyId).all<{run:string;journal_id:string;posting:string;receipt:string}>();

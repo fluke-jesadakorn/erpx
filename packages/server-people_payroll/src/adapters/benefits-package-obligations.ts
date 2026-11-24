@@ -1,3 +1,4 @@
+import { PP_RD20_PAYROLL_RUNS_SQL, PP_RD20_PAYROLL_POSTINGS_SQL } from './pp-read-tail-r20-sources';
 import "server-only";
 import {createHash} from "node:crypto";
 import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgres";
@@ -17,7 +18,7 @@ export const benefitPayrollSettlementSources={
  FROM hr_payroll_items item JOIN hr_payroll_runs run ON run.id=item.run_id
  CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(item.input_snapshot_json::jsonb->'benefitInputs')='array' THEN item.input_snapshot_json::jsonb->'benefitInputs' ELSE '[]'::jsonb END) benefit(value)
  JOIN (${benefits.inputs}) input ON input.id=benefit.value->>'id' AND input.company_id=run.company_id`,
- runs:"SELECT * FROM hr_payroll_runs",postings:"SELECT * FROM hr_payroll_postings",
+ runs:PP_RD20_PAYROLL_RUNS_SQL,postings:PP_RD20_PAYROLL_POSTINGS_SQL,
 } as const;
 export async function benefitPeoplePackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
  assertBenefitPeoplePackageObligationSources(owner,database,input.companyId);

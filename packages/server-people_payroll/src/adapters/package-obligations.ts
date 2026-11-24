@@ -1,3 +1,4 @@
+import { PP_RD20_PAYROLL_RUNS_SQL, PP_RD20_PAYROLL_POSTINGS_SQL, PP_RD20_STATUTORY_REMITTANCES_SQL, PP_RD20_PAYROLL_ITEMS_SQL, PP_RD20_PAYMENT_BATCHES_SQL, PP_RD20_PAYMENT_BATCH_ITEMS_SQL, PP_RD20_PAYROLL_PAYMENT_SETTLEMENTS_SQL, PP_RD20_PAYROLL_RECOVERIES_SQL, PP_RD20_PAYROLL_ADVANCES_SQL, PP_RD20_PAYROLL_ADVANCE_REPAYMENTS_SQL } from './pp-read-tail-r20-sources';
 import {PP_RD15_PEOPLE_SNAPSHOT_SQL} from './pp-read-tail-r15-sources';
 import {finalPayCancellationTerminalRows,finalPayCancellationTerminalSourceReadLocks} from '@erpx/server-people_payroll/adapters/final-pay-cancellation-terminal-sources';
 import {workerPlacementMarkedRows as projectWorkerPlacementMarkedRows} from '@erpx/server-people_payroll/adapters/project-worker-startup-source-sql';
@@ -14,10 +15,10 @@ const sources=new WeakMap<SqlDatabase,string>();
 export const peoplePackageSettlementSources={
  people:PP_RD15_PEOPLE_SNAPSHOT_SQL,
  engagements:"SELECT * FROM hr_engagements",compensation:"SELECT * FROM hr_compensation_revisions",
- runs:"SELECT * FROM hr_payroll_runs",items:"SELECT * FROM hr_payroll_items",postings:"SELECT * FROM hr_payroll_postings",
- batches:"SELECT * FROM hr_payment_batches",batchItems:"SELECT * FROM hr_payment_batch_items",
- settlements:"SELECT * FROM hr_payroll_payment_settlements",remittances:"SELECT * FROM hr_payroll_statutory_remittances",
- recoveries:"SELECT * FROM hr_payroll_recoveries",advances:"SELECT * FROM hr_payroll_advances",repayments:"SELECT * FROM hr_payroll_advance_repayments",
+ runs:PP_RD20_PAYROLL_RUNS_SQL,items:PP_RD20_PAYROLL_ITEMS_SQL,postings:PP_RD20_PAYROLL_POSTINGS_SQL,
+ batches:PP_RD20_PAYMENT_BATCHES_SQL,batchItems:PP_RD20_PAYMENT_BATCH_ITEMS_SQL,
+ settlements:PP_RD20_PAYROLL_PAYMENT_SETTLEMENTS_SQL,remittances:PP_RD20_STATUTORY_REMITTANCES_SQL,
+ recoveries:PP_RD20_PAYROLL_RECOVERIES_SQL,advances:PP_RD20_PAYROLL_ADVANCES_SQL,repayments:PP_RD20_PAYROLL_ADVANCE_REPAYMENTS_SQL,
 } as const;
 export async function lockPeoplePackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){
  const {database,companyId}=packageSettlementSource(owner,lock);

@@ -1,3 +1,4 @@
+import { PP_RD20_PAYROLL_RUNS_SQL, PP_RD20_PAYROLL_POSTINGS_SQL, PP_RD20_STATUTORY_REMITTANCES_SQL, PP_RD20_PAYROLL_ITEMS_SQL, PP_RD20_PAYMENT_BATCHES_SQL, PP_RD20_PAYMENT_BATCH_ITEMS_SQL, PP_RD20_PAYROLL_PAYMENT_SETTLEMENTS_SQL, PP_RD20_PAYROLL_RECOVERIES_SQL, PP_RD20_PAYROLL_ADVANCES_SQL, PP_RD20_PAYROLL_ADVANCE_REPAYMENTS_SQL } from './pp-read-tail-r20-sources';
 import {finalPayCancellationTerminalRows,finalPayCancellationTerminalSourceReadLocks} from '@erpx/server-people_payroll/adapters/final-pay-cancellation-terminal-sources';
 import 'server-only';
 import {expensePaymentCancellations} from '@erpx/server-people_payroll/adapters/expense-payment-cancellation-sources';
@@ -32,10 +33,10 @@ export function assertPeopleAddonPackageObligationSources(owner:PostgresDatabase
 }
 export const peopleAddonSettlementSources={
  expensePaymentCancellations,
- runs:'SELECT * FROM hr_payroll_runs',items:'SELECT * FROM hr_payroll_items',postings:'SELECT * FROM hr_payroll_postings',
- batches:'SELECT * FROM hr_payment_batches',batchItems:'SELECT * FROM hr_payment_batch_items',
- settlements:'SELECT * FROM hr_payroll_payment_settlements',remittances:'SELECT * FROM hr_payroll_statutory_remittances',
- recoveries:'SELECT * FROM hr_payroll_recoveries',advances:'SELECT * FROM hr_payroll_advances',repayments:'SELECT * FROM hr_payroll_advance_repayments',
+ runs:PP_RD20_PAYROLL_RUNS_SQL,items:PP_RD20_PAYROLL_ITEMS_SQL,postings:PP_RD20_PAYROLL_POSTINGS_SQL,
+ batches:PP_RD20_PAYMENT_BATCHES_SQL,batchItems:PP_RD20_PAYMENT_BATCH_ITEMS_SQL,
+ settlements:PP_RD20_PAYROLL_PAYMENT_SETTLEMENTS_SQL,remittances:PP_RD20_STATUTORY_REMITTANCES_SQL,
+ recoveries:PP_RD20_PAYROLL_RECOVERIES_SQL,advances:PP_RD20_PAYROLL_ADVANCES_SQL,repayments:PP_RD20_PAYROLL_ADVANCE_REPAYMENTS_SQL,
 } as const;
 const payrollFacts=`WITH scope AS(SELECT ?::text company_id),
  runs AS MATERIALIZED(SELECT r.* FROM hr_payroll_runs r,scope WHERE r.company_id=scope.company_id),

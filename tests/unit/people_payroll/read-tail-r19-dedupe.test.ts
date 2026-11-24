@@ -70,7 +70,7 @@ describe('People Payroll read-tail r19 byte-identical dedupe', () => {
     expect(s.split('IN (SELECT jsonb_array_elements_text(?::jsonb))')).toHaveLength(2);
   });
 
-  test('worktree read-only SELECT count is strictly lower than the recorded 1572 before', () => {
+  test('worktree read-only SELECT count stays strictly lower than the recorded 1552 r19 baseline', () => {
     const root = new URL('../../../packages/server-people_payroll/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
@@ -82,7 +82,6 @@ describe('People Payroll read-tail r19 byte-identical dedupe', () => {
     };
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
-    expect(total).toBeLessThan(1572);
-    expect(total).toBe(1552);
+    expect(total).toBeLessThan(1552);
   });
 });
