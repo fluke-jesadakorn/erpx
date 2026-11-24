@@ -4,6 +4,7 @@ import { ApiError } from '@erpx/server-runtime/public/http';
 import type { StaffActor } from '@erpx/server-operations/public/staff-policy';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import {requireProjectPurchasedRead} from '@erpx/server-projects/adapters/purchases';
+import {projectMemberScopeSql} from '@erpx/server-projects/adapters/project-read-projections';
 import { createStaffProjectsApplication, type StaffProjectsRepository } from '@erpx/server-projects/application/staff-projects';
 import type { ProjectRow } from '@erpx/server-projects/domain/staff-projects';
 async function exposed<T>(action: () => Promise<T>) { try {
@@ -17,13 +18,13 @@ catch (error) {
 function application(db: SqlDatabase) {
     const repository: StaffProjectsRepository<SqlStatement> = { async visibleProject(id: string, companyId: string, userId: string, userId2: string) {
             return db
-                .prepare("SELECT p.* FROM staff_projects p WHERE p.id=? AND p.company_id=? AND (p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?))")
+                .prepare(`SELECT p.* FROM staff_projects p WHERE p.id=? AND p.company_id=? AND ${projectMemberScopeSql}`)
                 .bind(id, companyId, userId, userId2)
                 .first<ProjectRow>();
         },
         async visibleProjects(companyId: string, userId: string, userId2: string) {
             return db
-                .prepare("SELECT p.* FROM staff_projects p WHERE p.company_id=? AND (p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?)) ORDER BY p.updated_at DESC")
+                .prepare(`SELECT p.* FROM staff_projects p WHERE p.company_id=? AND ${projectMemberScopeSql} ORDER BY p.updated_at DESC`)
                 .bind(companyId, userId, userId2)
                 .all<ProjectRow>();
         },

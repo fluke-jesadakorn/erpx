@@ -1,4 +1,5 @@
 import {projectMetricSource} from "@erpx/server-projects/adapters/metric-purchases";
+import {projectMemberScopeSql} from "@erpx/server-projects/adapters/project-read-projections";
 import { inventoryExecutiveOwnerProjections as financeProjectionSources } from "@erpx/server-finance/public/inventory-executive-owner-projections";
 import { inventoryExecutiveOwnerProjections as people_payrollProjectionSources } from "@erpx/server-people_payroll/public/inventory-executive-owner-projections";
 import { readMetricSources } from '@erpx/server-runtime/public/executive/metric-sources';
@@ -14,7 +15,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     const projectSource=await projectMetricSource(sourceDb,a,id);
     let sql = '', values: unknown[] = [], referenceAtOverride: number | null = null;
     if (id === "projects") {
-        sql = `SELECT to_char(to_timestamp(p.created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') label,count(*)::text value FROM (${projectSource.sql}) p WHERE ${scopedAlias("p")} AND (p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?)) AND p.created_at>=? AND p.created_at<? GROUP BY 1 ORDER BY 1`;
+        sql = `SELECT to_char(to_timestamp(p.created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') label,count(*)::text value FROM (${projectSource.sql}) p WHERE ${scopedAlias("p")} AND ${projectMemberScopeSql} AND p.created_at>=? AND p.created_at<? GROUP BY 1 ORDER BY 1`;
         values = [...scopeArgs, a.userId, a.userId, Date.parse(f.from), Date.parse(f.to) + 86400000];
     }
     if (id === "overdue-project-milestones") {
@@ -52,7 +53,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         sql = `SELECT min(${label}) label,(sum(l.minutes::numeric)*60000)::text value,count(*)::text count_value
       FROM staff_project_work_logs l JOIN (${projectSource.sql}) p ON p.id=l.project_id AND p.company_id=l.company_id
       WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.department_id=?)
-        AND (p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?))
+        AND ${projectMemberScopeSql}
         AND l.state='approved' AND l.work_date BETWEEN ? AND ?
       ${grouping} ORDER BY 1 LIMIT 101`;
         values = [a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId, a.userId, a.userId, f.from, f.to];
@@ -68,7 +69,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
       JOIN (${financeProjectionSources.finance_journal_lines}) l ON l.id=a.journal_line_id JOIN (${financeProjectionSources.finance_journals}) j ON j.id=l.journal_id
       JOIN (${financeProjectionSources.finance_accounts}) ac ON ac.id=l.account_id
       WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.department_id=?)
-        AND (p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?))
+        AND ${projectMemberScopeSql}
         AND a.state='approved' AND j.status='posted' AND ac.category IN ('expense','other_expense')
         AND j.currency=? AND j.entry_date BETWEEN ? AND ?
       ${grouping} ORDER BY 1 LIMIT 101`;
