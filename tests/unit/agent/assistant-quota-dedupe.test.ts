@@ -87,4 +87,38 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     expect(gov).toContain('policyCandidates(companyId:string,userId:string)');
     expect(gov).toContain('guardDefaultPolicy(key:string,value:"agent-default"');
   });
+
+  /** Verbatim pre-dedupe private-session projection (workspaceSessions ↔ sessionRecord). */
+  const privateSessionSelect = 'SELECT s.id,s.user_id,s.assignment_id,s.conversation_key,s.generation,s.created_at,c.* FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id WHERE s.company_id=?';
+
+  it('r11: authors the byte-identical private-session projection once', async () => {
+    const gov = await src('adapters/agent-governance.ts');
+    expect(gov).toContain(`const privateSessionSelectSql = '${privateSessionSelect}';`);
+    expect(gov.match(/SELECT s\.id,s\.user_id,s\.assignment_id,s\.conversation_key/g)).toHaveLength(1);
+    expect(gov.match(/\$\{privateSessionSelectSql\}/g)).toHaveLength(2);
+  });
+
+  it('r11: both consumers render the exact pre-dedupe statement text with unchanged binds', async () => {
+    const gov = await src('adapters/agent-governance.ts');
+    const def = gov.match(/const privateSessionSelectSql = '([^']*)';/)?.[1];
+    expect(def).toBe(privateSessionSelect);
+    const templates = [...gov.matchAll(/`([\s\S]*?)`/g)]
+      .map((m) => m[1])
+      .filter((t) => t.includes('${privateSessionSelectSql}'));
+    expect(templates).toHaveLength(2);
+    expect(templates.map((t) => t.replace('${privateSessionSelectSql}', def!))).toEqual([
+      `${privateSessionSelect} AND (s.user_id=? OR ?) ORDER BY c.updated_at DESC LIMIT 100`,
+      `${privateSessionSelect} AND s.id=? AND (s.user_id=? OR ?)`,
+    ]);
+    expect(gov).toContain('.bind(companyId,userId,value).all<Row>()).results;},');
+    expect(gov).toContain('.bind(companyId,id,userId,value).first<Row>();},async batch');
+  });
+
+  it('r11: the translation guard and r9/r10 constants stay local and untouched', async () => {
+    const gov = await src('adapters/agent-governance.ts');
+    const assistant = await src('adapters/workspace-assistant.ts');
+    expect(gov).toContain(`const agentPoolMemberAccessSql = '${poolMemberAccess}';`);
+    expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
+    expect(assistant).toContain(') calls WHERE company_id=? AND created_at>=?');
+  });
 });
