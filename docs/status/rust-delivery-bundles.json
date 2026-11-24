@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9717,
+    "revision": 9719,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -154447,7 +154447,7 @@
         "owner": "ecommerce",
         "title": "ecommerce TS read tail native cutover (r7)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -154459,22 +154459,37 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "claim": {
-          "runId": "run-20261123-k",
-          "agentId": "wGCNeco",
-          "claimedAt": "2026-11-24T05:43:57.594Z",
-          "heartbeatAt": "2026-11-24T05:43:57.594Z",
-          "expiresAt": "2026-11-24T06:13:57.594Z",
-          "generation": 163
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-ecommerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "931e55c48",
+            "owner": "ecommerce",
+            "before": 66,
+            "after": 64,
+            "note": "Cart lines, fulfillment links and return links aggregations share childAgg; r1-r6 and checkout locks untouched."
+          },
+          {
+            "command": "vitest ecommerce r4-r7 (19) + tsc ecommerce",
+            "result": "passed",
+            "sourceSha": "931e55c48"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=66.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCNeco",
+          "at": "2026-11-24T05:50:52.699Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -155043,17 +155058,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 24,
+        "in_progress": 23,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 852,
+        "blocked": 853,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 163,
-    "updatedAt": "2026-11-24T05:50:37.853Z",
+    "updatedAt": "2026-11-24T05:50:52.707Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
