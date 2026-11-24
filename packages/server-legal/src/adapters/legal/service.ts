@@ -4,6 +4,7 @@ import {legalCorePermission,type LegalPurchaseCapability} from '@erpx/server-leg
 import {legalReadScope,withLegalPurchasedCommand,inLegalOwnerUnit} from '@erpx/server-legal/adapters/purchases';
 import {parseItem} from '@erpx/server-legal/domain/model';
 import { finalRootOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/final-root-owner-projection-sources";
+import { legalManagerAvailableSql } from "../legal-read-tail-r9-sources";
 import { finalRootOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/final-root-owner-projection-sources";
 import {nativeLegalHoldNotice} from "../native-legal-hold-notice";
 import "server-only";
@@ -120,7 +121,7 @@ submissions:(id:string)=>{return db
       .bind(id)
       .all<LegalDetail["submissions"][number]>();},
 configure:async facts=>stage(await nativeSvc.configure(facts)),
-managerAvailable:(facts:{companyId:string;branchId:string | null;departmentId:string | null;})=>{return db.prepare(`SELECT 1 FROM (${identity_accessProjectionSources.assignments}) assignments WHERE company_id=? AND role='legal_manager' AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND legal_person_eligible(company_id,user_id,?,?,'legal.review') LIMIT 1`).bind(facts.companyId,facts.branchId,facts.departmentId).first();},
+managerAvailable:(facts:{companyId:string;branchId:string | null;departmentId:string | null;})=>{return db.prepare(`${legalManagerAvailableSql} LIMIT 1`).bind(facts.companyId,facts.branchId,facts.departmentId).first();},
 createRecord:async facts=>stage(await nativeSvc.createRecord(facts)),
 createSubtype:async facts=>stage(await nativeSvc.createSubtype(facts)),
 addInitialMember:async facts=>stage(await nativeSvc.addInitialMember({id:facts.id,u:facts.u})),
@@ -138,7 +139,7 @@ requireEnabled:(key:string)=>stage(assertion(
           "EXISTS(SELECT 1 FROM legal_settings WHERE company_id=? AND enabled)",
           [a.companyId],
         )),
-requireRequesterRouting:(key:string)=>stage(assertion(db,key,"legal-request-routing",`EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) assignments WHERE company_id=? AND role='legal_manager' AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND legal_person_eligible(company_id,user_id,?,?,'legal.review'))`,[a.companyId,a.branchId,a.departmentId])),
+requireRequesterRouting:(key:string)=>stage(assertion(db,key,"legal-request-routing",`EXISTS(${legalManagerAvailableSql})`,[a.companyId,a.branchId,a.departmentId])),
 requireHoldPreservable:(key:string,id:string)=>stage(assertion(
         db,
         key,
