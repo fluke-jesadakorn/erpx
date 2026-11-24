@@ -207,6 +207,7 @@ export async function workSocialAttachmentSourceImage(database:SqlDatabase,compa
 
 /** Closing only an original creator's still-unconsumed private upload grants
  * no parent read, Project membership, byte access, publication or new work. */
+const receiptImageSql='SELECT to_jsonb(c)::text image FROM command_receipts c WHERE command_id=?';
 export async function withWorkSocialUploadCleanup<Result extends {id:string}>(owner:SqlDatabase,actor:StaffActor,input:{id:string;key:string;kind:'comment'|'edit'},run:(database:SqlDatabase)=>Promise<Result>):Promise<Result>{
  if(units.has(owner))throw new ApiError(503,'WORK_SOCIAL_TRANSACTION_REQUIRED','Upload cleanup requires its fresh complete original owner unit.');
  return inSocialUnit(owner,actor,async database=>{
@@ -228,13 +229,13 @@ export async function withWorkSocialUploadCleanup<Result extends {id:string}>(ow
   // The original Workflow validator owns the request/actor/authority hash.
   // Its assertion writes, and every remaining cleanup write, precede flush.
   if(!exactResult(await replayCommand(database,actor,input.key,operation,input.id,{id:input.id})))throw new ApiError(409,'SOCIAL_UPLOAD_CLEANUP_CHANGED','The original cleanup receipt cannot be replayed exactly.');
-  await current(database,actor,key);const completed=await read();if(!completed||receipt!==await database.prepare('SELECT to_jsonb(c)::text image FROM command_receipts c WHERE command_id=?').bind(input.key).first<string>('image'))throw new ApiError(409,'SOCIAL_UPLOAD_CLEANUP_CHANGED','The original cleanup did not complete with its exact receipt.');
+  await current(database,actor,key);const completed=await read();if(!completed||receipt!==await database.prepare(receiptImageSql).bind(input.key).first<string>('image'))throw new ApiError(409,'SOCIAL_UPLOAD_CLEANUP_CHANGED','The original cleanup did not complete with its exact receipt.');
   const after=JSON.parse(completed.draft) as Draft,cancelledAt=Number(after.cancelled_at),expected=prior?draft:{...draft,cancelled_at:cancelledAt,updated_at:cancelledAt,version:Number(draft.version)+1};
   if(!Number.isSafeInteger(cancelledAt)||cancelledAt<=0||JSON.stringify(expected)!==JSON.stringify(after)||completed.creator!==before.creator||completed.consumed)throw new ApiError(409,'SOCIAL_UPLOAD_CLEANUP_CHANGED','The original draft changed beyond its cancellation.');
   await assertSocialUploadCleanupFiles(database,files,prior?null:cancelledAt);
   const unit=units.get(database)!;unit.checks.push(async()=>{
    const scope=actorScope(actor);if(!await database.prepare(`${scope.prefix}SELECT 1 FROM social_purchase_actor WHERE ${scheduledFeaturePredicate('company_id','collaboration')}`).bind(...scope.args).first())throw new ApiError(403,'WORK_SOCIAL_AUTHORITY_CHANGED','The original current Social account or role changed.');
-   if(JSON.stringify(completed)!==JSON.stringify(await read())||receipt!==await database.prepare('SELECT to_jsonb(c)::text image FROM command_receipts c WHERE command_id=?').bind(input.key).first<string>('image'))throw new ApiError(409,'SOCIAL_UPLOAD_CLEANUP_CHANGED','The original draft or receipt changed during deferred cleanup.');
+   if(JSON.stringify(completed)!==JSON.stringify(await read())||receipt!==await database.prepare(receiptImageSql).bind(input.key).first<string>('image'))throw new ApiError(409,'SOCIAL_UPLOAD_CLEANUP_CHANGED','The original draft or receipt changed during deferred cleanup.');
    await assertSocialUploadCleanupFiles(database,files,prior?null:cancelledAt);
   });return result;
  },false,false,true);
