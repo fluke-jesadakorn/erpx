@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10376,
+    "revision": 10380,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -161880,7 +161880,7 @@
         "owner": "pos",
         "title": "pos TS read tail native cutover (r24)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -161892,22 +161892,37 @@
         "resources": [
           "owner:pos"
         ],
-        "claim": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMpos2",
-          "claimedAt": "2026-11-24T07:26:06.030Z",
-          "heartbeatAt": "2026-11-24T07:26:06.030Z",
-          "expiresAt": "2026-11-24T07:56:06.030Z",
-          "generation": 166
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "cd2daba8b",
+            "owner": "pos",
+            "before": 245,
+            "after": 234,
+            "note": "Ten day-report business-date list reads switched to native kinds; FOR UPDATE/refund/advisory/LOCK and sale-child reads untouched."
+          },
+          {
+            "command": "cargo test -p erpx-server-pos --lib (39) + cargo check --tests + vitest pos (292) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "cd2daba8b"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: native day-report or sale-child read family; if none, report blocked. BEFORE=245.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMpos2",
+          "at": "2026-11-24T07:40:52.109Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -162423,6 +162438,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=1983.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pos.read-tail-r25",
+        "goalId": "G4",
+        "owner": "pos",
+        "title": "pos TS read tail native cutover (round 25)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pos/src/**",
+          "tests/unit/pos/**",
+          "tests/integration/pos/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "claim": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMpos3",
+          "claimedAt": "2026-11-24T07:40:53.341Z",
+          "heartbeatAt": "2026-11-24T07:40:53.341Z",
+          "expiresAt": "2026-11-24T08:10:53.341Z",
+          "generation": 166
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: sale-child detail family keyed by sale_id (11 reads), locks inline. BEFORE=234.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -162431,7 +162482,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1376,
+      "totalPackets": 1377,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 18,
@@ -162439,13 +162490,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 998,
+        "blocked": 999,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 166,
-    "updatedAt": "2026-11-24T07:40:25.406Z",
+    "updatedAt": "2026-11-24T07:40:53.361Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
