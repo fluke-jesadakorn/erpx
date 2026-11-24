@@ -25,6 +25,7 @@ import {
   COMMAND_RECEIPT_EXISTS_SQL,
   COMMAND_RECEIPT_RECORD_IMAGE_SQL,
 } from '../../../packages/server-finance/src/adapters/finance-read-tail-r15-sql';
+import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r16-sql';
 import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/people-payroll-final-owner-projections';
 import { workflowFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/workflow-final-owner-projections';
 import {
@@ -421,5 +422,42 @@ describe('finance read-tail r15 byte-identical SQL dedupe', () => {
     expect(p.executive_main_evidence_sources_finance_journals_j_join).toBe(FINANCE_JOURNALS_JOIN_SQL);
     expect(p.executive_metric_projections_finance_journals_j_join).toBe(FINANCE_JOURNALS_JOIN_SQL);
     expect(w.flow_routing_finance_journals_j_join).toBe(FINANCE_JOURNALS_JOIN_SQL);
+  });
+});
+
+const R16_GUARD_LITERAL = "EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?)";
+const R16_IDS_LITERAL = "SELECT id FROM finance_periods WHERE company_id=? AND state='open' AND start_date<=? AND end_date>=?";
+const R16_GROUPS: [string, string, string, string[]][] = [
+  ['OPEN_PERIOD_GUARD_SQL', OPEN_PERIOD_GUARD_SQL, R16_GUARD_LITERAL, ['journal-planning.ts', 'commerce-facts.ts', 'finance-owned-reversal.ts', 'inventory-transit-sources.ts', 'finance-books.ts', 'finance.ts']],
+  ['OPEN_PERIOD_IDS_SQL', OPEN_PERIOD_IDS_SQL, R16_IDS_LITERAL, ['finance-withholding-remittance.ts', 'pms-hospitality-setup-facts.ts', 'inventory-consumption-sources.ts', 'payroll-owner-facts.ts', 'finance-accruals.ts', 'inventory-counts-sources.ts', 'inventory-landed-costs-sources.ts']],
+];
+
+describe('finance read-tail r16 byte-identical SQL dedupe', () => {
+  it('keeps one byte-identical literal per family', async () => {
+    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r16-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split('SELECT ').length - 1).toBe(2);
+    for (const [name, actual, literal] of R16_GROUPS) {
+      expect(actual).toBe(literal);
+      expect(shared.split(literal).length - 1).toBe(1);
+      expect(typeof name).toBe('string');
+    }
+  });
+
+  it('backs all 14 call sites with the shared constants and no inline literal', async () => {
+    for (const [name, , literal, files] of R16_GROUPS) {
+      for (const file of files) {
+        const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+        expect(text.split(literal).length - 1).toBe(0);
+        expect(text).toContain("from './finance-read-tail-r16-sql'");
+        expect(text).toContain(name);
+      }
+    }
+  });
+
+  it('leaves the FOR SHARE and ORDER BY LIMIT variants inline', async () => {
+    const share = await readFile(new URL('../../../packages/server-finance/src/adapters/pms-command-facts.ts', import.meta.url), 'utf8');
+    expect(share.split(`${R16_IDS_LITERAL} FOR SHARE`).length - 1).toBe(1);
+    const limit = await readFile(new URL('../../../packages/server-finance/src/adapters/manufacturing-accounting-sources.ts', import.meta.url), 'utf8');
+    expect(limit.split(`${R16_IDS_LITERAL} ORDER BY start_date DESC,id LIMIT 1`).length - 1).toBe(1);
   });
 });

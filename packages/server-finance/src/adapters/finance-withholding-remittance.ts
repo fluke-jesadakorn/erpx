@@ -1,3 +1,4 @@
+import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
 import { FINANCE_ADVISORY_XACT_LOCK_SQL } from "./advisory-lock-dedupe-sql";
 import { nativeFinanceWhRemittance } from '@erpx/server-collaboration/adapters/native-finance-wh-remittance';
@@ -55,7 +56,7 @@ function monthlySource(db: SqlDatabase) {
             snapshot_json: string;
             document_number: string;
             export_sha256: string;
-        }>(), postedLiability: async (journalId, accountId) => db.prepare("SELECT COALESCE(SUM(credit_minor-debit_minor),0) value FROM finance_journal_lines WHERE journal_id=? AND account_id=?").bind(journalId, accountId).first<number>('value'), bankMovement: async (actor, id) => db.prepare("SELECT t.*,s.bank_account,a.chart_id,a.version account_version,a.control_kind,a.status account_status,c.base_currency FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id JOIN finance_accounts a ON a.id=s.bank_account JOIN finance_charts c ON c.id=a.chart_id WHERE t.id=? AND t.company_id=?").bind(id, actor.companyId).first<Row>(), openPeriods: async (actor, date) => (await db.prepare("SELECT id FROM finance_periods WHERE company_id=? AND state='open' AND start_date<=? AND end_date>=?").bind(actor.companyId, date, date).all<{
+        }>(), postedLiability: async (journalId, accountId) => db.prepare("SELECT COALESCE(SUM(credit_minor-debit_minor),0) value FROM finance_journal_lines WHERE journal_id=? AND account_id=?").bind(journalId, accountId).first<number>('value'), bankMovement: async (actor, id) => db.prepare("SELECT t.*,s.bank_account,a.chart_id,a.version account_version,a.control_kind,a.status account_status,c.base_currency FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id JOIN finance_accounts a ON a.id=s.bank_account JOIN finance_charts c ON c.id=a.chart_id WHERE t.id=? AND t.company_id=?").bind(id, actor.companyId).first<Row>(), openPeriods: async (actor, date) => (await db.prepare(OPEN_PERIOD_IDS_SQL).bind(actor.companyId, date, date).all<{
             id: string;
         }>()).results });
 }

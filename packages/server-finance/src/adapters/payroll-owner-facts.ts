@@ -1,3 +1,4 @@
+import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
 import {financeSnapshotSources} from "@erpx/server-people_payroll/public/finance-snapshot-sources";
 import { OPEN_PERIOD_LIST_SQL } from './finance-read-tail-r15-sql';
 import { financePayrollOwner } from '@erpx/server-collaboration/adapters/native-finance-payroll-owner';
@@ -85,7 +86,7 @@ export function payrollFinanceFacts(database: SqlDatabase) {
             }>();
         },
         readConfirmPaymentBatchPeriods(companyId: string, transaction_date: string, transaction_date2: string) {
-            return database.prepare("SELECT id FROM finance_periods WHERE company_id=? AND state='open' AND start_date<=? AND end_date>=?").bind(companyId, transaction_date, transaction_date2).all<{
+            return database.prepare(OPEN_PERIOD_IDS_SQL).bind(companyId, transaction_date, transaction_date2).all<{
                 id: string;
             }>();
         },

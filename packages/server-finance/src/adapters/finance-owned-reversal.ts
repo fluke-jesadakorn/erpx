@@ -1,3 +1,4 @@
+import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
 import { createOwnedJournalReversal } from '@erpx/server-finance/application/owned-reversal';
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -18,7 +19,7 @@ export async function prepareOwnedJournalReversal(db: SqlDatabase, actor: WorkCo
         id,
         steps: [
             assertion(db, key, "source-journal", "EXISTS(SELECT 1 FROM finance_journals WHERE id=? AND company_id=? AND status='posted' AND version=?)", [journalId, actor.companyId, source.version]),
-            assertion(db, key, "reversal-period", "EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?)", [input.periodId, actor.companyId, input.entryDate, input.entryDate]),          await financeOwnedReversal(db, actor.companyId).reversalJournal({ id, companyId: actor.companyId, periodId: input.periodId, journalNumber: `REV-${key}`, entryDate: input.entryDate, sourceType: journalSourceType, reason: input.reason, userId: actor.userId, now, sourceJournalId: journalId }),          await financeOwnedReversal(db, actor.companyId).reversalLines({ id, journalId: id, sourceJournalId: journalId }),          await financeOwnedReversal(db, actor.companyId).reverseSource({ userId: actor.userId, now, sourceJournalId: journalId }),
+            assertion(db, key, "reversal-period", OPEN_PERIOD_GUARD_SQL, [input.periodId, actor.companyId, input.entryDate, input.entryDate]),          await financeOwnedReversal(db, actor.companyId).reversalJournal({ id, companyId: actor.companyId, periodId: input.periodId, journalNumber: `REV-${key}`, entryDate: input.entryDate, sourceType: journalSourceType, reason: input.reason, userId: actor.userId, now, sourceJournalId: journalId }),          await financeOwnedReversal(db, actor.companyId).reversalLines({ id, journalId: id, sourceJournalId: journalId }),          await financeOwnedReversal(db, actor.companyId).reverseSource({ userId: actor.userId, now, sourceJournalId: journalId }),
         ],
     };
 }

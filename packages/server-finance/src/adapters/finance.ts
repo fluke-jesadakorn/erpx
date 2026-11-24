@@ -1,3 +1,4 @@
+import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
 import {requireLegacyFinanceJournal} from './document-purchases';
 import { CHART_BASE_CURRENCY_BY_ID_SQL } from './finance-read-tail-r15-sql';
 import { nativeFinanceOwnerWrite } from './native-finance-owner-write';
@@ -363,7 +364,7 @@ async function journalPostStatements(write: SqlDatabase, actor: WorkContext, jou
     const { now, opening } = plan;
     return [
         assertion(write, id, "journal", "EXISTS(SELECT 1 FROM finance_journals WHERE id=? AND company_id=? AND version=? AND status IN ('draft','in_review'))", [journalId, actor.companyId, input.expectedVersion]),
-        assertion(write, id, "period", "EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?)", [journal.period_id, actor.companyId, journal.entry_date, journal.entry_date]),
+        assertion(write, id, "period", OPEN_PERIOD_GUARD_SQL, [journal.period_id, actor.companyId, journal.entry_date, journal.entry_date]),
         assertion(write, id, "active-accounts", "NOT EXISTS(SELECT 1 FROM finance_journal_lines l LEFT JOIN finance_accounts a ON a.id=l.account_id AND a.company_id=? AND a.chart_id=? LEFT JOIN finance_charts c ON c.id=a.chart_id WHERE l.journal_id=? AND (a.id IS NULL OR a.status!='active' OR a.currency NOT IN (?,c.base_currency)))", [actor.companyId, journal.chart_id, journalId, journal.currency]),
         assertion(write, id, "balanced", "(SELECT COUNT(*)>=2 AND SUM(base_debit_minor)=SUM(base_credit_minor) AND SUM(debit_minor)=SUM(credit_minor) FROM finance_journal_lines WHERE journal_id=?)", [journalId]),
         ...(opening ? [assertion(write, id, "opening-subledgers", "NOT EXISTS(SELECT 1 FROM finance_invoices WHERE company_id=? AND source_type='opening_import' AND source_id=? AND (status!='draft' OR journal_id!=?))", [actor.companyId, journalId, journalId])] : []),
@@ -489,7 +490,7 @@ function paymentService(provided?: SqlDatabase) {
             const steps: SqlStatement[] = [
                 assertion(write, id, "payment", "EXISTS(SELECT 1 FROM finance_payments p JOIN finance_journals j ON j.id=p.journal_id WHERE p.id=? AND p.company_id=? AND p.version=? AND p.status='settled' AND j.status='posted')", [paymentId, actor.companyId, input.expectedVersion]),
                 assertion(write, id, "bank-match", "(SELECT COUNT(*) FROM finance_bank_transactions WHERE company_id=? AND matched_type='payment' AND matched_id=? AND match_status='matched')<=1", [actor.companyId, paymentId]),
-                assertion(write, id, "period", "EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?)", [input.periodId, actor.companyId, input.entryDate, input.entryDate]),
+                assertion(write, id, "period", OPEN_PERIOD_GUARD_SQL, [input.periodId, actor.companyId, input.entryDate, input.entryDate]),
                 assertion(write, id, "not-reversed", "NOT EXISTS(SELECT 1 FROM finance_payment_reversals WHERE payment_id=?)", [paymentId]),
                 assertion(write, id, "credited-payment-source", "NOT EXISTS(SELECT 1 FROM finance_billing_corrections c JOIN finance_allocations a ON a.invoice_id=c.invoice_id WHERE a.payment_id=? AND c.company_id=? AND c.status='posted')", [paymentId, actor.companyId]),
                 await nativeFinanceOwnerWrite(write, actor, 'finance_stmt_28', [reversal, input.periodId, `PAY-REV-${id}`, input.entryDate, paymentId, input.reason, actor.userId, actor.userId, now, now, now, payment.journal_id]),

@@ -1,3 +1,4 @@
+import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
 import {commerceExpensePaymentEffects} from "@erpx/server-people_payroll/public/commerce-expense-payment-effects";
 import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
 import {financeOwnedSnapshotSources as commerceSnapshotSources} from "@erpx/server-commerce/public/finance-owned-snapshot-sources";
@@ -50,7 +51,7 @@ guardRule20:(facts:{key:string;guardId:string;values:(string | number | null)[];
                   AND o.state IN ('confirmed','partially_fulfilled','fulfilled')),0)
           )
         )`,facts.values),
-guardRule21:(facts:{key:string;guardId:string;values:string[];})=>assertion(db,facts.key,facts.guardId,"EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?)",facts.values),
+guardRule21:(facts:{key:string;guardId:string;values:string[];})=>assertion(db,facts.key,facts.guardId,OPEN_PERIOD_GUARD_SQL,facts.values),
 guardRule22:(facts:{key:string;guardId:string;values:(string | number | null)[];})=>assertion(db,facts.key,facts.guardId,"EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND status='active')",facts.values),
 guardRule31:(facts:{key:string;guardId:string;values:string[];})=>assertion(db,facts.key,facts.guardId,`NOT EXISTS(SELECT 1 FROM finance_payments p ${filesSnapshotSources().commerce_facts_attachments_used_join} ON used.id=p.payment_slip_id ${filesSnapshotSources().commerce_facts_attachments_proposed_join} ON proposed.id=? WHERE p.company_id=? AND used.checksum_sha256=proposed.checksum_sha256)`,facts.values),
 guardRule33:(facts:{key:string;guardId:string;values:(string | null)[];})=>assertion(db,facts.key,facts.guardId,`NOT EXISTS(SELECT 1 FROM finance_payments p ${filesSnapshotSources().commerce_facts_attachments_used_join} ON used.id=p.payment_slip_id ${filesSnapshotSources().commerce_facts_attachments_proposed_join} ON proposed.id=? WHERE p.company_id=? AND used.checksum_sha256=proposed.checksum_sha256)`,facts.values),

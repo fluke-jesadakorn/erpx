@@ -1,3 +1,4 @@
+import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { nativeFinanceAccruals } from '@erpx/server-collaboration/adapters/native-finance-accruals';
 import { createAccruals } from '@erpx/server-finance/application/accruals';
@@ -45,7 +46,7 @@ function accrualService(provided?:SqlDatabase) {
                 await nativeFinanceAccruals(write, actor.companyId).scheduleDecision([status, status, actor.userId, now, scheduleId]),
                 await nativeFinanceAccruals(write, actor.companyId).eventDecision([`accrual-event-${key}`, scheduleId, actor.companyId, action === "approve" ? "approved" : "cancelled", actor.userId, version, input.reason, JSON.stringify({ status }), now]),
             ]);
-        }, schedule: async (facts) => { const { scheduleId, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_accrual_schedules WHERE id=? AND company_id=?").bind(scheduleId, actor.companyId).first<Record<string, string | number | null>>(); }, openPeriod: async (facts) => { const { actor, periodStart, periodEndValue } = facts; const write = await db(actor); return write.prepare("SELECT id FROM finance_periods WHERE company_id=? AND state='open' AND start_date<=? AND end_date>=?").bind(actor.companyId, periodStart, periodEndValue).first<{
+        }, schedule: async (facts) => { const { scheduleId, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_accrual_schedules WHERE id=? AND company_id=?").bind(scheduleId, actor.companyId).first<Record<string, string | number | null>>(); }, openPeriod: async (facts) => { const { actor, periodStart, periodEndValue } = facts; const write = await db(actor); return write.prepare(OPEN_PERIOD_IDS_SQL).bind(actor.companyId, periodStart, periodEndValue).first<{
             id: string;
         }>(); }, existingRun: async (facts) => { const { scheduleId, periodStart, actor } = facts; const write = await db(actor); return write.prepare("SELECT id FROM finance_accrual_schedule_runs WHERE schedule_id=? AND period_start=?").bind(scheduleId, periodStart).first<AccrualRow>(); }, chart: async (facts) => { const { schedule, actor } = facts; const write = await db(actor); return write.prepare("SELECT chart_id FROM finance_accounts WHERE id=? AND company_id=? AND status='active'").bind(schedule.debit_account_id, actor.companyId).first<{
             chart_id: string;

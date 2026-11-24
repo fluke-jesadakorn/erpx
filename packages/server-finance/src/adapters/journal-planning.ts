@@ -1,3 +1,4 @@
+import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
 
 
 import type { JournalPlan } from '@erpx/server-finance/application/journal';
@@ -36,7 +37,7 @@ export function journalPreparation(write: SqlDatabase) {
 export async function journalStatements(write: SqlDatabase, actor: WorkContext, input: JournalInput, key: string, status: "draft" | "posted", plan: JournalPlan) {
     const { fx, accountIds, journalId, number, now, values, preparedFxEvidence } = plan;
     const guards: SqlStatement[] = [
-        assertion(write, key, "posting-period", "EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?)", [input.periodId, actor.companyId, input.entryDate, input.entryDate]),
+        assertion(write, key, "posting-period", OPEN_PERIOD_GUARD_SQL, [input.periodId, actor.companyId, input.entryDate, input.entryDate]),
         assertion(write, key, "posting-chart", "EXISTS(SELECT 1 FROM finance_charts WHERE id=? AND company_id=? AND status='active')", [input.chartId, actor.companyId]),
         ...(input.isOpening ? [assertion(write, key, "opening-balance", "NOT EXISTS(SELECT 1 FROM finance_journals WHERE company_id=? AND chart_id=? AND is_opening=1 AND status IN ('draft','in_review','posted'))", [actor.companyId, input.chartId])] : []),
         ...accountIds.map((accountId, index) => assertion(write, key, `posting-account-${index}`, "EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND status='active')", [accountId, actor.companyId, input.chartId])),

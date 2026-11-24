@@ -1,3 +1,4 @@
+import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
 import { withFinancePurchasedRead, withFinancePurchasedCommand, withFinanceConfigurationCommand } from "@erpx/server-finance/adapters/purchase-boundary";
 import { FINANCE_ADVISORY_XACT_LOCK_SQL } from "./advisory-lock-dedupe-sql";
 import { OPEN_PERIOD_LIST_SQL } from './finance-read-tail-r15-sql';
@@ -100,7 +101,7 @@ decisionCommit:async(facts)=>{const {actor,id,input,action,key,op,rule,now,rows,
           db,
           key,
           "opening-period",
-          "EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?)",
+          OPEN_PERIOD_GUARD_SQL,
           [
             rule.opening_period_id,
             actor.companyId,
