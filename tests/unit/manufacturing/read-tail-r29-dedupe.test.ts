@@ -65,7 +65,7 @@ describe('manufacturing read-tail r29 scoped EXISTS probe family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(56); // r28 left 57; r29 parameterizes the scoped EXISTS probe family 57->56.
+    expect(total).toBe(55); // r28 left 57; r29 parameterizes the scoped EXISTS probe family 57->56; r30 scope CTE family 56->55.
     expect(total).toBeLessThan(57);
   });
 });

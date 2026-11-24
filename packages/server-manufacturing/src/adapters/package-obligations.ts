@@ -6,6 +6,7 @@ import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/se
 import {manufacturingPurchaseOrderRows,manufacturingPurchaseSourceReadLocks} from "@erpx/server-manufacturing/adapters/purchases";
 import {manufacturingRowsSelect} from "./manufacturing-read-sql-fragments";
 import {manufacturingSettlementFactSelect} from "./manufacturing-read-tail-r17-sql";
+import {manufacturingScopeCte} from "./manufacturing-read-tail-r30-sql";
 import {manufacturingStockFootprintSelect} from "./manufacturing-read-tail-r23-sql";
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
@@ -30,7 +31,7 @@ export const manufacturingCostAllocationProbe = (joined: boolean) =>
   `SELECT 1 FROM manufacturing_cost_allocations allocation${joined ? " JOIN orders o ON o.id=allocation.order_id" : ""} WHERE allocation.pool_id=pool.id`;
 export async function manufacturingPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
  assertManufacturingPackageObligationSources(owner,database,input.companyId);if(input.moduleId!=="manufacturing"||!["manufacturing","manufacturing-mrp"].includes(input.packageId)||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error("MANUFACTURING_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
- const facts=(await database.prepare(`WITH scope AS(SELECT ?::text company_id,?::boolean full),orders AS MATERIALIZED(SELECT o.* FROM (${manufacturingPackageSettlementSources.orders}) o,scope WHERE o.company_id=scope.company_id AND (scope.full OR o.advanced OR NOT o.source_valid))
+ const facts=(await database.prepare(`${manufacturingScopeCte(true)},orders AS MATERIALIZED(SELECT o.* FROM (${manufacturingPackageSettlementSources.orders}) o,scope WHERE o.company_id=scope.company_id AND (scope.full OR o.advanced OR NOT o.source_valid))
  ${manufacturingSettlementFactSelect("'order' kind,o.id,to_jsonb(o)::text fact","orders o WHERE o.status NOT IN ('completed','cancelled') OR NOT o.source_valid")}
  UNION ALL ${manufacturingSettlementFactSelect("'specification',s.id,to_jsonb(s)::text","manufacturing_specifications s,scope WHERE scope.full AND s.company_id=scope.company_id AND s.status NOT IN ('approved','rejected','retired')")}
  UNION ALL ${manufacturingSettlementFactSelect("'accounting-profile',p.id,to_jsonb(p)::text","manufacturing_accounting_profiles p,scope WHERE scope.full AND p.company_id=scope.company_id AND p.status NOT IN ('approved','rejected','retired')")}
