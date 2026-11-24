@@ -93,7 +93,8 @@ describe('marketing form/content asset read-head dedupe (r38)', () => {
     expect(await src('marketing.ts')).toContain('from "./native-marketing-read"');
   });
 
-  it('retirement:ts-statements KPI is 62 (strictly below BEFORE=64)', async () => {
-    expect(await selectTokens()).toBe(62);
+  it('retirement:ts-statements KPI stays strictly below BEFORE=64', async () => {
+    // r39 lowers the owner tail further (61); this round only pins the drop.
+    expect(await selectTokens()).toBeLessThan(64);
   });
 });

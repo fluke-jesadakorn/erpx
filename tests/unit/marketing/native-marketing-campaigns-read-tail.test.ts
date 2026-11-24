@@ -149,14 +149,17 @@ describe('Marketing owner-local campaign read tail', () => {
     const { readFile } = await import('node:fs/promises');
     const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
     const helper = await readFile(new URL('public-form-content-source.ts', base), 'utf8');
+    const head = await readFile(new URL('form-asset-read-head.ts', base), 'utf8');
     const form = await readFile(new URL('public-form.ts', base), 'utf8');
 
     const predicate = 'SELECT ${projection} FROM marketing_assets WHERE id=? AND company_id=? AND kind=\'content\' AND status=\'active\' AND version=?';
-    // The canonical helper owns the single form-content SELECT; its comment
-    // must not smuggle a second "SELECT" token into the retirement KPI.
-    expect(helper.match(/SELECT/g)).toHaveLength(1);
+    // r38 moved the single form-content SELECT into the shared form/content
+    // head; the wrapper only delegates. Corrects a stale assertion that still
+    // expected the old inline literal at HEAD.
+    expect(helper.match(/SELECT/g)).toBeNull();
     expect(helper).toContain('export const marketingFormContentSql');
-    expect(helper).toContain(predicate);
+    expect(helper).toContain("formAssetReadHead({ kind: 'content', projection })");
+    expect(head).toContain('FROM marketing_assets WHERE ${predicate}');
 
     // Both the presentation assertion and the content reader share the helper.
     expect(form).toContain("const contentPredicate=`EXISTS(${marketingFormContentSql('1')})`");
@@ -237,14 +240,18 @@ describe('Marketing owner-local campaign read tail', () => {
     const { readFile } = await import('node:fs/promises');
     const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
     const helper = await readFile(new URL('analytics-cost-rows.ts', base), 'utf8');
+    const head = await readFile(new URL('analytics-null-scope-rows.ts', base), 'utf8');
     const analytics = await readFile(new URL('analytics-sources.ts', base), 'utf8');
 
     const projection = 'SELECT cost.*,NULL::text branch_id,NULL::text department_id FROM ${source}';
-    // The canonical helper owns the single campaign-cost projection; its
-    // comment must not smuggle an extra token into the retirement KPI.
-    expect(helper.match(/SELECT/g)).toHaveLength(1);
+    // r39 moves the single projection token into the shared NULL-scope head;
+    // the cost wrapper delegates with its admitted projection and never emits
+    // a second token or smuggles one into a comment.
+    expect(helper.match(/SELECT/g)).toBeNull();
     expect(helper).toContain('export const marketingAnalyticsCostRows');
-    expect(helper).toContain(projection);
+    expect(helper).toContain("marketingAnalyticsRowsSql('cost.*', source)");
+    expect(head.match(/SELECT/g)).toHaveLength(1);
+    expect(head).toContain('NULL::text branch_id,NULL::text department_id FROM ${source}');
 
     expect(analytics).toContain('import {marketingAnalyticsCostRows} from \'./analytics-cost-rows\'');
     expect(analytics).not.toContain('SELECT cost.*,NULL::text branch_id,NULL::text department_id FROM marketing_campaign_costs');
