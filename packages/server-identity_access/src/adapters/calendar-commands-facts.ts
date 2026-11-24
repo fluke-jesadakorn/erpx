@@ -1,6 +1,6 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { samePersonSql } from "./iam-probe-sql";
+import { activeRecipientsSql, samePersonSql } from "./iam-probe-sql";
 export function calendarCommandsIdentityAccessFacts(db: SqlDatabase) {
     return { read6: (facts: {
             value1: string;
@@ -16,8 +16,7 @@ export function calendarCommandsIdentityAccessFacts(db: SqlDatabase) {
             value1: string;
             value2: string[];
             value3: number;
-        }) => db.prepare(`SELECT DISTINCT user_id FROM assignments WHERE company_id=? AND user_id IN (${facts.value2.map(() => "?").join(",")})
-        AND revoked_at IS NULL AND iam_assignment_active(id,?) AND iam_principal_active(user_id,company_id,?)`).bind(facts.value1, ...facts.value2, facts.value3, facts.value3).all<{
+        }) => db.prepare(activeRecipientsSql(facts.value2, "\n        ")).bind(facts.value1, ...facts.value2, facts.value3, facts.value3).all<{
             user_id: string;
         }>() };
 }
