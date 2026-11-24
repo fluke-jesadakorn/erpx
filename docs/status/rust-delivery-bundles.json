@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9195,
+    "revision": 9196,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -148979,6 +148979,41 @@
         "nextAction": "Next: only protected lock/refund reads likely remain; re-scan and report blocked if so. BEFORE=250.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.marketing-assets.read-plan-mount",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing and assets native read-plan mounts",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "packages/server-assets/src/**",
+          "packages/server-marketing/package.json",
+          "packages/server-assets/package.json",
+          "src/composition/src/**",
+          "tests/unit/marketing/**",
+          "tests/unit/assets/**"
+        ],
+        "resources": [
+          "owner:marketing",
+          "owner:assets",
+          "resource:composition"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement scout plan: owner HTTP transports for marketing/assets read plans, composition modules + private_development_api mounts, TS clients, caller switches, tests; no TS deletion yet.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -148987,10 +149022,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1105,
+      "totalPackets": 1106,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 16,
+        "pending": 17,
         "in_progress": 29,
         "ready_for_integration": 0,
         "integrating": 0,
@@ -149001,7 +149036,7 @@
       }
     },
     "lastCoordinatorGeneration": 162,
-    "updatedAt": "2026-11-24T05:03:38.652Z",
+    "updatedAt": "2026-11-24T05:04:01.236Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
