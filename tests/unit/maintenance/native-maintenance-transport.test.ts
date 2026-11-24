@@ -709,7 +709,7 @@ describe('Maintenance record-image fixed SQL',()=>{
   }
  });
 
- it('retirement:ts-statements stays strictly below the r18 BEFORE=34 baseline',async()=>{
+ it('retirement:ts-statements stays strictly below the r19 BEFORE=33 baseline',async()=>{
   const {readdirSync,readFileSync}=await import('node:fs');
   const {resolve}=await import('node:path');
   let total=0;
@@ -722,8 +722,8 @@ describe('Maintenance record-image fixed SQL',()=>{
    }
   };
   walk(srcRoot);
-  expect(total).toBe(33);
-  expect(total).toBeLessThan(34);
+  expect(total).toBe(32);
+  expect(total).toBeLessThan(33);
  });
 });
 
@@ -922,5 +922,48 @@ describe('Maintenance work/asset source fixed SQL',()=>{
   expect(readFileSync(new URL(`${dir}finance-record-sources.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE operational_inventory_consumptions,maintenance_work_orders,operational_assets IN SHARE MODE');
   expect(readFileSync(new URL(`${dir}asset-settlement-refs.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans IN SHARE MODE');
   expect(readFileSync(new URL(`${dir}package-obligations.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
+ });
+});
+
+/** Fixed-SQL read-tail oracle for the Maintenance Asset settlement reference
+ * source family (r19). The preventive-plan and maintenance-parts refs share one
+ * owner-local company/asset projection template. Both composed strings stay
+ * byte-identical to their pre-dedupe literals, no duplicate TS query literal
+ * remains, every r3-r18 family stays unchanged and every owner lock is intact. */
+describe('Maintenance asset settlement ref source fixed SQL',()=>{
+ const dir='../../../packages/server-maintenance/src/adapters/';
+ it('single-sources the settlement ref template and keeps both refs byte-identical',async()=>{
+  const {readFileSync}=await import('node:fs');
+  const source=readFileSync(new URL(`${dir}asset-settlement-refs.ts`,import.meta.url),'utf8');
+  // Only one fixed SELECT template remains in the file (pre-dedupe had two).
+  expect(source.match(/SELECT/g)).toHaveLength(1);
+  expect(source.match(/export const settlementRefSource = \(columns: string, source: string\): string =>/g)).toHaveLength(1);
+  expect(source.match(/`SELECT \$\{columns\} FROM \$\{source\}`/g)).toHaveLength(1);
+  expect(source).not.toContain('"SELECT company_id,asset_id FROM maintenance_preventive_plans"');
+  expect(source).not.toContain('`SELECT consumption.company_id,work.asset_id FROM (');
+  // The owner lock is untouched and no write/row-lock statement was introduced.
+  expect(source).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans IN SHARE MODE');
+  expect(source).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|pg_advisory/i);
+
+  const {settlementRefSource,maintenanceAssetSettlementRefs}=await import('../../../packages/server-maintenance/src/adapters/asset-settlement-refs');
+  const {maintenanceSettlementConsumptions}=await import('../../../packages/server-inventory/src/public/maintenance-settlement-sources');
+  // Pre-r19 literals rebuilt verbatim with closed column/source fragments.
+  const preventive='SELECT company_id,asset_id FROM maintenance_preventive_plans';
+  const parts=`SELECT consumption.company_id,work.asset_id FROM (${maintenanceSettlementConsumptions}) consumption LEFT JOIN maintenance_work_orders work ON work.id=consumption.source_id AND work.company_id=consumption.company_id`;
+  expect(settlementRefSource('company_id,asset_id','maintenance_preventive_plans')).toBe(preventive);
+  expect(settlementRefSource('consumption.company_id,work.asset_id',`(${maintenanceSettlementConsumptions}) consumption LEFT JOIN maintenance_work_orders work ON work.id=consumption.source_id AND work.company_id=consumption.company_id`)).toBe(parts);
+  expect(maintenanceAssetSettlementRefs.preventive).toBe(preventive);
+  expect(maintenanceAssetSettlementRefs.parts).toBe(parts);
+  for(const sql of [preventive,parts]){
+   expect(sql).toContain('SELECT ');
+   expect(sql).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|pg_advisory/i);
+  }
+  // r3-r18 families and their locks stay untouched.
+  const w=readFileSync(new URL(`${dir}work.ts`,import.meta.url),'utf8');
+  expect(w).toContain('export const workAssetSource');
+  expect(readFileSync(new URL(`${dir}attachment-descriptor-read.ts`,import.meta.url),'utf8')).toContain('export const attachmentDescriptorReadSql');
+  expect(readFileSync(new URL(`${dir}attachment-owner-version-guard.ts`,import.meta.url),'utf8')).toContain('export const attachmentOwnerVersionGuardSql');
+  expect(readFileSync(new URL(`${dir}projection-lookup.ts`,import.meta.url),'utf8')).toContain('export const projectionLookup');
+  expect(readFileSync(new URL(`${dir}package-obligations.ts`,import.meta.url),'utf8')).toContain('const settlementEventRows');
  });
 });
