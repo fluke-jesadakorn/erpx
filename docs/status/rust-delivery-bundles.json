@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10970,
+    "revision": 10974,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -168457,7 +168457,7 @@
         "owner": "files",
         "title": "files TS read tail native cutover (round 30)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -168469,22 +168469,38 @@
         "resources": [
           "owner:files"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMfil8",
-          "claimedAt": "2026-11-24T09:15:51.318Z",
-          "heartbeatAt": "2026-11-24T09:15:51.318Z",
-          "expiresAt": "2026-11-24T09:45:51.318Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "304ef3bd0",
+            "owner": "files",
+            "before": 269,
+            "after": 268,
+            "note": "Reconciliation readiness head shares reconciliationReadySql with optional predicate; advisory statements, locks, native writes and r1-r29 helpers untouched."
+          },
+          {
+            "command": "vitest files r21-r30 + application/storage (125) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "304ef3bd0",
+            "note": "One pre-existing attachment-withdraw-route failure reproduced with HEAD files; unrelated."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=269.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMfil8",
+          "at": "2026-11-24T09:29:06.300Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -169164,6 +169180,42 @@
         "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=27.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.files.read-tail-r31",
+        "goalId": "G4",
+        "owner": "files",
+        "title": "files TS read tail native cutover (round 31)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "tests/unit/files/**",
+          "tests/integration/files/**"
+        ],
+        "resources": [
+          "owner:files"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMfil9",
+          "claimedAt": "2026-11-24T09:29:06.672Z",
+          "heartbeatAt": "2026-11-24T09:29:06.672Z",
+          "expiresAt": "2026-11-24T09:59:06.672Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Candidates: service-repository publication id/company parameterized reads and COALESCE sum(bytes) ledger head shared with migration. BEFORE=268.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -169172,7 +169224,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1514,
+      "totalPackets": 1515,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 24,
@@ -169180,13 +169232,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1130,
+        "blocked": 1131,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:27:34.265Z",
+    "updatedAt": "2026-11-24T09:29:06.678Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
