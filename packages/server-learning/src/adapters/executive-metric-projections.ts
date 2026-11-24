@@ -1,4 +1,5 @@
 import {learningMetricSource} from "@erpx/server-learning/adapters/metric-purchases";
+import {metricLabelProjection} from "./learning-read-sql";
 import {learningTalentSnapshotSources as organizationSnapshotSources} from '@erpx/server-organization/public/learning-talent-snapshot-sources';
 const organizationSources=organizationSnapshotSources();
 /* r6 read-tail family: the branch and department org-node labels share byte-identical
@@ -24,7 +25,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         const label = breakdown === "branch" ? branchLabel
             : breakdown === "department" ? departmentLabel
                 : "to_char(to_timestamp(e.created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')";
-        sql = `SELECT ${label} label,count(*)::text value FROM learning_assignment_events e JOIN (${source.sql}) a ON a.id=e.assignment_id JOIN learning_courses c ON c.id=a.course_id AND c.company_id=a.company_id WHERE ${scopedAlias("a")} AND e.action='complete' AND e.status='completed' AND e.created_at>=? AND e.created_at<? GROUP BY 1 ORDER BY 1`;
+        sql = metricLabelProjection(label, `learning_assignment_events e JOIN (${source.sql}) a ON a.id=e.assignment_id JOIN learning_courses c ON c.id=a.course_id AND c.company_id=a.company_id WHERE ${scopedAlias("a")} AND e.action='complete' AND e.status='completed' AND e.created_at>=? AND e.created_at<?`);
         values = [...scopeArgs, Date.parse(f.from), Date.parse(f.to) + 86400000];
     }
     if (id === "overdue-required-learning") {
@@ -32,7 +33,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
             : breakdown === "branch" ? branchLabel
                 : breakdown === "department" ? departmentLabel
                     : "c.title";
-        sql = `SELECT ${label} label,count(*)::text value FROM (${source.sql}) a JOIN learning_courses c ON c.id=a.course_id AND c.company_id=a.company_id WHERE ${scopedAlias("a")} AND c.required_for IS NOT NULL AND a.due_date<to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND a.status IN ('assigned','in_progress') GROUP BY 1 ORDER BY 1`;
+        sql = metricLabelProjection(label, `(${source.sql}) a JOIN learning_courses c ON c.id=a.course_id AND c.company_id=a.company_id WHERE ${scopedAlias("a")} AND c.required_for IS NOT NULL AND a.due_date<to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND a.status IN ('assigned','in_progress')`);
         values = scopeArgs;
     }
     values=[...source.args,...values];

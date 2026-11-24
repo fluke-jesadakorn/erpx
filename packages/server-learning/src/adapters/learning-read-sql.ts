@@ -44,3 +44,10 @@ export const assignmentsImage = (projection: string) => `(SELECT jsonb_agg(${pro
 
 /** r7 — literal SELECT * source text, parameterized only by the owner table. */
 export const sourceLiteral = (table: string) => `SELECT * FROM ${table}`;
+
+/** r8 — executive metric breakdown projection. The completion and overdue
+ * branches emit the same projection head and GROUP BY tail byte-for-byte; only
+ * the sourced FROM/WHERE differs, so each rendered query keeps its exact
+ * pre-dedupe bytes. */
+export const metricLabelProjection = (label: string, source: string) =>
+  `SELECT ${label} label,count(*)::text value FROM ${source} GROUP BY 1 ORDER BY 1`;
