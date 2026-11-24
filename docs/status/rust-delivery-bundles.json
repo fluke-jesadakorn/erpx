@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10582,
+    "revision": 10584,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -159603,7 +159603,7 @@
         "owner": "benefits",
         "title": "benefits TS read tail native cutover (round 23)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -159615,28 +159615,36 @@
         "resources": [
           "owner:benefits"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMben3",
-          "claimedAt": "2026-11-24T07:54:20.066Z",
-          "heartbeatAt": "2026-11-24T08:15:48.647Z",
-          "expiresAt": "2026-11-24T08:45:48.647Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-benefits/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d06e50b60",
+            "owner": "benefits",
+            "before": 40,
+            "after": 37,
+            "note": "Election, window and dependent union arms share benefitLearningFactArm; locks and r1-r22 untouched."
+          },
+          {
+            "command": "vitest benefits owner (129) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "d06e50b60"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=41.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; residual dedupe exhausted per AST scan; claim released",
         "handoff": {
-          "runId": "run-20261123-n",
+          "runId": "run-20261124-a",
           "agentId": "wGCMben3",
-          "at": "2026-11-24T07:53:21.211Z",
+          "at": "2026-11-24T08:18:44.354Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long worker integration; WIP reviewed by lead; all live claims re-claimed with the same agents under a new generation",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=41."
+          "reason": "handoff",
+          "nextAction": "Integrated; residual dedupe exhausted per AST scan; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -164447,17 +164455,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 21,
-        "in_progress": 25,
+        "in_progress": 24,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1040,
+        "blocked": 1041,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:18:28.145Z",
+    "updatedAt": "2026-11-24T08:18:44.361Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
