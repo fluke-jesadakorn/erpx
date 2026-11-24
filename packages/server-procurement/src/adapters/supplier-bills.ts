@@ -30,6 +30,7 @@ import {createSupplierBillApplication,type BillPorts,type BillMutation} from "@e
 import type {BillRow as Row} from "@erpx/server-procurement/domain/supplier-bills";
 import {branchDepartmentScope,orderedRead} from './read-tail-sql';
 import {receiptCount,expenseAccountBy} from './read-tail-r20';
+import {memberScopeExclusion} from './read-tail-r24';
 export {supplierBillSchema,supplierBillDecisionSchema,supplierInvoicePolicySchema,matchedBillLines} from "@erpx/server-procurement/domain/supplier-bills";
 const scope=branchDepartmentScope("m");
 const args=(actor:WorkContext)=>[actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId];
@@ -142,7 +143,7 @@ return {lines:lines.results,receipts:receipts.results,events:events.results,acco
  workFacts:async(row)=>{const write=await database();
 let latest:Row|null=null,eligible=0,primary:{userId:string;name:string}|null=null,flowBlocker:string|null=null;
  if(row.status==='returned')latest=await nativeProcurementReadFirst<Row>(PROCUREMENT_RD_LATEST_BILL_BY_FULFILLMENT,[row.fulfillment_id],write);
- if(row.status==='review')eligible=Number(await write.prepare(`SELECT count(DISTINCT c.user_id) n FROM (${identity_accessPlatformSources.assignments}) c WHERE c.company_id=? AND iam_assignment_active(c.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(c.role,c.company_id,'finance.write') AND iam_role_allows(c.role,c.company_id,'finance.approve') AND (c.scope_kind='holding' OR (c.scope_kind='branch' AND c.scope_node_id=?) OR (c.scope_kind='department' AND c.scope_node_id=?)) AND c.user_id<>? AND NOT EXISTS(SELECT 1 FROM (${identity_accessPlatformSources.iam_members}) cm JOIN (${identity_accessPlatformSources.iam_members}) creator ON creator.company_id=cm.company_id AND creator.person_id=cm.person_id WHERE cm.company_id=c.company_id AND cm.user_id=c.user_id AND creator.user_id=?)`).bind(actor.companyId,row.branch_id,row.department_id,row.created_by,row.created_by).first('n'));
+ if(row.status==='review')eligible=Number(await write.prepare(`SELECT count(DISTINCT c.user_id) n FROM (${identity_accessPlatformSources.assignments}) c WHERE c.company_id=? AND iam_assignment_active(c.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(c.role,c.company_id,'finance.write') AND iam_role_allows(c.role,c.company_id,'finance.approve') AND (c.scope_kind='holding' OR (c.scope_kind='branch' AND c.scope_node_id=?) OR (c.scope_kind='department' AND c.scope_node_id=?)) AND c.user_id<>? AND ${memberScopeExclusion(identity_accessPlatformSources.iam_members,"creator","c.company_id","c.user_id","=?")}`).bind(actor.companyId,row.branch_id,row.department_id,row.created_by,row.created_by).first('n'));
  else if(row.status!=='returned'||latest?.id===row.id&&latest.status==='returned'){const flow=await resolveFlow(write,actor,'order',String(row.order_id)),step=flow.steps.find(x=>x.key==='invoicing');primary=step?.primary?{userId:step.primary.userId,name:step.primary.name}:null;flowBlocker=step?.blocker??null;}
  return {latest,eligible,primary,flowBlocker};
 },};return createSupplierBillApplication(ports);

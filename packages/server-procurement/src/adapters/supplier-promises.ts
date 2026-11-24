@@ -21,6 +21,7 @@ import {createSupplierPromiseApplication,type SupplierPromisePorts,type PromiseM
 import type {PromiseRow as Row} from "@erpx/server-procurement/domain/supplier-promises";
 import {procurementPurchaseAccess,requireProcurementPurchasedRead,withProcurementPurchasedCommand} from "@erpx/server-procurement/adapters/purchases";
 import {branchDepartmentScope} from './read-tail-sql';
+import {eligiblePurchaseCount} from './read-tail-r24';
 export {supplierPromiseSchema} from "@erpx/server-procurement/domain/supplier-promises";
 type Evidence=Awaited<ReturnType<typeof prepareAttachmentBinding>>;
 const scope=branchDepartmentScope("o");
@@ -42,7 +43,7 @@ return {lines:lines.results,history:history.results,schedule:schedule.results,op
  workRows:async()=>{const write=await database();return (await write.prepare(`SELECT o.*,COALESCE((SELECT min(p.promised_date) FROM procurement_open_promise_lines p JOIN procurement_delivery_promises h ON h.id=p.promise_id WHERE h.order_id=o.id AND p.remaining_milli>0),o.due_date) followup_date,
  (SELECT COALESCE(SUM(l.quantity_milli-l.fulfilled_milli),0) FROM (${commercePlatformSources.commerce_order_lines}) l WHERE l.order_id=o.id) outstanding,
  (SELECT COALESCE(SUM(p.remaining_milli),0) FROM procurement_open_promise_lines p JOIN procurement_delivery_promises h ON h.id=p.promise_id WHERE h.order_id=o.id) promised,
- (SELECT count(DISTINCT a.user_id) FROM (${identity_accessPlatformSources.assignments}) a WHERE a.company_id=o.company_id AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(a.role,a.company_id,'commerce.purchase') AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=o.branch_id) OR (a.scope_kind='department' AND a.scope_node_id=o.department_id))) candidates
+ ${eligiblePurchaseCount(identity_accessPlatformSources.assignments,"a","o.company_id","o.branch_id","o.department_id")} candidates
  FROM (${commercePlatformSources.commerce_orders}) o WHERE o.kind='purchase' AND o.state IN ('confirmed','partially_fulfilled') AND ${scope} ORDER BY o.due_date,o.id`).bind(...scopeArgs(a)).all<Row>()).results;
 },};return createSupplierPromiseApplication(ports);
 }

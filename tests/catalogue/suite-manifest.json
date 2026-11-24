@@ -72675,6 +72675,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "procurement",
+      "modules": [
+        "procurement"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Procurement eligibility count and member scope exclusion families must stay byte-identical."
+      },
+      "apps": "supply",
+      "packages": [
+        "@erpx/server-procurement"
+      ],
+      "id": "procurement.read-tail-r24-dedupe.unit",
+      "files": [
+        "tests/unit/procurement/read-tail-r24-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "procurement.rust-portal-commerce-locks-postgres.integration",
       "lane": "integration",
       "owner": "procurement",
@@ -79437,6 +79462,31 @@
       "id": "sales.read-tail-r15-dedupe.unit",
       "files": [
         "tests/unit/sales/read-tail-r15-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Sales scoped settlement source CTE family must stay byte-identical."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-sales"
+      ],
+      "id": "sales.read-tail-r16-dedupe.unit",
+      "files": [
+        "tests/unit/sales/read-tail-r16-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
