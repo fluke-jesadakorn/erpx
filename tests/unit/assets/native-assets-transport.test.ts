@@ -1,5 +1,6 @@
 import {describe,it,expect,vi} from 'vitest';
 import {readFile} from 'node:fs/promises';
+import {readFileSync} from 'node:fs';
 import {capabilityDelivery} from '../../../packages/catalogue/src/capability-delivery';
 vi.mock('server-only',()=>({}));
 vi.mock('next/headers',()=>({headers:async()=>new Headers({host:'acme.example.com',cookie:'__Host-erpx-product=session'})}));
@@ -368,14 +369,16 @@ it('shares one fixed owner predicate for attachment owner version guards (46->45
   expect(service).toContain('attachmentOwnerVersionGuardSql(item.table, item.extra)');
   expect(operational).toContain('attachmentOwnerVersionGuardSql(table)');
 });
-it('shares one canonical existence probe across the Assets package-settlement read (11->7)',async()=>{
+it('shares one canonical existence probe across the Assets package-settlement read (11->6; r23 all-rows family)',async()=>{
   const {readFile}=await import('node:fs/promises');
   const adapter=await readFile(new URL('../../../packages/server-assets/src/adapters/package-obligations.ts',import.meta.url),'utf8');
   const count=(text:string,needle:string)=>text.split(needle).length-1;
   // The owner-local source probe is the single existence statement; neither this
   // adapter nor its comments may smuggle another "SELECT" token into the KPI.
-  expect(adapter.match(/SELECT/g)).toHaveLength(7);
+  // r23 moves the Finance-link all-rows literal to the owner all-rows helper.
+  expect(adapter.match(/SELECT/g)).toHaveLength(6);
   expect(adapter).toContain('import {assetSourceProbeSql} from "./record-purchases"');
+  expect(adapter).toContain('import {assetAllRowsSql} from "./asset-all-rows-sql"');
   expect(adapter).toContain('const assetExistsSql = (from:string,where:string) =>');
   expect(count(adapter,'EXISTS(SELECT 1 FROM ${from} WHERE ${where})')).toBe(0);
   expect(count(adapter,'`EXISTS(${assetSourceProbeSql(from,where)})`')).toBe(1);
@@ -391,7 +394,8 @@ it('shares one canonical existence probe across the Assets package-settlement re
   expect(adapter).toContain('NOT ${assetExistsSql(`(${assetsSettlementFinancialAssets}) financial JOIN');
   // The exported source object used by the Maintenance consumer is unchanged in shape.
   expect(adapter).toContain('export const assetPackageSettlementSources={assets:');
-  expect(adapter).toContain('links:"SELECT * FROM operational_asset_finance_links"} as const;');
+  expect(adapter).toContain('links:assetAllRowsSql("operational_asset_finance_links")} as const;');
+  expect(count(adapter,'links:"SELECT * FROM operational_asset_finance_links"')).toBe(0);
 });
 it('shares one canonical lineage aggregate projection across the Assets financial source (42->39)',async()=>{
    const {readFile}=await import('node:fs/promises');
@@ -528,8 +532,9 @@ describe('Assets read-tail r17 byte-identical family dedupe',()=>{
   walk(srcRoot);
   expect(selects).toBeLessThan(32);
   // r20 retired the image-witness literal; r21 shares the keyed-row read;
-  // r22 shares the Finance-link keyed reads (24->23).
-  expect(selects).toBe(23);
+  // r22 shares the Finance-link keyed reads; r23 shares the all-rows projection
+  // across the metric and Finance-link sources (24->23->22).
+  expect(selects).toBe(22);
   const financial=readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8');
   expect(financial).toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
   const purchases=readFileSync(resolve(srcRoot,'adapters/purchases.ts'),'utf8');
@@ -573,7 +578,8 @@ describe('Assets read-tail r21 id+company keyed-row family',()=>{
    }
   };
   walk(srcRoot);
-  expect(selects).toBe(23);
+  // r23 shares the all-rows projection across the metric and Finance-link sources.
+  expect(selects).toBe(22);
   // r2-r20 lock/cascade families are untouched.
   expect(readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8'))
    .toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
@@ -597,7 +603,8 @@ describe('Assets read-tail r19 clock-CTE family dedupe',()=>{
     const record=await readFile(new URL('record-purchases.ts',base),'utf8');
     const metric=await readFile(new URL('metric-purchases.ts',base),'utf8');
     expect(record.match(/SELECT/g)).toHaveLength(2);
-    expect(metric.match(/SELECT/g)).toHaveLength(2);
+    // r23 moves the non-enforced metric all-rows literal to assetAllRowsSql.
+    expect(metric.match(/SELECT/g)).toHaveLength(1);
     expect(`WITH asset_source_clock AS MATERIALIZED ${assetClockNowMsSql}`).toBe('WITH asset_source_clock AS MATERIALIZED (SELECT '+packageClockSql+' now_ms)');
     expect(`WITH asset_metric_clock AS MATERIALIZED ${assetClockNowMsSql}`).toBe('WITH asset_metric_clock AS MATERIALIZED (SELECT '+packageClockSql+' now_ms)');
   });
@@ -646,5 +653,47 @@ describe('Assets read-tail r20 source-image witness family',()=>{
   const scope="r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)";
   const purchase=image(`jsonb_build_object('asset',${true?"to_jsonb(r)-'version'-'updated_at'":"to_jsonb(r)"},'finance',to_jsonb(f),'links',${agg("link","operational_asset_finance_links link WHERE link.asset_id=r.id")})`,` FROM operational_assets r LEFT JOIN finance_assets f ON f.id=r.finance_asset_id AND f.company_id=r.company_id WHERE r.id=? AND ${scope}`);
   expect(purchase).toBe(`SELECT jsonb_build_object('asset',to_jsonb(r)-'version'-'updated_at','finance',to_jsonb(f),'links',${agg("link","operational_asset_finance_links link WHERE link.asset_id=r.id")})::text image FROM operational_assets r LEFT JOIN finance_assets f ON f.id=r.finance_asset_id AND f.company_id=r.company_id WHERE r.id=? AND ${scope}`);
+ });
+});
+
+describe('Assets read-tail r23 all-rows projection family',()=>{
+ const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+ const src=(file:string)=>readFileSync(new URL(file,base),'utf8');
+ const readOnly=(sql:string)=>{
+  expect(sql).toContain('SELECT ');
+  expect(sql).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
+ };
+ it('renders byte-identically to both pre-dedupe all-rows literals',async()=>{
+  const {assetAllRowsSql}=await import('../../../packages/server-assets/src/adapters/asset-all-rows-sql');
+  const preDedupeLinks='SELECT * FROM operational_asset_finance_links';
+  const preDedupeMetric=(table:string)=>`SELECT * FROM ${table}`;
+  expect(assetAllRowsSql('operational_asset_finance_links')).toBe(preDedupeLinks);
+  for(const table of ['operational_assets','maintenance_work_orders','maintenance_preventive_plans']){
+   expect(assetAllRowsSql(table)).toBe(preDedupeMetric(table));
+   readOnly(assetAllRowsSql(table));
+  }
+ });
+ it('keeps one owner literal and routes both callers through it',async()=>{
+  const helper=src('asset-all-rows-sql.ts');
+  const metric=src('metric-purchases.ts');
+  const obligations=src('package-obligations.ts');
+  expect((helper.match(/SELECT/g)??[])).toHaveLength(1);
+  expect(helper).toContain('export const assetAllRowsSql = (table: string) =>');
+  expect(metric).toContain('import {assetAllRowsSql} from "./asset-all-rows-sql"');
+  expect(metric).toContain('sql:assetAllRowsSql(definition.table)');
+  expect(metric).not.toContain('sql:`SELECT * FROM ${definition.table}`');
+  expect(obligations).toContain('import {assetAllRowsSql} from "./asset-all-rows-sql"');
+  expect(obligations).toContain('links:assetAllRowsSql("operational_asset_finance_links")');
+  expect(obligations).not.toContain('links:"SELECT * FROM operational_asset_finance_links"');
+  expect((metric.match(/SELECT/g)??[])).toHaveLength(1);
+  expect((obligations.match(/SELECT/g)??[])).toHaveLength(6);
+ });
+ it('leaves r11-r22 families, locks and the native read transport untouched',async()=>{
+  expect((src('record-purchases.ts').match(/SELECT/g)??[])).toHaveLength(2);
+  expect((src('financial-workflow-sources.ts').match(/SELECT/g)??[])).toHaveLength(3);
+  expect((src('attachments-policy-facts.ts').match(/SELECT/g)??[])).toHaveLength(1);
+  const native=src('native-assets-read.ts');
+  expect(native).toContain('ASSETS_RD_PKG_LINKS');
+  expect(native).not.toContain('SELECT * FROM');
  });
 });
