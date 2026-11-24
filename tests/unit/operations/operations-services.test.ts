@@ -461,3 +461,18 @@ test('legacy policy partition excludes only Field-only policies and retains mixe
  expect(fieldOnlyPolicy(['field_service_order'])).toBe(true);expect(fieldOnlyPolicy(['field_service_order','field_service_order'])).toBe(true);
  for(const kinds of [[],['support_ticket'],['field_service_order','support_ticket'],['asset','field_service_order'],null,'field_service_order'])expect(fieldOnlyPolicy(kinds)).toBe(false);
 });
+
+import {OPERATIONS_STAFF_TASKS_SOURCE_SQL,identitySnapshotSources} from '../../../packages/server-operations/src/adapters/identity-snapshot-sources';
+import {collaborationNotificationSnapshotSources} from '../../../packages/server-operations/src/adapters/collaboration-notification-snapshot-sources';
+describe('Operations staff_tasks snapshot sources share one canonical projection',()=>{
+ test('the canonical projection owns a single fixed read over staff_tasks',()=>{
+  expect(OPERATIONS_STAFF_TASKS_SOURCE_SQL.match(/SELECT /g)).toHaveLength(1);
+  expect(OPERATIONS_STAFF_TASKS_SOURCE_SQL).toContain('FROM staff_tasks');
+  expect(OPERATIONS_STAFF_TASKS_SOURCE_SQL).toContain('"completion_approvers_json"');
+ });
+ test('both owner facts compose the byte-identical FROM clause',()=>{
+  const from=`FROM (${OPERATIONS_STAFF_TASKS_SOURCE_SQL}) t`;
+  expect(identitySnapshotSources().operations_staff_tasks_facts_staff_tasks_t_from).toBe(from);
+  expect(collaborationNotificationSnapshotSources().operations_handover_facts_staff_tasks_t_from).toBe(from);
+ });
+});
