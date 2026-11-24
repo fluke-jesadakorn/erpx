@@ -42,13 +42,14 @@ const OLD_BOOTSTRAP_SCOPE =
 const OLD_BOOTSTRAP_FENCE = `EXISTS(${OLD_BOOTSTRAP_SCOPE})`;
 
 describe('manage_erpx ai-gateway beta_bootstrap scope read family', () => {
-  it('keeps one fixed-SQL beta_bootstrap scope literal shared by both callers', async () => {
+  it('keeps one parameterized beta_bootstrap head shared by both callers', async () => {
     const src = await readFile(adapter('ai-gateway-sources.ts'), 'utf8');
+    const helper = await readFile(adapter('beta-bootstrap-point-sql.ts'), 'utf8');
     // The IAM gateway fence and the private-loopback scope read reuse one
-    // canonical declaration so their holding predicates cannot drift.
-    expect(
-      src.match(/SELECT 1 FROM beta_bootstrap h WHERE h\.singleton=1 AND h\.holding_id=\?/g),
-    ).toHaveLength(1);
+    // canonical parameterized head so their holding predicates cannot drift.
+    expect(src).not.toMatch(/SELECT 1 FROM beta_bootstrap h WHERE h\.singleton=1 AND h\.holding_id=\?/);
+    expect(src).toContain("betaBootstrapPointSql('1', 'h', ' AND h.holding_id=?')");
+    expect(helper.match(/SELECT \$\{projection\} FROM beta_bootstrap/g)).toHaveLength(1);
   });
 
   it('preserves the exact query text consumed by both existing callers', async () => {

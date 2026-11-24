@@ -72,7 +72,7 @@ describe('manage_erpx beta_slots point-read parameterized family', () => {
 
   it('lowers the owner TS SELECT count from the recorded BEFORE=26 baseline', async () => {
     const total = (await tsSources(srcDir)).join('\n').match(/SELECT /g)?.length ?? 0;
-    expect(total).toBe(24);
+    expect(total).toBe(23);
     expect(total).toBeLessThan(26);
   });
 });
@@ -122,7 +122,49 @@ describe('manage_erpx beta_members count SELECT-head family (r12)', () => {
 
   it('lowers the owner TS SELECT count from the recorded BEFORE=25 baseline', async () => {
     const total = (await tsSources(srcDir)).join('\n').match(/SELECT /g)?.length ?? 0;
-    expect(total).toBe(24);
+    expect(total).toBe(23);
     expect(total).toBeLessThan(25);
+  });
+});
+
+const OLD_BOOTSTRAP_SCOPE = 'SELECT 1 FROM beta_bootstrap h WHERE h.singleton=1 AND h.holding_id=?';
+const OLD_BOOTSTRAP_BINDING = 'SELECT holding_id FROM beta_bootstrap WHERE singleton=1';
+
+describe('manage_erpx beta_bootstrap point-read parameterized family (r13)', () => {
+  it('emits byte-identical SQL for both admitted projection call shapes', async () => {
+    const { betaBootstrapPointSql } = await import(
+      '../../../packages/server-manage_erpx/src/adapters/beta-bootstrap-point-sql'
+    );
+    expect(betaBootstrapPointSql('1', 'h', ' AND h.holding_id=?')).toBe(OLD_BOOTSTRAP_SCOPE);
+    expect(betaBootstrapPointSql('holding_id')).toBe(OLD_BOOTSTRAP_BINDING);
+  });
+
+  it('keeps one SELECT-head declaration and reuses it at both owner call sites', async () => {
+    const helper = await readFile(adapter('beta-bootstrap-point-sql.ts'), 'utf8');
+    expect(helper.match(/SELECT \$\{projection\} FROM beta_bootstrap/g)).toHaveLength(1);
+    const src = await readFile(adapter('ai-gateway-sources.ts'), 'utf8');
+    expect(src.split('betaBootstrapPointSql(').length - 1).toBe(2);
+    expect(src).not.toMatch(/SELECT .* FROM beta_bootstrap/);
+  });
+
+  it('leaves locks, native authority and beta-policy sources untouched', async () => {
+    const untouched = [
+      'company-provisioning-attachment-read-sources.ts',
+      'native-owner-write.ts',
+      'beta-policy-point-sql.ts',
+      'records-ai-limit-projection.ts',
+      'identity-snapshot-sources.ts',
+      'attachments-service-facts.ts',
+    ];
+    for (const file of untouched) {
+      const text = await readFile(adapter(file), 'utf8');
+      expect(text).not.toContain('betaBootstrapPointSql');
+    }
+  });
+
+  it('lowers the owner TS SELECT count from the recorded BEFORE=24 baseline', async () => {
+    const total = (await tsSources(srcDir)).join('\n').match(/SELECT /g)?.length ?? 0;
+    expect(total).toBe(23);
+    expect(total).toBeLessThan(24);
   });
 });
