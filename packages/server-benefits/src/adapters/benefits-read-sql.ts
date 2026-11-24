@@ -46,3 +46,7 @@ export const benefitOwnerExistsGuard = (table: string, conditions: string) =>
  *  and person-backed attachment source selects; generated SQL is unchanged. */
 export const benefitAttachmentSourceSelect = (branch: string, department: string, person: string, image: string, from: string) =>
   `SELECT r.company_id,${branch},${department},r.status,${person},${image} image FROM ${from} WHERE r.id=? AND r.company_id=?`;
+/** Parameterized owner-local subquery absence probe shared by the Benefits and
+ *  People package-settlement fact projections; generated SQL is unchanged. */
+export const benefitSubqueryNotExists = (source: string, alias: string, predicate: string) =>
+  `NOT EXISTS(SELECT 1 FROM (${source}) ${alias} WHERE ${predicate})`;

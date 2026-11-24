@@ -83,7 +83,9 @@ describe('Benefits read-tail r10 byte-identical dedupe', () => {
     const pkg = src('package-obligations.ts');
     const people = src('people-package-obligations.ts');
     expect(pkg).toContain('${benefitDependentFactPrefix} OR NOT d.terminal_proven FROM');
-    expect(people).toContain('${benefitDependentFactPrefix} OR NOT EXISTS(SELECT 1 FROM');
+    // r22 factored the subquery absence probe into benefitSubqueryNotExists;
+    // the generated SQL stays byte-identical to the literal in peopleSql below.
+    expect(people).toContain('${benefitDependentFactPrefix} OR ${benefitSubqueryNotExists(');
     const pkgSql = `${benefitDependentFactPrefix} OR NOT d.terminal_proven FROM (${'${benefitPackageSettlementSources.dependents}'}) d,scope WHERE d.company_id=scope.company_id`;
     const peopleSql = `${benefitDependentFactPrefix} OR NOT EXISTS(SELECT 1 FROM (${'${people.people}'}) p WHERE p.id=d.person_id AND p.company_id=d.company_id) FROM benefit_dependents d,scope WHERE d.company_id=scope.company_id`;
     expect(pkgSql).toBe("UNION ALL SELECT 'dependent',d.id,d.version,d.status,to_jsonb(d),d.status='pending' OR NOT d.terminal_proven FROM (${benefitPackageSettlementSources.dependents}) d,scope WHERE d.company_id=scope.company_id");
