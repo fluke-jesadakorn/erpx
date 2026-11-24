@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10866,
+    "revision": 10867,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -167912,6 +167912,35 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=257.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.people_payroll.read-tail-r37",
+        "goalId": "G4",
+        "owner": "people_payroll",
+        "title": "payroll guard and coalesce families (round 37)",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/**",
+          "tests/unit/people_payroll/**",
+          "tests/integration/people_payroll/**"
+        ],
+        "resources": [
+          "owner:people_payroll"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Four families: 5-predicate status guards, coalesce legal name, id/version IN guard, recovery guards. BEFORE=1356 after r36.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -167920,10 +167949,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1489,
+      "totalPackets": 1490,
       "migratedPackets": 330,
       "statusCounts": {
-        "pending": 23,
+        "pending": 24,
         "in_progress": 24,
         "ready_for_integration": 0,
         "integrating": 0,
@@ -167934,7 +167963,7 @@
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:10:38.192Z",
+    "updatedAt": "2026-11-24T09:10:55.139Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
