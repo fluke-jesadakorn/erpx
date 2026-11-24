@@ -5263,6 +5263,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Collaboration post by id guard must stay one helper."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-collaboration"
+      ],
+      "id": "collaboration.read-tail-r24-dedupe.unit",
+      "files": [
+        "tests/unit/collaboration/read-tail-r24-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "collaboration.rust-collaboration-pg-postgres.integration",
       "lane": "integration",
       "owner": "collaboration",
@@ -12256,6 +12281,31 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Commercial package source probes must stay one builder."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-commercial"
+      ],
+      "id": "commercial.read-tail-r10-dedupe.unit",
+      "files": [
+        "tests/unit/commercial/read-tail-r10-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "commercial",
+      "modules": [
+        "commercial"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Commercial seat history reads must stay one byte-identical builder."
       },
       "apps": "apps",
@@ -19124,6 +19174,31 @@
       "id": "ecommerce.read-tail-r11-dedupe.unit",
       "files": [
         "tests/unit/ecommerce/ecommerce-read-tail-r11-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "ecommerce",
+      "modules": [
+        "ecommerce"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Ecommerce reviewer scope reads must stay one helper."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-ecommerce"
+      ],
+      "id": "ecommerce.read-tail-r12-dedupe.unit",
+      "files": [
+        "tests/unit/ecommerce/ecommerce-read-tail-r12-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -50869,6 +50944,31 @@
       "id": "legal.read-tail-r28-dedupe.unit",
       "files": [
         "tests/unit/legal/read-tail-r28-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "legal",
+      "modules": [
+        "legal"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Legal purchase clock EXISTS wrapper must stay one helper."
+      },
+      "apps": "legal-portal",
+      "packages": [
+        "@erpx/server-legal"
+      ],
+      "id": "legal.read-tail-r29-dedupe.unit",
+      "files": [
+        "tests/unit/legal/read-tail-r29-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
