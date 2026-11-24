@@ -9,7 +9,7 @@ import type {CalendarCommand} from '@erpx/server-work_projection/public/rules/ca
 import {purchasedCapabilityPredicate,packageClockSql} from '@erpx/server-commercial/public/purchased-capability-sql';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import { nativeOwnerWrite } from "../native-owner-write";
-import { appointmentChildImageSql, commandReceiptSql, versionById, noopSql, reminderAttendeePointSql } from '../read-tail-sql';
+import { appointmentChildImageSql, commandReceiptSql, versionById, noopSql, reminderAttendeePointSql, reminderAttendeesSql } from '../read-tail-sql';
 /** Closed native aliases a/t. Responses and mutable row versions do not change
  * the captured reminder configuration; their current policy is checked live. */
 const configuration=`jsonb_build_object('record',to_jsonb(a)-ARRAY['version','updated_at'],'attendee',to_jsonb(t)-ARRAY['response','response_at'],'series',${appointmentChildImageSql("to_jsonb(s)-'version'",'calendar_series','s','a')},'exceptions',${appointmentChildImageSql("jsonb_agg(to_jsonb(e)-'version' ORDER BY e.occurrence_key)",'calendar_occurrence_exceptions','e','a')})::text`;
@@ -23,7 +23,7 @@ function snapshot(actor:WorkContext){const {holdingId,holdingSlug,holdingName,co
 export async function captureCalendarReminderAuthority(database:SqlDatabase,actor:WorkContext,input:CalendarCommand,key:string,ids:string[]){
  if(input.action!=='appointment.save'&&input.action!=='appointment.reschedule'&&!(input.action==='appointment.reminder.set'&&input.minutes!==null))return;
  const bound=await requireQueuedAccountAuthority(database,actor);
- for(const id of ids){const recipients=(await database.prepare(`SELECT t.user_id,a.version FROM calendar_appointments a JOIN calendar_attendees t ON t.appointment_id=a.id AND t.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND a.status='scheduled' AND t.reminder_minutes IS NOT NULL${input.action==='appointment.reminder.set'?' AND t.user_id=?':''}`).bind(id,actor.companyId,...(input.action==='appointment.reminder.set'?[actor.userId]:[])).all<{user_id:string;version:number}>()).results;
+ for(const id of ids){const recipients=(await database.prepare(reminderAttendeesSql('t.user_id,a.version',` AND a.status='scheduled' AND t.reminder_minutes IS NOT NULL${input.action==='appointment.reminder.set'?' AND t.user_id=?':''}`)).bind(id,actor.companyId,...(input.action==='appointment.reminder.set'?[actor.userId]:[])).all<{user_id:string;version:number}>()).results;
   for(const recipient of recipients){const image=await calendarReminderConfiguration(database,actor.companyId,id,recipient.user_id);if(!image)throw new ApiError(409,'CALENDAR_REMINDER_SOURCE_CHANGED','The exact reminder configuration is unavailable.');await nativeOwnerWrite('wp_reminder_authorization_insert',[
     key,id,recipient.user_id,actor.companyId,actor.userId,actor.assignmentId,input.action,
     JSON.stringify(snapshot(bound)),hash(image),recipient.version,Date.now(),
