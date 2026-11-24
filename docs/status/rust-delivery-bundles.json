@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12562,
+    "revision": 12564,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -184530,7 +184530,7 @@
         "owner": "legal",
         "title": "legal read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -184541,22 +184541,37 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n104",
-          "claimedAt": "2026-11-24T17:09:50.279Z",
-          "heartbeatAt": "2026-11-24T17:15:31.032Z",
-          "expiresAt": "2026-11-24T17:45:31.032Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "55131a3ad",
+            "owner": "legal",
+            "before": 153,
+            "after": 145,
+            "note": "Law point guard corpus and counsel entry reads through closed helpers; quoted projections and advisory/FOR UPDATE/LOCK TABLE untouched."
+          },
+          {
+            "command": "vitest legal r56 (7)",
+            "result": "passed",
+            "sourceSha": "55131a3ad"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Law point guard family and counsel entry reads (-6/-2): 153->147/145; quoted projections stay. BEFORE=153.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n104",
+          "at": "2026-11-24T17:27:30.281Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185295,17 +185310,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 7,
+        "in_progress": 6,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1470,
+        "blocked": 1471,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 171,
-    "updatedAt": "2026-11-24T17:26:23.136Z",
+    "updatedAt": "2026-11-24T17:27:30.284Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
