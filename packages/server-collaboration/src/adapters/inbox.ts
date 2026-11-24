@@ -33,6 +33,7 @@ import { collaborationInboxSources as owner0 } from '@erpx/server-work_projectio
 import { collaborationInboxSources as owner1 } from '@erpx/server-identity_access/public/collaboration-inbox-sources';
 import { collaborationInboxSources as owner2 } from '@erpx/server-organization/public/collaboration-inbox-sources';
 import { collaborationInboxSources as owner3 } from '@erpx/server-workflow/public/collaboration-inbox-sources';
+import {legacyNativeUnion} from './read-tail-sql';
 async function inward<T>(action: () => Promise<T>) {
     try {
         return await action();
@@ -127,7 +128,7 @@ function application(db: SqlDatabase) {
       ${category ? "AND e.category=?" : ""}
       ${search ? "AND e.preview ILIKE '%'||?||'%'" : ""}
       ${cursor ? "AND (d.delivered_at,d.id)<(?,?)" : ""}
-      ORDER BY d.delivered_at DESC,d.id DESC LIMIT 100), combined AS (SELECT * FROM legacy_rows UNION ALL SELECT * FROM native_rows) SELECT * FROM combined ORDER BY delivered_at DESC,id DESC LIMIT 100`)
+      ORDER BY d.delivered_at DESC,d.id DESC LIMIT 100), combined AS ${legacyNativeUnion} SELECT * FROM combined ORDER BY delivered_at DESC,id DESC LIMIT 100`)
                     .bind(JSON.stringify(native),actor.companyId, actor.userId,...scope.args,...commerce.args,...payroll.args,...basePeople.args,...count.args,...procurement.args,...transfer.args,...projects.args,...quality.args,...learning.args,...assets.args,...landedCost.args,...manufacturing.args,...talent.args,...legal.args,...crm.args,...marketing.args,...followups.args,...workforce.args,...benefits.args,...work.args, ...(category ? [category] : []), ...(search ? [search] : []), ...(cursor ? [cursor.at, cursor.id] : []))
                     .all<Candidate>()).results.map(row=>nativeItems.has(row.id)?{...row,native_field_item:nativeItems.get(row.id)}:row) };
         } });

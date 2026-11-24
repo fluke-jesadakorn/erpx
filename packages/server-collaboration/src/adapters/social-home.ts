@@ -37,6 +37,7 @@ import { collaborationHomeSources as operations } from '@erpx/server-operations/
 import {handoverAcknowledgements} from '@erpx/server-operations/public/handover-acknowledgement-read';
 import {workSocialReadScope,workSocialPresentation} from '@erpx/server-collaboration/public/work-social-read-policy';
 import {withWorkSocialCommand} from '@erpx/server-collaboration/adapters/work-social-purchases';
+import {socialFollowPostExists,messagingTeamMemberExists} from './read-tail-sql';
 const draftVersionGuardSql = "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND version=? AND published_post_id IS NULL)";
 async function inward<T>(action: () => Promise<T>) {
     try {
@@ -61,7 +62,7 @@ async function exposed<T>(action: () => Promise<T>) {
 function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSocialReadScope>>={prefix:'',where:'TRUE',args:[]},audienceProjects?:Awaited<ReturnType<typeof socialProjectAudienceOptions>>) {
     const repository: SocialHomeRepository<SqlStatement> = { async teams(companyId: string, userId: string) {
             return db.prepare(`SELECT t.id,t.name FROM messaging_teams t WHERE t.company_id=? AND NOT t.organization_managed
-      AND EXISTS(SELECT 1 FROM messaging_team_members m WHERE m.team_id=t.id AND m.user_id=?) ORDER BY t.name,t.id LIMIT 100`)
+      AND ${messagingTeamMemberExists} ORDER BY t.name,t.id LIMIT 100`)
                 .bind(companyId, userId).all<{
                 id: string;
                 name: string;
@@ -182,7 +183,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
             }>();
         }, async feedIds(companyId: string, userId: string, now: number, now2: number, assignmentId: string, branchId: string | null, branchId2: string | null, value: string | null, value2: string | null, value3: number, value4: number, value5: string, value6: 0 | 1, userId2: string, value7: string | null, value8: string | null, value9: string | null, value10: string | null, value11: string | null, value12: "update" | "plan" | "blocker" | "handover" | "announcement" | null, value13: "update" | "plan" | "blocker" | "handover" | "announcement" | null, value14: string | null, value15: string | null, value16: "conversations" | "milestones" | null, value17: "conversations" | "milestones" | null, value18: "conversations" | "milestones" | null, limit: number) {
             return db
-                .prepare(`${purchase.prefix}SELECT p.id FROM social_posts p WHERE p.company_id=? AND p.state='published' AND p.linked_module IS NULL AND ${sourceAccessSql("p", "?::text")} AND ${purchase.where} AND (?::text IS NULL OR p.branch_id=? OR p.branch_id IS NULL) AND (?::text IS NULL OR p.branch_id=?) AND (p.created_at<? OR (p.created_at=? AND p.id<?)) AND (?=0 OR EXISTS(SELECT 1 FROM social_follows f WHERE f.principal_id=? AND f.target_type='post' AND f.target_id=p.id)) AND (?::text IS NULL OR EXISTS(SELECT 1 FROM social_post_topics pt WHERE pt.post_id=p.id AND pt.tag=?) OR EXISTS(SELECT 1 FROM social_comment_topics ct JOIN social_comments c ON c.id=ct.comment_id WHERE c.post_id=p.id AND c.state='published' AND ct.tag=?))
+                .prepare(`${purchase.prefix}SELECT p.id FROM social_posts p WHERE p.company_id=? AND p.state='published' AND p.linked_module IS NULL AND ${sourceAccessSql("p", "?::text")} AND ${purchase.where} AND (?::text IS NULL OR p.branch_id=? OR p.branch_id IS NULL) AND (?::text IS NULL OR p.branch_id=?) AND (p.created_at<? OR (p.created_at=? AND p.id<?)) AND (?=0 OR ${socialFollowPostExists}) AND (?::text IS NULL OR EXISTS(SELECT 1 FROM social_post_topics pt WHERE pt.post_id=p.id AND pt.tag=?) OR EXISTS(SELECT 1 FROM social_comment_topics ct JOIN social_comments c ON c.id=ct.comment_id WHERE c.post_id=p.id AND c.state='published' AND ct.tag=?))
         AND (?::text IS NULL OR (p.audience_kind='team' AND p.audience_id=?))
         AND (?::text IS NULL OR p.purpose=?) AND (?::text IS NULL OR NOT EXISTS(SELECT 1 FROM social_post_sources s WHERE s.post_id=p.id AND s.source_kind='pms_record')
           OR EXISTS(SELECT 1 FROM social_post_sources s JOIN (${pmsSourcesSql}) pr ON pr.id=s.source_id

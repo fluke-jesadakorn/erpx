@@ -21,6 +21,7 @@ import { ApiError } from '@erpx/server-runtime/public/http';
 import { createMessagingApplication, type MessagingRepository } from '@erpx/server-collaboration/application/messaging';
 import { nativeOwnerWrite } from '@erpx/server-collaboration/adapters/native-owner-write';
 import {messagingPurchaseControls,requireMessagingCurrentAccount,requireMessagingPurchase,withMessagingPurchasedCommand} from '@erpx/server-collaboration/adapters/messaging-purchases';
+import {messagingTeamMemberExists} from './read-tail-sql';
 async function inward<T>(action: () => Promise<T>) {
     try {
         return await action();
@@ -50,7 +51,7 @@ function application(db: SqlDatabase, actor: WorkContext, allowProvision=true) {
             return assertion(db, key, value, `EXISTS(SELECT 1 FROM messaging_rooms r WHERE r.id=? AND r.company_id=? AND ${access})`, [roomId, companyId, ...value2]);
         }, room(...args){return nativeMessagingReadRepository(db).room(...args);}, async team(id: string, companyId: string, userId: string, userId2: string) {
             return db
-                .prepare(`SELECT t.* FROM messaging_teams t WHERE t.id=? AND t.company_id=? AND ((NOT t.organization_managed AND EXISTS(SELECT 1 FROM messaging_team_members m WHERE m.team_id=t.id AND m.user_id=?)) OR (t.organization_managed AND ${messagingManagedTeamSql("t", "?")}))`)
+                .prepare(`SELECT t.* FROM messaging_teams t WHERE t.id=? AND t.company_id=? AND ((NOT t.organization_managed AND ${messagingTeamMemberExists}) OR (t.organization_managed AND ${messagingManagedTeamSql("t", "?")}))`)
                 .bind(id, companyId, userId, userId2)
                 .first<MessagingTeam>();
         }, async activePeople(companyId: string, now: number, now2: number, value: string[], teamId: string | undefined) { return activeMessagingPeople(db, companyId, now, now2, value, teamId); }, guardMember(key: string, value: string, companyId: string, id: string, value2: string[], teamId: string | undefined) {
@@ -82,7 +83,7 @@ function application(db: SqlDatabase, actor: WorkContext, allowProvision=true) {
             return write('msg_remove_channel_members', [id, ...members], `msg-remove-channel-members:${id}:${members.length}`);
         }, async teams(companyId: string, userId: string, userId2: string) {
             return db
-                .prepare(`SELECT t.* FROM messaging_teams t WHERE t.company_id=? AND ((NOT t.organization_managed AND EXISTS(SELECT 1 FROM messaging_team_members m WHERE m.team_id=t.id AND m.user_id=?)) OR (t.organization_managed AND ${messagingManagedTeamSql("t", "?")})) ORDER BY t.name,t.id`)
+                .prepare(`SELECT t.* FROM messaging_teams t WHERE t.company_id=? AND ((NOT t.organization_managed AND ${messagingTeamMemberExists}) OR (t.organization_managed AND ${messagingManagedTeamSql("t", "?")})) ORDER BY t.name,t.id`)
                 .bind(companyId, userId, userId2)
                 .all<MessagingTeam>();
         }, async rooms(userId: string, userId2: string, companyId: string, value: string[]) {
