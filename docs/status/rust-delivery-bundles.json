@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8278,
+    "revision": 8282,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -137210,7 +137210,7 @@
         "owner": "operations",
         "title": "operations TS read tail native cutover (r25)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -137222,22 +137222,37 @@
         "resources": [
           "owner:operations"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGBJope",
-          "claimedAt": "2026-11-24T01:47:52.111Z",
-          "heartbeatAt": "2026-11-24T01:58:28.736Z",
-          "expiresAt": "2026-11-24T02:28:28.736Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-operations/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "2da4f49dc",
+            "owner": "operations",
+            "before": 165,
+            "after": 161,
+            "note": "Actor scope tuple shared across five adapters; byte-identical text, binds unchanged."
+          },
+          {
+            "command": "vitest operations targeted (123) + tsc operations",
+            "result": "passed",
+            "sourceSha": "2da4f49dc"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=165.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGBJope",
+          "at": "2026-11-24T01:59:15.871Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -138236,6 +138251,42 @@
         "nextAction": "Build owner-local native ports for the six classified brand reads: executive metric projection, evidence search, management authority (branch/company exists), workspace-choice facts by companyIds. Attachment current-scope witness is cross-owner; leave it. Then switch callers and record strictly lower from 6. No composition.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.operations.read-tail-r26",
+        "goalId": "G4",
+        "owner": "operations",
+        "title": "operations TS read tail native cutover (round 26)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-operations/src/**",
+          "tests/unit/operations/**",
+          "tests/integration/operations/**"
+        ],
+        "resources": [
+          "owner:operations"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCqope",
+          "claimedAt": "2026-11-24T01:59:16.168Z",
+          "heartbeatAt": "2026-11-24T01:59:16.168Z",
+          "expiresAt": "2026-11-24T02:29:16.169Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: clock CTE x4, user/assignment clock tuple x2, task company/scope tuple x2. BEFORE=161.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -138244,7 +138295,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 896,
+      "totalPackets": 897,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -138252,13 +138303,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 517,
+        "blocked": 518,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:58:53.628Z",
+    "updatedAt": "2026-11-24T01:59:16.175Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
