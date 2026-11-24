@@ -4,6 +4,7 @@ import {commercialSeatCandidates} from '@erpx/server-identity_access/public/comm
 import 'server-only';
 import {seatHistorySql} from './commercial-read-tail-r3-sources';
 import {coverageProbe} from './commercial-read-tail-r4-sources';
+import {holdingMonthReadSql} from './commercial-read-tail-r7-sources';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {createSeatMeterApplication,type SeatMeterRepository} from '@erpx/server-commercial/application/seats';
 import type {AssignmentEvent,MemberEvent,RoleEvent} from '@erpx/server-commercial/domain/seats';
@@ -22,11 +23,9 @@ async history(start,end){const [coverage,assignments,members,roles,cutoffs]=awai
   ]);
   return {historyStartedAt:coverage?.started_at??null,assignments:assignments.results,members:members.results,roles:roles.results,hasCutoffDependency:cutoffs?.dependency??true};},async activeCandidates(asOf){const holding=db;const candidates=(await commercialSeatCandidates(holding,asOf)).results;
   return candidates;},async accounts(ids){const rows=(await commercialSeatAccounts(control,ids)).results;
-    return rows;},async snapshot(holdingId,month){const snapshot=await control.prepare(`SELECT snapshot_id,seat_coverage,seat_source_count
-    FROM billing_usage_snapshots WHERE holding_id=? AND month=?`)
+    return rows;},async snapshot(holdingId,month){const snapshot=await control.prepare(holdingMonthReadSql("snapshot_id,seat_coverage,seat_source_count","billing_usage_snapshots"))
     .bind(holdingId,month).first<{snapshot_id:string;seat_coverage:string;seat_source_count:number}>();
-  return snapshot;},async summaryRows(holdingId,month){const rows=(await control.prepare(`SELECT intervals_json::text intervals_json,snapshot_id
-    FROM billing_seat_usage WHERE holding_id=? AND month=?`)
+  return snapshot;},async summaryRows(holdingId,month){const rows=(await control.prepare(holdingMonthReadSql("intervals_json::text intervals_json,snapshot_id","billing_seat_usage"))
     .bind(holdingId,month).all<{intervals_json:string;snapshot_id:string}>()).results;
   return rows;}};}
 export function readHoldingSeatIntervals(db:SqlDatabase,month:string){return createSeatMeterApplication(repository(db,db),{now:()=>Date.now()}).readHoldingSeatIntervals(month);}
