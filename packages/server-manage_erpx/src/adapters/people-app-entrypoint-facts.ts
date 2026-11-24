@@ -1,7 +1,8 @@
 import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import {betaSlotPointSql} from './beta-slot-point-sql';
 export function ownerOnboardingSlot(db:SqlDatabase,userId:string){return db.prepare(
-    "SELECT slug,company_name,branch_name,state FROM beta_slots WHERE owner_user_id=?",
+    betaSlotPointSql('slug,company_name,branch_name,state','owner_user_id'),
   )
     .bind(userId)
     .first<{
