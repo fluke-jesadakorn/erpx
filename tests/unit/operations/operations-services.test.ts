@@ -478,7 +478,7 @@ describe('Operations staff_tasks snapshot sources share one canonical projection
 });
 
 import {readFileSync} from 'node:fs';
-import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL,operationsApprovalImageSql,operationsActiveDelegationSql} from '../../../packages/server-operations/src/adapters/task-delegation-source';
+import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL,operationsApprovalImageSql,operationsActiveDelegationSql,operationsChildJsonSql,operationsChildAggJsonSql} from '../../../packages/server-operations/src/adapters/task-delegation-source';
 import {workforceActorScopeSql} from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
 import {OPERATIONS_TASK_START_APPROVER_SQL,OPERATIONS_TASK_COMPLETION_APPROVER_SQL,approverJsonExistsSql} from '../../../packages/server-operations/src/adapters/task-approver-access-source';
 import {handoverTaskAccessSql} from '../../../packages/server-operations/src/adapters/handover-policy';
@@ -639,5 +639,32 @@ describe('Operations project-source history probe dedupe',()=>{
   expect(source).toContain("projectSourceProbe('routine_templates',routineScope.where)");
   expect(source).not.toContain('SELECT 1 FROM staff_tasks t WHERE t.company_id=? AND t.project_id IS NOT NULL AND');
   expect(source).not.toContain('SELECT 1 FROM routine_templates t WHERE t.company_id=? AND t.project_id IS NOT NULL AND');
+ });
+});
+
+describe('Operations task-image child JSON projection dedupe',()=>{
+ const tpl=(outer:string)=>`(SELECT to_jsonb(template) FROM routine_templates template WHERE template.id=${outer}.template_id AND template.company_id=${outer}.company_id)`;
+ const sch=(outer:string)=>`(SELECT to_jsonb(schedule) FROM routine_schedules schedule WHERE schedule.id=${outer}.schedule_id AND schedule.company_id=${outer}.company_id)`;
+ const del=(alias:string,outer:string)=>`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM staff_task_delegations ${alias} WHERE ${alias}.task_id=${outer}.id AND ${alias}.company_id=${outer}.company_id)`;
+ test('the canonical child projections render every site byte-identically',()=>{
+  expect(operationsChildJsonSql('routine_templates','template','template_id','t')).toBe(OPERATIONS_TASK_TEMPLATE_SOURCE_SQL);
+  expect(operationsChildJsonSql('routine_schedules','schedule','schedule_id','t')).toBe(OPERATIONS_TASK_SCHEDULE_SOURCE_SQL);
+  expect(operationsChildAggJsonSql('staff_task_delegations','delegation','t')).toBe(OPERATIONS_TASK_DELEGATION_SOURCE_SQL);
+  expect(operationsChildJsonSql('routine_templates','template','template_id','evaluation_task')).toBe(tpl('evaluation_task'));
+  expect(operationsChildJsonSql('routine_schedules','schedule','schedule_id','evaluation_task')).toBe(sch('evaluation_task'));
+  expect(operationsChildAggJsonSql('staff_task_delegations','d','evaluation_task')).toBe(del('d','evaluation_task'));
+  for(const sql of [operationsChildJsonSql('t','a','b','c'),operationsChildAggJsonSql('t','a','c')])expect(sql.match(/SELECT /g)).toHaveLength(1);
+ });
+ test('the image readers compose the canonical projections and keep no local literal',()=>{
+  const evalSrc=readFileSync(new URL('../../../packages/server-operations/src/adapters/people-evaluation-work-facts.ts',import.meta.url),'utf8');
+  expect(evalSrc).toContain("operationsChildJsonSql('routine_templates','template','template_id','evaluation_task')");
+  expect(evalSrc).toContain("operationsChildJsonSql('routine_schedules','schedule','schedule_id','evaluation_task')");
+  expect(evalSrc).toContain("operationsChildAggJsonSql('staff_task_delegations','d','evaluation_task')");
+  expect(evalSrc).not.toContain('(SELECT to_jsonb(template) FROM routine_templates template WHERE template.id=evaluation_task');
+  expect(evalSrc).not.toContain('(SELECT to_jsonb(schedule) FROM routine_schedules schedule WHERE schedule.id=evaluation_task');
+  expect(evalSrc).not.toContain('(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM staff_task_delegations d WHERE d.task_id=evaluation_task');
+  const srcSrc=readFileSync(new URL('../../../packages/server-operations/src/adapters/task-delegation-source.ts',import.meta.url),'utf8');
+  expect(srcSrc).toContain("operationsChildJsonSql('routine_templates','template','template_id','t')");
+  expect(srcSrc).toContain("operationsChildAggJsonSql('staff_task_delegations','delegation','t')");
  });
 });
