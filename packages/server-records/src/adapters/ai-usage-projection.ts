@@ -1,8 +1,9 @@
-/** Canonical owner-local fixed SQL for the Records request AI usage projection.
- * Admitted once and shared by every Records projection consumer; the native
- * owner states the same fixed selection. No duplicate TS literal remains. */
-export const requestAiUsageProjectionSql = "SELECT \"id\",\"company_id\",\"actor_id\",\"month\",\"state\",\"lease_until\",\"input_tokens\",\"output_tokens\",\"created_at\" FROM request_ai_usage";
-export const recordsRequestUsageSql = 'SELECT company_id,month FROM request_ai_usage';
+/** Canonical owner-local generator for the Records request-AI usage projection
+ * family (full, monthly and beta usage rows). Admitted once; each member renders
+ * byte-identical prior SQL and the native owner states the same fixed selection. */
+export const requestAiUsageProjection = (columns: string) => `SELECT ${columns} FROM request_ai_usage`;
+export const requestAiUsageProjectionSql = requestAiUsageProjection('"id","company_id","actor_id","month","state","lease_until","input_tokens","output_tokens","created_at"');
+export const recordsRequestUsageSql = requestAiUsageProjection('company_id,month');
 /** Canonical owner-local fixed read for the company+month request-AI usage
  * count, shared by the agent quota guard and the beta-management usage source.
  * Both consumers previously carried their own duplicate literal. */
