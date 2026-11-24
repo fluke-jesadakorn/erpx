@@ -1,13 +1,14 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {LINK_SET_ID_SELECT_SQL} from "./read-tail-dedupe-sql";
+import {reconciliationReadySql} from "./read-tail-r30-source-sql";
 export type AppReservedUpload = { declared_bytes: number; media_type: string; attachment_set_id: string; owner_type: string; purpose: string; component_kind: "record" | "action" | "line" | "event" | "message" | "publication"; component_ref: string | null; purpose_key: string; expected_target_version: number; compatibility_adapter: boolean };
 /** Endpoint adapters read owner facts on their already authorized supplied database. */
 export function appAttachmentSources(db: SqlDatabase) { return {
   portalReservation: (id: string, userId: string, companyId: string) => db.prepare(`SELECT declared_bytes,media_type FROM upload_intents
       WHERE id=? AND attachment_set_id IS NOT NULL AND created_by=? AND company_id=?`).bind(id, userId, companyId).first<{ declared_bytes: number; media_type: string }>(),
   previousObject: (id: string) => db.prepare("SELECT object_key FROM attachments WHERE id=?").bind(id).first<{ object_key: string }>(),
-  finalReconciliation: () => db.prepare("SELECT ready FROM attachment_reconciliation_runs WHERE mode='final' AND upload_frozen=true AND checksums_verified=true ORDER BY created_at DESC LIMIT 1").first<{ ready: boolean }>(),
+  finalReconciliation: () => db.prepare(reconciliationReadySql("mode='final' AND upload_frozen=true AND checksums_verified=true")).first<{ ready: boolean }>(),
   canonicalLinks: async (id: string, companyId: string) => (await db.prepare(`${LINK_SET_ID_SELECT_SQL}
       WHERE l.attachment_id=? AND s.company_id=? AND l.state IN ('draft','bound') ORDER BY CASE l.state WHEN 'bound' THEN 0 ELSE 1 END,l.created_at`).bind(id, companyId).all<{ id: string }>()).results,
   compatibilitySet: async (setId: string, companyId: string) => Boolean(await db.prepare(`SELECT 1 FROM attachment_sets set_row

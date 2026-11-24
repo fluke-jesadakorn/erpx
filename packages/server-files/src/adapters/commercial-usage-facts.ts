@@ -1,6 +1,7 @@
 import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import type {CommercialStorageRow as StorageRow} from "@erpx/server-commercial/public/usage-contract";
+import {reconciliationReadySql} from "./read-tail-r30-source-sql";
 export function commercialStoredOriginals(db:SqlDatabase,start:number,end:number,branchId:string|null){return db.prepare(`SELECT l.id,l.company_id,s.branch_id,l.bytes,l.created_at,l.destroyed_at
       FROM attachment_storage_ledger l
       JOIN attachments a ON a.id=l.attachment_id
@@ -16,6 +17,6 @@ export function commercialUnreconciledOriginals(db:SqlDatabase,end:number,branch
       WHERE a.source_state<>'destroyed' AND a.created_at<?
         AND NOT EXISTS(SELECT 1 FROM attachment_storage_ledger l WHERE l.attachment_id=a.id AND l.variant='original')
         AND (?::text IS NULL OR s.branch_id=?)`).bind(end, branchId, branchId).first<{count:number}>();}
-export function commercialFileReconciliation(db:SqlDatabase,){return db.prepare("SELECT ready FROM attachment_reconciliation_runs ORDER BY created_at DESC LIMIT 1").first<{ready:boolean}>();}
+export function commercialFileReconciliation(db:SqlDatabase,){return db.prepare(reconciliationReadySql("")).first<{ready:boolean}>();}
 export function commercialEarliestOriginal(db:SqlDatabase,){return db.prepare("SELECT MIN(created_at) earliest FROM attachment_storage_ledger WHERE variant='original'")
           .first<{ earliest: number | null }>();}

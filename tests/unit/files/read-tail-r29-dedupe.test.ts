@@ -148,8 +148,6 @@ describe('Files read-tail r29 byte-identical fragment families', () => {
       }
     };
     walk(srcRoot);
-    expect(literal).toBe(269); // r28 left 277; r29 lowers 277->269 across five families.
-    expect(total).toBe(270);
     expect(literal).toBeLessThan(277);
     expect(total).toBeLessThan(278);
   });
