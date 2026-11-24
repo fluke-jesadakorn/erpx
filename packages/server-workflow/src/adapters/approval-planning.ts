@@ -25,6 +25,7 @@ import { BusinessRuleError } from '@erpx/server-shared/index';
 import {createApprovalPlanningApplication,type ApprovalPlanningPorts}from '@erpx/server-workflow/application/approvals';
 import {workflowWave3Statement} from './native-workflow-wave3';
 const peoplepayrollFinalSources=peoplepayrollFinalOwnerProjections();
+const approvalStepsApproverSql = `SELECT s.*,COALESCE(p.legal_name,s.approver_user_id) approver_name FROM approval_steps s LEFT ${peoplepayrollFinalSources.approvals_hr_people_p_join} ON p.user_id=s.approver_user_id AND p.company_id=? AND p.merged_into_id IS NULL WHERE s.instance_id`;
 export { participantSql } from '@erpx/server-workflow/adapters/approval-participant-projection';
 export type { ApprovalKind } from '@erpx/server-workflow/domain/approvals';
 export type { ApprovalPhase } from '@erpx/server-workflow/domain/approvals';
@@ -45,7 +46,7 @@ export function nativeApprovalPlanningPorts(database: SqlDatabase, readOverrides
                 .first<ApprovalInstance>();
         },
         readStepsForEffect(company_id: string, id: string) {
-            return database.prepare(`SELECT s.*,COALESCE(p.legal_name,s.approver_user_id) approver_name FROM approval_steps s LEFT ${peoplepayrollFinalSources.approvals_hr_people_p_join} ON p.user_id=s.approver_user_id AND p.company_id=? AND p.merged_into_id IS NULL WHERE s.instance_id=? ORDER BY s.ordinal`)
+            return database.prepare(`${approvalStepsApproverSql}=? ORDER BY s.ordinal`)
                 .bind(company_id, id)
                 .all<ApprovalStep>();
         },
@@ -226,7 +227,7 @@ export async function expenseApprovalReadBatch(db: SqlDatabase, actor: Pick<Staf
     const current = new Map(instances.map(row => [row.record_id,row]));
     const stable = instances.filter(row => row.state !== "blocked");
     const [steps, history] = requested.size ? await Promise.all([
-        stable.length ? db.prepare(`SELECT s.*,COALESCE(p.legal_name,s.approver_user_id) approver_name FROM approval_steps s LEFT ${peoplepayrollFinalSources.approvals_hr_people_p_join} ON p.user_id=s.approver_user_id AND p.company_id=? AND p.merged_into_id IS NULL WHERE s.instance_id IN(SELECT value FROM erpx_json_each(?)) ORDER BY s.ordinal`).bind(actor.companyId,JSON.stringify(stable.map(row => row.id))).all<ApprovalStep>() : Promise.resolve({results:[] as ApprovalStep[]}),
+        stable.length ? db.prepare(`${approvalStepsApproverSql} IN(SELECT value FROM erpx_json_each(?)) ORDER BY s.ordinal`).bind(actor.companyId,JSON.stringify(stable.map(row => row.id))).all<ApprovalStep>() : Promise.resolve({results:[] as ApprovalStep[]}),
         db.prepare(`SELECT i.record_id batch_record_id,d.*,COALESCE(p.legal_name,d.actor_user_id) actor_name,(SELECT legal_name ${peoplepayrollFinalSources.approvals_hr_people_from} WHERE company_id=i.company_id AND iam_same_person(user_id,d.previous_approver_user_id,company_id) AND merged_into_id IS NULL LIMIT 1) previous_approver_name,(SELECT legal_name ${peoplepayrollFinalSources.approvals_hr_people_from} WHERE company_id=i.company_id AND iam_same_person(user_id,d.approver_user_id,company_id) AND merged_into_id IS NULL LIMIT 1) approver_name FROM approval_decisions d JOIN approval_instances i ON i.id=d.instance_id LEFT ${peoplepayrollFinalSources.approvals_hr_people_p_join} ON p.user_id=d.actor_user_id AND p.company_id=i.company_id AND p.merged_into_id IS NULL WHERE i.record_type='expense' AND i.record_id IN(SELECT value FROM erpx_json_each(?)) AND i.company_id=? ORDER BY d.created_at,d.insertion_order`).bind(encoded,actor.companyId).all<ApprovalDecision & {batch_record_id:string}>(),
     ]) : [{results:[] as ApprovalStep[]},{results:[] as (ApprovalDecision & {batch_record_id:string})[]}];
     const stepsByInstance = new Map<string,ApprovalStep[]>(), historyByRecord = new Map<string,ApprovalDecision[]>();
