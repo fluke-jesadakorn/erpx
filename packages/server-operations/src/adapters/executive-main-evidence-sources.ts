@@ -6,6 +6,12 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { operationsTaskCohort, operationsTaskVisibility } from "@erpx/server-runtime/public/executive/operations-access";
 import { OperationsEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
 const overdueAlert = `(SELECT min(n.created_at) FROM (${collaborationProjectionSources.staff_notifications}) n WHERE n.company_id=t.company_id AND n.user_id=? AND n.record_type='staff_task_alert' AND n.record_id=t.id AND n.record_version=t.version AND n.id LIKE 'staff-task-alert-overdue-%')`;
+/** Canonical Operations evidence projection shared by the search and read
+ * readers; one fixed text keeps the two SELECTs from drifting. Binds unchanged. */
+const evidenceSelect = (metric: string, alertSelect: string, extra = '') =>
+    `SELECT t.id,t.title,t.state,t.due_at,t.created_at,t.updated_at,t.version,t.branch_id,t.department_id,
+      ${metric === "exception-resolution-time" ? "(t.updated_at-t.due_at)::text" : "NULL::text"} exception_duration_ms,
+      ${alertSelect} alert_created_at${extra}`;
 export function executiveMainEvidenceSources(db: SqlDatabase) {
     return { async factsSearchOperationsEvidence(actor: WorkContext, referenceAt: number, metric: "open-operations-exceptions" | "exception-resolution-time" | "operations-escalations", input: {
             filters: {
@@ -40,9 +46,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 ? overdueAlert
                 : "NULL::bigint";
             const queryValues = metric === "operations-escalations" ? [actor.userId, ...values] : values;
-            const rows = (await db.prepare(`SELECT t.id,t.title,t.state,t.due_at,t.created_at,t.updated_at,t.version,t.branch_id,t.department_id,
-      ${metric === "exception-resolution-time" ? "(t.updated_at-t.due_at)::text" : "NULL::text"} exception_duration_ms,
-      ${alertSelect} alert_created_at,t.${sortColumn} sort_at
+            const rows = (await db.prepare(`${evidenceSelect(metric, alertSelect, `,t.${sortColumn} sort_at`)}
     FROM staff_tasks t WHERE ${conditions.join(" AND ")} ORDER BY t.${sortColumn} DESC,t.id DESC LIMIT ?`)
                 .bind(...queryValues, input.limit + 1).all<OperationsEvidenceRow>()).results;
             return { rows };
@@ -59,9 +63,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 ? overdueAlert
                 : "NULL::bigint";
             const queryValues = metric === "operations-escalations" ? [actor.userId, ...visibility.values, ...cohort.values,...purchase.args, taskId] : [...visibility.values, ...cohort.values,...purchase.args, taskId];
-            const row = await db.prepare(`SELECT t.id,t.title,t.state,t.due_at,t.created_at,t.updated_at,t.version,t.branch_id,t.department_id,
-      ${metric === "exception-resolution-time" ? "(t.updated_at-t.due_at)::text" : "NULL::text"} exception_duration_ms,
-      ${alertSelect} alert_created_at
+            const row = await db.prepare(`${evidenceSelect(metric, alertSelect)}
     FROM staff_tasks t WHERE ${visibility.sql} AND ${cohort.sql} AND ${purchase.where} AND t.id=? LIMIT 1`)
                 .bind(...queryValues).first<OperationsEvidenceRow>();
             return { row };
