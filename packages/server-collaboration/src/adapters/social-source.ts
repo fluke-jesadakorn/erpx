@@ -11,11 +11,11 @@ import { createSocialSourceApplication, type SocialSourceRepository } from '@erp
 import { BusinessRuleError } from '@erpx/server-shared/index';
 
 import {workSocialReadScope} from '@erpx/server-collaboration/public/work-social-read-policy';
-import {socialPostByIdPredicate} from './read-tail-sql';
+import {socialPostByIdPredicate,readablePostHead} from './read-tail-sql';
 
 function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSocialReadScope>>={prefix:'',where:'TRUE',args:[]}) {
     const repository: SocialSourceRepository<SqlStatement> = { async publishedPost(id: string, companyId: string, userId: string, now: number, now2: number, value: string[]) {
-            return db.prepare(`${purchase.prefix}SELECT p.* FROM social_posts p WHERE p.id=? AND p.company_id=? AND p.state='published' AND ${sourceAccessSql("p", value.length ? "?::text" : undefined)} AND ${purchase.where}`).bind(...purchase.args,id, companyId, userId, now, now2, ...value).first<PostRow>();
+            return db.prepare(`${purchase.prefix}${readablePostHead('*', `p.state='published' AND ${sourceAccessSql("p", value.length ? "?::text" : undefined)} AND ${purchase.where}`)}`).bind(...purchase.args,id, companyId, userId, now, now2, ...value).first<PostRow>();
         },
         guardPublishedSource(key: string, step: string, id: string, company_id: string, version: number, user: string, now: number, now2: number) {
             return assertion(db, key, step, `EXISTS(${socialPostByIdPredicate(`p.version=? AND p.state='published' AND ${sourceAccessSql()}`)})`, [id, company_id, version, user, now, now2]);

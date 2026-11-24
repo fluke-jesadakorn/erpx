@@ -9,6 +9,7 @@ import { ApiError } from '@erpx/server-runtime/public/http';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { sha256 } from '@erpx/server-runtime/public/crypto';
 import {sourceSnapshot,sourceGuard,readablePost} from '@erpx/server-collaboration/public/social-source';
+import {socialAiDraftById} from './read-tail-sql';
 import { staffPeople } from '@erpx/server-operations/public/staff-policy';
 import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import { aiRequestQuotaLock } from '@erpx/server-agent/public/ai-quota';
@@ -45,7 +46,7 @@ function application(db?: SqlDatabase, companyId = '') {
         nativeOwnerWriteSystem(db!, companyId, kind, values, key, now);
     const repository: SocialAiRepository<SqlStatement> = { async priorDraft(id: string, userId: string) {
             return db!
-                .prepare("SELECT actor_json,post_id,kind,source_hash,result_json,state,source_version,comment_ids_json,expires_at,provider_json FROM social_ai_drafts WHERE id=? AND actor_id=?")
+                .prepare(socialAiDraftById('actor_json,post_id,kind,source_hash,result_json,state,source_version,comment_ids_json,expires_at,provider_json'))
                 .bind(id, userId)
                 .first<{
                 actor_json: string | null;

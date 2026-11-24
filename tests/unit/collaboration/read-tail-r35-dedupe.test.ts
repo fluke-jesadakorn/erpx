@@ -58,7 +58,7 @@ describe('Collaboration read-tail r35 lock/notification isolation', () => {
 });
 
 describe('Collaboration read-tail r35 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 364 after r37, below the r35 BEFORE=371 baseline', () => {
+  test('retirement:ts-statements is pinned at 360 after r38, below the r35 BEFORE=371 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -72,8 +72,9 @@ describe('Collaboration read-tail r35 KPI pins', () => {
     // byte-identical prefix: 2 -> 1, net -1 SELECT token: 371 -> 370. No lock
     // statement, bind order or notification helper was modified. r37 then
     // deduped revisions (-1), messaging guards (-2) and PMS sources (-3):
-    // 370 -> 364.
-    expect(total).toBe(364);
+    // 370 -> 364. r38 then deduped settlement (-2), AI draft-by-id (-1) and
+    // readable post head (-1): 364 -> 360.
+    expect(total).toBe(360);
     expect(total).toBeLessThan(370);
   });
 });

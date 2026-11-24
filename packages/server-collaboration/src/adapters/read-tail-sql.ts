@@ -139,3 +139,17 @@ export const commandReceiptById=(cols:string,alias='')=>`SELECT ${cols} FROM com
  * predicates. The fixed `company_id=? AND user_id=?` binds, `legacy_rows`
  * identity, union and lock semantics stay at the call sites. */
 export const staffNotificationCteBody=(nativeSql:string,clock:string,cols:string,partition:string,whereFragments:string[])=>`WITH native_rows AS (${nativeSql}),legacy_rows AS (${clock}SELECT ${cols},created_at::text AS page_key FROM staff_notifications WHERE company_id=? AND user_id=? AND ${partition} AND ${whereFragments.join(' AND ')} `;
+/** Byte-identical settlement source row read shared by the three Work
+ * package-obligation provenance keys. Only the source table varies; the
+ * star-projection head, zero binds and lock semantics stay unchanged. */
+export const settlementSourceRows=(table:string)=>`SELECT * FROM ${table}`;
+/** Byte-identical AI-draft identity read shared by the social AI prior-draft
+ * repository and the social-task AI provider reader. Only the projected column
+ * list varies; the fixed `id=? AND actor_id=?` prefix, bind order and lock
+ * semantics stay unchanged. */
+export const socialAiDraftById=(cols:string)=>`SELECT ${cols} FROM social_ai_drafts WHERE id=? AND actor_id=?`;
+/** Byte-identical readable-post head shared by the Social source published-post
+ * reader and the Social home revision-author reader. Only the projected column
+ * list and trailing access predicate vary; the `p.id=? AND p.company_id=?`
+ * prefix, bind order and lock semantics stay at the call sites. */
+export const readablePostHead=(cols:string,tail:string)=>`SELECT p.${cols} FROM social_posts p WHERE p.id=? AND p.company_id=? AND ${tail}`;

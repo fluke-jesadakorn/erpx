@@ -37,7 +37,7 @@ import { collaborationHomeSources as operations } from '@erpx/server-operations/
 import {handoverAcknowledgements} from '@erpx/server-operations/public/handover-acknowledgement-read';
 import {workSocialReadScope,workSocialPresentation} from '@erpx/server-collaboration/public/work-social-read-policy';
 import {withWorkSocialCommand} from '@erpx/server-collaboration/adapters/work-social-purchases';
-import {socialFollowPostExists,messagingTeamMemberExists,publishedCommentRead,socialPostDraftById,socialPostTopicExists,socialCommentTopicExists,socialCommentAncestorStep,socialPostDraftExists,socialPostDraftFieldGuard,socialPostByIdPredicate} from './read-tail-sql';
+import {socialFollowPostExists,messagingTeamMemberExists,publishedCommentRead,socialPostDraftById,socialPostTopicExists,socialCommentTopicExists,socialCommentAncestorStep,socialPostDraftExists,socialPostDraftFieldGuard,socialPostByIdPredicate,readablePostHead} from './read-tail-sql';
 const draftVersionGuardSql = socialPostDraftExists('version=? AND published_post_id IS NULL');
 async function inward<T>(action: () => Promise<T>) {
     try {
@@ -191,7 +191,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
                 id: string;
             }>();
         }, async revisionAuthor(id: string, companyId: string, userId: string, now: number, now2: number) {
-            return db.prepare(`${purchase.prefix}SELECT p.author_id FROM social_posts p WHERE p.id=? AND p.company_id=? AND ${sourceAccessSql()} AND ${purchase.where}`)
+            return db.prepare(`${purchase.prefix}${readablePostHead('author_id', `${sourceAccessSql()} AND ${purchase.where}`)}`)
                 .bind(...purchase.args,id, companyId, userId, now, now2).first<{
                 author_id: string;
             }>();
