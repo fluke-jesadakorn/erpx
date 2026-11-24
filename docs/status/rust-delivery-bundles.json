@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7916,
+    "revision": 7924,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -132809,7 +132809,7 @@
         "owner": "marketing",
         "title": "marketing TS read tail native cutover (r18)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -132821,22 +132821,42 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG73mar",
-          "claimedAt": "2026-11-24T01:15:48.833Z",
-          "heartbeatAt": "2026-11-24T01:23:27.967Z",
-          "expiresAt": "2026-11-24T01:53:27.967Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-marketing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "507e868ee",
+            "owner": "marketing",
+            "before": 103,
+            "after": 102,
+            "note": "Versioned/unversioned form asset FOR SHARE lock share formAssetLockSql; byte-identical, lock mode preserved."
+          },
+          {
+            "command": "vitest form lock dedupe (3) + marketing read-tail (12)",
+            "result": "passed",
+            "sourceSha": "507e868ee"
+          },
+          {
+            "command": "tsc marketing/tests-config + catalogue",
+            "result": "passed",
+            "sourceSha": "507e868ee"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "TS-only dedupe if available; if none safe, report blocked with evidence. BEFORE=103.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG73mar",
+          "at": "2026-11-24T01:24:23.193Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -132957,7 +132977,7 @@
         "owner": "customer_authority",
         "title": "customer_authority TS read tail native cutover (round 12)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -132969,22 +132989,42 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG76cua",
-          "claimedAt": "2026-11-24T01:16:42.110Z",
-          "heartbeatAt": "2026-11-24T01:23:27.967Z",
-          "expiresAt": "2026-11-24T01:53:27.967Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-customer_authority/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "507e868ee",
+            "owner": "customer_authority",
+            "before": 88,
+            "after": 87,
+            "note": "Duplicate review and identity manager eligibility share managerEligibilitySql(row); alias-specific predicates inline."
+          },
+          {
+            "command": "vitest customer authority (35)",
+            "result": "passed",
+            "sourceSha": "507e868ee"
+          },
+          {
+            "command": "tsc customer_authority",
+            "result": "passed",
+            "sourceSha": "507e868ee"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next TS-only dedupe; avoid proof/digest and portal unit projection families. BEFORE=88.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG76cua",
+          "at": "2026-11-24T01:24:23.574Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -133492,6 +133532,78 @@
         "nextAction": "Next: finance attachment release facts (2) or another owner-local dedupe; avoid legal-release/executive-projection. BEFORE=48.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.marketing.read-tail-r19",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing TS read tail native cutover (r19)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**",
+          "tests/integration/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG91mar",
+          "claimedAt": "2026-11-24T01:24:23.829Z",
+          "heartbeatAt": "2026-11-24T01:24:23.829Z",
+          "expiresAt": "2026-11-24T01:54:23.829Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe TS-only dedupe; if none, report blocked with evidence. BEFORE=102.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.customer_authority.read-tail-r13",
+        "goalId": "G4",
+        "owner": "customer_authority",
+        "title": "customer_authority TS read tail native cutover (r13)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-customer_authority/src/**",
+          "tests/unit/customer_authority/**",
+          "tests/integration/customer_authority/**"
+        ],
+        "resources": [
+          "owner:customer_authority"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG92cua",
+          "claimedAt": "2026-11-24T01:24:24.088Z",
+          "heartbeatAt": "2026-11-24T01:24:24.088Z",
+          "expiresAt": "2026-11-24T01:54:24.088Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe TS-only dedupe; if none, report blocked with evidence. BEFORE=87.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -133500,7 +133612,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 809,
+      "totalPackets": 811,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -133508,13 +133620,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 434,
+        "blocked": 436,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:23:49.742Z",
+    "updatedAt": "2026-11-24T01:24:24.093Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
