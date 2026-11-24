@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8523,
+    "revision": 8527,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -139915,7 +139915,7 @@
         "owner": "files",
         "title": "files TS read tail native cutover (r9)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -139928,22 +139928,37 @@
         "resources": [
           "owner:files"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCgfil",
-          "claimedAt": "2026-11-24T02:11:48.000Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f8f71ff37",
+            "owner": "files",
+            "before": 356,
+            "after": 355,
+            "note": "runtime-minio preservation reuses ORPHAN_PRESERVATION_PRESENT_SQL; prepare retained."
+          },
+          {
+            "command": "vitest files attachment (4) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "f8f71ff37"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=356.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCgfil",
+          "at": "2026-11-24T02:25:35.496Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -141200,6 +141215,42 @@
         "nextAction": "Next: safe byte-identical dedupe/native read; if none, report blocked. BEFORE=501.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.files.read-tail-r10",
+        "goalId": "G4",
+        "owner": "files",
+        "title": "files TS read tail native cutover (round 10)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "tests/unit/files/**",
+          "tests/integration/files/**"
+        ],
+        "resources": [
+          "owner:files"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCI_fil",
+          "claimedAt": "2026-11-24T02:25:35.863Z",
+          "heartbeatAt": "2026-11-24T02:25:35.863Z",
+          "expiresAt": "2026-11-24T02:55:35.864Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: attachment_links 26-col projection x2 and attachment_sets projection x2 in final-root/hospitality owner sources; add constants to owner-projection-dedupe-sql. Advisory lock excluded. BEFORE=355.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -141208,7 +141259,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 955,
+      "totalPackets": 956,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -141216,13 +141267,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 577,
+        "blocked": 578,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:24:59.114Z",
+    "updatedAt": "2026-11-24T02:25:35.873Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
