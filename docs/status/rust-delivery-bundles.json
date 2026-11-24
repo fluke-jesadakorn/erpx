@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9070,
+    "revision": 9072,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -140598,7 +140598,7 @@
         "owner": "work_projection",
         "title": "work projection native read ports",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -140610,28 +140610,37 @@
         "resources": [
           "owner:work_projection"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCrwp",
-          "claimedAt": "2026-11-24T03:57:21.561Z",
-          "heartbeatAt": "2026-11-24T04:26:55.017Z",
-          "expiresAt": "2026-11-24T04:56:55.017Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-work-projection --offline (private target)",
+            "result": "passed",
+            "sourceSha": "5d0eb3d77"
+          },
+          {
+            "command": "cargo test work_projection calendar spec 6/6 + postgres parity 2/2 (private target)",
+            "result": "passed",
+            "sourceSha": "5d0eb3d77"
+          },
+          {
+            "command": "structure:check + git diff --check",
+            "result": "passed",
+            "sourceSha": "5d0eb3d77"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Build owner-local native read ports for calendar appointment/reminder reads currently in TS (owner-only, no composition); add PG parity tests. Do not delete TS consumers yet.",
+        "blocker": "handoff",
+        "nextAction": "Port integrated; cutover queued.",
         "handoff": {
-          "runId": "run-20261123-i",
+          "runId": "run-20261123-j",
           "agentId": "wGCrwp",
-          "at": "2026-11-24T03:57:20.238Z",
+          "at": "2026-11-24T04:33:45.848Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long cargo queue; WIP reviewed, all owner claims preserved and re-issued.",
-          "nextAction": "Build owner-local native read ports for calendar appointment/reminder reads currently in TS (owner-only, no composition); add PG parity tests. Do not delete TS consumers yet."
+          "reason": "handoff",
+          "nextAction": "Port integrated; cutover queued."
         },
         "scopeRefinementRequired": false
       },
@@ -147437,17 +147446,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 16,
+        "in_progress": 15,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 708,
+        "blocked": 709,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 162,
-    "updatedAt": "2026-11-24T04:33:29.953Z",
+    "updatedAt": "2026-11-24T04:33:45.851Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
