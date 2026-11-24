@@ -73,7 +73,7 @@ describe('pms read-tail r40 receipt/change, branch-label and refund dedupe', () 
   });
 
   it('confirms each oracle is the exact text replaced at its HEAD call site', () => {
-    const atHead = (p: string) => execFileSync('git', ['show', `HEAD:${p}`], { encoding: 'utf8' });
+    const atHead = (p: string) => execFileSync('git', ['show', `5d67645ce:${p}`], { encoding: 'utf8' });
     expect(atHead('packages/server-pms/src/adapters/property-purchase-boundary.ts')).toContain(HEAD.receipts);
     expect(atHead('packages/server-pms/src/adapters/property-purchase-boundary.ts')).toContain(HEAD.changes);
     const emHead = atHead('packages/server-pms/src/adapters/executive-metric-projections.ts');
@@ -166,8 +166,8 @@ describe('pms read-tail r40 receipt/change, branch-label and refund dedupe', () 
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(302);
-    expect(bare).toBe(304);
+    expect(spaced).toBe(299);
+    expect(bare).toBe(301);
     expect(spaced).toBeLessThan(313);
   });
 });

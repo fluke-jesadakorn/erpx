@@ -11,6 +11,7 @@ import { PMS_RECORD_ID_PROPERTY_HEAD_SQL } from "../pms-read-tail-r35-sql";
 import { PMS_STAY_SOURCE_PROJECTION_SQL } from "../pms-read-tail-r38-sql";
 import { pmsGuestIdJoinSql } from "../pms-read-tail-r41-sql";
 import { PMS_ORDERED_RECORDS_TAIL_SQL, pmsStayExistsHeadSql } from "../pms-read-tail-r42-sql";
+import { pmsBookingEmailPendingSql } from "../pms-read-tail-r43-sql";
 import { nativePmsReadAll, PMS_RD_INVENTORY_COMMAND } from "../native-pms-read";
 import * as application from "@erpx/server-pms/application/read-repository";
 const stayPredicate = `(data_json::jsonb->>'state' IN ('reserved','in_house') OR
@@ -111,7 +112,7 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
             propertyId2: string;
         }) => db.prepare(`${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? AND (
    kind IN ('room_type','room','rate') OR (kind='reservation' AND id IN (
-     SELECT reservation_id FROM pms_booking_emails WHERE property_id=? AND state!='sent' ORDER BY created_at DESC LIMIT 50
+     ${pmsBookingEmailPendingSql('reservationId')}
    ))) ORDER BY updated_at,id`).bind(facts.propertyId, facts.propertyId2).all<PmsStoredRecord>().then(rows => rows.results.map(decodePmsRecord)),
         operationRelatedRecords: (facts: {
             propertyId: string;

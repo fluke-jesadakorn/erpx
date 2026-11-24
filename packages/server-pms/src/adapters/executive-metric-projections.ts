@@ -8,6 +8,7 @@ import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import { pmsBranchLabelSql } from "./pms-read-tail-r40-sql";
+import { pmsNightLineageStepSql, pmsNightSourceWitnessSql } from "./pms-read-tail-r43-sql";
 /** Closed branch label shared by the occupancy and guest-account-balance metrics. No caller SQL is accepted. */
 const EXEC_BRANCH_LABEL_SQL = pmsBranchLabelSql('n');
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
@@ -57,16 +58,13 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
       ), entry_lineage(entry_id,property_id,business_date,net_raw,current_id,source_key,original_id,visited) AS (
         SELECT id,property_id,business_date,net_raw,id,source_key,original_id,ARRAY[id]::text[] FROM candidate_entries
         UNION ALL
-        SELECT l.entry_id,l.property_id,l.business_date,l.net_raw,parent.id,
-          parent.data_json::jsonb->>'sourceKey',parent.data_json::jsonb->>'originalId',l.visited||parent.id
-        FROM entry_lineage l JOIN pms_records parent ON parent.id=l.original_id AND parent.property_id=l.property_id AND parent.kind='entry'
-        WHERE COALESCE(l.source_key,'') NOT LIKE 'night:%' AND NOT (parent.id=ANY(l.visited))
+${pmsNightLineageStepSql('entry_lineage')}
       ), room_revenue AS (
         SELECT e.property_id,e.business_date,
           COALESCE(sum(CASE WHEN e.net_raw ~ '^-?(0|[1-9][0-9]*)$' THEN e.net_raw::numeric ELSE 0::numeric END),0) revenue_minor,
           count(*) FILTER (WHERE e.net_raw IS NULL OR e.net_raw !~ '^-?(0|[1-9][0-9]*)$') invalid_revenue_count
         FROM candidate_entries e
-        WHERE EXISTS(SELECT 1 FROM entry_lineage l WHERE l.entry_id=e.id AND l.source_key LIKE 'night:%')
+        WHERE ${pmsNightSourceWitnessSql('entry_lineage')}
         GROUP BY e.property_id,e.business_date
       ), audit_nights AS (
         SELECT r.id,r.property_id,p.branch_id,p.name,r.data_json::jsonb->>'date' business_date,

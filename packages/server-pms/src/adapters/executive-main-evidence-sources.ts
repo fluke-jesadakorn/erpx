@@ -5,6 +5,7 @@ import { type Filters } from "@erpx/feature-shared/lib/executive/canvas";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { hotelOccupancyMetric, HotelRoomRevenueMetric, HotelOccupancyEvidenceRow, HotelGuestAccountBalanceEvidenceRow, HotelNightAuditBlockerEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
+import { pmsNightLineageStepSql, pmsNightSourceWitnessSql } from "./pms-read-tail-r43-sql";
 function hotelOccupancyRows(db: SqlDatabase, actor: WorkContext, filters: Filters, metric: typeof hotelOccupancyMetric | HotelRoomRevenueMetric = hotelOccupancyMetric, query = "", cursor?: {
     businessDate: string;
     id: string;
@@ -152,15 +153,12 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
     ), lineage(entry_id,property_id,net_raw,current_id,source_key,original_id,visited) AS (
       SELECT id,property_id,net_raw,id,source_key,original_id,ARRAY[id]::text[] FROM candidate_entries
       UNION ALL
-      SELECT l.entry_id,l.property_id,l.net_raw,parent.id,parent.data_json::jsonb->>'sourceKey',
-        parent.data_json::jsonb->>'originalId',l.visited||parent.id
-      FROM lineage l JOIN pms_records parent ON parent.id=l.original_id AND parent.property_id=l.property_id AND parent.kind='entry'
-      WHERE COALESCE(l.source_key,'') NOT LIKE 'night:%' AND NOT (parent.id=ANY(l.visited))
+${pmsNightLineageStepSql('lineage')}
     )
     SELECT COALESCE(sum(CASE WHEN e.net_raw ~ '^-?(0|[1-9][0-9]*)$' THEN e.net_raw::numeric ELSE 0::numeric END),0)::text revenue_minor,
       count(*) FILTER (WHERE e.net_raw IS NULL OR e.net_raw !~ '^-?(0|[1-9][0-9]*)$')::text invalid_revenue_count
     FROM candidate_entries e
-    WHERE EXISTS(SELECT 1 FROM lineage l WHERE l.entry_id=e.id AND l.source_key LIKE 'night:%')`)
+    WHERE ${pmsNightSourceWitnessSql('lineage')}`)
                 .bind(propertyId, actor.companyId, actor.branchId, actor.branchId, businessDate)
                 .first<{
                 revenue_minor: string;

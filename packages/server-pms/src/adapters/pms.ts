@@ -6,6 +6,7 @@ import { PMS_IDS_JSONB_MEMBER_SQL } from "./pms-read-tail-r26-sql";
 import { pmsBookingPaymentIdProbeSql } from "./pms-read-tail-r29-sql";
 import { pmsRefundPaymentJoinHeadSql } from "./pms-read-tail-r34-sql";
 import { PMS_PROPERTY_POINT_HEAD_SQL } from "./pms-read-tail-r36-sql";
+import { pmsBookingEmailPendingSql } from "./pms-read-tail-r43-sql";
 import { roomChargeReversalWork } from "@erpx/server-pos/public/room-charge-reversal-queue";
 import { withPmsPurchasedCommand } from "@erpx/server-pms/adapters/purchase-boundary";
 import { readPurchasedAccesses, pmsPackageEnforcementMode, type PurchasedAccess } from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -153,7 +154,7 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
             state: string;
             attempts: number;
             last_error: string | null;
-        }>(db, "SELECT id,reservation_id,state,attempts,last_error FROM pms_booking_emails WHERE property_id=? AND state!='sent' ORDER BY created_at DESC LIMIT 50", facts.id),
+        }>(db, `${pmsBookingEmailPendingSql('full')}`, facts.id),
         readPosConnections: facts => pos.readPosConnections(facts),
         readPmsStripeRefunds: propertyId => query(db,`${PMS_STRIPE_REFUND_COLUMNS_SQL} WHERE property_id=? AND refund_state IS NOT NULL ORDER BY updated_at DESC LIMIT 100`,propertyId),
         readPmsStripePayments: (facts: {
