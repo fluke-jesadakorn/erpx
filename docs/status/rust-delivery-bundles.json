@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12392,
+    "revision": 12394,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183541,7 +183541,7 @@
         "owner": "finance",
         "title": "finance ordered-list families",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183553,22 +183553,37 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n73",
-          "claimedAt": "2026-11-24T15:39:56.458Z",
-          "heartbeatAt": "2026-11-24T15:39:56.458Z",
-          "expiresAt": "2026-11-24T16:09:56.458Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d7ece16e5",
+            "owner": "finance",
+            "before": 1805,
+            "after": 1783,
+            "note": "17 ordered-list sites reuse r42 financeReferenceListSql; 5 active-account projections via activeAccountListSql; 1 invoice-read r42 reuse. Binds/LIMIT/status literal preserved; locks/tax/advisory/native untouched."
+          },
+          {
+            "command": "vitest finance (26) + scoped tsc (26 files) + reverse-transform byte proof (15 adapters)",
+            "result": "passed",
+            "sourceSha": "d7ece16e5"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Ordered-list company variants via r42 reuse (-17) and active account projection (-5): 1805->1783.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n73",
+          "at": "2026-11-24T15:52:15.283Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -183722,17 +183737,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 16,
+        "in_progress": 15,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1432,
+        "blocked": 1433,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T15:48:14.162Z",
+    "updatedAt": "2026-11-24T15:52:15.287Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
