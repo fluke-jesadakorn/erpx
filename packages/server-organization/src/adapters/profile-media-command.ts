@@ -10,6 +10,7 @@ import {BusinessRuleError} from '@erpx/server-shared/index';
 import {activeHoldingMember} from '@erpx/server-organization/adapters/member-profiles';
 import {createProfileMediaCommandApplication} from '@erpx/server-organization/application/profile-media-command';
 import { nativeOrgStatement } from './native-organization-owner-write';
+import { memberProfileVersionGuard } from './organization-read-tail-sources-r51';
 import type {ProfileMediaUpload, ProfileMediaRemoval, ProfileMediaResult} from '@erpx/server-organization/domain/profile-media-command';
 
 function application(actor: WorkContext, readBody: (size: number) => Promise<ArrayBuffer>) {
@@ -31,7 +32,7 @@ function application(actor: WorkContext, readBody: (size: number) => Promise<Arr
         ? await nativeOrgStatement(write, actor.companyId, uploadKind, [actor.userId, objectKey, mediaType, nextVersion, now], commandId, now)
         : await nativeOrgStatement(write, actor.companyId, uploadKind, [objectKey, mediaType, nextVersion, now, actor.userId, input.expectedVersion], commandId, now);
       return executeCommand(write, actor, commandId, 'member.profile.media', input, actor.userId, nextVersion, {version: nextVersion}, [
-        assertion(write, commandId, 'profile-version', input.expectedVersion === 0 ? 'NOT EXISTS(SELECT 1 FROM member_profiles WHERE user_id=?)' : 'EXISTS(SELECT 1 FROM member_profiles WHERE user_id=? AND version=?)', input.expectedVersion === 0 ? [actor.userId] : [actor.userId, input.expectedVersion]),
+        assertion(write, commandId, 'profile-version', input.expectedVersion === 0 ? 'NOT EXISTS(SELECT 1 FROM member_profiles WHERE user_id=?)' : memberProfileVersionGuard(''), input.expectedVersion === 0 ? [actor.userId] : [actor.userId, input.expectedVersion]),
         statement,
       ]);
     },
@@ -39,7 +40,7 @@ function application(actor: WorkContext, readBody: (size: number) => Promise<Arr
       const removalKind = input.kind === 'avatar' ? 'profile_media_remove_avatar' : 'profile_media_remove_cover';
       const statement = await nativeOrgStatement(write, actor.companyId, removalKind, [nextVersion, now, actor.userId, input.version], commandId, now);
       return executeCommand(write, actor, commandId, 'member.profile.media.remove', input, actor.userId, nextVersion, {version: nextVersion}, [
-        assertion(write, commandId, 'profile-version', `EXISTS(SELECT 1 FROM member_profiles WHERE user_id=? AND version=? AND ${input.kind}_key=?)`, [actor.userId, input.version, objectKey]),
+        assertion(write, commandId, 'profile-version', memberProfileVersionGuard(` AND ${input.kind}_key=?`), [actor.userId, input.version, objectKey]),
         statement,
       ]);
     },

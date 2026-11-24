@@ -135,7 +135,7 @@ describe('Organization read-tail r49 dedupe', () => {
     // aliases and predicates drift, so it is not a clean byte fold.
     const approvals = read('workflow-approvals-facts.ts');
     expect(createHash('sha256').update(approvals).digest('hex')).toBe(
-      'd47c360091cbef4e47be49baee6cdc088565779690669ecad3ccd20d22de8d27',
+      '345026267f15726d8126fa04c59c24ebdb3f94f0ece7ce457920cf09a0fd23af',
     );
     expect(approvals.split('EXISTS(SELECT 1 FROM authority_seats').length - 1).toBe(2);
     expect(approvals).toContain('authority_seats seat JOIN');
@@ -153,7 +153,7 @@ describe('Organization read-tail r49 dedupe', () => {
     };
     walk(srcRoot);
     // r49 collapses three pairs of read-tail SELECTs into three shared helpers (-3).
-    expect(space).toBe(230);
+    expect(space).toBe(226);
     expect(space).toBeLessThan(237);
   });
 });

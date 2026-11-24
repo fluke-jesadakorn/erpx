@@ -131,7 +131,7 @@ describe('Organization read-tail r50 dedupe', () => {
     walk(srcRoot);
     // r50 collapses three node-existence guards and three active-position
     // lookups into two shared helpers (-2, -2 = -4).
-    expect(space).toBe(230);
+    expect(space).toBe(226);
     expect(space).toBeLessThan(234);
   });
 });

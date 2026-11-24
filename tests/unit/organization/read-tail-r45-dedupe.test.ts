@@ -76,7 +76,7 @@ describe('Organization read-tail r45 parameterized head', () => {
     };
     walk(srcRoot);
     // r45 collapses two organization child-existence reads into one shared source (-1).
-    expect(space).toBe(230);
+    expect(space).toBe(226);
     expect(space).toBeLessThan(241);
   });
 });

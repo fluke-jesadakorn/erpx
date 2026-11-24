@@ -1,6 +1,7 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { activeCompanyNodes } from './organization-read-tail-sources-r42';
+import { authoritySeatCompanyRead } from './organization-read-tail-sources-r51';
 
 /** Provider listing, called only after Platform Commercial authorization. */
 export async function commercialCompanies(db: SqlDatabase) {
@@ -15,7 +16,7 @@ export async function lockLegacyOrganizationAccess(db: SqlDatabase) {
 
 /** A future HR appointment can change the published module ceiling by time alone. */
 export async function nextLegacyOrganizationTransition(db: SqlDatabase, companyId: string, observedAt: number) {
-  const row = await db.prepare("SELECT min(effective_at) AS deadline FROM authority_seats WHERE company_id=? AND kind='hr' AND scope_id=? AND effective_at>?")
+  const row = await db.prepare(authoritySeatCompanyRead('min(effective_at) AS deadline', "kind='hr' AND scope_id=? AND effective_at>?"))
     .bind(companyId, companyId, observedAt).first<{ deadline: number | null }>();
   return row?.deadline === null || row?.deadline === undefined ? null : Number(row.deadline);
 }

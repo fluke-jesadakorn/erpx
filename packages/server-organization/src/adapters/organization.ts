@@ -41,10 +41,11 @@ import {nodeChildExists} from './organization-read-tail-sources-r45';
 import {snapshotJsonByAction} from './organization-read-tail-sources-r46';
 import {fullNodeSelection} from './organization-read-tail-sources-r49';
 import {nodeExistsGuard} from './organization-read-tail-sources-r50';
+import {authoritySeatCompanyRead,activeDepartmentNode} from './organization-read-tail-sources-r51';
 import {snapshotProjection,staffLevelNumberSource} from './organization-column-alias-families';
 import {impactCount} from './organization-column-alias-families-r29';
 const HEAD_SEAT_SNAPSHOT_SOURCE =
-  "SELECT version,position_id,person_id,effective_at FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=?";
+  authoritySeatCompanyRead('version,position_id,person_id,effective_at', "kind='head' AND scope_id=?");
 const DEPARTMENT_HEAD_SNAPSHOT_SOURCE =
   snapshotProjection('version,person_id','department_heads','company_id','department_id');
 const DEPARTMENT_FLOW_SNAPSHOT_SOURCE = latestDepartmentFlow('id,version,steps_json');
@@ -83,7 +84,7 @@ clock:{now:()=>Date.now()},authorize:actor=>requirePermission(actor,'organizatio
  events:async(companyId,ids)=>(await db.prepare(`SELECT e.change_id,e.action,e.version,e.created_at,e.snapshot_json,COALESCE(p.legal_name,e.actor_id) actor_name FROM organization_node_change_events e LEFT JOIN (${people_payrollPlatformSources.hr_people}) p ON p.user_id=e.actor_id AND p.company_id=e.company_id AND p.merged_into_id IS NULL WHERE e.company_id=? AND e.change_id IN (${ids.map(()=>'?').join(',')}) ORDER BY e.version,e.created_at,e.id`).bind(companyId,...ids).all<{change_id:string;action:string;version:number;created_at:number;snapshot_json:string;actor_name:string}>()).results,
  graphGuard:(companyId,key)=>organizationGuard(db,companyId,key),replay:(actor,key,operation,id,input)=>replayCommand(db,actor,key,operation,id,input),
  branchActive:async(companyId,id)=>!!await db.prepare(NODE_BRANCH_ACTIVE).bind(id,companyId).first(),
- departmentActive:async(companyId,id,branchId)=>!!await db.prepare("SELECT 1 FROM organization_nodes WHERE company_id=? AND id=? AND kind='department' AND status='active' AND branch_id IS NOT DISTINCT FROM ?").bind(companyId,id,branchId).first(),
+ departmentActive:async(companyId,id,branchId)=>!!await db.prepare(`${activeDepartmentNode('1')} AND branch_id IS NOT DISTINCT FROM ?`).bind(companyId,id,branchId).first(),
  node:(companyId,id)=>db.prepare(fullNodeSelection("id=? AND company_id=? AND kind IN ('branch','department')")).bind(id,companyId).first<OrganizationNode>(),
  reservedDepartment:async(companyId,id)=>!!await db.prepare(`SELECT 1 FROM organization_draft_reservations r WHERE r.company_id=? AND ((r.kind='position' AND EXISTS(SELECT 1 FROM organization_positions p WHERE p.id=r.entity_id AND p.company_id=r.company_id AND p.department_id=?)) OR (r.kind='person' AND EXISTS(SELECT 1 FROM (${people_payrollPlatformSources.hr_engagements}) e WHERE e.id=r.entity_id AND e.company_id=r.company_id AND e.department_id=?))) LIMIT 1`).bind(companyId,id,id).first(),
  hasChildren:async(companyId,id)=>!!await db.prepare(nodeChildExists("status<>'archived'")).bind(companyId,id).first(),

@@ -125,7 +125,7 @@ describe('Organization read-tail r39 node and scope guard families', () => {
     walk(srcRoot);
     // r39 collapses four families (-1, -1, -2, -1 = -5) into shared sources.
     // Pin: BEFORE=262; expected after = 257; no other owner path is touched.
-    expect(space).toBe(230);
+    expect(space).toBe(226);
     expect(space).toBeLessThanOrEqual(257);
     expect(space).toBeLessThan(262);
   });

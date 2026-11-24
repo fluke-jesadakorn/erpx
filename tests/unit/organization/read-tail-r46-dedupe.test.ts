@@ -81,7 +81,7 @@ describe('Organization read-tail r46 parameterized head', () => {
     };
     walk(srcRoot);
     // r46 collapses two change-event snapshot reads into one shared source (-1).
-    expect(space).toBe(230);
+    expect(space).toBe(226);
     expect(space).toBeLessThan(240);
   });
 });
