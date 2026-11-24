@@ -69,4 +69,22 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
     expect(assistant).toContain(') calls WHERE company_id=? AND created_at>=?');
   });
+
+  /** Verbatim pre-dedupe pool-member access (policyCandidates ↔ guardDefaultPolicy). */
+  const poolMemberAccess = 'EXISTS(SELECT 1 FROM agent_pool_members m WHERE m.pool_id=x.pool_id AND m.user_id=? AND m.revoked_at IS NULL)';
+
+  it('r10: authors the byte-identical pool-member access EXISTS once', async () => {
+    const gov = await src('adapters/agent-governance.ts');
+    expect(gov).toContain(`const agentPoolMemberAccessSql = '${poolMemberAccess}';`);
+    expect(gov.match(/SELECT 1 FROM agent_pool_members m WHERE m\.pool_id=x\.pool_id/g)).toHaveLength(1);
+    expect(gov.match(/\$\{agentPoolMemberAccessSql\}/g)).toHaveLength(2);
+  });
+
+  it('r10: both consumers render the exact pre-dedupe EXISTS text', async () => {
+    const gov = await src('adapters/agent-governance.ts');
+    const rendered = (body: string) => body.replace('${agentPoolMemberAccessSql}', poolMemberAccess);
+    expect(rendered('AND (x.user_id=? OR ${agentPoolMemberAccessSql})')).toBe(`AND (x.user_id=? OR ${poolMemberAccess})`);
+    expect(gov).toContain('policyCandidates(companyId:string,userId:string)');
+    expect(gov).toContain('guardDefaultPolicy(key:string,value:"agent-default"');
+  });
 });

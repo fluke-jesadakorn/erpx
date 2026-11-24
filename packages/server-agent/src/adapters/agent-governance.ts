@@ -19,6 +19,9 @@ import {nativeOwnerWrite,nativeOwnerWriteNoopSql} from './native-owner-write';
 import {createAgentGovernanceApplication,createAssistantGovernanceGuards,type AgentGovernanceRepository} from '@erpx/server-agent/application/governance';
 import type {AssistantGovernance} from '@erpx/server-agent/domain/governance';
 export type {AssistantGovernance} from '@erpx/server-agent/domain/governance';
+/** Byte-identical Agent pool-member access EXISTS shared by policyCandidates and guardDefaultPolicy.
+ * Each call site keeps its own binds; the native policy owner remains the authority. */
+const agentPoolMemberAccessSql = 'EXISTS(SELECT 1 FROM agent_pool_members m WHERE m.pool_id=x.pool_id AND m.user_id=? AND m.revoked_at IS NULL)';
 async function exposed<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 function bindRepository(db:SqlDatabase):AgentGovernanceRepository<SqlStatement>{return {async policyCandidates(companyId:string,userId:string){return (await db.prepare(
     `SELECT x.id,x.version assignment_version,x.scope_path,x.pool_id,x.agent_version_id,
@@ -27,7 +30,7 @@ function bindRepository(db:SqlDatabase):AgentGovernanceRepository<SqlStatement>{
      FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id
      JOIN agent_catalog c ON c.id=v.agent_id LEFT JOIN agent_pools p ON p.id=x.pool_id
      WHERE x.company_id=? AND c.company_id=x.company_id AND x.status='active'
-       AND (x.user_id=? OR EXISTS(SELECT 1 FROM agent_pool_members m WHERE m.pool_id=x.pool_id AND m.user_id=? AND m.revoked_at IS NULL))
+       AND (x.user_id=? OR ${agentPoolMemberAccessSql})
      ORDER BY length(x.scope_path) DESC,x.created_at DESC,x.id`,
   ).bind(companyId,userId,userId).all<Row>()).results;},
 async activePrivateSession(sessionId:string,companyId:string,userId:string,assignmentId:string,now:number){return db.prepare("SELECT 1 FROM ai_private_session_controls c JOIN ai_private_sessions s ON s.id=c.session_id WHERE s.id=? AND s.company_id=? AND s.user_id=? AND s.assignment_id=? AND c.status='active' AND c.expires_at>?")
@@ -37,7 +40,7 @@ guardPrivateSession(key:string,value:"private-session",sessionId:string,companyI
       WHERE s.id=? AND s.company_id=? AND s.user_id=? AND s.assignment_id=? AND c.status='active' AND c.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint)`,[sessionId,companyId,userId,assignmentId]);},
 guardDefaultPolicy(key:string,value:"agent-default",companyId:string,path:string,userId:string){return assertion(db,key,value,`NOT EXISTS(SELECT 1 FROM agent_assignments x WHERE x.company_id=? AND x.status='active'
     AND (x.scope_path='/' OR ?=x.scope_path OR starts_with(?,x.scope_path||'/') OR starts_with(?,x.scope_path||'?'))
-    AND (x.user_id=? OR EXISTS(SELECT 1 FROM agent_pool_members m WHERE m.pool_id=x.pool_id AND m.user_id=? AND m.revoked_at IS NULL)))`,[companyId,path,path,path,userId,userId]);},
+    AND (x.user_id=? OR ${agentPoolMemberAccessSql}))`,[companyId,path,path,path,userId,userId]);},
 lockApprovedAssignment(assignmentId:string){return db.prepare("SELECT x.id FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id JOIN agent_catalog c ON c.id=v.agent_id WHERE x.id=? FOR SHARE OF x,v,c").bind(assignmentId);},
 lockAssignedPool(poolId:string){return db.prepare("SELECT id FROM agent_pools WHERE id=? FOR SHARE").bind(poolId);},
 guardApprovedPolicy(key:string,value:"approved-agent",assignmentId:string,companyId:string,assignmentVersion:number | null,agentVersionId:string | null,agentVersionRevision:number | null,catalogVersion:number | null,userId:string,poolId:string | null,poolVersion:number | null){return assertion(db,key,value,`EXISTS(SELECT 1 FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id JOIN agent_catalog c ON c.id=v.agent_id LEFT JOIN agent_pools p ON p.id=x.pool_id
