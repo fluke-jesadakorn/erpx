@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7432,
+    "revision": 7436,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -126732,7 +126732,7 @@
         "owner": "pms",
         "title": "pms TS read tail native cutover (round 11)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -126744,22 +126744,42 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wDY1pms",
-          "claimedAt": "2026-11-23T23:56:42.209Z",
-          "heartbeatAt": "2026-11-23T23:58:58.236Z",
-          "expiresAt": "2026-11-24T00:28:58.236Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pms/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "5a2013ecf",
+            "owner": "pms",
+            "before": 522,
+            "after": 521,
+            "note": "Hospitality setup properties list via PMS_RD_HOSPITALITY_SETUP_PROPERTIES (2 binds)."
+          },
+          {
+            "command": "cargo check -p erpx-server-pms + lib native (11)",
+            "result": "passed",
+            "sourceSha": "5a2013ecf"
+          },
+          {
+            "command": "vitest native-pms-read-plan (31) + tsc root",
+            "result": "passed",
+            "sourceSha": "5a2013ecf"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Hospitality-setup property list read; still avoid refund/FOR UPDATE; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wDY1pms",
+          "at": "2026-11-24T00:06:13.337Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -126941,6 +126961,42 @@
         "nextAction": "Next: 2-copy enrollment (platform_usage ended_at IS NULL) or selected/assigned price family; keep commercial FOR UPDATE, scan-source, app-finance untouched; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pms.read-tail-r12",
+        "goalId": "G4",
+        "owner": "pms",
+        "title": "pms TS read tail native cutover (round 12)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pms/src/**",
+          "tests/unit/pms/**",
+          "tests/integration/pms/**"
+        ],
+        "resources": [
+          "owner:pms"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wE41pms",
+          "claimedAt": "2026-11-24T00:06:13.509Z",
+          "heartbeatAt": "2026-11-24T00:06:13.509Z",
+          "expiresAt": "2026-11-24T00:36:13.509Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL read family served by the pms command-plan; avoid refund/FOR UPDATE; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -126949,7 +127005,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 688,
+      "totalPackets": 689,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -126957,13 +127013,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 327,
+        "blocked": 328,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T00:04:34.174Z",
+    "updatedAt": "2026-11-24T00:06:13.511Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
