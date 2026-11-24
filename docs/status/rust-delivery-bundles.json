@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12065,
+    "revision": 12066,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -179921,7 +179921,7 @@
         "owner": "quality",
         "title": "quality TS read tail (next round)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -179933,7 +179933,14 @@
         "resources": [
           "owner:quality"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4m06",
+          "claimedAt": "2026-11-24T13:16:34.025Z",
+          "heartbeatAt": "2026-11-24T13:16:34.025Z",
+          "expiresAt": "2026-11-24T13:46:34.025Z",
+          "generation": 169
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -179954,8 +179961,8 @@
       "totalPackets": 1720,
       "migratedPackets": 330,
       "statusCounts": {
-        "pending": 19,
-        "in_progress": 7,
+        "pending": 18,
+        "in_progress": 8,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -179965,7 +179972,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:16:11.932Z",
+    "updatedAt": "2026-11-24T13:16:34.029Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
