@@ -64,8 +64,10 @@ describe('Files read-tail r33 parameterized family', () => {
       }
     };
     walk(srcRoot);
-    expect(literal).toBe(264); // r32 left 266; r33 lowers 266->264 (two 2-token heads -> one 2-token helper).
-    expect(total).toBe(265);
+    // r34 further lowers the tail (264 -> 262): the service/messaging reference
+    // head now delegates to the byte-identical r34 helper.
+    expect(literal).toBe(262);
+    expect(total).toBe(263);
     expect(literal).toBeLessThan(266);
     expect(total).toBeLessThan(267);
   });
