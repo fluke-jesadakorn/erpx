@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7420,
+    "revision": 7424,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -126324,7 +126324,7 @@
         "owner": "marketing",
         "title": "marketing TS read tail native cutover (round 12)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -126336,22 +126336,42 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wDQ1mar",
-          "claimedAt": "2026-11-23T23:43:22.157Z",
-          "heartbeatAt": "2026-11-23T23:58:58.236Z",
-          "expiresAt": "2026-11-24T00:28:58.236Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-marketing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0a1dd2bdb",
+            "owner": "marketing",
+            "before": 112,
+            "after": 111,
+            "note": "Workspace candidate form-name projection shared by candidates and detail."
+          },
+          {
+            "command": "cargo check -p erpx-server-marketing + lib (7) + campaigns (25) + http (8)",
+            "result": "passed",
+            "sourceSha": "0a1dd2bdb"
+          },
+          {
+            "command": "vitest marketing units (54) + tsc marketing/tests-config",
+            "result": "passed",
+            "sourceSha": "0a1dd2bdb"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wDQ1mar",
+          "at": "2026-11-24T00:04:00.159Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -126773,6 +126793,42 @@
         "nextAction": "Next: two record-purchases existence checks (procurement_bill_matches / procurement_rfqs) via command-plan; keep byte parity and authorization query intact; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.marketing.read-tail-r13",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing TS read tail native cutover (round 13)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**",
+          "tests/integration/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wE11mar",
+          "claimedAt": "2026-11-24T00:04:00.334Z",
+          "heartbeatAt": "2026-11-24T00:04:00.334Z",
+          "expiresAt": "2026-11-24T00:34:00.334Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to a mounted native read; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -126781,7 +126837,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 685,
+      "totalPackets": 686,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -126789,13 +126845,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 324,
+        "blocked": 325,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T00:02:25.759Z",
+    "updatedAt": "2026-11-24T00:04:00.337Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
