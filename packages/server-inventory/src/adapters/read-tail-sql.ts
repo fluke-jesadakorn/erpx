@@ -59,3 +59,12 @@ export const qualityHeldExistsSql = (holds: string, predicate: string) =>
   `CASE WHEN EXISTS(SELECT 1 FROM (${holds}) h WHERE ${predicate}) THEN 1 ELSE 0 END quality_held`;
 export const initialPhysicalCountImageSql = (images: string) =>
   `SELECT image FROM (${images}) source WHERE id=? AND company_id=? AND EXISTS(SELECT 1 FROM inventory_counts c WHERE c.id=source.id AND (?::text IS NULL OR c.branch_id=?))`;
+/** r18: remaining parameterized EXISTS/aggregate families. The active quality-hold
+ * EXISTS guard and the pending-loss SUM are each byte-identical across their
+ * consumers; only the source relation, metric and scope vary. Every caller keeps
+ * its own source call, binds and independent statement. r11-r17 helpers above are
+ * left untouched. */
+export const activeQualityHoldExistsSql = (source: string, predicate: string) =>
+  `EXISTS(SELECT 1 ${source} WHERE ${predicate})`;
+export const pendingLossSumSql = (metric: string, from: string, where: string) =>
+  `COALESCE((SELECT SUM(${metric}) ${from} WHERE ${where}),0)`;
