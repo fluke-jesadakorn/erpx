@@ -15,7 +15,7 @@ import {peoplePackageEnforcementMode,checkPurchasedCapability,companyPurchaseRea
 import {requirePeopleCurrentAuthority} from "@erpx/server-people_payroll/public/people-purchases";
 import {benefitAttachmentPeopleSources as people} from "@erpx/server-people_payroll/public/benefits-owner-facts";
 import {benefitSourceReadLocks} from "@erpx/server-benefits/adapters/purchases";
-import {benefitAttachmentSourceSelect,workforceActorScopeProbe} from "@erpx/server-benefits/adapters/benefits-read-sql";
+import {benefitAttachmentSourceSelect,benefitSourceProbe,workforceActorScopeProbe} from "@erpx/server-benefits/adapters/benefits-read-sql";
 const tables={benefit_plan:"benefit_plans",benefit_dependent:"benefit_dependents",benefit_election:"benefit_elections"} as const;
 type Target=keyof typeof tables;
 export type BenefitAttachmentPurchase={companyId:string;capability:"people.benefits";purpose:"new-work"|"settle-existing";actor:WorkContext;targetType:Target;targetId:string;purposeKey:string;witness:string};
@@ -27,7 +27,7 @@ function source(type:Target){
 }
 /** Byte-identical owner-local source probe shared by the purchase-scope read
  * and the command-boundary source assertion; generated SQL is unchanged. */
-const benefitFileSourceProbe = (type: Target) => `SELECT 1 FROM (${source(type)}) benefit_file_source WHERE`;
+const benefitFileSourceProbe = (type: Target) => `${benefitSourceProbe(source(type),'benefit_file_source')} WHERE`;
 function access(actor:WorkContext,type:Target,purposeKey:string,read=false){
  const permission=read?"benefits.documents.read":"benefits.documents.manage",manager=hasPermission(actor,permission)?`iam_role_allows(?,?,'${permission}')`:"FALSE",args:(string|number|null)[]=hasPermission(actor,permission)?[actor.role,actor.companyId]:[];
  let self="FALSE";

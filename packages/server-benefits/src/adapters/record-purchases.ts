@@ -11,7 +11,7 @@ import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-avail
 import {benefitAttachmentPeopleSources as people} from "@erpx/server-people_payroll/public/benefits-owner-facts";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {benefitPurchaseControls,benefitAssignmentSelectSql} from "@erpx/server-benefits/adapters/purchases";
-import {workforceActorScopeProbe} from "@erpx/server-benefits/adapters/benefits-read-sql";
+import {benefitSourceProbe,workforceActorScopeProbe} from "@erpx/server-benefits/adapters/benefits-read-sql";
 /** Byte-identical owner-local source clock projection shared by the generic
  * records read scope and the private employee/reviewer read scope; generated
  * SQL is unchanged. */
@@ -30,7 +30,7 @@ const nativeSources=`${nativeSourceArm('plan','benefit_plans',true)}
  UNION ALL ${nativeSourceArm('dependent','benefit_dependents',false,true)}
  UNION ALL ${nativeSourceArm('election','benefit_elections',false,true,' JOIN benefit_plans plan ON plan.id=r.plan_id AND plan.company_id=r.company_id')}`;
 /** Byte-identical owner-local existence probe over the native-source family. */
-export const nativeSourcesProbe=(alias:string)=>`SELECT 1 FROM (${nativeSources}) ${alias}`;
+export const nativeSourcesProbe=(alias:string)=>benefitSourceProbe(nativeSources,alias);
 const benefitActualProbe=`${nativeSourcesProbe('benefit_actual')} WHERE`;
 function visible(actor:WorkContext,id:string,company:string,purchased=true,electionOnly=false){
  const current=currentAssignmentReadScope(actor,"workforce_actor_scope"),read=hasModuleAccess(actor.modules,"benefits")&&hasPermission(actor,"records.read"),review=hasPermission(actor,"benefits.review")?"iam_role_allows(?,?,'benefits.review')":"FALSE",reviewArgs=hasPermission(actor,"benefits.review")?[actor.role,actor.companyId]:[];

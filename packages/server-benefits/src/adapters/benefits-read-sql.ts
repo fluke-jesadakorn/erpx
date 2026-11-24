@@ -50,3 +50,7 @@ export const benefitAttachmentSourceSelect = (branch: string, department: string
  *  People package-settlement fact projections; generated SQL is unchanged. */
 export const benefitSubqueryNotExists = (source: string, alias: string, predicate: string) =>
   `NOT EXISTS(SELECT 1 FROM (${source}) ${alias} WHERE ${predicate})`;
+/** Parameterized owner-local source existence probe shared by the Benefits
+ *  attachment file-source and native-source read scopes; generated SQL is unchanged. */
+export const benefitSourceProbe = (source: string, alias: string) =>
+  `SELECT 1 FROM (${source}) ${alias}`;
