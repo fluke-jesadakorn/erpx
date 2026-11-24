@@ -99,6 +99,6 @@ describe('Customer Authority read-tail r30 owner existence-probe family', () => 
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(56);
-    expect(total).toBe(53);
+    expect(total).toBeLessThanOrEqual(52);
   });
 });

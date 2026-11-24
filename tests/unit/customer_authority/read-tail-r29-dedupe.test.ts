@@ -88,6 +88,6 @@ describe('Customer Authority read-tail r29 review-eligibility row family', () =>
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(57);
-    expect(total).toBe(56);
+    expect(total).toBeLessThanOrEqual(52);
   });
 });
