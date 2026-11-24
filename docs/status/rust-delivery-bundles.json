@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9805,
+    "revision": 9808,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -154675,7 +154675,7 @@
         "owner": "maintenance",
         "title": "maintenance TS read tail native cutover (round 11)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -154687,28 +154687,36 @@
         "resources": [
           "owner:maintenance"
         ],
-        "claim": {
-          "runId": "run-20261123-l",
-          "agentId": "wGCNmai2",
-          "claimedAt": "2026-11-24T05:56:19.948Z",
-          "heartbeatAt": "2026-11-24T05:56:24.357Z",
-          "expiresAt": "2026-11-24T06:26:24.357Z",
-          "generation": 164
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-maintenance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "03d5cfc93",
+            "owner": "maintenance",
+            "before": 42,
+            "after": 41,
+            "note": "Breakdown projection family shared; r3-r10 and locks untouched."
+          },
+          {
+            "command": "vitest maintenance transport (32) + tsc maintenance",
+            "result": "passed",
+            "sourceSha": "03d5cfc93"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=42.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-k",
+          "runId": "run-20261123-l",
           "agentId": "wGCNmai2",
-          "at": "2026-11-24T05:56:18.484Z",
+          "at": "2026-11-24T05:58:15.287Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired at 05:55Z; WIP reviewed in shared checkout; release claims and continue under new generation.",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=42."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -155749,7 +155757,7 @@
         "owner": "maintenance",
         "title": "maintenance TS read tail native cutover (r12)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -155761,7 +155769,14 @@
         "resources": [
           "owner:maintenance"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCQmai",
+          "claimedAt": "2026-11-24T05:58:15.654Z",
+          "heartbeatAt": "2026-11-24T05:58:15.654Z",
+          "expiresAt": "2026-11-24T06:28:15.654Z",
+          "generation": 164
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -156020,18 +156035,18 @@
       "totalPackets": 1241,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 18,
+        "pending": 17,
         "in_progress": 24,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 868,
+        "blocked": 869,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 164,
-    "updatedAt": "2026-11-24T05:57:17.402Z",
+    "updatedAt": "2026-11-24T05:58:15.660Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
