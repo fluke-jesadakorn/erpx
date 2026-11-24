@@ -1,3 +1,4 @@
+import {ppRd36NumberedTwoPred} from './pp-read-tail-r36-sources';
 import { nativePpQuery } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import { PP_RD24_PEOPLE_PERSON_USER_SAME_SQL, PP_RD24_PEOPLE_PERSON_USER_OK_SQL } from './pp-read-tail-r24-sources';
 import 'server-only';import type {PoolClient} from 'pg';import type {TechnologyStore} from '@erpx/server-identity_access/public/technology-contracts';import type {TechnologyData,AppliedPackageFact,ProvisionEngagement,ProvisionGrant,ProvisionOperation} from '@erpx/server-identity_access/public/technology-contracts';
@@ -26,7 +27,7 @@ restorationPlacement:async(facts)=>{const{actor,e}=facts;return (await c.query(
             [actor.companyId, e.id, e.person_id],
           )).rowCount;},
 positionPackage:async(facts)=>{const{actor,e}=facts;return (await c.query<{package_id:string;revision:number}>(
-            "SELECT package_id,revision FROM people_position_packages WHERE company_id=$1 AND position_id=$2",
+            ppRd36NumberedTwoPred("package_id,revision", "people_position_packages", "company_id", "position_id"),
             [actor.companyId, e.position_id],
           )).rows[0];},
 packageRevision:async(facts)=>{const{actor,binding}=facts;return (await c.query<{definition:unknown}>(

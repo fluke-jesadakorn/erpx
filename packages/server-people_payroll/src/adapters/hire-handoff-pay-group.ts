@@ -1,3 +1,4 @@
+import {ppRd36SinglePred} from './pp-read-tail-r36-sources';
 import 'server-only';
 import {randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
@@ -39,7 +40,7 @@ export async function canCreateHireHandoffPayGroup(actor:WorkContext,handoffId:s
 export async function withHireHandoffPayGroupCommand<Result extends {id:string}>(actor:WorkContext,handoffId:string,input:HireHandoffPayGroupInput,key:string,run:(database:SqlDatabase)=>Promise<Result>):Promise<Result>{
  originalCompanyAuthority(actor);const database=await owner(actor);
  try{return await database.transaction(async tx=>{
-  await leases(tx,actor.companyId);const authorized=await authority(tx,actor),before=await source(tx,actor,handoffId),receipt=await tx.prepare('SELECT record_id FROM command_receipts WHERE command_id=?').bind(key).first<{record_id:string}>(),purchase={companyId:actor.companyId,capability,purpose:receipt?'history' as const:'settle-existing' as const},fence=`hire-pay-group:${randomUUID()}`,boundary=purchaseCommandBoundary(tx,'enforced',fence,purchase)!;
+  await leases(tx,actor.companyId);const authorized=await authority(tx,actor),before=await source(tx,actor,handoffId),receipt=await tx.prepare(ppRd36SinglePred("record_id", "command_receipts", "command_id")).bind(key).first<{record_id:string}>(),purchase={companyId:actor.companyId,capability,purpose:receipt?'history' as const:'settle-existing' as const},fence=`hire-pay-group:${randomUUID()}`,boundary=purchaseCommandBoundary(tx,'enforced',fence,purchase)!;
   await checkPurchasedCapability(tx,'enforced',purchase);await tx.batch(boundary.before);let result:Result;
   if(receipt){const replay=await replayCommand<Result>(tx,actor,key,operation,receipt.record_id,hireHandoffPayGroupEnvelope(handoffId,input));if(!replay)throw new ApiError(409,'IDEMPOTENCY_CONFLICT','Review the original pay-group request.');result=replay;}
   else{

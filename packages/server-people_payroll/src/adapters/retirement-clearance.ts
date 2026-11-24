@@ -1,3 +1,4 @@
+import {ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
 import {withPeoplePurchasedRead} from "@erpx/server-people_payroll/adapters/people-purchases";
 import {filterPeopleLifecycleWork} from "@erpx/server-people_payroll/adapters/record-purchases";
 import "server-only";
@@ -29,7 +30,7 @@ function application(database: SqlDatabase) {
                 legal_name: string;
             }>();
         },
-        caseTasks(id: string, companyId: string) { return database.prepare("SELECT * FROM people_preparation_tasks WHERE case_id=? AND company_id=? ORDER BY id").bind(id, companyId).all<PreparationTask>(); },
+        caseTasks(id: string, companyId: string) { return database.prepare(ppRd36TwoPredTail("*", "people_preparation_tasks", "case_id", "company_id", " ORDER BY id")).bind(id, companyId).all<PreparationTask>(); },
         finalPays(companyId: string, id: string) {
             return database.prepare(`SELECT fp.task_id,fp.id preparation_id,fp.run_id,fp.status,fp.version,r.pay_group_id,r.currency,r.period_start,r.period_end,r.pay_date,r.status run_status,r.version run_version
    FROM hr_payroll_final_pay_preparations fp JOIN hr_payroll_runs r ON r.id=fp.run_id

@@ -1,3 +1,4 @@
+import {ppRd36SinglePred, ppRd36ThreePred} from './pp-read-tail-r36-sources';
 import { PP_RD20_ROSTER_ASSIGN_BY_ID_SQL, PP_RD20_ROSTER_ASSIGN_BY_SHIFT_SQL } from './pp-read-tail-r20-sources';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
@@ -93,11 +94,11 @@ function context(database: SqlDatabase, purchase?: {actor: WorkContext; input: R
             readRequestCheck2(fact0: string) { return database.prepare(PP_RD20_ROSTER_ASSIGN_BY_ID_SQL).bind(fact0).first<RosterAssignment>(); },
             applyRosterCommand(fact0: string) { return nativePpStatement('people_roster_stmt_7').bind(fact0).run(); },
             readRosterCommand(...args) { return rosterIdentityFacts(database).readRosterCommand(...args); },
-            readRosterCommand2(fact0: string, fact1: string, fact2: string) { return database.prepare("SELECT * FROM people_roster_templates WHERE id=? AND company_id=? AND department_id=?").bind(fact0, fact1, fact2).first<ShiftTemplate>(); },
+            readRosterCommand2(fact0: string, fact1: string, fact2: string) { return database.prepare(ppRd36ThreePred("*", "people_roster_templates", "id", "company_id", "department_id")).bind(fact0, fact1, fact2).first<ShiftTemplate>(); },
             applyRosterCommand2(fact0: string, fact1: string, fact2: string, fact3: string, fact4: string, fact5: string, fact6: number, fact7: boolean, fact8: number, fact9: string, fact10: number) {
                 return nativePpStatement('people_roster_stmt_8').bind(fact0, fact1, fact2, fact3, fact4, fact5, fact6, fact7, fact8, fact9, fact10).run();
             },
-            readRosterCommand3(fact0: string) { return database.prepare("SELECT 1 FROM pg_timezone_names WHERE name=?").bind(fact0).first<Record<string, unknown>>(); },
+            readRosterCommand3(fact0: string) { return database.prepare(ppRd36SinglePred("1", "pg_timezone_names", "name")).bind(fact0).first<Record<string, unknown>>(); },
             readRosterCommand4(fact0: string, fact1: string, fact2: string) { return database.prepare("SELECT 1 FROM people_roster_weeks WHERE company_id=? AND department_id=? AND week_start=?::date").bind(fact0, fact1, fact2).first<Record<string, unknown>>(); },
             applyRosterCommand3(fact0: string, fact1: string, fact2: string | null, fact3: string, fact4: string, fact5: string, fact6: string, fact7: number, fact8: number) { return nativePpStatement('people_roster_stmt_9').bind(fact0, fact1, fact2, fact3, fact4, fact5, fact6, fact7, fact8).run(); },
             async readRosterCommand5(fact0: string) { return (await database.prepare("SELECT * FROM people_roster_shifts WHERE week_id=? AND state='active' ORDER BY starts_at,id").bind(fact0).all<RosterShift>()).results; },

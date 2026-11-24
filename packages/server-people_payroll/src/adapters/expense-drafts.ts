@@ -1,3 +1,4 @@
+import {ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
 import { PP_RD23_FINANCE_EXPENSE_DRAFT_REJECTED_GUARD } from './pp-read-tail-r23-sources';
 import { ppRd29FinancePartySupplierSql } from './pp-read-tail-r29-sources';
 import { expenseDrafts } from '@erpx/server-collaboration/adapters/native-expense-drafts';
@@ -52,7 +53,7 @@ function originalNativeExpenseDrafts(write: SqlDatabase) {
     ...expenseCommandPort(write),
     expense: (actor, id) => expenseFromDatabase(write, actor, id),
     authority: actor => expenseAuthoritySnapshot(write, actor.companyId),
-    claimant: (actor, id) => write.prepare("SELECT id,user_id,legal_name FROM hr_people WHERE id=? AND company_id=? AND merged_into_id IS NULL").bind(id, actor.companyId).first<{ id: string; user_id: string | null; legal_name: string }>(),
+    claimant: (actor, id) => write.prepare(ppRd36TwoPredTail("id,user_id,legal_name", "hr_people", "id", "company_id", " AND merged_into_id IS NULL")).bind(id, actor.companyId).first<{ id: string; user_id: string | null; legal_name: string }>(),
     async staff(actor, claimant) {
       try { return await activeStaff(write, actor.companyId, claimant); }
       catch (error) { if (error instanceof ApiError) return null; throw error; }

@@ -1,3 +1,4 @@
+import {ppRd36SinglePred} from './pp-read-tail-r36-sources';
 import { PP_RD23_HR_COMP_REVISIONS_SQL, PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL, PP_RD23_HR_PAY_GROUPS_IMAGE_SQL, PP_RD23_HR_TIME_ENTRIES_OVERTIME_SQL, PP_RD23_OVERTIME_PAYROLL_HANDOFFS_SQL } from './pp-read-tail-r23-sources';
 import { ppRd27IdVersionStatusInGuard } from './pp-read-tail-r27-sources';
 import { ppRd33FourColByIdCompany } from './pp-read-tail-r33-sources';
@@ -93,9 +94,9 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
         readSourceBlockersHandoffs(engagementId: string, period_start: string, period_end: string) { return database.prepare(PP_RD23_OVERTIME_PAYROLL_HANDOFFS_SQL).bind(engagementId, period_start, period_end).all(); },
         readSourceBlockersBenefits(...args) { return payrollBenefitSources(database).readSourceBlockersBenefits(...args); },
         readSourceBlockersAdvances(company_id: string, engagementId: string, period_end: string, period_start: string, id: string) { return database.prepare(PP_RD28_ADVANCE_REPAYMENTS_SQL).bind(company_id, engagementId, period_end, period_start, id).all(); },
-        readAssertPayrollSourceFreshRun(runId: string) { return database.prepare("SELECT id,company_id,pay_group_id,country_pack_id,scope_engagement_id,period_start,period_end,pay_date,currency,mode,status,version,revision,input_digest,submitted_by,submitted_digest,adjustment_of_run_id FROM hr_payroll_runs WHERE id=?").bind(runId).first<Run>(); },
+        readAssertPayrollSourceFreshRun(runId: string) { return database.prepare(ppRd36SinglePred("id,company_id,pay_group_id,country_pack_id,scope_engagement_id,period_start,period_end,pay_date,currency,mode,status,version,revision,input_digest,submitted_by,submitted_digest,adjustment_of_run_id", "hr_payroll_runs", "id")).bind(runId).first<Run>(); },
         readPayrollSourceGuardsRun(runId: string) {
-            return database.prepare("SELECT id,company_id,pay_group_id,country_pack_id,pay_date,mode,period_start,period_end,currency,scope_engagement_id,adjustment_of_run_id FROM hr_payroll_runs WHERE id=?").bind(runId).first<{
+            return database.prepare(ppRd36SinglePred("id,company_id,pay_group_id,country_pack_id,pay_date,mode,period_start,period_end,currency,scope_engagement_id,adjustment_of_run_id", "hr_payroll_runs", "id")).bind(runId).first<{
                 id: string;
                 company_id: string;
                 pay_group_id: string;

@@ -1,3 +1,4 @@
+import {ppRd36NumberedTwoPred} from './pp-read-tail-r36-sources';
 import { PP_RD23_IAM_REVIEWS_BY_ID_SQL } from './pp-read-tail-r23-sources';
 import "server-only";
 import {randomUUID} from "node:crypto";
@@ -59,14 +60,14 @@ export async function preparePeopleIamCommand(client:PoolClient,actor:IamActor,k
  const value=input as Record<string,unknown>;
  if(operation.startsWith("people.package.")){
   const packageInput=value.input as Record<string,unknown>,id=String(packageInput.id??`package-${key}`);
-  return prepare(client,actor,key,"foundation.identity","new-work",async()=>({package:(await client.query("SELECT * FROM people_access_packages WHERE company_id=$1 AND id=$2",[actor.companyId,id])).rows[0]??null,revisions:(await client.query("SELECT * FROM people_package_revisions WHERE company_id=$1 AND package_id=$2 ORDER BY revision",[actor.companyId,id])).rows}));
+  return prepare(client,actor,key,"foundation.identity","new-work",async()=>({package:(await client.query(ppRd36NumberedTwoPred("*", "people_access_packages", "company_id", "id"),[actor.companyId,id])).rows[0]??null,revisions:(await client.query("SELECT * FROM people_package_revisions WHERE company_id=$1 AND package_id=$2 ORDER BY revision",[actor.companyId,id])).rows}));
  }
  if(operation.startsWith("people.position.")){
   const id=String(value.positionId);
-  return prepare(client,actor,key,"foundation.identity",operation.endsWith("preview")?"history":"new-work",async()=>({position:(await client.query("SELECT * FROM organization_positions WHERE company_id=$1 AND id=$2",[actor.companyId,id])).rows[0]??null,binding:(await client.query("SELECT * FROM people_position_packages WHERE company_id=$1 AND position_id=$2",[actor.companyId,id])).rows[0]??null,package:(await client.query("SELECT * FROM people_package_revisions WHERE company_id=$1 AND package_id=$2 AND revision=$3",[actor.companyId,value.packageId,value.revision])).rows[0]??null}));
+  return prepare(client,actor,key,"foundation.identity",operation.endsWith("preview")?"history":"new-work",async()=>({position:(await client.query(ppRd36NumberedTwoPred("*", "organization_positions", "company_id", "id"),[actor.companyId,id])).rows[0]??null,binding:(await client.query(ppRd36NumberedTwoPred("*", "people_position_packages", "company_id", "position_id"),[actor.companyId,id])).rows[0]??null,package:(await client.query("SELECT * FROM people_package_revisions WHERE company_id=$1 AND package_id=$2 AND revision=$3",[actor.companyId,value.packageId,value.revision])).rows[0]??null}));
  }
  if(operation==="people.lifecycle.request-access"){
-  const id=String(value.id),row=(await client.query("SELECT kind FROM people_lifecycle_cases WHERE company_id=$1 AND id=$2",[actor.companyId,id])).rows[0];
+  const id=String(value.id),row=(await client.query(ppRd36NumberedTwoPred("kind", "people_lifecycle_cases", "company_id", "id"),[actor.companyId,id])).rows[0];
   if(!row)throw new ApiError(404,"PEOPLE_SOURCE_NOT_FOUND","The lifecycle source was not found in this Company.");
   const source=lifecycleSource(client,actor.companyId,id);
   return prepare(client,actor,key,"people.lifecycle",["offboarding","suspend"].includes(row.kind)?"settle-existing":"new-work",source.source,source.identity);
@@ -79,7 +80,7 @@ export async function preparePeopleLifecycleIamReview(client:PoolClient,actor:Ia
  const database=transactionDatabase(client);await database.batch(companyPurchaseReadLocks(database,actor.companyId));
  const row=(await client.query(PP_RD23_IAM_REVIEWS_BY_ID_SQL,[reviewId,actor.companyId])).rows[0];
  if(!row||!String(row.kind).startsWith("people.lifecycle."))return;
- const caseId=String(row.payload.caseId),actual=(await client.query("SELECT kind FROM people_lifecycle_cases WHERE id=$1 AND company_id=$2",[caseId,actor.companyId])).rows[0];
+ const caseId=String(row.payload.caseId),actual=(await client.query(ppRd36NumberedTwoPred("kind", "people_lifecycle_cases", "id", "company_id"),[caseId,actor.companyId])).rows[0];
  if(!actual)throw new ApiError(404,"PEOPLE_SOURCE_NOT_FOUND","The lifecycle source was not found in this Company.");
  const original=lifecycleSource(client,actor.companyId,caseId),review=async()=>(await client.query(PP_RD23_IAM_REVIEWS_BY_ID_SQL,[reviewId,actor.companyId])).rows[0]??null;
  return prepare(client,actor,key,"people.lifecycle",decision==="reject"||["offboarding","suspend"].includes(actual.kind)?"settle-existing":"new-work",async()=>({review:await review(),...await original.source()}),async()=>({case:await original.identity(),review:await review()}),decision!=="approve"?undefined:async()=>{

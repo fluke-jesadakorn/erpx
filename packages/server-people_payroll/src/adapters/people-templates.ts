@@ -1,3 +1,4 @@
+import {ppRd36NumberedTwoPred} from './pp-read-tail-r36-sources';
 import { nativePpQuery } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import "server-only";
 import { createHash, randomUUID } from "node:crypto";
@@ -36,7 +37,7 @@ function repository(client: PoolClient | Pool): PeopleTemplateRepository {
             ]);
         },
         adoptionTemplate(templateId: string, holdingId: string | null) {
-            return client.query<TemplateRow>("SELECT * FROM people_holding_templates WHERE id=$1 AND holding_id=$2", [templateId, holdingId]);
+            return client.query<TemplateRow>(ppRd36NumberedTwoPred("*", "people_holding_templates", "id", "holding_id"), [templateId, holdingId]);
         },
         settings(companyId: string) {
             return client.query<SettingsRow>("SELECT * FROM people_lifecycle_settings WHERE company_id=$1 FOR UPDATE", [companyId]);

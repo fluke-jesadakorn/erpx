@@ -1,3 +1,4 @@
+import {ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
 import 'server-only';
 import {createHash} from 'node:crypto';
 import {nativePeoplePayrollReadAll,PEOPLE_PAYROLL_RD_PROJECT_WORKER_PERSON_USER} from './native-people-payroll-read';
@@ -14,7 +15,7 @@ export async function projectWorkerState(database:SqlDatabase,actor:WorkContext,
  let personId='personId' in selection?selection.personId:undefined,accountId='accountId' in selection?selection.accountId:undefined;
  if(personId&&!accountId){const person=await projectWorkerPersonUser(database,personId,actor.companyId);const retained=await database.prepare(`SELECT account_id FROM (${projectWorkerSourceRows}) source WHERE source.person_id=? AND source.company_id=?`).bind(personId,actor.companyId).first<{account_id:string}>();accountId=retained?.account_id??person?.user_id??undefined;}
  const retainedSelection='personId'in selection&&!('accountId'in selection);const account=accountId?await (retainedSelection?projectWorkerStartupRetainedSubject:projectWorkerStartupSubject)(database,actor.companyId,accountId):null;
- const people=account?(await database.prepare('SELECT * FROM hr_people WHERE company_id=? AND merged_into_id IS NULL AND (user_id=? OR lower(email)=lower(?) OR id=?) ORDER BY id').bind(actor.companyId,account.id,account.email,personId??'').all<Record<string,unknown>>()).results:personId?(await database.prepare('SELECT * FROM hr_people WHERE company_id=? AND id=? AND merged_into_id IS NULL').bind(actor.companyId,personId).all<Record<string,unknown>>()).results:[];
+ const people=account?(await database.prepare('SELECT * FROM hr_people WHERE company_id=? AND merged_into_id IS NULL AND (user_id=? OR lower(email)=lower(?) OR id=?) ORDER BY id').bind(actor.companyId,account.id,account.email,personId??'').all<Record<string,unknown>>()).results:personId?(await database.prepare(ppRd36TwoPredTail("*", "hr_people", "company_id", "id", " AND merged_into_id IS NULL")).bind(actor.companyId,personId).all<Record<string,unknown>>()).results:[];
  if(!personId&&account){const linked=people.filter(row=>row.user_id===account.id||account.personIds.includes(String(row.id)));if(linked.length===1)personId=String(linked[0].id);}
  const person=people.find(row=>row.id===personId)??null;
  const engagements=person?(await database.prepare("SELECT * FROM hr_engagements WHERE company_id=? AND person_id=? AND status!='ended' ORDER BY id").bind(actor.companyId,person.id).all<Record<string,unknown>>()).results:[];

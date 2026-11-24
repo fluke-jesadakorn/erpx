@@ -1,3 +1,4 @@
+import {ppRd36ThreePred} from './pp-read-tail-r36-sources';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { requirePerformanceHistory, withPerformancePurchasedRead } from '@erpx/server-people_payroll/adapters/performance-purchases';
 import {peoplePayrollFinalOwnerProjections as organizationFinalOwnerProjections} from "@erpx/server-organization/public/people-payroll-final-owner-projections";
@@ -31,7 +32,7 @@ export function nativeEvaluationReadRepository(database:SqlDatabase):PeopleEvalu
     AND (?<>'people_manager' OR e.person_id IN (SELECT person_id FROM team)) ORDER BY p.legal_name,e.id`)
                 .bind(companyId, userId, companyId2, companyId3, branchId, branchId2, departmentId, departmentId2, role).all<Row>();
         },readEvaluationDefinitionRow(id: string, kind: "skill" | "benchmark" | "policy" | "role" | "band" | "cycle", companyId: string, value: number[], v: number | undefined) {
-            return database.prepare(v ? "SELECT id,kind,version,payload_json,created_at updated_at FROM hr_evaluation_definition_history WHERE id=? AND kind=? AND company_id=? AND version=?" : "SELECT id,kind,version,payload_json,updated_at FROM hr_evaluation_definitions WHERE id=? AND kind=? AND company_id=?")
+            return database.prepare(v ? "SELECT id,kind,version,payload_json,created_at updated_at FROM hr_evaluation_definition_history WHERE id=? AND kind=? AND company_id=? AND version=?" : ppRd36ThreePred("id,kind,version,payload_json,updated_at", "hr_evaluation_definitions", "id", "kind", "company_id"))
                 .bind(id, kind, companyId, ...value).first<{
                 id: string;
                 kind: DefinitionKind;

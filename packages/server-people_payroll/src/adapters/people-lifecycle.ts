@@ -1,3 +1,4 @@
+import {ppRd36SinglePred, ppRd36ThreePred, ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
 import { PP_RD23_HR_ENGAGEMENTS_ACTIVE_FOR_PERSON_NOT_EXISTS } from './pp-read-tail-r23-sources';
 import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
 import { PP_RD29_LIFECYCLE_CASE_FOR_ENGAGEMENT_SQL } from './pp-read-tail-r29-sources';
@@ -101,7 +102,7 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
                 .all<PreparationTask>();
         },
         readPeopleLifecycleDataSettings(companyId: string) {
-            return database.prepare("SELECT version,definition FROM people_lifecycle_settings WHERE company_id=?")
+            return database.prepare(ppRd36SinglePred("version,definition", "people_lifecycle_settings", "company_id"))
                 .bind(companyId)
                 .first<{
                 version: number;
@@ -153,7 +154,7 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
             }>();
         },
         readPackageImpactSnapshots(companyId: string, id: string) {
-            return database.prepare("SELECT definition FROM people_package_revisions WHERE company_id=? AND package_id=? ORDER BY revision")
+            return database.prepare(ppRd36TwoPredTail("definition", "people_package_revisions", "company_id", "package_id", " ORDER BY revision"))
                 .bind(companyId, id)
                 .all<{
                 definition: AccessPackageDefinition;
@@ -190,7 +191,7 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
         readPreviewLifecycleRecommendedPay(...args) { return peopleLifecycleOrganizationFacts(database, client).readPreviewLifecycleRecommendedPay(...args); },
         readPreviewLifecycleRecommendedLeave(...args) { return peopleLifecycleOrganizationFacts(database, client).readPreviewLifecycleRecommendedLeave(...args); },
         readPreviewLifecycleRevision(companyId: string, package_id: string, revision: number | null) {
-            return database.prepare("SELECT definition FROM people_package_revisions WHERE company_id=? AND package_id=? AND revision=?")
+            return database.prepare(ppRd36ThreePred("definition", "people_package_revisions", "company_id", "package_id", "revision"))
                 .bind(companyId, package_id, revision)
                 .first<{
                 definition: AccessPackageDefinition;
@@ -264,7 +265,7 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
         },
         stageSaveLifecycleEffect9(value: "retirement" | "other", id: string, companyId: string) { return nativePpStatement('people_lifecycle_stmt_6').bind(value, id, companyId); },
         readSaveLifecycleSettings(companyId: string) {
-            return database.prepare("SELECT definition FROM people_lifecycle_settings WHERE company_id=?")
+            return database.prepare(ppRd36SinglePred("definition", "people_lifecycle_settings", "company_id"))
                 .bind(companyId)
                 .first<{
                 definition: PeopleLifecycleData["settings"];

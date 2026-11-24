@@ -1,3 +1,4 @@
+import {ppRd36ThreePred} from './pp-read-tail-r36-sources';
 import { PP_RD23_HR_ENGAGEMENTS_ID_COMPANY_EXISTS, PP_RD23_LEAVE_TYPES_ID_COMPANY_EXISTS } from './pp-read-tail-r23-sources';
 import { ppRd27LeaveRequestListSql, ppRd27IdByIdCompanySql } from './pp-read-tail-r27-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
@@ -157,7 +158,7 @@ function serviceContext(provided?: SqlDatabase,providedOwned=false): LeaveSelfSe
         stageSaveSelfServiceLeaveEffect5(value: string, id: string, companyId: string, date: string, segment: "full" | "first_half" | "second_half", units: number, source: "roster" | "workweek") { return nativePpStatement('leave_ss_stmt_4').bind(value, id, companyId, date, segment, units, source); },
         stageSaveSelfServiceLeaveEffect6(value: string, companyId: string, engagement_id: string, leaveTypeId: string, id: string, value2: number, value3: string, year: number, value4: string, value5: "Pending leave reservation", userId: string, now: number) { return nativePpStatement('leave_ss_stmt_5').bind(value, companyId, engagement_id, leaveTypeId, id, value2, value3, year, value4, value5, userId, now); },
         readNormalizeLegacyLeaveExisting(recordId: string, companyId: string, userId: string) {
-            return database.prepare('SELECT leave_type_id,end_date,start_segment,end_segment FROM leave_requests WHERE id=? AND company_id=? AND created_by=?').bind(recordId, companyId, userId).first<{
+            return database.prepare(ppRd36ThreePred("leave_type_id,end_date,start_segment,end_segment", "leave_requests", "id", "company_id", "created_by")).bind(recordId, companyId, userId).first<{
                 leave_type_id: string;
                 end_date: string;
                 start_segment: 'full' | 'first_half' | 'second_half';

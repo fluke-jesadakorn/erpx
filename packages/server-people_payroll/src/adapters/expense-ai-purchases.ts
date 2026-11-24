@@ -1,3 +1,4 @@
+import {ppRd36SinglePred} from './pp-read-tail-r36-sources';
 import {lockPackageSettlementSources} from '@erpx/server-commercial/public/package-locks';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import 'server-only';
@@ -7,7 +8,7 @@ import {peoplePackageEnforcementMode,checkPurchasedCapability,companyPurchaseRea
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {requireJobAuthority} from '@erpx/server-identity_access/public/iam-jobs';
 import {withExpensePurchasedCommand,expenseFinalRead} from '@erpx/server-people_payroll/adapters/expense-purchases';
-const source=`SELECT jsonb_build_object('id',id,'companyId',company_id,'expenseId',expense_id,'paymentId',payment_draft_id,'actor',actor_json,'evidence',evidence_digest,'provider',provider_json,'financePolicy',finance_policy_version,'stage',stage)::text image,actor_json,company_id FROM expense_ai_proposals WHERE id=?`;
+const source=ppRd36SinglePred("jsonb_build_object('id',id,'companyId',company_id,'expenseId',expense_id,'paymentId',payment_draft_id,'actor',actor_json,'evidence',evidence_digest,'provider',provider_json,'financePolicy',finance_policy_version,'stage',stage)::text image,actor_json,company_id", "expense_ai_proposals", "id");
 /** The actual queued author and immutable native job source choose this unit;
  * no caller Company label or generated system actor can acquire it. Provider
  * I/O remains outside these short claim/renew/completion transactions. */

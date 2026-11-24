@@ -1,3 +1,4 @@
+import {ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
 import {nativeCalendarRetirementNotification} from "./native-calendar-retirement-notification";
 import {ppRd32TwoColProjection} from './pp-read-tail-r32-sources';
 import { nativePeopleBatchB } from '@erpx/server-collaboration/adapters/native-people-batch-b';
@@ -24,7 +25,7 @@ export function calendarCommandsPeoplePayrollFacts(db: SqlDatabase, actor?: Work
         read7: (facts: {
             value1: string;
             value2: string;
-        }) => db.prepare("SELECT id FROM hr_people WHERE company_id=? AND user_id=? AND merged_into_id IS NULL").bind(facts.value1, facts.value2).first<{
+        }) => db.prepare(ppRd36TwoPredTail("id", "hr_people", "company_id", "user_id", " AND merged_into_id IS NULL")).bind(facts.value1, facts.value2).first<{
             id: string;
         }>(),
         write8: (facts: {

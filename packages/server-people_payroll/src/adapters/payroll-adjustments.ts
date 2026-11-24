@@ -1,3 +1,4 @@
+import {ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
 import { PP_RD22_ACTIVE_PERSON_VERSION_GUARD } from './pp-read-tail-r22-sources';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { ppRd35PayrollItemsByRun } from './pp-read-tail-r35-sources';
@@ -35,7 +36,7 @@ function application(provided?: SqlDatabase) {
                 source: string;
             }>();
         },
-        readOriginalSourceSlips(runId: string, itemId: string) { return database.prepare("SELECT id,source_digest,export_sha256 FROM hr_issued_payslips WHERE run_id=? AND item_id=? ORDER BY id").bind(runId, itemId).all<Row>(); },
+        readOriginalSourceSlips(runId: string, itemId: string) { return database.prepare(ppRd36TwoPredTail("id,source_digest,export_sha256", "hr_issued_payslips", "run_id", "item_id", " ORDER BY id")).bind(runId, itemId).all<Row>(); },
         readTimeSourcesEntries(engagement_id: unknown, company_id: unknown, ids: string[]) { return database.prepare(`SELECT id,version,work_date,regular_hours,overtime_hours,cost_assignment_id,cost_branch_id,cost_department_id FROM hr_time_entries WHERE engagement_id=? AND company_id=? AND status='approved' ${ids.length ? `AND id IN (${ids.map(() => "?").join(",")})` : "AND FALSE"} ORDER BY id`).bind(engagement_id, company_id, ...ids).all<Row>(); },
         stageRevisionStatementsEffect(id: string, runId: string, revision: number, taxableArrearsMinor: number, nonTaxableArrearsMinor: number, socialSecurityWageMinor: number, value: string, reason: string, evidenceRef: string, userId: string, key: string, now: number) { return nativePpStatement('pp_payroll_adjustments_stmt_1').bind(id, runId, revision, taxableArrearsMinor, nonTaxableArrearsMinor, socialSecurityWageMinor, value, reason, evidenceRef, userId, key, now); },
         stageRevisionStatementsEffect2(runId: string, revision: number, timeId: string) { return nativePpStatement('pp_payroll_adjustments_stmt_2').bind(runId, revision, timeId); },

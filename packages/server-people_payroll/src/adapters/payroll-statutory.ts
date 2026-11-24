@@ -1,3 +1,4 @@
+import {ppRd36SinglePred} from './pp-read-tail-r36-sources';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { ppRd34ActivePayGroupProjection } from './pp-read-tail-r34-sources';
 import { ppRd35PayrollItemsByRun } from './pp-read-tail-r35-sources';
@@ -23,7 +24,7 @@ export { thaiPayrollProfileSchema, thaiPayrollProfileDecisionSchema } from '@erp
 export type { PayrollStatutoryRun, ThaiPayrollEvidence } from '@erpx/server-people_payroll/domain/payroll-statutory';
 function application(provided?: SqlDatabase) {
     let database = provided!;
-    const repository: PayrollStatutoryRepository<SqlStatement> = { countryPack(country_pack_id: string) { return database.prepare("SELECT id,country_code,version,status,rules_json,adapter_id,source_digest,record_version FROM hr_country_packs WHERE id=?").bind(country_pack_id).first<PackRow>(); },
+    const repository: PayrollStatutoryRepository<SqlStatement> = { countryPack(country_pack_id: string) { return database.prepare(ppRd36SinglePred("id,country_code,version,status,rules_json,adapter_id,source_digest,record_version", "hr_country_packs", "id")).bind(country_pack_id).first<PackRow>(); },
         payGroup(pay_group_id: string, company_id: string) { return database.prepare(ppRd34ActivePayGroupProjection('country_code,currency,frequency')).bind(pay_group_id, company_id).first<{
             country_code: string;
             currency: string;
@@ -51,7 +52,7 @@ function application(provided?: SqlDatabase) {
         guardApprovedProfile(key: string, value: string, id: string, company_id: string, engagementId: string, version: number) { return assertion(database, key, value, ppRd27IdCompanyEngagementApprovedVersionGuard('hr_thai_payroll_profiles'), [id, company_id, engagementId, version]); },
         guardRetainedYtdCount(key: string, value: string, company_id: string, engagementId: string, opening_through_date: string, value2: string, id: string, value3: string, length: number) { return assertion(database, key, value, "(SELECT COUNT(*) FROM hr_payroll_items i JOIN hr_payroll_runs r ON r.id=i.run_id WHERE r.company_id=? AND i.engagement_id=? AND r.status='posted' AND r.currency='THB' AND r.pay_date>? AND r.pay_date<=? AND r.id<>? AND r.pay_date>=?)=?", [company_id, engagementId, opening_through_date, value2, id, value3, length]); },
         guardRetainedYtdItem(key: string, value: string, id: string, run_id: string, run_version: number, input_digest: string, result_json: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_payroll_items i JOIN hr_payroll_runs r ON r.id=i.run_id WHERE i.id=? AND i.run_id=? AND r.version=? AND r.status='posted' AND r.input_digest=? AND i.result_json=?)", [id, run_id, run_version, input_digest, result_json]); },
-        run(runId: string) { return database.prepare("SELECT mode,country_pack_id,currency FROM hr_payroll_runs WHERE id=?").bind(runId).first<{
+        run(runId: string) { return database.prepare(ppRd36SinglePred("mode,country_pack_id,currency", "hr_payroll_runs", "id")).bind(runId).first<{
             mode: string;
             country_pack_id: string | null;
             currency: string;
