@@ -227,4 +227,33 @@ describe('Organization owner-local read tail', () => {
     for (const key of keys) expect(p[key]).toBe(expected);
   });
 
+  it('shares canonical alias=n/c organization_nodes and alias=op organization_positions joins across the people/payroll final-owner source map', async () => {
+    const {peoplePayrollFinalOwnerProjections} = await import('../../../packages/server-organization/src/adapters/people-payroll-final-owner-projections');
+    const p = peoplePayrollFinalOwnerProjections();
+    const nodesN = [
+      'executive_report_sources_organization_nodes_n_join',
+      'people_evaluation_organization_nodes_n_join',
+      'workflow_flow_routing_facts_organization_nodes_n_join',
+    ] as const;
+    const nodesC = [
+      'executive_report_sources_organization_nodes_c_join',
+      'profile_work_organization_nodes_c_join',
+      'people_directory_repository_organization_nodes_c_join',
+    ] as const;
+    const positionsOp = [
+      'profile_work_organization_positions_op_join',
+      'people_directory_repository_organization_positions_op_join',
+    ] as const;
+    const nodesExpected = 'JOIN (SELECT "id","kind","slug","display_name","parent_id","company_id","branch_id","status","hierarchy_revision" FROM organization_nodes)';
+    const firstN = p[nodesN[0]];
+    const firstC = p[nodesC[0]];
+    const firstOp = p[positionsOp[0]];
+    for (const key of nodesN) expect(p[key]).toBe(firstN);
+    for (const key of nodesC) expect(p[key]).toBe(firstC);
+    for (const key of positionsOp) expect(p[key]).toBe(firstOp);
+    expect(firstN).toBe(`${nodesExpected} n`);
+    expect(firstC).toBe(`${nodesExpected} c`);
+    expect(firstOp).toBe('JOIN (SELECT "id","company_id","branch_id","department_id","title","level_id","reports_to_position_id","is_ceo","active","version","created_by","created_at","updated_at","requirements","roster_required" FROM organization_positions) op');
+  });
+
 });
