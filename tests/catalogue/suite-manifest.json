@@ -47413,6 +47413,31 @@
       ]
     },
     {
+      "lane": "unit",
+      "owner": "learning",
+      "modules": [
+        "learning"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Learning native source and evidence reads must stay byte-identical."
+      },
+      "apps": "learn",
+      "packages": [
+        "@erpx/server-learning"
+      ],
+      "id": "learning.read-tail-r3-dedupe.unit",
+      "files": [
+        "tests/unit/learning/read-tail-r3-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "learning.rust-learning-http.unit",
       "lane": "unit",
       "owner": "learning",
@@ -78295,6 +78320,31 @@
           "H001_DB"
         ]
       }
+    },
+    {
+      "lane": "unit",
+      "owner": "sales",
+      "modules": [
+        "sales"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Sales settlement source all rows family must stay byte-identical."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-sales"
+      ],
+      "id": "sales.read-tail-r13-dedupe.unit",
+      "files": [
+        "tests/unit/sales/read-tail-r13-dedupe.test.ts"
+      ],
+      "framework": "vitest"
     },
     {
       "id": "sales.rust-customer-followups-http.unit",
