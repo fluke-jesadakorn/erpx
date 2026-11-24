@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8810,
+    "revision": 8814,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -144202,7 +144202,7 @@
         "owner": "commerce",
         "title": "commerce TS read tail native cutover",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -144214,22 +144214,37 @@
         "resources": [
           "owner:commerce"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGC4com",
-          "claimedAt": "2026-11-24T03:06:21.486Z",
-          "heartbeatAt": "2026-11-24T03:10:12.951Z",
-          "expiresAt": "2026-11-24T03:40:12.951Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-commerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "2d0240df2",
+            "owner": "commerce",
+            "before": 462,
+            "after": 457,
+            "note": "Settlement-by-order rows and schema-ready probes shared; locks and r11-r14 constants untouched; no duplicate literal pairs remain."
+          },
+          {
+            "command": "vitest commerce (32) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "2d0240df2"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=462.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; literal dedupe floor reached.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC4com",
+          "at": "2026-11-24T03:19:56.298Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; literal dedupe floor reached."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -144828,6 +144843,42 @@
         "nextAction": "Next: remaining scope predicates with exact $N numbering, point selects and version-ordered reads. BEFORE=189.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.commerce.residual-read-port",
+        "goalId": "G4",
+        "owner": "commerce",
+        "title": "commerce residual read native port",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-commerce/src/**",
+          "tests/unit/commerce/**",
+          "tests/integration/commerce/**"
+        ],
+        "resources": [
+          "owner:commerce"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC5com",
+          "claimedAt": "2026-11-24T03:19:56.709Z",
+          "heartbeatAt": "2026-11-24T03:19:56.709Z",
+          "expiresAt": "2026-11-24T03:49:56.709Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Build owner-local native read ports for a residual single-site commerce read family with PG parity; no TS deletion yet. BEFORE=457.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -144836,7 +144887,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1027,
+      "totalPackets": 1028,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -144844,13 +144895,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 647,
+        "blocked": 648,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T03:19:35.208Z",
+    "updatedAt": "2026-11-24T03:19:56.720Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
