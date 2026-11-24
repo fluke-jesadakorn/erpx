@@ -41,10 +41,15 @@ export async function serviceOwner(db: SqlDatabase, actor: WorkContext) {
     return companyAuthority(db, actor, ["holding_owner"]);
 }
 export async function requireServiceOwner(db: SqlDatabase, actor: WorkContext) { return createRequireServiceOwner({ owner: actor => serviceOwner(db, actor), error: violation => new ApiError(violation.status, violation.code, violation.message) })(actor); }
+/** One parameterized team-set aggregate family: teams/members/coverage differ
+ * only by table, projected fields and order. Rendering stays byte-identical and
+ * the native service-team authority snapshot remains the authority. */
+const serviceTeamSetSql = (table: string, fields: string, order: string) =>
+    `(SELECT erpx_json_array_agg(jsonb_build_object(${fields})) FROM (SELECT * FROM ${table} WHERE company_id=? ORDER BY ${order}))`;
 const setupSql = `SELECT jsonb_build_object(
- 'teams',(SELECT erpx_json_array_agg(jsonb_build_object('id',id,'version',version,'active',active)) FROM (SELECT * FROM service_teams WHERE company_id=? ORDER BY id)),
- 'members',(SELECT erpx_json_array_agg(jsonb_build_object('team',team_id,'user',user_id,'role',responsibility)) FROM (SELECT * FROM service_team_members WHERE company_id=? ORDER BY team_id,user_id)),
- 'coverage',(SELECT erpx_json_array_agg(jsonb_build_object('team',team_id,'category',category,'kind',scope_kind,'node',scope_node_id)) FROM (SELECT * FROM service_team_coverage WHERE company_id=? ORDER BY category,scope_kind,scope_node_id)),
+ 'teams',${serviceTeamSetSql('service_teams', "'id',id,'version',version,'active',active", 'id')},
+ 'members',${serviceTeamSetSql('service_team_members', "'team',team_id,'user',user_id,'role',responsibility", 'team_id,user_id')},
+ 'coverage',${serviceTeamSetSql('service_team_coverage', "'team',team_id,'category',category,'kind',scope_kind,'node',scope_node_id", 'category,scope_kind,scope_node_id')},
  'editors',(SELECT erpx_json_array_agg(user_id) FROM (SELECT user_id FROM (${collaborationProjectionSources.handbook_editors}) handbook_editors WHERE company_id=? ORDER BY user_id))
 ) snapshot`;
 export async function serviceAuthoritySnapshot(db: SqlDatabase, companyId: string) {
