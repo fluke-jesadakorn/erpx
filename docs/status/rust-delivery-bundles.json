@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11243,
+    "revision": 11247,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -171636,7 +171636,7 @@
         "owner": "work_projection",
         "title": "work_projection TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -171648,22 +171648,37 @@
         "resources": [
           "owner:work_projection"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMwpr6",
-          "claimedAt": "2026-11-24T10:18:10.409Z",
-          "heartbeatAt": "2026-11-24T10:20:25.536Z",
-          "expiresAt": "2026-11-24T10:50:25.536Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-work_projection/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "4ea6f3cc3",
+            "owner": "work_projection",
+            "before": 54,
+            "after": 53,
+            "note": "Point and moved-occurrence exception reads share occurrenceExceptionsSql; locks, r10 actor scope and work-item sources untouched."
+          },
+          {
+            "command": "vitest work_projection all (69) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "4ea6f3cc3"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Find a NEW byte-identical/parameterized SELECT-head family outside r1-r27; locks and work-item sources untouched. BEFORE=54.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMwpr6",
+          "at": "2026-11-24T10:26:41.201Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -171708,7 +171723,7 @@
         "owner": "files",
         "title": "files TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -171720,22 +171735,37 @@
         "resources": [
           "owner:files"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMfila",
-          "claimedAt": "2026-11-24T10:18:10.793Z",
-          "heartbeatAt": "2026-11-24T10:20:25.536Z",
-          "expiresAt": "2026-11-24T10:50:25.536Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "28362cafb",
+            "owner": "files",
+            "before": 267,
+            "after": 266,
+            "note": "Stored and retained ledger state rows share ledgerStateRowsSql; advisory locks, native writes and r26-r31 helpers untouched."
+          },
+          {
+            "command": "vitest files r31/r32 (8) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "28362cafb"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Find a NEW byte-identical/parameterized SELECT-head family outside r10-r31; advisory locks and native writes untouched. BEFORE=267.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMfila",
+          "at": "2026-11-24T10:26:41.995Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -172160,17 +172190,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 26,
+        "in_progress": 24,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1194,
+        "blocked": 1196,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T10:26:16.804Z",
+    "updatedAt": "2026-11-24T10:26:42.003Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
