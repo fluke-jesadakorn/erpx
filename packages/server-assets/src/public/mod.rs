@@ -7,6 +7,9 @@ pub mod field_service_reference;
 
 pub mod field_service_workspace;
 
+pub mod native_read;
+pub use crate::adapters::native_read::{bind, BoundPlan, ReadScope};
+
 pub mod record_source;
 
 pub mod retirement_work;

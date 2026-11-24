@@ -47,5 +47,9 @@ path = "../../tests/integration/assets/rust-asset-http-postgres.test.rs"
 name = "asset_register_policy"
 path = "../../tests/unit/assets/rust-asset-register.test.rs"
 
+[[test]]
+name = "asset_native_read_parity_postgres"
+path = "../../tests/integration/assets/rust-native-read-parity-postgres.test.rs"
+
 [lints]
 workspace = true
