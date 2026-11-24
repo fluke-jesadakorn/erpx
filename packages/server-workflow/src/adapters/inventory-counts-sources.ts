@@ -1,5 +1,5 @@
-import {inventoryReadProjection as inventorypeople_payrollProjection} from '@erpx/server-people_payroll/public/inventory-read-projections';
+import {inventoryAuditHistorySql} from './inventory-audit-history-source';
 import {nativeWorkflowWrite} from './native-workflow-write';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {CountRow} from '@erpx/server-inventory/public/count-contract';
-export function inventoryCountSources(db:SqlDatabase){return {async countHistory(companyId:string,id:string){return db.prepare(`SELECT a.id,a.action,a.created_at,COALESCE(p.legal_name,a.actor_id) actor_name FROM audit_events a ${inventorypeople_payrollProjection.historyActor} WHERE a.record_id=? ORDER BY a.created_at DESC`).bind(companyId,id).all<CountRow>();},
+export function inventoryCountSources(db:SqlDatabase){return {async countHistory(companyId:string,id:string){return db.prepare(inventoryAuditHistorySql).bind(companyId,id).all<CountRow>();},
 prepareDecisionEvidence(value:string,key:string,id:string,operation:string,userId:string,assignmentId:string,expectedVersion:number,value2:string,now:number){return nativeWorkflowWrite('wf_native_inventory_counts_sources_8', [value,key,id,operation,userId,assignmentId,expectedVersion,value2,now]);}};}
