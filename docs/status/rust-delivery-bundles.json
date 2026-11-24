@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10260,
+    "revision": 10264,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -160992,7 +160992,7 @@
         "owner": "support",
         "title": "support TS read tail native cutover (r25)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -161004,28 +161004,36 @@
         "resources": [
           "owner:support"
         ],
-        "claim": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMsup4",
-          "claimedAt": "2026-11-24T07:17:44.757Z",
-          "heartbeatAt": "2026-11-24T07:17:44.757Z",
-          "expiresAt": "2026-11-24T07:47:44.757Z",
-          "generation": 166
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d3ccf7f0f",
+            "owner": "support",
+            "before": 54,
+            "after": 53,
+            "note": "Portal and workforce actor scope CTE projections share actorScopeCteSql; locks/purchase/native kinds and r18-r24 untouched."
+          },
+          {
+            "command": "vitest support r18-r25 (36) + tsc support/tests",
+            "result": "passed",
+            "sourceSha": "d3ccf7f0f"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=54.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-m",
+          "runId": "run-20261123-n",
           "agentId": "wGCMsup4",
-          "at": "2026-11-24T07:17:38.838Z",
+          "at": "2026-11-24T07:20:38.252Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long cargo/mount integration; WIP reviewed, same agents re-claimed under gen 166",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=54."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -161115,6 +161123,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=23.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.support.read-tail-r26",
+        "goalId": "G4",
+        "owner": "support",
+        "title": "support TS read tail native cutover (round 26)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "claim": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMsup5",
+          "claimedAt": "2026-11-24T07:20:38.677Z",
+          "heartbeatAt": "2026-11-24T07:20:38.677Z",
+          "expiresAt": "2026-11-24T07:50:38.677Z",
+          "generation": 166
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=53.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -161123,7 +161167,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1343,
+      "totalPackets": 1344,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -161131,13 +161175,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 964,
+        "blocked": 965,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 166,
-    "updatedAt": "2026-11-24T07:18:14.736Z",
+    "updatedAt": "2026-11-24T07:20:38.701Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
