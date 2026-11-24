@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11371,
+    "revision": 11375,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -173059,7 +173059,7 @@
         "owner": "operations",
         "title": "operations TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -173071,22 +173071,37 @@
         "resources": [
           "owner:operations"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCEopg",
-          "claimedAt": "2026-11-24T10:31:37.080Z",
-          "heartbeatAt": "2026-11-24T10:34:05.000Z",
-          "expiresAt": "2026-11-24T11:04:05.000Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-operations/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "32b8e640e",
+            "owner": "operations",
+            "before": 109,
+            "after": 108,
+            "note": "Task and schedule pending projections share operationsReceiptVersionExists; LOCK TABLE and r29-r42 untouched."
+          },
+          {
+            "command": "vitest operations (121) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "32b8e640e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=109.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCEopg",
+          "at": "2026-11-24T10:41:44.950Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -173095,7 +173110,7 @@
         "owner": "agent",
         "title": "agent TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -173107,22 +173122,37 @@
         "resources": [
           "owner:agent"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMagt5",
-          "claimedAt": "2026-11-24T10:31:37.273Z",
-          "heartbeatAt": "2026-11-24T10:34:05.000Z",
-          "expiresAt": "2026-11-24T11:04:05.000Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-agent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "8fec35637",
+            "owner": "agent",
+            "before": 55,
+            "after": 53,
+            "note": "Settings, connection and revision witnesses share agentSourceWitnessSql; LOCK TABLE, guards, FOR SHARE locks and agentPoolMemberAccessSql untouched."
+          },
+          {
+            "command": "vitest agent r22 (32) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "8fec35637"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=55.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMagt5",
+          "at": "2026-11-24T10:41:44.400Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -173712,17 +173742,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 26,
+        "in_progress": 24,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1225,
+        "blocked": 1227,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T10:41:08.340Z",
+    "updatedAt": "2026-11-24T10:41:44.955Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
