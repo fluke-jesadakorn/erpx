@@ -279,4 +279,14 @@ describe('native Customer 360 timeline transport',()=>{
     .toMatchObject({status:409,code:'CUSTOMER_TIMELINE_CHANGED'});
   expect(nativeCustomerTimelineFailure(new Error('other'))).toBeUndefined();
  });
+
+ it('shares one canonical customer-visibility predicate across the directory and visible-customer reads',async()=>{
+  const {customerVisiblePredicate}=await import('../../../packages/server-customer_360/src/adapters/customer-read-sources');
+  const expected="(EXISTS(SELECT 1 FROM scoped_orders o WHERE o.party_id=p.id) OR EXISTS(SELECT 1 FROM scoped_leads l WHERE l.customer_id=p.id) OR EXISTS(SELECT 1 FROM scoped_service g WHERE g.customer_id=p.id) OR EXISTS(SELECT 1 FROM scoped_invoices i WHERE i.party_id=p.id) OR EXISTS(SELECT 1 FROM scoped_legal lg WHERE lg.order_id IN (SELECT id FROM scoped_orders so WHERE so.party_id=p.id)))";
+  expect(customerVisiblePredicate(true,true,true)).toBe(expected);
+  expect(customerVisiblePredicate(false,false,false)).toBe("(EXISTS(SELECT 1 FROM scoped_orders o WHERE o.party_id=p.id) OR EXISTS(SELECT 1 FROM scoped_leads l WHERE l.customer_id=p.id) OR FALSE OR FALSE OR FALSE)");
+  expect(customerVisiblePredicate(true,true,true).match(/SELECT /g)).toHaveLength(6);
+  const source=await (await import('node:fs/promises')).readFile(new URL('../../../packages/server-customer_360/src/adapters/timeline.ts',import.meta.url),'utf8');
+  expect(source.match(/customerVisiblePredicate\(serviceVisible, financeVisible, legalVisible\)/g)).toHaveLength(2);
+ });
 });
