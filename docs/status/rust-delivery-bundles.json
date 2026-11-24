@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10615,
+    "revision": 10619,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -164339,7 +164339,7 @@
         "owner": "finance",
         "title": "finance TS read tail native cutover (round 35)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -164351,22 +164351,37 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMfin7",
-          "claimedAt": "2026-11-24T08:17:01.032Z",
-          "heartbeatAt": "2026-11-24T08:17:01.032Z",
-          "expiresAt": "2026-11-24T08:47:01.032Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "45ee5ff22",
+            "owner": "finance",
+            "before": 1974,
+            "after": 1970,
+            "note": "Three workforce actor scope prefixes share WORKFORCE_ACTOR_SCOPE_SQL; tax guards, lock variants and r15-r34 untouched."
+          },
+          {
+            "command": "vitest finance native read plan (88) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "45ee5ff22"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=1974.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMfin7",
+          "at": "2026-11-24T08:24:44.386Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -164722,6 +164737,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=290.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.read-tail-r36",
+        "goalId": "G4",
+        "owner": "finance",
+        "title": "finance chart and payroll exact duplicate families (round 36)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMfin8",
+          "claimedAt": "2026-11-24T08:24:44.796Z",
+          "heartbeatAt": "2026-11-24T08:24:44.796Z",
+          "expiresAt": "2026-11-24T08:54:44.796Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Exact duplicate two-site literals: finance-reporting/pos-core-facts, accounting-profiles/finance-invoice-read, record-presentation/refund-bank-evidence, payroll remittance images. BEFORE=1970.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -164730,7 +164781,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1423,
+      "totalPackets": 1424,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 20,
@@ -164738,13 +164789,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1051,
+        "blocked": 1052,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:24:27.988Z",
+    "updatedAt": "2026-11-24T08:24:44.803Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
