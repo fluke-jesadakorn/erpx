@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10142,
+    "revision": 10146,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -157542,7 +157542,7 @@
         "owner": "talent",
         "title": "talent TS read tail native cutover (r27)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -157554,28 +157554,36 @@
         "resources": [
           "owner:talent"
         ],
-        "claim": {
-          "runId": "run-20261123-m",
-          "agentId": "wGCWtal",
-          "claimedAt": "2026-11-24T06:38:41.614Z",
-          "heartbeatAt": "2026-11-24T06:38:41.614Z",
-          "expiresAt": "2026-11-24T07:08:41.614Z",
-          "generation": 165
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-talent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "126eecd97",
+            "owner": "talent",
+            "before": 52,
+            "after": 51,
+            "note": "Hire handoff and sensitive attachment version guards share existsVersionRow; r20-r26 and locks untouched."
+          },
+          {
+            "command": "vitest talent r21-r27 (29) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "126eecd97"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=52.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-l",
+          "runId": "run-20261123-m",
           "agentId": "wGCWtal",
-          "at": "2026-11-24T06:38:39.589Z",
+          "at": "2026-11-24T06:57:08.196Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=52."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -159795,6 +159803,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=81.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.talent.read-tail-r28",
+        "goalId": "G4",
+        "owner": "talent",
+        "title": "talent TS read tail native cutover (round 28)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-talent/src/**",
+          "tests/unit/talent/**",
+          "tests/integration/talent/**"
+        ],
+        "resources": [
+          "owner:talent"
+        ],
+        "claim": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCMtal2",
+          "claimedAt": "2026-11-24T06:57:08.706Z",
+          "heartbeatAt": "2026-11-24T06:57:08.706Z",
+          "expiresAt": "2026-11-24T07:27:08.706Z",
+          "generation": 165
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=51.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -159803,7 +159847,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1319,
+      "totalPackets": 1320,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -159811,13 +159855,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 946,
+        "blocked": 947,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 165,
-    "updatedAt": "2026-11-24T06:56:50.670Z",
+    "updatedAt": "2026-11-24T06:57:08.714Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
