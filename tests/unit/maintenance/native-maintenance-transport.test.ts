@@ -724,8 +724,8 @@ describe('Maintenance record-image fixed SQL',()=>{
    }
   };
   walk(srcRoot);
-  expect(total).toBe(24);
-  expect(total).toBeLessThan(25);
+  expect(total).toBe(23);
+  expect(total).toBeLessThan(24);
  });
 });
 
@@ -905,8 +905,9 @@ describe('Maintenance work/asset source fixed SQL',()=>{
   expect(source.match(/`SELECT \$\{fields\} FROM maintenance_work_orders w JOIN \(\$\{assetsProjectionSources\.operational_assets\}\) a ON a\.id=w\.asset_id\$\{assetJoin\} WHERE \$\{where\}`/g)).toHaveLength(1);
   // r17 left 8 work.ts SELECTs; r18 folds the items/downtime Work/Asset source (8 -> 7);
   // r21 folds the assets/nodes/consumptions projection source scans (7 -> 5);
-  // r24 reuses the existsGuardPrefix head for the Work assets absent-source guard (5 -> 4).
-  expect(source.match(/SELECT/g)).toHaveLength(4);
+  // r24 reuses the existsGuardPrefix head for the Work assets absent-source guard (5 -> 4);
+  // r25 reuses the shared row-projection head for the row scan (4 -> 3).
+  expect(source.match(/SELECT/g)).toHaveLength(3);
   expect(source).not.toContain('SELECT w.*,a.code asset_code,a.name asset_name,CASE WHEN');
   expect(source).not.toContain('`SELECT w.id,w.version::text version');
   expect(source).not.toMatch(/LOCK\s+TABLE/i);
@@ -1038,15 +1039,16 @@ describe('Maintenance projection row-scan fixed SQL',()=>{
  it('single-sources the row-scan head and keeps all three composed reads byte-identical',async()=>{
   const {readFileSync}=await import('node:fs');
   const source=readFileSync(new URL(`${dir}work.ts`,import.meta.url),'utf8');
-  // One fixed SELECT template for the family; the three inline literals are gone.
-  expect(source.match(/export const projectionRowScan = \(fields: string, source: string, alias: string, tail: string\) =>\s*\n\s*`SELECT \$\{fields\} FROM \(\$\{source\}\) \$\{alias\} \$\{tail\}`/g)).toHaveLength(1);
+  // The row scan reuses the shared head instead of carrying its own literal.
+  expect(source.match(/export const projectionRowScan = \(fields: string, source: string, alias: string, tail: string\) =>\s*\n\s*projectionHead\(fields, source, alias, tail\)/g)).toHaveLength(1);
   expect(source.match(/projectionRowScan\(/g)).toHaveLength(3);
   expect(source).not.toContain('`SELECT a.id,a.code,a.name,a.version,a.condition,a.lifecycle_status FROM (');
   expect(source).not.toContain('`SELECT id,kind,display_name,branch_id FROM (');
   expect(source).not.toContain('`SELECT p.*,j.status journal_status,product.name product_name FROM (');
   // r18 left 7 work.ts SELECTs; r21 folds three row scans into one template (7 -> 5);
-  // r24 reuses the existsGuardPrefix head for the Work assets absent-source guard (5 -> 4).
-  expect(source.match(/SELECT/g)).toHaveLength(4);
+  // r24 reuses the existsGuardPrefix head for the Work assets absent-source guard (5 -> 4);
+  // r25 reuses the shared row-projection head for the row scan (4 -> 3).
+  expect(source.match(/SELECT/g)).toHaveLength(3);
   // No write, row-lock or native read is accepted or changed.
   expect(source).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
 
@@ -1144,5 +1146,34 @@ describe('Maintenance negated EXISTS head reuse fixed SQL',()=>{
    const tail=`WHERE ${scope} AND a.lifecycle_status IN ('in_service','registered','maintenance') AND ${notExistsGuardPrefix('maintenance_work_orders w')}w.asset_id=a.id AND w.status NOT IN ('completed','cancelled')) ORDER BY a.code`;
    expect(tail).toBe(preTail);
    expect(tail).not.toMatch(/INSERT\s+INTO|DELETE\s+FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|LOCK\s+TABLE|pg_advisory/i);
+  });
+ });
+
+/** r25: the scalar projection lookup and the top-level multi-row scan share one
+ * owner-local row-projection head, so no second query head is carried in the TS
+ * read tail. Both composed strings stay byte-identical to their pre-dedupe
+ * literals; no lock, write or native read is introduced. */
+describe('Maintenance row-projection head reuse fixed SQL',()=>{
+  const dir='../../../packages/server-maintenance/src/adapters/';
+  it('single-sources the row-projection head and keeps both composed reads byte-identical',async()=>{
+   const {readFileSync}=await import('node:fs');
+   const shared=readFileSync(new URL(`${dir}projection-lookup.ts`,import.meta.url),'utf8');
+   const work=readFileSync(new URL(`${dir}work.ts`,import.meta.url),'utf8');
+   expect(shared.split('export const projectionHead =').length-1).toBe(1);
+   expect(shared).toContain('`SELECT ${fields} FROM (${source}) ${alias} ${tail}`');
+   expect(shared).toContain('`(${projectionHead(select, source, alias, `WHERE ${where}`)})`');
+   expect(work).toContain('projectionHead(fields, source, alias, tail)');
+   expect(work).not.toContain('`SELECT ${fields} FROM (${source}) ${alias} ${tail}`');
+   expect(work).not.toMatch(/LOCK\s+TABLE|INSERT\s+INTO|UPDATE\s+\w+\s+SET|FOR\s+UPDATE/i);
+
+   const {projectionHead,projectionLookup}=await import('../../../packages/server-maintenance/src/adapters/projection-lookup');
+   const {projectionRowScan}=await import('../../../packages/server-maintenance/src/adapters/work');
+   // Pre-r25 literals rebuilt verbatim with closed fragments.
+   expect(projectionHead('f','src','a','WHERE x=?')).toBe('SELECT f FROM (src) a WHERE x=?');
+   expect(projectionLookup('x','t','a','a.id=?')).toBe('(SELECT x FROM (t) a WHERE a.id=?)');
+   expect(projectionRowScan('a.id,a.code','<src>','a','WHERE a.company_id=? ORDER BY a.code')).toBe('SELECT a.id,a.code FROM (<src>) a WHERE a.company_id=? ORDER BY a.code');
+   for(const sql of [projectionLookup('x','t','a','a.id=?'),projectionRowScan('f','src','a','WHERE x=?')]){
+    expect(sql).not.toMatch(/INSERT\s+INTO|DELETE\s+FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|LOCK\s+TABLE|pg_advisory/i);
+   }
   });
  });

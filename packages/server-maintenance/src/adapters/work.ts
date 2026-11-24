@@ -21,7 +21,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {availableServiceSpares} from '@erpx/server-inventory/public/inventory-consumption';
 import {maintenanceOwnerName} from './maintenance-owner-name';
 import {iamScopeGuardSql} from './iam-scope-guard';
-import {notExistsGuardPrefix} from './projection-lookup';
+import {notExistsGuardPrefix,projectionHead} from './projection-lookup';
 const assetScope="a.company_id=? AND (?::text IS NULL OR a.branch_id=?) AND (?::text IS NULL OR a.department_id=?)",workScope="w.company_id=? AND (?::text IS NULL OR w.branch_id=?) AND (?::text IS NULL OR w.department_id=?)",args=(a:WorkContext)=>[a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId];
 /** Canonical owner-local Work/Asset source projection shared by the workspace
  * items and downtime-evidence reads. Both call the same owner-fixed Work join
@@ -32,16 +32,16 @@ const assetScope="a.company_id=? AND (?::text IS NULL OR a.branch_id=?) AND (?::
  * is accepted or changed. r3-r17 families stay unchanged. */
 export const workAssetSource = (fields: string, assetJoin: string, where: string) =>
   `SELECT ${fields} FROM maintenance_work_orders w JOIN (${assetsProjectionSources.operational_assets}) a ON a.id=w.asset_id${assetJoin} WHERE ${where}`;
-/** Canonical owner-local row scan over a closed projection source, shared by
- * the Work assets, org-nodes and consumptions read tails (r21). Callers supply
- * only fixed field/alias/tail fragments from this owner's closed projection
- * relations, never request-authored SQL; each composed read stays byte-identical
- * to its pre-dedupe literal. Distinct from the scalar r16 projectionLookup
- * (parenthesized WHERE-only lookup) and the r18 workAssetSource (fixed Work/Asset
- * join): this is a top-level multi-row scan with an arbitrary closed tail. No
- * LOCK or native read is accepted or changed. */
+/** Owner-local row scan over a closed projection source, shared by the Work
+ * assets, org-nodes and consumptions read tails (r21). It reuses the single
+ * row-projection head so no second query head is carried in the TS read tail;
+ * callers supply only fixed field/alias/tail fragments from this owner's closed
+ * projection relations, never request-authored SQL, and each composed read stays
+ * byte-identical to its pre-dedupe literal. Distinct from the r18 workAssetSource
+ * (fixed Work/Asset join): this is a top-level multi-row scan with an arbitrary
+ * closed tail. No LOCK or native read is accepted or changed. */
 export const projectionRowScan = (fields: string, source: string, alias: string, tail: string) =>
-  `SELECT ${fields} FROM (${source}) ${alias} ${tail}`;
+  projectionHead(fields, source, alias, tail);
 /** Owner-local adapter over the shared IAM guard: this owner supplies only its
  * closed projection relations, fixed aliases and a row alias/user/permission;
  * the common assignment/principal/role/status tail is owned once in the helper. */
