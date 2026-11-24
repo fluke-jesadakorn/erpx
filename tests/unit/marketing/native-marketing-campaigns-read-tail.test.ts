@@ -271,4 +271,27 @@ describe('Marketing owner-local campaign read tail', () => {
     expect(purchases).toContain("attachmentReviewerGuardSql('allowed')");
     expect(purchases).toContain('`(${attachmentReviewerGuardSql()})`');
   });
+
+  it('keeps one fixed owner predicate for record-scope authority witnesses', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
+    const helper = await readFile(new URL('record-scope-authority.ts', base), 'utf8');
+    const recordPurchases = await readFile(new URL('record-purchases.ts', base), 'utf8');
+    const analytics = await readFile(new URL('analytics-sources.ts', base), 'utf8');
+
+    const predicate = "EXISTS(SELECT 1 FROM (SELECT ${source}.company_id,COALESCE(${source}.branch_id,?::text) branch_id,COALESCE(${source}.department_id,?::text) department_id) ${authority} WHERE ${assignmentReadSql(authority,'records.read')})";
+    // The canonical helper owns both read tokens; its comment must not smuggle
+    // another token into the retirement KPI.
+    expect(helper.match(/SELECT/g)).toHaveLength(2);
+    expect(helper).toContain('export const marketingRecordScopeAuthoritySql');
+    expect(helper).toContain(predicate);
+
+    for (const consumer of [recordPurchases, analytics]) {
+      expect(consumer).toContain('marketingRecordScopeAuthoritySql(');
+      expect(consumer).not.toContain('FROM (SELECT marketing_');
+    }
+    // Distinct source/authority aliases and bind order are preserved verbatim.
+    expect(recordPurchases).toContain("marketingRecordScopeAuthoritySql('marketing_source','marketing_authority')");
+    expect(analytics).toContain("marketingRecordScopeAuthoritySql('marketing_report','marketing_scope')");
+  });
 });
