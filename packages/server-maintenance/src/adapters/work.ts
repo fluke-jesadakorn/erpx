@@ -22,6 +22,7 @@ import {availableServiceSpares} from '@erpx/server-inventory/public/inventory-co
 import {maintenanceOwnerName} from './maintenance-owner-name';
 import {iamScopeGuardSql} from './iam-scope-guard';
 import {notExistsGuardPrefix,projectionHead} from './projection-lookup';
+import {settlementRefSource} from './asset-settlement-refs';
 const assetScope="a.company_id=? AND (?::text IS NULL OR a.branch_id=?) AND (?::text IS NULL OR a.department_id=?)",workScope="w.company_id=? AND (?::text IS NULL OR w.branch_id=?) AND (?::text IS NULL OR w.department_id=?)",args=(a:WorkContext)=>[a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId];
 /** Canonical owner-local Work/Asset source projection shared by the workspace
  * items and downtime-evidence reads. Both call the same owner-fixed Work join
@@ -58,7 +59,7 @@ function bindRepository(write:SqlDatabase,a:WorkContext,canReadParts=true):Maint
   people:async()=>(await write.prepare(`SELECT DISTINCT p.user_id id,p.legal_name name FROM (${people_payrollProjectionSources.hr_people}) p JOIN (${identity_accessProjectionSources.assignments}) x ON x.user_id=p.user_id AND x.company_id=p.company_id WHERE p.company_id=? AND p.status='active' AND p.merged_into_id IS NULL AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(x.role,x.company_id,'records.write') ORDER BY p.legal_name`).bind(a.companyId).all<Row>()).results,
   spares:branchId=>canReadParts?availableServiceSpares(write,a,branchId):Promise.resolve({stock:[],lots:[]}),
   consumptions:async id=>canReadParts?(await write.prepare(`${projectionRowScan("p.*,j.status journal_status,product.name product_name",inventoryProjectionSources.operational_inventory_consumptions,"p",`JOIN (${financeProjectionSources.finance_journals}) j ON j.id=p.journal_id JOIN (${commerceProjectionSources.commerce_products}) product ON product.id=p.product_id WHERE p.source_kind='maintenance' AND p.source_id=? ORDER BY p.created_at,p.id`)}`).bind(id).all<Row>()).results:[],
-  history:async id=>(await write.prepare('SELECT * FROM maintenance_work_events WHERE work_order_id=? ORDER BY version').bind(id).all<Row>()).results,
+  history:async id=>(await write.prepare(settlementRefSource("*","maintenance_work_events"," WHERE work_order_id=? ORDER BY version")).bind(id).all<Row>()).results,
   async downtime(input){ const where=[workScope,"w.status IN ('completed','cancelled')","w.downtime_started_at IS NOT NULL","w.downtime_ended_at IS NOT NULL","w.downtime_ended_at>w.downtime_started_at","w.downtime_started_at<?","w.downtime_ended_at>?"];const values:unknown[]=[...args(a),input.to,input.from];
  if(input.query){where.push("position(lower(?) in lower(concat_ws(' ',w.title,a.code,a.name)))>0");values.push(input.query);}
  if(input.cursor){where.push("(w.downtime_ended_at,w.id)<(?::bigint,?)");values.push(input.cursor.endedAt,input.cursor.id);}

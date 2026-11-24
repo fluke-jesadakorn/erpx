@@ -717,7 +717,7 @@ describe('Maintenance record-image fixed SQL',()=>{
   }
  });
 
- it('retirement:ts-statements stays strictly below the r26 BEFORE=23 baseline',async()=>{
+ it('retirement:ts-statements stays strictly below the r27 BEFORE=22 baseline',async()=>{
   const {readdirSync,readFileSync}=await import('node:fs');
   const {resolve}=await import('node:path');
   let total=0;
@@ -730,8 +730,8 @@ describe('Maintenance record-image fixed SQL',()=>{
    }
   };
   walk(srcRoot);
-  expect(total).toBe(22);
-  expect(total).toBeLessThan(23);
+  expect(total).toBe(21);
+  expect(total).toBeLessThan(22);
  });
 });
 
@@ -912,8 +912,10 @@ describe('Maintenance work/asset source fixed SQL',()=>{
   // r17 left 8 work.ts SELECTs; r18 folds the items/downtime Work/Asset source (8 -> 7);
   // r21 folds the assets/nodes/consumptions projection source scans (7 -> 5);
   // r24 reuses the existsGuardPrefix head for the Work assets absent-source guard (5 -> 4);
-  // r25 reuses the shared row-projection head for the row scan (4 -> 3).
-  expect(source.match(/SELECT/g)).toHaveLength(3);
+  // r25 reuses the shared row-projection head for the row scan (4 -> 3);
+  // r27 routes the Work event-history read through the shared settlement
+  // ref-source head (3 -> 2).
+  expect(source.match(/SELECT/g)).toHaveLength(2);
   expect(source).not.toContain('SELECT w.*,a.code asset_code,a.name asset_name,CASE WHEN');
   expect(source).not.toContain('`SELECT w.id,w.version::text version');
   expect(source).not.toMatch(/LOCK\s+TABLE/i);
@@ -950,8 +952,8 @@ describe('Maintenance asset settlement ref source fixed SQL',()=>{
   const source=readFileSync(new URL(`${dir}asset-settlement-refs.ts`,import.meta.url),'utf8');
   // Only one fixed SELECT template remains in the file (pre-dedupe had two).
   expect(source.match(/SELECT/g)).toHaveLength(1);
-  expect(source.match(/export const settlementRefSource = \(columns: string, source: string\): string =>/g)).toHaveLength(1);
-  expect(source.match(/`SELECT \$\{columns\} FROM \$\{source\}`/g)).toHaveLength(1);
+  expect(source.match(/export const settlementRefSource = \(columns: string, source: string, tail = ""\): string =>/g)).toHaveLength(1);
+  expect(source.match(/`SELECT \$\{columns\} FROM \$\{source\}\$\{tail\}`/g)).toHaveLength(1);
   expect(source).not.toContain('"SELECT company_id,asset_id FROM maintenance_preventive_plans"');
   expect(source).not.toContain('`SELECT consumption.company_id,work.asset_id FROM (');
   // The owner lock is untouched and no write/row-lock statement was introduced.
@@ -978,6 +980,34 @@ describe('Maintenance asset settlement ref source fixed SQL',()=>{
   expect(readFileSync(new URL(`${dir}attachment-owner-version-guard.ts`,import.meta.url),'utf8')).toContain('export const attachmentOwnerVersionGuardSql');
   expect(readFileSync(new URL(`${dir}projection-lookup.ts`,import.meta.url),'utf8')).toContain('export const projectionLookup');
   expect(readFileSync(new URL(`${dir}package-obligations.ts`,import.meta.url),'utf8')).toContain('const settlementEventRows');
+ });
+});
+
+/** r27: the Work event-history read shares the owner-local full-row SELECT head
+ * with the settlement reference family. The composed history SQL stays
+ * byte-identical to its pre-dedupe literal, no duplicate TS query literal
+ * remains, and no r20-r26 family or lock/native read is touched. */
+describe('Maintenance Work event-history head reuse fixed SQL',()=>{
+ const dir='../../../packages/server-maintenance/src/adapters/';
+ it('single-sources the full-row head and keeps the Work history read byte-identical',async()=>{
+  const {readFileSync}=await import('node:fs');
+  const shared=readFileSync(new URL(`${dir}asset-settlement-refs.ts`,import.meta.url),'utf8');
+  const work=readFileSync(new URL(`${dir}work.ts`,import.meta.url),'utf8');
+  expect(shared.split('export const settlementRefSource =').length-1).toBe(1);
+  expect(shared.match(/SELECT/g)).toHaveLength(1);
+  expect(work).not.toContain("'SELECT * FROM maintenance_work_events WHERE work_order_id=? ORDER BY version'");
+  expect(work).toContain('settlementRefSource("*","maintenance_work_events"," WHERE work_order_id=? ORDER BY version")');
+  expect(work).not.toMatch(/LOCK\s+TABLE|INSERT\s+INTO|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|pg_advisory/i);
+
+  const {settlementRefSource}=await import('../../../packages/server-maintenance/src/adapters/asset-settlement-refs');
+  const history=settlementRefSource("*","maintenance_work_events"," WHERE work_order_id=? ORDER BY version");
+  expect(history).toBe('SELECT * FROM maintenance_work_events WHERE work_order_id=? ORDER BY version');
+  // Existing closed callers stay byte-identical with the default empty tail.
+  expect(settlementRefSource("*","maintenance_work_events")).toBe('SELECT * FROM maintenance_work_events');
+  expect(settlementRefSource('company_id,asset_id','maintenance_preventive_plans')).toBe('SELECT company_id,asset_id FROM maintenance_preventive_plans');
+  // r20-r26 families stay untouched.
+  expect(readFileSync(new URL(`${dir}projection-lookup.ts`,import.meta.url),'utf8')).toContain('export const projectionHead');
+  expect(readFileSync(new URL(`${dir}package-obligations.ts`,import.meta.url),'utf8')).toContain('export const factRow=');
  });
 });
 
@@ -1055,8 +1085,10 @@ describe('Maintenance projection row-scan fixed SQL',()=>{
   expect(source).not.toContain('`SELECT p.*,j.status journal_status,product.name product_name FROM (');
   // r18 left 7 work.ts SELECTs; r21 folds three row scans into one template (7 -> 5);
   // r24 reuses the existsGuardPrefix head for the Work assets absent-source guard (5 -> 4);
-  // r25 reuses the shared row-projection head for the row scan (4 -> 3).
-  expect(source.match(/SELECT/g)).toHaveLength(3);
+  // r25 reuses the shared row-projection head for the row scan (4 -> 3);
+  // r27 routes the Work event-history read through the shared settlement
+  // ref-source head (3 -> 2).
+  expect(source.match(/SELECT/g)).toHaveLength(2);
   // No write, row-lock or native read is accepted or changed.
   expect(source).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
 
