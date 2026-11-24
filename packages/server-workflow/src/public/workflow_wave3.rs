@@ -10,3 +10,8 @@ pub use crate::application::workflow_wave3::{
     WorkflowWave3Command, WorkflowWave3Port, plan_workflow_wave3,
 };
 pub use crate::domain::workflow_wave3::*;
+// Approval point-read kinds are part of the owner's generic wave3 read dispatch.
+pub use crate::domain::workflow_wave3::{
+    WF_NATIVE_APPROVAL_VIEW_HISTORY, WF_NATIVE_APPROVAL_VIEW_HISTORY_BATCH,
+    WF_NATIVE_OPEN_APPROVAL_PREVIOUS,
+};

@@ -24,13 +24,11 @@ import { type ApprovalsRepository } from '@erpx/server-workflow/application/appr
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import {createApprovalPlanningApplication,type ApprovalPlanningPorts}from '@erpx/server-workflow/application/approvals';
 import {workflowWave3Statement} from './native-workflow-wave3';
+import {nativeWorkflowReadAll,nativeWorkflowReadFirst} from './native-workflow-read';
 import {approvalInstancesStarWhereSql} from './approval-projection-sources';
 import {jsonEachApproverPoolSql,jsonEachSql} from './json-each-sources';
 const peoplepayrollFinalSources=peoplepayrollFinalOwnerProjections();
 const approvalStepsApproverSql = `SELECT s.*,COALESCE(p.legal_name,s.approver_user_id) approver_name FROM approval_steps s LEFT ${peoplepayrollFinalSources.approvals_hr_people_p_join} ON p.user_id=s.approver_user_id AND p.company_id=? AND p.merged_into_id IS NULL WHERE s.instance_id`;
-/** Byte-identical span shared by the previous/approver name lookups; emitted SQL is unchanged. */
-const approverNameLookupSql = `(SELECT legal_name ${peoplepayrollFinalSources.approvals_hr_people_from} WHERE company_id=i.company_id AND iam_same_person(user_id,d.`;
-const approvalDecisionHistorySql = `COALESCE(p.legal_name,d.actor_user_id) actor_name,${approverNameLookupSql}previous_approver_user_id,company_id) AND merged_into_id IS NULL LIMIT 1) previous_approver_name,${approverNameLookupSql}approver_user_id,company_id) AND merged_into_id IS NULL LIMIT 1) approver_name FROM approval_decisions d JOIN approval_instances i ON i.id=d.instance_id LEFT ${peoplepayrollFinalSources.approvals_hr_people_p_join} ON p.user_id=d.actor_user_id AND p.company_id=i.company_id AND p.merged_into_id IS NULL WHERE i.record_type=`;
 /** Byte-identical prefix shared by the pending/blocked instance-state guards; callers keep their own literal state and bind order, emitted SQL is unchanged. */
 const approvalInstanceStateExistsPrefix = "EXISTS(SELECT 1 FROM approval_instances WHERE id=? AND version=? AND state='";
 const pendingInstanceExistsSql = `${approvalInstanceStateExistsPrefix}pending' AND current_step=?)`;
@@ -67,12 +65,8 @@ export function nativeApprovalPlanningPorts(database: SqlDatabase, readOverrides
                 .bind(company_id, id)
                 .all<ApprovalStep>();
         },
-        readOpenApprovalPrevious(kind: ApprovalKind, id: string, phase: ApprovalPhase) {
-            return database.prepare("SELECT COALESCE(MAX(cycle),0) cycle FROM approval_instances WHERE record_type=? AND record_id=? AND phase=?")
-                .bind(kind, id, phase)
-                .first<{
-                cycle: number;
-            }>();
+        async readOpenApprovalPrevious(kind: ApprovalKind, id: string, phase: ApprovalPhase, companyId: string) {
+            return nativeWorkflowReadFirst<{cycle: number}>('wf_native_open_approval_previous', [kind, id, phase], companyId, database);
         },
         guard9(key: string, value: string, check: NonNullable<ApprovalRoute["checks"]>[number]) { return assertion(database, key, value, check.query, check.args); },
         async stageOpenApprovalStatements(now: number, kind: ApprovalKind, id: string) {
@@ -114,10 +108,8 @@ export function nativeApprovalPlanningPorts(database: SqlDatabase, readOverrides
         stageInitializeLegacyApprovalEffect7(key: string, companyId: string) { return nativeClearCommandAssertions(database, companyId, key); },
         guard26(key: string, label: string, approver_user_id: string, company_id: string, authority: "named" | "department" | "hr_admin" | "holding_owner", now: number, now2: number, authority2: "named" | "department" | "hr_admin" | "holding_owner", branch_id: string | null, department_id: string | null) { return identity_access_approvals(database).guard26(key, label, approver_user_id, company_id, authority, now, now2, authority2, branch_id, department_id); },
         readApprovalViewActiveScope(assignmentId: string, userId: string, companyId: string, role: string, now: number, now2: number, policyStep: boolean, branch_id: string | null, department_id: string | null) { return identity_access_approvals(database).readApprovalViewActiveScope(assignmentId, userId, companyId, role, now, now2, policyStep, branch_id, department_id); },
-        readApprovalViewHistory(kind: "expense" | "leave" | "leave_cancellation" | "overtime" | "task", id: string, companyId: string) {
-            return database.prepare(`SELECT d.*,${approvalDecisionHistorySql}? AND i.record_id=? AND i.company_id=? ORDER BY d.created_at,d.insertion_order`)
-                .bind(kind, id, companyId)
-                .all<ApprovalDecision>();
+        async readApprovalViewHistory(kind: "expense" | "leave" | "leave_cancellation" | "overtime" | "task", id: string, companyId: string) {
+            return {results: await nativeWorkflowReadAll<ApprovalDecision>('wf_native_approval_view_history', [kind, id, companyId], companyId, database)};
         },
         readExpenseDecisionEvidenceAssignmentsreceiptsperson(company_id: string, assignmentId: string, now: number, now2: number) { return identity_access_approvals(database).readExpenseDecisionEvidenceAssignmentsreceiptsperson(company_id, assignmentId, now, now2); },
         readExpenseDecisionEvidenceAssignmentsreceiptsperson2(record_id: string) { return files_approvals(database).readExpenseDecisionEvidenceAssignmentsreceiptsperson2(record_id); },
@@ -245,7 +237,7 @@ export async function expenseApprovalReadBatch(db: SqlDatabase, actor: Pick<Staf
     const stable = instances.filter(row => row.state !== "blocked");
     const [steps, history] = requested.size ? await Promise.all([
         stable.length ? db.prepare(`${approvalStepsApproverSql} IN${jsonEachBindSql} ORDER BY s.ordinal`).bind(actor.companyId,JSON.stringify(stable.map(row => row.id))).all<ApprovalStep>() : Promise.resolve({results:[] as ApprovalStep[]}),
-        db.prepare(`SELECT i.record_id batch_record_id,d.*,${approvalDecisionHistorySql}'expense' AND i.record_id IN${jsonEachBindSql} AND i.company_id=? ORDER BY d.created_at,d.insertion_order`).bind(encoded,actor.companyId).all<ApprovalDecision & {batch_record_id:string}>(),
+        nativeWorkflowReadAll<ApprovalDecision & {batch_record_id:string}>('wf_native_approval_view_history_batch',[encoded,actor.companyId],actor.companyId,db).then(results=>({results})),
     ]) : [{results:[] as ApprovalStep[]},{results:[] as (ApprovalDecision & {batch_record_id:string})[]}];
     const stepsByInstance = new Map<string,ApprovalStep[]>(), historyByRecord = new Map<string,ApprovalDecision[]>();
     for (const step of steps.results) { const group=stepsByInstance.get(step.instance_id)??[]; group.push(step); stepsByInstance.set(step.instance_id,group); }

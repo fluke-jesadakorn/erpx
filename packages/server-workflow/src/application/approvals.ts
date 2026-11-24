@@ -47,7 +47,7 @@ export interface ApprovalsRepository<Effect> {
     readStepsForEffect(company_id: string, id: string): Promise<{
         results: (ApprovalStep)[];
     }>;
-    readOpenApprovalPrevious(kind: ApprovalKind, id: string, phase: ApprovalPhase): Promise<{
+    readOpenApprovalPrevious(kind: ApprovalKind, id: string, phase: ApprovalPhase, companyId: string): Promise<{
         cycle: number;
     } | null>;
     guard9(key: string, value: string, check: NonNullable<ApprovalRoute["checks"]>[number]): Effect;
@@ -226,7 +226,7 @@ async function openApproval(key: string, kind: ApprovalKind, id: string, phase: 
     }> {
         if (route.blockedReason)
             throw new BusinessRuleError(409, "APPROVAL_ROUTE_BLOCKED", route.blockedReason);
-        const previous = await r.readOpenApprovalPrevious(kind, id, phase);
+        const previous = await r.readOpenApprovalPrevious(kind, id, phase, route.scope.company_id);
         const instanceId = `approval-${key}`, cycle = (previous?.cycle ?? 0) + 1, now = ports.clock.now();
         const statements = [
             ...(route.checks ?? []).map((check, i) => r.guard9(key, `route-snapshot-${i}`, check)),

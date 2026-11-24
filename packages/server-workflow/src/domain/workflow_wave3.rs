@@ -178,6 +178,21 @@ pub const WF_NATIVE_PROJECT_WORKER_COMMAND_EVIDENCE: &str = "wf_native_project_w
 /// keyed by command id only (no company predicate), preserving the original
 /// caller-unit semantics; authority is revalidated by the command application.
 pub const WF_NATIVE_COMMAND_RECEIPT_REPLAY: &str = "wf_native_command_receipt_replay";
+/// Owner-authored caller-unit point read for the previous cycle of an open
+/// approval request. Byte-identical to the retired TypeScript literal; the
+/// mounted wave3-command planner resolves it to one fixed SELECT executed on
+/// the caller's open unit and carries no receipt/assertion semantics.
+pub const WF_NATIVE_OPEN_APPROVAL_PREVIOUS: &str = "wf_native_open_approval_previous";
+/// Owner-authored caller-unit point read for one record's approval view
+/// history. Byte-identical to the retired TypeScript literal, SELECT-only and
+/// company-scoped; the planner resolves it to one fixed SELECT executed on the
+/// caller's open unit and carries no receipt/assertion semantics.
+pub const WF_NATIVE_APPROVAL_VIEW_HISTORY: &str = "wf_native_approval_view_history";
+/// Owner-authored caller-unit read for the batched expense approval view
+/// history. Byte-identical to the retired TypeScript literal, SELECT-only and
+/// company-scoped; the planner resolves it to one fixed SELECT executed on the
+/// caller's open unit and carries no receipt/assertion semantics.
+pub const WF_NATIVE_APPROVAL_VIEW_HISTORY_BATCH: &str = "wf_native_approval_view_history_batch";
 pub const KINDS: &[&str] = &[
     WF_OPENAPPROVAL,
     WF_OPENAPPROVAL2,
@@ -226,6 +241,9 @@ pub const KINDS: &[&str] = &[
     WF_NATIVE_FINANCE_SOURCE_REVISION,
     WF_NATIVE_PROJECT_WORKER_COMMAND_EVIDENCE,
     WF_NATIVE_COMMAND_RECEIPT_REPLAY,
+    WF_NATIVE_OPEN_APPROVAL_PREVIOUS,
+    WF_NATIVE_APPROVAL_VIEW_HISTORY,
+    WF_NATIVE_APPROVAL_VIEW_HISTORY_BATCH,
 ];
 
 fn statement(kind: &str) -> Option<(&'static str, usize)> {
@@ -516,6 +534,18 @@ fn statement(kind: &str) -> Option<(&'static str, usize)> {
         WF_NATIVE_COMMAND_RECEIPT_REPLAY => (
             "SELECT request_hash,result_json,operation,actor_id,record_id,authority_json FROM command_receipts WHERE command_id=?",
             1,
+        ),
+        WF_NATIVE_OPEN_APPROVAL_PREVIOUS => (
+            "SELECT COALESCE(MAX(cycle),0) cycle FROM approval_instances WHERE record_type=? AND record_id=? AND phase=?",
+            3,
+        ),
+        WF_NATIVE_APPROVAL_VIEW_HISTORY => (
+            "SELECT d.*,COALESCE(p.legal_name,d.actor_user_id) actor_name,(SELECT legal_name FROM (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) hr_people WHERE company_id=i.company_id AND iam_same_person(user_id,d.previous_approver_user_id,company_id) AND merged_into_id IS NULL LIMIT 1) previous_approver_name,(SELECT legal_name FROM (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) hr_people WHERE company_id=i.company_id AND iam_same_person(user_id,d.approver_user_id,company_id) AND merged_into_id IS NULL LIMIT 1) approver_name FROM approval_decisions d JOIN approval_instances i ON i.id=d.instance_id LEFT JOIN (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) p ON p.user_id=d.actor_user_id AND p.company_id=i.company_id AND p.merged_into_id IS NULL WHERE i.record_type=? AND i.record_id=? AND i.company_id=? ORDER BY d.created_at,d.insertion_order",
+            3,
+        ),
+        WF_NATIVE_APPROVAL_VIEW_HISTORY_BATCH => (
+            "SELECT i.record_id batch_record_id,d.*,COALESCE(p.legal_name,d.actor_user_id) actor_name,(SELECT legal_name FROM (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) hr_people WHERE company_id=i.company_id AND iam_same_person(user_id,d.previous_approver_user_id,company_id) AND merged_into_id IS NULL LIMIT 1) previous_approver_name,(SELECT legal_name FROM (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) hr_people WHERE company_id=i.company_id AND iam_same_person(user_id,d.approver_user_id,company_id) AND merged_into_id IS NULL LIMIT 1) approver_name FROM approval_decisions d JOIN approval_instances i ON i.id=d.instance_id LEFT JOIN (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) p ON p.user_id=d.actor_user_id AND p.company_id=i.company_id AND p.merged_into_id IS NULL WHERE i.record_type='expense' AND i.record_id IN(SELECT value FROM erpx_json_each(?)) AND i.company_id=? ORDER BY d.created_at,d.insertion_order",
+            2,
         ),
 _ => return None,
     })
@@ -1188,5 +1218,98 @@ mod tests {
             plan(WF_NATIVE_COMMAND_RECEIPT_REPLAY, vec![json!("command-1")]).is_ok()
         );
         assert!(plan(WF_NATIVE_COMMAND_RECEIPT_REPLAY, vec![]).is_err());
+    }
+
+    /// The approval point-read kinds stay fixed, SELECT-only, placeholder-exact
+    /// and free of row locks. They are owner-local point reads executed on the
+    /// caller's open unit; the bridge carries no receipt or assertion semantics.
+    #[test]
+    fn approval_point_read_kinds_are_fixed_owner_local_selects() {
+        for (kind, expected) in [
+            (WF_NATIVE_OPEN_APPROVAL_PREVIOUS, 3),
+            (WF_NATIVE_APPROVAL_VIEW_HISTORY, 3),
+            (WF_NATIVE_APPROVAL_VIEW_HISTORY_BATCH, 2),
+        ] {
+            let (sql, binds) = statement(kind).expect("registered owner point read");
+            assert!(sql.starts_with("SELECT "), "read must be SELECT-only: {sql}");
+            assert_eq!(binds, expected, "bind count must stay fixed for {kind}");
+            assert_eq!(sql.matches('?').count(), expected);
+            assert!(
+                sql.contains("approval_instances"),
+                "read must stay owner-local: {kind}"
+            );
+            for forbidden in [
+                "INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE", "FOR SHARE",
+                "LOCK TABLE",
+            ] {
+                assert!(
+                    !sql.contains(forbidden),
+                    "read must not mutate or lock: {forbidden}"
+                );
+            }
+            assert!(supported(kind));
+        }
+        assert!(!supported("wf_native_approval_unknown"));
+    }
+
+    /// The open-approval previous-cycle read is byte-identical to the retired
+    /// TypeScript point read: no company predicate and the exact cycle aggregate.
+    #[test]
+    fn open_approval_previous_read_is_byte_identical() {
+        let (sql, expected) = statement(WF_NATIVE_OPEN_APPROVAL_PREVIOUS).unwrap();
+        assert_eq!(
+            sql,
+            "SELECT COALESCE(MAX(cycle),0) cycle FROM approval_instances WHERE record_type=? AND record_id=? AND phase=?"
+        );
+        assert_eq!(expected, 3);
+        assert!(!sql.contains("company_id"), "legacy read stays unscoped: {sql}");
+        assert!(
+            plan(
+                WF_NATIVE_OPEN_APPROVAL_PREVIOUS,
+                vec![json!("expense"), json!("record-1"), json!("start")]
+            )
+            .is_ok()
+        );
+        assert!(
+            plan(WF_NATIVE_OPEN_APPROVAL_PREVIOUS, vec![json!("expense")]).is_err()
+        );
+    }
+
+    /// Both approval view-history variants keep the exact owner projection and
+    /// company scope; the batched variant keeps the expense cohort bind.
+    #[test]
+    fn approval_view_history_reads_keep_owner_projection_and_company_scope() {
+        let (single, single_expected) = statement(WF_NATIVE_APPROVAL_VIEW_HISTORY).unwrap();
+        assert_eq!(single_expected, 3);
+        assert!(single.starts_with("SELECT d.*,"));
+        assert!(single.contains("previous_approver_name"));
+        assert!(single.contains("approver_name"));
+        assert!(single.contains("i.record_type=? AND i.record_id=? AND i.company_id=?"));
+        assert!(single.contains("ORDER BY d.created_at,d.insertion_order"));
+        assert_eq!(single.matches("iam_same_person(user_id,d.").count(), 2);
+        assert_eq!(single.matches("FROM hr_people) hr_people").count(), 2);
+
+        let (batch, batch_expected) = statement(WF_NATIVE_APPROVAL_VIEW_HISTORY_BATCH).unwrap();
+        assert_eq!(batch_expected, 2);
+        assert!(batch.starts_with("SELECT i.record_id batch_record_id,d.*,"));
+        assert!(batch.contains("i.record_type='expense'"));
+        assert!(batch.contains("i.record_id IN(SELECT value FROM erpx_json_each(?))"));
+        assert!(batch.contains("i.company_id=?"));
+        assert!(batch.contains("ORDER BY d.created_at,d.insertion_order"));
+        assert_eq!(batch.matches("iam_same_person(user_id,d.").count(), 2);
+
+        for (kind, values) in [
+            (
+                WF_NATIVE_APPROVAL_VIEW_HISTORY,
+                vec![json!("expense"), json!("record-1"), json!("company")],
+            ),
+            (
+                WF_NATIVE_APPROVAL_VIEW_HISTORY_BATCH,
+                vec![json!("[\"record-1\"]"), json!("company")],
+            ),
+        ] {
+            assert!(plan(kind, values).is_ok(), "valid binds must plan for {kind}");
+            assert!(plan(kind, vec![json!("company")]).is_err());
+        }
     }
 }

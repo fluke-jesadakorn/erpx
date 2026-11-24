@@ -116009,6 +116009,33 @@
       "lane": "unit",
       "owner": "workflow",
       "modules": [
+        "workflow"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Approval point reads must stay on the native wave3 dispatch."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-workflow"
+      ],
+      "id": "workflow.approval-point-reads-native.unit",
+      "files": [
+        "tests/unit/workflow/approval-point-reads-native.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "workflow",
+      "modules": [
         "operations"
       ],
       "fixture": "none",

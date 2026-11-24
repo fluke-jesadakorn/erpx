@@ -2,6 +2,13 @@ import { readFile, readdir } from 'node:fs/promises';
 import { resolve } from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
+// r44 moved the batch approval-history read onto the mounted native read; the
+// r37 generator assertions below still cover the retained json_each bind span.
+vi.mock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+  nativeWorkflowReadAll: vi.fn(async () => []),
+  nativeWorkflowReadFirst: vi.fn(async () => null),
+}));
+import { nativeWorkflowReadAll } from '../../../packages/server-workflow/src/adapters/native-workflow-read';
 import { jsonEachSql, jsonEachApproverPoolSql } from '../../../packages/server-workflow/src/adapters/json-each-sources';
 import { expenseApprovalReadBatch } from '../../../packages/server-workflow/src/adapters/approval-planning';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
@@ -36,8 +43,15 @@ describe('erpx_json_each value generator family (r37)', () => {
     } as unknown as SqlDatabase;
     const actor = { companyId: 'c1', userId: 'u1', role: 'staff', assignmentId: 'a1' } as unknown as Parameters<typeof expenseApprovalReadBatch>[1];
     await expenseApprovalReadBatch(db, actor, ['e1']);
+    expect(sqls).toHaveLength(1);
     expect(sqls[0]).toBe("SELECT DISTINCT ON(record_id) * FROM approval_instances WHERE record_type='expense' AND company_id=? AND record_id IN(SELECT value FROM erpx_json_each(?)) ORDER BY record_id,insertion_order DESC");
-    expect(sqls[1]).toContain('IN(SELECT value FROM erpx_json_each(?)) AND i.company_id=?');
+    // The batch history read is native now; the exact json_each span lives in
+    // the owner registry and the bridge carries only the typed kind and binds.
+    expect(vi.mocked(nativeWorkflowReadAll)).toHaveBeenCalledWith(
+      'wf_native_approval_view_history_batch', ['["e1"]', 'c1'], 'c1', db,
+    );
+    const registry = await readFile(new URL('../../../packages/server-workflow/src/domain/workflow_wave3.rs', import.meta.url), 'utf8');
+    expect(registry).toContain('i.record_id IN(SELECT value FROM erpx_json_each(?)) AND i.company_id=?');
   });
 
   it('keeps one generator definition and no inline value projections in callers', async () => {
