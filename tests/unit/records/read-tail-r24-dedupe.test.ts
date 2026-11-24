@@ -106,8 +106,9 @@ describe('Records read-tail r24 retirement check', () => {
     walk(srcRoot);
     // r24 folds the request children aggregate into the approval child-row
     // generator (28 -> 27); r25 folds the two projection-source single-row
-    // guards into one generator (27 -> 26). No other family changed.
-    expect(total).toBe(26);
+    // guards into one generator (27 -> 26); r26 folds the workspace version
+    // fence into the exists guard family (26 -> 25). No other family changed.
+    expect(total).toBe(25);
     expect(total).toBeLessThan(28);
   });
 });

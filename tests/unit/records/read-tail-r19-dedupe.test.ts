@@ -20,6 +20,12 @@ const readOnly = (sql: string) => {
 // Pre-dedupe rendered guard SQL copied from HEAD. Whole-string byte identity is
 // the oracle: no table, predicate, quote or token may drift.
 const pre = {
+  recordVersion: {
+    table: 'workspace_records',
+    predicate: 'module_id=? AND id=? AND version=? AND archived_at IS NULL',
+    sql: 'EXISTS(SELECT 1 FROM workspace_records WHERE module_id=? AND id=? AND version=? AND archived_at IS NULL)',
+    sha: '2b226270c2e5edc92e9886823472fa5d50a127fb104c1b37b4cf130de184d570',
+  },
   companyVersion: {
     table: 'workspace_records',
     predicate: 'company_id=? AND module_id=? AND id=? AND version=? AND archived_at IS NULL',
@@ -42,6 +48,7 @@ const pre = {
 
 describe('Records read-tail r19 existsGuardSql family', () => {
   test.each([
+    ['recordVersion', pre.recordVersion],
     ['companyVersion', pre.companyVersion],
     ['suggestionReady', pre.suggestionReady],
     ['proposalLease', pre.proposalLease],
@@ -53,11 +60,12 @@ describe('Records read-tail r19 existsGuardSql family', () => {
     readOnly(actual);
   });
 
-  test('the family is one generator literal with three callers and no inlined guard', () => {
+  test('the family is one generator literal with four callers and no inlined guard', () => {
     expect(shared.match(/export const existsGuardSql\s*=/g) ?? []).toHaveLength(1);
     expect((shared.match(/SELECT /g) ?? []).length).toBe(1);
-    expect(records.match(/existsGuardSql\(/g) ?? []).toHaveLength(2);
+    expect(records.match(/existsGuardSql\(/g) ?? []).toHaveLength(3);
     expect(requestAi.match(/existsGuardSql\(/g) ?? []).toHaveLength(1);
+    expect(records).not.toContain(pre.recordVersion.sql);
     expect(records).not.toContain(pre.companyVersion.sql);
     expect(records).not.toContain(pre.suggestionReady.sql);
     expect(requestAi).not.toContain(pre.proposalLease.sql);

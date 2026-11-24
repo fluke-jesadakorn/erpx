@@ -98,8 +98,9 @@ describe('Records read-tail r21 retirement check', () => {
     // the bounded proposal drain into the request-AI projection generator
     // (29 -> 28); r24 folds the request children aggregate into the approval
     // child-row generator (28 -> 27); r25 folds the two projection-source
-    // single-row guards into one generator (27 -> 26).
-    expect(total).toBe(26);
+    // single-row guards into one generator (27 -> 26); r26 folds the shared
+    // workspace version fence into the exists guard family (26 -> 25).
+    expect(total).toBe(25);
     expect(total).toBeLessThan(30);
   });
 });

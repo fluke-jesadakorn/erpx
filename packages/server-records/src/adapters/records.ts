@@ -60,7 +60,7 @@ export { suggestionSchema } from '@erpx/server-records/domain/records';
 export { suggestionDecisionSchema } from '@erpx/server-records/domain/records';
 export { addPrincipalMentionSchema } from '@erpx/server-records/domain/records';
 // Shared owner-local version fence for record guards (guard3/guard25); identical SQL.
-const recordVersionExistsSql = "EXISTS(SELECT 1 FROM workspace_records WHERE module_id=? AND id=? AND version=? AND archived_at IS NULL)";
+const recordVersionExistsSql = existsGuardSql('workspace_records', 'module_id=? AND id=? AND version=? AND archived_at IS NULL');
 // Shared owner-local workspace-record projection for list/get/page reads; identical SQL.
 const recordRowSelectSql = "SELECT module_id,id,section_id,title,description,status,fields_json,version,created_by,updated_at";
 // Retained record_context edges/count consumers share one parameterized family.
