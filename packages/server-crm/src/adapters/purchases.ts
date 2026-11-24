@@ -37,6 +37,11 @@ export const actorScopeSql=`(SELECT ?::text company_id,?::text branch_id,?::text
  * the CRM command-authority check and the cross-owner reference check. Callers
  * pass only their scope alias and permission; rendered text stays byte-identical. */
 const crmAssignmentAllowedSql=(alias:string,permission:string)=>`SELECT ${assignmentReadSql(alias,permission)} allowed FROM ${actorScopeSql} ${alias}`;
+/** r22: one renderer for the assignment-scoped EXISTS guard shared by the
+ * analytics option/cost reads and the CRM record read scope. Callers pass only
+ * the inner scope projection, the scope alias and the permission; rendered
+ * text stays byte-identical to the retired inline literals. */
+export const crmAssignmentScopeExistsSql=(columns:string,alias:string,permission:string)=>`EXISTS(SELECT 1 FROM (SELECT ${columns}) ${alias} WHERE ${assignmentReadSql(alias,permission)})`;
 export const crmMarketingCandidateRows=`SELECT * FROM (${crmMarketingCandidateSources}) candidate WHERE id=? AND company_id=?`;
 export const crmLeadActivityExists=`SELECT 1 FROM crm_lead_activities c JOIN crm_leads l ON l.id=c.lead_id AND l.company_id=c.company_id WHERE c.id=`;
 export const crmAssignmentModuleExists=`EXISTS(SELECT 1 FROM assignments selected WHERE selected.id=? AND (jsonb_array_length(selected.modules_json::jsonb)=0 OR selected.modules_json::jsonb @> jsonb_build_array(`;

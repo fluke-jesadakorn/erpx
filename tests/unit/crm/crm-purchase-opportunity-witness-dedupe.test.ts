@@ -383,7 +383,7 @@ describe('crm read-tail r19 parameterized projection families', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r18 AFTER=158 baseline', () => {
-    expect(totalSelects()).toBe(150);
+    expect(totalSelects()).toBe(146);
     expect(totalSelects()).toBeLessThan(158);
   });
 });
@@ -429,7 +429,7 @@ describe('crm read-tail r20 parameterized history families', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r19 AFTER=153 baseline', () => {
-    expect(totalSelects()).toBe(150);
+    expect(totalSelects()).toBe(146);
     expect(totalSelects()).toBeLessThan(153);
   });
 });
@@ -475,7 +475,65 @@ describe('crm read-tail r21 parameterized branch option family', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r20 BEFORE=151 baseline', () => {
-    expect(totalSelects()).toBe(150);
+    expect(totalSelects()).toBe(146);
     expect(totalSelects()).toBeLessThan(151);
+  });
+});
+
+describe('crm read-tail r22 assignment-scope EXISTS family', () => {
+  const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+  const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
+  const totalSelects = () => {
+    let total = 0;
+    for (const rel of readdirSync(owner, { recursive: true })) {
+      if (!String(rel).endsWith('.ts')) continue;
+      total += readFileSync(resolve(owner, String(rel)), 'utf8').match(/SELECT /g)?.length ?? 0;
+    }
+    return total;
+  };
+
+  it('renders all three assignment-scope guards byte-identically from one parameterized helper', () => {
+    const purchases = src('purchases.ts');
+    const line = purchases.split('\n').find(value => value.includes('export const crmAssignmentScopeExistsSql=')) ?? '';
+    const body = line.slice(line.indexOf('`') + 1, line.lastIndexOf('`'));
+    const render = (columns: string, alias: string, permission: string) => body
+      .replace('${columns}', columns)
+      .replaceAll('${alias}', alias)
+      .replace('${assignmentReadSql(alias,permission)}', `\${assignmentReadSql('${alias}','${permission}')}`);
+    const members: [string, string, string][] = [
+      ['property.company_id,property.branch_id,?::text department_id', 'hotel_scope', 'pms.read'],
+      ['cost.company_id,?::text branch_id,?::text department_id', 'cost_scope', 'finance.read'],
+      ['crm_source.company_id,COALESCE(crm_source.branch_id,?::text) branch_id,COALESCE(crm_source.department_id,?::text) department_id', 'crm_authority', 'commerce.read'],
+    ];
+    const expected = [
+      `EXISTS(SELECT 1 FROM (SELECT property.company_id,property.branch_id,?::text department_id) hotel_scope WHERE \${assignmentReadSql('hotel_scope','pms.read')})`,
+      `EXISTS(SELECT 1 FROM (SELECT cost.company_id,?::text branch_id,?::text department_id) cost_scope WHERE \${assignmentReadSql('cost_scope','finance.read')})`,
+      `EXISTS(SELECT 1 FROM (SELECT crm_source.company_id,COALESCE(crm_source.branch_id,?::text) branch_id,COALESCE(crm_source.department_id,?::text) department_id) crm_authority WHERE \${assignmentReadSql('crm_authority','commerce.read')})`,
+    ];
+    members.forEach(([columns, alias, permission], i) => expect(render(columns, alias, permission)).toBe(expected[i]));
+    expect(purchases.match(/export const crmAssignmentScopeExistsSql=/g)).toHaveLength(1);
+  });
+
+  it('owns the scope-guard SELECT tokens once and composes them at all three readers', () => {
+    const purchases = src('purchases.ts'), analytics = src('analytics.ts'), record = src('record-purchases.ts');
+    expect(analytics.match(/crmAssignmentScopeExistsSql\(/g)).toHaveLength(2);
+    expect(record.match(/crmAssignmentScopeExistsSql\(/g)).toHaveLength(1);
+    expect(analytics).toContain("crmAssignmentScopeExistsSql('property.company_id,property.branch_id,?::text department_id','hotel_scope','pms.read')");
+    expect(analytics).toContain("crmAssignmentScopeExistsSql('cost.company_id,?::text branch_id,?::text department_id','cost_scope','finance.read')");
+    expect(record).toContain("crmAssignmentScopeExistsSql('crm_source.company_id,COALESCE(crm_source.branch_id,?::text) branch_id,COALESCE(crm_source.department_id,?::text) department_id','crm_authority','commerce.read')");
+    for (const text of [analytics, record]) {
+      expect(text).not.toMatch(/EXISTS\(SELECT 1 FROM \(SELECT property\.company_id/);
+      expect(text).not.toMatch(/EXISTS\(SELECT 1 FROM \(SELECT cost\.company_id/);
+      expect(text).not.toMatch(/EXISTS\(SELECT 1 FROM \(SELECT crm_source\.company_id/);
+    }
+    // r8-r21 helpers and the owned CRM source lock stay in place.
+    for (const token of ['crmAssignmentAllowedSql', 'crmAccountCreatedByScopeSql', 'opportunityWitnessSql', 'crmClockCteSql', 'crmOpportunityLeadSql', 'crmHotelReservationProbeSql', 'crmCaseEventReceiptWitnessSql', 'crmBranchOptionsSql'])
+      expect(purchases).toContain(token);
+    expect(purchases).toContain('LOCK TABLE crm_accounts,crm_contacts,crm_guest_links,crm_guest_sharing_events,crm_leads,crm_opportunities,crm_case_events,crm_lead_activities,crm_lead_activity_events IN SHARE ROW EXCLUSIVE MODE');
+  });
+
+  it('keeps the owner SELECT KPI strictly below the r21 BEFORE=150 baseline', () => {
+    expect(totalSelects()).toBe(146);
+    expect(totalSelects()).toBeLessThan(150);
   });
 });
