@@ -10,6 +10,7 @@ import {homePosts,postView} from '@erpx/server-collaboration/public/social-home'
 import { readablePmsHomePosts } from "@erpx/server-collaboration/public/pms-home-read-facts";
 import { pmsSourceRecipients } from "@erpx/server-pms/adapters/pms/source";
 import { pmsSourcesSql, pmsSourceReadableSql } from "@erpx/server-pms/adapters/pms/source-policy";
+import { PMS_RECIPIENT_CROSS_JOIN_SQL } from '../pms-read-tail-r21-sql';
 import type { TaskRow } from "@erpx/server-pms/domain/home";
 import { createPmsHomeApplication, type PmsHomeRepository, type PmsTaskPageOptions } from "@erpx/server-pms/application/home";
 import { pmsCompanyHistoryAllowed, requirePmsCompanyHistory } from "@erpx/server-pms/adapters/read-purchase-boundary";
@@ -36,7 +37,7 @@ function taskQuery(actor: WorkContext, propertyId?: string, mine = false, select
     OR (pr.kind='stay' AND pr.data->>'state'='in_house' AND pr.data->>'departure'<pr.business_date))`;
     return { sql: `WITH operational AS MATERIALIZED (
     SELECT pr.*
-    FROM (${pmsSourcesSql}) pr CROSS JOIN (SELECT ?::text user_id) recipient
+    FROM (${pmsSourcesSql}) pr ${PMS_RECIPIENT_CROSS_JOIN_SQL}
     WHERE pr.company_id=? AND (?::text IS NULL OR pr.branch_id=?) AND (?::text IS NULL OR pr.property_id=?)
       AND (
       (pr.kind='stay' AND ${can("pms.frontdesk")} AND ((pr.data->>'state'='reserved' AND pr.data->>'arrival'<=pr.business_date)
@@ -57,7 +58,7 @@ function taskQuery(actor: WorkContext, propertyId?: string, mine = false, select
     )) SELECT pr.*,${label} label,COALESCE(${urgent},FALSE) urgent,${actionable} actionable,
       rr.data_json::jsonb->>'number' room_number,
       CASE WHEN COALESCE(${urgent},FALSE) THEN '0' ELSE '1' END || lpad(pr.updated_at::text,16,'0') page_key
-    FROM operational pr CROSS JOIN (SELECT ?::text user_id) recipient
+    FROM operational pr ${PMS_RECIPIENT_CROSS_JOIN_SQL}
     LEFT JOIN pms_records rr ON rr.property_id=pr.property_id AND rr.id=pr.data->>'roomId' AND rr.kind='room'
     WHERE ${pmsSourceReadableSql("pr", "recipient.user_id", "?::text")}
     ${mine ? `AND (${actionable}) AND (pr.kind<>'task' OR pr.data->>'state'='clean' OR pr.data->>'assigneeId'=recipient.user_id OR COALESCE(pr.data->>'assigneeId','')='')` : ""}

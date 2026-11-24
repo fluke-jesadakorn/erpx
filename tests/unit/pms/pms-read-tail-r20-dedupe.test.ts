@@ -53,7 +53,8 @@ describe('pms read-tail r20 byte-identical owner-projection dedupe', () => {
   it('lowers the pms owner SELECT KPI strictly below the r19 after=481 baseline', async () => {
     let count = 0;
     for (const file of await tsFiles(dir)) count += (await readFile(file, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(477);
+    // r21 deduped the 4x parameterized recipient cross-join fragment below r20 after=477.
+    expect(count).toBe(474);
     expect(count).toBeLessThan(481);
   });
 });
