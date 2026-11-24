@@ -88,4 +88,19 @@ describe('Organization owner-local read tail', () => {
     expect(all).toHaveBeenCalledWith(handle, 'company', 'calendar_access_organization_nodes', ['company']);
   });
 
+  it('shares one canonical projection source across the owner projection maps', async () => {
+    const {ORG_NODES_SOURCE,ORG_POSITIONS_SOURCE} = await import('../../../packages/server-organization/src/adapters/org-sources');
+    const {commercialOwnerProjectionSources} = await import('@erpx/server-organization/adapters/commercial-owner-projection-sources');
+    const {finalRootOwnerProjectionSources} = await import('@erpx/server-organization/adapters/final-root-owner-projection-sources');
+    const {hospitalityOwnerProjectionSources} = await import('@erpx/server-organization/adapters/hospitality-owner-projection-sources');
+    const {inventoryExecutiveOwnerProjections} = await import('@erpx/server-organization/adapters/inventory-executive-owner-projections');
+    const {platformOwnerProjectionSources} = await import('@erpx/server-organization/adapters/platform-owner-projection-sources');
+    for (const map of [commercialOwnerProjectionSources, finalRootOwnerProjectionSources, hospitalityOwnerProjectionSources, inventoryExecutiveOwnerProjections, platformOwnerProjectionSources])
+      expect(map.organization_nodes).toBe(ORG_NODES_SOURCE);
+    for (const map of [finalRootOwnerProjectionSources, hospitalityOwnerProjectionSources])
+      expect(map.organization_positions).toBe(ORG_POSITIONS_SOURCE);
+    expect(ORG_NODES_SOURCE).toContain('FROM organization_nodes');
+    expect(ORG_POSITIONS_SOURCE).toContain('FROM organization_positions');
+  });
+
 });

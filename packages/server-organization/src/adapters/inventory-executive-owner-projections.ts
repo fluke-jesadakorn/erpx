@@ -1,5 +1,6 @@
 import "server-only";
+import {ORG_NODES_SOURCE} from './org-sources';
 /** Closed native projections for Inventory, Planning, Manufacturing and Project snapshots. Callers retain their original scope/authority filters and execute the composed statement in their supplied transaction. No SQL or relation name is accepted from a caller. */
 export const inventoryExecutiveOwnerProjections = Object.freeze({
-  organization_nodes: "SELECT \"id\",\"kind\",\"slug\",\"display_name\",\"parent_id\",\"company_id\",\"branch_id\",\"status\",\"hierarchy_revision\" FROM organization_nodes",
+  organization_nodes: ORG_NODES_SOURCE,
 } as const);
