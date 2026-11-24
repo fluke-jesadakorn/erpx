@@ -1,5 +1,5 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
-import { nativePosRegisterCatalogStatement } from './native-pos-core-statement';
+import { nativePosRegisterCatalogStatement, nativePosCatalogStatement, nativePosProductImagesStatement } from './native-pos-core-statement';
 import {matchesUploadSignature} from "@erpx/server-files/public/rules/upload-validation";
 import 'server-only';
 import sharp from 'sharp';
@@ -8,7 +8,6 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
 import { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
-import {one,run} from '@erpx/server-runtime/public/runtime/sql';
 import {posCommand} from '@erpx/server-pos/public/pos-core';
 import { readBoundedUploadBody } from "@erpx/server-files/public/attachments/upload";
 import { createAttachmentSet, reserveAttachmentFile, completeAttachmentUpload, scanAttachmentNow } from "@erpx/server-files/public/attachments/service";
@@ -28,7 +27,7 @@ function unit(db: SqlDatabase, files: FileStore): PosImagesUnit {
         readPosCatalog1: (facts: {
             productId: string;
             companyId: string;
-        }) => one(db, 'SELECT product_id,version FROM pos_catalog WHERE product_id=? AND company_id=?', facts.productId, facts.companyId),
+        }) => nativePosCatalogStatement(db, facts.productId, facts.companyId),
         readPosRegisterCatalog1: (facts: {
             productId: string;
             branchId: string;
@@ -38,7 +37,7 @@ function unit(db: SqlDatabase, files: FileStore): PosImagesUnit {
             imageId: string;
             companyId: string;
             productId: string;
-        }) => one(db, 'SELECT attachment_source_id FROM pos_product_images WHERE id=? AND company_id=? AND product_id=?', facts.imageId, facts.companyId, facts.productId),
+        }) => nativePosProductImagesStatement(db, facts.imageId, facts.companyId, facts.productId),
         readCommerceProducts1: facts => posImagesCommerceFacts(db).readCommerceProducts1(facts),
         readAttachments1: facts => posImageSourceFacts(db).readAttachments1(facts),
         writePosProductImages1: (facts: {

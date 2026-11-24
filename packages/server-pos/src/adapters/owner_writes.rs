@@ -131,6 +131,19 @@ pub const STRIPE_READPOSJOBSENTRYPOINT_529: &str = "stripe_readposjobsentrypoint
 /// the first-sale ordering. Read-only caller-transaction read scoped by
 /// movement id, Company and optional Branch; no TypeScript mirror remains.
 pub const POS_READPOSMOVEMENTSALE_530: &str = "pos_readposmovementsale_530";
+/// POS product-image catalog guard read retired from the literal in
+/// `pos-images.ts`. Byte-identical `SELECT product_id,version FROM pos_catalog
+/// WHERE product_id=? AND company_id=?` used to validate the current catalog
+/// version before saving a product image. Read-only caller-transaction read
+/// scoped by product and Company; no TypeScript mirror remains.
+pub const IMAGES_READPOSCATALOG_531: &str = "images_readposcatalog_531";
+/// POS product-image attachment-source guard read retired from the literal in
+/// `pos-images.ts`. Byte-identical `SELECT attachment_source_id FROM
+/// pos_product_images WHERE id=? AND company_id=? AND product_id=?` used to
+/// detect an existing product image before a versioned save. Read-only
+/// caller-transaction read scoped by image, Company and product; no TypeScript
+/// mirror remains.
+pub const IMAGES_READPOSPRODUCTIMAGES_532: &str = "images_readposproductimages_532";
 pub const STRIPE_WRITEPOSSTRIPEEVENTS1_49: &str = "stripe_writeposstripeevents1_49";
 pub const STRIPE_WRITEPOSSTRIPEEVENTS2_53: &str = "stripe_writeposstripeevents2_53";
 pub const STRIPE_WRITEPOSCONNECTIONHISTORY1_58: &str = "stripe_writeposconnectionhistory1_58";
@@ -238,6 +251,8 @@ pub const KINDS: &[&str] = &[
     STRIPE_READPOSBOOKINGCONNECTION_528,
     STRIPE_READPOSJOBSENTRYPOINT_529,
     POS_READPOSMOVEMENTSALE_530,
+    IMAGES_READPOSCATALOG_531,
+    IMAGES_READPOSPRODUCTIMAGES_532,
     STRIPE_WRITEPOSSTRIPEEVENTS1_49,
     STRIPE_WRITEPOSSTRIPEEVENTS2_53,
     STRIPE_WRITEPOSCONNECTIONHISTORY1_58,
@@ -388,6 +403,8 @@ fn sql(kind: &str) -> Option<&'static str> {
         STRIPE_READPOSBOOKINGCONNECTION_528 => r#"SELECT * FROM pos_connections WHERE company_id=? AND state='ready' AND charges_enabled=true AND payouts_enabled=true"#,
         STRIPE_READPOSJOBSENTRYPOINT_529 => r#"SELECT id,kind,state,last_error,payload_json FROM pos_jobs WHERE company_id=? AND kind IN ('connect','connect_refresh') ORDER BY created_at DESC LIMIT 10"#,
         POS_READPOSMOVEMENTSALE_530 => r#"SELECT l.sale_id FROM pos_stock_moves m JOIN pos_lines l ON l.fulfillment_id=m.fulfillment_id JOIN pos_sales s ON s.id=l.sale_id WHERE m.id=? AND s.company_id=? AND (?::text IS NULL OR s.branch_id=?) ORDER BY s.created_at LIMIT 1"#,
+        IMAGES_READPOSCATALOG_531 => r#"SELECT product_id,version FROM pos_catalog WHERE product_id=? AND company_id=?"#,
+        IMAGES_READPOSPRODUCTIMAGES_532 => r#"SELECT attachment_source_id FROM pos_product_images WHERE id=? AND company_id=? AND product_id=?"#,
         STRIPE_WRITEPOSSTRIPEEVENTS1_49 => r#"INSERT INTO pos_stripe_events(id,account_id,livemode,company_id,event_type,payload_json,received_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING"#,
         STRIPE_WRITEPOSSTRIPEEVENTS2_53 => r#"UPDATE pos_stripe_events SET provider_created_at=COALESCE(provider_created_at,?) WHERE id=?"#,
         STRIPE_WRITEPOSCONNECTIONHISTORY1_58 => r#"INSERT INTO pos_connection_history VALUES(?,?,?) ON CONFLICT DO NOTHING"#,
@@ -488,7 +505,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 124);
+        assert_eq!(KINDS.len(), 126);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -757,6 +774,44 @@ mod tests {
         assert_eq!(
             stmt,
             "SELECT l.sale_id FROM pos_stock_moves m JOIN pos_lines l ON l.fulfillment_id=m.fulfillment_id JOIN pos_sales s ON s.id=l.sale_id WHERE m.id=? AND s.company_id=? AND (?::text IS NULL OR s.branch_id=?) ORDER BY s.created_at LIMIT 1"
+        );
+    }
+
+    /// The retired product-image catalog guard read is a SELECT-only owner
+    /// statement. Its SQL is byte-identical to the deleted literal in
+    /// `pos-images.ts`; this kind is the sole authority and the TypeScript copy
+    /// was removed. Caller-transaction read scoped by product and Company.
+    #[test]
+    fn images_catalog_guard_read_kind_is_select_only() {
+        assert!(supported(IMAGES_READPOSCATALOG_531));
+        let stmt = sql(IMAGES_READPOSCATALOG_531).unwrap();
+        assert!(stmt.starts_with("SELECT "), "catalog guard read must be SELECT-only");
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+            assert!(!stmt.contains(forbidden), "catalog guard read must not mutate: {forbidden}");
+        }
+        assert_eq!(stmt.matches('?').count(), 2, "catalog guard read carries product and Company scope");
+        assert_eq!(
+            stmt,
+            "SELECT product_id,version FROM pos_catalog WHERE product_id=? AND company_id=?"
+        );
+    }
+
+    /// The retired product-image attachment-source guard read is a SELECT-only
+    /// owner statement. Its SQL is byte-identical to the deleted literal in
+    /// `pos-images.ts`; this kind is the sole authority and the TypeScript copy
+    /// was removed. Caller-transaction read scoped by image, Company and product.
+    #[test]
+    fn images_product_images_guard_read_kind_is_select_only() {
+        assert!(supported(IMAGES_READPOSPRODUCTIMAGES_532));
+        let stmt = sql(IMAGES_READPOSPRODUCTIMAGES_532).unwrap();
+        assert!(stmt.starts_with("SELECT "), "product-image guard read must be SELECT-only");
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";"] {
+            assert!(!stmt.contains(forbidden), "product-image guard read must not mutate: {forbidden}");
+        }
+        assert_eq!(stmt.matches('?').count(), 3, "product-image guard carries image, Company and product");
+        assert_eq!(
+            stmt,
+            "SELECT attachment_source_id FROM pos_product_images WHERE id=? AND company_id=? AND product_id=?"
         );
     }
 

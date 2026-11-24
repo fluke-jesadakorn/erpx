@@ -224,3 +224,39 @@ export async function nativePosMovementSaleStatement<T = SqlValueRow>(
 ): Promise<T | null> {
   return nativePosOne<T>(db, companyId, 'pos_readposmovementsale_530', [movementId, companyId, branchId, branchId]);
 }
+
+/**
+ * Owner-issued POS product-image catalog guard read. The SQL lives in the
+ * native POS owner registry (`erpx-server-pos::adapters::owner_writes`, kind
+ * `images_readposcatalog_531`) and is byte-identical to the retired guard
+ * literal in `pos-images.ts`, which validated the current catalog version
+ * before saving a product image. This bridge sends only the kind and the
+ * product/Company values; the caller executes the registry statement on its
+ * own unit, so no local SQL, mirror or fallback reader remains.
+ */
+export async function nativePosCatalogStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  productId: string,
+  company: string,
+): Promise<T | null> {
+  return nativePosOne<T>(db, company, 'images_readposcatalog_531', [productId, company]);
+}
+
+/**
+ * Owner-issued POS product-image attachment-source guard read. The SQL lives
+ * in the native POS owner registry (`erpx-server-pos::adapters::owner_writes`,
+ * kind `images_readposproductimages_532`) and is byte-identical to the retired
+ * guard literal in `pos-images.ts`, which read the attachment source id of an
+ * existing product image before a versioned save. This bridge sends only the
+ * kind and the image/Company/product values; the caller executes the registry
+ * statement on its own unit, so no local SQL, mirror or fallback reader
+ * remains.
+ */
+export async function nativePosProductImagesStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  imageId: string,
+  company: string,
+  productId: string,
+): Promise<T | null> {
+  return nativePosOne<T>(db, company, 'images_readposproductimages_532', [imageId, company, productId]);
+}

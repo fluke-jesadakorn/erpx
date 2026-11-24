@@ -15,6 +15,8 @@ import {
   nativePosBookingConnectionStatement,
   nativePosStripeEntrypointJobsStatement,
   nativePosMovementSaleStatement,
+  nativePosCatalogStatement,
+  nativePosProductImagesStatement,
 } from '../../../packages/server-pos/src/adapters/native-pos-core-statement';
 import { pmsHospitalitySetupPosFacts } from '../../../packages/server-pos/src/adapters/pms-hospitality-setup-facts';
 import { pmsBookingChangeFacts } from '../../../packages/server-pos/src/adapters/pms-booking-change-facts';
@@ -732,5 +734,98 @@ describe('native POS core workspace read bridge (shifts family)', () => {
     const source = readFileSync(new URL('../../../packages/server-pos/src/adapters/movement-presentation-query.ts', import.meta.url), 'utf8');
     expect(source).not.toContain('SELECT l.sale_id FROM pos_stock_moves');
     expect(source).toContain('nativePosMovementSaleStatement');
+  });
+
+  it('requests the product-image catalog guard row from the native owner registry only', async () => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const sql = 'SELECT product_id,version FROM pos_catalog WHERE product_id=? AND company_id=?';
+    const values = ['product-1', 'company'];
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { sql, values } }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const seen: { sql?: string; values?: unknown[] } = {};
+    const row = { product_id: 'product-1', version: 3 };
+    const db = {
+      prepare: (text: string) => ({
+        bind: (...bound: unknown[]) => {
+          seen.sql = text;
+          seen.values = bound;
+          return { first: async () => row };
+        },
+      }),
+    };
+    const prepare = vi.spyOn(db, 'prepare');
+    const result = await nativePosCatalogStatement(db as never, 'product-1', 'company');
+    expect(result).toEqual(row);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe('http://127.0.0.1:44994/api/v1/companies/company/pos/owner-write');
+    expect(JSON.parse(init.body)).toEqual({ company: 'company', kind: 'images_readposcatalog_531', values });
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(seen.sql).toBe(sql);
+    expect(seen.values).toEqual(values);
+  });
+
+  it('fails closed for the product-image catalog guard read when the native owner service is unconfigured', async () => {
+    delete process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    await expect(nativePosCatalogStatement({} as never, 'product-1', 'company')).rejects.toMatchObject({
+      code: 'NATIVE_POS_OWNER_UNAVAILABLE',
+      status: 503,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('requests the product-image attachment-source guard row from the native owner registry only', async () => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const sql = 'SELECT attachment_source_id FROM pos_product_images WHERE id=? AND company_id=? AND product_id=?';
+    const values = ['image-1', 'company', 'product-1'];
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { sql, values } }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const seen: { sql?: string; values?: unknown[] } = {};
+    const row = { attachment_source_id: 'source-1' };
+    const db = {
+      prepare: (text: string) => ({
+        bind: (...bound: unknown[]) => {
+          seen.sql = text;
+          seen.values = bound;
+          return { first: async () => row };
+        },
+      }),
+    };
+    const prepare = vi.spyOn(db, 'prepare');
+    const result = await nativePosProductImagesStatement(db as never, 'image-1', 'company', 'product-1');
+    expect(result).toEqual(row);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe('http://127.0.0.1:44994/api/v1/companies/company/pos/owner-write');
+    expect(JSON.parse(init.body)).toEqual({ company: 'company', kind: 'images_readposproductimages_532', values });
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(seen.sql).toBe(sql);
+    expect(seen.values).toEqual(values);
+  });
+
+  it('fails closed for the product-image attachment-source guard read when the native owner service is unconfigured', async () => {
+    delete process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    await expect(nativePosProductImagesStatement({} as never, 'image-1', 'company', 'product-1')).rejects.toMatchObject({
+      code: 'NATIVE_POS_OWNER_UNAVAILABLE',
+      status: 503,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('keeps no byte-identical product-image guard SQL literal in the TS adapter', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-images.ts', import.meta.url), 'utf8');
+    expect(source).not.toContain('SELECT product_id,version FROM pos_catalog');
+    expect(source).not.toContain('SELECT attachment_source_id FROM pos_product_images');
+    expect(source).toContain('nativePosCatalogStatement');
+    expect(source).toContain('nativePosProductImagesStatement');
   });
 });
