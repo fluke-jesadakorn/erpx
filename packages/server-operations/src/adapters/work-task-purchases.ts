@@ -1,6 +1,6 @@
 import 'server-only';
 import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL} from './task-delegation-source';
-import {OPERATIONS_ACTOR_SCOPE_INPUT_SQL} from './workforce-actor-scope-source';
+import {OPERATIONS_ACTOR_SCOPE_INPUT_SQL,OPERATIONS_CLOCK_CTE_SQL} from './workforce-actor-scope-source';
 import {randomUUID} from 'node:crypto';
 import {nativeOperationsReadFirst,OPERATIONS_RD_WORK_TASK_SOURCE} from './native-operations-read';
 import type {StaffActor} from '@erpx/server-operations/public/staff-policy';
@@ -21,7 +21,7 @@ import {workTaskSocialReadPolicy,workTaskSocialReadScope} from '@erpx/server-col
 import {workTaskSocialPurchasePredicate,workTaskSocialSourceLocks,workTaskSocialAudienceSourceLocks,workTaskSocialPurchaseSource} from '@erpx/server-collaboration/public/work-task-purchase-source';
 import {withOperationsTaskPurchaseUnit,deferOperationsTaskPurchaseCheck,withProjectTaskPurchasedCommand} from '@erpx/server-projects/public/task-purchases';
 import {appsPackageEnforcementMode,projectsPackageEnforcementMode,checkPurchasedCapability,readPurchasedAccesses,purchaseCommandBoundary,companyPurchaseReadLocks} from '@erpx/server-commercial/public/purchase-command-boundary';
-import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import type {TaskWorkState} from '@erpx/server-operations/domain/staff-tasks';
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
@@ -61,6 +61,6 @@ export async function workTaskPurchaseAccess(database:SqlDatabase,actor:StaffAct
 export async function workTaskReadScope(database:SqlDatabase,actor:StaffActor){
  const mode=await appsPackageEnforcementMode();if(mode==='disabled'&&await projectsPackageEnforcementMode()!=='enforced')return {where:'TRUE',args:[] as (string|number|null)[]};
  const social=await workTaskSocialReadScope(database,actor);if(mode!=='disabled'){await current(database,actor,`work-task-list:${randomUUID()}`);await readPurchasedAccesses(database,mode,actor.companyId,['work.actions','work.advanced-routines','work.social']);}if(mode!=='enforced')return social;
- const live=authority(actor);return {args:[...live.args,...social.args],where:`EXISTS(${live.sql}) AND (${social.where}) AND (t.project_id IS NOT NULL OR EXISTS(WITH work_task_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms) SELECT 1 FROM work_task_clock WHERE ${purchasedCapabilityPredicate('t.company_id','work.actions','history','work_task_clock.now_ms')} AND (t.template_id IS NULL OR ${purchasedCapabilityPredicate('t.company_id','work.advanced-routines','history','work_task_clock.now_ms')}) AND (NOT ${workTaskSocialPurchasePredicate()} OR ${purchasedCapabilityPredicate('t.company_id','work.social','history','work_task_clock.now_ms')})))`};
+ const live=authority(actor);return {args:[...live.args,...social.args],where:`EXISTS(${live.sql}) AND (${social.where}) AND (t.project_id IS NOT NULL OR EXISTS(WITH work_task_clock AS MATERIALIZED${OPERATIONS_CLOCK_CTE_SQL} SELECT 1 FROM work_task_clock WHERE ${purchasedCapabilityPredicate('t.company_id','work.actions','history','work_task_clock.now_ms')} AND (t.template_id IS NULL OR ${purchasedCapabilityPredicate('t.company_id','work.advanced-routines','history','work_task_clock.now_ms')}) AND (NOT ${workTaskSocialPurchasePredicate()} OR ${purchasedCapabilityPredicate('t.company_id','work.social','history','work_task_clock.now_ms')})))`};
 }
 export async function workTaskWorkState(database:SqlDatabase,actor:StaffActor,id:string,state:TaskWorkState){const access=await workTaskPurchaseAccess(database,actor,id);if(!access)return state;const permittedActions=state.permittedActions.filter(action=>['edit','revise','submit'].includes(action)?access.newWork:access.settleExisting);return {...state,permittedActions,blockedReason:state.blockedReason??(permittedActions.length===0&&state.permittedActions.length>0?'This retained Work task is available for history.':null)};}

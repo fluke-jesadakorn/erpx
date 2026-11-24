@@ -1,5 +1,5 @@
 import{visibleTask,authority}from '@erpx/server-operations/adapters/evaluation-source-policy';
-import {workforceActorScopeSql} from './workforce-actor-scope-source';
+import {workforceActorScopeSql,OPERATIONS_CLOCK_CTE_SQL,OPERATIONS_VIEWER_CLOCK_SQL,OPERATIONS_TASK_SCOPE_SQL} from './workforce-actor-scope-source';
 import {nativeOperationsReadFirst,OPERATIONS_RD_RECORD_TASK_PROJECT} from './native-operations-read';
 import 'server-only';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
@@ -29,7 +29,7 @@ import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/re
 async function handbookReadScope(actor:WorkContext){
  if(await appsPackageEnforcementMode()!=='enforced')return {where:'TRUE',args:[] as (string|number|null)[]};
  const current=currentAssignmentReadScope(actor,'workforce_actor_scope');
- return {where:`EXISTS(WITH handbook_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms) SELECT 1 FROM handbook_clock CROSS JOIN LATERAL(SELECT a.company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${current.where} AND ${scheduledFeaturePredicate('a.company_id','collaboration')} AND ${purchasedCapabilityPredicate('a.company_id','work.handbook','history','handbook_clock.now_ms')})`,args:[actor.branchId,actor.departmentId,...current.args]};
+ return {where:`EXISTS(WITH handbook_clock AS MATERIALIZED${OPERATIONS_CLOCK_CTE_SQL} SELECT 1 FROM handbook_clock CROSS JOIN LATERAL(SELECT a.company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${current.where} AND ${scheduledFeaturePredicate('a.company_id','collaboration')} AND ${purchasedCapabilityPredicate('a.company_id','work.handbook','history','handbook_clock.now_ms')})`,args:[actor.branchId,actor.departmentId,...current.args]};
 }
 async function handbookSourceReadScope(actor:WorkContext,surface:'records'|'staff'|'inbox'){
  if(await appsPackageEnforcementMode()!=='enforced')return {where:'TRUE',args:[] as (string|number|null)[]};
@@ -93,7 +93,7 @@ export async function filterWorkTaskWork(database:SqlDatabase,actor:WorkContext,
 export async function workTaskProjectionReadScope(database:SqlDatabase,actor:WorkContext){
  if(await appsPackageEnforcementMode()==='disabled'&&await projectsPackageEnforcementMode()==='disabled')return {where:'TRUE',args:[] as unknown[]};
  const work=await workTaskReadScope(database,actor),project=await projectTaskReadScope(database,actor),social=await workTaskSocialReadScope(database,actor),current=authority(actor),viewer='work_projection_viewer';
- return {where:`(${work.where}) AND (${project.where}) AND (${social.where}) AND EXISTS(WITH ${viewer} AS MATERIALIZED(SELECT ?::text user_id,?::text assignment_id,${packageClockSql} now_ms) SELECT 1 FROM ${viewer} CROSS JOIN LATERAL(SELECT t.company_id,t.branch_id,t.department_id)workforce_actor_scope WHERE ${current.where} AND ${projectTaskRecordPolicy('t.id','t.company_id',viewer)})`,args:[...work.args,...social.args,actor.userId,actor.assignmentId,...current.args]};
+ return {where:`(${work.where}) AND (${project.where}) AND (${social.where}) AND EXISTS(WITH ${viewer} AS MATERIALIZED${OPERATIONS_VIEWER_CLOCK_SQL} SELECT 1 FROM ${viewer} CROSS JOIN LATERAL${OPERATIONS_TASK_SCOPE_SQL}workforce_actor_scope WHERE ${current.where} AND ${projectTaskRecordPolicy('t.id','t.company_id',viewer)})`,args:[...work.args,...social.args,actor.userId,actor.assignmentId,...current.args]};
 }
 export async function workMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){
  const mode=await appsPackageEnforcementMode(),projectMode=await projectsPackageEnforcementMode();
