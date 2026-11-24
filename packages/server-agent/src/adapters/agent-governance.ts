@@ -30,6 +30,11 @@ const privateSessionSelectSql = 'SELECT s.id,s.user_id,s.assignment_id,s.convers
  * sites keep their own binds; the native session owner remains the authority. */
 const agentActivePrivateSessionSql = (expiresAt: string) =>
   `SELECT 1 FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id WHERE s.id=? AND s.company_id=? AND s.user_id=? AND s.assignment_id=? AND c.status='active' AND c.expires_at>${expiresAt}`;
+/** Parameterized Agent company-scoped list projection shared by workspaceAgents,
+ * workspacePools and workspaceInvocations. Only the table and ORDER BY suffix
+ * vary; each call site keeps its own company bind; the native owner remains the authority. */
+const agentCompanyListSql = (table: string, suffix: string) =>
+  `SELECT * FROM ${table} WHERE company_id=? ${suffix}`;
 async function exposed<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 function bindRepository(db:SqlDatabase):AgentGovernanceRepository<SqlStatement>{return {async policyCandidates(companyId:string,userId:string){return (await db.prepare(
     `SELECT x.id,x.version assignment_version,x.scope_path,x.pool_id,x.agent_version_id,
@@ -57,7 +62,7 @@ guardApprovedPolicy(key:string,value:"approved-agent",assignmentId:string,compan
     [assignmentId,companyId,assignmentVersion,agentVersionId,agentVersionRevision,catalogVersion,userId,poolId,poolVersion,userId]);},
 async workspaceAgents(companyId:string){return (await db
           .prepare(
-            "SELECT * FROM agent_catalog WHERE company_id=? ORDER BY updated_at DESC",
+            agentCompanyListSql('agent_catalog','ORDER BY updated_at DESC'),
           )
           .bind(companyId)
           .all<Row>()).results;},
@@ -68,7 +73,7 @@ async workspaceVersions(companyId:string){return (await db
           .bind(companyId)
           .all<Row>()).results;},
 async workspacePools(companyId:string){return (await db
-          .prepare("SELECT * FROM agent_pools WHERE company_id=? ORDER BY name")
+          .prepare(agentCompanyListSql('agent_pools','ORDER BY name'))
           .bind(companyId)
           .all<Row>()).results;},
 async workspaceAssignments(companyId:string){return (await db
@@ -79,7 +84,7 @@ async workspaceAssignments(companyId:string){return (await db
           .all<Row>()).results;},
 async workspaceInvocations(companyId:string){return (await db
           .prepare(
-            "SELECT * FROM ai_invocation_evidence WHERE company_id=? ORDER BY created_at DESC LIMIT 50",
+            agentCompanyListSql('ai_invocation_evidence','ORDER BY created_at DESC LIMIT 50'),
           )
           .bind(companyId)
           .all<Row>()).results;},

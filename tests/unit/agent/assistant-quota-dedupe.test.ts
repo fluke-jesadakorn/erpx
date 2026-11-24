@@ -281,4 +281,50 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
     expect(assistant).toContain('"SELECT state,answer_json FROM ai_workspace_turns WHERE id=?"');
   });
+
+  /** Verbatim pre-dedupe parameterized company-scoped list projection
+   * (workspaceAgents ↔ workspacePools ↔ workspaceInvocations). */
+  const companyListTemplate = 'SELECT * FROM ${table} WHERE company_id=? ${suffix}';
+
+  it('r17: authors the parameterized company-scoped list projection once', async () => {
+    const gov = await src('adapters/agent-governance.ts');
+    const def = gov.match(/const agentCompanyListSql = \(table: string, suffix: string\) =>\s*`(SELECT [^`]*?)`;/)?.[1];
+    expect(def).toBe(companyListTemplate);
+    expect(gov.match(/SELECT \* FROM \$\{table\} WHERE company_id=\? \$\{suffix\}/g)).toHaveLength(1);
+    expect(gov.match(/agentCompanyListSql\(/g)).toHaveLength(3);
+  });
+
+  it('r17: all three consumers render the exact pre-dedupe SQL with unchanged binds', async () => {
+    const gov = await src('adapters/agent-governance.ts');
+    const def = gov.match(/const agentCompanyListSql = \(table: string, suffix: string\) =>\s*`(SELECT [^`]*?)`;/)?.[1]!;
+    const calls = [...gov.matchAll(/agentCompanyListSql\('([^']+)','([^']+)'\)/g)].map((m) => [m[1], m[2]]);
+    expect(calls).toEqual([
+      ['agent_catalog', 'ORDER BY updated_at DESC'],
+      ['agent_pools', 'ORDER BY name'],
+      ['ai_invocation_evidence', 'ORDER BY created_at DESC LIMIT 50'],
+    ]);
+    expect(calls.map(([t, s]) => def.replace('${table}', t).replace('${suffix}', s))).toEqual([
+      'SELECT * FROM agent_catalog WHERE company_id=? ORDER BY updated_at DESC',
+      'SELECT * FROM agent_pools WHERE company_id=? ORDER BY name',
+      'SELECT * FROM ai_invocation_evidence WHERE company_id=? ORDER BY created_at DESC LIMIT 50',
+    ]);
+    expect(gov).toContain("agentCompanyListSql('agent_catalog','ORDER BY updated_at DESC'),\n          )\n          .bind(companyId)");
+  });
+
+  it('r17: the translation guard, locks and r7-r16 families stay untouched', async () => {
+    const gov = await src('adapters/agent-governance.ts');
+    const assistant = await src('adapters/workspace-assistant.ts');
+    const locks = await src('adapters/social-ai-source-locks.ts');
+    expect(gov).toContain(`const agentPoolMemberAccessSql = '${poolMemberAccess}';`);
+    expect(gov).toContain(`const privateSessionSelectSql = '${privateSessionSelect}';`);
+    expect(gov).toContain('const agentActivePrivateSessionSql = (expiresAt: string) =>');
+    for (const lock of [
+      '"SELECT session_id FROM ai_private_session_controls WHERE session_id=? FOR SHARE"',
+      '"SELECT x.id FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id JOIN agent_catalog c ON c.id=v.agent_id WHERE x.id=? FOR SHARE OF x,v,c"',
+      '"SELECT id FROM agent_pools WHERE id=? FOR SHARE"',
+    ]) expect(gov).toContain(lock);
+    expect(locks.match(/SELECT/g)).toHaveLength(4);
+    expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
+    expect(assistant).toContain('"SELECT state,answer_json FROM ai_workspace_turns WHERE id=?"');
+  });
 });
