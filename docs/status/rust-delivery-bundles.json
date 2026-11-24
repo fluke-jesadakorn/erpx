@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12411,
+    "revision": 12413,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183692,7 +183692,7 @@
         "owner": "projects",
         "title": "projects TS read tail next round",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183703,22 +183703,37 @@
         "resources": [
           "owner:projects"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n78",
-          "claimedAt": "2026-11-24T15:45:13.412Z",
-          "heartbeatAt": "2026-11-24T15:55:31.303Z",
-          "expiresAt": "2026-11-24T16:25:31.303Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-projects/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "2419d9510",
+            "owner": "projects",
+            "before": 81,
+            "after": 76,
+            "note": "S1 scope bind projection (-3) and S2 aliased project point-read (-2) proven byte-identical; S3 viewer authority failed identity and stays inline."
+          },
+          {
+            "command": "vitest projects (200) + scoped tsc + 7 byte oracles",
+            "result": "passed",
+            "sourceSha": "2419d9510"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Claimed families: scope bind head (-3), aliased point-read (-2), assignment-viewer tail (-2): 81->74. Verify byte identity or record floor with AST evidence. BEFORE=81.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n78",
+          "at": "2026-11-24T16:06:46.614Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -183957,17 +183972,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 17,
+        "in_progress": 16,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1436,
+        "blocked": 1437,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:06:33.766Z",
+    "updatedAt": "2026-11-24T16:06:46.617Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
