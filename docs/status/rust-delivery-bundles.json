@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8192,
+    "revision": 8194,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -136621,7 +136621,7 @@
         "owner": "records",
         "title": "records record_context native read port",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -136633,7 +136633,14 @@
         "resources": [
           "owner:records"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGBRrec",
+          "claimedAt": "2026-11-24T01:49:57.123Z",
+          "heartbeatAt": "2026-11-24T01:49:57.123Z",
+          "expiresAt": "2026-11-24T02:19:57.123Z",
+          "generation": 161
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -136650,7 +136657,7 @@
         "owner": "customer_360",
         "title": "customer 360 timeline activity native port",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -136662,7 +136669,14 @@
         "resources": [
           "owner:customer_360"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGBScus",
+          "claimedAt": "2026-11-24T01:49:57.303Z",
+          "heartbeatAt": "2026-11-24T01:49:57.303Z",
+          "expiresAt": "2026-11-24T02:19:57.303Z",
+          "generation": 161
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -137181,8 +137195,8 @@
       "totalPackets": 876,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 17,
-        "in_progress": 31,
+        "pending": 15,
+        "in_progress": 33,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -137192,7 +137206,7 @@
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:49:35.282Z",
+    "updatedAt": "2026-11-24T01:49:57.308Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
