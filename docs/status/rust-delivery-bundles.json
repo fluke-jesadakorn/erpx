@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9924,
+    "revision": 9928,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -156130,7 +156130,7 @@
         "owner": "organization",
         "title": "organization TS read tail native cutover (r28)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -156142,22 +156142,37 @@
         "resources": [
           "owner:organization"
         ],
-        "claim": {
-          "runId": "run-20261123-l",
-          "agentId": "wGCRorg",
-          "claimedAt": "2026-11-24T06:01:37.566Z",
-          "heartbeatAt": "2026-11-24T06:01:37.566Z",
-          "expiresAt": "2026-11-24T06:31:37.566Z",
-          "generation": 164
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-organization/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0ee806c00",
+            "owner": "organization",
+            "before": 299,
+            "after": 292,
+            "note": "Company snapshot aggregate and correlated owner node json families shared; r17-r27 untouched."
+          },
+          {
+            "command": "vitest organization r26-r28 + native (46) + tsc",
+            "result": "passed",
+            "sourceSha": "0ee806c00"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=303.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCRorg",
+          "at": "2026-11-24T06:14:56.668Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -156580,7 +156595,7 @@
         "owner": "pms",
         "title": "pms TS read tail native cutover (r25)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -156592,22 +156607,37 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261123-l",
-          "agentId": "wGCSpms",
-          "claimedAt": "2026-11-24T06:03:00.175Z",
-          "heartbeatAt": "2026-11-24T06:03:00.175Z",
-          "expiresAt": "2026-11-24T06:33:00.175Z",
-          "generation": 164
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pms/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0ee806c00",
+            "owner": "pms",
+            "before": 420,
+            "after": 414,
+            "note": "Guest account, guest cashier, reservation and stays OR families shared; locks inline; r17-r24 untouched."
+          },
+          {
+            "command": "vitest pms r17-r25 (38) + tsc pms",
+            "result": "passed",
+            "sourceSha": "0ee806c00"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=420.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCSpms",
+          "at": "2026-11-24T06:14:56.013Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -157272,17 +157302,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 19,
+        "in_progress": 17,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 901,
+        "blocked": 903,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 164,
-    "updatedAt": "2026-11-24T06:14:11.122Z",
+    "updatedAt": "2026-11-24T06:14:56.678Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
