@@ -1,9 +1,10 @@
 import "server-only";
 import { FINANCE_JOURNALS_PROJECTION_SQL } from "./finance-journals-projection-dedupe-sql";
+import { FINANCE_CHARTS_PROJECTION_SQL } from "./finance-charts-projection-dedupe-sql";
 /** Closed owner projections for Platform, Organization and Procurement joins. Original filters, bindings and supplied transactions remain with the caller. */
 export const platformOwnerProjectionSources = Object.freeze({
   finance_accounts: "SELECT \"id\",\"chart_id\",\"company_id\",\"code\",\"name\",\"category\",\"parent_id\",\"currency\",\"is_control\",\"status\",\"version\",\"created_at\",\"updated_at\",\"control_kind\" FROM finance_accounts",
-  finance_charts: "SELECT \"id\",\"company_id\",\"name\",\"base_currency\",\"accounting_basis\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\" FROM finance_charts",
+  finance_charts: FINANCE_CHARTS_PROJECTION_SQL,
   finance_invoices: "SELECT \"id\",\"company_id\",\"party_id\",\"kind\",\"invoice_number\",\"invoice_date\",\"due_date\",\"currency\",\"subtotal_minor\",\"tax_minor\",\"total_minor\",\"outstanding_minor\",\"tax_code\",\"debit_account_id\",\"credit_account_id\",\"source_type\",\"source_id\",\"status\",\"journal_id\",\"version\",\"created_by\",\"approved_by\",\"posted_at\",\"created_at\",\"updated_at\",\"tax_account_id\",\"fx_rate_micros\",\"base_total_minor\",\"base_outstanding_minor\",\"line_mode\",\"line_revision\" FROM finance_invoices",
   finance_journal_lines: "SELECT \"id\",\"journal_id\",\"account_id\",\"description\",\"debit_minor\",\"credit_minor\",\"base_debit_minor\",\"base_credit_minor\",\"dimension_json\",\"ordinal\" FROM finance_journal_lines",
   finance_journals: FINANCE_JOURNALS_PROJECTION_SQL,
