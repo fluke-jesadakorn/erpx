@@ -366,3 +366,21 @@ export async function nativePosCounterPaymentConnectionStatement<T = SqlValueRow
 ): Promise<T | null> {
   return nativePosOne<T>(db, companyId, 'counter_readposconnectionreadiness_536', [companyId]);
 }
+
+/**
+ * Owner-issued by-id-and-company payment row read. The SQL lives in the native
+ * POS owner registry (`erpx-server-pos::adapters::owner_writes`, kind
+ * `stripe_readpospaymentbyidcompany_540`) and is byte-identical to the two
+ * retired `readPosPayments8`/`readPosPayments9` literals in `pos-stripe.ts`
+ * (checkout flows). This bridge sends only the typed kind and the id/company
+ * values; the caller executes the registry statement on its own unit, so no
+ * local SQL, mirror or fallback reader remains. The `FOR UPDATE` by-id payment
+ * reads and refund reads stay in TypeScript and are unchanged.
+ */
+export async function nativePosPaymentByIdCompanyStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  companyId: unknown,
+  paymentId: unknown,
+): Promise<T | null> {
+  return nativePosOne<T>(db, String(companyId), 'stripe_readpospaymentbyidcompany_540', [paymentId, companyId]);
+}
