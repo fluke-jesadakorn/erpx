@@ -5,6 +5,11 @@ export const socialTaskOriginByPost=`SELECT task_id FROM social_task_origins WHE
 export const messagingRoomMembersAgg=`(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM messaging_room_members m WHERE m.room_id=r.id)`;
 export const socialFollowPostExists=(targetType:string,targetId:string)=>`EXISTS(SELECT 1 FROM social_follows f WHERE f.principal_id=? AND f.target_type=${targetType} AND f.target_id=${targetId})`;
 export const messagingTeamMemberExists=`EXISTS(SELECT 1 FROM messaging_team_members m WHERE m.team_id=t.id AND m.user_id=?)`;
+/** Byte-identical managed/team-member access guard shared by the single-team and
+ * team-list readers in messaging.ts. Only the leading id predicate, the managed
+ * team SQL and the trailing ORDER BY vary; the fixed company scope, bind order
+ * and lock semantics stay unchanged. */
+export const messagingTeamAccessSql=(prefix:string,managedSql:string,suffix:string)=>`SELECT t.* FROM messaging_teams t WHERE ${prefix}t.company_id=? AND ((NOT t.organization_managed AND ${messagingTeamMemberExists}) OR (t.organization_managed AND ${managedSql}))${suffix}`;
 export const legacyNativeUnion=`(SELECT * FROM legacy_rows UNION ALL SELECT * FROM native_rows)`;
 export const workforceActorScopeColumns=`(SELECT ?::text company_id,?::text branch_id,?::text department_id)`;
 export const messagingTeamMembersAgg=(teamId:string)=>`(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM messaging_team_members m WHERE m.team_id=${teamId})`;

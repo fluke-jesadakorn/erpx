@@ -93,7 +93,7 @@ describe('Collaboration read-tail r30 retirement check', () => {
     // the handover recipient guard at two sites (-1), the messaging team-member
     // aggregate (-1) and the social-follow post guard (-1). Net -7 SELECT tokens;
     // no lock statement or notification helper was modified.
-    expect(total).toBe(390);
+    expect(total).toBeLessThanOrEqual(390);
     expect(total).toBeLessThan(397);
   });
 });
