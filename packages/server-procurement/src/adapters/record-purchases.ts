@@ -7,6 +7,7 @@ import {commercePackageEnforcementMode,readPurchasedAccess,checkPurchasedCapabil
 import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {supplierBillOwnerPredicate} from "@erpx/server-procurement/adapters/bill-source-sql";
+import {nativeProcurementReadFirst,PROCUREMENT_RD_RECORD_BILL_MATCH_EXISTS,PROCUREMENT_RD_RECORD_RFQ_EXISTS} from "./native-procurement-read";
 
 export async function procurementSourcePredicate(database:SqlDatabase,actor:WorkContext|undefined,alias:string,purchased=true){
  return sourcePredicate(database,actor,alias,"commerce.read",purchased);
@@ -41,8 +42,8 @@ export async function procurementSourceReadScope(database:SqlDatabase,actor:Work
 }
 export async function requireProcurementWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,moduleId:string,id:string){
  const mode=await commercePackageEnforcementMode();if(moduleId!=="procurement"||mode==="disabled")return;
- const bill=!!await database.prepare("SELECT 1 FROM procurement_bill_matches WHERE id=?").bind(id).first();
- if(!bill&&!await database.prepare("SELECT 1 FROM procurement_rfqs WHERE id=?").bind(id).first())return;
+ const bill=!!await nativeProcurementReadFirst(PROCUREMENT_RD_RECORD_BILL_MATCH_EXISTS,[id],database);
+ if(!bill&&!await nativeProcurementReadFirst(PROCUREMENT_RD_RECORD_RFQ_EXISTS,[id],database))return;
  const scope=await (bill?supplierBillSourcePredicate:procurementSourcePredicate)(database,actor,"r",false);
  if(!await database.prepare(`SELECT 1 FROM ${bill?"procurement_bill_matches":"procurement_rfqs"} r WHERE r.id=? AND ${scope.where}`).bind(id,...scope.args).first())throw new ApiError(404,bill?"SUPPLIER_BILL_NOT_FOUND":"RFQ_NOT_FOUND","The actual Procurement source was not found in this workspace.");
  await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability:"supply.purchasing",purpose:"history"});

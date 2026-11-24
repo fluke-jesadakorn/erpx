@@ -168,6 +168,33 @@ const READ_INVOICE_POLICY_MATCHING_REQUIRED: NativeReadStatement = NativeReadSta
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `record-purchases`
+/// `requireProcurementWorkspaceRecordRead` supplier-bill existence literal. The
+/// owner plans this exact literal; the caller executes it on its open unit with
+/// the same `[id]` bind. The scoped workspace authorization query stays intact
+/// in the owner transport.
+pub const RD_RECORD_BILL_MATCH_EXISTS: &str = "procurement_rd_record_bill_match_exists";
+const SQL_RECORD_BILL_MATCH_EXISTS: &str = "SELECT 1 FROM procurement_bill_matches WHERE id=?";
+const READ_RECORD_BILL_MATCH_EXISTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_RECORD_BILL_MATCH_EXISTS,
+    sql: SQL_RECORD_BILL_MATCH_EXISTS,
+    bind_count: 1,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript `record-purchases`
+/// `requireProcurementWorkspaceRecordRead` RFQ existence literal. Same exact
+/// literal, `[id]` bind and scoped-authorization boundary as the bill-match
+/// kind above.
+pub const RD_RECORD_RFQ_EXISTS: &str = "procurement_rd_record_rfq_exists";
+const SQL_RECORD_RFQ_EXISTS: &str = "SELECT 1 FROM procurement_rfqs WHERE id=?";
+const READ_RECORD_RFQ_EXISTS: NativeReadStatement = NativeReadStatement {
+    kind: RD_RECORD_RFQ_EXISTS,
+    sql: SQL_RECORD_RFQ_EXISTS,
+    bind_count: 1,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_INVOICE_MATCH_FOR_FINANCE,
     READ_REQUEST_QUOTATION,
@@ -180,6 +207,8 @@ const READS: &[NativeReadStatement] = &[
     READ_BILL_MATCH_VARIANCE,
     READ_BILL_MATCH_RECEIPT_HISTORY,
     READ_INVOICE_POLICY_MATCHING_REQUIRED,
+    READ_RECORD_BILL_MATCH_EXISTS,
+    READ_RECORD_RFQ_EXISTS,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -209,6 +238,8 @@ mod tests {
         assert!(is_read(RD_BILL_MATCH_VARIANCE));
         assert!(is_read(RD_BILL_MATCH_RECEIPT_HISTORY));
         assert!(is_read(RD_INVOICE_POLICY_MATCHING_REQUIRED));
+        assert!(is_read(RD_RECORD_BILL_MATCH_EXISTS));
+        assert!(is_read(RD_RECORD_RFQ_EXISTS));
         assert!(!is_read("procurement_stmt_1"));
         assert!(read_statement("not_a_native_read").is_none());
     }
@@ -267,6 +298,12 @@ mod tests {
                 1usize,
                 "procurement_invoice_policies",
             ),
+            (
+                RD_RECORD_BILL_MATCH_EXISTS,
+                1usize,
+                "procurement_bill_matches",
+            ),
+            (RD_RECORD_RFQ_EXISTS, 1usize, "procurement_rfqs"),
         ] {
             let read = read_statement(kind).expect("read kind");
             let upper = read.sql.to_ascii_uppercase();
@@ -403,6 +440,28 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 1);
         assert_eq!(read.scope, "holding");
         assert!(is_read(RD_INVOICE_POLICY_MATCHING_REQUIRED));
+        assert!(!is_read("procurement_stmt_1"));
+    }
+
+    #[test]
+    fn record_bill_match_exists_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_RECORD_BILL_MATCH_EXISTS).expect("read kind");
+        assert_eq!(read.sql, "SELECT 1 FROM procurement_bill_matches WHERE id=?");
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_RECORD_BILL_MATCH_EXISTS));
+        assert!(!is_read("procurement_stmt_1"));
+    }
+
+    #[test]
+    fn record_rfq_exists_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_RECORD_RFQ_EXISTS).expect("read kind");
+        assert_eq!(read.sql, "SELECT 1 FROM procurement_rfqs WHERE id=?");
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_RECORD_RFQ_EXISTS));
         assert!(!is_read("procurement_stmt_1"));
     }
 }

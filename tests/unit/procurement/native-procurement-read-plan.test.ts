@@ -15,6 +15,8 @@ import {
   PROCUREMENT_RD_BILL_MATCH_VARIANCE,
   PROCUREMENT_RD_BILL_MATCH_RECEIPT_HISTORY,
   PROCUREMENT_RD_INVOICE_POLICY_MATCHING_REQUIRED,
+  PROCUREMENT_RD_RECORD_BILL_MATCH_EXISTS,
+  PROCUREMENT_RD_RECORD_RFQ_EXISTS,
 } from '../../../packages/server-procurement/src/adapters/native-procurement-read';
 import { procurementInvoiceMatchForFinance } from '../../../packages/server-procurement/src/adapters/finance-entrypoint-queries';
 import { requestQuotation } from '../../../packages/server-procurement/src/adapters/people-app-entrypoint-facts';
@@ -36,6 +38,8 @@ const planned = {
   [PROCUREMENT_RD_BILL_MATCH_VARIANCE]: 'SELECT id FROM procurement_bill_match_lines WHERE match_id=? AND subtotal_minor<>expected_subtotal_minor LIMIT 1',
   [PROCUREMENT_RD_BILL_MATCH_RECEIPT_HISTORY]: 'SELECT br.match_id id FROM procurement_bill_match_receipts br WHERE br.fulfillment_id=? LIMIT 1',
   [PROCUREMENT_RD_INVOICE_POLICY_MATCHING_REQUIRED]: "SELECT 1 FROM procurement_invoice_policies WHERE company_id=? AND matching_mode='required'",
+  [PROCUREMENT_RD_RECORD_BILL_MATCH_EXISTS]: 'SELECT 1 FROM procurement_bill_matches WHERE id=?',
+  [PROCUREMENT_RD_RECORD_RFQ_EXISTS]: 'SELECT 1 FROM procurement_rfqs WHERE id=?',
 };
 const stubFetch = (payload: unknown, status = 200) => {
   const fetchMock = vi.fn(async () => ({
@@ -93,7 +97,9 @@ describe('native Procurement caller-unit read plan', () => {
     expect(PROCUREMENT_RD_BILL_MATCH_VARIANCE).toBe('procurement_rd_bill_match_variance');
     expect(PROCUREMENT_RD_BILL_MATCH_RECEIPT_HISTORY).toBe('procurement_rd_bill_match_receipt_history');
     expect(PROCUREMENT_RD_INVOICE_POLICY_MATCHING_REQUIRED).toBe('procurement_rd_invoice_policy_matching_required');
-    for (const kind of [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE, PROCUREMENT_RD_REQUEST_QUOTATION, PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH, PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL, PROCUREMENT_RD_BILL_MATCH_RECEIPTS, PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT, PROCUREMENT_RD_REQUEST_ALLOCATIONS, PROCUREMENT_RD_REQUEST_ORDER_LINK, PROCUREMENT_RD_BILL_MATCH_VARIANCE, PROCUREMENT_RD_BILL_MATCH_RECEIPT_HISTORY, PROCUREMENT_RD_INVOICE_POLICY_MATCHING_REQUIRED]) {
+    expect(PROCUREMENT_RD_RECORD_BILL_MATCH_EXISTS).toBe('procurement_rd_record_bill_match_exists');
+    expect(PROCUREMENT_RD_RECORD_RFQ_EXISTS).toBe('procurement_rd_record_rfq_exists');
+    for (const kind of [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE, PROCUREMENT_RD_REQUEST_QUOTATION, PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH, PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL, PROCUREMENT_RD_BILL_MATCH_RECEIPTS, PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT, PROCUREMENT_RD_REQUEST_ALLOCATIONS, PROCUREMENT_RD_REQUEST_ORDER_LINK, PROCUREMENT_RD_BILL_MATCH_VARIANCE, PROCUREMENT_RD_BILL_MATCH_RECEIPT_HISTORY, PROCUREMENT_RD_INVOICE_POLICY_MATCHING_REQUIRED, PROCUREMENT_RD_RECORD_BILL_MATCH_EXISTS, PROCUREMENT_RD_RECORD_RFQ_EXISTS]) {
       expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
     }
   });
@@ -329,6 +335,41 @@ describe('native Procurement caller-unit read plan', () => {
     );
     expect(source).not.toContain("SELECT 1 FROM procurement_invoice_policies WHERE company_id=? AND matching_mode='required'");
     expect(source).toContain('PROCUREMENT_RD_INVOICE_POLICY_MATCHING_REQUIRED');
+  });
+
+  it('plans both record-purchases existence reads and retires the TypeScript literals', async () => {
+    const source = readFileSync(
+      new URL('../../../packages/server-procurement/src/adapters/record-purchases.ts', import.meta.url),
+      'utf8',
+    );
+
+    // The two fixed existence literals are retired from the owner adapter.
+    expect(source).not.toContain('SELECT 1 FROM procurement_bill_matches WHERE id=?');
+    expect(source).not.toContain('SELECT 1 FROM procurement_rfqs WHERE id=?');
+    expect(source).toContain('PROCUREMENT_RD_RECORD_BILL_MATCH_EXISTS');
+    expect(source).toContain('PROCUREMENT_RD_RECORD_RFQ_EXISTS');
+
+    // The scoped workspace authorization query stays byte-for-byte intact.
+    expect(source).toContain('SELECT 1 FROM ${bill?"procurement_bill_matches":"procurement_rfqs"} r WHERE r.id=? AND ${scope.where}');
+
+    // Both kinds plan in Rust and execute on the caller's open unit with the
+    // same single `[id]` bind; no SQL crosses the wire.
+    for (const [kind, sql] of [
+      [PROCUREMENT_RD_RECORD_BILL_MATCH_EXISTS, planned[PROCUREMENT_RD_RECORD_BILL_MATCH_EXISTS]],
+      [PROCUREMENT_RD_RECORD_RFQ_EXISTS, planned[PROCUREMENT_RD_RECORD_RFQ_EXISTS]],
+    ] as const) {
+      const fetchMock = stubFetch({ data: { statements: [{ sql, values: ['rec-1'] }] } });
+      const { db, prepared, bound } = fakeDb([{ '1': 1 }]);
+      const row = await nativeProcurementReadFirst<{ 1: number }>(kind, ['rec-1'], db as never);
+      expect(row).toEqual({ '1': 1 });
+      expect(prepared).toEqual([sql]);
+      expect(bound).toEqual([['rec-1']]);
+      const [, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+      const body = JSON.parse(init.body as string) as { kind: string; values: unknown[] };
+      expect(body.kind).toBe(kind);
+      expect(body.values).toEqual(['rec-1']);
+      expect(JSON.stringify(body)).not.toContain('SELECT');
+    }
   });
 
   it('fails closed when the native transport is not configured', async () => {
