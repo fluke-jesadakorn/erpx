@@ -4,7 +4,7 @@ import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgre
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {benefitEligibilitySettlementLocks,benefitEligibilitySettlementSources as learning} from "@erpx/server-learning/public/benefit-source-facts";
-import {benefitPayrollInputOwnerPredicate,benefitElectionFactPrefix,benefitReleasedElectionHandoffPrefix,benefitScopePrefix} from "@erpx/server-benefits/adapters/benefits-read-sql";
+import {benefitPayrollInputOwnerPredicate,benefitElectionFactPrefix,benefitReleasedElectionHandoffPrefix,benefitScopePrefix,benefitWindowFactPrefix} from "@erpx/server-benefits/adapters/benefits-read-sql";
 
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
@@ -40,7 +40,7 @@ export async function benefitPackageObligations(owner:PostgresDatabase,database:
  elections AS MATERIALIZED(SELECT e.* FROM (${benefitPackageSettlementSources.elections}) e,scope WHERE e.company_id=scope.company_id),
  facts AS(
  SELECT 'plan' kind,p.id,p.version,p.status state,to_jsonb(p) image,p.status NOT IN ('retired','rejected') OR NOT p.terminal_proven pending FROM plans p
- UNION ALL SELECT 'window',w.id,w.version,w.status,to_jsonb(w),w.status NOT IN ('closed','cancelled') OR NOT w.terminal_proven FROM windows w
+ ${benefitWindowFactPrefix}w.status NOT IN ('closed','cancelled') OR NOT w.terminal_proven FROM windows w
  UNION ALL SELECT 'dependent',d.id,d.version,d.status,to_jsonb(d),d.status='pending' OR NOT d.terminal_proven FROM (${benefitPackageSettlementSources.dependents}) d,scope WHERE d.company_id=scope.company_id
  ${benefitElectionFactPrefix} NOT e.terminal_proven
  OR plan.id IS NULL OR plan.company_id IS DISTINCT FROM e.company_id OR plan.version<e.plan_version
