@@ -1,10 +1,10 @@
 import "server-only";
-import {talentCompanyScopeCte} from './talent-scope-sql';
+import {talentCompanyScopeCte,talentClockCte} from './talent-scope-sql';
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {TalentHireProductEntryScope,TalentProductSourceTarget,TalentSourcePurchaseControls} from "@erpx/server-talent/domain/product-entry";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {readPurchasedAccesses,checkPurchasedCapability} from "@erpx/server-commercial/public/purchase-command-boundary";
-import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
+import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -15,7 +15,7 @@ const assignmentVersionGuard = `EXISTS(SELECT 1 FROM assignments WHERE id=? AND 
  * Talent module assignment. This named discovery does not choose an HR role. */
 export async function talentHireProductSourceEntry(database:SqlDatabase,scope:TalentHireProductEntryScope,id:string){
  if(scope.branchId||scope.departmentId||!Number.isSafeInteger(scope.assignmentVersion)||scope.assignmentVersion<1)return null;
- const source=await database.prepare(`WITH hire_entry_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms)
+ const source=await database.prepare(`${talentClockCte("hire_entry_clock")}
  SELECT h.id FROM talent_hire_handoffs h JOIN talent_offers o ON o.id=h.offer_id AND o.company_id=h.company_id
  JOIN talent_applications a ON a.id=o.application_id AND a.company_id=h.company_id
  JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=h.company_id AND r.branch_id=h.branch_id AND r.department_id IS NOT DISTINCT FROM h.department_id
@@ -32,7 +32,7 @@ export async function talentHireProductSourceEntry(database:SqlDatabase,scope:Ta
  * contact-bearing Talent workspace or general Legal access is granted here. */
 export async function talentCandidatePrivacyProductSourceEntry(database:SqlDatabase,scope:TalentHireProductEntryScope,id:string){
  if(scope.branchId||scope.departmentId||!Number.isSafeInteger(scope.assignmentVersion)||scope.assignmentVersion<1)return null;
- const permissions=["legal.hold","legal.hold.release","legal.destroy","people.manage"],row=await database.prepare(`WITH candidate_privacy_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms)
+ const permissions=["legal.hold","legal.hold.release","legal.destroy","people.manage"],row=await database.prepare(`${talentClockCte("candidate_privacy_clock")}
  SELECT c.id FROM talent_candidates c CROSS JOIN ${talentCompanyScopeCte} candidate_privacy_entry CROSS JOIN candidate_privacy_clock
  WHERE c.id=? AND c.company_id=candidate_privacy_entry.company_id AND (${permissions.map(permission=>assignmentReadSql("candidate_privacy_entry",permission)).join(" OR ")}) AND ${assignmentVersionGuard}
  AND ${scheduledFeaturePredicate("c.company_id","talent")}

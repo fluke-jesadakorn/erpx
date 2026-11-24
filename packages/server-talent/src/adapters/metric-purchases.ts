@@ -1,5 +1,5 @@
 import "server-only";
-import {talentActorScopeCte} from './talent-scope-sql';
+import {talentActorScopeCte,talentClockCte} from './talent-scope-sql';
 import {hasModuleAccess} from "@erpx/catalogue/module-access";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -7,7 +7,7 @@ import {assignmentReadSql} from "@erpx/server-identity_access/public/record-sour
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {talentPackageEnforcementMode,readPurchasedAccesses} from "@erpx/server-commercial/public/purchase-command-boundary";
-import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
+import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 const metrics={"open-requisitions":"recruit.positions","application-stage-counts":"recruit.applications"} as const;
 export async function talentMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){
  const mode=await talentPackageEnforcementMode(),access=await readPurchasedAccesses(database,mode,actor.companyId,["recruit.positions","recruit.applications"]);if(mode!=="enforced")return {"open-requisitions":true,"application-stage-counts":true};
@@ -21,5 +21,5 @@ export async function talentMetricSource(database:SqlDatabase,actor:WorkContext,
  if(!(await talentMetricHistoryAccess(database,actor))[id as keyof typeof metrics])throw new ApiError(403,"METRIC_SOURCE_UNAVAILABLE","Recruitment history and current reviewer authority are required.");
  const rows=id==="open-requisitions"?"SELECT * FROM talent_requisitions":"SELECT a.*,r.branch_id,r.department_id FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id";
  if(await talentPackageEnforcementMode()!=="enforced")return {sql:rows,args:[] as (string|number|null)[]};
- return {sql:`WITH talent_metric_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms) SELECT talent_metric_owned.* FROM (${rows}) talent_metric_owned CROSS JOIN talent_metric_clock WHERE ${assignmentReadSql("talent_metric_owned","records.read")} AND ${assignmentReadSql("talent_metric_owned","records.review")} AND ${purchasedCapabilityPredicate("talent_metric_owned.company_id",capability,"history","talent_metric_clock.now_ms")}`,args:[actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.userId,actor.role]};
+ return {sql:`${talentClockCte("talent_metric_clock")} SELECT talent_metric_owned.* FROM (${rows}) talent_metric_owned CROSS JOIN talent_metric_clock WHERE ${assignmentReadSql("talent_metric_owned","records.read")} AND ${assignmentReadSql("talent_metric_owned","records.review")} AND ${purchasedCapabilityPredicate("talent_metric_owned.company_id",capability,"history","talent_metric_clock.now_ms")}`,args:[actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.userId,actor.role]};
 }
