@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9080,
+    "revision": 9087,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -116291,7 +116291,7 @@
         "owner": "ecommerce",
         "title": "Mount ecommerce listing commands + TS client + route switch",
         "kind": "integration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116312,28 +116312,39 @@
           "owner:ecommerce",
           "resource:composition"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGB2eco",
-          "claimedAt": "2026-11-24T03:57:20.576Z",
-          "heartbeatAt": "2026-11-24T04:26:55.017Z",
-          "expiresAt": "2026-11-24T04:56:55.017Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo test -p erpx-server-ecommerce --test ecommerce_listing_commands",
+            "result": "passed",
+            "sourceSha": "6df0f2d0e",
+            "note": "14/14 including mount-router test."
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "6df0f2d0e",
+            "note": "exit 0 in 3m24s after mount."
+          },
+          {
+            "command": "tsc feature-sales + catalogue",
+            "result": "passed",
+            "sourceSha": "6df0f2d0e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Compose EcommerceListingHttpBackend with Commerce product/currency + Finance money ports, mount POST listings/changes, add strict TS command client, switch route, then retire TS createListing/changeEcommerce and overlay fields.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; composition released.",
         "handoff": {
-          "runId": "run-20261123-i",
+          "runId": "run-20261123-j",
           "agentId": "wGB2eco",
-          "at": "2026-11-24T03:57:20.238Z",
+          "at": "2026-11-24T04:42:58.418Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long cargo queue; WIP reviewed, all owner claims preserved and re-issued.",
-          "nextAction": "Compose EcommerceListingHttpBackend with Commerce product/currency + Finance money ports, mount POST listings/changes, add strict TS command client, switch route, then retire TS createListing/changeEcommerce and overlay fields."
+          "reason": "handoff",
+          "nextAction": "Integrated; composition released."
         },
         "scopeRefinementRequired": false
       },
@@ -116439,18 +116450,34 @@
             "result": "observed",
             "sourceSha": "1e2e3f5fb",
             "note": "Additive read-plan only; no consumer cutover or TS deletion. Per-caller parity gate remains."
+          },
+          {
+            "command": "cargo test -p erpx-server-manufacturing --test manufacturing_read_parity_postgres",
+            "result": "passed",
+            "sourceSha": "6df0f2d0e",
+            "note": "1/1 live PG parity for RD_* plans."
+          },
+          {
+            "command": "vitest native-manufacturing-read-transport (4) + cargo check service",
+            "result": "passed",
+            "sourceSha": "6df0f2d0e"
+          },
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "6df0f2d0e"
           }
         ],
         "retainedLegacy": [],
         "blocker": "handoff",
-        "nextAction": "Integrated; claim released; transport/cutover follow-up queued",
+        "nextAction": "Integrated; mount live; cutover queued.",
         "handoff": {
-          "runId": "run-20261123-g",
-          "agentId": "wAEman",
-          "at": "2026-11-23T21:14:25.264Z",
+          "runId": "run-20261123-j",
+          "agentId": "wGC3man2",
+          "at": "2026-11-24T04:43:06.663Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Integrated; claim released; transport/cutover follow-up queued"
+          "nextAction": "Integrated; mount live; cutover queued."
         },
         "scopeRefinementRequired": false
       },
@@ -147395,7 +147422,7 @@
         "owner": "workflow",
         "title": "workflow TS read tail native cutover (r33)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -147407,22 +147434,37 @@
         "resources": [
           "owner:workflow"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCHwor",
-          "claimedAt": "2026-11-24T04:26:56.128Z",
-          "heartbeatAt": "2026-11-24T04:26:56.128Z",
-          "expiresAt": "2026-11-24T04:56:56.128Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-workflow/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "6df0f2d0e",
+            "owner": "workflow",
+            "before": 60,
+            "after": 59,
+            "note": "approval_steps star projection shared by by-instance and Work settlement reads; emitted SQL byte-identical."
+          },
+          {
+            "command": "vitest workflow r33 (6) + tsc workflow",
+            "result": "passed",
+            "sourceSha": "6df0f2d0e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=60.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-j",
+          "agentId": "wGCHwor",
+          "at": "2026-11-24T04:42:58.230Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -147487,17 +147529,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 11,
+        "in_progress": 10,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 713,
+        "blocked": 714,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 162,
-    "updatedAt": "2026-11-24T04:41:20.613Z",
+    "updatedAt": "2026-11-24T04:43:06.666Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
