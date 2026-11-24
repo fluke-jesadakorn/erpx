@@ -2,6 +2,7 @@ import { assertPmsProviderAuthority } from "@erpx/server-pms/adapters/provider-a
 import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
 import { PMS_STRIPE_REFUND_COLUMNS_SQL } from "./pms-read-tail-r22-sql";
 import { PMS_STRIPE_PAYMENT_ID_HEAD_SQL } from "./pms-read-tail-r37-sql";
+import { pmsTwoColumnPointReadSql } from "./pms-read-tail-r46-sql";
 import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
 import { type Snapshot } from "@erpx/server-pms/public/rules/pms";
@@ -26,7 +27,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
         authorize: (actor,permission)=>assertPmsProviderAuthority(db,actor,permission),
         readPmsStripePayments: (facts: {
             key: string;
-        }) => db.prepare('SELECT id,request_hash FROM pms_stripe_payments WHERE id=?').bind(facts.key).first<{
+        }) => db.prepare(pmsTwoColumnPointReadSql('stripePaymentKey')).bind(facts.key).first<{
             id: string;
             request_hash: string;
         }>(),

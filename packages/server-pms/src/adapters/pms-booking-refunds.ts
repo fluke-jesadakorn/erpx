@@ -19,6 +19,7 @@ import { createPmsBookingRefund, type PmsBookingRefundUnit, type PmsBookingRefun
 import { holdingResources as resolveResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { requirePmsPropertyPurchase, requirePmsFinancialRead, withPmsPropertyPurchasedTransaction } from "@erpx/server-pms/adapters/property-purchase-boundary";
 import { PMS_REFUND_NON_LOCK_HEAD_SQL } from "./pms-read-tail-r40-sql";
+import { pmsTwoColumnPointReadSql } from "./pms-read-tail-r46-sql";
 function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''): PmsBookingRefundUnit {
         const write = (kind: string, values: unknown[]): any => nativePmsOwnerWrite(companyId, kind, values);
     void _whole;
@@ -42,7 +43,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
         }>(),
         readPmsBookingRefundRequests2: (facts: {
             paymentId: string;
-        }) => db.prepare('SELECT amount_minor,allocations_json FROM pms_booking_refund_requests WHERE payment_id=?').bind(facts.paymentId).all<{
+        }) => db.prepare(pmsTwoColumnPointReadSql('refundRequestAllocations')).bind(facts.paymentId).all<{
             amount_minor: number;
             allocations_json: string;
         }>(),

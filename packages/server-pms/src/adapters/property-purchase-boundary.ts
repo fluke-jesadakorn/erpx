@@ -10,6 +10,7 @@ import type { CapabilityPurpose } from "@erpx/server-commercial/public/rules/pac
 import type { PmsPropertyPurchase, PmsPropertyPurchaseRequest } from "@erpx/server-pms/domain/property-purchases";
 import { assertPmsProviderAuthority } from "@erpx/server-pms/adapters/provider-authority";
 import { pmsBookingReplaySql } from "./pms-read-tail-r40-sql";
+import { pmsTwoColumnPointReadSql } from "./pms-read-tail-r46-sql";
 
 const capabilities = ["pms.reservations", "pms.rooms", "pms.guest-accounts", "finance.hotel-posting"] as const;
 async function checkScopes(database: SqlDatabase, mode: Awaited<ReturnType<typeof pmsPackageEnforcementMode>>, companyId: string, purpose: CapabilityPurpose) {
@@ -20,7 +21,7 @@ async function checkScopes(database: SqlDatabase, mode: Awaited<ReturnType<typeo
   }
 }
 async function propertyScope(database: SqlDatabase, propertyId: string) {
-  const property = await database.prepare("SELECT company_id,branch_id FROM pms_properties WHERE id=?").bind(propertyId).first<{ company_id: string; branch_id: string }>();
+  const property = await database.prepare(pmsTwoColumnPointReadSql('propertyScope')).bind(propertyId).first<{ company_id: string; branch_id: string }>();
   if (!property) throw new ApiError(404, "PMS_NOT_FOUND", "Hotel not found.");
   return property;
 }

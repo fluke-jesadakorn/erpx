@@ -51,7 +51,7 @@ describe('pms read-tail r19 byte-identical projection-fragment dedupe', () => {
     // r20 deduped the 3x pms_properties and 3x pms_records projections below r19 after=481.
     // r21 deduped the 4x parameterized recipient cross-join fragment below r20 after=477.
     // r30 deduped the 3-SELECT parameterized payment-identity union below r29 after=361.
-    expect(count).toBe(286);
+    expect(count).toBe(283);
     expect(count).toBeLessThan(487);
   });
 });

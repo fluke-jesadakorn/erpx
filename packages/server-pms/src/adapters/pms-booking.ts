@@ -5,6 +5,7 @@ import { PMS_PURCHASE_CLOCK_CTE_SQL } from "./pms-read-tail-r27-sql";
 import { pmsRefundPaymentJoinHeadSql } from "./pms-read-tail-r34-sql";
 import { PMS_PROPERTY_POINT_HEAD_SQL } from "./pms-read-tail-r36-sql";
 import { PMS_BOOKING_PAYMENT_ID_HEAD_SQL } from "./pms-read-tail-r37-sql";
+import { pmsTwoColumnPointReadSql } from "./pms-read-tail-r46-sql";
 import { pmsGuestIdJoinSql } from "./pms-read-tail-r41-sql";
 import {holdingRoutingEnabled,holdingHosts} from '@erpx/contracts/holding-hosts';
 import {bookingEmailDeliveryPayload} from "@erpx/server-pms/adapters/booking-email-delivery";
@@ -256,7 +257,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
         readPmsBookingTokens1: (facts: {
             fact0: string;
             now: number;
-        }) => db.prepare("SELECT property_id,reservation_id FROM pms_booking_tokens WHERE token_hash=? AND expires_at>?").bind(facts.fact0, facts.now).first<{
+        }) => db.prepare(pmsTwoColumnPointReadSql('bookingTokenByHash')).bind(facts.fact0, facts.now).first<{
             property_id: string;
             reservation_id: string;
         }>(),
