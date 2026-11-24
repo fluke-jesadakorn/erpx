@@ -12107,6 +12107,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "commercial",
+      "modules": [
+        "commercial"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Commercial company scoped star reads must stay one builder."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-commercial"
+      ],
+      "id": "commercial.read-tail-r8-family.unit",
+      "files": [
+        "tests/unit/commercial/read-tail-r8-family.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "commercial.rust-capability-decision-postgres.integration",
       "lane": "integration",
       "owner": "commercial",
@@ -105777,6 +105802,31 @@
       "id": "support.read-tail-r18-replay-proof-family.unit",
       "files": [
         "tests/unit/support/read-tail-r18-replay-proof-family.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "support",
+      "modules": [
+        "support"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Support portal valid binding select prefix must stay one helper."
+      },
+      "apps": "support",
+      "packages": [
+        "@erpx/server-support"
+      ],
+      "id": "support.read-tail-r19-valid-binding-select-family.unit",
+      "files": [
+        "tests/unit/support/read-tail-r19-valid-binding-select-family.test.ts"
       ],
       "framework": "vitest"
     },
