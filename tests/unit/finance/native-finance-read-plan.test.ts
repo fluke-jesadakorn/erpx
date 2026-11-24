@@ -58,6 +58,7 @@ import {
   CHART_IMAGE_BY_COMPANY_SQL,
   PAYROLL_LINE_IMAGE_SQL,
 } from '../../../packages/server-finance/src/adapters/finance-read-tail-r36-sql';
+import { PERIOD_EXISTS_BY_ID_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r37-sql';
 import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/people-payroll-final-owner-projections';
 import { workflowFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/workflow-final-owner-projections';
 import {
@@ -1041,7 +1042,7 @@ describe('finance read-tail r24 byte-identical SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2038);
-    expect(total).toBe(1966);
+    expect(total).toBe(1965);
   });
 });
 
@@ -1212,7 +1213,7 @@ describe('finance read-tail r30 byte-identical guard-prefix families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2027);
-    expect(total).toBe(1966);
+    expect(total).toBe(1965);
   });
 });
 
@@ -1256,7 +1257,7 @@ describe('finance read-tail r31 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1989);
-    expect(total).toBe(1966);
+    expect(total).toBe(1965);
   });
 });
 
@@ -1301,7 +1302,7 @@ describe('finance read-tail r32 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1985);
-    expect(total).toBe(1966);
+    expect(total).toBe(1965);
   });
 });
 
@@ -1346,7 +1347,7 @@ describe('finance read-tail r33 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1983);
-    expect(total).toBe(1966);
+    expect(total).toBe(1965);
   });
 });
 
@@ -1421,7 +1422,7 @@ describe('finance read-tail r34 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1981);
-    expect(total).toBe(1966);
+    expect(total).toBe(1965);
   });
 });
 
@@ -1470,7 +1471,7 @@ describe('finance read-tail r35 parameterized workforce actor scope family', () 
     };
     walk(root);
     expect(total).toBeLessThan(1974);
-    expect(total).toBe(1966);
+    expect(total).toBe(1965);
   });
 });
 
@@ -1545,6 +1546,60 @@ describe('finance read-tail r36 exact duplicate two-site SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1970);
-    expect(total).toBe(1966);
+    expect(total).toBe(1965);
+  });
+});
+
+describe('finance read-tail r37 exact duplicate period-exists read family', () => {
+  // One byte-identical SQL payload shared by two adapter sites: a
+  // double-quoted inline literal in finance-engines.ts and a single-quoted
+  // inline literal in finance-invoice-read.ts. Callers keep their own binds;
+  // the r16/r34 guarded variants, row locks, tax assertion guards and every
+  // r15-r36 helper stay untouched.
+  const SQL = 'SELECT 1 FROM finance_periods WHERE id=? AND company_id=?';
+  const SITES = ['finance-engines.ts', 'finance-invoice-read.ts'];
+
+  it('exposes the exact byte-identical literal with no row-lock text', () => {
+    expect(PERIOD_EXISTS_BY_ID_SQL).toBe(SQL);
+    expect(PERIOD_EXISTS_BY_ID_SQL).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+  });
+
+  it('removes both inline literals from their two sites', async () => {
+    for (const file of SITES) {
+      const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+      expect(text.includes('"' + SQL + '"')).toBe(false);
+      expect(text.includes("'" + SQL + "'")).toBe(false);
+      expect(text).toContain('finance-read-tail-r37-sql');
+    }
+  });
+
+  it('leaves r16/r34 guarded variants, locks, tax guards and r15-r36 helpers untouched', async () => {
+    const r16 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r16-sql.ts', import.meta.url), 'utf8');
+    expect(r16).toContain('OPEN_PERIOD_GUARD_SQL');
+    expect(r16).toContain("EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?)");
+    const r34 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r34-sql.ts', import.meta.url), 'utf8');
+    expect(r34).toContain('OPEN_PERIOD_COVERED_SQL');
+    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    expect(pos).toContain('FOR SHARE');
+    expect(pos).toContain('FOR UPDATE');
+    const r36 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r36-sql.ts', import.meta.url), 'utf8');
+    expect(r36).toContain('CHART_EXISTS_BY_COMPANY_SQL');
+    const r24 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
+    expect(r24).toContain('TAX_SOURCE_APPROVED_INVOICE_SQL');
+  });
+
+  it('retirement:ts-statements stays strictly below the r36 BEFORE=1966 baseline', () => {
+    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(1966);
+    expect(total).toBe(1965);
   });
 });

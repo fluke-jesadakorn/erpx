@@ -1,5 +1,6 @@
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { PERIOD_BY_ID_SQL } from './finance-read-tail-r33-sql';
+import { PERIOD_EXISTS_BY_ID_SQL } from './finance-read-tail-r37-sql';
 import { nativeFinanceEngines } from '@erpx/server-collaboration/adapters/native-finance-engines';
 import {nativePeriodCloseReadiness} from '@erpx/server-finance/adapters/finance-workspace';
 import { createFinanceEngines } from '@erpx/server-finance/application/engines';
@@ -50,7 +51,7 @@ function engineService(provided?: SqlDatabase) {
         }, runs: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT * FROM finance_calculation_runs WHERE company_id=? ORDER BY created_at DESC LIMIT 50").bind(actor.companyId).all<Row>()).results; },
         counts: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT kind,status,count(*) count FROM finance_calculation_runs WHERE company_id=? GROUP BY kind,status ORDER BY kind,status").bind(actor.companyId).all<Row>()).results; },
         periods: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT id,name,start_date,end_date,state FROM finance_periods WHERE company_id=? ORDER BY start_date DESC LIMIT 24").bind(actor.companyId).all<Row>()).results; },
-        periodExists: async (facts) => { const { parsed, actor } = facts; const write = await db(actor); return !!await write.prepare("SELECT 1 FROM finance_periods WHERE id=? AND company_id=?").bind(parsed.periodId, actor.companyId).first(); },
+        periodExists: async (facts) => { const { parsed, actor } = facts; const write = await db(actor); return !!await write.prepare(PERIOD_EXISTS_BY_ID_SQL).bind(parsed.periodId, actor.companyId).first(); },
         policyApproved: async (facts) => { const { parsed, actor } = facts; const write = await db(actor); return !!await write.prepare("SELECT 1 FROM finance_calculation_policies WHERE id=? AND company_id=? AND version=? AND status='approved'").bind(parsed.policyId, actor.companyId, parsed.policyVersion).first(); },
         commitPreparedCalculation: async (facts) => {
             const { actor, key, parsed, runId, output, sourceHash, result, explanation, now } = facts;
