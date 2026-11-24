@@ -8,6 +8,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
+const orgNameLabel = (ref: string, fallback: string) => `COALESCE((SELECT n.display_name ${organizationSources.talent_adapters_executive_metric_projections_organization_nodes_n_from} WHERE n.id=${ref} AND n.company_id=r.company_id),'${fallback}')`;
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const spec = specs[id], scopedAlias = (alias: string) => `${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?)`, scopeArgs = [a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId];
     const source=await talentMetricSource(sourceDb,a,id);
@@ -15,15 +16,15 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     const referenceAtOverride: number | null = null;
     if (id === "open-requisitions") {
         const label = breakdown === "status" ? "r.status"
-            : breakdown === "branch" ? `COALESCE((SELECT n.display_name ${organizationSources.talent_adapters_executive_metric_projections_organization_nodes_n_from} WHERE n.id=r.branch_id AND n.company_id=r.company_id),'Branch')`
-                : breakdown === "department" ? `COALESCE((SELECT n.display_name ${organizationSources.talent_adapters_executive_metric_projections_organization_nodes_n_from} WHERE n.id=r.department_id AND n.company_id=r.company_id),'Unassigned')`
+            : breakdown === "branch" ? orgNameLabel("r.branch_id", "Branch")
+                : breakdown === "department" ? orgNameLabel("r.department_id", "Unassigned")
                     : "r.job_title";
         sql = `SELECT ${label} label,count(*)::text value FROM (${source.sql}) r WHERE ${scopedAlias("r")} AND r.status='open' GROUP BY 1 ORDER BY 1`;
         values = scopeArgs;
     }
     if (id === "application-stage-counts") {
-        const label = breakdown === "branch" ? `COALESCE((SELECT n.display_name ${organizationSources.talent_adapters_executive_metric_projections_organization_nodes_n_from} WHERE n.id=r.branch_id AND n.company_id=r.company_id),'Branch')`
-            : breakdown === "department" ? `COALESCE((SELECT n.display_name ${organizationSources.talent_adapters_executive_metric_projections_organization_nodes_n_from} WHERE n.id=r.department_id AND n.company_id=r.company_id),'Unassigned')`
+        const label = breakdown === "branch" ? orgNameLabel("r.branch_id", "Branch")
+            : breakdown === "department" ? orgNameLabel("r.department_id", "Unassigned")
                 : "a.status";
         sql = `SELECT ${label} label,count(*)::text value FROM (${source.sql}) a JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id WHERE ${scopedAlias("r")} AND a.updated_at>=? AND a.updated_at<? GROUP BY 1 ORDER BY 1`;
         values = [...scopeArgs, Date.parse(f.from), Date.parse(f.to) + 86400000];
