@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9727,
+    "revision": 9731,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -155148,6 +155148,57 @@
           "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.agent.read-tail-r15",
+        "goalId": "G4",
+        "owner": "agent",
+        "title": "agent TS read tail native cutover (round 15)",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-agent/src/**",
+          "tests/unit/agent/**",
+          "tests/integration/agent/**"
+        ],
+        "resources": [
+          "owner:agent"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-agent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "5544e4b4c",
+            "owner": "agent",
+            "before": 62,
+            "after": 61,
+            "note": "Conversation turns and guided intake previous turn share turn evidence projection; translation guard and FOR SHARE locks untouched."
+          },
+          {
+            "command": "vitest agent 4 dedupe suites (31) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "5544e4b4c"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCNage",
+          "at": "2026-11-24T05:51:48.923Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -155156,7 +155207,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1224,
+      "totalPackets": 1225,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -155164,13 +155215,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 855,
+        "blocked": 856,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 163,
-    "updatedAt": "2026-11-24T05:51:32.176Z",
+    "updatedAt": "2026-11-24T05:51:48.933Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
