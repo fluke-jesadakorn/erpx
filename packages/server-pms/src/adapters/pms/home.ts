@@ -12,6 +12,7 @@ import { pmsSourceRecipients } from "@erpx/server-pms/adapters/pms/source";
 import { pmsSourcesSql, pmsSourceReadableSql } from "@erpx/server-pms/adapters/pms/source-policy";
 import { PMS_RECIPIENT_CROSS_JOIN_SQL } from '../pms-read-tail-r21-sql';
 import { PMS_HOME_ACTIVE_ROOM_COUNT_SQL, PMS_HOME_STAY_STATE_COUNT_SQL } from '../pms-read-tail-r38-sql';
+import { pmsHomeGuestAccountSumSql } from '../pms-read-tail-r39-sql';
 import type { TaskRow } from "@erpx/server-pms/domain/home";
 import { createPmsHomeApplication, type PmsHomeRepository, type PmsTaskPageOptions } from "@erpx/server-pms/application/home";
 import { pmsCompanyHistoryAllowed, requirePmsCompanyHistory } from "@erpx/server-pms/adapters/read-purchase-boundary";
@@ -117,9 +118,9 @@ function repository(db: SqlDatabase): PmsHomeRepository {
     ) SELECT p.id,
       COALESCE((SELECT sum((r.data_json::jsonb->>'net')::bigint) FROM pms_records r JOIN entry_roots e ON e.id=r.id AND e.property_id=r.property_id
         WHERE r.property_id=p.id AND r.data_json::jsonb->>'date'=p.business_date AND r.data_json::jsonb->>'kind' IN ('charge','adjustment')),0) room_revenue,
-      COALESCE((SELECT sum((r.data_json::jsonb->>'due')::bigint) FROM pms_records r WHERE r.property_id=p.id AND r.kind='guest_account'),0) receivable,
-      COALESCE((SELECT sum((r.data_json::jsonb->>'advance')::bigint) FROM pms_records r WHERE r.property_id=p.id AND r.kind='guest_account'),0) advance,
-      COALESCE((SELECT sum((r.data_json::jsonb->>'deposit')::bigint) FROM pms_records r WHERE r.property_id=p.id AND r.kind='guest_account'),0) deposit
+      COALESCE((${pmsHomeGuestAccountSumSql('receivable')}),0) receivable,
+      COALESCE((${pmsHomeGuestAccountSumSql('advance')}),0) advance,
+      COALESCE((${pmsHomeGuestAccountSumSql('deposit')}),0) deposit
     FROM pms_properties p WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.id=?)`).bind(facts.companyId, facts.branchId, facts.branchId2, facts.companyId2, facts.branchId3, facts.branchId4, facts.propertyId, facts.propertyId2).all<{
             id: string;
             room_revenue: number;

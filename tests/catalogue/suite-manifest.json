@@ -75883,6 +75883,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PMS guest-account sums and journal unions must stay closed variants."
+      },
+      "apps": [
+        "pms"
+      ],
+      "packages": [
+        "@erpx/server-pms"
+      ],
+      "id": "pms.read-tail-r39-dedupe.unit",
+      "files": [
+        "tests/unit/pms/read-tail-r39-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "pms.reports.integration",
       "lane": "integration",
       "owner": "pms",

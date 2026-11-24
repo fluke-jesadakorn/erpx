@@ -145,15 +145,15 @@ describe('pms read-tail r38 count/projection head dedupe', () => {
     }
   });
 
-  it('lowers the pms owner SELECT KPI from 323 to 317', async () => {
+  it('lowers the pms owner SELECT KPI from 323 to 313', async () => {
     let spaced = 0, bare = 0;
     for (const file of await tsFiles(dir)) {
       const text = await readFile(file, 'utf8');
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(317);
-    expect(bare).toBe(319);
+    expect(spaced).toBe(313);
+    expect(bare).toBe(315);
     expect(spaced).toBeLessThan(323);
   });
 });
