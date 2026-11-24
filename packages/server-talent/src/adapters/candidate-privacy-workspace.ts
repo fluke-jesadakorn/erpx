@@ -1,4 +1,5 @@
 import "server-only";
+import {talentCompanyScopeCte} from './talent-scope-sql';
 import {samePerson} from "@erpx/feature-identity_access/lib/iam";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -18,7 +19,7 @@ export async function candidatePrivacyWorkspace(actor:WorkContext,id:string,opti
  const permission=permissions.find(value=>hasPermission(actor,value));if(!permission)throw new ApiError(403,"CANDIDATE_PRIVACY_FORBIDDEN","A Company HR or Legal privacy permission is required.");
  const strict=options.strictProduct?await beginTalentProductSourceRead(actor,{kind:"candidate-privacy",id}):null;
  return withTalentPurchasedRead(actor,["recruit.candidates"],async provided=>{
-  const database=provided??(await holdingResources(actor.holdingId)).write,row=await database.prepare(`WITH privacy_viewer AS (SELECT ?::text company_id,NULL::text branch_id,NULL::text department_id)
+  const database=provided??(await holdingResources(actor.holdingId)).write,row=await database.prepare(`WITH privacy_viewer AS ${talentCompanyScopeCte}
  SELECT c.id,c.status,c.version,c.retention_until,c.privacy_hold,c.privacy_requested_by,${assignmentReadSql("privacy_viewer","legal.hold")} can_hold,${assignmentReadSql("privacy_viewer","legal.hold.release")} can_release,${assignmentReadSql("privacy_viewer","legal.destroy")} can_erase,${assignmentReadSql("privacy_viewer","people.manage")} can_withdraw
  FROM talent_candidates c CROSS JOIN privacy_viewer WHERE c.id=? AND c.company_id=privacy_viewer.company_id`).bind(actor.companyId,...permissions.flatMap(()=>[actor.assignmentId,actor.userId,actor.role]),id).first<{id:string;status:string;version:number;retention_until:string;privacy_hold:boolean;privacy_requested_by:string|null;can_hold:boolean;can_release:boolean;can_erase:boolean;can_withdraw:boolean}>();
   if(!row)throw new ApiError(404,"CANDIDATE_NOT_FOUND","Candidate privacy source not found.");if(!row.can_hold&&!row.can_release&&!row.can_erase&&!row.can_withdraw)throw new ApiError(403,"CANDIDATE_PRIVACY_FORBIDDEN","Choose a current Company privacy work role.");

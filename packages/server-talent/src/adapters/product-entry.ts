@@ -1,4 +1,5 @@
 import "server-only";
+import {talentCompanyScopeCte} from './talent-scope-sql';
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {TalentHireProductEntryScope,TalentProductSourceTarget,TalentSourcePurchaseControls} from "@erpx/server-talent/domain/product-entry";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
@@ -18,7 +19,7 @@ export async function talentHireProductSourceEntry(database:SqlDatabase,scope:Ta
  JOIN talent_applications a ON a.id=o.application_id AND a.company_id=h.company_id
  JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=h.company_id AND r.branch_id=h.branch_id AND r.department_id IS NOT DISTINCT FROM h.department_id
  JOIN talent_candidates c ON c.id=h.candidate_id AND c.id=a.candidate_id AND c.company_id=h.company_id
- CROSS JOIN (SELECT ?::text company_id,NULL::text branch_id,NULL::text department_id) hire_entry CROSS JOIN hire_entry_clock
+ CROSS JOIN ${talentCompanyScopeCte} hire_entry CROSS JOIN hire_entry_clock
  WHERE h.id=? AND h.company_id=hire_entry.company_id AND o.status='accepted' AND h.source_offer_version<=o.version
  AND ${assignmentReadSql("hire_entry","people.manage")} AND EXISTS(SELECT 1 FROM assignments WHERE id=? AND version=?)
  AND ${scheduledFeaturePredicate("h.company_id","talent")} AND ${scheduledFeaturePredicate("h.company_id","people_payroll")}
@@ -31,7 +32,7 @@ export async function talentHireProductSourceEntry(database:SqlDatabase,scope:Ta
 export async function talentCandidatePrivacyProductSourceEntry(database:SqlDatabase,scope:TalentHireProductEntryScope,id:string){
  if(scope.branchId||scope.departmentId||!Number.isSafeInteger(scope.assignmentVersion)||scope.assignmentVersion<1)return null;
  const permissions=["legal.hold","legal.hold.release","legal.destroy","people.manage"],row=await database.prepare(`WITH candidate_privacy_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms)
- SELECT c.id FROM talent_candidates c CROSS JOIN (SELECT ?::text company_id,NULL::text branch_id,NULL::text department_id) candidate_privacy_entry CROSS JOIN candidate_privacy_clock
+ SELECT c.id FROM talent_candidates c CROSS JOIN ${talentCompanyScopeCte} candidate_privacy_entry CROSS JOIN candidate_privacy_clock
  WHERE c.id=? AND c.company_id=candidate_privacy_entry.company_id AND (${permissions.map(permission=>assignmentReadSql("candidate_privacy_entry",permission)).join(" OR ")}) AND EXISTS(SELECT 1 FROM assignments WHERE id=? AND version=?)
  AND ${scheduledFeaturePredicate("c.company_id","talent")}
  AND ${purchasedCapabilityPredicate("c.company_id","recruit.candidates","history","candidate_privacy_clock.now_ms")}`).bind(scope.companyId,id,...permissions.flatMap(()=>[scope.assignmentId,scope.userId,scope.role]),scope.assignmentId,scope.assignmentVersion).first();
