@@ -1,19 +1,42 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { type RecurrenceRule } from "@erpx/feature-work_projection/lib/calendar-recurrence";
+
+// Fixed occurrence reads shared by the availability and reminders fact units.
+// One implementation serves the series, moved-exception and reminder paths.
+export function readOccurrenceResponse(db: SqlDatabase, facts: {
+        value1: string;
+        value2: string;
+        value3: string;
+        value4: string;
+    }) {
+    return db.prepare("SELECT response FROM calendar_occurrence_responses WHERE appointment_id=? AND company_id=? AND occurrence_key=? AND user_id=?").bind(facts.value1, facts.value2, facts.value3, facts.value4).first<{
+        response: string;
+    }>();
+}
+export function readOccurrenceException(db: SqlDatabase, facts: {
+        value1: string;
+        value2: string;
+        value3: string;
+    }) {
+    return db.prepare("SELECT start_local,end_local,cancelled FROM calendar_occurrence_exceptions WHERE appointment_id=? AND company_id=? AND occurrence_key=?").bind(facts.value1, facts.value2, facts.value3).first<{
+        start_local: string | null;
+        end_local: string | null;
+        cancelled: boolean;
+    }>();
+}
+export function readMovedOccurrences(db: SqlDatabase, facts: {
+        value1: string;
+        value2: string;
+    }) {
+    return db.prepare("SELECT occurrence_key,start_local,end_local FROM calendar_occurrence_exceptions WHERE appointment_id=? AND company_id=? AND cancelled=false AND start_local IS NOT NULL AND end_local IS NOT NULL").bind(facts.value1, facts.value2).all<{
+        occurrence_key: string;
+        start_local: string;
+        end_local: string;
+    }>();
+}
+
 export function calendarAvailabilityWorkProjectionFacts(db: SqlDatabase) {
-    // read4 and read6 are the same fixed occurrence-response lookup; one
-    // implementation serves both the series and moved-exception paths.
-    const readResponse = (facts: {
-            value1: string;
-            value2: string;
-            value3: string;
-            value4: string;
-        }) => {
-            return db.prepare("SELECT response FROM calendar_occurrence_responses WHERE appointment_id=? AND company_id=? AND occurrence_key=? AND user_id=?").bind(facts.value1, facts.value2, facts.value3, facts.value4).first<{
-                response: string;
-            }>();
-        };
     return { read2: (facts: {
             value1: string;
             value2: number;
@@ -42,23 +65,21 @@ export function calendarAvailabilityWorkProjectionFacts(db: SqlDatabase) {
             value1: string;
             value2: string;
             value3: string;
-        }) => {
-            return db.prepare("SELECT start_local,end_local,cancelled FROM calendar_occurrence_exceptions WHERE appointment_id=? AND company_id=? AND occurrence_key=?").bind(facts.value1, facts.value2, facts.value3).first<{
-                start_local: string | null;
-                end_local: string | null;
-                cancelled: boolean;
-            }>();
-        },
-        read4: readResponse,
+        }) => readOccurrenceException(db, facts),
+        read4: (facts: {
+            value1: string;
+            value2: string;
+            value3: string;
+            value4: string;
+        }) => readOccurrenceResponse(db, facts),
         read5: (facts: {
             value1: string;
             value2: string;
-        }) => {
-            return db.prepare("SELECT occurrence_key,start_local,end_local FROM calendar_occurrence_exceptions WHERE appointment_id=? AND company_id=? AND cancelled=false AND start_local IS NOT NULL AND end_local IS NOT NULL").bind(facts.value1, facts.value2).all<{
-                occurrence_key: string;
-                start_local: string;
-                end_local: string;
-            }>();
-        },
-        read6: readResponse };
+        }) => readMovedOccurrences(db, facts),
+        read6: (facts: {
+            value1: string;
+            value2: string;
+            value3: string;
+            value4: string;
+        }) => readOccurrenceResponse(db, facts) };
 }
