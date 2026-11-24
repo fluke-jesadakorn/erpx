@@ -1,4 +1,5 @@
 import {describe,it,expect,vi} from 'vitest';
+import {readFileSync} from 'node:fs';
 vi.mock('next/headers',()=>({headers:async()=>new Headers()}));
 import {
   createNativeOperationsClient,
@@ -203,4 +204,25 @@ describe('native Operations queue transport',()=>{
   for(const raw of ['not-json',JSON.stringify({privateBaseUrl:'http://127.0.0.1:44993'})])
     expect(()=>nativeOperationsConfiguration(raw)).toThrowError(NativeOperationsError);
  });
+});
+
+describe('native Operations fixed task-source read plans',()=>{
+  const adapter=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  it('retires the record-purchases task-project TypeScript literal',()=>{
+    const source=adapter('record-purchases.ts');
+    expect(source).not.toContain('SELECT project_id FROM staff_tasks WHERE id=? AND company_id=?');
+    expect(source).toContain('OPERATIONS_RD_RECORD_TASK_PROJECT');
+  });
+  it('retires the work-task-purchases task-source TypeScript literal',()=>{
+    const source=adapter('work-task-purchases.ts');
+    expect(source).not.toContain('SELECT id,company_id,branch_id,department_id,creator_user_id,assignee_user_id,project_id,template_id,schedule_id,state,version FROM staff_tasks WHERE id=? AND company_id=?');
+    expect(source).toContain('OPERATIONS_RD_WORK_TASK_SOURCE');
+  });
+  it('registers both fixed-source reads in the native allow-list',()=>{
+    const source=readFileSync(new URL('../../../packages/server-operations/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
+    expect(source).toContain('operations_rd_record_task_project');
+    expect(source).toContain('operations_rd_work_task_source');
+    expect(source).toContain('READ_RECORD_TASK_PROJECT,');
+    expect(source).toContain('READ_WORK_TASK_SOURCE,');
+  });
 });

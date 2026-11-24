@@ -166,6 +166,32 @@ const READ_OPERATIONS_EXCEPTION_EVENTS: NativeReadStatement = NativeReadStatemen
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `record-purchases` fixed task-source
+/// read. The owner plans this literal; the caller executes it on its open unit
+/// with the same `[id, company_id]` bind and takes the first row.
+pub const RD_RECORD_TASK_PROJECT: &str = "operations_rd_record_task_project";
+const SQL_RECORD_TASK_PROJECT: &str =
+    "SELECT project_id FROM staff_tasks WHERE id=? AND company_id=?";
+const READ_RECORD_TASK_PROJECT: NativeReadStatement = NativeReadStatement {
+    kind: RD_RECORD_TASK_PROJECT,
+    sql: SQL_RECORD_TASK_PROJECT,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript `work-task-purchases` fixed task-source
+/// read. The owner plans this literal; the caller executes it on its open unit
+/// with the same `[id, company_id]` bind and takes the first row.
+pub const RD_WORK_TASK_SOURCE: &str = "operations_rd_work_task_source";
+const SQL_WORK_TASK_SOURCE: &str =
+    "SELECT id,company_id,branch_id,department_id,creator_user_id,assignee_user_id,project_id,template_id,schedule_id,state,version FROM staff_tasks WHERE id=? AND company_id=?";
+const READ_WORK_TASK_SOURCE: NativeReadStatement = NativeReadStatement {
+    kind: RD_WORK_TASK_SOURCE,
+    sql: SQL_WORK_TASK_SOURCE,
+    bind_count: 2,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_TASK_PROJECTION_SOURCE,
     READ_APP_UPLOAD_TASK_STATE,
@@ -178,6 +204,8 @@ const READS: &[NativeReadStatement] = &[
     READ_LEGACY_ROUTINE_TEMPLATES,
     READ_OPERATIONS_QUEUE_POLICIES,
     READ_OPERATIONS_EXCEPTION_EVENTS,
+    READ_RECORD_TASK_PROJECT,
+    READ_WORK_TASK_SOURCE,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -412,6 +440,36 @@ mod tests {
         assert_eq!(
             events.sql,
             "SELECT * FROM operations_exception_events WHERE exception_id=? ORDER BY version"
+        );
+    }
+
+    #[test]
+    fn fixed_task_source_plans_are_holding_scoped_and_ledger_free() {
+        for kind in [RD_RECORD_TASK_PROJECT, RD_WORK_TASK_SOURCE] {
+            let read = read_statement(kind).expect("read kind");
+            let upper = read.sql.to_ascii_uppercase();
+            assert!(upper.starts_with("SELECT"), "{}", read.kind);
+            assert!(!upper.contains("INSERT"));
+            assert!(!upper.contains("UPDATE"));
+            assert!(!upper.contains("DELETE"));
+            assert_eq!(read.bind_count, 2);
+            assert_eq!(read.sql.matches('?').count(), 2);
+            assert_eq!(read.scope, "holding");
+            assert!(is_read(kind));
+        }
+    }
+
+    #[test]
+    fn fixed_task_source_sql_matches_retired_typescript_literals() {
+        let project = read_statement(RD_RECORD_TASK_PROJECT).expect("read kind");
+        assert_eq!(
+            project.sql,
+            "SELECT project_id FROM staff_tasks WHERE id=? AND company_id=?"
+        );
+        let source = read_statement(RD_WORK_TASK_SOURCE).expect("read kind");
+        assert_eq!(
+            source.sql,
+            "SELECT id,company_id,branch_id,department_id,creator_user_id,assignee_user_id,project_id,template_id,schedule_id,state,version FROM staff_tasks WHERE id=? AND company_id=?"
         );
     }
 }

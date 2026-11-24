@@ -1,4 +1,5 @@
 import{visibleTask,authority}from '@erpx/server-operations/adapters/evaluation-source-policy';
+import {nativeOperationsReadFirst,OPERATIONS_RD_RECORD_TASK_PROJECT} from './native-operations-read';
 import 'server-only';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 
@@ -65,7 +66,7 @@ export async function workSourceReadScope(database:SqlDatabase,actor:WorkContext
 export async function requireWorkWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,moduleId:string,id:string){
  const mode=await appsPackageEnforcementMode();if(mode==='disabled')return;
  if(moduleId==='collaboration')await requireHandbookWorkspaceRead(actor,id);
- const task=await database.prepare('SELECT project_id FROM staff_tasks WHERE id=? AND company_id=?').bind(id,actor.companyId).first<{project_id:string|null}>();
+ const task=await nativeOperationsReadFirst<{project_id:string|null}>(OPERATIONS_RD_RECORD_TASK_PROJECT,[id,actor.companyId],database);
  if(task?.project_id||!task&&moduleId!=='operations')return;
  if(mode==='shadow'){await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:'work.actions'});return;}
  const source=task?await visibleTask(database,actor,'work_record_input.id','work_record_input.company_id'):null,current=authority(actor);

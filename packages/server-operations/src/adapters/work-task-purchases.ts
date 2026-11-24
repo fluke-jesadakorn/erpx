@@ -1,5 +1,6 @@
 import 'server-only';
 import {randomUUID} from 'node:crypto';
+import {nativeOperationsReadFirst,OPERATIONS_RD_WORK_TASK_SOURCE} from './native-operations-read';
 import type {StaffActor} from '@erpx/server-operations/public/staff-policy';
 import {staffGuard} from '@erpx/server-operations/adapters/staff-policy';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
@@ -26,7 +27,7 @@ type Command={key:string;operations:readonly string[];id:string;purpose:Capabili
 type TaskSource={id:string;company_id:string;branch_id:string|null;department_id:string|null;creator_user_id:string;assignee_user_id:string;project_id:string|null;template_id:string|null;schedule_id:string|null;state:string;version:number};
 const attachmentActions=new WeakMap<SqlDatabase,{id:string;userId:string}>();
 export function workTaskOwnsAttachmentAction(database:SqlDatabase,actor:StaffActor,id:string){const action=attachmentActions.get(database);return action?.id===id&&action.userId===actor.userId;}
-const source=(database:SqlDatabase,actor:StaffActor,id:string)=>database.prepare('SELECT id,company_id,branch_id,department_id,creator_user_id,assignee_user_id,project_id,template_id,schedule_id,state,version FROM staff_tasks WHERE id=? AND company_id=?').bind(id,actor.companyId).first<TaskSource>();
+const source=(database:SqlDatabase,actor:StaffActor,id:string)=>nativeOperationsReadFirst<TaskSource>(OPERATIONS_RD_WORK_TASK_SOURCE,[id,actor.companyId],database);
 function authority(actor:StaffActor){const scope=currentAssignmentReadScope(actor,'workforce_actor_scope');return {sql:`SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope WHERE ${scope.where} AND ${scheduledFeaturePredicate('workforce_actor_scope.company_id','operations')}`,args:[actor.companyId,actor.branchId,actor.departmentId,...scope.args]};}
 async function current(database:SqlDatabase,actor:StaffActor,key:string,write=false){const scope=authority(actor);if(!await database.prepare(scope.sql).bind(...scope.args).first())throw new ApiError(403,'WORK_TASK_AUTHORITY_CHANGED','Choose the current original task account and Company role.');if(write)await database.batch([assertion(database,key,'work-task-current',`EXISTS(${scope.sql})`,scope.args),...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),staffGuard(database,key,actor.companyId,actor.userId,'work-task-actor'),clearWorkflowCommandAssertions(database, key)]);}
 async function capabilities(database:SqlDatabase,actor:StaffActor,task:TaskSource|null,ordinary:boolean,postId?:string){
