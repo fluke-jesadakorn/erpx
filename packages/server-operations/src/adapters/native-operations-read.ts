@@ -31,6 +31,7 @@ export const OPERATIONS_RD_OPERATIONS_EXCEPTION_EVENTS = 'operations_rd_operatio
 export const OPERATIONS_RD_RECORD_TASK_PROJECT = 'operations_rd_record_task_project';
 export const OPERATIONS_RD_WORK_TASK_SOURCE = 'operations_rd_work_task_source';
 export const OPERATIONS_RD_TASK_ATTACHMENT_ASSIGNEE = 'operations_rd_task_attachment_assignee';
+export const OPERATIONS_RD_WORK_TASK_ALERT_SOURCE = 'operations_rd_work_task_alert_source';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'OPERATIONS_NATIVE_READ_UNAVAILABLE', 'The native Operations read service is unavailable.');

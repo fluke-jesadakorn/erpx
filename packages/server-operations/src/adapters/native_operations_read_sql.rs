@@ -205,6 +205,19 @@ const READ_TASK_ATTACHMENT_ASSIGNEE: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `work-task-alert-purchases` source read.
+/// The owner plans this literal; the caller executes it on its open unit with
+/// the same `[now, now, id, company_id]` bind and takes the first row exactly
+/// as the retired `.first()` did. Both tables are owner-local.
+pub const RD_WORK_TASK_ALERT_SOURCE: &str = "operations_rd_work_task_alert_source";
+const SQL_WORK_TASK_ALERT_SOURCE: &str = "SELECT t.id,t.company_id,t.project_id,t.template_id,t.version,t.title,t.due_at,t.assignee_user_id,t.creator_user_id,t.state,(SELECT sd.delegate_user_id FROM staff_task_delegations sd WHERE sd.task_id=t.id AND sd.company_id=t.company_id AND sd.status='active' AND sd.starts_at<=? AND sd.expires_at>? ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1) delegate_user_id FROM staff_tasks t WHERE t.id=? AND t.company_id=?";
+const READ_WORK_TASK_ALERT_SOURCE: NativeReadStatement = NativeReadStatement {
+    kind: RD_WORK_TASK_ALERT_SOURCE,
+    sql: SQL_WORK_TASK_ALERT_SOURCE,
+    bind_count: 4,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_TASK_PROJECTION_SOURCE,
     READ_APP_UPLOAD_TASK_STATE,
@@ -220,6 +233,7 @@ const READS: &[NativeReadStatement] = &[
     READ_RECORD_TASK_PROJECT,
     READ_WORK_TASK_SOURCE,
     READ_TASK_ATTACHMENT_ASSIGNEE,
+    READ_WORK_TASK_ALERT_SOURCE,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -505,5 +519,28 @@ mod tests {
     fn task_attachment_assignee_sql_matches_retired_typescript_literal() {
         let read = read_statement(RD_TASK_ATTACHMENT_ASSIGNEE).expect("read kind");
         assert_eq!(read.sql, "SELECT iam_same_person(?,?,?) assigned");
+    }
+
+    #[test]
+    fn work_task_alert_source_plan_is_holding_scoped_and_ledger_free() {
+        let read = read_statement(RD_WORK_TASK_ALERT_SOURCE).expect("read kind");
+        let upper = read.sql.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT"), "{}", read.kind);
+        assert!(!upper.contains("INSERT"));
+        assert!(!upper.contains("UPDATE"));
+        assert!(!upper.contains("DELETE"));
+        assert_eq!(read.bind_count, 4);
+        assert_eq!(read.sql.matches('?').count(), 4);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_WORK_TASK_ALERT_SOURCE));
+    }
+
+    #[test]
+    fn work_task_alert_source_sql_matches_retired_typescript_literal() {
+        let read = read_statement(RD_WORK_TASK_ALERT_SOURCE).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT t.id,t.company_id,t.project_id,t.template_id,t.version,t.title,t.due_at,t.assignee_user_id,t.creator_user_id,t.state,(SELECT sd.delegate_user_id FROM staff_task_delegations sd WHERE sd.task_id=t.id AND sd.company_id=t.company_id AND sd.status='active' AND sd.starts_at<=? AND sd.expires_at>? ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1) delegate_user_id FROM staff_tasks t WHERE t.id=? AND t.company_id=?"
+        );
     }
 }

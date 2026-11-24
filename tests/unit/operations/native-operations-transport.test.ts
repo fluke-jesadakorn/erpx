@@ -240,3 +240,17 @@ describe('native Operations task attachment assignee read plan',()=>{
     expect(source).toContain('READ_TASK_ATTACHMENT_ASSIGNEE,');
   });
 });
+
+describe('native Operations work task alert source read plan',()=>{
+  const adapter=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  it('retires the work-task-alert-purchases source TypeScript literal',()=>{
+    const source=adapter('work-task-alert-purchases.ts');
+    expect(source).not.toContain('SELECT t.id,t.company_id,t.project_id,t.template_id,t.version,t.title,t.due_at,t.assignee_user_id,t.creator_user_id,t.state,(SELECT sd.delegate_user_id FROM staff_task_delegations sd WHERE sd.task_id=t.id');
+    expect(source).toContain('OPERATIONS_RD_WORK_TASK_ALERT_SOURCE');
+  });
+  it('registers the work task alert source read in the native allow-list',()=>{
+    const source=readFileSync(new URL('../../../packages/server-operations/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
+    expect(source).toContain('operations_rd_work_task_alert_source');
+    expect(source).toContain('READ_WORK_TASK_ALERT_SOURCE,');
+  });
+});
