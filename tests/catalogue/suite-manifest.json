@@ -45720,6 +45720,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Inventory scope and journal account line EXISTS families must stay byte-identical."
+      },
+      "apps": "supply",
+      "packages": [
+        "@erpx/server-inventory"
+      ],
+      "id": "inventory.read-tail-r25-dedupe.unit",
+      "files": [
+        "tests/unit/inventory/read-tail-r25-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "inventory.rust-commerce-order-cancellation-postgres.integration",
       "lane": "integration",
       "owner": "inventory",
@@ -78132,6 +78157,31 @@
       "id": "records.read-tail-r17-dedupe.unit",
       "files": [
         "tests/unit/records/read-tail-r17-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "records",
+      "modules": [
+        "agent"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Records request AI usage count family must stay one generator."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-records"
+      ],
+      "id": "records.read-tail-r18-dedupe.unit",
+      "files": [
+        "tests/unit/records/read-tail-r18-dedupe.test.ts"
       ],
       "framework": "vitest"
     },

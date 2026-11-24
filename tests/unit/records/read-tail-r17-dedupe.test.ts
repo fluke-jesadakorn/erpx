@@ -79,7 +79,8 @@ describe('Records read-tail r17 retirement check', () => {
     walk(srcRoot);
     // r17 deduped the 2x EXISTS version-fence guard in employee-requests.ts and
     // attachments-service-facts.ts into one shared parameterized fragment.
-    expect(total).toBe(34);
+    // r17's achievement is a ceiling of 34; later rounds (r18+) reduce further.
+    expect(total).toBeLessThanOrEqual(34);
     expect(total).toBeLessThan(35);
   });
 });

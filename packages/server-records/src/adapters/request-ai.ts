@@ -12,6 +12,7 @@ import {employeeRequestDetail} from '@erpx/server-records/public/employee-reques
 import {requestVersionGuard} from '@erpx/server-records/public/employee-requests';
 import { serviceAuthoritySnapshot, validateServiceScope } from "@erpx/server-support/public/service-access";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import { requestAiUsageCountSql } from './read-tail-count-sql';
 import { assertProductionModuleEnabled, productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";
 import { generateThaiHotelMockAi, isThaiHotelAiMockEnabled } from "@erpx/server-runtime/public/simulation-only-adapters";
 import { holdingResources as nativeHoldingResources } from '../../../../packages/server-runtime/src/public/runtime';
@@ -55,7 +56,9 @@ function application(provided?: SqlDatabase, actor?: WorkContext) {
             return recordsAiQuota(database).guard(key, value, args, companyId);
         },
         guard7(key: string, value: "request-ai-capacity", companyId: string, now: number, userId: string, value2: number) {
-            return assertion(database, key, value, "(SELECT count(*) FROM request_ai_usage WHERE company_id=? AND state='reserved' AND lease_until>?)<2 AND (SELECT count(*) FROM request_ai_usage WHERE actor_id=? AND created_at>?)<6", [companyId, now, userId, value2]);
+            const quota = requestAiUsageCountSql("company_id=? AND state='reserved' AND lease_until>?");
+            const rate = requestAiUsageCountSql('actor_id=? AND created_at>?');
+            return assertion(database, key, value, `${quota}<2 AND ${rate}<6`, [companyId, now, userId, value2]);
         },
         stageQueueRequestAiEffect(value: number, proposalId: string) {
             return nativeRecordsStatement('records_stmt_3', { companyId: actor?.companyId, actor, now: Date.now() })
