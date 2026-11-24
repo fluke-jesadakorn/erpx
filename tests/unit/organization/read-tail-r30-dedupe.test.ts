@@ -72,9 +72,9 @@ describe('Organization read-tail r30 retirement check', () => {
     };
     walk(srcRoot);
     // r30 cut one new family (3 literals -> 1 helper statement) below the
-    // canonical r29-after 282; the task's BEFORE baseline is 282. r31 cut one
-    // further new family, so the live count is now 279.
-    expect(space).toBe(279);
+    // canonical r29-after 282; the task's BEFORE baseline is 282. Later
+    // rounds cut further families, so use a ceiling like the r27-r29 tests.
+    expect(space).toBeLessThanOrEqual(277);
     expect(space).toBeLessThan(282);
   });
 });

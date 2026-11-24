@@ -66,8 +66,9 @@ describe('Organization read-tail r31 retirement check', () => {
     };
     walk(srcRoot);
     // r31 cut one new family (2 literals -> 1 helper statement) below the
-    // canonical r30-after 280; the task's BEFORE baseline is 280.
-    expect(space).toBe(279);
+    // canonical r30-after 280; the task's BEFORE baseline is 280. Later
+    // rounds cut further families, so use a ceiling like the r27-r29 tests.
+    expect(space).toBeLessThanOrEqual(277);
     expect(space).toBeLessThan(280);
   });
 });

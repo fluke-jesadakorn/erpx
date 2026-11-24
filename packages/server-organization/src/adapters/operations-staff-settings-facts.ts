@@ -2,6 +2,7 @@ import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runt
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { nativeOrgStatement } from "./native-organization-owner-write";
 import { twoColumnLookup, nodeKindByIdCompany } from './organization-column-alias-families-r27';
+import { activeNodeKindExists } from './organization-column-alias-families-r34';
 import { ownerVersionGuardSource } from './organization-read-tail-sources';
 export function StaffSettingsOrganizationFacts(database: SqlDatabase, companyId = '') {
     return { readListLevelsEffect(companyId: string) {
@@ -41,7 +42,7 @@ export function StaffSettingsOrganizationFacts(database: SqlDatabase, companyId 
             }>();
         },
         guard14(key: string, value: "department", id: string, companyId: string) {
-            return assertion(database, key, value, "EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='department' AND status='active')", [id, companyId]);
+            return assertion(database, key, value, activeNodeKindExists('department'), [id, companyId]);
         },
         guard15(key: string, value: "head-version", expectedVersion: number, id: string, id2: string, expectedVersion2: number) {
             return assertion(database, key, value, "(?=0 AND NOT EXISTS(SELECT 1 FROM department_heads WHERE department_id=?)) OR EXISTS(SELECT 1 FROM department_heads WHERE department_id=? AND version=?)", [expectedVersion, id, id2, expectedVersion2]);
