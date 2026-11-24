@@ -26,3 +26,13 @@ export const executiveGenerationJobsSql = (columns: string, suffix = '') =>
  */
 export const runtimeHealthSql = (columns: string, suffix = '') =>
   `SELECT ${columns} FROM runtime_health${suffix}`;
+
+/**
+ * Runtime-owned canonical SQL for the closed `executive_external_tokens` read
+ * family. Token resolution projects different column subsets and secret/id
+ * predicates of the same fixed read; one builder keeps the query text identical
+ * across every caller. No relation name or predicate comes from an untrusted
+ * caller. Control-plane lock and migration statements are not part of this family.
+ */
+export const executiveExternalTokensSql = (columns: string, suffix = '') =>
+  `SELECT ${columns} FROM executive_external_tokens${suffix}`;
