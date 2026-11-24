@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8151,
+    "revision": 8154,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -136142,9 +136142,9 @@
         "claim": {
           "runId": "run-20261123-i",
           "agentId": "wGBGwor",
-          "claimedAt": "2026-11-24T01:46:54.242Z",
-          "heartbeatAt": "2026-11-24T01:46:54.242Z",
-          "expiresAt": "2026-11-24T02:16:54.242Z",
+          "claimedAt": "2026-11-24T01:47:11.646Z",
+          "heartbeatAt": "2026-11-24T01:47:11.646Z",
+          "expiresAt": "2026-11-24T02:17:11.646Z",
           "generation": 161
         },
         "baseSha": null,
@@ -136165,13 +136165,13 @@
         ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Blocked with evidence; awaiting path refinement.",
+        "nextAction": "Lead refinement: editing flow-planning-ports.ts:66 is allowed for a text-only shared-const dedupe of the byte-identical approval_steps read; keep flow semantics/binds unchanged. BEFORE=78.",
         "handoff": {
           "runId": "run-20261123-i",
-          "agentId": "wGB4wor",
-          "at": "2026-11-24T01:46:54.012Z",
-          "previousStatus": "blocked",
-          "reason": "handoff",
+          "agentId": "wGBGwor",
+          "at": "2026-11-24T01:47:11.344Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
           "nextAction": "Blocked with evidence; awaiting path refinement."
         },
         "scopeRefinementRequired": false
@@ -136717,7 +136717,7 @@
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:46:54.619Z",
+    "updatedAt": "2026-11-24T01:47:11.651Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
