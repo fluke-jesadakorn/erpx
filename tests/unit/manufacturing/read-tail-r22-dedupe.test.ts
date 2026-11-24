@@ -136,7 +136,7 @@ describe('manufacturing read-tail r22 production detail select family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(73); // r21 left 77; r22 lowers 77->73 (five detail selects -> one helper).
+    expect(total).toBeLessThanOrEqual(72); // r21 left 77; r22 lowers 77->73 (five detail selects -> one helper); r23 lowers 73->72.
     expect(total).toBeLessThan(77);
   });
 });

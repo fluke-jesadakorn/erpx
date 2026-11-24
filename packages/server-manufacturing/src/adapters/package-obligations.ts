@@ -6,6 +6,7 @@ import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/se
 import {manufacturingPurchaseOrderRows,manufacturingPurchaseSourceReadLocks} from "@erpx/server-manufacturing/adapters/purchases";
 import {manufacturingRowsSelect} from "./manufacturing-read-sql-fragments";
 import {manufacturingSettlementFactSelect} from "./manufacturing-read-tail-r17-sql";
+import {manufacturingStockFootprintSelect} from "./manufacturing-read-tail-r23-sql";
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
 export async function lockManufacturingPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.batch(manufacturingPurchaseSourceReadLocks(database));await database.prepare("LOCK TABLE manufacturing_material_reservations,manufacturing_genealogy,manufacturing_cost_snapshots,manufacturing_operation_events,manufacturing_material_lot_issues,manufacturing_output_lots,manufacturing_lot_genealogy,manufacturing_inventory_moves,manufacturing_cost_pools,manufacturing_cost_allocations IN SHARE MODE").run();sources.set(database,companyId);}
@@ -19,7 +20,7 @@ export const manufacturingPackageSettlementSources={
  costPools:manufacturingRowsSelect("manufacturing_cost_pools"),
  costAllocations:manufacturingRowsSelect("manufacturing_cost_allocations"),
  materialReservations:manufacturingRowsSelect("manufacturing_material_reservations"),
- stockFootprint:`SELECT o.id order_id,o.company_id,o.warehouse_id,s.output_product_id product_id FROM manufacturing_orders o JOIN manufacturing_specifications s ON s.id=o.specification_id AND s.company_id=o.company_id UNION SELECT o.id,o.company_id,o.warehouse_id,line.product_id FROM manufacturing_orders o JOIN manufacturing_specification_lines line ON line.specification_id=o.specification_id`,
+ stockFootprint:`${manufacturingStockFootprintSelect("o.id order_id,o.company_id,o.warehouse_id,s.output_product_id product_id","manufacturing_specifications","s","s.id=o.specification_id AND s.company_id=o.company_id")} UNION ${manufacturingStockFootprintSelect("o.id,o.company_id,o.warehouse_id,line.product_id","manufacturing_specification_lines","line","line.specification_id=o.specification_id")}`,
 } as const;
 export async function manufacturingPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
  assertManufacturingPackageObligationSources(owner,database,input.companyId);if(input.moduleId!=="manufacturing"||!["manufacturing","manufacturing-mrp"].includes(input.packageId)||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error("MANUFACTURING_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
