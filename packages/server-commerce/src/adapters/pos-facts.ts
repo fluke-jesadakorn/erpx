@@ -1,8 +1,8 @@
 import { commerceFinalOwnerProjectionSources as posProjectionSources } from "@erpx/server-pos/public/commerce-final-owner-projection-sources";
 import "server-only";
-import {one,all} from '@erpx/server-runtime/public/runtime/sql';
+import {one,all,type SqlValueRow} from '@erpx/server-runtime/public/runtime/sql';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import {COMMERCE_SETTINGS_BY_COMPANY_SQL,COMMERCE_CURRENCY_BY_COMPANY_SQL} from './settings-dedupe-sql';
+import {nativeCommerceReadFirst,RD_SETTINGS_BY_COMPANY,RD_CURRENCY_BY_COMPANY} from './native-commerce-read';
 export function PosReadCommerceFacts(db: SqlDatabase) {
     return {
         readCommerceProducts1: (facts: {
@@ -12,10 +12,10 @@ export function PosReadCommerceFacts(db: SqlDatabase) {
         }) => one(db, `SELECT COUNT(DISTINCT p.id)::int count FROM commerce_products p JOIN (${posProjectionSources.pos_catalog}) c ON c.product_id=p.id AND c.enabled=true JOIN (${posProjectionSources.pos_register_catalog}) rc ON rc.product_id=p.id AND rc.enabled=true JOIN (${posProjectionSources.pos_registers}) r ON r.id=rc.register_id WHERE p.company_id=? AND p.status='active' AND r.active=true AND (?::text IS NULL OR r.branch_id=?)`, facts.company, facts.branch, facts.branch2),
         readCommerceSettings1: (facts: {
             company: string;
-        }) => one(db, COMMERCE_SETTINGS_BY_COMPANY_SQL, facts.company),
+        }) => nativeCommerceReadFirst<SqlValueRow>(RD_SETTINGS_BY_COMPANY, [facts.company], db),
         readCommerceSettings2: (facts: {
             company: string;
-        }) => one(db, COMMERCE_CURRENCY_BY_COMPANY_SQL, facts.company),
+        }) => nativeCommerceReadFirst<SqlValueRow>(RD_CURRENCY_BY_COMPANY, [facts.company], db),
         readCommerceWarehouses1: (facts: {
             company: string;
             branch: string | null;

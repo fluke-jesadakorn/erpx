@@ -10905,6 +10905,33 @@
       ]
     },
     {
+      "lane": "unit",
+      "owner": "commerce",
+      "modules": [
+        "commerce"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Commerce settings native read kinds must stay byte-identical to authority text."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-commerce"
+      ],
+      "id": "commerce.read-tail-r18-native.unit",
+      "files": [
+        "tests/unit/commerce/read-tail-r18-native.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "lane": "integration",
       "owner": "commerce",
       "modules": [

@@ -1,5 +1,5 @@
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import { COMMERCE_SETTINGS_BY_COMPANY_SQL } from './settings-dedupe-sql';
+import {nativeCommerceReadFirst,RD_SETTINGS_BY_COMPANY} from './native-commerce-read';
 export function expensePostingConfiguration(db: SqlDatabase, companyId: string) {
-    return db.prepare(COMMERCE_SETTINGS_BY_COMPANY_SQL).bind(companyId).first<Record<string, string | number | null>>();
+    return nativeCommerceReadFirst<Record<string, string | number | null>>(RD_SETTINGS_BY_COMPANY, [companyId], db);
 }

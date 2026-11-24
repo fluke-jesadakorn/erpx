@@ -2,9 +2,9 @@ import { commerceFinalOwnerProjectionSources as posProjectionSources } from "@er
 import {commercePosCoreFactsStockEffects} from '@erpx/server-inventory/public/commerce-stock-owner-effects';
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
 import "server-only";
-import {one,all,run} from '@erpx/server-runtime/public/runtime/sql';
+import {one,all,run,type SqlValueRow} from '@erpx/server-runtime/public/runtime/sql';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import {COMMERCE_CURRENCY_BY_COMPANY_SQL} from './settings-dedupe-sql';
+import {nativeCommerceReadFirst,RD_CURRENCY_BY_COMPANY} from './native-commerce-read';
 import { COMMERCE_STOCK_PRODUCT_FOR_UPDATE_SQL } from './stock-source-dedupe-sql';
 
 /** Byte-identical text deduped; every call site still prepares and executes it. */
@@ -40,7 +40,7 @@ export function posCoreCommerceFacts(db: SqlDatabase) {
         }) => all(db, "SELECT id,branch_id,name FROM commerce_warehouses WHERE company_id=? AND status='active' ORDER BY name,id FOR SHARE", facts.company),
         readCommerceSettings2: (facts: {
             company: string;
-        }) => one(db, COMMERCE_CURRENCY_BY_COMPANY_SQL, facts.company),
+        }) => nativeCommerceReadFirst<SqlValueRow>(RD_CURRENCY_BY_COMPANY, [facts.company], db),
         readCommerceWarehouses3: (facts: {
             warehouseId: string;
         }) => one(db, "SELECT * FROM commerce_warehouses WHERE id=? AND status='active'", facts.warehouseId),

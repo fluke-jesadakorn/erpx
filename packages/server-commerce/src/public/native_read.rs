@@ -555,5 +555,21 @@ mod tests {
                 entry.kind
             );
         }
+        // r18: these three settings reads now delegate to the mounted native
+        // `commerce_rd_*` kinds. settings-dedupe-sql.ts keeps only their
+        // normalized authority text and the single company_id bind position.
+        for kind in [
+            RD_SETTINGS_BY_COMPANY,
+            RD_CURRENCY_BY_COMPANY,
+            RD_POSTING_MAPPING_STATE,
+        ] {
+            let entry = plan(kind).expect("retained settings authority");
+            assert_eq!(source(kind), TS_SETTINGS, "{kind} authority source");
+            assert!(
+                norm(TS_SETTINGS).contains(&norm(entry.sql)),
+                "{kind}: authority text missing from settings-dedupe-sql.ts"
+            );
+            assert_eq!(entry.binds, &[BindField::CompanyId], "{kind} company scope");
+        }
     }
 }

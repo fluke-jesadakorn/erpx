@@ -2,6 +2,11 @@ import 'server-only';
 import { Agent, request as httpRequest } from 'node:http';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 
+/** Allow-listed settings read kinds resolved by the mounted owner command-plan route. */
+export const RD_SETTINGS_BY_COMPANY = 'commerce_rd_settings_by_company';
+export const RD_CURRENCY_BY_COMPANY = 'commerce_rd_currency_by_company';
+export const RD_POSTING_MAPPING_STATE = 'commerce_rd_posting_mapping_state';
+
 /**
  * Strict owner transport for the mounted native Commerce `command-plan` read
  * route. The axum owner plans the exact statement for a registered read kind;

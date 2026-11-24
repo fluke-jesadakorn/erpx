@@ -84,6 +84,37 @@ const READ_POS_STARTUP_PRODUCTS: NativeCommerceReadStatement = NativeCommerceRea
     bind_count: 1,
 };
 
+/// Native successor of the TypeScript `COMMERCE_SETTINGS_BY_COMPANY_SQL`
+/// settings read. The caller binds `[company_id]`.
+pub const RD_SETTINGS_BY_COMPANY: &str = "commerce_rd_settings_by_company";
+const SQL_SETTINGS_BY_COMPANY: &str = "SELECT * FROM commerce_settings WHERE company_id=?";
+const READ_SETTINGS_BY_COMPANY: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_SETTINGS_BY_COMPANY,
+    sql: SQL_SETTINGS_BY_COMPANY,
+    bind_count: 1,
+};
+
+/// Native successor of the TypeScript `COMMERCE_CURRENCY_BY_COMPANY_SQL`
+/// currency read. The caller binds `[company_id]`.
+pub const RD_CURRENCY_BY_COMPANY: &str = "commerce_rd_currency_by_company";
+const SQL_CURRENCY_BY_COMPANY: &str = "SELECT currency FROM commerce_settings WHERE company_id=?";
+const READ_CURRENCY_BY_COMPANY: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_CURRENCY_BY_COMPANY,
+    sql: SQL_CURRENCY_BY_COMPANY,
+    bind_count: 1,
+};
+
+/// Native successor of the TypeScript `COMMERCE_POSTING_MAPPING_STATE_SQL`
+/// 11-column Commerce→posting mapping state read. The caller binds `[company_id]`.
+pub const RD_POSTING_MAPPING_STATE: &str = "commerce_rd_posting_mapping_state";
+const SQL_POSTING_MAPPING_STATE: &str =
+    "SELECT chart_id \"chartId\",currency,receivable_account_id \"receivableAccountId\",payable_account_id \"payableAccountId\",revenue_account_id \"revenueAccountId\",inventory_account_id \"inventoryAccountId\",clearing_account_id \"clearingAccountId\",cogs_account_id \"cogsAccountId\",input_tax_account_id \"inputTaxAccountId\",output_tax_account_id \"outputTaxAccountId\",cash_account_id \"cashAccountId\" FROM commerce_settings WHERE company_id=?";
+const READ_POSTING_MAPPING_STATE: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_POSTING_MAPPING_STATE,
+    sql: SQL_POSTING_MAPPING_STATE,
+    bind_count: 1,
+};
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,
@@ -91,6 +122,9 @@ const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_SALES_EDITOR_WAREHOUSES,
     READ_POS_STARTUP_WAREHOUSES,
     READ_POS_STARTUP_PRODUCTS,
+    READ_SETTINGS_BY_COMPANY,
+    READ_CURRENCY_BY_COMPANY,
+    READ_POSTING_MAPPING_STATE,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -111,6 +145,9 @@ mod tests {
             (RD_SALES_EDITOR_WAREHOUSES, SQL_SALES_EDITOR_WAREHOUSES, 3usize),
             (RD_POS_STARTUP_WAREHOUSES, SQL_POS_STARTUP_WAREHOUSES, 3usize),
             (RD_POS_STARTUP_PRODUCTS, SQL_POS_STARTUP_PRODUCTS, 1usize),
+            (RD_SETTINGS_BY_COMPANY, SQL_SETTINGS_BY_COMPANY, 1usize),
+            (RD_CURRENCY_BY_COMPANY, SQL_CURRENCY_BY_COMPANY, 1usize),
+            (RD_POSTING_MAPPING_STATE, SQL_POSTING_MAPPING_STATE, 1usize),
         ];
         for (kind, sql, bind_count) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -127,7 +164,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 6);
+        assert_eq!(STATEMENTS.len(), 9);
     }
 
     #[test]

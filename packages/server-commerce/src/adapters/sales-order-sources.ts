@@ -1,12 +1,12 @@
 import { commercialOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/commercial-owner-projection-sources";
 import { commercialOwnerProjectionSources as salesProjectionSources } from "@erpx/server-sales/public/commercial-owner-projection-sources";
 import 'server-only';
-import { COMMERCE_CURRENCY_BY_COMPANY_SQL } from './settings-dedupe-sql';
+import {nativeCommerceReadFirst,RD_CURRENCY_BY_COMPANY} from './native-commerce-read';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import type { WorkContext } from '@erpx/server-identity_access/public/authorization';
 import type {Row} from '@erpx/server-commerce/public/commerce';
 function orderScope(actor: WorkContext, alias = 'o') { return { sql: `${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?)`, args: [actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId] }; }
-export function salesPricingCurrency(write: SqlDatabase, actor: WorkContext) { return write.prepare(COMMERCE_CURRENCY_BY_COMPANY_SQL).bind(actor.companyId).first<Row>(); }
+export function salesPricingCurrency(write: SqlDatabase, actor: WorkContext) { return nativeCommerceReadFirst<Row>(RD_CURRENCY_BY_COMPANY, [actor.companyId], write); }
 export function salesPricingProducts(write: SqlDatabase, actor: WorkContext) { return write.prepare("SELECT id,sku,name,tax_bps FROM commerce_products WHERE company_id=? AND status='active' ORDER BY sku").bind(actor.companyId).all<Row>(); }
 export function salesPricingProduct(write: SqlDatabase, actor: WorkContext, id: string) { return write.prepare("SELECT id,version FROM commerce_products WHERE id=? AND company_id=? AND status='active'").bind(id, actor.companyId).first<Row>(); }
 export async function salesOrderCounts(write: SqlDatabase, actor: WorkContext, ids: string[]) {

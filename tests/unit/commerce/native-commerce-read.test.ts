@@ -278,7 +278,8 @@ describe('commerce read-tail r11 warehouse/product guard dedupe', () => {
       'pos-posting-setup.ts',
     ]) {
       const text = await readFile(adapters(file), 'utf8');
-      expect(text, file).toContain('COMMERCE_POSTING_MAPPING_STATE_SQL');
+      expect(text, file).toContain('RD_POSTING_MAPPING_STATE');
+      expect(text.split('COMMERCE_POSTING_MAPPING_STATE_SQL').length - 1, file).toBe(0);
       expect(text.split('SELECT ${fields.map(').length - 1, file).toBe(0);
     }
     await expect(readFile(adapters('finance-supplier-payment-source-facts.ts'), 'utf8')).rejects.toThrow();

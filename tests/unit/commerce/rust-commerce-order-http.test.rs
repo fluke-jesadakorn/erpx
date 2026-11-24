@@ -893,6 +893,24 @@ async fn command_plan_route_returns_owner_fixed_sql_and_fails_closed() {
             "SELECT id,sku,name,item_type,tracking_mode,unit,price_minor,tax_bps,status,version FROM commerce_products WHERE company_id=? ORDER BY id",
             1,
         ),
+        (
+            "commerce_rd_settings_by_company",
+            r#"["company-1"]"#,
+            "SELECT * FROM commerce_settings WHERE company_id=?",
+            1,
+        ),
+        (
+            "commerce_rd_currency_by_company",
+            r#"["company-1"]"#,
+            "SELECT currency FROM commerce_settings WHERE company_id=?",
+            1,
+        ),
+        (
+            "commerce_rd_posting_mapping_state",
+            r#"["company-1"]"#,
+            "SELECT chart_id \"chartId\",currency,receivable_account_id \"receivableAccountId\",payable_account_id \"payableAccountId\",revenue_account_id \"revenueAccountId\",inventory_account_id \"inventoryAccountId\",clearing_account_id \"clearingAccountId\",cogs_account_id \"cogsAccountId\",input_tax_account_id \"inputTaxAccountId\",output_tax_account_id \"outputTaxAccountId\",cash_account_id \"cashAccountId\" FROM commerce_settings WHERE company_id=?",
+            1,
+        ),
     ] {
         let request = format!(r#"{{"kind":"{kind}","values":{values}}}"#);
         let (status, response, _) = http(addr, post(path, "acme.example.test", None, &request)).await;
