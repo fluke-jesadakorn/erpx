@@ -6,8 +6,13 @@ import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/se
 import {assertAssetPackageObligationSources,assetPackageSettlementSources as assets} from "@erpx/server-assets/public/package-obligations";
 import {maintenanceSettlementConsumptions,maintenanceSettlementInventoryReadLocks} from "@erpx/server-inventory/public/maintenance-settlement-sources";
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
-const work=`SELECT work.*,COALESCE(asset.source_valid AND asset.branch_id=work.branch_id AND asset.department_id IS NOT DISTINCT FROM work.department_id,false) source_valid FROM maintenance_work_orders work LEFT JOIN (${assets.assets}) asset ON asset.id=work.asset_id AND asset.company_id=work.company_id`;
-const plans=`SELECT plan.*,COALESCE(asset.source_valid AND asset.branch_id=plan.branch_id AND asset.department_id IS NOT DISTINCT FROM plan.department_id,false) source_valid FROM maintenance_preventive_plans plan LEFT JOIN (${assets.assets}) asset ON asset.id=plan.asset_id AND asset.company_id=plan.company_id`;
+/** Canonical owner-local Work/Plan source image for Maintenance package settlement.
+ * Both callers share this one fixed statement so the TS read tail carries no
+ * duplicate literal. Callers pass only owner-owned relation and alias fragments;
+ * no request SQL or relation name is accepted. */
+const ownerSourceSql = (table:string,alias:string) =>
+  `SELECT ${alias}.*,COALESCE(asset.source_valid AND asset.branch_id=${alias}.branch_id AND asset.department_id IS NOT DISTINCT FROM ${alias}.department_id,false) source_valid FROM ${table} ${alias} LEFT JOIN (${assets.assets}) asset ON asset.id=${alias}.asset_id AND asset.company_id=${alias}.company_id`;
+const work=ownerSourceSql("maintenance_work_orders","work"),plans=ownerSourceSql("maintenance_preventive_plans","plan");
 export const maintenancePackageSettlementSources={work,plans,consumptions:maintenanceSettlementConsumptions,occurrences:"SELECT * FROM maintenance_preventive_occurrences",workEvents:"SELECT * FROM maintenance_work_events"} as const;
 export async function lockMaintenancePackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.prepare("LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE").run();await database.batch(maintenanceSettlementInventoryReadLocks(database));sources.set(database,companyId);}
 export function assertMaintenancePackageObligationSources(owner:PostgresDatabase,database:SqlDatabase,companyId:string){owner.assertActiveTransaction(database);if(sources.get(database)!==companyId)throw Error("MAINTENANCE_PACKAGE_OBLIGATION_SOURCE_REQUIRED");assertAssetPackageObligationSources(owner,database,companyId);}

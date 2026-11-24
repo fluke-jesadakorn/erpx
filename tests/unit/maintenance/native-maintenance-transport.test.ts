@@ -505,3 +505,29 @@ describe('Maintenance finance record source fixed SQL',()=>{
   expect(journal).toContain('(SELECT sum(credit_minor) FROM finance_journal_lines WHERE journal_id=journal.id)=consumption.value_minor');
  });
 });
+
+/** Fixed-SQL read-tail oracle for the Maintenance package-settlement source
+ * (r3). Work and Plan source images are one owner-local fixed statement; both
+ * public consumers receive byte-identical composed SQL and no duplicate TS
+ * query literal for the second image remains. */
+describe('Maintenance package settlement source fixed SQL',()=>{
+ const file='../../../packages/server-maintenance/src/adapters/package-obligations.ts';
+ it('single-sources the Work/Plan images and keeps composed SQL intact',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const source=await readFile(new URL(file,import.meta.url),'utf8');
+  const count=(text:string,needle:string)=>text.split(needle).length-1;
+  expect(source.match(/const ownerSourceSql = \(table:string,alias:string\) =>/g)).toHaveLength(1);
+  // The dedupe removed one raw statement literal: 13 -> 12 in this adapter.
+  expect(source.match(/SELECT/g)).toHaveLength(12);
+  expect(count(source,'SELECT work.*,COALESCE')).toBe(0);
+  expect(count(source,'SELECT plan.*,COALESCE')).toBe(0);
+  expect(source).toContain('ownerSourceSql("maintenance_work_orders","work")');
+  expect(source).toContain('ownerSourceSql("maintenance_preventive_plans","plan")');
+  const {maintenancePackageSettlementSources}=await import('../../../packages/server-maintenance/src/adapters/package-obligations');
+  const {work,plans}=maintenancePackageSettlementSources;
+  expect(work.startsWith("SELECT work.*,COALESCE(asset.source_valid AND asset.branch_id=work.branch_id AND asset.department_id IS NOT DISTINCT FROM work.department_id,false) source_valid FROM maintenance_work_orders work LEFT JOIN")).toBe(true);
+  expect(plans.startsWith("SELECT plan.*,COALESCE(asset.source_valid AND asset.branch_id=plan.branch_id AND asset.department_id IS NOT DISTINCT FROM plan.department_id,false) source_valid FROM maintenance_preventive_plans plan LEFT JOIN")).toBe(true);
+  expect(work).toContain('ON asset.id=work.asset_id AND asset.company_id=work.company_id');
+  expect(plans).toContain('ON asset.id=plan.asset_id AND asset.company_id=plan.company_id');
+ });
+});
