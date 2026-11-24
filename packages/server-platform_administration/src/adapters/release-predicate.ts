@@ -29,6 +29,15 @@ export function activeBranchCountSql(companyExpression: string, options: {qualif
   return `SELECT ${count} FROM (${organizationPlatformSources.organization_nodes}) ${options.qualifier ?? 'organization_nodes'} WHERE ${q}company_id=${companyExpression} AND ${q}kind='branch' AND ${q}status='active'`;
 }
 
+/** The single Company setup (business acceptance) projection read shared by
+ * release acceptance guards and inputs reads. Kept here once so the accepted
+ * setup rule has one owner-local definition. */
+export function businessAcceptanceSetupSql(companyExpression: string, options: { columns?: string; acceptedVersion?: string } = {}) {
+  const columns = options.columns ?? '1';
+  const suffix = options.acceptedVersion ? ` AND status='accepted' AND version=${options.acceptedVersion}` : '';
+  return `SELECT ${columns} FROM (${organizationPlatformSources.company_business_acceptance}) company_business_acceptance WHERE company_id=${companyExpression}${suffix}`;
+}
+
 /** The single latest-acceptance subquery shared by release acceptance guards and
  * the native release predicate. Kept here once so the "latest acceptance per
  * company and scope" rule has one owner-local definition. */

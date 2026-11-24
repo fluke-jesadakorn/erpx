@@ -2,6 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 vi.mock('server-only', () => ({}));
 import { NATIVE_OWNER_WRITE_NOOP_SQL } from '../../../packages/server-platform_administration/src/adapters/native-owner-write';
+import { businessAcceptanceSetupSql } from '../../../packages/server-platform_administration/src/adapters/release-predicate';
+import { platformOwnerProjectionSources as organizationPlatformSources } from '../../../packages/server-organization/src/public/platform-owner-projection-sources';
 
 const source = (relative: string) =>
   readFileSync(new URL(`../../../packages/server-platform_administration/src/${relative}`, import.meta.url), 'utf8');
@@ -69,5 +71,28 @@ describe('platform administration native owner-write no-op dedupe', () => {
     expect(acceptance).toContain("activeBranchCountSql('?', { countAlias: 'count' })");
     expect(acceptance).not.toContain(branchBody);
     expect(predicate).not.toContain("branch WHERE branch.company_id=release.company_id");
+  });
+
+  it('keeps one canonical business-acceptance setup projection read and reuses it in release guards and inputs', () => {
+    const setupBody = "FROM (${organizationPlatformSources.company_business_acceptance}) company_business_acceptance WHERE company_id=";
+    const predicate = source('adapters/release-predicate.ts');
+    const acceptance = source('adapters/release-acceptance.ts');
+    // The literal projection body survives once in the helper definition only.
+    expect(`${predicate}\n${acceptance}`.split(setupBody).length - 1).toBe(1);
+    expect(predicate).toContain("businessAcceptanceSetupSql");
+    expect(acceptance).toContain("businessAcceptanceSetupSql('?', { acceptedVersion: '?' })");
+    expect(acceptance).toContain("businessAcceptanceSetupSql('?', { columns: 'version,status' })");
+    expect(acceptance).not.toContain("SELECT 1 FROM (${organizationPlatformSources.company_business_acceptance})");
+    expect(acceptance).not.toContain("SELECT version,status FROM (${organizationPlatformSources.company_business_acceptance})");
+  });
+
+  it('generates byte-identical setup SQL for the guard and the inputs read', () => {
+    const projection = organizationPlatformSources.company_business_acceptance;
+    expect(businessAcceptanceSetupSql('?', { acceptedVersion: '?' })).toBe(
+      `SELECT 1 FROM (${projection}) company_business_acceptance WHERE company_id=? AND status='accepted' AND version=?`,
+    );
+    expect(businessAcceptanceSetupSql('?', { columns: 'version,status' })).toBe(
+      `SELECT version,status FROM (${projection}) company_business_acceptance WHERE company_id=?`,
+    );
   });
 });
