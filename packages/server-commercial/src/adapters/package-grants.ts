@@ -1,4 +1,5 @@
 import "server-only";
+import { commercialChangeSetReceiptSql } from "./commercial-read-tail-r1-sources";
 import { createHash } from "node:crypto";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
@@ -63,7 +64,7 @@ export function packageGrantStore(db: PostgresDatabase, ports: {
         return row ? grantFromRow(row) : null;
       },
       receipt: async key => {
-        if (await database.prepare("SELECT 1 FROM company_package_change_sets WHERE id=?").bind(key).first()) throw new Error("IDEMPOTENCY_CONFLICT");
+        if (await database.prepare(commercialChangeSetReceiptSql).bind(key).first()) throw new Error("IDEMPOTENCY_CONFLICT");
         const row = await database.prepare("SELECT request_hash,after_json FROM company_package_grant_events WHERE id=?").bind(key).first<{ request_hash: string; after_json: CompanyPackageGrant | string }>();
         return row ? { hash: row.request_hash, grant: typeof row.after_json === "string" ? JSON.parse(row.after_json) as CompanyPackageGrant : row.after_json } : null;
       },

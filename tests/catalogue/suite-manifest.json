@@ -11254,6 +11254,33 @@
       }
     },
     {
+      "lane": "unit",
+      "owner": "commercial",
+      "modules": [
+        "commercial"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Commercial package change-set probe must exist once with byte-identical SQL."
+      },
+      "apps": [
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-commercial"
+      ],
+      "id": "commercial.read-tail-r1-dedupe.unit",
+      "files": [
+        "tests/unit/commercial/read-tail-r1-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "commercial.rust-capability-decision-postgres.integration",
       "lane": "integration",
       "owner": "commercial",
