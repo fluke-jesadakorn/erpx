@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12474,
+    "revision": 12476,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183085,7 +183085,7 @@
         "owner": "pms",
         "title": "pms TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183096,28 +183096,36 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n90",
-          "claimedAt": "2026-11-24T16:09:11.995Z",
-          "heartbeatAt": "2026-11-24T16:30:27.050Z",
-          "expiresAt": "2026-11-24T17:00:27.050Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pms/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "93ecb3ebf",
+            "owner": "pms",
+            "before": 292,
+            "after": 286,
+            "note": "Reservation relation union arms (-3, 9 closed arms incl. three adjacent byte-identical sites), chosen-kind point heads (-2), record x property join anchor (-1). 20 SHA oracles; locks/advisory/feature/native untouched."
+          },
+          {
+            "command": "vitest pms (147 targeted) + scoped tsc + byte reverse",
+            "result": "passed",
+            "sourceSha": "93ecb3ebf"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Reservation relation arm union (-3), chosen kind point heads (-2), record+property join anchor (-1): 292->286. BEFORE=292.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261124-d",
-          "agentId": "lead-opencode",
-          "at": "2026-11-24T16:09:11.863Z",
+          "agentId": "wH4n90",
+          "at": "2026-11-24T16:31:08.921Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Reservation relation arm union (-3), chosen kind point heads (-2), record+property join anchor (-1): 292->286. BEFORE=292."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -184287,17 +184295,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 7,
+        "in_progress": 6,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1450,
+        "blocked": 1451,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:30:27.053Z",
+    "updatedAt": "2026-11-24T16:31:08.926Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
