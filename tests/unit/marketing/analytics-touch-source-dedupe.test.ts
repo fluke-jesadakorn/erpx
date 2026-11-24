@@ -35,7 +35,7 @@ describe('marketing analytics touch projection dedupe', () => {
     expect(source).toContain('sql:legacy[kind],args:[] as unknown[]');
   });
 
-  it('retirement:ts-statements stays strictly below the BEFORE=80 baseline', async () => {
+  it('retirement:ts-statements stays strictly below the BEFORE=79 baseline', async () => {
     const files: string[] = [];
     const walk = async (dir: URL) => {
       for (const e of await (await import('node:fs/promises')).readdir(dir, { withFileTypes: true })) {
@@ -46,6 +46,38 @@ describe('marketing analytics touch projection dedupe', () => {
     };
     await walk(new URL('../../../packages/server-marketing/src/', import.meta.url));
     const total = files.reduce((a, s) => a + (s.match(/SELECT /g) ?? []).length, 0);
-    expect(total).toBeLessThan(80);
+    expect(total).toBeLessThan(79);
+  });
+});
+
+describe('marketing materialized clock body dedupe', () => {
+  const clock = '(SELECT floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms)';
+
+  it('emits byte-identical clock bodies with each caller’s exact spacing', async () => {
+    const { marketingClockBody } = await import(
+      '../../../packages/server-marketing/src/adapters/materialized-clock-body-sql.ts'
+    );
+    expect(marketingClockBody('')).toBe(clock);
+    expect(marketingClockBody(' ')).toBe(` ${clock}`);
+  });
+
+  it('keeps one query token in the helper and no inline clock literal in the three consumers', async () => {
+    const helper = await readFile(adapter('materialized-clock-body-sql.ts'), 'utf8');
+    expect(helper.match(/SELECT /g)).toHaveLength(1);
+    for (const name of ['analytics-sources.ts', 'metric-purchases.ts', 'record-purchases.ts']) {
+      const source = await readFile(adapter(name), 'utf8');
+      expect(source).not.toContain('SELECT ${packageClockSql} now_ms');
+      expect(source).not.toContain('packageClockSql,');
+      expect(source).toContain('marketingClockBody(');
+    }
+    expect(await readFile(adapter('analytics-sources.ts'), 'utf8')).toContain("MATERIALIZED${marketingClockBody('')}");
+    expect(await readFile(adapter('metric-purchases.ts'), 'utf8')).toContain("MATERIALIZED${marketingClockBody(' ')}");
+    expect(await readFile(adapter('record-purchases.ts'), 'utf8')).toContain("MATERIALIZED${marketingClockBody('')}");
+  });
+
+  it('leaves native read mounts and locks untouched', async () => {
+    const record = await readFile(adapter('record-purchases.ts'), 'utf8');
+    expect(record).toContain('native_marketing.id=${id}');
+    expect(record).toContain("SELECT kind FROM (${rows}) actual");
   });
 });

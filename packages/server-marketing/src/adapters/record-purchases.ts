@@ -6,7 +6,8 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import type {WorkItem} from '@erpx/feature-work_projection/lib/work-item';
 import {commercePackageEnforcementMode,readPurchasedAccesses} from '@erpx/server-commercial/public/purchase-command-boundary';
-import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {marketingClockBody} from './materialized-clock-body-sql';
 import {marketingPurchaseAssetRows,marketingPurchaseCandidateRows,requireMarketingPurchasedRead,type MarketingPurchaseTarget} from '@erpx/server-marketing/adapters/purchases';
 import {marketingModuleMemberSql} from './module-membership';
 import {marketingRecordScopeAuthoritySql} from './record-scope-authority';
@@ -15,7 +16,7 @@ const nativeIds=marketingSourceIdsSql();
 const rows=`SELECT asset.id,'asset' kind,asset.company_id,asset.branch_id,asset.department_id FROM (${marketingPurchaseAssetRows}) asset UNION ALL SELECT candidate.id,'candidate',candidate.company_id,candidate.branch_id,candidate.department_id FROM (${marketingPurchaseCandidateRows}) candidate UNION ALL SELECT id,'campaign',company_id,NULL,NULL FROM marketing_campaigns UNION ALL SELECT cost.id,'campaign-cost',cost.company_id,NULL,NULL FROM marketing_campaign_costs cost JOIN marketing_campaigns campaign ON campaign.id=cost.campaign_id AND campaign.company_id=cost.company_id`;
 function scope(actor:WorkContext,id:string,company:string){
  const history=purchasedCapabilityPredicate('marketing_source.company_id','sales.marketing','history','marketing_clock.now_ms');
- return {where:`EXISTS(WITH marketing_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms) SELECT 1 FROM (${rows}) marketing_source CROSS JOIN marketing_clock WHERE marketing_source.id=${id} AND marketing_source.company_id=${company} AND ${hasPermission(actor,'records.read')&&actor.modules.includes('marketing')?'TRUE':'FALSE'} AND (marketing_source.branch_id IS NULL OR ?::text IS NULL OR marketing_source.branch_id=?) AND (marketing_source.department_id IS NULL OR ?::text IS NULL OR marketing_source.department_id=?) AND ${history}
+ return {where:`EXISTS(WITH marketing_clock AS MATERIALIZED${marketingClockBody('')} SELECT 1 FROM (${rows}) marketing_source CROSS JOIN marketing_clock WHERE marketing_source.id=${id} AND marketing_source.company_id=${company} AND ${hasPermission(actor,'records.read')&&actor.modules.includes('marketing')?'TRUE':'FALSE'} AND (marketing_source.branch_id IS NULL OR ?::text IS NULL OR marketing_source.branch_id=?) AND (marketing_source.department_id IS NULL OR ?::text IS NULL OR marketing_source.department_id=?) AND ${history}
  AND ${marketingRecordScopeAuthoritySql('marketing_source','marketing_authority')} AND EXISTS(${marketingModuleMemberSql('selected')}))`,args:[actor.branchId,actor.branchId,actor.departmentId,actor.departmentId,actor.branchId,actor.departmentId,actor.assignmentId,actor.userId,actor.role,actor.assignmentId]};
 }
 export async function marketingSourceReadScope(database:SqlDatabase,actor:WorkContext,surface:'records'|'staff'|'inbox'){
