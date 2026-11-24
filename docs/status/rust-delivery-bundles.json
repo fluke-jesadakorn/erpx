@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12106,
+    "revision": 12110,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -180435,6 +180435,77 @@
         "nextAction": "F1 projection-source head (-3) and F2 point read head (-3): 61->55.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.people_payroll.read-tail-r46",
+        "goalId": "G4",
+        "owner": "people_payroll",
+        "title": "people_payroll TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/**",
+          "tests/unit/people_payroll/**",
+          "tests/integration/people_payroll/**"
+        ],
+        "resources": [
+          "owner:people_payroll"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n11",
+          "claimedAt": "2026-11-24T13:33:45.194Z",
+          "heartbeatAt": "2026-11-24T13:33:45.194Z",
+          "expiresAt": "2026-11-24T14:03:45.194Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Owner file probe (-2), by-id status-IN projections (-1), named JOIN projection (-1): 1265->1261. BEFORE=1265.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.projects.read-tail-r36",
+        "goalId": "G4",
+        "owner": "projects",
+        "title": "projects TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-projects/src/**",
+          "tests/unit/projects/**"
+        ],
+        "resources": [
+          "owner:projects"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n12",
+          "claimedAt": "2026-11-24T13:33:57.815Z",
+          "heartbeatAt": "2026-11-24T13:33:57.815Z",
+          "expiresAt": "2026-11-24T14:03:57.815Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Package actual source proof family (-1) and settlement arms (-1): 95->93. BEFORE=95.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -180443,11 +180514,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1730,
+      "totalPackets": 1732,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 7,
+        "in_progress": 9,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -180457,7 +180528,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:33:13.380Z",
+    "updatedAt": "2026-11-24T13:33:57.818Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
