@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10194,
+    "revision": 10196,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -157150,7 +157150,7 @@
         "owner": "finance",
         "title": "finance native tax register read plans",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -157162,28 +157162,55 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261123-m",
-          "agentId": "wGCUfin",
-          "claimedAt": "2026-11-24T06:38:40.938Z",
-          "heartbeatAt": "2026-11-24T06:38:40.938Z",
-          "expiresAt": "2026-11-24T07:08:40.938Z",
-          "generation": 165
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Add RD_TAX_* kinds to native_finance_read_sql.rs for the VAT/tax-register point and count reads, unit + PG parity, then switch callers; keep assertion EXISTS guards and locks in TS.",
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "84426a1d0",
+            "owner": "finance",
+            "before": 2038,
+            "after": 2027,
+            "note": "Twelve RD_TAX kinds byte-identical; 13 call sites switched with scalar count extraction; 22 assertion guards and purchased-read locks retained in TS; pendingCorrectionsSql retained only as assertion guard."
+          },
+          {
+            "command": "cargo test -p erpx-server-finance --lib",
+            "result": "passed",
+            "sourceSha": "84426a1d0",
+            "note": "51 passed incl tax_register_read_plans_are_byte_identical_to_retired_literals on isolated target."
+          },
+          {
+            "command": "cargo test -p erpx-server-finance --test tax_register_read_parity_postgres",
+            "result": "passed",
+            "sourceSha": "84426a1d0",
+            "note": "2 passed against ERPX_TEST_ADMIN_URL, uncommitted write and wrong-company isolation."
+          },
+          {
+            "command": "vitest finance native read plan (62) + tsc finance",
+            "result": "passed",
+            "sourceSha": "84426a1d0"
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-finance/src/adapters/finance-tax-register.ts",
+            "statements": 4,
+            "removalTaskId": "retire.finance.read-tail-r30",
+            "removalCondition": "Native reads for full register jsonb aggregate, reconciliation rows, missing sources count, workspace/entry/source-version facts, plus owner guards."
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Integrated with cargo lib + PG parity passing; claim released",
         "handoff": {
-          "runId": "run-20261123-l",
+          "runId": "run-20261123-m",
           "agentId": "wGCUfin",
-          "at": "2026-11-24T06:38:39.589Z",
+          "at": "2026-11-24T07:04:20.553Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
-          "nextAction": "Add RD_TAX_* kinds to native_finance_read_sql.rs for the VAT/tax-register point and count reads, unit + PG parity, then switch callers; keep assertion EXISTS guards and locks in TS."
+          "reason": "handoff",
+          "nextAction": "Integrated with cargo lib + PG parity passing; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -160504,17 +160531,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 33,
+        "in_progress": 32,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 956,
+        "blocked": 957,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 165,
-    "updatedAt": "2026-11-24T07:03:46.333Z",
+    "updatedAt": "2026-11-24T07:04:20.582Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
