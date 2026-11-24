@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12463,
+    "revision": 12465,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183532,7 +183532,7 @@
         "owner": "collaboration",
         "title": "collaboration TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183543,28 +183543,36 @@
         "resources": [
           "owner:collaboration"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n94",
-          "claimedAt": "2026-11-24T16:09:13.034Z",
-          "heartbeatAt": "2026-11-24T16:11:53.559Z",
-          "expiresAt": "2026-11-24T16:41:53.559Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "5cec22593",
+            "owner": "collaboration",
+            "before": 355,
+            "after": 352,
+            "note": "socialTaskOriginBy (-1), socialAiUsageProjection (-1), messagingMemberExists closed team/room (-1). Agent replies lock pair and notification targets untouched."
+          },
+          {
+            "command": "vitest collaboration (67 targeted) + scoped tsc + byte oracles",
+            "result": "passed",
+            "sourceSha": "5cec22593"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Origin-by pair (-1), ai usage projection (-1), messaging member exists (-1): 355->352. BEFORE=355.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261124-d",
-          "agentId": "wH4n71",
-          "at": "2026-11-24T16:09:12.903Z",
+          "agentId": "wH4n94",
+          "at": "2026-11-24T16:26:01.465Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Origin-by pair (-1), ai usage projection (-1), messaging member exists (-1): 355->352. BEFORE=355."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -184220,17 +184228,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 10,
+        "in_progress": 9,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1446,
+        "blocked": 1447,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:22:17.742Z",
+    "updatedAt": "2026-11-24T16:26:01.468Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
