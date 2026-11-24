@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9723,
+    "revision": 9727,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -155097,6 +155097,57 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=15.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.inventory.read-tail-r24",
+        "goalId": "G4",
+        "owner": "inventory",
+        "title": "inventory TS read tail native cutover (round 24)",
+        "kind": "migration",
+        "status": "blocked",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "tests/unit/inventory/**",
+          "tests/integration/inventory/**"
+        ],
+        "resources": [
+          "owner:inventory"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "23458ef8f",
+            "owner": "inventory",
+            "before": 376,
+            "after": 373,
+            "note": "Native record EXISTS and branch scope tuple families shared; r11-r23 untouched."
+          },
+          {
+            "command": "vitest inventory r11-r24 (63) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "23458ef8f"
+          }
+        ],
+        "retainedLegacy": [],
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCNinv",
+          "at": "2026-11-24T05:51:32.169Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -155105,7 +155156,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1223,
+      "totalPackets": 1224,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -155113,13 +155164,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 854,
+        "blocked": 855,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 163,
-    "updatedAt": "2026-11-24T05:51:10.452Z",
+    "updatedAt": "2026-11-24T05:51:32.176Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
