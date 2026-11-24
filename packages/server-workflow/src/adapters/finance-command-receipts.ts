@@ -1,9 +1,10 @@
 import "server-only";
 import {nativeWorkflowReadFirst} from './native-workflow-read';
+import {receiptRecordIdSql} from './receipt-sql';
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 /** Provided-transaction receipt lookups preserve Finance's original read timing. */
 export function financeCommandReceipts(db:SqlDatabase){return {
- record:(commandId:string)=>db.prepare("SELECT record_id FROM command_receipts WHERE command_id=?").bind(commandId).first<{record_id:string}>(),
+ record:(commandId:string)=>db.prepare(receiptRecordIdSql).bind(commandId).first<{record_id:string}>(),
  refundExport:(commandId:string|number|null)=>db.prepare("SELECT result_json FROM command_receipts WHERE command_id=? AND operation='finance.refund.export'").bind(commandId).first<{result_json:string}>(),
  /** Owner-native read: the sales-invoice completion receipt is planned by the
   * mounted Workflow wave3 command planner (WF_NATIVE_FINANCE_SALES_COMPLETION)

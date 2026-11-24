@@ -1,10 +1,11 @@
 import {workflowFinalOwnerProjections as peoplepayrollFinalOwnerProjections} from "@erpx/server-people_payroll/public/workflow-final-owner-projections";
 import {nativeWorkflowWrite} from './native-workflow-write';
+import {receiptRecordIdSql} from './receipt-sql';
 const peoplepayrollFinalSources=peoplepayrollFinalOwnerProjections();
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 export function payrollWorkflowFacts(database: SqlDatabase) {
     return { readCommandCurrent(id: string) {
-            return database.prepare("SELECT record_id FROM command_receipts WHERE command_id=?").bind(id).first<{
+            return database.prepare(receiptRecordIdSql).bind(id).first<{
                 record_id: string;
             }>();
         },
