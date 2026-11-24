@@ -22,7 +22,8 @@ async function tsFiles(directory: URL): Promise<string[]> {
 describe('billing read-tail r28 storage-ledger parameterized family dedupe', () => {
   it('authors the storage-ledger projection once and renders every variant byte-identically', async () => {
     const helper = await src('billing-read-tail-r28-sql.ts');
-    expect(helper.split('SELECT').length - 1).toBe(1);
+    expect(helper.split('SELECT').length - 1).toBe(0); // r35 routes the ledger projection through r29
+    expect(helper).toContain("from './billing-read-tail-r29-sql'");
     expect(billingStoredLedgerSql('bytes', "evidence_id=$1 AND holding_id=$2 AND object_key=$3 AND state='stored'")).toBe(SOURCE_BY_ID);
     expect(billingStoredLedgerSql('object_key', "state='stored' GROUP BY object_key HAVING count(*)>1")).toBe(DUP_OBJECTS);
     expect(billingStoredLedgerSql(`COALESCE(sum(bytes),0)::bigint stored_bytes,(SELECT count(*)::bigint FROM (${billingStoredLedgerSql('object_key', "state='stored' GROUP BY object_key HAVING count(*)>1")}) duplicate_objects) AS duplicate_objects`, "state='stored'")).toBe(STORED_TOTALS);
@@ -60,6 +61,6 @@ describe('billing read-tail r28 storage-ledger parameterized family dedupe', () 
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(59);
-    expect(count).toBe(36); // r34 routed the r17/r19/operating/reconciliation heads through r29.
+    expect(count).toBe(24); // r35 routed the r15/r16/r19/r20/r23/r28/r31 and projection heads.
   });
 });

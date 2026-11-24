@@ -5,6 +5,7 @@ const dir = new URL('../../../packages/server-billing/src/adapters/', import.met
 const src = (name: string) => readFile(new URL(name, dir), 'utf8');
 
 const GUARD = 'SELECT 1 FROM ${table} WHERE holding_id=$1 AND effective_month<=$2';
+const GUARD_ROUTE = "billingPointReadSql('1', table, 'holding_id=$1 AND effective_month<=$2')";
 const PLAN_SQL = 'SELECT * FROM billing_plans WHERE id=$1${extra} ORDER BY revision DESC LIMIT 1';
 const PERIOD_SQL = 'SELECT * FROM billing_periods WHERE enrollment_id=$1${extra}';
 const PLAN_ROUTE = "billingPointReadSql('*', 'billing_plans', `id=$1${extra} ORDER BY revision DESC LIMIT 1`)";
@@ -25,7 +26,8 @@ async function tsFiles(directory: URL): Promise<string[]> {
 describe('billing read-tail r17 alias-parameterized family dedupe', () => {
   it('declares each shared SQL text exactly once', async () => {
     const billing = await src('billing.ts');
-    expect(billing.split(GUARD).length - 1).toBe(1);
+    expect(billing.split(GUARD_ROUTE).length - 1).toBe(1);
+    expect(billing).not.toContain(GUARD);
     expect(billing.split(PLAN_ROUTE).length - 1).toBe(1);
     expect(billing.split(PERIOD_ROUTE).length - 1).toBe(1);
     expect(billing).not.toContain(PLAN_SQL);

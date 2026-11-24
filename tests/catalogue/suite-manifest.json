@@ -3322,6 +3322,33 @@
       "lane": "unit",
       "owner": "billing",
       "modules": [
+        "commercial"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Billing residual heads must absorb into r29 and r35 projection head."
+      },
+      "apps": [
+        "finance"
+      ],
+      "packages": [
+        "@erpx/server-billing"
+      ],
+      "id": "billing.billing-read-tail-r35-dedupe.unit",
+      "files": [
+        "tests/unit/billing/billing-read-tail-r35-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "billing",
+      "modules": [
         "finance"
       ],
       "fixture": "none",

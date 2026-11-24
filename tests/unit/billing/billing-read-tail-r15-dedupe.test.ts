@@ -11,8 +11,8 @@ describe('billing read-tail r15 byte-identical SQL dedupe', () => {
       'utf8',
     );
     expect(BILLING_INVOICE_BY_ID_SQL).toBe(literal);
-    expect(shared.split('SELECT ').length - 1).toBe(1);
-    expect(shared.split(literal).length - 1).toBe(1);
+    expect(shared.split('SELECT ').length - 1).toBe(0); // r35 routes the constant through the r29 head
+    expect(shared.split(literal).length - 1).toBe(0);
     expect(shared).toContain('BILLING_INVOICE_BY_ID_SQL');
     expect(shared).not.toContain('BILLING_ACCOUNT_BY_HOLDING_SQL');
     expect(shared).not.toContain('BILLING_CUSTOMER_BY_HOLDING_SQL');

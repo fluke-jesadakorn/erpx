@@ -12,5 +12,5 @@ export function billingProviderCostsSql(extra = "") {
 /** Usage-snapshot point reads share the native commercial source and the
  * holding/month predicate; each caller selects its own projection columns. */
 export function billingUsageSnapshotSql(columns: string, source: string) {
-  return `SELECT ${columns} FROM (${source}) billing_usage_snapshots WHERE holding_id=$1 AND month=$2`;
+  return billingPointReadSql(columns, `(${source}) billing_usage_snapshots`, 'holding_id=$1 AND month=$2');
 }

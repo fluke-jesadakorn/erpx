@@ -39,7 +39,8 @@ async function tsFiles(directory: URL): Promise<string[]> {
 describe('billing read-tail r30 whole-account-projection dedupe', () => {
   it('authors the projection head exactly once as read-only text', async () => {
     const helper = await src('billing-read-tail-r30-sql.ts');
-    expect(helper.split('SELECT').length - 1).toBe(1);
+    expect(helper.split('SELECT').length - 1).toBe(0); // r35 generic projection head owns the SELECT
+    expect(helper).toContain("from './billing-read-tail-r35-sql'");
     expect(helper.split('billingAccountProjectionSql').length - 1).toBe(1);
     expect(helper).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
   });
@@ -73,8 +74,8 @@ describe('billing read-tail r30 whole-account-projection dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(36);
-    expect(bare).toBe(36);
+    expect(spaced).toBe(24);
+    expect(bare).toBe(24);
     expect(spaced).toBeLessThan(48);
     expect(bare).toBeLessThan(48);
   });

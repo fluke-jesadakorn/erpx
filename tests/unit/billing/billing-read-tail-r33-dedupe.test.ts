@@ -155,7 +155,7 @@ describe('billing read-tail r33 residual dedupe', () => {
       expect(text.split(oracle.full).length - 1).toBe(oracle.inlineAfter);
       expect(text.split(oracle.routed).length - 1).toBe(1);
     }
-    expect(billing.split('billingPointReadSql(').length - 1).toBe(7);
+    expect(billing.split('billingPointReadSql(').length - 1).toBe(9); // r35 effective-month guard + provider total
     expect(jobs.split('billingPointReadSql(').length - 1).toBe(7);
     expect(target.split('billingPointReadSql(').length - 1).toBe(4);
   });
@@ -190,8 +190,8 @@ describe('billing read-tail r33 residual dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(36);
-    expect(bare).toBe(36);
+    expect(spaced).toBe(24);
+    expect(bare).toBe(24);
     expect(spaced).toBeLessThan(48);
     expect(bare).toBeLessThan(48);
   });

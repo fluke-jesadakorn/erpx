@@ -130,15 +130,15 @@ describe('billing read-tail r34 dedupe of residual point reads', () => {
     expect(jobs).toContain('pg_try_advisory_lock');
   });
 
-  it('lowers the billing owner SELECT KPI from BEFORE=42 to 36', async () => {
+  it('lowers the billing owner SELECT KPI from BEFORE=42 to 24', async () => {
     let spaced = 0, bare = 0;
     for (const file of await tsFiles(srcRoot)) {
       const text = await readFile(file, 'utf8');
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(36);
-    expect(bare).toBe(36);
+    expect(spaced).toBe(24);
+    expect(bare).toBe(24);
     expect(spaced).toBeLessThan(42);
     expect(bare).toBeLessThan(42);
   });

@@ -21,7 +21,8 @@ async function tsFiles(directory: URL): Promise<string[]> {
 describe('billing read-tail r27 metric count projection dedupe', () => {
   it('authors the parameterized count projection once and renders every label byte-identically', async () => {
     const helper = await src('billing-read-tail-r27-sql.ts');
-    expect(helper.split('SELECT').length - 1).toBe(1);
+    expect(helper.split('SELECT').length - 1).toBe(0); // r35 generic projection head owns the SELECT
+    expect(helper).toContain("from './billing-read-tail-r35-sql'");
     for (const label of ['status', 'plan', "'Active subscriptions'", "'Overdue subscription invoices'", 'i.status']) {
       expect(billingMetricCountSql(label)).toBe(metricCount(label));
     }
@@ -84,6 +85,6 @@ describe('billing read-tail r27 metric count projection dedupe', () => {
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(59);
-    expect(count).toBe(36); // r34 routed the r17/r19/operating/reconciliation heads through r29.
+    expect(count).toBe(24); // r35 routed the r15/r16/r19/r20/r23/r28/r31 and projection heads.
   });
 });

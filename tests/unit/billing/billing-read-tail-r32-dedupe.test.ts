@@ -119,8 +119,8 @@ describe('billing read-tail r32 dedupe', () => {
 
   it('removes the r15 account/customer constants and routes every point-read site', async () => {
     const r15 = await src('billing-read-tail-r15-sql.ts');
-    expect(r15.split('SELECT').length - 1).toBe(1);
-    expect(r15).toContain('"SELECT * FROM billing_invoices WHERE id=$1"');
+    expect(r15.split('SELECT').length - 1).toBe(0);
+    expect(r15).not.toContain('"SELECT * FROM billing_invoices WHERE id=$1"');
     expect(r15).not.toContain('BILLING_ACCOUNT_BY_HOLDING_SQL');
     expect(r15).not.toContain('BILLING_CUSTOMER_BY_HOLDING_SQL');
     const jobs = await src('billing-jobs.ts');
@@ -135,7 +135,7 @@ describe('billing read-tail r32 dedupe', () => {
     expect(jobs.split('BILLING_INVOICE_BY_ID_SQL').length - 1).toBe(3);
     expect(jobs.split('billingPointReadSql(').length - 1).toBe(7);
     expect(target.split('billingPointReadSql(').length - 1).toBe(4);
-    expect(billing.split('billingPointReadSql(').length - 1).toBe(7);
+    expect(billing.split('billingPointReadSql(').length - 1).toBe(9); // r35 effective-month guard + provider total
   });
 
   it('leaves FOR UPDATE, advisory and native owner reads untouched', async () => {
@@ -160,8 +160,8 @@ describe('billing read-tail r32 dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(36);
-    expect(bare).toBe(36);
+    expect(spaced).toBe(24);
+    expect(bare).toBe(24);
     expect(spaced).toBeLessThan(48);
     expect(bare).toBeLessThan(48);
   });

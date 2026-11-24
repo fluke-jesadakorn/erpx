@@ -20,7 +20,7 @@ export type {BillingActor,BillingInput} from '@erpx/server-billing/domain/billin
 /** r17 read tail: one SQL text per alias-parameterized read family, routed through
  * the r29 point-read head. Call sites keep their own binds and result types. */
 function billingEffectiveMonthGuardSql(table: string) {
-  return `SELECT 1 FROM ${table} WHERE holding_id=$1 AND effective_month<=$2`;
+  return billingPointReadSql('1', table, 'holding_id=$1 AND effective_month<=$2');
 }
 function billingPlanByRevisionSql(extra = "") {
   return billingPointReadSql('*', 'billing_plans', `id=$1${extra} ORDER BY revision DESC LIMIT 1`);
@@ -72,9 +72,7 @@ existingProviderCost:(value0,value1,value2)=>c.query<Record<string,unknown>>(bil
 recordProviderCost:(value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11,value12)=>nativeBillingOwnerQuery(c, 'record_provider_cost', [value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11,value12]),
 availableStatementEvidence:(value0,value1)=>nativeBillingOwnerQuery(c, 'available_evidence', [value0,value1]),
 approvedStatementPeriod:(value0,value1)=>nativeBillingOwnerQuery(c, 'APPROVED_RATED_PERIOD', [value0,value1]),
-providerStatementTotal:(value0,value1,value2,value3,value4)=>c.query<{count:number;total:string}>(`SELECT COUNT(*)::int AS count, COALESCE(SUM(original_minor),0)::text AS total
-           FROM billing_target_provider_costs WHERE holding_id=$1 AND month=$2 AND provider=$3
-             AND statement_id=$4 AND original_currency=$5`,[value0,value1,value2,value3,value4]),
+providerStatementTotal:(value0,value1,value2,value3,value4)=>c.query<{count:number;total:string}>(billingPointReadSql('COUNT(*)::int AS count, COALESCE(SUM(original_minor),0)::text AS total\n          ','billing_target_provider_costs','holding_id=$1 AND month=$2 AND provider=$3\n             AND statement_id=$4 AND original_currency=$5'),[value0,value1,value2,value3,value4]),
 recordProviderStatement:(value0,value1,value2,value3,value4,value5,value6,value7,value8)=>nativeBillingOwnerQuery(c, 'record_provider_statement', [value0,value1,value2,value3,value4,value5,value6,value7,value8]),
 availableOperatingEvidence:(value0,value1)=>nativeBillingOwnerQuery(c, 'available_evidence', [value0,value1]),
 recordOperatingCost:(value0,value1,value2,value3,value4,value5,value6)=>nativeBillingOwnerQuery(c, 'record_operating_cost', [value0,value1,value2,value3,value4,value5,value6]),

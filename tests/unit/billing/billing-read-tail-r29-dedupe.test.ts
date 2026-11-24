@@ -68,14 +68,14 @@ describe('billing read-tail r29 point-read-by-id dedupe', () => {
       expect(text.split(oracle.full).length - 1).toBe(0);
       expect(text.split(oracle.routed).length - 1).toBe(1);
     }
-    expect(billing.split('billingPointReadSql(').length - 1).toBe(7);
+    expect(billing.split('billingPointReadSql(').length - 1).toBe(9); // r35 effective-month guard + provider total
     expect(target.split('billingPointReadSql(').length - 1).toBe(4);
   });
 
-  it('keeps the r15 invoice-by-id constant, FOR UPDATE guard and advisory locks untouched', async () => {
+  it('routes the r15 invoice-by-id constant through r29 and keeps FOR UPDATE/advisory untouched', async () => {
     const r15 = await src('billing-read-tail-r15-sql.ts');
-    expect(r15.split('SELECT ').length - 1).toBe(1);
-    expect(r15).toContain('"SELECT * FROM billing_invoices WHERE id=$1"');
+    expect(r15.split('SELECT ').length - 1).toBe(0);
+    expect(r15).not.toContain('"SELECT * FROM billing_invoices WHERE id=$1"');
     expect(r15).not.toContain('BILLING_ACCOUNT_BY_HOLDING_SQL');
     expect(r15).not.toContain('BILLING_CUSTOMER_BY_HOLDING_SQL');
     const jobs = await src('billing-jobs.ts');
@@ -97,8 +97,8 @@ describe('billing read-tail r29 point-read-by-id dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(36);
-    expect(bare).toBe(36);
+    expect(spaced).toBe(24);
+    expect(bare).toBe(24);
     expect(spaced).toBeLessThan(48);
     expect(bare).toBeLessThan(48);
   });
