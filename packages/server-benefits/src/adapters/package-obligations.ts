@@ -4,7 +4,7 @@ import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgre
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {benefitEligibilitySettlementLocks,benefitEligibilitySettlementSources as learning} from "@erpx/server-learning/public/benefit-source-facts";
-import {benefitPayrollInputOwnerPredicate,benefitElectionFactPrefix} from "@erpx/server-benefits/adapters/benefits-read-sql";
+import {benefitPayrollInputOwnerPredicate,benefitElectionFactPrefix,benefitReleasedElectionHandoffPrefix} from "@erpx/server-benefits/adapters/benefits-read-sql";
 
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
@@ -44,8 +44,7 @@ export async function benefitPackageObligations(owner:PostgresDatabase,database:
  UNION ALL SELECT 'dependent',d.id,d.version,d.status,to_jsonb(d),d.status='pending' OR NOT d.terminal_proven FROM (${benefitPackageSettlementSources.dependents}) d,scope WHERE d.company_id=scope.company_id
  ${benefitElectionFactPrefix} NOT e.terminal_proven
  OR plan.id IS NULL OR plan.company_id IS DISTINCT FROM e.company_id OR plan.version<e.plan_version
- OR win.id IS NULL OR win.company_id IS DISTINCT FROM e.company_id OR win.version<e.window_version
- OR (e.status='released' AND (e.released_by IS NULL OR NOT EXISTS(SELECT 1 FROM benefit_payroll_inputs handoff JOIN benefit_election_events event ON event.election_id=e.id AND event.version=handoff.source_election_version AND event.action='release' AND event.status='released' AND event.actor_id=handoff.released_by
+${benefitReleasedElectionHandoffPrefix} JOIN benefit_election_events event ON event.election_id=e.id AND event.version=handoff.source_election_version AND event.action='release' AND event.status='released' AND event.actor_id=handoff.released_by
  JOIN command_receipts command ON command.record_id=e.id AND command.operation='benefits.election.release' AND command.actor_id=event.actor_id AND command.authority_json::jsonb->>'companyId'=e.company_id AND command.result_json::jsonb->>'version'=event.version::text
  WHERE handoff.election_id=e.id AND handoff.company_id=e.company_id AND handoff.person_id=e.person_id AND handoff.engagement_id=e.engagement_id AND handoff.currency=e.currency AND handoff.source_election_version<=e.version AND handoff.employee_deduction_minor=e.employee_deduction_minor AND handoff.employer_cost_minor=e.employer_cost_minor AND handoff.effective_from=e.effective_from AND handoff.effective_to IS NOT DISTINCT FROM e.effective_to)
  OR (e.employee_deduction_minor+e.employer_cost_minor>0 AND (e.effective_to IS NULL OR e.effective_to>=scope.today))))

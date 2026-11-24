@@ -10,3 +10,7 @@ export const benefitPayrollInputOwnerPredicate = "SELECT 'payroll-input',h.id,h.
 /** Byte-identical owner-local election fact projection prefix shared by the
  * Benefits and People package-settlement fact unions; generated SQL unchanged. */
 export const benefitElectionFactPrefix = "UNION ALL SELECT 'election',e.id,e.version,e.status,to_jsonb(e),e.status NOT IN ('released','cancelled') OR";
+/** Byte-identical owner-local released-election handoff guard prefix shared by
+ * the Benefits and People package-settlement fact projections; generated SQL
+ * is unchanged. */
+export const benefitReleasedElectionHandoffPrefix = " OR win.id IS NULL OR win.company_id IS DISTINCT FROM e.company_id OR win.version<e.window_version\n OR (e.status='released' AND (e.released_by IS NULL OR NOT EXISTS(SELECT 1 FROM benefit_payroll_inputs handoff";
