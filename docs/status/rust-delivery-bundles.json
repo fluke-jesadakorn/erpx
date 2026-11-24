@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9338,
+    "revision": 9340,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -149736,7 +149736,7 @@
         "owner": "platform_administration",
         "title": "platform_administration TS read tail native cutover (r11)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -149748,22 +149748,37 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCBpla",
-          "claimedAt": "2026-11-24T05:07:20.069Z",
-          "heartbeatAt": "2026-11-24T05:07:20.069Z",
-          "expiresAt": "2026-11-24T05:37:20.069Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-platform_administration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "9429a0a12",
+            "owner": "platform_administration",
+            "before": 38,
+            "after": 36,
+            "note": "Three release acceptance EXISTS guards share one helper; locks and r10 helper untouched."
+          },
+          {
+            "command": "vitest platform r10/r11/noop (18) + tsc platform",
+            "result": "passed",
+            "sourceSha": "9429a0a12"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=38.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-j",
+          "agentId": "wGCBpla",
+          "at": "2026-11-24T05:15:02.015Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -150851,17 +150866,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 36,
+        "in_progress": 35,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 761,
+        "blocked": 762,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 162,
-    "updatedAt": "2026-11-24T05:14:48.155Z",
+    "updatedAt": "2026-11-24T05:15:02.025Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
