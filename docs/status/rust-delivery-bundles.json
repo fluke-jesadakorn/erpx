@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12298,
+    "revision": 12300,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -182632,6 +182632,41 @@
         "nextAction": "Keyed row reads via ordered list (-3), CTE source frame (-2), scalar body head (-3): 19->14 (or 11 with residual folds).",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.marketing.read-tail-r42",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing evidence row tail merge",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n53",
+          "claimedAt": "2026-11-24T14:53:24.435Z",
+          "heartbeatAt": "2026-11-24T14:53:24.435Z",
+          "expiresAt": "2026-11-24T15:23:24.435Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Evidence row tail merge in executive-evidence-rows.ts (-1): 49->48; verify floor after.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -182640,11 +182675,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1773,
+      "totalPackets": 1774,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 2,
+        "in_progress": 3,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -182654,7 +182689,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:52:52.650Z",
+    "updatedAt": "2026-11-24T14:53:24.446Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
