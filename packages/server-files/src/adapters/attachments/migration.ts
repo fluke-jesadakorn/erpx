@@ -14,6 +14,7 @@ import { legacyAttachmentPolicy } from "@erpx/server-files/public/attachments/le
 import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import type { LegacySource } from '@erpx/server-files/domain/attachments/migration';
 import { createAttachmentMigrationApplication, type AttachmentMigrationRepository } from '@erpx/server-files/application/attachments-migration';
+import { ORPHAN_PRESERVATION_PRESENT_SQL } from '../preservation-presence-dedupe-sql';
 function application(db: SqlDatabase) {
     const database = db, repository: AttachmentMigrationRepository<SqlStatement> = { readBackfillSpecializedAttachmentsMessaging() { return attachmentMigrationcollaboration(database).readBackfillSpecializedAttachmentsMessaging(); },
         readBackfillSpecializedAttachmentsDocuments() { return attachmentMigrationlegal(database).readBackfillSpecializedAttachmentsDocuments(); },
@@ -131,7 +132,7 @@ function application(db: SqlDatabase) {
         readReconcileAttachmentStorageStoredLedgerMatches(companyId: string | null, attachmentId: string | null, variant: string, objectKey: string, bytes: number) {
             return database.prepare("SELECT 1 FROM attachment_storage_ledger WHERE company_id=? AND attachment_id=? AND variant=? AND object_key=? AND bytes=? AND state='stored'").bind(companyId, attachmentId, variant, objectKey, bytes).first();
         },
-        readReconcileAttachmentStorageEffect6() { return database.prepare("SELECT to_regclass('attachment_orphan_preservations') present").first("present"); },
+        readReconcileAttachmentStorageEffect6() { return database.prepare(ORPHAN_PRESERVATION_PRESENT_SQL).first("present"); },
         readReconcileAttachmentStoragePreserved() {
             return database.prepare(`SELECT p.* FROM attachment_orphan_preservations p
       WHERE EXISTS(SELECT 1 FROM attachment_orphan_preservation_events e WHERE e.preservation_id=p.id AND e.event_kind='preserved')
