@@ -13,6 +13,7 @@ import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import { StaffPolicyIdentityAccessFacts } from '@erpx/server-identity_access/public/operations-staff-policy-facts';
 import { StaffPolicyOrganizationFacts } from '@erpx/server-organization/public/operations-staff-policy-facts';
 import { nativeSystemNotificationStatement } from '@erpx/server-collaboration/adapters/native-system-notification';
+import {operationsOwnerVersionExists} from './identity-policy-version-guard';
 export type { StaffActor } from '@erpx/server-operations/domain/staff-policy';
 export type { RecordScope } from '@erpx/server-operations/domain/staff-policy';
 export type { StaffPerson } from '@erpx/server-operations/domain/staff-policy';
@@ -53,7 +54,7 @@ function application(provided?: SqlDatabase) {
     return createStaffPolicyApplication({repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, prepare: async (holding) => {
             if (!provided)
                 database = (await nativeHoldingResources(holding)).write;
-        }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, routeChecks: (people, companyId, head) => [...(head ? [{ query: `EXISTS(SELECT 1 FROM (${organizationProjectionSources.department_heads}) h JOIN (${organizationProjectionSources.organization_nodes}) n ON n.id=h.department_id WHERE h.department_id=? AND h.company_id=? AND h.version=? AND n.status='active')`, args: [head.departmentId, companyId, head.version] }] : []), ...people.map(person => ({ query: `EXISTS(SELECT 1 FROM (${people_payrollProjectionSources.hr_engagements}) hr_engagements WHERE id=? AND company_id=? AND version=? AND status='active')`, args: [person.engagement_id, companyId, person.engagement_version] }))]});
+        }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, routeChecks: (people, companyId, head) => [...(head ? [{ query: `EXISTS(SELECT 1 FROM (${organizationProjectionSources.department_heads}) h JOIN (${organizationProjectionSources.organization_nodes}) n ON n.id=h.department_id WHERE h.department_id=? AND h.company_id=? AND h.version=? AND n.status='active')`, args: [head.departmentId, companyId, head.version] }] : []), ...people.map(person => ({ query: operationsOwnerVersionExists(`(${people_payrollProjectionSources.hr_engagements}) hr_engagements`,` AND status='active'`), args: [person.engagement_id, companyId, person.engagement_version] }))]});
 }
 async function invoke<Result>(run: () => Promise<Result>) {
     try {

@@ -12,3 +12,12 @@ export const OPERATIONS_ACTOR_SCOPE_INPUT_SQL = '(SELECT ?::text company_id,?::t
 export const workforceActorScopeSql = (where: string) => `SELECT 1 FROM${OPERATIONS_ACTOR_SCOPE_INPUT_SQL}workforce_actor_scope WHERE ${where}`;
 /** Canonical materialized-clock existence probe shared by Operations owner predicate families. */
 export const operationsClockProbe = (name: string) => `WITH ${name} AS MATERIALIZED${OPERATIONS_CLOCK_CTE_SQL} SELECT 1 FROM ${name}`;
+/** Canonical actor-scope input projection with caller-supplied segments. Company,
+ *  branch, department and clock segments are the only varying bytes; every
+ *  rendering is byte-identical to the original inline literals. */
+export const operationsActorScopeInput = (company: string, branch: string, department: string, clock = '') =>
+  `(SELECT ${company},${branch},${department}${clock})`;
+/** Canonical bound actor-scope existence clause preserving original spacing.
+ *  The FROM separator and predicate are the only varying bytes. */
+export const operationsActorScopeInputExists = (where: string, fromSep = ' ') =>
+  `SELECT 1 FROM${fromSep}${OPERATIONS_ACTOR_SCOPE_INPUT_SQL} workforce_actor_scope WHERE ${where}`;

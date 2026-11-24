@@ -477,9 +477,14 @@ describe('Operations staff_tasks snapshot sources share one canonical projection
  });
 });
 
-import {readFileSync} from 'node:fs';
+import {readFileSync,readdirSync} from 'node:fs';
+import {resolve} from 'node:path';
 import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL,operationsApprovalImageSql,operationsActiveDelegationSql,operationsChildJsonSql,operationsChildAggJsonSql,operationsChildJsonByBoundId} from '../../../packages/server-operations/src/adapters/task-delegation-source';
-import {workforceActorScopeSql,OPERATIONS_VIEWER_CLOCK_SQL} from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
+import {workforceActorScopeSql,OPERATIONS_VIEWER_CLOCK_SQL,operationsActorScopeInput,operationsActorScopeInputExists} from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
+import {operationsActiveStaffLevels} from '../../../packages/server-operations/src/adapters/staff-facts';
+import {operationsOwnerVersionExists} from '../../../packages/server-operations/src/adapters/identity-policy-version-guard';
+import {finalRootOwnerProjectionSources as organizationProjectionSources} from '@erpx/server-organization/public/final-root-owner-projection-sources';
+import {packageClockSql} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {OPERATIONS_TASK_START_APPROVER_SQL,OPERATIONS_TASK_COMPLETION_APPROVER_SQL,approverJsonExistsSql} from '../../../packages/server-operations/src/adapters/task-approver-access-source';
 import {handoverTaskAccessSql} from '../../../packages/server-operations/src/adapters/handover-policy';
 import {taskParticipantReadPolicy} from '../../../packages/server-operations/src/adapters/project-task-record-policy';
@@ -688,5 +693,62 @@ describe('Operations bound-parameter child JSON and viewer clock dedupe',()=>{
   const src=readFileSync(new URL('../../../packages/server-operations/src/adapters/task-attachment-purchases.ts',import.meta.url),'utf8');
   expect(src).toContain('MATERIALIZED${OPERATIONS_VIEWER_CLOCK_SQL}');
   expect(src).not.toContain('MATERIALIZED(SELECT ?::text user_id,?::text assignment_id,floor(');
+ });
+});
+
+describe('Operations read-tail r38 dedupe',()=>{
+ const source=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+ const clock=`,${packageClockSql} now_ms`;
+ const levels=`(${organizationProjectionSources.staff_levels}) staff_levels`;
+ test('actor scope input family renders every inline variant byte-identically',()=>{
+  expect(operationsActorScopeInput('a.company_id','?::text branch_id','?::text department_id')).toBe('(SELECT a.company_id,?::text branch_id,?::text department_id)');
+  expect(operationsActorScopeInput(`${'workspace_records.company_id'} company_id`,'workspace_records.branch_id','workspace_records.department_id',clock)).toBe(`(SELECT workspace_records.company_id company_id,workspace_records.branch_id,workspace_records.department_id,${packageClockSql} now_ms)`);
+  expect(operationsActorScopeInput('?::text company_id','?::text branch_id','?::text department_id',clock)).toBe(`(SELECT ?::text company_id,?::text branch_id,?::text department_id,${packageClockSql} now_ms)`);
+  for(const sql of [operationsActorScopeInput('a','b','c'),operationsActorScopeInput('a','b','c',clock)])expect(sql.match(/SELECT /g)).toHaveLength(1);
+ });
+ test('actor scope existence family renders both spacing variants byte-identically',()=>{
+  const scope='c.current';
+  expect(operationsActorScopeInputExists(scope,'')).toBe(`SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope WHERE ${scope}`);
+  expect(operationsActorScopeInputExists(scope)).toBe(`SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope WHERE ${scope}`);
+  expect(operationsActorScopeInputExists('x').match(/SELECT /g)).toHaveLength(2);
+ });
+ test('the three actor-scope readers compose the canonical clauses and keep no local literal',()=>{
+  expect(source('work-routine-presentation.ts')).toContain('operationsActorScopeInputExists(scope.where,\'\')');
+  expect(source('task-attachment-purchases.ts')).toContain('operationsActorScopeInputExists(current.where)');
+  expect(source('work-task-purchases.ts')).toContain('operationsActorScopeInputExists(');
+  const purchases=source('record-purchases.ts');
+  expect(purchases).toContain("operationsActorScopeInput('a.company_id','?::text branch_id','?::text department_id')");
+  expect(purchases).toContain('operationsActorScopeInput(');
+  expect(purchases).not.toContain('(SELECT a.company_id,?::text branch_id,?::text department_id)workforce_actor_scope');
+  expect(purchases).not.toContain('(SELECT ?::text company_id,?::text branch_id,?::text department_id,${packageClockSql} now_ms)workforce_actor_scope');
+ });
+ test('active staff-level family renders both readers byte-identically',()=>{
+  expect(operationsActiveStaffLevels('id,rank')).toBe(`SELECT id,rank FROM ${levels} WHERE company_id=? AND active=1`);
+  expect(operationsActiveStaffLevels('count(*) count',' AND level_number BETWEEN 1 AND 6')).toBe(`SELECT count(*) count FROM ${levels} WHERE company_id=? AND active=1 AND level_number BETWEEN 1 AND 6`);
+  expect(operationsActiveStaffLevels('id,rank').match(/SELECT /g)).toHaveLength(2);
+  expect(source('staff-facts.ts')).toContain("operationsActiveStaffLevels('id,rank')");
+  expect(source('company-acceptance-facts.ts')).toContain("operationsActiveStaffLevels('count(*) count',' AND level_number BETWEEN 1 AND 6')");
+ });
+ test('owner-version guard family renders all four sites byte-identically',()=>{
+  expect(operationsOwnerVersionExists('operations_queue_policies',' AND status=? ')).toBe('EXISTS(SELECT 1 FROM operations_queue_policies WHERE id=? AND company_id=? AND version=? AND status=? )');
+  expect(operationsOwnerVersionExists('staff_tasks',' AND state IN (?,?)','id=? AND version=?')).toBe('EXISTS(SELECT 1 FROM staff_tasks WHERE id=? AND version=? AND state IN (?,?))');
+  expect(operationsOwnerVersionExists('t',' AND status=\'active\'')).toBe("EXISTS(SELECT 1 FROM t WHERE id=? AND company_id=? AND version=? AND status='active')");
+  expect(operationsOwnerVersionExists('t','',undefined)).toBe('EXISTS(SELECT 1 FROM t WHERE id=? AND company_id=? AND version=?)');
+  expect(operationsOwnerVersionExists('t').match(/SELECT /g)).toHaveLength(1);
+  for(const name of ['identity-policy-version-guard.ts','attachments-service-facts.ts','staff-policy.ts','staff-tasks.ts'])expect(source(name)).toContain('operationsOwnerVersionExists(');
+ });
+ test('retirement:ts-statements stays strictly below the r38 BEFORE=125 baseline',()=>{
+  const root=resolve(__dirname,'../../../packages/server-operations/src');
+  let space=0;
+  const walk=(dir:string)=>{
+   for(const entry of readdirSync(dir,{withFileTypes:true})){
+    const path=resolve(dir,entry.name);
+    if(entry.isDirectory())walk(path);
+    else if(entry.name.endsWith('.ts'))space+=(readFileSync(path,'utf8').match(/SELECT /g)??[]).length;
+   }
+  };
+  walk(root);
+  expect(space).toBe(117);
+  expect(space).toBeLessThan(125);
  });
 });

@@ -1,5 +1,5 @@
 import{visibleTask,authority}from '@erpx/server-operations/adapters/evaluation-source-policy';
-import {workforceActorScopeSql,OPERATIONS_VIEWER_CLOCK_SQL,OPERATIONS_TASK_SCOPE_SQL,operationsClockProbe} from './workforce-actor-scope-source';
+import {workforceActorScopeSql,OPERATIONS_VIEWER_CLOCK_SQL,OPERATIONS_TASK_SCOPE_SQL,operationsClockProbe,operationsActorScopeInput} from './workforce-actor-scope-source';
 import {nativeOperationsReadFirst,OPERATIONS_RD_RECORD_TASK_PROJECT} from './native-operations-read';
 import 'server-only';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
@@ -34,7 +34,7 @@ export const projectSourceProbe = (table: string, scopeWhere: string) => `SELECT
 async function handbookReadScope(actor:WorkContext){
  if(await appsPackageEnforcementMode()!=='enforced')return {where:'TRUE',args:[] as (string|number|null)[]};
  const current=currentAssignmentReadScope(actor,'workforce_actor_scope');
- return {where:`EXISTS(${operationsClockProbe("handbook_clock")} CROSS JOIN LATERAL(SELECT a.company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${current.where} AND ${scheduledFeaturePredicate('a.company_id','collaboration')} AND ${purchasedCapabilityPredicate('a.company_id','work.handbook','history','handbook_clock.now_ms')})`,args:[actor.branchId,actor.departmentId,...current.args]};
+ return {where:`EXISTS(${operationsClockProbe("handbook_clock")} CROSS JOIN LATERAL${operationsActorScopeInput('a.company_id','?::text branch_id','?::text department_id')}workforce_actor_scope WHERE ${current.where} AND ${scheduledFeaturePredicate('a.company_id','collaboration')} AND ${purchasedCapabilityPredicate('a.company_id','work.handbook','history','handbook_clock.now_ms')})`,args:[actor.branchId,actor.departmentId,...current.args]};
 }
 async function handbookSourceReadScope(actor:WorkContext,surface:'records'|'staff'|'inbox'){
  if(await appsPackageEnforcementMode()!=='enforced')return {where:'TRUE',args:[] as (string|number|null)[]};
@@ -67,7 +67,7 @@ export async function workSourceReadScope(database:SqlDatabase,actor:WorkContext
   return {where:`(${type} NOT IN ('task','staff_task','staff_task_alert') OR ${projectTaskExists} OR ${task.where}) AND ${handbook.where}`,args:[...task.args,...handbook.args]};
  }
  const current=authority(actor);
- return {where:`(NOT ${actual} OR ${task.where}) AND (module_id<>'operations' OR ${projectTaskExists} OR EXISTS(SELECT 1 FROM(SELECT ${company} company_id,workspace_records.branch_id,workspace_records.department_id,${packageClockSql} now_ms)workforce_actor_scope WHERE ${current.where} AND ${purchasedCapabilityPredicate('workforce_actor_scope.company_id','work.actions','history','workforce_actor_scope.now_ms')} AND ${scheduledFeaturePredicate('workforce_actor_scope.company_id','operations')})) AND ${handbook.where}`,args:[...task.args,...current.args,...handbook.args]};
+ return {where:`(NOT ${actual} OR ${task.where}) AND (module_id<>'operations' OR ${projectTaskExists} OR EXISTS(SELECT 1 FROM${operationsActorScopeInput(`${company} company_id`,'workspace_records.branch_id','workspace_records.department_id',`,${packageClockSql} now_ms`)}workforce_actor_scope WHERE ${current.where} AND ${purchasedCapabilityPredicate('workforce_actor_scope.company_id','work.actions','history','workforce_actor_scope.now_ms')} AND ${scheduledFeaturePredicate('workforce_actor_scope.company_id','operations')})) AND ${handbook.where}`,args:[...task.args,...current.args,...handbook.args]};
 }
 export async function requireWorkWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,moduleId:string,id:string){
  const mode=await appsPackageEnforcementMode();if(mode==='disabled')return;
@@ -76,7 +76,7 @@ export async function requireWorkWorkspaceRecordRead(database:SqlDatabase,actor:
  if(task?.project_id||!task&&moduleId!=='operations')return;
  if(mode==='shadow'){await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:'work.actions'});return;}
  const source=task?await visibleTask(database,actor,'work_record_input.id','work_record_input.company_id'):null,current=authority(actor);
- const where=source?.where??`EXISTS(SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id,${packageClockSql} now_ms)workforce_actor_scope WHERE ${current.where} AND ${purchasedCapabilityPredicate('workforce_actor_scope.company_id','work.actions','history','workforce_actor_scope.now_ms')} AND ${scheduledFeaturePredicate('workforce_actor_scope.company_id','operations')})`,args=source?.args??[actor.companyId,actor.branchId,actor.departmentId,...current.args];
+ const where=source?.where??`EXISTS(SELECT 1 FROM${operationsActorScopeInput('?::text company_id','?::text branch_id','?::text department_id',`,${packageClockSql} now_ms`)}workforce_actor_scope WHERE ${current.where} AND ${purchasedCapabilityPredicate('workforce_actor_scope.company_id','work.actions','history','workforce_actor_scope.now_ms')} AND ${scheduledFeaturePredicate('workforce_actor_scope.company_id','operations')})`,args=source?.args??[actor.companyId,actor.branchId,actor.departmentId,...current.args];
  if(!await database.prepare(`SELECT ${where} allowed FROM(SELECT ?::text id,?::text company_id)work_record_input`).bind(...args,id,actor.companyId).first('allowed'))throw new ApiError(404,'WORK_SOURCE_NOT_FOUND','The original Work source is unavailable to this current assignment.');
 }
 export async function filterWorkTaskWork(database:SqlDatabase,actor:WorkContext,items:WorkItem[]){

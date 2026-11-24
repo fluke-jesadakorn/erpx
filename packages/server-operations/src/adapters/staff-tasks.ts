@@ -10,6 +10,7 @@ import {readablePost} from '@erpx/server-collaboration/public/social-source';
 import { taskSourceStatements, type TaskSource } from "@erpx/server-collaboration/public/social-task";
 import { z } from "zod";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import {operationsOwnerVersionExists} from './identity-policy-version-guard';
 import {approvalView,closeApprovals,taskRoute} from '@erpx/server-workflow/public/approval-planning';
 
 import { activeStaff, staffGuard, notification, type StaffActor } from "@erpx/server-operations/public/staff-policy";
@@ -47,7 +48,7 @@ function application(provided?: SqlDatabase, projectReadWhere='TRUE',workReadArg
         guard3(...args){return nativeTaskReadRepository(database,projectReadWhere,workReadArgs).guard3(...args);},
         guard11(...args) { return StaffTasksIdentityAccessFacts(database).guard11(...args); },
         guard12(key: string, value: "task-version", id: string, version: number, states: string[]) {
-            return assertion(database, key, value, `EXISTS(SELECT 1 FROM staff_tasks WHERE id=? AND version=? AND state IN (${states.map(() => "?").join(",")}))`, [id, version, ...states]);
+            return assertion(database, key, value, operationsOwnerVersionExists('staff_tasks',` AND state IN (${states.map(() => "?").join(",")})`,'id=? AND version=?'), [id, version, ...states]);
         },
         guard13(...args) { return StaffTasksProjectsFacts(database).guard13(...args); },
         stageSaveTaskEffect() { throw new Error("NATIVE_STAFF_WORK_REQUIRED"); },
