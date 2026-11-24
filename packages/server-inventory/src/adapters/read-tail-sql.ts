@@ -39,3 +39,12 @@ export const initialPhysicalCountFinanceImagesSql=(images:string)=>`SELECT sourc
  * helpers above are left untouched. */
 export const childJsonAggSql=(table:string,alias:string,where:string)=>`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${table} ${alias} WHERE ${where})`;
 export const childJoinJsonAggSql=(table:string,alias:string,join:string,where:string)=>`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${table} ${alias} JOIN ${join} WHERE ${where})`;
+/** r16: remaining parameterized EXISTS guard families. The terminal-receipt
+ * match and the transit loss-decision guard are each byte-identical across
+ * their consumers; only the rows, kind, alias and row expression vary. Every
+ * caller keeps its own rows, binds and independent statement. r11-r15 helpers
+ * above are left untouched. */
+export const terminalReceiptMatchSql = (rows: string, kind: string, id: string, company: string, status: string, version: string) =>
+  `EXISTS(SELECT 1 FROM (${rows}) terminal WHERE terminal.kind='${kind}' AND terminal.id=${id} AND terminal.company_id=${company} AND terminal.status=${status} AND terminal.version=${version})`;
+export const transitLossDecisionPendingSql = (alias: string, id: string) =>
+  `NOT EXISTS(SELECT 1 FROM inventory_transit_events ${alias} WHERE ${alias}.proposal_id=${id})`;

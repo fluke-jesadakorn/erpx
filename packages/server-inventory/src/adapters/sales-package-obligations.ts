@@ -13,7 +13,7 @@ import {ecommerceCommerceSettlementSources} from "@erpx/server-commerce/public/e
 import {ecommerceQualitySettlementSources} from "@erpx/server-quality/public/ecommerce-package-sources";
 import {qualityDisposalCountRows} from '@erpx/server-inventory/adapters/quality-count-purchases';
 import {inventoryLotMovesSql} from '@erpx/server-inventory/adapters/inventory-read-projections';
-import {childJsonAggSql,childJoinJsonAggSql} from './read-tail-sql';
+import {childJsonAggSql,childJoinJsonAggSql,terminalReceiptMatchSql} from './read-tail-sql';
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
 export async function lockSalesInventoryPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.batch(salesQualitySettlementSourceReadLocks(database));await database.batch(recordAttachmentVersionSourceReadLocks(database));await database.prepare('LOCK TABLE inventory_order_reservations,inventory_lots,inventory_lot_balances,inventory_lot_moves,inventory_fulfillment_lot_allocations,inventory_counts,inventory_count_lines,inventory_count_lot_lines,inventory_count_decisions,inventory_adjustment_moves,command_receipts IN SHARE MODE').run();sources.set(database,companyId);}
 export function assertSalesInventoryPackageObligationSources(owner:PostgresDatabase,database:SqlDatabase,companyId:string){owner.assertActiveTransaction(database);if(sources.get(database)!==companyId)throw Error('SALES_INVENTORY_PACKAGE_OBLIGATION_SOURCE_REQUIRED');assertSalesPackageObligationSources(owner,database,companyId);}
@@ -40,7 +40,7 @@ export async function readSalesInventorySettlementFacts(database:SqlDatabase,com
  ${childJsonAggSql('inventory_count_decisions','event','event.count_id=count.id')},
  ${childJsonAggSql('inventory_adjustment_moves','move','move.count_id=count.id')}),
  NOT COALESCE(EXISTS(SELECT 1 FROM (${initialPhysicalStockCountSourceRows}) source WHERE source.id=count.id AND source.company_id=count.company_id)
- AND EXISTS(SELECT 1 FROM (${supplyInventoryTerminalReceipts}) terminal WHERE terminal.kind='count' AND terminal.id=count.id AND terminal.company_id=count.company_id AND terminal.status=count.status AND terminal.version=count.version),false)
+ AND ${terminalReceiptMatchSql(supplyInventoryTerminalReceipts,'count','count.id','count.company_id','count.status','count.version')},false)
  FROM inventory_counts count CROSS JOIN scope WHERE count.company_id=scope.company_id AND ${selection==='sales'?'TRUE':'FALSE'} AND EXISTS(SELECT 1 FROM (${initialPhysicalStockMarkedRows}) raw_marker WHERE raw_marker.id=count.id)
  UNION ALL SELECT 'initial-physical-stock',concat(stock.warehouse_id,':',stock.product_id),to_jsonb(stock),stock.quantity_milli<0 OR stock.value_minor<0
  FROM (${sales.stock}) stock CROSS JOIN scope WHERE ${selection==='sales'?'TRUE':'FALSE'} AND EXISTS(SELECT 1 FROM (${initialPhysicalStockCountSourceRows}) source JOIN inventory_counts posted_count ON posted_count.id=source.id AND posted_count.company_id=source.company_id AND posted_count.status='posted' WHERE source.company_id=scope.company_id AND source.warehouse_id=stock.warehouse_id AND source.product_id=stock.product_id)

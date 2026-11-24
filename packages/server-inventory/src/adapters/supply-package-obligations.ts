@@ -10,7 +10,7 @@ import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgre
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {qualityPurchaseSourceRows,qualityPurchaseSourceReadLocks} from "@erpx/server-quality/public/purchase-sources";
-import {allInitialPhysicalStockMarkedRowsSql,childJsonAggSql,childJoinJsonAggSql} from './read-tail-sql';
+import {allInitialPhysicalStockMarkedRowsSql,childJsonAggSql,childJoinJsonAggSql,terminalReceiptMatchSql,transitLossDecisionPendingSql} from './read-tail-sql';
 
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
@@ -58,7 +58,7 @@ export async function supplyInventoryPackageObligations(owner:PostgresDatabase,d
  ${childJoinJsonAggSql('inventory_count_lot_lines','lot','inventory_count_lines line ON line.id=lot.count_line_id','line.count_id=c.id')},
  ${childJsonAggSql('inventory_count_decisions','event','event.count_id=c.id')},
  ${childJsonAggSql('inventory_adjustment_moves','move','move.count_id=c.id')}) fact,
- NOT COALESCE(EXISTS(SELECT 1 FROM (${supplyInventoryTerminalReceipts}) terminal WHERE terminal.kind='count' AND terminal.id=c.id AND terminal.company_id=c.company_id AND terminal.status=c.status AND terminal.version=c.version),false) pending
+ NOT COALESCE(${terminalReceiptMatchSql(supplyInventoryTerminalReceipts,'count','c.id','c.company_id','c.status','c.version')},false) pending
  FROM counts c
  UNION ALL SELECT 'transfer',t.id,jsonb_build_array(to_jsonb(t),
  ${childJsonAggSql('inventory_transfer_lines','line','line.transfer_id=t.id')},
@@ -83,13 +83,13 @@ export async function supplyInventoryPackageObligations(owner:PostgresDatabase,d
  OR line.received_milli<>COALESCE((SELECT sum(event.quantity_milli) FROM inventory_transit_events event WHERE event.line_id=line.id AND event.kind='receipt'),0)
  OR line.lost_milli<>COALESCE((SELECT sum(event.quantity_milli) FROM inventory_transit_events event WHERE event.line_id=line.id AND event.kind='loss_approved'),0)))
  AND NOT EXISTS(SELECT 1 FROM inventory_transit_events proposal WHERE proposal.transit_id=t.id AND proposal.kind='loss_requested'
- AND NOT EXISTS(SELECT 1 FROM inventory_transit_events decision WHERE decision.proposal_id=proposal.id))),false)
+ AND ${transitLossDecisionPendingSql('decision','proposal.id')}))),false)
  FROM inventory_transit t,scope WHERE scope.full AND t.company_id=scope.company_id
  UNION ALL SELECT 'landed-cost',cost.id,jsonb_build_array(to_jsonb(cost),
  ${childJsonAggSql('inventory_landed_cost_lines','line','line.landed_cost_id=cost.id')},
  ${childJsonAggSql('inventory_landed_cost_events','event','event.landed_cost_id=cost.id')},
  ${childJsonAggSql('inventory_landed_cost_moves','move','move.landed_cost_id=cost.id')}),
- NOT COALESCE(EXISTS(SELECT 1 FROM (${supplyInventoryTerminalReceipts}) terminal WHERE terminal.kind='landed-cost' AND terminal.id=cost.id AND terminal.company_id=cost.company_id AND terminal.status=cost.status AND terminal.version=cost.version)
+ NOT COALESCE(${terminalReceiptMatchSql(supplyInventoryTerminalReceipts,'landed-cost','cost.id','cost.company_id','cost.status','cost.version')}
  AND (cost.status<>'posted' OR cost.amount_minor=COALESCE((SELECT sum(move.value_minor) FROM inventory_landed_cost_moves move WHERE move.landed_cost_id=cost.id),0)),false)
  FROM inventory_landed_costs cost,scope WHERE (scope.full OR scope.advanced_addon) AND cost.company_id=scope.company_id
  UNION ALL SELECT 'invalid-stock',concat(stock.warehouse_id,':',stock.product_id),to_jsonb(stock),stock.quantity_milli<0 OR stock.value_minor<0

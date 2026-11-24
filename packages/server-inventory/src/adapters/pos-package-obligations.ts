@@ -1,6 +1,7 @@
 import {serviceInitialPhysicalStockMarkedRows} from '@erpx/server-inventory/adapters/service-initial-physical-stock-count-source-sql';
 import {posInitialPhysicalStockCountSourceRows,posInitialPhysicalStockMarkedRows} from '@erpx/server-inventory/adapters/pos-initial-physical-stock-count-source-sql';
 import {supplyInventoryTerminalReceipts} from '@erpx/server-inventory/adapters/supply-terminal-receipts';
+import {terminalReceiptMatchSql} from './read-tail-sql';
 import {recordAttachmentVersionSourceReadLocks} from '@erpx/server-files/public/record-version-receipts';
 import "server-only";
 import { createHash } from "node:crypto";
@@ -36,7 +37,7 @@ export async function posInventoryPackageObligations(owner: PostgresDatabase, da
     UNION ALL SELECT 'valuation',l.id,l.version,l.status,l.amount_minor,true FROM inventory_landed_costs l,scope WHERE l.company_id=scope.company_id AND l.status NOT IN ('posted','cancelled','rejected')
 
     UNION ALL SELECT 'pos-initial-count',c.id,c.version,c.status,c.net_value_minor,
-      NOT COALESCE(EXISTS(SELECT 1 FROM (${posInitialPhysicalStockCountSourceRows}) source WHERE source.id=c.id AND source.company_id=c.company_id) AND EXISTS(SELECT 1 FROM (${supplyInventoryTerminalReceipts}) terminal WHERE terminal.kind='count' AND terminal.id=c.id AND terminal.company_id=c.company_id AND terminal.status=c.status AND terminal.version=c.version),false)
+      NOT COALESCE(EXISTS(SELECT 1 FROM (${posInitialPhysicalStockCountSourceRows}) source WHERE source.id=c.id AND source.company_id=c.company_id) AND ${terminalReceiptMatchSql(supplyInventoryTerminalReceipts,'count','c.id','c.company_id','c.status','c.version')},false)
       FROM inventory_counts c,scope WHERE c.company_id=scope.company_id AND EXISTS(SELECT 1 FROM (${posInitialPhysicalStockMarkedRows}) marker WHERE marker.id=c.id)
     UNION ALL SELECT 'pos-initial-stock',concat(stock.warehouse_id,':',stock.product_id),stock.version,'stock',stock.value_minor,stock.quantity_milli<0 OR stock.value_minor<0 FROM commerce_stock stock,scope WHERE EXISTS(SELECT 1 FROM (${posInitialPhysicalStockCountSourceRows}) source JOIN inventory_counts posted ON posted.id=source.id AND posted.company_id=source.company_id AND posted.status='posted' WHERE source.company_id=scope.company_id AND source.warehouse_id=stock.warehouse_id AND source.product_id=stock.product_id)
     ORDER BY kind,id`).bind(input.companyId).all()).results;
