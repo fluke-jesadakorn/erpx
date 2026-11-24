@@ -1208,6 +1208,7 @@ dependencies = [
 name = "erpx-server-planning"
 version = "0.1.0"
 dependencies = [
+ "base64 0.23.1",
  "erpx-server-runtime",
  "erpx-server-shared",
  "serde",

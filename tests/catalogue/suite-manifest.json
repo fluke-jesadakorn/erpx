@@ -64558,6 +64558,46 @@
       ]
     },
     {
+      "id": "planning.read-source-parity-postgres.integration",
+      "lane": "integration",
+      "owner": "planning",
+      "modules": [
+        "planning"
+      ],
+      "files": [
+        "tests/integration/planning/rust-planning-read-source-parity-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Planning native read-source plans must match retained TS statements and PG rows."
+      },
+      "apps": [
+        "planning"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-planning",
+        "targets": [
+          "planning_read_source_parity_postgres"
+        ],
+        "features": []
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-planning/Cargo.toml"
+      ],
+      "packages": [
+        "@erpx/server-planning"
+      ]
+    },
+    {
       "id": "planning.rust-planning-capacity-resources.unit",
       "lane": "unit",
       "owner": "planning",
