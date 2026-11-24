@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12447,
+    "revision": 12449,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183245,7 +183245,7 @@
         "owner": "legal",
         "title": "legal TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183257,28 +183257,36 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n85",
-          "claimedAt": "2026-11-24T16:09:10.683Z",
-          "heartbeatAt": "2026-11-24T16:11:53.559Z",
-          "expiresAt": "2026-11-24T16:41:53.559Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "6b5f9e974",
+            "owner": "legal",
+            "before": 163,
+            "after": 153,
+            "note": "11 quoted projection literals through closedProjection renderer; both comma formats and wrappers byte-identical; advisory/FOR UPDATE/LOCK TABLE/receipts untouched."
+          },
+          {
+            "command": "vitest legal (186) + scoped tsc + 11 SHA oracles",
+            "result": "passed",
+            "sourceSha": "6b5f9e974"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Law point guard family (-6), hold spine (-2 safe), counsel entry reads (-2): 163->153. BEFORE=163.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261124-d",
-          "agentId": "lead-opencode",
-          "at": "2026-11-24T16:09:10.543Z",
+          "agentId": "wH4n85",
+          "at": "2026-11-24T16:18:38.027Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Law point guard family (-6), hold spine (-2 safe), counsel entry reads (-2): 163->153. BEFORE=163."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -184095,17 +184103,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 14,
+        "in_progress": 13,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1440,
+        "blocked": 1441,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:17:54.683Z",
+    "updatedAt": "2026-11-24T16:18:38.031Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
