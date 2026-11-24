@@ -74,7 +74,7 @@ describe('Projects read-tail r28 assignment-viewer select-head dedupe', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(117);
-    expect(total).toBe(115); // r27 left 117; r28 assignment-viewer head family 117->115.
+    expect(total).toBe(113); // r27 left 117; r28 assignment-viewer head 117->115; r29 ordered-image head 115->113.
   });
 });
 

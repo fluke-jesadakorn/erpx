@@ -3,6 +3,7 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {workOperationsSettlementSources} from '@erpx/server-operations/public/work-package-obligation-sources';
 import {handoverTaskAccessSql} from '@erpx/server-operations/public/handover-policy';
 import {projectOwnerOrMemberColumnSql} from '@erpx/server-projects/adapters/project-read-projections';
+import {orderedImageAggregateHead} from './read-tail-r29';
 /** Byte-identical members projection shared by both source arms and the
  * collaboration-home audience image; one definition keeps every source relation
  * and bind order identical. */
@@ -20,7 +21,7 @@ export function projectSocialSourceReadLocks(database:SqlDatabase){return databa
 /** Private evidence reads retain actual Project identity and membership while
  * the Operations owner consumes bytes and completes its access audit. */
 export const projectTaskAttachmentReadSources=`SELECT task.id task_id,task.company_id,
- jsonb_build_object('project',to_jsonb(project),'members',(SELECT jsonb_agg(to_jsonb(member) ORDER BY member.user_id) FROM staff_project_members member WHERE member.project_id=project.id)) image
+ jsonb_build_object('project',to_jsonb(project),'members',(${orderedImageAggregateHead('member','user_id')} FROM staff_project_members member WHERE member.project_id=project.id)) image
  FROM (${workOperationsSettlementSources.tasks}) task JOIN staff_projects project ON project.id=task.project_id AND project.company_id=task.company_id`;
 
 /** Private-file access audits can have deferred owner effects. */

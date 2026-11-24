@@ -81,6 +81,6 @@ describe('Projects read-tail r25 byte-identical FROM/JOIN family dedupe', () => 
     };
     walk(srcRoot);
     expect(total).toBeLessThan(122);
-    expect(total).toBe(115); // r25 left 119; r26 proof guards 119->118; r27 member EXISTS 118->117; r28 viewer head 117->115.
+    expect(total).toBe(113); // r25 left 119; r26 proof guards 119->118; r27 member EXISTS 118->117; r28 viewer 117->115; r29 image head 115->113.
   });
 });
