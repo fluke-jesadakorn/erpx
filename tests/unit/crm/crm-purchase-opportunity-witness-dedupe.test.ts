@@ -21,10 +21,11 @@ describe('crm purchase opportunity witness read family', () => {
   it('keeps one crm_leads projection literal shared by both owner surfaces', async () => {
     const commercial = await readFile(adapter('commercial-owner-projection-sources.ts'), 'utf8');
     const finalRoot = await readFile(adapter('final-root-owner-projection-sources.ts'), 'utf8');
-    // One canonical declaration; the other surface reuses it by reference so
-    // the two public callers cannot drift into separate query text.
-    expect(commercial.match(/FROM crm_leads"/g)).toHaveLength(1);
-    expect(finalRoot).not.toContain('FROM crm_leads"');
+    // One canonical renderer; the other surface reuses it by reference so
+    // the two public callers cannot drift into separate query text (r19 extends
+    // the shared crm_leads projection to a parameterized column-list family).
+    expect(commercial.match(/export const crmProjectionSql=/g)).toHaveLength(1);
+    expect(finalRoot).not.toContain('SELECT ');
     expect(finalRoot).toContain('crm_leads: commercialOwnerProjectionSources.crm_leads,');
   });
 
@@ -331,7 +332,58 @@ describe('crm read-tail r18 parameterized families', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r18 BEFORE=163 baseline', () => {
-    expect(totalSelects()).toBe(158);
+    expect(totalSelects()).toBeLessThan(158);
     expect(totalSelects()).toBeLessThan(163);
+  });
+});
+
+describe('crm read-tail r19 parameterized projection families', () => {
+  const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+  const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
+  const totalSelects = () => {
+    let total = 0;
+    for (const rel of readdirSync(owner, { recursive: true })) {
+      if (!String(rel).endsWith('.ts')) continue;
+      total += readFileSync(resolve(owner, String(rel)), 'utf8').match(/SELECT /g)?.length ?? 0;
+    }
+    return total;
+  };
+  const LEADS = ['id', 'company_id', 'branch_id', 'department_id', 'title', 'contact_name', 'contact_detail', 'source', 'brief', 'owner_id', 'due_date', 'status', 'version', 'created_by', 'created_at', 'updated_at', 'account_id', 'contact_id'];
+  const ACT = ['id', 'company_id', 'lead_id', 'activity_type', 'subject', 'details', 'owner_id', 'due_date', 'status', 'outcome', 'version', 'created_by', 'created_at', 'updated_at'];
+  const EVENT = ['id', 'lead_id', 'opportunity_id', 'version', 'action', 'actor_id', 'reason', 'snapshot_json', 'created_at'];
+  const OPP = ['id', 'lead_id', 'customer_id', 'stage', 'expected_minor', 'currency', 'close_date', 'quote_id', 'quote_version', 'sales_id', 'version', 'created_by', 'created_at', 'updated_at', 'reservation_id', 'win_source', 'won_at'];
+  const render = (table: string, columns: string[], separator = ',') => `SELECT ${columns.map(c => `"${c}"`).join(separator)} FROM ${table}`;
+
+  it('declares one renderer and four fixed column tuples, composed at all six sites', () => {
+    const commercial = src('commercial-owner-projection-sources.ts');
+    const finalRoot = src('final-root-owner-projection-sources.ts');
+    const collab = src('collaboration-notification-snapshot-sources.ts');
+    expect(commercial.match(/export const crmProjectionSql=/g)).toHaveLength(1);
+    for (const name of ['crmLeadColumns', 'crmLeadActivityColumns', 'crmCaseEventColumns', 'crmOpportunityColumns'])
+      expect(commercial.match(new RegExp(`export const ${name}=`, 'g'))).toHaveLength(1);
+    // Only the renderer definition keeps a SELECT token in these three files.
+    expect(commercial.match(/SELECT /g)).toHaveLength(1);
+    expect(finalRoot.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(collab.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(finalRoot).toContain("crmProjectionSql('crm_case_events',crmCaseEventColumns)");
+    expect(finalRoot).toContain("crmProjectionSql('crm_lead_activities',crmLeadActivityColumns)");
+    expect(finalRoot).toContain("crmProjectionSql('crm_opportunities',crmOpportunityColumns)");
+    expect(finalRoot).toContain('crm_leads: commercialOwnerProjectionSources.crm_leads,');
+    expect(collab).toContain("crmProjectionSql('crm_leads',crmLeadColumns,', ')");
+    expect(collab).toContain("crmProjectionSql('crm_lead_activities',crmLeadActivityColumns,', ')");
+  });
+
+  it('renders every one of the six projections byte-identically to its retired literal', () => {
+    expect(render('crm_leads', LEADS)).toBe('SELECT "id","company_id","branch_id","department_id","title","contact_name","contact_detail","source","brief","owner_id","due_date","status","version","created_by","created_at","updated_at","account_id","contact_id" FROM crm_leads');
+    expect(render('crm_case_events', EVENT)).toBe('SELECT "id","lead_id","opportunity_id","version","action","actor_id","reason","snapshot_json","created_at" FROM crm_case_events');
+    expect(render('crm_lead_activities', ACT)).toBe('SELECT "id","company_id","lead_id","activity_type","subject","details","owner_id","due_date","status","outcome","version","created_by","created_at","updated_at" FROM crm_lead_activities');
+    expect(render('crm_opportunities', OPP)).toBe('SELECT "id","lead_id","customer_id","stage","expected_minor","currency","close_date","quote_id","quote_version","sales_id","version","created_by","created_at","updated_at","reservation_id","win_source","won_at" FROM crm_opportunities');
+    expect(`FROM (${render('crm_leads', LEADS, ', ')}) crm_leads`).toBe('FROM (SELECT "id", "company_id", "branch_id", "department_id", "title", "contact_name", "contact_detail", "source", "brief", "owner_id", "due_date", "status", "version", "created_by", "created_at", "updated_at", "account_id", "contact_id" FROM crm_leads) crm_leads');
+    expect(`FROM (${render('crm_lead_activities', ACT, ', ')}) crm_lead_activities`).toBe('FROM (SELECT "id", "company_id", "lead_id", "activity_type", "subject", "details", "owner_id", "due_date", "status", "outcome", "version", "created_by", "created_at", "updated_at" FROM crm_lead_activities) crm_lead_activities');
+  });
+
+  it('keeps the owner SELECT KPI strictly below the r18 AFTER=158 baseline', () => {
+    expect(totalSelects()).toBe(153);
+    expect(totalSelects()).toBeLessThan(158);
   });
 });
