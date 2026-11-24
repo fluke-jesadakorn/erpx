@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8451,
+    "revision": 8455,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -139336,7 +139336,7 @@
         "owner": "people_payroll",
         "title": "people_payroll TS read tail native cutover (r17)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -139348,22 +139348,37 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGC6peo",
-          "claimedAt": "2026-11-24T02:08:08.814Z",
-          "heartbeatAt": "2026-11-24T02:08:08.814Z",
-          "expiresAt": "2026-11-24T02:38:08.814Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "773eac0ea",
+            "owner": "people_payroll",
+            "before": 1606,
+            "after": 1590,
+            "note": "Directory page CTE pair -10 and zero-importer gpo-sources adapter -6; ownership/package exports cleaned."
+          },
+          {
+            "command": "vitest payroll r17 (40) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "773eac0ea"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=1606.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC6peo",
+          "at": "2026-11-24T02:17:22.031Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -140359,6 +140374,43 @@
         "nextAction": "Build owner-local native read ports for field-service references and package-obligation source reads (32 TS SELECTs remaining); PG parity tests; no composition or TS deletion yet.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.people_payroll.read-tail-r18",
+        "goalId": "G4",
+        "owner": "people_payroll",
+        "title": "people_payroll TS read tail native cutover (round 18)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/**",
+          "packages/server-people_payroll/package.json",
+          "tests/unit/people_payroll/**",
+          "tests/integration/people_payroll/**"
+        ],
+        "resources": [
+          "owner:people_payroll"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCxpeo",
+          "claimedAt": "2026-11-24T02:17:22.345Z",
+          "heartbeatAt": "2026-11-24T02:17:22.345Z",
+          "expiresAt": "2026-11-24T02:47:22.345Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: FROM hr_people 8x (-7), hr_engagements JOIN 6x (-5), owner-projection compact literals (-3/-2). BEFORE=1590.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -140367,7 +140419,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 939,
+      "totalPackets": 940,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -140375,13 +140427,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 560,
+        "blocked": 561,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:16:18.587Z",
+    "updatedAt": "2026-11-24T02:17:22.351Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
