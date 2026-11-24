@@ -7,7 +7,7 @@
 use crate::adapters::branding_use_cases::BrandRecordKind;
 use erpx_server_runtime::public::http_support::{
     HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Query, Request, Response, Router,
-    State, StatusCode, body::to_bytes, header, routing::get, serde_json,
+    State, StatusCode, body::to_bytes, header, routing::{get, post}, serde_json,
 };
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use std::collections::BTreeMap;
@@ -422,6 +422,55 @@ async fn command(
     respond(result)
 }
 
+#[derive(serde::Deserialize)]
+#[serde(deny_unknown_fields)]
+struct ReadPortInput {
+    kind: String,
+    values: Vec<serde_json::Value>,
+    #[serde(default)]
+    range: bool,
+    #[serde(default)]
+    query: bool,
+    #[serde(default)]
+    cursor: bool,
+}
+
+/// Owner-local read-plan ingress. Transport facts only: an exact registered
+/// Host/Holding target and Origin; the owner plans the exact statement and the
+/// caller executes it on its own already-open unit. No SQL is accepted here.
+async fn read_port(
+    State(state): State<Arc<BrandingHttpState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result: Result<serde_json::Value, BusinessError> = async move {
+        let body = to_bytes(request.into_body(), BODY_LIMIT)
+            .await
+            .map_err(|_| malformed())?;
+        let target = target(&state, &headers, &slug)?;
+        require_origin(target, &headers, false)?;
+        if unique_header(&headers, header::CONTENT_TYPE)?
+            .is_none_or(|value| !value.starts_with("application/json"))
+        {
+            return Err(malformed());
+        }
+        let input: ReadPortInput = serde_json::from_slice(&body).map_err(|_| malformed())?;
+        let planned = crate::adapters::native_read_sql::plan_brand_read(
+            &input.kind,
+            &input.values,
+            crate::adapters::native_read_sql::EvidenceFlags {
+                range: input.range,
+                query: input.query,
+                cursor: input.cursor,
+            },
+        )?;
+        Ok(serde_json::json!({"sql":planned.sql,"values":planned.values}))
+    }
+    .await;
+    respond(result)
+}
+
 pub fn branding_http_router(targets: Vec<BrandingHttpTarget>) -> Result<Router, BusinessError> {
     let mut map = BTreeMap::new();
     for target in targets {
@@ -443,6 +492,10 @@ pub fn branding_http_router(targets: Vec<BrandingHttpTarget>) -> Result<Router, 
         .route(
             "/api/v1/holdings/{holding_slug}/branding/presentation",
             get(presentation),
+        )
+        .route(
+            "/api/v1/holdings/{holding_slug}/branding/read-port",
+            post(read_port),
         )
         .with_state(Arc::new(BrandingHttpState { targets: map })))
 }
