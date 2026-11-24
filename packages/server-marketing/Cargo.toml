@@ -34,5 +34,9 @@ path = "../../tests/integration/marketing/rust-marketing-campaign-http.test.rs"
 name = "marketing_campaign_postgres"
 path = "../../tests/integration/marketing/rust-marketing-campaign-postgres.test.rs"
 
+[[test]]
+name = "marketing_native_read_parity_postgres"
+path = "../../tests/integration/marketing/rust-native-read-parity-postgres.test.rs"
+
 [lints]
 workspace = true

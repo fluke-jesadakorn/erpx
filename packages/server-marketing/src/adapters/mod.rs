@@ -7,3 +7,4 @@ pub mod lead_candidate_use_cases;
 pub mod native_command_http;
 pub mod native_command_postgres;
 pub mod native_command_sql;
+pub mod native_read;
