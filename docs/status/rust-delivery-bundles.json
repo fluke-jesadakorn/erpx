@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7842,
+    "revision": 7850,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -130399,7 +130399,7 @@
         "owner": "maintenance",
         "title": "maintenance TS read tail native cutover (r4)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -130411,22 +130411,42 @@
         "resources": [
           "owner:maintenance"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG25mai",
-          "claimedAt": "2026-11-24T00:47:25.339Z",
-          "heartbeatAt": "2026-11-24T01:14:14.575Z",
-          "expiresAt": "2026-11-24T01:44:14.575Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-maintenance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "5a8c78b82",
+            "owner": "maintenance",
+            "before": 48,
+            "after": 47,
+            "note": "Work and Calendar owner_name images share maintenanceOwnerName(alias)."
+          },
+          {
+            "command": "cargo check -p erpx-server-maintenance",
+            "result": "passed",
+            "sourceSha": "5a8c78b82"
+          },
+          {
+            "command": "vitest maintenance transport (28) + tsc maintenance",
+            "result": "passed",
+            "sourceSha": "5a8c78b82"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or use an existing native read; record a strictly lower spaced count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG25mai",
+          "at": "2026-11-24T01:15:48.572Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -131781,7 +131801,7 @@
         "owner": "marketing",
         "title": "marketing TS read tail native cutover (round 17)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -131793,22 +131813,42 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG55mar",
-          "claimedAt": "2026-11-24T01:07:28.733Z",
-          "heartbeatAt": "2026-11-24T01:14:14.575Z",
-          "expiresAt": "2026-11-24T01:44:14.575Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-marketing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "5a8c78b82",
+            "owner": "marketing",
+            "before": 105,
+            "after": 103,
+            "note": "Record purchase and analytics report share marketingRecordScopeAuthoritySql; binds identical."
+          },
+          {
+            "command": "vitest marketing read-tail (12) + units (45)",
+            "result": "passed",
+            "sourceSha": "5a8c78b82"
+          },
+          {
+            "command": "tsc marketing",
+            "result": "passed",
+            "sourceSha": "5a8c78b82"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next TS-only dedupe: record-scope authority witness pair (record-purchases L17 + analytics-sources L21), or active-form point read; BEFORE=105.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG55mar",
+          "at": "2026-11-24T01:15:48.113Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -132487,6 +132527,78 @@
         "nextAction": "Next: executive-metric-projections.ts (6 SELECTs) after verifying owner-locality; avoid ticket-portal-sources (27) and service-access (cross-owner). BEFORE=113.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.marketing.read-tail-r18",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing TS read tail native cutover (r18)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**",
+          "tests/integration/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG73mar",
+          "claimedAt": "2026-11-24T01:15:48.833Z",
+          "heartbeatAt": "2026-11-24T01:15:48.833Z",
+          "expiresAt": "2026-11-24T01:45:48.833Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "TS-only dedupe if available; if none safe, report blocked with evidence. BEFORE=103.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.maintenance.read-tail-r5",
+        "goalId": "G4",
+        "owner": "maintenance",
+        "title": "maintenance TS read tail native cutover (r5)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-maintenance/src/**",
+          "tests/unit/maintenance/**",
+          "tests/integration/maintenance/**"
+        ],
+        "resources": [
+          "owner:maintenance"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG74mai",
+          "claimedAt": "2026-11-24T01:15:49.087Z",
+          "heartbeatAt": "2026-11-24T01:15:49.087Z",
+          "expiresAt": "2026-11-24T01:45:49.087Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "TS-only dedupe if available; if none safe, report blocked with evidence. BEFORE=47.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -132495,7 +132607,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 791,
+      "totalPackets": 793,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -132503,13 +132615,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 416,
+        "blocked": 418,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:15:25.824Z",
+    "updatedAt": "2026-11-24T01:15:49.091Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
