@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { FIELD_UPLOAD_OWNER_HEAD_SQL } from '../../../packages/server-files/src/adapters/read-tail-r35-source-sql';
+import { FIELD_UPLOAD_ANCESTOR_EXISTS_SQL } from '../../../packages/server-files/src/adapters/read-tail-r43-source-sql';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-files/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
@@ -39,7 +40,8 @@ describe('Files read-tail r35 parameterized family', () => {
     const f = src('field-file-writer-owner.ts');
     // import + two call sites
     expect((f.match(/FIELD_UPLOAD_OWNER_HEAD_SQL/g) ?? []).length).toBe(3);
-    const tails = [...f.matchAll(/upload:`\$\{FIELD_UPLOAD_OWNER_HEAD_SQL\}([^`]*)`/g)].map(m => m[1]);
+    const tails = [...f.matchAll(/upload:`\$\{FIELD_UPLOAD_OWNER_HEAD_SQL\}([^`]*)`/g)]
+      .map(m => m[1].replaceAll('${FIELD_UPLOAD_ANCESTOR_EXISTS_SQL}', FIELD_UPLOAD_ANCESTOR_EXISTS_SQL));
     expect(tails.length).toBe(2);
     expect(HEAD.finance).toBe(FIELD_UPLOAD_OWNER_HEAD_SQL + tails[0]);
     expect(HEAD.field).toBe(FIELD_UPLOAD_OWNER_HEAD_SQL + tails[1]);
@@ -66,6 +68,7 @@ describe('Files read-tail r35 parameterized family', () => {
     // helpers are untracked until integration. Robust to a clean tree.
     const changed = git('diff', '--name-only', '--', 'packages/server-files/src').trim().split('\n').filter(Boolean);
     expect(changed.every(p => [
+      'packages/server-files/src/adapters/commerce-facts.ts',
       'packages/server-files/src/adapters/field-file-writer-owner.ts',
       'packages/server-files/src/adapters/attachments/service-repository.ts',
       'packages/server-files/src/adapters/app-attachment-sources.ts',
@@ -96,9 +99,9 @@ describe('Files read-tail r35 parameterized family', () => {
       }
     };
     walk(srcRoot);
-    // r40 left 254; r41 lowers 254->251; r42 lowers 251->248 (three set-row JOIN sites -> one head, two ledger projection sites -> one head).
-    expect(literal).toBe(248);
-    expect(total).toBe(249);
+    // r42 left 248; r43 lowers 248->246 (two SELECT-bearing shared heads folded).
+    expect(literal).toBe(246);
+    expect(total).toBe(247);
     expect(literal).toBeLessThan(260);
     expect(total).toBeLessThan(261);
   });

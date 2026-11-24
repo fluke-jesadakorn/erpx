@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { hospitalityOwnerProjectionSources } from '@erpx/server-commerce/public/hospitality-owner-projection-sources';
 import { COMMERCE_DELIVERY_GUARD_SQL } from '../../../packages/server-files/src/adapters/commerce-delivery-dedupe-sql';
+import { ATTACHMENT_ID_AND_HEAD_SQL } from '../../../packages/server-files/src/adapters/read-tail-r43-source-sql';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-files/src');
 const adapterDir = resolve(srcRoot, 'adapters');
@@ -38,11 +39,12 @@ describe('Files read-tail r23 parameterized-family dedupe', () => {
 
   test('guard is composed, never inlined, in all three call sites', () => {
     const cf = src('commerce-facts.ts');
+    const rendered = cf.replaceAll('${ATTACHMENT_ID_AND_HEAD_SQL}', ATTACHMENT_ID_AND_HEAD_SQL);
     expect(cf).not.toContain(GUARD.slice(0, 60));
     expect(cf.match(/\$\{COMMERCE_DELIVERY_GUARD_SQL\}/g) ?? []).toHaveLength(3);
-    expect(cf).toContain(`FROM attachments a WHERE ${REF} ORDER BY a.created_at DESC,a.id`);
-    expect(cf).toContain(`FROM attachments a WHERE a.id=? AND ${REF}`);
-    expect(cf).toContain(`EXISTS(SELECT 1 FROM attachments a WHERE a.id=? AND ${REF})`);
+    expect(rendered).toContain(`FROM attachments a WHERE ${REF} ORDER BY a.created_at DESC,a.id`);
+    expect(rendered).toContain(`FROM attachments a WHERE a.id=? AND ${REF}`);
+    expect(rendered).toContain(`EXISTS(SELECT 1 FROM attachments a WHERE a.id=? AND ${REF})`);
   });
 
   test('advisory locks, count(*) pairs and r10-r22 helpers remain untouched', () => {

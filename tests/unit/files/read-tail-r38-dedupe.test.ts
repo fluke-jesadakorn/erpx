@@ -38,7 +38,7 @@ describe('Files read-tail r38 parameterized family', () => {
     expect((ATTACHMENT_EVENT_EVENT_HEAD_SQL.match(/SELECT /g) ?? []).length).toBe(1);
     expect(ATTACHMENT_EVENT_EVENT_HEAD_SQL).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     for (const site of SITES) {
-      const before = git('show', `HEAD:${rel(site)}`);
+      const before = git('show', `368b84963a94cff5a0d5c729b026bc96acd88b83:${rel(site)}`);
       expect(before).toContain(HEAD);
     }
     // novel: no r10-r37 helper already carried this head
@@ -47,7 +47,7 @@ describe('Files read-tail r38 parameterized family', () => {
 
   test('all three call sites compose the head and render byte-identically', () => {
     for (const site of SITES) {
-      const before = git('show', `HEAD:${rel(site)}`);
+      const before = git('show', `368b84963a94cff5a0d5c729b026bc96acd88b83:${rel(site)}`);
       const after = readFileSync(resolve(rootDir, rel(site)), 'utf8');
       const oi = before.indexOf(HEAD);
       const ci = after.indexOf(PH);
@@ -76,7 +76,7 @@ describe('Files read-tail r38 parameterized family', () => {
   });
 
   test('advisory locks, row locks, native writes and r1-r37 helpers stay untouched', () => {
-    const before = git('show', `HEAD:${rel('attachments/service-repository.ts')}`);
+    const before = git('show', `368b84963a94cff5a0d5c729b026bc96acd88b83:${rel('attachments/service-repository.ts')}`);
     const after = src('attachments/service-repository.ts');
     for (const needle of [
       'const advisoryLockSql = "SELECT pg_advisory_xact_lock(hashtextextended(?,0))"',
@@ -92,7 +92,7 @@ describe('Files read-tail r38 parameterized family', () => {
     }
     const changed = git('diff', '--name-only', '--', 'packages/server-files/src').trim().split('\n').filter(Boolean);
     expect(changed.every(p => [...SITES.map(s => rel(s)),
-      rel('field-file-writer-owner.ts'), rel('attachments/service.ts'),
+      rel('commerce-facts.ts'), rel('field-file-writer-owner.ts'), rel('attachments/service.ts'),
       rel('legal-destruction-source-facts.ts'), rel('messaging-upload-rollback.ts'),
           'packages/server-files/src/adapters/app-attachment-sources.ts',
       'packages/server-files/src/adapters/leave-review-evidence-facts.ts',
@@ -116,9 +116,9 @@ describe('Files read-tail r38 parameterized family', () => {
       }
     };
     walk(srcRoot);
-    // r40 left 254; r41 lowers 254->251; r42 lowers 251->248 (three set-row JOIN sites -> one head, two ledger projection sites -> one head).
-    expect(literal).toBe(248);
-    expect(total).toBe(249);
+    // r42 left 248; r43 lowers 248->246 (two SELECT-bearing shared heads folded).
+    expect(literal).toBe(246);
+    expect(total).toBe(247);
     expect(literal).toBeLessThan(255);
     expect(total).toBeLessThan(256);
   });

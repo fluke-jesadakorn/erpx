@@ -67,8 +67,8 @@ describe('Files read-tail r33 parameterized family', () => {
     // r34 lowers the tail (264 -> 262), r35 lowers it (262 -> 260), r36
     // lowers it again (260 -> 258), r38 lowers 257 -> 255, r40 lowers 255 -> 254 and r41 lowers 254 -> 251:
     // two attestation witnesses now delegate to the r40 head helper; r41 folds three shared read heads.
-    expect(literal).toBe(248);
-    expect(total).toBe(249);
+    expect(literal).toBe(246);
+    expect(total).toBe(247);
     expect(literal).toBeLessThan(266);
     expect(total).toBeLessThan(267);
   });

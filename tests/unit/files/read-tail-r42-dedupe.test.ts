@@ -107,6 +107,8 @@ describe('Files read-tail r42 byte-oracle dedupe', () => {
       }
     }
     expect(changed.every(p => [
+      'packages/server-files/src/adapters/commerce-facts.ts',
+      'packages/server-files/src/adapters/field-file-writer-owner.ts',
       'packages/server-files/src/adapters/app-attachment-sources.ts',
       'packages/server-files/src/adapters/leave-review-evidence-facts.ts',
       'packages/server-files/src/adapters/attachments/migration.ts',
@@ -114,7 +116,7 @@ describe('Files read-tail r42 byte-oracle dedupe', () => {
     ].includes(p))).toBe(true);
   });
 
-  test('retirement:ts-statements is 248, strictly below the r41 BEFORE=251 (251->248)', () => {
+  test('retirement:ts-statements is 246, strictly below the r42 BEFORE=248 (248->246)', () => {
     let literal = 0, total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -128,10 +130,10 @@ describe('Files read-tail r42 byte-oracle dedupe', () => {
       }
     };
     walk(srcRoot);
-    // r41 left 251; r42 lowers 251->248 (three shared read heads folded).
-    expect(literal).toBe(248);
-    expect(total).toBe(249);
-    expect(literal).toBeLessThan(251);
-    expect(total).toBeLessThan(252);
+    // r42 left 248; r43 lowers 248->246 (two SELECT-bearing shared heads folded).
+    expect(literal).toBe(246);
+    expect(total).toBe(247);
+    expect(literal).toBeLessThan(248);
+    expect(total).toBeLessThan(249);
   });
 });

@@ -1,4 +1,5 @@
 import { COMMERCE_DELIVERY_GUARD_SQL } from "./commerce-delivery-dedupe-sql";
+import { ATTACHMENT_ID_AND_HEAD_SQL } from "./read-tail-r43-source-sql";
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
@@ -11,7 +12,7 @@ export function CommerceFilesFacts(db: SqlDatabase) {
         readAttachments2: (facts: {
             attachmentId: string;
             id: string;
-        }) => db.prepare(`SELECT 1 ok FROM attachments a WHERE a.id=? AND ${COMMERCE_DELIVERY_GUARD_SQL}`).bind(facts.attachmentId, facts.id).first('ok'),
+        }) => db.prepare(`SELECT 1 ok ${ATTACHMENT_ID_AND_HEAD_SQL}${COMMERCE_DELIVERY_GUARD_SQL}`).bind(facts.attachmentId, facts.id).first('ok'),
         readAttachmentSets1: (facts: {
             companyId: string;
             invoiceId: string;
@@ -28,7 +29,7 @@ export function CommerceFilesFacts(db: SqlDatabase) {
             key: string;
             guardId: string;
             values: string[];
-        }) => assertion(db, facts.key, facts.guardId, `EXISTS(SELECT 1 FROM attachments a WHERE a.id=? AND ${COMMERCE_DELIVERY_GUARD_SQL})`, facts.values),
+        }) => assertion(db, facts.key, facts.guardId, `EXISTS(SELECT 1 ${ATTACHMENT_ID_AND_HEAD_SQL}${COMMERCE_DELIVERY_GUARD_SQL})`, facts.values),
         guardRule32: (facts: {
             key: string;
             guardId: string;

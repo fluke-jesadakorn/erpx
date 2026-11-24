@@ -8,19 +8,20 @@ import {FIELD_LINK_EXISTS_SQL} from './read-tail-r33-source-sql';
 import {FIELD_UPLOAD_OWNER_HEAD_SQL} from './read-tail-r35-source-sql';
 import {FIELD_SET_OWNER_HEAD_SQL} from './read-tail-r36-source-sql';
 import {FIELD_ATTACHMENT_OWNED_HEAD_SQL,FIELD_SET_MARKER_EXISTS_HEAD_SQL} from './read-tail-r41-source-sql';
+import {FIELD_UPLOAD_ANCESTOR_EXISTS_SQL,FIELD_SET_UPLOAD_EXISTS_HEAD_SQL} from './read-tail-r43-source-sql';
 /** Byte-identical scoped-existence witnesses shared by the two Field owner
  * preflights. Text only: the table token comes from a fixed closed set and every
  * call site still prepares its own statement with its own binds. */
 const scopedByCompanySql=(table:'attachment_sets'|'upload_intents'|'attachments')=>
   `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=?) scoped`;
 const scopedLinkSql=`${LINK_SET_WHERE_EXISTS_SQL}id=? AND s.company_id=?) scoped`;
-const fieldSetMarker=`(s.target_type='field_service_visit'${FIELD_SET_MARKER_EXISTS_HEAD_SQL}WHERE l.set_id=s.id AND (u.owner_type='field_service_visit' OR us.target_type='field_service_visit' OR erpx_files_field_attachment_owned(l.attachment_id))) OR EXISTS(SELECT 1 FROM upload_intents u WHERE u.attachment_set_id=s.id AND (u.owner_type='field_service_visit' OR EXISTS(SELECT 1 FROM attachments a WHERE a.upload_id=u.id AND erpx_files_field_attachment_owned(a.id)))))`;
+const fieldSetMarker=`(s.target_type='field_service_visit'${FIELD_SET_MARKER_EXISTS_HEAD_SQL}WHERE l.set_id=s.id AND (u.owner_type='field_service_visit' OR us.target_type='field_service_visit' OR erpx_files_field_attachment_owned(l.attachment_id))) ${FIELD_SET_UPLOAD_EXISTS_HEAD_SQL}(u.owner_type='field_service_visit' OR ${FIELD_UPLOAD_ANCESTOR_EXISTS_SQL})))`;
 export type FieldFileResource={kind:'set'|'upload'|'link'|'attachment';id:string};
 function financeMarkers(kind:'payment'|'journal'){
  const type=kind==='payment'?'finance_payment':'finance_journal';
  const owned=(id:string)=>kind==='payment'?`erpx_finance_field_payment_owned(${id})`:`erpx_finance_field_journal_owned(${id},NULL)`;
  const serviceOwner=`(u.owner_type='${type}' AND ${owned('u.owner_id')})`,serviceSet=`(s.target_type='${type}' AND ${owned('s.target_id')})`,serviceAncestor=`(us.target_type='${type}' AND ${owned('us.target_id')})`,serviceSource=`(a.owner_type='${type}' AND ${owned('a.owner_id')})`;
- const serviceSetMarker=`(${serviceSet}${FIELD_SET_MARKER_EXISTS_HEAD_SQL}LEFT JOIN attachments a ON a.id=l.attachment_id WHERE l.set_id=s.id AND (${serviceOwner} OR ${serviceAncestor} OR ${serviceSource})) OR EXISTS(SELECT 1 FROM upload_intents u WHERE u.attachment_set_id=s.id AND ${serviceOwner}))`;
+ const serviceSetMarker=`(${serviceSet}${FIELD_SET_MARKER_EXISTS_HEAD_SQL}LEFT JOIN attachments a ON a.id=l.attachment_id WHERE l.set_id=s.id AND (${serviceOwner} OR ${serviceAncestor} OR ${serviceSource})) ${FIELD_SET_UPLOAD_EXISTS_HEAD_SQL}${serviceOwner}))`;
  return {serviceOwner,serviceSet,serviceAncestor,serviceSource,serviceSetMarker};
 }
 /** Finance policy supplies persisted Field ownership; it grants no file access.
@@ -66,7 +67,7 @@ export async function fieldFileWriterOwnerInDatabase(db:SqlDatabase,actor:Pick<W
  if(!resource.id||resource.id.includes("\u0000"))throw new ApiError(404,'ATTACHMENT_NOT_FOUND','File evidence not found.');
  const queries={
   set:`${FIELD_SET_OWNER_HEAD_SQL}${fieldSetMarker}) marker,${scopedByCompanySql('attachment_sets')}`,
-  upload:`${FIELD_UPLOAD_OWNER_HEAD_SQL}u.owner_type='field_service_visit' OR s.target_type='field_service_visit' OR EXISTS(SELECT 1 FROM attachments a WHERE a.upload_id=u.id AND erpx_files_field_attachment_owned(a.id)))) OR ${LINK_SET_WHERE_EXISTS_SQL}upload_intent_id=? AND s.target_type='field_service_visit') marker,${scopedByCompanySql('upload_intents')}`,
+  upload:`${FIELD_UPLOAD_OWNER_HEAD_SQL}u.owner_type='field_service_visit' OR s.target_type='field_service_visit' OR ${FIELD_UPLOAD_ANCESTOR_EXISTS_SQL})) OR ${LINK_SET_WHERE_EXISTS_SQL}upload_intent_id=? AND s.target_type='field_service_visit') marker,${scopedByCompanySql('upload_intents')}`,
   link:`${FIELD_LINK_EXISTS_SQL}WHERE l.id=? AND (s.target_type='field_service_visit' OR u.owner_type='field_service_visit' OR us.target_type='field_service_visit' OR erpx_files_field_attachment_owned(l.attachment_id))) marker,${scopedLinkSql}`,
   attachment:`${FIELD_ATTACHMENT_OWNED_HEAD_SQL} marker,${scopedByCompanySql('attachments')}`,
  } as const;
