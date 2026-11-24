@@ -10,6 +10,7 @@ import {tableRead} from './read-tail-r19';
 import {jsonbAggBy} from './read-tail-r21';
 import {billReceiptBinding} from './read-tail-r23';
 import {attachmentVersionWitness} from './read-tail-r28';
+import {lineSourceWitness} from './read-tail-r38';
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
 export async function lockSupplyProcurementPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){
@@ -45,13 +46,13 @@ ${attachmentVersionWitness(recordAttachmentVersionSteps,"r","procurement_rfq")}
   AND r.approved_by IS NOT NULL AND r.approved_by<>r.created_by AND r.approved_by IS DISTINCT FROM r.submitted_by AND r.approved_by<>offer.recorded_by)) pending
  FROM procurement_rfqs r,scope WHERE r.company_id=scope.company_id
  UNION ALL SELECT 'order',o.id,jsonb_build_array(to_jsonb(o),${jsonbAggBy(`(${commerce.lines})`,"line","order_id","o.id","line.id")})::text,o.state NOT IN ('fulfilled','cancelled')
- OR (o.state='fulfilled' AND (NOT EXISTS(SELECT 1 FROM (${commerce.lines}) line WHERE line.order_id=o.id) OR EXISTS(SELECT 1 FROM (${commerce.lines}) line WHERE line.order_id=o.id AND line.fulfilled_milli<>line.quantity_milli)))
+ OR (o.state='fulfilled' AND (NOT EXISTS${lineSourceWitness(commerce.lines,"order_id","o.id")} OR EXISTS(SELECT 1 FROM (${commerce.lines}) line WHERE line.order_id=o.id AND line.fulfilled_milli<>line.quantity_milli)))
  OR (o.state='cancelled' AND NOT EXISTS(SELECT 1 FROM command_receipts command WHERE command.record_id=o.id AND command.operation='commerce.order.cancel' AND command.authority_json::jsonb->>'companyId'=o.company_id AND command.result_json::jsonb->>'state'='cancelled')) FROM orders o
- UNION ALL SELECT 'receipt',receipt.id,jsonb_build_array(to_jsonb(receipt),${jsonbAggBy(`(${commerce.receiptLines})`,"line","fulfillment_id","receipt.id","line.id")})::text,receipt.invoice_id IS NULL OR NOT EXISTS(SELECT 1 FROM (${commerce.receiptLines}) line WHERE line.fulfillment_id=receipt.id)
+ UNION ALL SELECT 'receipt',receipt.id,jsonb_build_array(to_jsonb(receipt),${jsonbAggBy(`(${commerce.receiptLines})`,"line","fulfillment_id","receipt.id","line.id")})::text,receipt.invoice_id IS NULL OR NOT EXISTS${lineSourceWitness(commerce.receiptLines,"fulfillment_id","receipt.id")}
  FROM (${commerce.receipts}) receipt JOIN orders original ON original.id=receipt.order_id
  UNION ALL SELECT 'supplier-return',returned.id,jsonb_build_array(to_jsonb(returned),${jsonbAggBy(`(${commerce.returnLines})`,"line","return_id","returned.id","line.id")})::text,
  original.id IS NULL OR receipt.id IS NULL OR receipt.order_id IS DISTINCT FROM returned.order_id OR receipt.invoice_id IS DISTINCT FROM returned.invoice_id
- OR NOT EXISTS(SELECT 1 FROM (${commerce.returnLines}) line WHERE line.return_id=returned.id)
+ OR NOT EXISTS${lineSourceWitness(commerce.returnLines,"return_id","returned.id")}
  OR EXISTS(SELECT 1 FROM (${commerce.returnLines}) line LEFT JOIN (${commerce.receiptLines}) actual ON actual.id=line.fulfillment_line_id WHERE line.return_id=returned.id AND (actual.id IS NULL OR actual.fulfillment_id IS DISTINCT FROM returned.fulfillment_id))
  OR NOT EXISTS(SELECT 1 FROM command_receipts requested WHERE requested.record_id=returned.id AND requested.operation='commerce.return.request' AND requested.actor_id=returned.requested_by AND requested.authority_json::jsonb->>'companyId'=returned.company_id AND requested.result_json::jsonb->>'orderId'=returned.order_id)
  OR returned.status NOT IN ('rejected','posted') OR NOT EXISTS(SELECT 1 FROM command_receipts command WHERE command.record_id=returned.id
