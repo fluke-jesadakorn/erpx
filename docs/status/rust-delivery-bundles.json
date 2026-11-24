@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11142,
+    "revision": 11151,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -167573,17 +167573,33 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "60e935ccd",
+            "owner": "pos",
+            "before": 207,
+            "after": 199,
+            "note": "Eight keyed core-read kinds replace TS literals; row locks, PMS fragments, day-report and Stripe registries untouched."
+          },
+          {
+            "command": "cargo test -p erpx-server-pos --lib (56) + vitest pos (113) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "60e935ccd",
+            "note": "PG parity pos_core_reads_postgres not run in this slice."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
-        "nextAction": "Port settings, receipt, prepared day close and room charge reversal reads into core_keyed_reads; locks excluded. BEFORE=207.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released; PG parity pending",
         "handoff": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMpos7",
-          "at": "2026-11-24T10:09:57.716Z",
+          "runId": "run-20261124-b",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T10:13:31.005Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
-          "nextAction": "Port settings, receipt, prepared day close and room charge reversal reads into core_keyed_reads; locks excluded. BEFORE=207."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released; PG parity pending"
         },
         "scopeRefinementRequired": false
       },
@@ -167871,17 +167887,32 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-assets/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "7eab8c5f6",
+            "owner": "assets",
+            "before": 20,
+            "after": 15,
+            "note": "TS obligation fallback removed; native RD_OBLIGATIONS_BASE/PREVENTIVE/PARTS unconditional. Locks, guards and Maintenance settlement source retained. asset-maintenance harness now mocks native transport."
+          },
+          {
+            "command": "cargo check assets --tests (isolated) + vitest assets (50) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "7eab8c5f6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
-        "nextAction": "Remove TS fallback for assetPackageObligations; native plan already registered. BEFORE=20.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMast8",
-          "at": "2026-11-24T10:09:57.716Z",
+          "runId": "run-20261124-b",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T10:13:32.327Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
-          "nextAction": "Remove TS fallback for assetPackageObligations; native plan already registered. BEFORE=20."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -167907,17 +167938,32 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-marketing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "087b0cc33",
+            "owner": "marketing",
+            "before": 77,
+            "after": 66,
+            "note": "marketing-package-obligations native plan registered and TS statement deleted; LOCK TABLE, source assertion and CRM/Finance settlement sources retained."
+          },
+          {
+            "command": "cargo test marketing lib (18) + PG parity (4) + vitest (85) + tsc",
+            "result": "passed",
+            "sourceSha": "087b0cc33"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
-        "nextAction": "Add marketing-package-obligations plan and cut over the 11-token statement. BEFORE=77.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMmkt7",
-          "at": "2026-11-24T10:09:57.716Z",
+          "runId": "run-20261124-b",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T10:13:31.627Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
-          "nextAction": "Add marketing-package-obligations plan and cut over the 11-token statement. BEFORE=77."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -170872,7 +170918,7 @@
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T10:12:17.866Z",
+    "updatedAt": "2026-11-24T10:13:32.331Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
