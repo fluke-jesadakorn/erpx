@@ -5,7 +5,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
-import { BILLING_PLAN_NAME_LATERAL_SQL } from './billing-read-tail-r18-sql';
+import { billingEnrollmentSubscriptionSql } from './billing-read-tail-r33-sql';
 import { billingLegacySubscriptionSql } from './billing-read-tail-r32-sql';
 import { billingMetricCountSql } from './billing-read-tail-r27-sql';
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
@@ -15,11 +15,11 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     if (id === "active-subscriptions") {
         const label = breakdown === "status" ? "status" : breakdown === "plan" ? "plan" : "'Active subscriptions'", now = Date.now();
         sql = `WITH subscriptions AS (
-        SELECT e.id,COALESCE(p.name,e.plan_id) plan,CASE WHEN e.pending_end THEN 'ending' ELSE 'active' END status
-        FROM billing_enrollments e
-        ${BILLING_PLAN_NAME_LATERAL_SQL}
-        WHERE e.holding_id=? AND e.started_at<=? AND e.ended_at IS NULL
-          AND (e.pending_end=FALSE OR e.effective_at IS NULL OR e.effective_at>?)
+${billingEnrollmentSubscriptionSql(
+  "e.id,COALESCE(p.name,e.plan_id) plan,CASE WHEN e.pending_end THEN 'ending' ELSE 'active' END status",
+  '        FROM billing_enrollments e',
+  "e.holding_id=? AND e.started_at<=? AND e.ended_at IS NULL\n          AND (e.pending_end=FALSE OR e.effective_at IS NULL OR e.effective_at>?)",
+  '        ')}
         UNION ALL
 ${billingLegacySubscriptionSql("b.holding_id id,'Legacy subscription' plan,b.status", "        ")}
       ) ${billingMetricCountSql(label)}subscriptions GROUP BY 1 ORDER BY 1`;

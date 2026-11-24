@@ -28,10 +28,16 @@ describe('billing read-tail r18 cross-file LATERAL dedupe', () => {
         new URL(`../../../packages/server-billing/src/adapters/${file}`, import.meta.url),
         'utf8',
       );
-      expect(text.split("from './billing-read-tail-r18-sql'").length - 1).toBe(1);
-      expect(text.split('${BILLING_PLAN_NAME_LATERAL_SQL}').length - 1).toBe(1);
+      expect(text.split("from './billing-read-tail-r33-sql'").length - 1).toBe(1);
+      expect(text.split('billingEnrollmentSubscriptionSql(').length - 1).toBe(1);
       expect(text).not.toContain(LATERAL);
     }
+    const r33 = await readFile(
+      new URL('../../../packages/server-billing/src/adapters/billing-read-tail-r33-sql.ts', import.meta.url),
+      'utf8',
+    );
+    expect(r33.split("from './billing-read-tail-r18-sql'").length - 1).toBe(1);
+    expect(r33.split('${BILLING_PLAN_NAME_LATERAL_SQL}').length - 1).toBe(1);
   });
 
   it('keeps the fragment read-only and leaves advisory/FOR UPDATE reads untouched', async () => {

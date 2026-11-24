@@ -66,16 +66,16 @@ describe('billing read-tail r30 whole-account-projection dedupe', () => {
     expect(sha256(hospitalityOwnerProjectionSources.billing_accounts)).toBe(ORIGINALS[1].sha256);
   });
 
-  it('lowers the billing owner SELECT KPI from BEFORE=55 to 48', async () => {
+  it('lowers the billing owner SELECT KPI from BEFORE=55 to 42', async () => {
     let spaced = 0, bare = 0;
     for (const file of await tsFiles(srcRoot)) {
       const text = await readFile(file, 'utf8');
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(48);
-    expect(bare).toBe(48);
-    expect(spaced).toBeLessThan(53);
-    expect(bare).toBeLessThan(53);
+    expect(spaced).toBe(42);
+    expect(bare).toBe(42);
+    expect(spaced).toBeLessThan(48);
+    expect(bare).toBeLessThan(48);
   });
 });

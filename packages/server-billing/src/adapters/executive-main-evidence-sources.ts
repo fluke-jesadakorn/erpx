@@ -3,16 +3,15 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { runtimeEnv } from "../../../../packages/server-runtime/src/public/runtime";
 import { type CommercialSubscriptionRow, type OverdueInvoiceEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
-import { BILLING_PLAN_NAME_LATERAL_SQL } from './billing-read-tail-r18-sql';
+import { billingEnrollmentSubscriptionSql } from './billing-read-tail-r33-sql';
 import { billingLegacySubscriptionSql } from './billing-read-tail-r32-sql';
 function commercialSubscriptionSource() {
     return `WITH subscriptions AS (
-      SELECT 'enrollment'::text source_kind,e.id record_id,COALESCE(p.name,e.plan_id) plan_name,
-        CASE WHEN e.pending_end THEN 'ending' ELSE 'active' END status,e.started_at,
-        CASE WHEN e.pending_end THEN e.effective_at ELSE NULL END effective_at,a.version record_version
-      FROM billing_accounts a JOIN billing_enrollments e ON e.holding_id=a.holding_id
-      ${BILLING_PLAN_NAME_LATERAL_SQL}
-      WHERE a.holding_id=? AND e.started_at<=? AND e.ended_at IS NULL AND (e.pending_end=FALSE OR e.effective_at IS NULL OR e.effective_at>?)
+${billingEnrollmentSubscriptionSql(
+  "'enrollment'::text source_kind,e.id record_id,COALESCE(p.name,e.plan_id) plan_name,\n        CASE WHEN e.pending_end THEN 'ending' ELSE 'active' END status,e.started_at,\n        CASE WHEN e.pending_end THEN e.effective_at ELSE NULL END effective_at,a.version record_version",
+  '      FROM billing_accounts a JOIN billing_enrollments e ON e.holding_id=a.holding_id',
+  'a.holding_id=? AND e.started_at<=? AND e.ended_at IS NULL AND (e.pending_end=FALSE OR e.effective_at IS NULL OR e.effective_at>?)',
+  '      ')}
       UNION ALL
 ${billingLegacySubscriptionSql(
   "'legacy'::text source_kind,b.holding_id record_id,'Legacy subscription'::text plan_name,b.status,\n        NULL::bigint started_at,b.current_period_end effective_at,b.updated_at record_version",

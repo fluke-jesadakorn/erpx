@@ -66,11 +66,12 @@ describe('billing read-tail r27 metric count projection dedupe', () => {
     expect(text.split("import { billingMetricCountSql } from './billing-read-tail-r27-sql';").length - 1).toBe(1);
     expect(text.split('billingMetricCountSql(label)').length - 1).toBe(2);
     expect(text).not.toContain('SELECT ${label} label,count(*)::text value FROM ');
-    expect(text).toContain('${BILLING_PLAN_NAME_LATERAL_SQL}');
+    expect(text).toContain("from './billing-read-tail-r33-sql'");
+    expect(text).toContain('billingEnrollmentSubscriptionSql(');
     expect(text).toContain('values = [a.holdingId, now, now, a.holdingId, now];');
     expect(text).toContain('values = [a.holdingId, Date.parse(f.from), Date.parse(f.to) + 86400000, Date.now()];');
     // CTE row heads, the plan-name lateral, watermark and evidence SQL stay untouched.
-    expect(text.split('SELECT e.id,COALESCE(p.name,e.plan_id) plan').length - 1).toBe(1);
+    expect(text.split('e.id,COALESCE(p.name,e.plan_id) plan').length - 1).toBe(1);
     expect(text.split('billingLegacySubscriptionSql(').length - 1).toBe(1);
     expect(text).toContain("from './billing-read-tail-r32-sql'");
     expect(await src('executive-metric-watermarks.ts')).toContain('billingWatermarkRevisionSql as revision');
@@ -83,6 +84,6 @@ describe('billing read-tail r27 metric count projection dedupe', () => {
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(59);
-    expect(count).toBe(48); // r32 deduped the r15 account reads and the legacy subscription head.
+    expect(count).toBe(42); // r33 deduped the residual point reads and the enrollment subscription head.
   });
 });

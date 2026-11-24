@@ -133,9 +133,9 @@ describe('billing read-tail r32 dedupe', () => {
     }
     expect(jobs).toContain("from './billing-read-tail-r29-sql'");
     expect(jobs.split('BILLING_INVOICE_BY_ID_SQL').length - 1).toBe(3);
-    expect(jobs.split('billingPointReadSql(').length - 1).toBe(4);
-    expect(target.split('billingPointReadSql(').length - 1).toBe(2);
-    expect(billing.split('billingPointReadSql(').length - 1).toBe(3);
+    expect(jobs.split('billingPointReadSql(').length - 1).toBe(6);
+    expect(target.split('billingPointReadSql(').length - 1).toBe(3);
+    expect(billing.split('billingPointReadSql(').length - 1).toBe(5);
   });
 
   it('leaves FOR UPDATE, advisory and native owner reads untouched', async () => {
@@ -153,16 +153,16 @@ describe('billing read-tail r32 dedupe', () => {
     expect(await src('billing-read-tail-r25-sql.ts')).toContain('BILLING_ADVISORY_XACT_LOCK_SQL');
   });
 
-  it('lowers the billing owner SELECT KPI from BEFORE=53 to 48', async () => {
+  it('lowers the billing owner SELECT KPI from BEFORE=53 to 42', async () => {
     let spaced = 0, bare = 0;
     for (const file of await tsFiles(srcRoot)) {
       const text = await readFile(file, 'utf8');
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(48);
-    expect(bare).toBe(48);
-    expect(spaced).toBeLessThan(53);
-    expect(bare).toBeLessThan(53);
+    expect(spaced).toBe(42);
+    expect(bare).toBe(42);
+    expect(spaced).toBeLessThan(48);
+    expect(bare).toBeLessThan(48);
   });
 });

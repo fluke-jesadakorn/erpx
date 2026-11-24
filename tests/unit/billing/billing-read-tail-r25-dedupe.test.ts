@@ -48,6 +48,6 @@ describe('billing advisory lock text family dedupe', () => {
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(63);
-    expect(count).toBe(48); // r32 deduped the r15 account reads and the legacy subscription head.
+    expect(count).toBe(42); // r33 deduped the residual point reads and the enrollment subscription head.
   });
 });

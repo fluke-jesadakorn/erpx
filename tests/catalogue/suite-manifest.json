@@ -3268,6 +3268,33 @@
       "lane": "unit",
       "owner": "billing",
       "modules": [
+        "commercial"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Billing point-read residuals and enrollment head must stay canonical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-billing"
+      ],
+      "id": "billing.billing-read-tail-r33-dedupe.unit",
+      "files": [
+        "tests/unit/billing/billing-read-tail-r33-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "billing",
+      "modules": [
         "finance"
       ],
       "fixture": "none",
@@ -115741,6 +115768,33 @@
       "id": "support.read-tail-r34-ticket-portal-image-family.unit",
       "files": [
         "tests/unit/support/read-tail-r34-ticket-portal-image-family.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "support",
+      "modules": [
+        "support"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Support customer contact notes must use the native kind."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-support"
+      ],
+      "id": "support.read-tail-r35-customer-contact-notes-family.unit",
+      "files": [
+        "tests/unit/support/read-tail-r35-customer-contact-notes-family.test.ts"
       ],
       "framework": "vitest"
     },

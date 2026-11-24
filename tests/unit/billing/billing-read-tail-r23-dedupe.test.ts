@@ -35,7 +35,7 @@ describe('billing read-tail r23 parameterized family dedupe', () => {
       `"SELECT * FROM stripe_inbox WHERE state='pending' AND next_at<=$1 AND payload_json`,
       `"SELECT * FROM stripe_inbox WHERE state='pending' AND next_at<=$1 AND NOT EXISTS`,
     ]) expect(jobs).not.toContain(inline);
-    expect(jobs).toContain('billingPendingInboxSql("payload_json::jsonb');
+    expect(jobs).toContain('billingPendingInboxSql(`payload_json::jsonb');
     expect(jobs).toContain('billingPendingInboxSql("NOT EXISTS(');
   });
 
@@ -56,6 +56,6 @@ describe('billing read-tail r23 parameterized family dedupe', () => {
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(63);
-    expect(count).toBe(48); // r32 deduped the r15 account reads and the legacy subscription head.
+    expect(count).toBe(42); // r33 deduped the residual point reads and the enrollment subscription head.
   });
 });

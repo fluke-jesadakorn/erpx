@@ -25,8 +25,8 @@ measuredMeters:async(value0,value1)=>c.query<D.MeasuredMetersRow>(await billingU
       byte_milliseconds::text AS byte_milliseconds`,await nativeCommercialOwnerRead(COMMERCIAL_RD_USAGE_METER)),[value0,value1]),
 measuredSeatIntervals:async(value0,value1)=>c.query<D.MeasuredSeatIntervalsRow>(await billingSeatUsageSql('intervals_json,snapshot_id',await nativeCommercialOwnerRead(COMMERCIAL_RD_USAGE_SEAT),`
      WHERE holding_id=$1 AND month=$2`),[value0,value1]),
-assignment:(value0,value1)=>c.query<D.AssignedOfferingRow>(`SELECT * FROM billing_target_assignments WHERE holding_id=$1
-     AND effective_month<=$2 ORDER BY effective_month DESC LIMIT 1`,[value0,value1]),
+assignment:(value0,value1)=>c.query<D.AssignedOfferingRow>(billingPointReadSql('*','billing_target_assignments',`holding_id=$1
+     AND effective_month<=$2 ORDER BY effective_month DESC LIMIT 1`),[value0,value1]),
 assignedPrice:(value0,value1)=>nativeBillingOwnerQuery(c,'selected_target_price',[value0,value1]) as Promise<{rows:D.AssignedPriceRow[];rowCount:number|null}>,
 approvedRating:(value0,value1)=>c.query<D.ApprovedRatingRow>(billingTargetMonthSql('*','billing_target_rated_periods'," AND state='approved'"),[value0,value1]),
 approvedInvoice:(value0)=>c.query<D.ApprovedInvoiceRow>(billingPointReadSql('id,total_satang,status,stripe_id','billing_invoices','id=$1'),[value0]),
