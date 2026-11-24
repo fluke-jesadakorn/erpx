@@ -2,10 +2,12 @@ import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {workOperationsSettlementSources} from '@erpx/server-operations/public/work-package-obligation-sources';
 import {handoverTaskAccessSql} from '@erpx/server-operations/public/handover-policy';
+/** Byte-identical members projection shared by both source arms. */
+const membersJsonSql=`'members',(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM staff_project_members m WHERE m.project_id=p.id)`;
 /** Actual native source identity. An ordinary Task or missing Project never
  * becomes included Project work because a caller supplied its source label. */
-export const projectSocialPurchaseSources=`SELECT 'staff_project'::text source_kind,p.id source_id,p.company_id,p.id project_id,p.owner_user_id,jsonb_build_object('project',to_jsonb(p),'members',(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM staff_project_members m WHERE m.project_id=p.id))::text source_image
- FROM staff_projects p UNION ALL SELECT 'staff_task',t.id,t.company_id,p.id,p.owner_user_id,jsonb_build_object('task',to_jsonb(t),'project',to_jsonb(p),'members',(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM staff_project_members m WHERE m.project_id=p.id))::text
+export const projectSocialPurchaseSources=`SELECT 'staff_project'::text source_kind,p.id source_id,p.company_id,p.id project_id,p.owner_user_id,jsonb_build_object('project',to_jsonb(p),${membersJsonSql})::text source_image
+ FROM staff_projects p UNION ALL SELECT 'staff_task',t.id,t.company_id,p.id,p.owner_user_id,jsonb_build_object('task',to_jsonb(t),'project',to_jsonb(p),${membersJsonSql})::text
  FROM (${workOperationsSettlementSources.tasks}) t JOIN staff_projects p ON p.id=t.project_id AND p.company_id=t.company_id`;
 /** Fixed social source/viewer aliases preserve each original owner policy:
  * explicit Project membership, or the native Task participant categories. */
