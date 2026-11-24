@@ -12,6 +12,11 @@ import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/e
  * branch keeps its own duplicate literal. Text only: each caller still prepares
  * and binds its own independent statement. */
 export const planningBranchDisplayLabelSql = `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=s.branch_id AND n.company_id=s.company_id),'Branch')`;
+/** One fixed label/count projection prefix owned by Planning metric projections.
+ * Both the shortage and recommendation breakdowns compose this byte-identical
+ * fragment; the single literal lives here while each caller still prepares and
+ * binds its own independent statement with its own source, join and tail. */
+export const metricLabelCountProjection = (label: string) => `SELECT ${label} label,count(*)::text value FROM `;
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const source=await manufacturingMetricSource(sourceDb,a,id);
     const spec = specs[id];
@@ -21,7 +26,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         const label = breakdown === "status" ? "s.status"
             : breakdown === "branch" ? planningBranchDisplayLabelSql
                 : "substring(s.due_date,1,7)";
-        sql = `SELECT ${label} label,count(*)::text value FROM planning_scenarios s JOIN (${source.sql}) purchased_production ON purchased_production.id=s.id WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND s.due_date BETWEEN ? AND ? AND jsonb_path_exists(COALESCE(s.shortages_json::jsonb,'[]'::jsonb),'$[*] ? (@.shortageMilli > 0)') GROUP BY 1 ORDER BY 1`;
+        sql = `${metricLabelCountProjection(label)}planning_scenarios s JOIN (${source.sql}) purchased_production ON purchased_production.id=s.id WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND s.due_date BETWEEN ? AND ? AND jsonb_path_exists(COALESCE(s.shortages_json::jsonb,'[]'::jsonb),'$[*] ? (@.shortageMilli > 0)') GROUP BY 1 ORDER BY 1`;
         values = [a.companyId, a.branchId, a.branchId, f.from, f.to];
     }
     if (["proposed-planning-recommendations", "capacity-feasible-recommendations"].includes(id)) {
@@ -29,7 +34,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         const label = breakdown === "status" ? "r.status"
             : breakdown === "branch" ? planningBranchDisplayLabelSql
                 : "substring(r.feasible_date,1,7)";
-        sql = `SELECT ${label} label,count(*)::text value FROM planning_recommendations r JOIN planning_scenarios s ON s.id=r.scenario_id JOIN (${source.sql}) purchased_production ON purchased_production.id=s.id WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND ${feasible ? "r.status IN ('proposed','approved') AND r.required_minutes<=s.capacity_minutes" : "r.status='proposed'"} AND r.feasible_date BETWEEN ? AND ? GROUP BY 1 ORDER BY 1`;
+        sql = `${metricLabelCountProjection(label)}planning_recommendations r JOIN planning_scenarios s ON s.id=r.scenario_id JOIN (${source.sql}) purchased_production ON purchased_production.id=s.id WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND ${feasible ? "r.status IN ('proposed','approved') AND r.required_minutes<=s.capacity_minutes" : "r.status='proposed'"} AND r.feasible_date BETWEEN ? AND ? GROUP BY 1 ORDER BY 1`;
         values = [a.companyId, a.branchId, a.branchId, f.from, f.to];
     }
     values=[...source.args,...values];

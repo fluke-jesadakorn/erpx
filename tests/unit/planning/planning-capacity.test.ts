@@ -52,3 +52,24 @@ describe("planning metric branch-label dedupe", () => {
     for (const statement of labeled) expect(statement.match(/SELECT n\.display_name/g)).toHaveLength(1);
   });
 });
+
+describe("planning metric label/count projection dedupe", () => {
+  const source = (path: string) => resolve(process.cwd(), path);
+  it("one byte-identical SELECT label/count prefix serves both metric breakdowns", async () => {
+    const { metricLabelCountProjection, readExecutiveMetricProjection } = await import("@erpx/server-planning/adapters/executive-metric-projections");
+    expect(metricLabelCountProjection("s.status")).toBe("SELECT s.status label,count(*)::text value FROM ");
+    expect(metricLabelCountProjection("r.status")).toBe("SELECT r.status label,count(*)::text value FROM ");
+    const text = readFileSync(source("packages/server-planning/src/adapters/executive-metric-projections.ts"), "utf8");
+    expect(text.match(/SELECT \$\{label\} label,count\(\*\)::text value FROM /g) ?? []).toHaveLength(1);
+    const sql: string[] = [];
+    const db = { prepare(statement: string) { sql.push(statement); return { bind() { return { all: () => ({ results: [] }) }; } }; } };
+    const actor = { companyId: "company", branchId: "branch" } as never;
+    const filters = { from: "2026-01-01", to: "2026-01-31" } as never;
+    await readExecutiveMetricProjection(db as never, actor, "planning-shortage-scenarios", filters, "status");
+    await readExecutiveMetricProjection(db as never, actor, "proposed-planning-recommendations", filters, "status");
+    expect(sql).toHaveLength(2);
+    expect(sql[0].startsWith("SELECT s.status label,count(*)::text value FROM ")).toBe(true);
+    expect(sql[1].startsWith("SELECT r.status label,count(*)::text value FROM ")).toBe(true);
+    for (const statement of sql) expect(statement.match(/label,count\(\*\)::text value FROM/g)).toHaveLength(1);
+  });
+});
