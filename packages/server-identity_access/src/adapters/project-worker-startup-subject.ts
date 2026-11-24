@@ -2,12 +2,13 @@ import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {loadIamAuthority} from '@erpx/server-identity_access/adapters/iam-store';
 import {runtimeEnv} from '../../../../packages/server-runtime/src/public/runtime';
+const accountNameSql = 'SELECT id,name,email,"updatedAt" FROM "user" WHERE id=?';
 /** Explicit already-authorized Company account only. A name/email never
  * chooses a Person, creates an account or grants Company membership. */
 export async function projectWorkerStartupSubject(database:SqlDatabase,companyId:string,accountId:string){
  const members=(await database.prepare("SELECT a.* FROM assignments a WHERE a.company_id=? AND a.user_id=? AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) ORDER BY a.id").bind(companyId,accountId).all<Record<string,unknown>>()).results;
  if(!members.length)return null;
- const control=(await runtimeEnv()).CONTROL_DB,account=await control.prepare('SELECT id,name,email,"updatedAt" FROM "user" WHERE id=?').bind(accountId).first<{id:string;name:string;email:string;updatedAt:unknown}>();if(!account)return null;
+ const control=(await runtimeEnv()).CONTROL_DB,account=await control.prepare(accountNameSql).bind(accountId).first<{id:string;name:string;email:string;updatedAt:unknown}>();if(!account)return null;
  const linkage=(await database.prepare('SELECT * FROM iam_members WHERE company_id=? AND user_id=? ORDER BY user_id').bind(companyId,accountId).all()).results;
  return {active:true,personIds:linkage.flatMap(row=>typeof row.person_id==='string'?[row.person_id]:[]),id:account.id,name:account.name,email:account.email,image:JSON.stringify({account,members,linkage})};
 }
@@ -38,7 +39,7 @@ export const projectWorkerAppliedEvidence="SELECT id,company_id,actor_id,assignm
 /** Source-bound history label, never a current membership authorization. */
 export async function projectWorkerStartupRetainedSubject(database:SqlDatabase,companyId:string,accountId:string){
  const current=await projectWorkerStartupSubject(database,companyId,accountId);if(current)return current;
- const control=(await runtimeEnv()).CONTROL_DB,account=await control.prepare('SELECT id,name,email,"updatedAt" FROM "user" WHERE id=?').bind(accountId).first<{id:string;name:string;email:string;updatedAt:unknown}>();if(!account)return null;
+ const control=(await runtimeEnv()).CONTROL_DB,account=await control.prepare(accountNameSql).bind(accountId).first<{id:string;name:string;email:string;updatedAt:unknown}>();if(!account)return null;
  const assignments=(await database.prepare('SELECT * FROM assignments WHERE company_id=? AND user_id=? ORDER BY id').bind(companyId,accountId).all()).results;
  return {active:false,personIds:[] as string[],id:account.id,name:account.name,email:account.email,image:JSON.stringify({account,assignments})};
 }
