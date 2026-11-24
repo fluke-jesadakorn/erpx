@@ -83617,6 +83617,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "records",
+      "modules": [
+        "manage_erpx"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Records legal attachment child-row aggregate must stay one generator."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-records"
+      ],
+      "id": "records.read-tail-r24-dedupe.unit",
+      "files": [
+        "tests/unit/records/read-tail-r24-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "records.rust-employee-request-source-postgres.integration",
       "lane": "integration",
       "owner": "shared.records",

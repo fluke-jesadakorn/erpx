@@ -94,10 +94,11 @@ describe('Records read-tail r21 retirement check', () => {
     };
     walk(srcRoot);
     // r21 deduped the employee-request column reads (linked request + detail
-    // children) into one shared parameterized generator (30 -> 29); r23 also
-    // folds the bounded proposal drain into the request-AI projection generator
-    // (29 -> 28).
-    expect(total).toBe(28);
+    // children) into one shared parameterized generator (30 -> 29); r23 folds
+    // the bounded proposal drain into the request-AI projection generator
+    // (29 -> 28); r24 folds the request children aggregate into the approval
+    // child-row generator (28 -> 27).
+    expect(total).toBe(27);
     expect(total).toBeLessThan(30);
   });
 });
