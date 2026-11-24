@@ -2,6 +2,7 @@
 
 import { requireFinanceDocumentHistory } from "@erpx/server-finance/adapters/document-purchases";
 import { OPEN_PERIOD_LIST_SQL } from './finance-read-tail-r15-sql';
+import { BANK_TRANSACTION_STATEMENT_SQL } from './finance-read-tail-r34-sql';
 import { PERIOD_DATES_SQL } from './finance-read-tail-r18-sql';
 import { salesInvoiceLines } from "@erpx/server-finance/adapters/sales-lines";
 
@@ -205,7 +206,7 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
                 }>(write, { sql: transactionSql, args: transactionArgs, cursor: query.transactionCursor, descending: true, scope: [actor.companyId, 'bank-transactions', query?.chart ?? '', query?.view ?? '', query?.q ?? ''] }).then(page => ({ results: page.items, page })) :
                     write.prepare(`${transactionSql} ORDER BY t.transaction_date DESC,t.id`).bind(...transactionArgs).all<FinanceRow>().then(result => ({ ...result, page: null })),
                 !query || query.match ? write.prepare("SELECT p.* FROM finance_payments p JOIN finance_journals j ON j.id=p.journal_id WHERE p.company_id=? AND p.status IN ('released','settled') AND j.status='posted' AND NOT EXISTS(SELECT 1 FROM finance_bank_transactions t WHERE t.company_id=p.company_id AND t.matched_type='payment' AND t.matched_id=p.id AND t.match_status='matched') ORDER BY p.payment_date DESC").bind(actor.companyId).all<FinanceRow>() : { results: [] as FinanceRow[] },
-                query?.match ? write.prepare("SELECT t.*,s.bank_account,s.statement_number FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id AND s.company_id=t.company_id WHERE t.id=? AND t.company_id=?").bind(query.match, actor.companyId).first<FinanceRow>() : null,
+                query?.match ? write.prepare(BANK_TRANSACTION_STATEMENT_SQL).bind(query.match, actor.companyId).first<FinanceRow>() : null,
             ]);
             return { accounts: accounts.results, statements: statements.results, statementPage: statements.page, transactions: transactions.results, transactionPage: transactions.page, payments: payments.results, selectedTransaction };
         } });

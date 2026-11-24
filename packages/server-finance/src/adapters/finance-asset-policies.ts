@@ -1,5 +1,6 @@
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { ASSET_DEPRECIATION_COUNT_SQL, ASSET_POLICY_EDITION_PENDING_SQL, ASSET_POLICY_RUN_PENDING_SQL } from './finance-read-tail-r24-sql';
+import { OPEN_PERIOD_COVERED_SQL, OPEN_PERIOD_LIST_ASC_SQL } from './finance-read-tail-r34-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
 import { assetPolicyRunSchema } from '@erpx/server-finance/domain/due-inputs';
@@ -114,7 +115,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async openPeriod(periodId: string, companyId: string, entryDate: string, entryDate2: string) {
             const db = read();
             return db
-                .prepare("SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?")
+                .prepare(OPEN_PERIOD_COVERED_SQL)
                 .bind(periodId, companyId, entryDate, entryDate2)
                 .first();
         }, async runLegacyCount(id: string | number | null) {
@@ -195,7 +196,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async workspacePeriods(companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT id,name,start_date,end_date FROM finance_periods WHERE company_id=? AND state='open' ORDER BY start_date")
+                .prepare(OPEN_PERIOD_LIST_ASC_SQL)
                 .bind(companyId)
                 .all<Row>();
         }, async activeDisposalPolicy(assetId: string, companyId: string) {

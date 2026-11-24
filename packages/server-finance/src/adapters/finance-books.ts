@@ -3,6 +3,7 @@ import { JOURNAL_SELECT_PREFIX } from './finance-read-tail-r30-sql';
 import { withFinancePurchasedRead, withFinancePurchasedCommand, withFinanceConfigurationCommand } from "@erpx/server-finance/adapters/purchase-boundary";
 import { FINANCE_ADVISORY_XACT_LOCK_SQL } from "./advisory-lock-dedupe-sql";
 import { OPEN_PERIOD_LIST_SQL } from './finance-read-tail-r15-sql';
+import { ACTIVE_CHART_NAV_SQL } from './finance-read-tail-r34-sql';
 import { nativeFinanceBooks } from '@erpx/server-collaboration/adapters/native-finance-books';
 import {financeCommandReceipts} from "@erpx/server-workflow/public/finance-command-receipts";
 import { financeTransaction } from "@erpx/server-finance/public/finance-transactions";
@@ -168,7 +169,7 @@ function nativeBooks(provided?:SqlDatabase){let write:SqlDatabase;return createF
         .all(),
       write
         .prepare(
-          "SELECT id,name,base_currency FROM finance_charts WHERE company_id=? AND status='active' ORDER BY name",
+          ACTIVE_CHART_NAV_SQL,
         )
         .bind(actor.companyId)
         .all(),

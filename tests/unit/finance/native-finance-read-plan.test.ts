@@ -44,6 +44,13 @@ import { ACCOUNT_SELECT_PREFIX, INVOICE_EXISTS_PREFIX, JOURNAL_SELECT_PREFIX } f
 import { CONSOLIDATION_RUN_BY_ID_SQL, ISSUED_THAI_DOCUMENT_BY_ID_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r31-sql';
 import { ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r32-sql';
 import { PERIOD_BY_ID_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r33-sql';
+import {
+  OPEN_PERIOD_COVERED_SQL,
+  OPEN_PERIOD_LIST_ASC_SQL,
+  BANK_TRANSACTION_STATEMENT_SQL,
+  ACTIVE_CHART_NAV_SQL,
+  ACTIVE_ACCOUNT_CHART_ID_SQL,
+} from '../../../packages/server-finance/src/adapters/finance-read-tail-r34-sql';
 import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/people-payroll-final-owner-projections';
 import { workflowFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/workflow-final-owner-projections';
 import {
@@ -1027,7 +1034,7 @@ describe('finance read-tail r24 byte-identical SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2038);
-    expect(total).toBe(1981);
+    expect(total).toBe(1974);
   });
 });
 
@@ -1198,7 +1205,7 @@ describe('finance read-tail r30 byte-identical guard-prefix families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2027);
-    expect(total).toBe(1981);
+    expect(total).toBe(1974);
   });
 });
 
@@ -1242,7 +1249,7 @@ describe('finance read-tail r31 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1989);
-    expect(total).toBe(1981);
+    expect(total).toBe(1974);
   });
 });
 
@@ -1287,7 +1294,7 @@ describe('finance read-tail r32 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1985);
-    expect(total).toBe(1981);
+    expect(total).toBe(1974);
   });
 });
 
@@ -1332,6 +1339,81 @@ describe('finance read-tail r33 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1983);
-    expect(total).toBe(1981);
+    expect(total).toBe(1974);
+  });
+});
+
+describe('finance read-tail r34 byte-identical read families', () => {
+  // Five families, each byte-identical at two or three independent adapters.
+  // Distinct from every r15-r33 constant: the r16 EXISTS guard, the r15 DESC
+  // period list, the r17 bank-transaction-by-id read and the r18 chart-id read
+  // (without status) all stay inline/unchanged. Lock variants stay inline too.
+  const LITERALS = {
+    OPEN_PERIOD_COVERED_SQL: 'SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state=\'open\' AND start_date<=? AND end_date>=?',
+    OPEN_PERIOD_LIST_ASC_SQL: 'SELECT id,name,start_date,end_date FROM finance_periods WHERE company_id=? AND state=\'open\' ORDER BY start_date',
+    BANK_TRANSACTION_STATEMENT_SQL: 'SELECT t.*,s.bank_account,s.statement_number FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id AND s.company_id=t.company_id WHERE t.id=? AND t.company_id=?',
+    ACTIVE_CHART_NAV_SQL: 'SELECT id,name,base_currency FROM finance_charts WHERE company_id=? AND status=\'active\' ORDER BY name',
+    ACTIVE_ACCOUNT_CHART_ID_SQL: 'SELECT chart_id FROM finance_accounts WHERE id=? AND company_id=? AND status=\'active\'',
+  };
+  const CONSTANTS = {
+    OPEN_PERIOD_COVERED_SQL,
+    OPEN_PERIOD_LIST_ASC_SQL,
+    BANK_TRANSACTION_STATEMENT_SQL,
+    ACTIVE_CHART_NAV_SQL,
+    ACTIVE_ACCOUNT_CHART_ID_SQL,
+  };
+
+  it('exposes the exact literals with no row-lock text', () => {
+    for (const [name, value] of Object.entries(CONSTANTS)) expect(value).toBe(LITERALS[name as keyof typeof LITERALS]);
+    for (const value of Object.values(LITERALS)) expect(value).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+  });
+
+  it('removes every inline family literal from all twelve call sites', async () => {
+    const sites: Record<string, string[]> = {
+      OPEN_PERIOD_COVERED_SQL: ['finance-asset-policies.ts', 'finance-billing-corrections.ts', 'finance-business-contracts.ts'],
+      OPEN_PERIOD_LIST_ASC_SQL: ['finance-asset-policies.ts', 'refunds.ts', 'finance-instruments.ts'],
+      BANK_TRANSACTION_STATEMENT_SQL: ['finance-ai-source.ts', 'finance-invoice-read.ts'],
+      ACTIVE_CHART_NAV_SQL: ['payroll-owner-facts.ts', 'finance-books.ts'],
+      ACTIVE_ACCOUNT_CHART_ID_SQL: ['commerce-goods-accounting-facts.ts', 'finance-accruals.ts'],
+    };
+    for (const [name, files] of Object.entries(sites)) {
+      const literal = LITERALS[name as keyof typeof LITERALS];
+      for (const file of files) {
+        const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+        expect(text.split(`'${literal}'`).length - 1).toBe(0);
+        expect(text.split(`"${literal}"`).length - 1).toBe(0);
+        expect(text).toContain(name);
+      }
+    }
+  });
+
+  it('leaves r15-r33 helpers and retained lock variants untouched', async () => {
+    const r15 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r15-sql.ts', import.meta.url), 'utf8');
+    expect(r15).toContain('ORDER BY start_date DESC');
+    const r16 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r16-sql.ts', import.meta.url), 'utf8');
+    expect(r16).toContain('EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state=\'open\' AND start_date<=? AND end_date>=?)');
+    const r17 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r17-sql.ts', import.meta.url), 'utf8');
+    expect(r17).toContain('BANK_TRANSACTION_BY_ID_SQL');
+    const r18 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r18-sql.ts', import.meta.url), 'utf8');
+    expect(r18).toContain('SELECT chart_id FROM finance_accounts WHERE id=? AND company_id=?"');
+    const pms = await readFile(new URL('../../../packages/server-finance/src/adapters/pms-command-facts.ts', import.meta.url), 'utf8');
+    expect(pms).toContain('FOR SHARE');
+    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    expect(pos).toContain('FOR UPDATE');
+  });
+
+  it('retirement:ts-statements stays strictly below the r33 BEFORE=1981 baseline', () => {
+    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(1981);
+    expect(total).toBe(1974);
   });
 });

@@ -2,6 +2,7 @@ import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { INVOICE_EXISTS_PREFIX } from './finance-read-tail-r30-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
 import { OPEN_PERIOD_LIST_SQL, APPROVED_SECONDARY_CHART_RULE_SQL } from './finance-read-tail-r15-sql';
+import { OPEN_PERIOD_COVERED_SQL } from './finance-read-tail-r34-sql';
 import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
 import { recognitionRunSchema } from '@erpx/server-finance/domain/due-inputs';
 import { billingRevisionSchema } from '@erpx/server-finance/domain/business-billing-revision';
@@ -191,7 +192,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async openPeriod(periodId: unknown, companyId: string, entryDate: unknown, entryDate2: unknown) {
             const db = read();
             return db
-                .prepare("SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND start_date<=? AND end_date>=?")
+                .prepare(OPEN_PERIOD_COVERED_SQL)
                 .bind(periodId, companyId, entryDate, entryDate2)
                 .first();
         }, async recognitionExistsItem(billingRunId: unknown, itemKey: unknown) {

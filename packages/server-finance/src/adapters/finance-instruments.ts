@@ -1,5 +1,6 @@
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { APPROVED_SECONDARY_CHART_RULE_SQL } from './finance-read-tail-r15-sql';
+import { OPEN_PERIOD_LIST_ASC_SQL } from './finance-read-tail-r34-sql';
 import { nativeFinanceInstruments } from '@erpx/server-collaboration/adapters/native-finance-instruments';
 import "server-only";
 import type { z } from "zod";
@@ -229,7 +230,7 @@ function nativeInstruments(ownedTransaction?:SqlDatabase,readDatabase?:SqlDataba
       .all<Row>(),
     write
       .prepare(
-        "SELECT id,name,start_date,end_date FROM finance_periods WHERE company_id=? AND state='open' ORDER BY start_date",
+        OPEN_PERIOD_LIST_ASC_SQL,
       )
       .bind(actor.companyId)
       .all<Row>(),

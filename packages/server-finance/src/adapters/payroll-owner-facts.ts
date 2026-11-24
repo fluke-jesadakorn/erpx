@@ -4,11 +4,12 @@ import { ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL } from './finance-read-tail-r32-sq
 import { BANK_STATEMENT_VERSION_GUARD_SQL } from './finance-read-tail-r18-sql';
 import {financeSnapshotSources} from "@erpx/server-people_payroll/public/finance-snapshot-sources";
 import { OPEN_PERIOD_LIST_SQL } from './finance-read-tail-r15-sql';
+import { ACTIVE_CHART_NAV_SQL } from './finance-read-tail-r34-sql';
 import { financePayrollOwner } from '@erpx/server-collaboration/adapters/native-finance-payroll-owner';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 export function payrollFinanceFacts(database: SqlDatabase) {
-    return { readPayrollPostingOptionsChartsperiodsmappingsgroups(companyId: string) { return database.prepare("SELECT id,name,base_currency FROM finance_charts WHERE company_id=? AND status='active' ORDER BY name").bind(companyId).all(); },
+    return { readPayrollPostingOptionsChartsperiodsmappingsgroups(companyId: string) { return database.prepare(ACTIVE_CHART_NAV_SQL).bind(companyId).all(); },
         readPayrollPostingOptionsChartsperiodsmappingsgroups2(companyId: string) { return database.prepare(OPEN_PERIOD_LIST_SQL).bind(companyId).all(); },
         readPayrollPostingOptionsAccounts(companyId: string, chartIds: string[]) { return database.prepare(`SELECT id,chart_id,code,name,category,currency FROM finance_accounts WHERE company_id=? AND status='active' AND chart_id IN (${chartIds.map(() => "?").join(",")}) ORDER BY code`).bind(companyId, ...chartIds).all(); },
         readResolvePayrollPostPeriods(companyId: string, dateHint: string, dateHint2: string) {
