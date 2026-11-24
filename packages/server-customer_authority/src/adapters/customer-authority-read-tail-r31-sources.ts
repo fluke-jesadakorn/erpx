@@ -1,4 +1,5 @@
 import 'server-only';
+import {selectProjection} from './customer-authority-read-tail-r40-sources';
 
 /** One canonical Support-conclusion identity projection shared by the
  *  acknowledgement row and the closed-without-acknowledgement row of the
@@ -10,4 +11,4 @@ import 'server-only';
  *  r21-r30 builders, the control-plane lock statement, native-owned fact kinds
  *  and the manager-eligibility helpers stay untouched. */
 export const supportConclusionIdentity = (alias: string, outcome: string) =>
-  `SELECT ${alias}.request_id,${alias}.company_id,${alias}.id,${outcome}`;
+  selectProjection(`${alias}.request_id,${alias}.company_id,${alias}.id,${outcome}`);

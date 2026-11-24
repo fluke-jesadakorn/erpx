@@ -27,7 +27,7 @@ describe('Customer Authority read-tail r25 column/table projection family', () =
 
   test('one shared literal, no inline copies, and pinned caller arguments', () => {
     const shared = src('customer-authority-read-tail-r25-sources.ts');
-    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
+    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(0);
     expect(shared).toContain('export const ownerColumnProjection');
     expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
 

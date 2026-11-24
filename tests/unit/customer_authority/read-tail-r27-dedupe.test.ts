@@ -52,7 +52,7 @@ describe('Customer Authority read-tail r27 customer-access event evidence probe 
       ['package-obligation-sql.ts', 1, 'export const latestSupportVersion'],
       ['customer-authority-read-tail-r23-sources.ts', 1, 'export const jsonbImageProjection'],
       ['customer-authority-read-tail-r24-sources.ts', 1, 'export const bindingFactProjection'],
-      ['customer-authority-read-tail-r25-sources.ts', 1, 'export const ownerColumnProjection'],
+      ['customer-authority-read-tail-r25-sources.ts', 0, 'export const ownerColumnProjection'],
       ['customer-authority-read-tail-r26-sources.ts', 1, 'export const accessBindingOrderProjection'],
     ];
     for (const [name, count, symbol] of counts) {

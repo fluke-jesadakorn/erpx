@@ -319,7 +319,7 @@ describe('customer authority portal release gate dedupe', () => {
     expect(src).toContain("releaseGateRead(predicate(),gateSource,'')");
     const builder = await readFile(shared(), 'utf8');
     expect(builder).toContain('export const releaseGateRead');
-    expect(builder.match(/\bSELECT\b/g)).toHaveLength(1);
+    expect(builder.match(/\bSELECT\b/g)).toHaveLength(0);
   });
 });
 

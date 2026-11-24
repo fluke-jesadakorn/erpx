@@ -24,7 +24,7 @@ describe('Customer Authority read-tail r35 scalar projection family', () => {
 
   test('one shared scaffold, two pinned callers and intact locks/kinds/eligibility', () => {
     const shared = src('customer-authority-read-tail-r35-sources.ts');
-    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
+    expect(shared.match(/\bSELECT\b/g) ?? []).toHaveLength(0);
     expect(shared).toContain('export const scalarProjection');
     expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
 
@@ -55,16 +55,16 @@ describe('Customer Authority read-tail r35 scalar projection family', () => {
       ['package-obligation-sql.ts', 1, 'export const latestSupportVersion'],
       ['customer-authority-read-tail-r23-sources.ts', 1, 'export const jsonbImageProjection'],
       ['customer-authority-read-tail-r24-sources.ts', 1, 'export const bindingFactProjection'],
-      ['customer-authority-read-tail-r25-sources.ts', 1, 'export const ownerColumnProjection'],
+      ['customer-authority-read-tail-r25-sources.ts', 0, 'export const ownerColumnProjection'],
       ['customer-authority-read-tail-r26-sources.ts', 1, 'export const accessBindingOrderProjection'],
       ['customer-authority-read-tail-r27-sources.ts', 0, 'export const accessEventEvidenceProbe'],
-      ['customer-authority-read-tail-r28-sources.ts', 1, 'export const releaseGateRead'],
+      ['customer-authority-read-tail-r28-sources.ts', 0, 'export const releaseGateRead'],
       ['customer-authority-read-tail-r29-sources.ts', 1, 'export const reviewEligibilityRows'],
       ['customer-authority-read-tail-r30-sources.ts', 0, 'export const existenceProbe'],
-      ['customer-authority-read-tail-r31-sources.ts', 1, 'export const supportConclusionIdentity'],
+      ['customer-authority-read-tail-r31-sources.ts', 0, 'export const supportConclusionIdentity'],
       ['customer-authority-read-tail-r32-sources.ts', 0, 'export const factExistenceWitness'],
       ['customer-authority-read-tail-r33-sources.ts', 1, 'export const companyScopeSelect'],
-      ['customer-authority-read-tail-r34-sources.ts', 1, 'export const bindingCommerceOrderSource'],
+      ['customer-authority-read-tail-r34-sources.ts', 0, 'export const bindingCommerceOrderSource'],
       ['portal-binding-source.ts', 1, 'export const portalBindingSource'],
       ['portal-purchase-binding-source.ts', 1, 'export const portalPurchaseBindingSource'],
     ];
@@ -89,6 +89,6 @@ describe('Customer Authority read-tail r35 scalar projection family', () => {
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(43);
     // r39 further reduced the tail (39 -> 34); keep the current exact pin.
-    expect(total).toBe(34);
+    expect(total).toBe(28);
   });
 });

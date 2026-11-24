@@ -1,3 +1,5 @@
+import {selectProjection} from './customer-authority-read-tail-r40-sources';
+
 /** One canonical column/table-parameterized closed owner read projection shared
  *  by the Customer Authority last-audit bindings and identities sources (G4
  *  read-tail r25). The builder owns the single projection literal and renders both
@@ -9,4 +11,4 @@
  *  pure read: no writes, no row/table locks and no advisory locks. The r21-r24
  *  builders, source locks and native fact kinds stay untouched. */
 export const ownerColumnProjection = (columns: string, table: string) =>
-  `SELECT ${columns} FROM ${table}`;
+  `${selectProjection(columns)} FROM ${table}`;

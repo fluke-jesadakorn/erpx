@@ -1,3 +1,5 @@
+import {selectProjection} from './customer-authority-read-tail-r40-sources';
+
 /** One canonical release-gate read template shared by the Customer Authority
  *  portal release-gate aliased read and its wrapped command-assertion form
  *  (G4 read-tail r28). The Company/feature predicate, the closed scalar
@@ -8,4 +10,4 @@
  *  locks and no advisory locks. The r21-r27 builders, the gate source lock text
  *  and all native-owned statement kinds stay untouched. */
 export const releaseGateRead = (predicate: string, source: string, tail: string) =>
-  `SELECT ${predicate}${tail} FROM ${source}`;
+  `${selectProjection(`${predicate}${tail}`)} FROM ${source}`;

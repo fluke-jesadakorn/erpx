@@ -1,4 +1,5 @@
 import 'server-only';
+import {selectProjection} from './customer-authority-read-tail-r40-sources';
 /** One canonical scalar-projection scaffold shared by
  *  the remaining inline witness reads (G4 read-tail r35). The caller owns both
  *  the scalar value and its result alias, so every rendered statement keeps its
@@ -7,4 +8,4 @@ import 'server-only';
  *  portal-access row reader, control-plane locks, native kinds and
  *  eligibility helpers stay untouched. */
 export const scalarProjection = (value: string, alias: string) =>
-  `SELECT ${value} ${alias}`;
+  selectProjection(`${value} ${alias}`);

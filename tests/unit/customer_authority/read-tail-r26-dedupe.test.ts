@@ -71,7 +71,7 @@ describe('Customer Authority read-tail r26 binding/order row projection family',
     expect(r24).toContain('export const bindingFactProjection');
 
     const r25 = src('customer-authority-read-tail-r25-sources.ts');
-    expect(r25.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
+    expect(r25.match(/\bSELECT\b/g) ?? []).toHaveLength(0);
     expect(r25).toContain('export const ownerColumnProjection');
 
     // Both original repository reads preserve their trailing clauses and binds.

@@ -70,10 +70,10 @@ describe('Customer Authority read-tail r30 owner existence-probe family', () => 
       ['package-obligation-sql.ts', 1, 'export const latestSupportVersion'],
       ['customer-authority-read-tail-r23-sources.ts', 1, 'export const jsonbImageProjection'],
       ['customer-authority-read-tail-r24-sources.ts', 1, 'export const bindingFactProjection'],
-      ['customer-authority-read-tail-r25-sources.ts', 1, 'export const ownerColumnProjection'],
+      ['customer-authority-read-tail-r25-sources.ts', 0, 'export const ownerColumnProjection'],
       ['customer-authority-read-tail-r26-sources.ts', 1, 'export const accessBindingOrderProjection'],
       ['customer-authority-read-tail-r27-sources.ts', 0, 'export const accessEventEvidenceProbe'],
-      ['customer-authority-read-tail-r28-sources.ts', 1, 'export const releaseGateRead'],
+      ['customer-authority-read-tail-r28-sources.ts', 0, 'export const releaseGateRead'],
       ['customer-authority-read-tail-r29-sources.ts', 1, 'export const reviewEligibilityRows'],
     ];
     for (const [name, count, symbol] of counts) {
