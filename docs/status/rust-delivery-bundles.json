@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11607,
+    "revision": 11642,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261124-c",
       "agentId": "lead-opencode",
       "startedAt": "2026-11-24T11:32:49.939Z",
-      "heartbeatAt": "2026-11-24T11:35:24.545Z",
-      "expiresAt": "2026-11-24T12:05:24.545Z",
+      "heartbeatAt": "2026-11-24T11:37:13.004Z",
+      "expiresAt": "2026-11-24T12:07:13.004Z",
       "generation": 169,
       "tokenHash": "eac3f45906eed752625f2bb4dc251a340a6a580a6b89a15f666d16287f0d616e"
     },
@@ -173376,7 +173376,7 @@
         "owner": "records",
         "title": "records TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -173388,28 +173388,36 @@
         "resources": [
           "owner:records"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a01",
-          "claimedAt": "2026-11-24T11:32:50.109Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-records/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b14d632b9",
+            "owner": "records",
+            "before": 27,
+            "after": 26,
+            "note": "Projection source guard shared by task grant and PMS guard; locks untouched."
+          },
+          {
+            "command": "vitest records r16-r25 (40)",
+            "result": "passed",
+            "sourceSha": "b14d632b9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=27.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a01",
-          "at": "2026-11-24T11:32:49.939Z",
+          "at": "2026-11-24T11:41:55.524Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=27."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -173419,7 +173427,7 @@
         "owner": "inventory",
         "title": "inventory TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -173431,28 +173439,36 @@
         "resources": [
           "owner:inventory"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a02",
-          "claimedAt": "2026-11-24T11:32:50.271Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b14d632b9",
+            "owner": "inventory",
+            "before": 338,
+            "after": 334,
+            "note": "Clock CTE envelope shared by five readers; locks/count sources/native untouched."
+          },
+          {
+            "command": "vitest inventory r34-r41 + r41 (160)",
+            "result": "passed",
+            "sourceSha": "b14d632b9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=338.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a02",
-          "at": "2026-11-24T11:32:49.939Z",
+          "at": "2026-11-24T11:41:53.363Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=338."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -173462,7 +173478,7 @@
         "owner": "ecommerce",
         "title": "ecommerce TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -173474,28 +173490,36 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a03",
-          "claimedAt": "2026-11-24T11:32:50.447Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-ecommerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b14d632b9",
+            "owner": "ecommerce",
+            "before": 47,
+            "after": 42,
+            "note": "Tier A guards reuse ecommerceExistsGuard and receiptAuditGuard; locks/r1-r18 untouched."
+          },
+          {
+            "command": "vitest ecommerce (91)",
+            "result": "passed",
+            "sourceSha": "b14d632b9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=47.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a03",
-          "at": "2026-11-24T11:32:49.939Z",
+          "at": "2026-11-24T11:41:50.999Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=47."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -173505,7 +173529,7 @@
         "owner": "learning",
         "title": "learning TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -173517,28 +173541,36 @@
         "resources": [
           "owner:learning"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a04",
-          "claimedAt": "2026-11-24T11:32:50.606Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-learning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b14d632b9",
+            "owner": "learning",
+            "before": 57,
+            "after": 52,
+            "note": "Obligation fact head and workspace image frame reuse; 7 locks/native untouched."
+          },
+          {
+            "command": "vitest learning r7-r14 (160)",
+            "result": "passed",
+            "sourceSha": "b14d632b9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=57.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a04",
-          "at": "2026-11-24T11:32:49.939Z",
+          "at": "2026-11-24T11:41:54.329Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=57."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -173564,8 +173596,8 @@
           "runId": "run-20261124-c",
           "agentId": "wF4a05",
           "claimedAt": "2026-11-24T11:32:50.761Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
+          "heartbeatAt": "2026-11-24T11:37:13.004Z",
+          "expiresAt": "2026-11-24T12:07:13.004Z",
           "generation": 169
         },
         "baseSha": null,
@@ -173642,7 +173674,7 @@
         "owner": "billing",
         "title": "billing TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -173654,28 +173686,36 @@
         "resources": [
           "owner:billing"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a07",
-          "claimedAt": "2026-11-24T11:32:51.117Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-billing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b14d632b9",
+            "owner": "billing",
+            "before": 60,
+            "after": 59,
+            "note": "Metric count projection head shared by subscription and invoice metrics; locks untouched."
+          },
+          {
+            "command": "vitest billing r27 (4) + billing unit (145)",
+            "result": "passed",
+            "sourceSha": "b14d632b9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=60.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a07",
-          "at": "2026-11-24T11:32:49.939Z",
+          "at": "2026-11-24T11:41:51.371Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=60."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -173701,8 +173741,8 @@
           "runId": "run-20261124-c",
           "agentId": "wF4a08",
           "claimedAt": "2026-11-24T11:32:51.279Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
+          "heartbeatAt": "2026-11-24T11:37:13.004Z",
+          "expiresAt": "2026-11-24T12:07:13.004Z",
           "generation": 169
         },
         "baseSha": null,
@@ -173744,8 +173784,8 @@
           "runId": "run-20261124-c",
           "agentId": "wF4a09",
           "claimedAt": "2026-11-24T11:32:51.459Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
+          "heartbeatAt": "2026-11-24T11:37:13.004Z",
+          "expiresAt": "2026-11-24T12:07:13.004Z",
           "generation": 169
         },
         "baseSha": null,
@@ -173822,7 +173862,7 @@
         "owner": "manufacturing",
         "title": "manufacturing TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -173834,28 +173874,21 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a10",
-          "claimedAt": "2026-11-24T11:32:51.626Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=52.",
+        "blocker": "handoff",
+        "nextAction": "Blocked with AST evidence; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a10",
-          "at": "2026-11-24T11:32:49.939Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=52."
+          "at": "2026-11-24T11:41:55.821Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with AST evidence; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -173881,8 +173914,8 @@
           "runId": "run-20261124-c",
           "agentId": "wF4a11",
           "claimedAt": "2026-11-24T11:32:51.828Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
+          "heartbeatAt": "2026-11-24T11:37:13.004Z",
+          "expiresAt": "2026-11-24T12:07:13.004Z",
           "generation": 169
         },
         "baseSha": null,
@@ -173924,8 +173957,8 @@
           "runId": "run-20261124-c",
           "agentId": "wF4a12",
           "claimedAt": "2026-11-24T11:32:52.007Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
+          "heartbeatAt": "2026-11-24T11:37:13.004Z",
+          "expiresAt": "2026-11-24T12:07:13.004Z",
           "generation": 169
         },
         "baseSha": null,
@@ -173951,7 +173984,7 @@
         "owner": "work_projection",
         "title": "work_projection TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -173963,28 +173996,36 @@
         "resources": [
           "owner:work_projection"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a13",
-          "claimedAt": "2026-11-24T11:32:52.171Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-work_projection/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b14d632b9",
+            "owner": "work_projection",
+            "before": 52,
+            "after": 50,
+            "note": "Derived scope row shared by actor and calendar release probes; locks untouched."
+          },
+          {
+            "command": "vitest work_projection (69)",
+            "result": "passed",
+            "sourceSha": "b14d632b9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=52.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a13",
-          "at": "2026-11-24T11:32:49.939Z",
+          "at": "2026-11-24T11:41:54.948Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=52."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -173994,7 +174035,7 @@
         "owner": "marketing",
         "title": "marketing module membership probe dedupe",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -174006,28 +174047,36 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a14",
-          "claimedAt": "2026-11-24T11:32:52.330Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-marketing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b14d632b9",
+            "owner": "marketing",
+            "before": 65,
+            "after": 64,
+            "note": "EXISTS/ALLOWED share one closed modules_json predicate; locks/native untouched."
+          },
+          {
+            "command": "vitest marketing r37 (5+31)",
+            "result": "passed",
+            "sourceSha": "b14d632b9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Unify module-membership EXISTS/ALLOWED pair in module-membership.ts and purchases.ts:42 with a closed variant renderer. BEFORE=65.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a14",
-          "at": "2026-11-24T11:32:49.939Z",
+          "at": "2026-11-24T11:41:53.019Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Unify module-membership EXISTS/ALLOWED pair in module-membership.ts and purchases.ts:42 with a closed variant renderer. BEFORE=65."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -174037,7 +174086,7 @@
         "owner": "projects",
         "title": "projects TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -174049,28 +174098,36 @@
         "resources": [
           "owner:projects"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a15",
-          "claimedAt": "2026-11-24T11:32:52.493Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-projects/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b14d632b9",
+            "owner": "projects",
+            "before": 112,
+            "after": 110,
+            "note": "Receipt proof arms and owner-or-member column reuse; locks/spaced JOINs untouched."
+          },
+          {
+            "command": "vitest projects r25-r31 (43)",
+            "result": "passed",
+            "sourceSha": "b14d632b9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=112.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a15",
-          "at": "2026-11-24T11:32:49.939Z",
+          "at": "2026-11-24T11:41:51.698Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=112."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -174096,8 +174153,8 @@
           "runId": "run-20261124-c",
           "agentId": "wF4a16",
           "claimedAt": "2026-11-24T11:32:52.653Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
+          "heartbeatAt": "2026-11-24T11:37:13.004Z",
+          "expiresAt": "2026-11-24T12:07:13.004Z",
           "generation": 169
         },
         "baseSha": null,
@@ -174123,7 +174180,7 @@
         "owner": "agent",
         "title": "agent TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -174135,28 +174192,21 @@
         "resources": [
           "owner:agent"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a17",
-          "claimedAt": "2026-11-24T11:32:52.815Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=53.",
+        "blocker": "handoff",
+        "nextAction": "Blocked with AST evidence; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a17",
-          "at": "2026-11-24T11:32:49.939Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=53."
+          "at": "2026-11-24T11:41:56.137Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with AST evidence; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -174182,8 +174232,8 @@
           "runId": "run-20261124-c",
           "agentId": "wF4a18",
           "claimedAt": "2026-11-24T11:32:52.978Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
+          "heartbeatAt": "2026-11-24T11:37:13.004Z",
+          "expiresAt": "2026-11-24T12:07:13.004Z",
           "generation": 169
         },
         "baseSha": null,
@@ -174225,8 +174275,8 @@
           "runId": "run-20261124-c",
           "agentId": "wF4a19",
           "claimedAt": "2026-11-24T11:32:53.163Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
+          "heartbeatAt": "2026-11-24T11:37:13.004Z",
+          "expiresAt": "2026-11-24T12:07:13.004Z",
           "generation": 169
         },
         "baseSha": null,
@@ -174288,7 +174338,7 @@
         "owner": "crm",
         "title": "crm TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -174300,28 +174350,36 @@
         "resources": [
           "owner:crm"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a21",
-          "claimedAt": "2026-11-24T11:32:53.535Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-crm/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b14d632b9",
+            "owner": "crm",
+            "before": 119,
+            "after": 116,
+            "note": "Owned source row head shared by four readers; locks/receipts/native kinds untouched."
+          },
+          {
+            "command": "vitest crm r34 (8)",
+            "result": "passed",
+            "sourceSha": "b14d632b9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=119.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a21",
-          "at": "2026-11-24T11:32:49.939Z",
+          "at": "2026-11-24T11:41:53.686Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=119."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -174331,7 +174389,7 @@
         "owner": "collaboration",
         "title": "collaboration TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -174343,28 +174401,36 @@
         "resources": [
           "owner:collaboration"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a22",
-          "claimedAt": "2026-11-24T11:32:53.771Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b14d632b9",
+            "owner": "collaboration",
+            "before": 390,
+            "after": 389,
+            "note": "Messaging team access guard shared by id and list readers; locks/notifications untouched."
+          },
+          {
+            "command": "vitest collaboration r30/r31 (66)",
+            "result": "passed",
+            "sourceSha": "b14d632b9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=390.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a22",
-          "at": "2026-11-24T11:32:49.939Z",
+          "at": "2026-11-24T11:41:52.027Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=390."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -174374,7 +174440,7 @@
         "owner": "files",
         "title": "files TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -174386,28 +174452,36 @@
         "resources": [
           "owner:files"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a23",
-          "claimedAt": "2026-11-24T11:32:53.936Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b14d632b9",
+            "owner": "files",
+            "before": 262,
+            "after": 260,
+            "note": "Field upload owner head shared by finance and field preflights; advisory locks/native writes untouched."
+          },
+          {
+            "command": "vitest files r33-r35 (66)",
+            "result": "passed",
+            "sourceSha": "b14d632b9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=262.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a23",
-          "at": "2026-11-24T11:32:49.939Z",
+          "at": "2026-11-24T11:41:52.698Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=262."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -174417,7 +174491,7 @@
         "owner": "maintenance",
         "title": "maintenance TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -174429,28 +174503,36 @@
         "resources": [
           "owner:maintenance"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a24",
-          "claimedAt": "2026-11-24T11:32:54.103Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-maintenance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b14d632b9",
+            "owner": "maintenance",
+            "before": 25,
+            "after": 24,
+            "note": "Work assets NOT EXISTS reuses existsGuardPrefix via notExistsGuardPrefix; locks untouched."
+          },
+          {
+            "command": "vitest maintenance (45)",
+            "result": "passed",
+            "sourceSha": "b14d632b9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=25.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a24",
-          "at": "2026-11-24T11:32:49.939Z",
+          "at": "2026-11-24T11:41:52.349Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=25."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -174460,7 +174542,7 @@
         "owner": "planning",
         "title": "planning TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -174472,28 +174554,36 @@
         "resources": [
           "owner:planning"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a25",
-          "claimedAt": "2026-11-24T11:32:54.271Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-planning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b14d632b9",
+            "owner": "planning",
+            "before": 21,
+            "after": 20,
+            "note": "Select-columns-from head shared by calendar and comparison sources; locks/native untouched."
+          },
+          {
+            "command": "vitest planning r5-r18 (76)",
+            "result": "passed",
+            "sourceSha": "b14d632b9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=21.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a25",
-          "at": "2026-11-24T11:32:49.939Z",
+          "at": "2026-11-24T11:41:55.233Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=21."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -174503,7 +174593,7 @@
         "owner": "procurement",
         "title": "procurement TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -174515,28 +174605,36 @@
         "resources": [
           "owner:procurement"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a26",
-          "claimedAt": "2026-11-24T11:32:54.448Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-procurement/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b14d632b9",
+            "owner": "procurement",
+            "before": 111,
+            "after": 109,
+            "note": "Line source witness shared by order/receipt/return arms; receipts/locks untouched."
+          },
+          {
+            "command": "vitest procurement r38+native (25)",
+            "result": "passed",
+            "sourceSha": "b14d632b9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=111.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a26",
-          "at": "2026-11-24T11:32:49.939Z",
+          "at": "2026-11-24T11:41:54.649Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=111."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -174546,7 +174644,7 @@
         "owner": "assets",
         "title": "assets TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -174558,28 +174656,36 @@
         "resources": [
           "owner:assets"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a27",
-          "claimedAt": "2026-11-24T11:32:54.610Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-assets/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b14d632b9",
+            "owner": "assets",
+            "before": 14,
+            "after": 13,
+            "note": "All-rows head delegates to projection-from head; locks/native untouched."
+          },
+          {
+            "command": "vitest assets (56)",
+            "result": "passed",
+            "sourceSha": "b14d632b9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=14.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a27",
-          "at": "2026-11-24T11:32:49.939Z",
+          "at": "2026-11-24T11:41:54.008Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=14."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -174605,8 +174711,8 @@
           "runId": "run-20261124-c",
           "agentId": "wF4a28",
           "claimedAt": "2026-11-24T11:32:54.771Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
+          "heartbeatAt": "2026-11-24T11:37:13.004Z",
+          "expiresAt": "2026-11-24T12:07:13.004Z",
           "generation": 169
         },
         "baseSha": null,
@@ -174648,8 +174754,8 @@
           "runId": "run-20261124-c",
           "agentId": "wF4a29",
           "claimedAt": "2026-11-24T11:32:54.930Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
+          "heartbeatAt": "2026-11-24T11:37:13.004Z",
+          "expiresAt": "2026-11-24T12:07:13.004Z",
           "generation": 169
         },
         "baseSha": null,
@@ -174691,8 +174797,8 @@
           "runId": "run-20261124-c",
           "agentId": "wF4a30",
           "claimedAt": "2026-11-24T11:32:55.116Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
+          "heartbeatAt": "2026-11-24T11:37:13.004Z",
+          "expiresAt": "2026-11-24T12:07:13.004Z",
           "generation": 169
         },
         "baseSha": null,
@@ -174734,8 +174840,8 @@
           "runId": "run-20261124-c",
           "agentId": "wF4a31",
           "claimedAt": "2026-11-24T11:32:55.278Z",
-          "heartbeatAt": "2026-11-24T11:35:24.545Z",
-          "expiresAt": "2026-11-24T12:05:24.545Z",
+          "heartbeatAt": "2026-11-24T11:37:13.004Z",
+          "expiresAt": "2026-11-24T12:07:13.004Z",
           "generation": 169
         },
         "baseSha": null,
@@ -174766,17 +174872,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 29,
+        "in_progress": 12,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1239,
+        "blocked": 1256,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T11:37:09.452Z",
+    "updatedAt": "2026-11-24T11:41:56.141Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
