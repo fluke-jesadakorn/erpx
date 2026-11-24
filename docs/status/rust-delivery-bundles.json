@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9711,
+    "revision": 9713,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -153895,7 +153895,7 @@
         "owner": "quality",
         "title": "quality TS read tail native cutover (r13)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -153907,22 +153907,37 @@
         "resources": [
           "owner:quality"
         ],
-        "claim": {
-          "runId": "run-20261123-k",
-          "agentId": "wGCMqua",
-          "claimedAt": "2026-11-24T05:36:45.049Z",
-          "heartbeatAt": "2026-11-24T05:36:45.049Z",
-          "expiresAt": "2026-11-24T06:06:45.049Z",
-          "generation": 163
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-quality/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "581ebbc10",
+            "owner": "quality",
+            "before": 94,
+            "after": 90,
+            "note": "Five inventory quality id existence probes share qualitySourceIdExistsSql; r10-r12 and locks untouched."
+          },
+          {
+            "command": "vitest quality r13 + 3 suites (33) + tsc quality",
+            "result": "passed",
+            "sourceSha": "581ebbc10"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=94.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCMqua",
+          "at": "2026-11-24T05:48:52.930Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -154977,17 +154992,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 25,
+        "in_progress": 24,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 850,
+        "blocked": 851,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 163,
-    "updatedAt": "2026-11-24T05:48:32.861Z",
+    "updatedAt": "2026-11-24T05:48:52.940Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
