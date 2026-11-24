@@ -13,7 +13,9 @@ import {
   PEOPLE_PAYROLL_RD_ATTACHMENT_MIGRATION_PAYMENT_EXPORTS,
   PEOPLE_PAYROLL_RD_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS,
   PEOPLE_PAYROLL_RD_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID,
+  PEOPLE_PAYROLL_RD_LEAVE_LEGACY_EMPLOYEE,
 } from '../../../packages/server-people_payroll/src/adapters/native-people-payroll-read';
+import { leaveLegacyEmployeeFacts } from '../../../packages/server-people_payroll/src/adapters/operations-leave-legacy-facts';
 import { expensePaymentDraftExpenseId, documentPageExpensePaymentSource } from '../../../packages/server-people_payroll/src/adapters/document-page-payment-source';
 import { expensePaymentCommandFlowTarget } from '../../../packages/server-people_payroll/src/adapters/expense-command-policy';
 import { attachmentMigrationpeoplepayroll } from '../../../packages/server-people_payroll/src/adapters/attachment-migration-facts';
@@ -377,6 +379,46 @@ describe('native People Payroll caller-unit read plan', () => {
     ]);
     expect(bound).toEqual([['draft-1', 'company'], ['draft-2', 'company'], ['draft-3', 'company']]);
     expect(prepared).toEqual(['SELECT 1 AS expense_id', 'SELECT 1 AS expense_id', 'SELECT 1 AS expense_id']);
+  });
+
+  it('exposes the leave-legacy employee read kind with no SQL on the wire', () => {
+    expect(PEOPLE_PAYROLL_RD_LEAVE_LEGACY_EMPLOYEE).toBe('people_payroll_rd_leave_legacy_employee');
+    expect(PEOPLE_PAYROLL_RD_LEAVE_LEGACY_EMPLOYEE).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+  });
+
+  it('plans the leave-legacy employee read on the caller unit with its binds', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push({ kind: body.kind, values: body.values });
+      return new Response(JSON.stringify({
+        data: { statements: [{ sql: 'SELECT 1 AS id', values: body.values }] },
+      }), { status: 200, headers: { 'content-type': 'application/json' } });
+    }));
+    const prepared: string[] = [];
+    const bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) {
+        prepared.push(sql);
+        return {
+          bind(...values: unknown[]) { bound.push(values); return this; },
+          async all() { return { results: [], success: true, meta: { changes: 0, duration: 0 } }; },
+          async first() { return null; },
+        };
+      },
+      async batch() { return [{ results: [{ id: 'employee-1' }], success: true, meta: { changes: 0, duration: 0 } }]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+
+    const employee = await leaveLegacyEmployeeFacts(db as never).readCreateLeaveEmployee('person-1', 'company');
+    expect(employee).toEqual({ id: 'employee-1' });
+
+    expect(bodies).toEqual([{
+      kind: PEOPLE_PAYROLL_RD_LEAVE_LEGACY_EMPLOYEE,
+      values: ['person-1', 'company'],
+    }]);
+    expect(bound).toEqual([['person-1', 'company']]);
+    expect(prepared).toEqual(['SELECT 1 AS id']);
   });
 
   it('fails closed when configuration is missing or the plan is malformed', async () => {

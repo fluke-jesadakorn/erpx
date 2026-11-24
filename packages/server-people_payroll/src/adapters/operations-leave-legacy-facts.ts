@@ -1,13 +1,13 @@
 import { nativeLeaveLegacy } from "@erpx/server-collaboration/adapters/native-leave-legacy";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import {
+  nativePeoplePayrollReadAll,
+  PEOPLE_PAYROLL_RD_LEAVE_LEGACY_EMPLOYEE,
+} from "./native-people-payroll-read";
 import "server-only";
 export function leaveLegacyEmployeeFacts(database: SqlDatabase) {
-    return { readCreateLeaveEmployee(person_id: string, companyId: string) {
-            return database.prepare("SELECT id FROM employees WHERE person_id=? AND company_id=?")
-                .bind(person_id, companyId)
-                .first<{
-                id: string;
-            }>();
+    return { async readCreateLeaveEmployee(person_id: string, companyId: string) {
+            return (await nativePeoplePayrollReadAll<{id:string}>(PEOPLE_PAYROLL_RD_LEAVE_LEGACY_EMPLOYEE,[person_id,companyId],database)).results[0]??null;
         },
         stageCreateLeaveEffect(employeeId: string, person_id: string, companyId: string, value: string, department_id: string | null, legal_name: string, now: number) {
             return nativeLeaveLegacy(database).employee(companyId, [employeeId, person_id, companyId, value, department_id, legal_name, now]);

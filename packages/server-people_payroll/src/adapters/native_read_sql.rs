@@ -138,6 +138,17 @@ const READ_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID: NativeReadStatement = NativeReadSta
     bind_count: 2,
 };
 
+/// Native successor of the TypeScript `operations-leave-legacy-facts`
+/// create-leave employee read: same literal and two positional binds. The
+/// owner plans this statement; the caller executes it on its open unit.
+pub const RD_LEAVE_LEGACY_EMPLOYEE: &str = "people_payroll_rd_leave_legacy_employee";
+const SQL_LEAVE_LEGACY_EMPLOYEE: &str = "SELECT id FROM employees WHERE person_id=? AND company_id=?";
+const READ_LEAVE_LEGACY_EMPLOYEE: NativeReadStatement = NativeReadStatement {
+    kind: RD_LEAVE_LEGACY_EMPLOYEE,
+    sql: SQL_LEAVE_LEGACY_EMPLOYEE,
+    bind_count: 2,
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_RECORD_SUPPLEMENT_ROWS,
     READ_ORG_ROSTER_EXIT_ENGAGEMENT_IDS,
@@ -150,6 +161,7 @@ const READS: &[NativeReadStatement] = &[
     READ_ATTACHMENT_MIGRATION_PAYMENT_EXPORTS,
     READ_ATTACHMENT_MIGRATION_PAYROLL_REVIEW_EXPORTS,
     READ_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID,
+    READ_LEAVE_LEGACY_EMPLOYEE,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -270,6 +282,19 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 2);
         assert!(read.sql.contains("expense_payment_drafts"));
         assert!(is_read(RD_EXPENSE_PAYMENT_DRAFT_EXPENSE_ID));
+    }
+
+    #[test]
+    fn leave_legacy_employee_read_plan_is_ledger_free_and_bounded() {
+        let read = read_statement(RD_LEAVE_LEGACY_EMPLOYEE).expect("read kind");
+        assert!(read.sql.to_ascii_uppercase().starts_with("SELECT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("INSERT"));
+        assert!(!read.sql.to_ascii_uppercase().contains("UPDATE"));
+        assert!(!read.sql.to_ascii_uppercase().contains("DELETE"));
+        assert_eq!(read.bind_count, 2);
+        assert_eq!(read.sql.matches('?').count(), 2);
+        assert!(read.sql.contains("employees"));
+        assert!(is_read(RD_LEAVE_LEGACY_EMPLOYEE));
     }
 
     #[test]
