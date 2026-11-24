@@ -14,6 +14,11 @@ import { createNativeSupportTicketRead } from "@erpx/server-support/public/suppo
 import { createSupportEvidence, createSupportEvidenceGuard } from "@erpx/server-support/application/support-evidence";
 const eligible = supportRecipientEligibility();
 const nativeTicketRead = createNativeSupportTicketRead({ read: readSourceRecord, visible: visibleSourceRecord, guards: sourceRecordGuards });
+/** Canonical owner-local eligibility witness projection for Support evidence.
+ * One fixed text serves the Files-stage guard and the evidence reader so the
+ * two call sites cannot drift; predicates and binds stay byte-identical. */
+const evidenceEligibilitySelect = () =>
+    `SELECT 1 AS ok FROM support_tickets t WHERE t.id=? AND ${eligible.replaceAll('t.owner_id', '?::text')}`;
 
 /**
  * Read-only Support case policy for Files-side staging. The native Support
@@ -26,7 +31,7 @@ export async function supportEvidenceGuard(db: SqlDatabase, a: WorkContext, id: 
     const guard = createSupportEvidenceGuard({
         ...runtime,
         ticket: nativeTicketRead.getSupportTicket,
-        eligible: async (a, id) => { const write = await runtime.database(); return Boolean(await write.prepare(`SELECT 1 AS ok FROM support_tickets t WHERE t.id=? AND ${eligible.replaceAll('t.owner_id', '?::text')}`).bind(id, a.userId).first()); },
+        eligible: async (a, id) => { const write = await runtime.database(); return Boolean(await write.prepare(evidenceEligibilitySelect()).bind(id, a.userId).first()); },
         guard: async (a, id, expectedVersion, key, manager) => { const write = await runtime.database(); return { native: [assertion(write, key, 'support-evidence', `EXISTS(SELECT 1 FROM support_tickets t WHERE t.id=? AND t.company_id=? AND t.version=? AND t.status IN ('open','in_progress','waiting_customer') AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?) AND ${manager ? eligible.replaceAll('t.owner_id', '?::text') : eligible + ' AND t.owner_id=?'})`, [id, a.companyId, expectedVersion, a.branchId, a.branchId, a.departmentId, a.departmentId, a.userId])] }; },
     });
     return guard(a, id, expectedVersion, key);
@@ -41,5 +46,5 @@ export async function supportEvidence(a: WorkContext, id: string) {
      SELECT 1 FROM (${filesProjectionSources.attachment_links}) l JOIN (${filesProjectionSources.attachment_sets}) s ON s.id=l.set_id
      WHERE l.attachment_id=a.id AND l.state='bound' AND s.company_id=a.company_id AND s.target_type='support_ticket' AND s.target_id=a.owner_id))
    ORDER BY a.created_at,a.id`).bind(id).all<Row>()).results;
-        }, eligible: async (a, id) => { const write = await runtime.database(); return Boolean(await write.prepare(`SELECT 1 AS ok FROM support_tickets t WHERE t.id=? AND ${eligible.replaceAll('t.owner_id', '?::text')}`).bind(id, a.userId).first()); } })(a, id); return { ...data, canChange: data.canChange && access.settleExisting, canShare: data.canShare && access.settleExisting };
+        }, eligible: async (a, id) => { const write = await runtime.database(); return Boolean(await write.prepare(evidenceEligibilitySelect()).bind(id, a.userId).first()); } })(a, id); return { ...data, canChange: data.canChange && access.settleExisting, canShare: data.canShare && access.settleExisting };
 }

@@ -118,3 +118,21 @@ describe('Support ticket read-tail r17 canonical eligibility projection', () => 
     expect(surface).toContain('ticketEligibilitySelect');
   });
 });
+
+describe('Support evidence read-tail r18 canonical eligibility witness', () => {
+  const src = (name: string) =>
+    readFile(new URL(`../../../packages/server-support/src/${name}`, import.meta.url), 'utf8');
+
+  it('keeps one canonical evidence eligibility witness projection', async () => {
+    const source = await src('adapters/support-evidence.ts');
+    expect(source).toContain('const evidenceEligibilitySelect = () =>');
+    expect(source.match(/SELECT 1 AS ok FROM support_tickets t WHERE t\.id=\? AND/g)).toHaveLength(1);
+    expect(source.match(/\$\{eligible\.replaceAll\('t\.owner_id', '\?::text'\)\}/g)).toHaveLength(1);
+  });
+
+  it('composes the witness in both evidence readers with no local copy', async () => {
+    const source = await src('adapters/support-evidence.ts');
+    expect(source.match(/write\.prepare\(evidenceEligibilitySelect\(\)\)/g)).toHaveLength(2);
+    expect(source).not.toContain("prepare(`SELECT 1 AS ok FROM support_tickets");
+  });
+});
