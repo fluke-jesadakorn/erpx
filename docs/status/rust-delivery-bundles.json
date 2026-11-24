@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12100,
+    "revision": 12102,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -180226,7 +180226,7 @@
         "owner": "billing",
         "title": "billing point reads and legacy subscription head",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -180237,22 +180237,37 @@
         "resources": [
           "owner:billing"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n06",
-          "claimedAt": "2026-11-24T13:23:47.998Z",
-          "heartbeatAt": "2026-11-24T13:26:46.050Z",
-          "expiresAt": "2026-11-24T13:56:46.050Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-billing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "054e80f52",
+            "owner": "billing",
+            "before": 53,
+            "after": 48,
+            "note": "Holding point reads route through billingPointReadSql; legacy beta_billing head shared; locks/native untouched."
+          },
+          {
+            "command": "vitest billing (171) + scoped tsc + SHA oracles",
+            "result": "passed",
+            "sourceSha": "054e80f52"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Rank3 holding point reads via billingPointReadSql (-4) plus Rank1 legacy beta_billing head (-1): 53->48.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n06",
+          "at": "2026-11-24T13:32:45.211Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -180402,17 +180417,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 10,
+        "in_progress": 9,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1369,
+        "blocked": 1370,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:32:04.488Z",
+    "updatedAt": "2026-11-24T13:32:45.215Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
