@@ -51,6 +51,7 @@ import {
   ACTIVE_CHART_NAV_SQL,
   ACTIVE_ACCOUNT_CHART_ID_SQL,
 } from '../../../packages/server-finance/src/adapters/finance-read-tail-r34-sql';
+import { WORKFORCE_ACTOR_SCOPE_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r35-sql';
 import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/people-payroll-final-owner-projections';
 import { workflowFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/workflow-final-owner-projections';
 import {
@@ -1034,7 +1035,7 @@ describe('finance read-tail r24 byte-identical SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2038);
-    expect(total).toBe(1974);
+    expect(total).toBe(1970);
   });
 });
 
@@ -1205,7 +1206,7 @@ describe('finance read-tail r30 byte-identical guard-prefix families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2027);
-    expect(total).toBe(1974);
+    expect(total).toBe(1970);
   });
 });
 
@@ -1249,7 +1250,7 @@ describe('finance read-tail r31 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1989);
-    expect(total).toBe(1974);
+    expect(total).toBe(1970);
   });
 });
 
@@ -1294,7 +1295,7 @@ describe('finance read-tail r32 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1985);
-    expect(total).toBe(1974);
+    expect(total).toBe(1970);
   });
 });
 
@@ -1339,7 +1340,7 @@ describe('finance read-tail r33 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1983);
-    expect(total).toBe(1974);
+    expect(total).toBe(1970);
   });
 });
 
@@ -1414,6 +1415,55 @@ describe('finance read-tail r34 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1981);
-    expect(total).toBe(1974);
+    expect(total).toBe(1970);
+  });
+});
+
+describe('finance read-tail r35 parameterized workforce actor scope family', () => {
+  // One byte-identical parameterized prefix shared by three private attachment
+  // readers. The caller keeps its WHERE clause and binds; row-lock variants,
+  // tax assertion guards and every r15-r34 helper stay untouched.
+  const PREFIX = 'SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ';
+  const SITES = ['attachment-read.ts', 'supplier-bill-attachment-read.ts', 'tax-signature-attachment-read.ts'];
+
+  it('exposes the exact prefix with no row-lock or tax assertion text', () => {
+    expect(WORKFORCE_ACTOR_SCOPE_SQL).toBe(PREFIX);
+    expect(WORKFORCE_ACTOR_SCOPE_SQL).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+    expect(WORKFORCE_ACTOR_SCOPE_SQL).not.toMatch(/finance_current_tax_entries/);
+  });
+
+  it('removes every inline prefix from all three call sites', async () => {
+    for (const file of SITES) {
+      const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+      expect(text.includes(PREFIX)).toBe(false);
+      expect(text).toContain('WORKFORCE_ACTOR_SCOPE_SQL');
+      expect(text).toContain('${current.where}');
+    }
+  });
+
+  it('leaves lock variants, tax assertion guards and r15-r34 helpers untouched', async () => {
+    const r34 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r34-sql.ts', import.meta.url), 'utf8');
+    expect(r34).toContain('OPEN_PERIOD_COVERED_SQL');
+    const r24 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
+    expect(r24).toContain('TAX_SOURCE_APPROVED_INVOICE_SQL');
+    const pms = await readFile(new URL('../../../packages/server-finance/src/adapters/pms-command-facts.ts', import.meta.url), 'utf8');
+    expect(pms).toContain('FOR SHARE');
+    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    expect(pos).toContain('FOR UPDATE');
+  });
+
+  it('retirement:ts-statements stays strictly below the r34 BEFORE=1974 baseline', () => {
+    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(1974);
+    expect(total).toBe(1970);
   });
 });

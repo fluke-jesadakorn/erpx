@@ -15,6 +15,7 @@ import {attachmentReadSource,attachmentPrivateReadSourceLocks,assertAttachmentRe
 import {attachmentDeniedReadAudits} from '@erpx/server-files/public/attachment-denied-read-audits';
 import {isFinanceAttachmentReadTarget,financeAttachmentReadSourceLocks,serviceInitialStockJournalReadSourceLocks,manufacturingInitialStockJournalReadSourceLocks,financeAttachmentReadSourceImage} from '@erpx/server-finance/adapters/attachment-read-sources';
 import {manufacturingInitialStockJournalMarked} from '@erpx/server-finance/adapters/manufacturing-initial-stock-journal-sources';
+import {WORKFORCE_ACTOR_SCOPE_SQL} from './finance-read-tail-r35-sql';
 const identity=(actor:WorkContext)=>JSON.stringify([actor.holdingId,actor.companyId,actor.userId,actor.email,actor.assignmentId,actor.role,actor.branchId,actor.departmentId,actor.assignmentScope,actor.scope,actor.modules,actor.authority??null,actor.iam??null]);
 /** Exact native Finance owners keep their original complete File policy and
  * actual included-owner purchase decisions. This constructor adds no Finance
@@ -39,7 +40,7 @@ export async function withFinanceAttachmentContentRead<Result extends {object:St
   const assertOwnerSelection=async()=>{const actual=target==='finance_journal'&&await manufacturingInitialStockJournalMarked(database,actor.companyId,selected.targetId),actualService=target==='finance_journal'&&await serviceInitialStockJournalMarked(database,actor.companyId,selected.targetId),actualPos=target==='finance_journal'&&await posInitialStockJournalMarked(database,actor.companyId,selected.targetId);if(actual!==manufacturingSelected||actualPos!==posSelected||actualService!==serviceSelected)throw attachmentReadChanged();};
   await assertOwnerSelection();
   const source=await attachmentReadSource(database,actor.companyId,linkId);assertAttachmentReadRoute(selected,source);if(!source)throw attachmentReadChanged();
-  const before=await financeAttachmentReadSourceImage(database,actor.companyId,target,source.targetId),current=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!!await database.prepare(`SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${current.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args).first();
+  const before=await financeAttachmentReadSourceImage(database,actor.companyId,target,source.targetId),current=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!!await database.prepare(`${WORKFORCE_ACTOR_SCOPE_SQL}${current.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args).first();
   const invalidAuthority=initiallyCurrent?null:await privateFileDenialAuthorityWitness(database,actor);
   const check=async(authorizeSource:boolean)=>{
    await assertOwnerSelection();
