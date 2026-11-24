@@ -18,6 +18,7 @@ import {legalSignerAccessPrefix,legalSignerAccessSuffix} from '../legal-signer-a
 import {legalDocumentsItemPairSql} from '../legal-read-tail-r9-sources';
 import {legalVersionExistsSql} from '../legal-read-tail-r26-sources';
 import {legalByIdAndItemSql} from '../legal-read-tail-r27-sources';
+import {legalStatePointSql} from '../legal-read-tail-r33-sources';
 import {legalByIdAndCompanySql} from '../legal-read-tail-r28-sources';
 /** Exact projection of the native `governance` auxiliary read; the transport accepts
  * every authoritative field and no SQL text remains in TypeScript. */
@@ -30,7 +31,7 @@ settings:async()=>view?.settings??null,
 async createForm(facts){return stage(await nativeGov.createForm(facts));},
 form:(facts:{formId:string;companyId:string;})=>db.prepare(legalByIdAndCompanySql("legal_intake_forms")).bind(facts.formId,facts.companyId).first<{ created_by: string; state: string; version: number }>(),
 async approveForm(facts){return stage(await nativeGov.approveForm(facts));},
-approvedForm:(facts:{formId:string;companyId:string;})=>db.prepare("SELECT fields,sla_days FROM legal_intake_forms WHERE id=? AND company_id=? AND state='approved'").bind(facts.formId,facts.companyId).first<{ fields: string; sla_days: number }>(),
+approvedForm:(facts:{formId:string;companyId:string;})=>db.prepare(legalStatePointSql("fields,sla_days","legal_intake_forms","company_id","approved")).bind(facts.formId,facts.companyId).first<{ fields: string; sla_days: number }>(),
 escalationMember:(facts:{itemId:string;escalationOwner:string;})=>db.prepare(legalMembershipSql).bind(facts.itemId,facts.escalationOwner).first(),
 async applyIntake(facts){return stage(await nativeGov.applyIntake(facts));},
 authorityDocument:(facts:{documentId:string;itemId:string;})=>db.prepare(legalDocumentsItemPairSql).bind(facts.documentId,facts.itemId).first(),

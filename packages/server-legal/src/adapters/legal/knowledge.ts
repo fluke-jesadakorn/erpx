@@ -11,6 +11,7 @@ import {createLegalKnowledgeApplication} from "@erpx/server-legal/application/kn
 import {validateLegalAiCitations as validateCitations,type LegalEvidenceSource,type LegalAiEvidence} from "@erpx/server-legal/domain/knowledge";
 import { legalAccessEvent } from '@erpx/server-collaboration/adapters/native-legal-access-event';
 import { nativeLegalAuxiliaryRead } from '../native-legal-auxiliary';
+import { legalStatePointSql } from '../legal-read-tail-r33-sources';
 /** Shared by search and direct citations; aliases must be legal_documents d and legal_items i.
  * Retained for the command-side availability check in `citations.ts` and the AI evidence reads. */
 export const legalEvidenceDocumentAvailableSql = `(d.object_key IS NULL OR EXISTS(SELECT 1 FROM (${filesProjectionSources.attachment_links}) clean_link JOIN (${filesProjectionSources.attachments}) clean_file ON clean_file.id=clean_link.attachment_id WHERE clean_link.id=d.attachment_link_id AND clean_link.state='bound' AND clean_file.company_id=i.company_id AND clean_file.source_state='available' AND clean_file.revoked_at IS NULL AND clean_file.checksum_sha256=d.checksum)) AND NOT EXISTS(SELECT 1 FROM legal_disposals disposed WHERE disposed.document_id=d.id) AND NOT EXISTS(SELECT 1 FROM legal_destructions destruction WHERE destruction.item_id=i.id AND destruction.state IN ('executing','completed'))`;
@@ -30,7 +31,7 @@ function application(db:SqlDatabase,a:WorkContext,view?:LegalKnowledgeView,citat
  authored:async()=>[],
  authoredItem:async()=>view?.authoredItems??[],
  documentAvailable:async id=>{const d={id};return Boolean(await db.prepare(`SELECT 1 FROM legal_documents d JOIN legal_items i ON i.id=d.item_id WHERE d.id=? AND ${v.sql} AND ${(await purchase()).where} AND ${cleanDocument}`).bind(d.id, ...v.values).first());},
- textApproved:async(reviewId,documentId)=>{const source={text_review_id:reviewId},d={id:documentId};return Boolean(await db.prepare("SELECT 1 FROM legal_text_reviews WHERE id=? AND document_id=? AND state='approved'").bind(source.text_review_id, d.id).first());},
+ textApproved:async(reviewId,documentId)=>{const source={text_review_id:reviewId},d={id:documentId};return Boolean(await db.prepare(legalStatePointSql("1","legal_text_reviews","document_id","approved")).bind(source.text_review_id, d.id).first());},
  recordReads:async rows=>{const ai=rows.filter(row=>row.action==="ai.source.read");if(ai.length){const statements=await Promise.all(ai.map(source=>legalAccessEvent(db,a.companyId,a.userId).record(source.identifier,source.action,source.item_id,source.document_id,source.now)));await db.batch(statements);}}
  }});}
 export async function lawKnowledge(db:SqlDatabase,a:WorkContext,query:unknown,asOf?:unknown){const q=String(query),date=asOf==null?undefined:String(asOf),view=await nativeLegalAuxiliaryRead<LegalKnowledgeView>(a,"knowledge",undefined,knowledgeParams(q,date));return application(db,a,view).lawKnowledge(query,asOf);}

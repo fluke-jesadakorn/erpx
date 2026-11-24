@@ -9,6 +9,7 @@ import {legalRuntimePredicate,legalCompanyCapabilityReady} from "@erpx/server-le
 import {fetchOfficialLawSource} from "@erpx/server-legal/adapters/legal/law-source-provider";
 import {createLegalLawSourceWorker,type OfficialSourceJob} from "@erpx/server-legal/application/law-source-worker";
 import {legalWave3Statement} from "../native-legal-wave3";
+import {legalStatePointSql} from "../legal-read-tail-r33-sources";
 type LawSourceNoticeFacts={identifier:string;now:number;ruleId:string;unchanged:boolean};
 export function drainLegalSourceChecks(db:SqlDatabase,files:FileStore,systemHolding:{holdingId:string;holdingSlug:string;holdingName:string},fetcher=fetchOfficialLawSource,now=Date.now(),notify?:(database:SqlDatabase,companyId:string,facts:LawSourceNoticeFacts)=>Promise<SqlStatement>){
  const scope={kind:'holding' as const,id:systemHolding.holdingId};
@@ -16,7 +17,7 @@ export function drainLegalSourceChecks(db:SqlDatabase,files:FileStore,systemHold
  schedule:async(date,now)=>{await (await legalWave3Statement(db,scope,'legal_source_schedule',[date,date,now,legalRuntimePredicate("s.company_id","sources")],`legal-source-schedule:${date}`,now)).run();},
  recover:async now=>{await (await legalWave3Statement(db,scope,'legal_source_recover',[now],`legal-source-recover:${now}`,now)).run();},
  claim:async(token,until)=>(await legalWave3Statement(db,scope,'legal_source_claim',[token,until,legalRuntimePredicate("c.company_id","sources")],`legal-source-claim:${token}`,Date.now())).first<OfficialSourceJob>(),
- source:(id,company)=>db.prepare("SELECT source_url FROM legal_law_sources WHERE id=? AND company_id=? AND state='active'").bind(id,company).first<{source_url:string}>(),
+ source:(id,company)=>db.prepare(legalStatePointSql("source_url","legal_law_sources","company_id","active")).bind(id,company).first<{source_url:string}>(),
  unchanged:async(sourceId,id,checksum)=>Boolean(await db.prepare("SELECT 1 FROM legal_law_source_checks WHERE source_id=? AND id<>? AND checksum=? AND state IN ('unchanged','pending_review','reviewed') LIMIT 1").bind(sourceId,id,checksum).first()),
  complete:async(job,token,checksum,objectKey,unchanged,now)=>{
     await db.batch([
