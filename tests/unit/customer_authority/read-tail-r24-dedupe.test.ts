@@ -116,6 +116,7 @@ describe('Customer Authority read-tail r24 binding-joined fact family', () => {
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(64);
-    expect(total).toBe(61);
+    // r25 further reduced the tail (61 -> 60); keep a bound, not a stale exact pin.
+    expect(total).toBeLessThan(61);
   });
 });

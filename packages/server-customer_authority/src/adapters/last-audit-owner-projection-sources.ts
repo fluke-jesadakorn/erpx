@@ -1,6 +1,7 @@
+import { ownerColumnProjection } from './customer-authority-read-tail-r25-sources';
 import "server-only";
 /** Closed owner read projections; consumers retain original filters, aliases and binds in their supplied statement/transaction. */
 export const lastAuditOwnerProjectionSources = {
-  customer_access_bindings: "SELECT \"id\",\"company_id\",\"order_id\",\"customer_id\",\"email\",\"expires_at\",\"status\",\"reason\",\"created_by\",\"approved_by\",\"reviewed_at\",\"version\",\"created_at\",\"updated_at\" FROM customer_access_bindings",
-  customer_access_identities: "SELECT \"binding_id\",\"user_id\",\"email\",\"bound_at\" FROM customer_access_identities",
+  customer_access_bindings: ownerColumnProjection('"id","company_id","order_id","customer_id","email","expires_at","status","reason","created_by","approved_by","reviewed_at","version","created_at","updated_at"', 'customer_access_bindings'),
+  customer_access_identities: ownerColumnProjection('"binding_id","user_id","email","bound_at"', 'customer_access_identities'),
 } as const;
