@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10106,
+    "revision": 10110,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -153000,7 +153000,7 @@
         "owner": "files",
         "title": "files TS read tail native cutover (r23)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -153012,28 +153012,36 @@
         "resources": [
           "owner:files"
         ],
-        "claim": {
-          "runId": "run-20261123-m",
-          "agentId": "wGCKfil",
-          "claimedAt": "2026-11-24T06:38:40.042Z",
-          "heartbeatAt": "2026-11-24T06:38:40.042Z",
-          "expiresAt": "2026-11-24T07:08:40.042Z",
-          "generation": 165
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "6af9d4c94",
+            "owner": "files",
+            "before": 304,
+            "after": 300,
+            "note": "Three commerce order delivery guards share COMMERCE_DELIVERY_GUARD_SQL; r10-r22 and locks untouched."
+          },
+          {
+            "command": "vitest files r23 (5) + tsc files",
+            "result": "passed",
+            "sourceSha": "6af9d4c94"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=304.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-l",
+          "runId": "run-20261123-m",
           "agentId": "wGCKfil",
-          "at": "2026-11-24T06:38:39.589Z",
+          "at": "2026-11-24T06:55:05.724Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=304."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -159385,6 +159393,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=136.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.files.read-tail-r24",
+        "goalId": "G4",
+        "owner": "files",
+        "title": "files TS read tail native cutover (round 24)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "tests/unit/files/**",
+          "tests/integration/files/**"
+        ],
+        "resources": [
+          "owner:files"
+        ],
+        "claim": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCMfil2",
+          "claimedAt": "2026-11-24T06:55:06.249Z",
+          "heartbeatAt": "2026-11-24T06:55:06.249Z",
+          "expiresAt": "2026-11-24T07:25:06.249Z",
+          "generation": 165
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=300.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -159393,7 +159437,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1310,
+      "totalPackets": 1311,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -159401,13 +159445,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 937,
+        "blocked": 938,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 165,
-    "updatedAt": "2026-11-24T06:54:47.817Z",
+    "updatedAt": "2026-11-24T06:55:06.257Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
