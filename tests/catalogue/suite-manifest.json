@@ -2634,6 +2634,31 @@
       "lane": "unit",
       "owner": "billing",
       "modules": [
+        "billing"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Billing invoice/account/customer reads must stay byte-identical."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-billing"
+      ],
+      "id": "billing.billing-read-tail-r15-dedupe.unit",
+      "files": [
+        "tests/unit/billing/billing-read-tail-r15-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "billing",
+      "modules": [
         "finance"
       ],
       "fixture": "none",
@@ -44044,6 +44069,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "inventory",
+      "modules": [
+        "inventory"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Inventory r12 schema-ready guards and count reads must stay byte-identical."
+      },
+      "apps": "supply",
+      "packages": [
+        "@erpx/server-inventory"
+      ],
+      "id": "inventory.read-tail-r12-dedupe.unit",
+      "files": [
+        "tests/unit/inventory/read-tail-r12-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "inventory.rust-commerce-order-cancellation-postgres.integration",
       "lane": "integration",
       "owner": "inventory",
@@ -61181,6 +61231,31 @@
       "id": "people_payroll.read-tail-r19-dedupe.unit",
       "files": [
         "tests/unit/people_payroll/read-tail-r19-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "people_payroll",
+      "modules": [
+        "people_payroll"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Payroll roster/posting/snapshot reads must stay byte-identical."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-people_payroll"
+      ],
+      "id": "people_payroll.read-tail-r20-dedupe.unit",
+      "files": [
+        "tests/unit/people_payroll/read-tail-r20-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -104542,6 +104617,31 @@
         "@erpx/server-runtime",
         "@erpx/server-shared"
       ]
+    },
+    {
+      "lane": "unit",
+      "owner": "workflow",
+      "modules": [
+        "workflow"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Approval guard prefixes must remain byte-identical."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-workflow"
+      ],
+      "id": "workflow.approval-version-guard-dedupe.unit",
+      "files": [
+        "tests/unit/workflow/approval-version-guard-dedupe.test.ts"
+      ],
+      "framework": "vitest"
     },
     {
       "id": "workflow.approval_planning_postgres.integration",
