@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12110,
+    "revision": 12112,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -179719,7 +179719,7 @@
         "owner": "workflow",
         "title": "workflow TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -179732,22 +179732,37 @@
         "resources": [
           "owner:workflow"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4l02",
-          "claimedAt": "2026-11-24T13:13:20.431Z",
-          "heartbeatAt": "2026-11-24T13:26:46.050Z",
-          "expiresAt": "2026-11-24T13:56:46.050Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-workflow/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b83224ce3",
+            "owner": "workflow",
+            "before": 41,
+            "after": 37,
+            "note": "Calendar index facts (3 binds) and record details history (1 bind) native wave3 kinds; records port adds companyId; locks/r41-r46 untouched."
+          },
+          {
+            "command": "cargo test -p erpx-server-workflow --lib (51) + vitest workflow (100) + records (55) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "b83224ce3"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Calendar index facts (3 binds) and record details history (1 bind) native kinds; add companyId to records port: 41->37. BEFORE=41.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4l02",
+          "at": "2026-11-24T13:35:02.797Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -180518,17 +180533,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 9,
+        "in_progress": 8,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1372,
+        "blocked": 1373,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:33:57.818Z",
+    "updatedAt": "2026-11-24T13:35:02.800Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
