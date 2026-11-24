@@ -156,8 +156,8 @@ describe('Files read-tail r43 byte-oracle dedupe', () => {
     // carry one SELECT and are folded from two sites (-1 each). The id/AND head
     // carries no SELECT and both commerce sites keep their projections (0).
     // r44 lowers 246->242 (three more shared heads folded).
-    expect(literal).toBe(242);
-    expect(total).toBe(243);
+    expect(literal).toBe(239);
+    expect(total).toBe(240);
     expect(literal).toBeLessThan(248);
     expect(total).toBeLessThan(249);
   });

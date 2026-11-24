@@ -18,7 +18,7 @@ export function collaborationHomeSources(db: SqlDatabase) {
                 id: string;
             }>();
         }, guardPublishImage(key: string, value: string, attachmentId: string | null, id: string, companyId: string) {
-            return assertion(db, key, value, `EXISTS(SELECT 1 FROM attachments a JOIN upload_intents u ON u.id=a.upload_id JOIN (${socialDraftFilesReadSql}) d ON d.id=a.owner_id
+            return assertion(db, key, value, `${socialDraftImageExistsSql}upload_intents u ON u.id=a.upload_id JOIN (${socialDraftFilesReadSql}) d ON d.id=a.owner_id
           WHERE a.id=? AND a.owner_type='social_draft' AND a.owner_id=? AND d.company_id=? AND a.revoked_at IS NULL
           AND a.media_type IN ('image/jpeg','image/png','image/webp') AND u.owner_type='social_draft' AND u.owner_id=d.id AND u.status='ready')`, [attachmentId, id, companyId]);
         }, guardNoPendingUploads(key: string, value: "uploads", id: string, now: number) {

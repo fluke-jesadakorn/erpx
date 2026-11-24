@@ -141,8 +141,8 @@ describe('Files read-tail r42 byte-oracle dedupe', () => {
     walk(srcRoot);
     // r42 left 248; r43 lowers 248->246 (two SELECT-bearing shared heads folded).
     // r44 lowers 246->242 (three more shared heads folded).
-    expect(literal).toBe(242);
-    expect(total).toBe(243);
+    expect(literal).toBe(239);
+    expect(total).toBe(240);
     expect(literal).toBeLessThan(248);
     expect(total).toBeLessThan(249);
   });

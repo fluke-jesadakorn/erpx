@@ -21,6 +21,13 @@ const norm = (text: string) => text.replace(/\s+/g, ' ').trim();
 const H1 = 'EXISTS(SELECT 1 FROM upload_intents WHERE ';
 const H2 = 'SELECT * FROM attachments WHERE id=?';
 const H3 = 'OR EXISTS(SELECT 1 FROM attachment_scan_attempts ';
+/** r45 folded guardPublishImage's inline prefix into the r25 helper. Only that
+ * site is rendered back; the three pre-r25 helper sites stay as-is. */
+const H4 = 'EXISTS(SELECT 1 FROM attachments a JOIN ';
+const F2 = '${socialDraftImageExistsSql}upload_intents u ON u.id=a.upload_id JOIN (${socialDraftFilesReadSql}) d ON d.id=a.owner_id\n';
+/** r45 folded two service-repository heads into the r45 helper. */
+const H5 = 'SELECT 1 FROM attachment_events WHERE ';
+const H6 = 'SELECT * FROM attachment_sets WHERE ';
 
 const TARGETS = [
   'adapters/attachments/service.ts',
@@ -34,7 +41,7 @@ const TARGETS = [
 
 const stripR44Import = (text: string) => text
   .split('\n')
-  .filter(line => !line.includes('read-tail-r44-source-sql'))
+  .filter(line => !line.includes('read-tail-r44-source-sql') && !line.includes('read-tail-r45-source-sql'))
   .join('\n');
 /** Reconstruct the pre-r44 bytes: quoted splices and template/bare references
  * are rendered back to their original literals without touching tails. */
@@ -43,7 +50,11 @@ const render = (text: string) => text
   .replaceAll('${UPLOAD_INTENTS_EXISTS_HEAD_SQL}', H1)
   .replaceAll('${ATTACHMENT_STAR_ID_HEAD_SQL}', H2)
   .replaceAll('ATTACHMENT_STAR_ID_HEAD_SQL', `"${H2}"`)
-  .replaceAll('${SCAN_ATTEMPTS_OR_EXISTS_HEAD_SQL}', H3);
+  .replaceAll('${SCAN_ATTEMPTS_OR_EXISTS_HEAD_SQL}', H3)
+  .replace(F2, H4 + 'upload_intents u ON u.id=a.upload_id JOIN (${socialDraftFilesReadSql}) d ON d.id=a.owner_id\n')
+  .replaceAll('ATTACHMENT_EVENTS_WHERE_HEAD_SQL + "', '"' + H5)
+  .replaceAll('ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL + "', '"' + H6)
+  .replaceAll('${ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL}', H6);
 
 const tsFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
   const path = resolve(dir, entry.name);
@@ -130,8 +141,8 @@ describe('Files read-tail r44 byte-oracle dedupe', () => {
     // r43 left 246: the upload_intents EXISTS head folds 3 sites into one
     // (-2), while the attachment star-id and scan OR-EXISTS heads each fold
     // two sites into one (-1 each). Three heads live in the r44 helper.
-    expect(literal).toBe(242);
-    expect(total).toBe(243);
+    expect(literal).toBe(239);
+    expect(total).toBe(240);
     expect(literal).toBeLessThan(246);
     expect(total).toBeLessThan(247);
   });

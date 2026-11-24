@@ -16,7 +16,8 @@ import {ATTACHMENT_EVENT_EVENT_HEAD_SQL} from "../read-tail-r38-source-sql";
 import {SANITIZATION_ATTESTED_HEAD_SQL} from "../read-tail-r40-source-sql";
 import {LEDGER_OBJECT_KEY_PROJECTION_HEAD_SQL} from "../read-tail-r42-source-sql";
 import {ATTACHMENT_STAR_ID_HEAD_SQL} from "../read-tail-r44-source-sql";
-const setByIdSql = "SELECT * FROM attachment_sets WHERE id=? AND company_id=?";
+import {ATTACHMENT_EVENTS_WHERE_HEAD_SQL,ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL} from "../read-tail-r45-source-sql";
+const setByIdSql = ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL + "id=? AND company_id=?";
 export const usedStorageSql = "SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')";
 export const pendingStorageSql = "SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?";
 const advisoryLockSql = "SELECT pg_advisory_xact_lock(hashtextextended(?,0))";
@@ -99,7 +100,7 @@ export function repository(db: SqlDatabase) {
                 filters.push("expected_target_version=?");
                 values.push(input.expectedTargetVersion);
             }
-            return db.prepare(`SELECT * FROM attachment_sets WHERE ${filters.join(" AND ")} ORDER BY created_at DESC,id DESC`).bind(...values).all<SetRow>();
+            return db.prepare(`${ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL}${filters.join(" AND ")} ORDER BY created_at DESC,id DESC`).bind(...values).all<SetRow>();
         },
         lock8: (facts: {
             arg1: string;
@@ -111,7 +112,7 @@ export function repository(db: SqlDatabase) {
         readAttachmentEvents10: (facts: {
             id: string;
             companyId: string;
-        }) => { return db.prepare("SELECT 1 FROM attachment_events WHERE set_id=? AND company_id=? AND action='set.created' AND COALESCE((details_json::jsonb->>'compatibilityAdapter')::boolean,false)=true LIMIT 1").bind(facts.id, facts.companyId).first(); },
+        }) => { return db.prepare(ATTACHMENT_EVENTS_WHERE_HEAD_SQL + "set_id=? AND company_id=? AND action='set.created' AND COALESCE((details_json::jsonb->>'compatibilityAdapter')::boolean,false)=true LIMIT 1").bind(facts.id, facts.companyId).first(); },
         readAttachmentSets11: (facts: {
             companyId: string;
             targetType: string;
@@ -983,7 +984,7 @@ export function repository(db: SqlDatabase) {
         }>(); },
         readAttachmentEvents149: (facts: {
             id: string;
-        }) => { return db.prepare("SELECT 1 FROM attachment_events WHERE attachment_id=? AND action='source.bytes_deleted'").bind(facts.id).first(); },
+        }) => { return db.prepare(ATTACHMENT_EVENTS_WHERE_HEAD_SQL + "attachment_id=? AND action='source.bytes_deleted'").bind(facts.id).first(); },
         readAttachmentStorageLedger150: (facts: {
             id: string;
         }) => { return db.prepare(`${LEDGER_OBJECT_KEY_PROJECTION_HEAD_SQL}attachment_id=?`).bind(facts.id).all<{

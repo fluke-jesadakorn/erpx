@@ -17,9 +17,10 @@ describe('Files read-tail r25 social-draft image guard dedupe', () => {
   test('helper is defined once and all three collaboration-home guards compose it', () => {
     expect(src('social-draft-image-guard-sql.ts').split('socialDraftImageExistsSql =').length - 1).toBe(1);
     const home = src('collaboration-home-sources.ts');
-    expect(home.match(/\$\{socialDraftImageExistsSql\}/g) ?? []).toHaveLength(3);
-    // guardPublishImage is a separate, out-of-scope guard and keeps its literal.
-    expect(home.match(/EXISTS\(SELECT 1 FROM attachments a JOIN /g) ?? []).toHaveLength(1);
+    expect(home.match(/\$\{socialDraftImageExistsSql\}/g) ?? []).toHaveLength(4);
+    // r45 folded guardPublishImage's inline copy into the shared helper; the
+    // three other guards were already composing it before r25.
+    expect(home.match(/EXISTS\(SELECT 1 FROM attachments a JOIN /g) ?? []).toHaveLength(0);
     expect(home).toContain('import { socialDraftImageExistsSql } from \'./social-draft-image-guard-sql\';');
   });
 

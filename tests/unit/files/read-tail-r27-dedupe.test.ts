@@ -84,7 +84,8 @@ describe('Files read-tail r27 byte-identical attachment-id read family', () => {
       'SF_REVOKE_DRAFT', 'SF_EXPIRE_DRAFT_UPLOADS', 'SF_REVOKE_POST',
       'SF_EXPIRE_POST_UPLOADS', 'SF_REVOKE_COMMENT',
     ]) expect(home).toContain(`nativeWrite('${kind}'`);
-    expect(home).toContain('EXISTS(SELECT 1 FROM attachments a JOIN upload_intents u ON u.id=a.upload_id JOIN (${socialDraftFilesReadSql}) d ON d.id=a.owner_id');
+    // r45: guardPublishImage composes the r25 helper; its tail is unchanged.
+    expect(home).toContain('${socialDraftImageExistsSql}upload_intents u ON u.id=a.upload_id JOIN (${socialDraftFilesReadSql}) d ON d.id=a.owner_id');
     const sr = src('attachments/service-repository.ts');
     expect(sr).toContain('const advisoryLockSql = "SELECT pg_advisory_xact_lock(hashtextextended(?,0))"');
     expect(sr).toContain('const setLockSql = "SELECT state FROM attachment_sets WHERE id=? AND company_id=? FOR UPDATE"');

@@ -24927,6 +24927,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "files",
+      "modules": [
+        "files"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Files attachment event and set heads must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-files"
+      ],
+      "id": "files.read-tail-r45-dedupe.unit",
+      "files": [
+        "tests/unit/files/read-tail-r45-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "files.rust-asset-descriptor-binding.unit",
       "lane": "unit",
       "owner": "files",
