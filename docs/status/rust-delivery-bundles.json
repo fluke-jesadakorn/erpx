@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8802,
+    "revision": 8806,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -144013,7 +144013,7 @@
         "owner": "sales",
         "title": "sales TS read tail native cutover",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -144025,22 +144025,37 @@
         "resources": [
           "owner:sales"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCGsal",
-          "claimedAt": "2026-11-24T03:06:19.593Z",
-          "heartbeatAt": "2026-11-24T03:10:12.951Z",
-          "expiresAt": "2026-11-24T03:40:12.951Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-sales/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "296788e57",
+            "owner": "sales",
+            "before": 99,
+            "after": 98,
+            "note": "Alias-parameterized assignment EXISTS shared by metric history and source; both variants byte-identical."
+          },
+          {
+            "command": "vitest sales services (109) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "296788e57"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=99.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCGsal",
+          "at": "2026-11-24T03:18:17.208Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -144726,6 +144741,42 @@
         "nextAction": "Next: safe byte-identical dedupe; corpus and locks excluded. BEFORE=270.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.sales.read-tail-r12",
+        "goalId": "G4",
+        "owner": "sales",
+        "title": "sales TS read tail native cutover (round 12)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-sales/src/**",
+          "tests/unit/sales/**",
+          "tests/integration/sales/**"
+        ],
+        "resources": [
+          "owner:sales"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCHsal",
+          "claimedAt": "2026-11-24T03:18:17.718Z",
+          "heartbeatAt": "2026-11-24T03:18:17.718Z",
+          "expiresAt": "2026-11-24T03:48:17.718Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: `SELECT n.* FROM customer_contact_notes n ` appears twice in notes.ts; verify byte-identical and dedupe. BEFORE=98.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -144734,7 +144785,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1025,
+      "totalPackets": 1026,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -144742,13 +144793,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 645,
+        "blocked": 646,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T03:17:46.439Z",
+    "updatedAt": "2026-11-24T03:18:17.729Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
