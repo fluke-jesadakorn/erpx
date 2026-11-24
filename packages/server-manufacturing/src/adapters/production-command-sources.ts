@@ -5,6 +5,7 @@ import {productionReadProjection as productioninventoryProjection} from '@erpx/s
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {ownerWrite} from '@erpx/server-manufacturing/adapters/native-owner-write';
 import {manufacturingRowsSelect,manufacturingIdSelect} from './manufacturing-read-sql-fragments';
 import {manufacturingOrderJoinSelect} from './manufacturing-read-tail-r15-sql';
+import {manufacturingAccountingProfileSelect} from './manufacturing-read-tail-r19-sql';
 
 /** Owner-local fixed read: the latest output-report actor on a production
  * order. `lastReportActor` (QC pass) and `lastOutputReportActor` (scrap approval)
@@ -74,7 +75,7 @@ async orders(companyId:string,branchId:string | null,branchId2:string | null){re
           )
           .bind(companyId, branchId, branchId2)
           .all<Row>();},
-async accountingProfiles(companyId:string){return db.prepare("SELECT id,status,version,currency,chart_id,inventory_account_id,wip_account_id,labor_account_id,overhead_account_id FROM manufacturing_accounting_profiles WHERE company_id=? ORDER BY updated_at DESC")
+async accountingProfiles(companyId:string){return db.prepare(manufacturingAccountingProfileSelect("id,status,version,currency,chart_id,inventory_account_id,wip_account_id,labor_account_id,overhead_account_id","","company_id=? ORDER BY updated_at DESC"))
           .bind(companyId).all<Row>();},
 async specificationLines(specificationId:string){return db.prepare(manufacturingRowsSelect("manufacturing_specification_lines", "specification_id=? ORDER BY ordinal"))
       .bind(specificationId).all<Row>();},

@@ -19,6 +19,7 @@ import {manufacturingWarehouseSources,manufacturingProductSources,manufacturingC
 import {manufacturingOperationAggSql,manufacturingSpecificationLineAggSql,manufacturingSpecificationProductsAggSql,manufacturingActorScopeRows} from "./manufacturing-read-sql-fragments";
 import {manufacturingPurchaseRecordSelect} from "./manufacturing-read-tail-r16-sql";
 import {manufacturingPurchaseRecordBranchSelect} from "./manufacturing-read-tail-r18-sql";
+import {manufacturingAccountingProfileSelect} from "./manufacturing-read-tail-r19-sql";
 export type ManufacturingPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 /** Owner-local fixed read: one command receipt on the caller transaction. This
  * idempotency/replay witness is identical in the purchased-command and
@@ -67,7 +68,7 @@ export const manufacturingPurchaseOrderRows=`SELECT o.id,o.company_id,o.branch_i
  FROM manufacturing_orders o JOIN (${planningPurchaseRecommendationRows}) recommendation ON recommendation.id=o.recommendation_id AND recommendation.company_id=o.company_id AND recommendation.branch_id=o.branch_id AND recommendation.warehouse_id=o.warehouse_id AND recommendation.specification_id=o.specification_id AND recommendation.specification_version=o.specification_version
  JOIN (${manufacturingPurchaseSpecificationRows}) specification ON specification.id=o.specification_id AND specification.company_id=o.company_id
  JOIN (${manufacturingWarehouseSources}) warehouse ON warehouse.id=o.warehouse_id AND warehouse.company_id=o.company_id AND warehouse.branch_id=o.branch_id`;
-const profileRows=`SELECT id,company_id,NULL::text branch_id,false advanced,to_jsonb(profile)-'status'-'version'-'updated_at'-'reviewed_by' witness FROM manufacturing_accounting_profiles profile`;
+const profileRows=manufacturingAccountingProfileSelect("id,company_id,NULL::text branch_id,false advanced,to_jsonb(profile)-'status'-'version'-'updated_at'-'reviewed_by' witness","profile");
 function planningRows(source:string){return `SELECT planning.*,jsonb_build_object('planning',planning.witness,'specification',specification.witness,'warehouse',jsonb_build_array(warehouse.id,warehouse.company_id,warehouse.branch_id)) source_witness FROM (${source}) planning JOIN (${manufacturingPurchaseSpecificationRows}) specification ON specification.id=planning.specification_id AND specification.company_id=planning.company_id JOIN (${manufacturingWarehouseSources}) warehouse ON warehouse.id=planning.warehouse_id AND warehouse.company_id=planning.company_id AND warehouse.branch_id=planning.branch_id`;}
 function rows(kind:ManufacturingPurchaseTarget["kind"]){switch(kind){case "specification":return manufacturingPurchaseSpecificationRows;case "scenario":return planningRows(planningPurchaseScenarioRows);case "recommendation":return planningRows(planningPurchaseRecommendationRows);case "order":return manufacturingPurchaseOrderRows;case "resource":return planningPurchaseResourceRows;case "accounting":return profileRows;}}
 /** Owner source snapshot for one Manufacturing purchase check. Writer commands

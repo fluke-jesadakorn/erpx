@@ -17,11 +17,12 @@ import {requireManufacturingPostingFinanceAuthority,manufacturingPostingFinanceR
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {manufacturingPostingSourceReadLocks} from '@erpx/server-manufacturing/adapters/posting-setup-sources';
 import {clearCommandAssertions,runOwnerUnitEffects,commandReceiptSelect} from '@erpx/server-manufacturing/adapters/purchases';
+import {manufacturingAccountingProfileSelect} from './manufacturing-read-tail-r19-sql';
 import type {ManufacturingPostingProfilesView,ManufacturingPostingProfileInput,ManufacturingPostingProfileDecisionInput} from '@erpx/server-manufacturing/domain/posting-profiles';
 type NativeProfile={id:string;company_id:string;chart_id:string;currency:string;inventory_account_id:string;wip_account_id:string;labor_account_id:string;overhead_account_id:string;scrap_account_id:string;status:'draft'|'approved'|'rejected'|'retired';version:number;created_by:string;source:string};
 type Request=ManufacturingPostingProfileInput|ManufacturingPostingProfileDecisionInput;
 const capabilities=['manufacturing.materials','manufacturing.costs','inventory.stock-core','finance.production-costing'] as const;
-async function profiles(database:SqlDatabase,companyId:string){return (await database.prepare('SELECT p.*,to_jsonb(p)::text source FROM manufacturing_accounting_profiles p WHERE company_id=? ORDER BY id').bind(companyId).all<NativeProfile>()).results;}
+async function profiles(database:SqlDatabase,companyId:string){return (await database.prepare(manufacturingAccountingProfileSelect("p.*,to_jsonb(p)::text source","p","company_id=? ORDER BY id")).bind(companyId).all<NativeProfile>()).results;}
 function authorityImage(actor:WorkContext){return JSON.stringify([actor.holdingId,actor.companyId,actor.branchId,actor.departmentId,actor.userId,actor.assignmentId,actor.role,actor.authority??null,actor.iam]);}
 function contextKey(actor:WorkContext,referenceImage:string,rows:NativeProfile[]){return createHash('sha256').update(JSON.stringify([authorityImage(actor),referenceImage,rows.map(row=>row.source)])).digest('hex');}
 async function owner(actor:WorkContext){const db=(await holdingResources(actor.holdingId)).write;if(!isTransactionalSqlDatabase(db))throw new ApiError(503,'TRANSACTION_REQUIRED','Production profile continuation requires its owned Holding transaction.');return db;}
