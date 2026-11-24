@@ -12,6 +12,7 @@ import type {BillingStripe} from '@erpx/server-billing/domain/stripe';
 import {calculateTargetBillingPeriod} from '@erpx/server-billing/adapters/billing-target';
 import {calculateTargetRolloutReadiness} from '@erpx/server-billing/adapters/billing-target-rollout';
 import {BILLING_ROLLOUT_ELIGIBILITY_SQL,BILLING_LEGACY_ENROLLMENT_OVERLAP_SQL,BILLING_MONTH_INVOICE_SQL} from './billing-read-tail-r16-sql';
+import {billingProviderCostsSql} from './billing-read-tail-r19-sql';
 export {billingInput} from '@erpx/server-billing/domain/billing';
 export type {BillingActor,BillingInput} from '@erpx/server-billing/domain/billing';
 /** r17 read tail: one SQL text per alias-parameterized read family. Call sites keep
@@ -65,7 +66,7 @@ successfulPlatformMeter:async(value0,value1,value2)=>c.query<BillingMeterRow>(`S
            AND meter_kind='ai' AND funding_source='erpx' AND request_status='succeeded'`,[value0,value1,value2]),
 availableProviderEvidence:(value0,value1)=>nativeBillingOwnerQuery(c, 'available_evidence', [value0,value1]),
 approvedProviderPeriod:(value0,value1)=>nativeBillingOwnerQuery(c, 'APPROVED_RATED_PERIOD', [value0,value1]),
-existingProviderCost:(value0,value1,value2)=>c.query<Record<string,unknown>>("SELECT * FROM billing_target_provider_costs WHERE holding_id=$1 AND month=$2 AND source_key=$3",[value0,value1,value2]),
+existingProviderCost:(value0,value1,value2)=>c.query<Record<string,unknown>>(billingProviderCostsSql(" AND source_key=$3"),[value0,value1,value2]),
 recordProviderCost:(value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11,value12)=>nativeBillingOwnerQuery(c, 'record_provider_cost', [value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11,value12]),
 availableStatementEvidence:(value0,value1)=>nativeBillingOwnerQuery(c, 'available_evidence', [value0,value1]),
 approvedStatementPeriod:(value0,value1)=>nativeBillingOwnerQuery(c, 'APPROVED_RATED_PERIOD', [value0,value1]),
