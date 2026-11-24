@@ -424,6 +424,30 @@ const READ_TRANSIT_DISPATCH_LINES: NativeStatement = NativeStatement {
     scope: "holding",
 };
 
+/// Native successors of the TypeScript `inventory-landed-costs` `landedCostDetail`
+/// child-lot and event reads. Each plan is the exact statement the retired
+/// TypeScript adapter bound on the inventory owner's own tables; the caller
+/// executes it on its already-open unit with the same single landed-cost bind
+/// and the same `.all()` result shape. Authorization stays in the preceding
+/// `requireLandedCostPurchasedRead` gate.
+pub const RD_LANDED_COST_DETAIL_LOTS: &str = "inventory_rd_landed_cost_detail_lots";
+const SQL_RD_LANDED_COST_DETAIL_LOTS: &str = "SELECT x.*,l.lot_code,l.serial_number FROM inventory_landed_cost_lots x JOIN inventory_lots l ON l.id=x.lot_id JOIN inventory_landed_cost_lines line ON line.id=x.landed_cost_line_id WHERE line.landed_cost_id=? ORDER BY line.ordinal,x.id";
+const READ_LANDED_COST_DETAIL_LOTS: NativeStatement = NativeStatement {
+    kind: RD_LANDED_COST_DETAIL_LOTS,
+    sql: SQL_RD_LANDED_COST_DETAIL_LOTS,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_LANDED_COST_DETAIL_EVENTS: &str = "inventory_rd_landed_cost_detail_events";
+const SQL_RD_LANDED_COST_DETAIL_EVENTS: &str = "SELECT * FROM inventory_landed_cost_events WHERE landed_cost_id=? ORDER BY created_at,id";
+const READ_LANDED_COST_DETAIL_EVENTS: NativeStatement = NativeStatement {
+    kind: RD_LANDED_COST_DETAIL_EVENTS,
+    sql: SQL_RD_LANDED_COST_DETAIL_EVENTS,
+    bind_count: 1,
+    scope: "holding",
+};
+
 /// Native successor of the TypeScript `pos-startup-sources` posting-state
 /// read. Owner-local: the statement touches only Inventory's own
 /// `inventory_counts` table and the caller executes it on its already-open
@@ -516,6 +540,8 @@ pub fn is_read(kind: &str) -> bool {
             | RD_POSTED_TRANSIT_TRANSFER
             | RD_TRANSFER_BY_ID
             | RD_TRANSIT_DISPATCH_LINES
+            | RD_LANDED_COST_DETAIL_LOTS
+            | RD_LANDED_COST_DETAIL_EVENTS
     )
 }
 
@@ -551,6 +577,8 @@ pub fn read_statement(kind: &str) -> Option<&'static NativeStatement> {
         RD_POSTED_TRANSIT_TRANSFER => Some(&READ_POSTED_TRANSIT_TRANSFER),
         RD_TRANSFER_BY_ID => Some(&READ_TRANSFER_BY_ID),
         RD_TRANSIT_DISPATCH_LINES => Some(&READ_TRANSIT_DISPATCH_LINES),
+        RD_LANDED_COST_DETAIL_LOTS => Some(&READ_LANDED_COST_DETAIL_LOTS),
+        RD_LANDED_COST_DETAIL_EVENTS => Some(&READ_LANDED_COST_DETAIL_EVENTS),
         _ => None,
     }
 }
@@ -622,6 +650,8 @@ mod tests {
             RD_POSTED_TRANSIT_TRANSFER,
             RD_TRANSFER_BY_ID,
             RD_TRANSIT_DISPATCH_LINES,
+            RD_LANDED_COST_DETAIL_LOTS,
+            RD_LANDED_COST_DETAIL_EVENTS,
         ] {
             assert!(is_read(kind));
             let read = read_statement(kind).expect("read kind");
@@ -940,6 +970,32 @@ mod tests {
             assert_eq!(read.bind_count, binds, "{kind}");
             assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
             assert_eq!(read.scope, "holding", "{kind}");
+        }
+    }
+
+    /// Parity witness for the `inventory-landed-costs` detail child reads:
+    /// each native plan is the exact statement the retired TypeScript adapter
+    /// bound on the inventory owner's own tables, with the caller-unit bind
+    /// intact and the same `.all()` result shape.
+    #[test]
+    fn landed_cost_detail_read_plans_match_retired_owner_statements() {
+        let cases = [
+            (
+                RD_LANDED_COST_DETAIL_LOTS,
+                "SELECT x.*,l.lot_code,l.serial_number FROM inventory_landed_cost_lots x JOIN inventory_lots l ON l.id=x.lot_id JOIN inventory_landed_cost_lines line ON line.id=x.landed_cost_line_id WHERE line.landed_cost_id=? ORDER BY line.ordinal,x.id",
+            ),
+            (
+                RD_LANDED_COST_DETAIL_EVENTS,
+                "SELECT * FROM inventory_landed_cost_events WHERE landed_cost_id=? ORDER BY created_at,id",
+            ),
+        ];
+        for (kind, expected) in cases {
+            let read = read_statement(kind).expect("read kind");
+            assert_eq!(read.sql, expected, "{kind}");
+            assert_eq!(read.bind_count, 1, "{kind}");
+            assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
+            assert_eq!(read.scope, "holding", "{kind}");
+            assert!(is_read(kind), "{kind}");
         }
     }
 }

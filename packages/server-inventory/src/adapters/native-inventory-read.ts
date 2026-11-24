@@ -47,6 +47,8 @@ export const INVENTORY_RD_TRANSIT_EVENTS_WITH_RESOLUTION = 'inventory_rd_transit
 export const INVENTORY_RD_POSTED_TRANSIT_TRANSFER = 'inventory_rd_posted_transit_transfer';
 export const INVENTORY_RD_TRANSFER_BY_ID = 'inventory_rd_transfer_by_id';
 export const INVENTORY_RD_TRANSIT_DISPATCH_LINES = 'inventory_rd_transit_dispatch_lines';
+export const INVENTORY_RD_LANDED_COST_DETAIL_LOTS = 'inventory_rd_landed_cost_detail_lots';
+export const INVENTORY_RD_LANDED_COST_DETAIL_EVENTS = 'inventory_rd_landed_cost_detail_events';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'INVENTORY_NATIVE_READ_UNAVAILABLE', 'The native Inventory read service is unavailable.');

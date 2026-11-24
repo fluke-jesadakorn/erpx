@@ -84,7 +84,7 @@ describe('Inventory read-tail r45 parameterized transit-event sum dedupe', () =>
     expect(shared).not.toMatch(lockRe);
   });
 
-  test('retirement:ts-statements KPI is 307 after the r49 native read cutover (strictly below r47 314)', () => {
+  test('retirement:ts-statements KPI is 305 after the r50 landed-cost detail read cutover (strictly below r49 307)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -101,7 +101,8 @@ describe('Inventory read-tail r45 parameterized transit-event sum dedupe', () =>
     // r47 lowers the KPI to 314 with the shared head, marked-count and replay
     // probe-prefix helpers. The r49 native read cutover retires 7 owner-local
     // SELECT tokens (2 commerce-facts, 5 inventory-transit): 314 -> 307.
-    expect(total).toBe(307);
-    expect(total).toBeLessThan(314);
+    // r50 retires 2 landed-cost detail child reads (lots join, events): 307 -> 305.
+    expect(total).toBe(305);
+    expect(total).toBeLessThan(307);
   });
 });
