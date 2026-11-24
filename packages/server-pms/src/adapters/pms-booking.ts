@@ -3,6 +3,7 @@ import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
 import { PMS_BOOKING_PAYMENT_BY_ID_SQL } from "./pms-read-tail-r18-sql";
 import { PMS_PURCHASE_CLOCK_CTE_SQL } from "./pms-read-tail-r27-sql";
 import { pmsRefundPaymentJoinHeadSql } from "./pms-read-tail-r34-sql";
+import { PMS_PROPERTY_POINT_HEAD_SQL } from "./pms-read-tail-r36-sql";
 import {holdingRoutingEnabled,holdingHosts} from '@erpx/contracts/holding-hosts';
 import {bookingEmailDeliveryPayload} from "@erpx/server-pms/adapters/booking-email-delivery";
 import "server-only";
@@ -86,7 +87,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
         readPmsProperties1: (facts: {
             propertyId: string;
             lock: boolean;
-        }) => db.prepare(`SELECT * FROM pms_properties WHERE id=?${facts.lock ? " FOR UPDATE" : ""}`).bind(facts.propertyId).first<{
+        }) => db.prepare(`${PMS_PROPERTY_POINT_HEAD_SQL} WHERE id=?${facts.lock ? " FOR UPDATE" : ""}`).bind(facts.propertyId).first<{
             id: string;
             company_id: string;
             branch_id: string;

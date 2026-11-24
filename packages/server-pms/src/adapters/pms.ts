@@ -5,6 +5,7 @@ import { PMS_RECORDS_PROJECTION_PREFIX_SQL } from "./pms-read-tail-r24-sql";
 import { PMS_IDS_JSONB_MEMBER_SQL } from "./pms-read-tail-r26-sql";
 import { pmsBookingPaymentIdProbeSql } from "./pms-read-tail-r29-sql";
 import { pmsRefundPaymentJoinHeadSql } from "./pms-read-tail-r34-sql";
+import { PMS_PROPERTY_POINT_HEAD_SQL } from "./pms-read-tail-r36-sql";
 import { roomChargeReversalWork } from "@erpx/server-pos/public/room-charge-reversal-queue";
 import { withPmsPurchasedCommand } from "@erpx/server-pms/adapters/purchase-boundary";
 import { readPurchasedAccesses, pmsPackageEnforcementMode, type PurchasedAccess } from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -71,13 +72,13 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
             ? `WITH command_context AS MATERIALIZED (SELECT set_config('erpx.pms_write','on',true),set_config('erpx.pms_property',?::text,true))
                SELECT p.* FROM pms_properties p CROSS JOIN command_context
                WHERE p.id=? AND p.company_id=? FOR UPDATE OF p`
-            : "SELECT * FROM pms_properties WHERE id=? AND company_id=?")
+            : `${PMS_PROPERTY_POINT_HEAD_SQL} WHERE id=? AND company_id=?`)
             .bind(...(facts.lock ? [facts.id,facts.id,facts.companyId] : [facts.id,facts.companyId])).first<PropertyRow>(),
         readPmsProperties2: (facts: {
             companyId: string;
             fact1: readonly string[];
             actor: WorkContext;
-        }) => query<PropertyRow>(db, `SELECT * FROM pms_properties WHERE company_id=?${facts.actor.branchId ? " AND branch_id=?" : ""} ORDER BY name`, facts.companyId, ...facts.fact1),
+        }) => query<PropertyRow>(db, `${PMS_PROPERTY_POINT_HEAD_SQL} WHERE company_id=?${facts.actor.branchId ? " AND branch_id=?" : ""} ORDER BY name`, facts.companyId, ...facts.fact1),
         readAssignments: facts => identity_access.readAssignments(facts),
         readOrganizationNodes: facts => organization.readOrganizationNodes(facts),
         readFinanceAccounts: facts => finance.readFinanceAccounts(facts),

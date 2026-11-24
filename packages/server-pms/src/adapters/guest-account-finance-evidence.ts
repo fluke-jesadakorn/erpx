@@ -5,14 +5,14 @@ import { holdingResources } from "../../../../packages/server-runtime/src/public
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { parseGuestAccountJson } from "@erpx/feature-identity_access/lib/guest-account-compat";
 import type { GuestAccount, Entry } from "@erpx/server-pms/domain/pms-model";
+import { pmsRecordPropertyPointHeadSql } from "./pms-read-tail-r36-sql";
 
 /** Financial evidence stays scoped to one account and its originating entries. */
 export async function guestAccountFinanceEvidence(actor: WorkContext, id: string) {
   requirePermission(actor,"finance.read"); requirePermission(actor,"pms.reports");
   if(actor.departmentId)throw new ApiError(403,"PMS_BRANCH_REQUIRED","Choose a Company or Branch.");
   const db=(await holdingResources(actor.holdingId)).write;
-  const account=await db.prepare(`SELECT r.id,r.property_id,r.data_json,p.name,p.business_date,p.config_json::jsonb->>'currency' currency
-    FROM pms_records r JOIN pms_properties p ON p.id=r.property_id WHERE r.id=? AND r.kind='guest_account'
+  const account=await db.prepare(`${pmsRecordPropertyPointHeadSql('guestEvidence')} WHERE r.id=? AND r.kind='guest_account'
     AND p.company_id=? AND (?::text IS NULL OR p.branch_id=?)`)
     .bind(id,actor.companyId,actor.branchId,actor.branchId).first<{id:string;property_id:string;data_json:string;name:string;business_date:string;currency:string}>();
   if(!account)throw new ApiError(404,"PMS_NOT_FOUND","Guest Account not found in this workspace.");
