@@ -24,8 +24,11 @@ function evaluate(text: string): string {
   const start = text.indexOf('`WITH scope AS') + 1;
   const end = text.indexOf('\n', start);
   const tpl = text.slice(start, end);
-  return new Function('scopedMaterialized', 'requisitions', 'applications', 'offers', 'return `' + tpl + '`;')(
-    scopedMaterialized, 'REQ', 'APP', 'OFF',
+  // r38 scope CTE routes its projection head through the same r37 universal
+  // helper so the emitted WITH-scope prefix stays byte-identical.
+  const selectProjection = (projection: string) => `SELECT ${projection}`;
+  return new Function('scopedMaterialized', 'requisitions', 'applications', 'offers', 'selectProjection', 'return `' + tpl + '`;')(
+    scopedMaterialized, 'REQ', 'APP', 'OFF', selectProjection,
   );
 }
 
@@ -58,7 +61,7 @@ describe('talent read-tail r23 scoped-materialized CTE family dedupe', () => {
   it('re-pins the talent owner SELECT KPI strictly below BEFORE=48 to 47', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(39);
+    expect(count).toBe(27);
     expect(count).toBeLessThan(40);
   });
 });

@@ -38,9 +38,10 @@ describe('talent read-tail r24 EXISTS-row family dedupe', () => {
     expect(text.split('const existsRow=').length - 1).toBe(1);
     expect(text.split('${existsRow(').length - 1).toBe(5);
     expect(text).toContain('${existsGuardPrefix(source)}${where})');
-    // The remaining literal EXISTS(SELECT 1 FROM string is the r19 offer-event
-    // prefix; no inline NOT EXISTS(SELECT remains.
-    expect(text.split('EXISTS(SELECT 1 FROM').length - 1).toBe(1);
+    // The r38 offer-event prefix routes its projection head through the r37
+    // universal helper, so no literal EXISTS(SELECT remains in the owner file.
+    expect(text.split('EXISTS(SELECT 1 FROM').length - 1).toBe(0);
+    expect(text.split("EXISTS(${selectProjection('1')} FROM").length - 1).toBe(1);
     expect(text.split('NOT EXISTS(SELECT 1 FROM').length - 1).toBe(0);
   });
 
@@ -70,7 +71,7 @@ describe('talent read-tail r24 EXISTS-row family dedupe', () => {
   it('lowers the talent owner SELECT KPI strictly below BEFORE=47', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(39);
+    expect(count).toBe(27);
     expect(count).toBeLessThan(40);
   });
 });

@@ -91,7 +91,7 @@ describe('Talent read-tail r37 universal projection head family', () => {
     expect(src('talent-read-tail-r36-sources.ts')).toContain('SELECT 1 FROM ${source} WHERE ${predicate}');
   });
 
-  test('lowers the talent owner SELECT KPI strictly below BEFORE=44 to 39', () => {
+  test('lowers the talent owner SELECT KPI strictly below BEFORE=44 to 27', () => {
     const files: string[] = [];
     const walk = (d: string) => {
       for (const e of readdirSync(d, { withFileTypes: true }) as Dirent[]) {
@@ -103,7 +103,7 @@ describe('Talent read-tail r37 universal projection head family', () => {
     walk(resolve(__dirname, '../../../packages/server-talent/src'));
     let count = 0;
     for (const f of files) count += (readFileSync(f, 'utf8').match(/SELECT/g) ?? []).length;
-    expect(count).toBe(39);
+    expect(count).toBe(27);
     expect(count).toBeLessThan(44);
   });
 });
