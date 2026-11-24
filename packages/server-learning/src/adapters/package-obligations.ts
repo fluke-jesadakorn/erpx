@@ -3,7 +3,7 @@ import {createHash} from "node:crypto";
 import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgres";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
-import {latestEventLateral,obligationFactHead,packageScopeCte,sourceLiteral} from "./learning-read-sql";
+import {certificateConsistencyProbe,latestEventLateral,obligationFactHead,packageScopeCte,sourceLiteral} from "./learning-read-sql";
 
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
@@ -50,18 +50,12 @@ export async function learningPackageObligations(owner:PostgresDatabase,database
  WHERE c.company_id=scope.company_id
  ${obligationFactHead('UNION ALL ', "'assignment'", 'a.id,a.version,a.status')}
  NOT a.source_valid OR a.status NOT IN ('completed','waived','cancelled') OR NOT a.terminal_proven
- OR (a.status IN ('completed','waived') AND a.required_for IS NOT NULL AND NOT EXISTS
- (SELECT 1 FROM handoffs h JOIN certificates c ON c.handoff_id=h.id AND c.company_id=h.company_id
- WHERE h.assignment_id=a.id AND h.source_assignment_version=a.event_version AND h.eligibility_code=a.required_for
- AND c.assignment_id=a.id AND c.source_assignment_version=h.source_assignment_version
- AND c.eligibility_code=h.eligibility_code AND c.person_id=h.person_id AND c.completion_kind=a.status))
+ OR (a.status IN ('completed','waived') AND a.required_for IS NOT NULL AND ${certificateConsistencyProbe('NOT EXISTS\n (','FROM handoffs h JOIN certificates c ON c.handoff_id=h.id AND c.company_id=h.company_id','\n WHERE h.assignment_id=a.id AND h.source_assignment_version=a.event_version AND h.eligibility_code=a.required_for\n AND c.assignment_id=a.id AND c.source_assignment_version=h.source_assignment_version\n AND c.eligibility_code=h.eligibility_code AND c.person_id=h.person_id AND c.completion_kind=a.status)')})
  FROM assignments a
  ${obligationFactHead('UNION ALL ', "'handoff'", 'h.id,h.source_assignment_version,h.status')}
  a.id IS NULL OR NOT a.source_valid OR NOT a.terminal_proven OR a.status NOT IN ('completed','waived')
  OR h.source_assignment_version<>a.event_version OR h.eligibility_code IS DISTINCT FROM a.required_for
- OR NOT EXISTS(SELECT 1 FROM certificates c WHERE c.handoff_id=h.id AND c.assignment_id=a.id
- AND c.source_assignment_version=h.source_assignment_version AND c.person_id=h.person_id
- AND c.eligibility_code=h.eligibility_code AND c.completion_kind=a.status)
+ OR ${certificateConsistencyProbe('NOT EXISTS(','FROM certificates c WHERE c.handoff_id=h.id AND c.assignment_id=a.id\n AND c.source_assignment_version=h.source_assignment_version AND c.person_id=h.person_id\n AND c.eligibility_code=h.eligibility_code AND c.completion_kind=a.status','')}
  FROM handoffs h LEFT JOIN assignments a ON a.id=h.assignment_id
  ${obligationFactHead('UNION ALL ', "'certificate'", 'c.id,c.source_assignment_version,c.completion_kind')}
  h.id IS NULL OR a.id IS NULL OR NOT a.source_valid OR NOT a.terminal_proven

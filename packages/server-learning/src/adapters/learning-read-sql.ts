@@ -128,3 +128,17 @@ export const clockedSourceCte = (alias: string, separator = ' ') =>
  * caller, so every rendered branch keeps its exact pre-dedupe bytes. */
 export const obligationFactHead = (union: string, kind: string, fields: string) =>
   `${union}SELECT ${kind},${fields},`;
+
+/** r15 — assignment-child image frame. The three nested child reads of the
+ * attachment image share the same subquery framing; only the aggregate, source
+ * and separator vary. Binds stay at the caller so each rendered frame keeps its
+ * exact pre-dedupe bytes. */
+export const imageChildFrame = (aggregate: string, source: string, separator = ' ') =>
+  `(SELECT ${aggregate}${separator}${source})`;
+
+/** r15 — certificate-consistency NOT EXISTS probe. The two settlement branches
+ * share the same existence head; only the opening, FROM source, ordered tail
+ * and closing parens vary, so each rendered check keeps its exact bytes. No
+ * probe carries a bind; the enclosing query keeps its single company bind. */
+export const certificateConsistencyProbe = (open: string, source: string, tail: string, close = ')') =>
+  `${open}SELECT 1 ${source}${tail}${close}`;

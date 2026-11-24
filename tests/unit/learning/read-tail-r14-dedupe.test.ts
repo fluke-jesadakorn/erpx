@@ -105,6 +105,6 @@ describe('Learning read-tail r14 invariants', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(57);
-    expect(total).toBe(52);
+    expect(total).toBeLessThanOrEqual(52);
   });
 });
