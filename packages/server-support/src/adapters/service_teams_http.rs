@@ -684,6 +684,40 @@ mod tests {
                 200,
             ),
             (
+                "support_rd_incident_attachment_source_image",
+                json!(["user-1", "incident-1", "company"]),
+                200,
+            ),
+            (
+                "support_rd_incident_attachment_source_links",
+                json!(["incident-1", "company"]),
+                200,
+            ),
+            (
+                "support_rd_sales_support_counts",
+                json!([
+                    "company", "branch", "branch", "dept", "dept", "company", "branch",
+                    "branch", "dept", "dept", "assignment", "user", "role", "[]"
+                ]),
+                200,
+            ),
+            (
+                "support_rd_sales_open_support_cases",
+                json!([
+                    "company", "branch", "branch", "dept", "dept", "company", "branch",
+                    "branch", "dept", "dept", "assignment", "user", "role", "customer"
+                ]),
+                200,
+            ),
+            (
+                "support_rd_sales_customer_source_cases",
+                json!([
+                    "company", "branch", "branch", "dept", "dept", "assignment", "user",
+                    "role", "[]", "[]", "[]", "customer"
+                ]),
+                200,
+            ),
+            (
                 "support_rd_service_coverage_history",
                 json!(["company", "extra"]),
                 422,
@@ -739,6 +773,40 @@ mod tests {
                 json!([
                     "status", "status", "status", "status", "company", null, null, null, null,
                     "assignment", "user"
+                ]),
+                422,
+            ),
+            (
+                "support_rd_incident_attachment_source_image",
+                json!(["user-1", "incident-1"]),
+                422,
+            ),
+            (
+                "support_rd_incident_attachment_source_links",
+                json!(["incident-1"]),
+                422,
+            ),
+            (
+                "support_rd_sales_support_counts",
+                json!([
+                    "company", "branch", "branch", "dept", "dept", "company", "branch",
+                    "branch", "dept", "dept", "assignment", "user", "role"
+                ]),
+                422,
+            ),
+            (
+                "support_rd_sales_open_support_cases",
+                json!([
+                    "company", "branch", "branch", "dept", "dept", "company", "branch",
+                    "branch", "dept", "dept", "assignment", "user", "role"
+                ]),
+                422,
+            ),
+            (
+                "support_rd_sales_customer_source_cases",
+                json!([
+                    "company", "branch", "branch", "dept", "dept", "assignment", "user",
+                    "role", "[]", "[]", "[]"
                 ]),
                 422,
             ),

@@ -16,6 +16,10 @@ vi.mock('@erpx/server-support/adapters/ticket-source-read-policy', () => ({
 vi.mock('@erpx/server-runtime/public/executive/metric-sources', () => ({
   readMetricSources: (...args: unknown[]) => metricSourceMock(...args),
 }));
+vi.mock('@erpx/server-commerce/public/support-attachment-sources', () => ({
+  supportOrderAttachmentSourceLocks: () => [],
+  supportOrderAttachmentSourceImage: async () => ({ id: 'order-1' }),
+}));
 
 const source = (path: string) => readFile(new URL(`../../../${path}`, import.meta.url), 'utf8');
 const config = JSON.stringify({
@@ -589,6 +593,114 @@ describe('support service-team coverage native read', () => {
           'assignment-1', 'user-1', 'support',
         ],
       });
+    } finally {
+      fetchMock.mockRestore();
+      delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
+    }
+  });
+
+  it('plans the incident-attachment and Sales read tails in Rust with no local SELECT', async () => {
+    const incident = await source('packages/server-support/src/adapters/incident-attachment-read-sources.ts');
+    const sales = await source('packages/server-support/src/adapters/sales-projection.ts');
+    const registry = await source('packages/server-support/src/adapters/native_support_read_sql.rs');
+    const transport = await source('packages/server-support/src/adapters/native-support-read.ts');
+    for (const text of [incident, sales]) expect(text).not.toContain('SELECT');
+    expect(incident).toContain('LOCK TABLE support_incidents');
+    expect(incident).toContain('supportOrderAttachmentSourceImage');
+    for (const kind of [
+      'support_rd_incident_attachment_source_image',
+      'support_rd_incident_attachment_source_links',
+      'support_rd_sales_support_counts',
+      'support_rd_sales_open_support_cases',
+      'support_rd_sales_customer_source_cases',
+    ]) {
+      expect(registry).toContain(kind);
+      expect(transport).toContain(kind);
+    }
+    expect(sales).not.toContain('service-access');
+  });
+
+  it('rejects unknown kinds and wrong bind arity before transport', async () => {
+    process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ok('SELECT 1', []));
+    const db = { prepare: vi.fn(() => ({ bind: vi.fn() })), batch: vi.fn() } as unknown as SqlDatabase;
+    try {
+      const { nativeSupportReadAll, SUPPORT_RD_SALES_SUPPORT_COUNTS } = await import(
+        '@erpx/server-support/adapters/native-support-read'
+      );
+      await expect(nativeSupportReadAll(SUPPORT_RD_SALES_SUPPORT_COUNTS, ['company'], db))
+        .rejects.toMatchObject({ status: 422, code: 'SUPPORT_NATIVE_READ_BINDS_INVALID' });
+      await expect(nativeSupportReadAll('SELECT 1', [], db))
+        .rejects.toMatchObject({ status: 422, code: 'SUPPORT_NATIVE_READ_BINDS_INVALID' });
+      expect(fetchMock).not.toHaveBeenCalled();
+    } finally {
+      fetchMock.mockRestore();
+      delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
+    }
+  });
+
+  it('sends fixed scope/policy binds and one JSON id bind for the Sales projections', async () => {
+    process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ok('SELECT 1', []));
+    const db = { prepare: vi.fn(() => ({ bind: vi.fn() })), batch: vi.fn(async () => [{ results: [], success: true, meta: { changes: 0, duration: 0 } }]) } as unknown as SqlDatabase;
+    const actor = { companyId: 'company', branchId: 'branch', departmentId: 'dept', assignmentId: 'assignment', userId: 'user', role: 'role' } as never;
+    try {
+      const { salesSupportCounts, salesOpenSupportCases, supportCustomerSourceCases } = await import(
+        '@erpx/server-support/adapters/sales-projection'
+      );
+      const valuesOf = (index: number) => JSON.parse(String(fetchMock.mock.calls[index]![1]!.body)).values;
+      await salesSupportCounts(db, actor, ['customer-1', 'customer-2']);
+      expect(valuesOf(0)).toEqual([
+        'company', 'branch', 'branch', 'dept', 'dept',
+        'company', 'branch', 'branch', 'dept', 'dept',
+        'assignment', 'user', 'role', '["customer-1","customer-2"]',
+      ]);
+      await salesOpenSupportCases(db, actor, 'customer-1');
+      expect(valuesOf(1)).toEqual([
+        'company', 'branch', 'branch', 'dept', 'dept',
+        'company', 'branch', 'branch', 'dept', 'dept',
+        'assignment', 'user', 'role', 'customer-1',
+      ]);
+      await supportCustomerSourceCases(db, actor, 'customer-1');
+      expect(valuesOf(2)).toEqual([
+        'company', 'branch', 'branch', 'dept', 'dept',
+        'assignment', 'user', 'role', '["pos-1"]', '["asset-1"]', '[]', 'customer-1',
+      ]);
+      expect(fetchMock.mock.calls.map(call => JSON.parse(String(call[1]!.body)).kind)).toEqual([
+        'support_rd_sales_support_counts',
+        'support_rd_sales_open_support_cases',
+        'support_rd_sales_customer_source_cases',
+      ]);
+    } finally {
+      fetchMock.mockRestore();
+      delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
+    }
+  });
+
+  it('plans the incident witness image and links without moving the Commerce source image', async () => {
+    process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () => ok('SELECT 1', []));
+    const batch = vi.fn()
+      .mockResolvedValueOnce([{ results: [{ image: '{}', events: null, recipients: null }], success: true, meta: { changes: 0, duration: 0 } }])
+      .mockResolvedValueOnce([{ results: [{ image: '{}', ticket: '{}', order_id: 'order-1' }], success: true, meta: { changes: 0, duration: 0 } }]);
+    const db = { prepare: vi.fn(() => ({ bind: vi.fn() })), batch } as unknown as SqlDatabase;
+    const actor = { userId: 'user', companyId: 'company' } as never;
+    try {
+      const { supportIncidentAttachmentReadSourceImage } = await import(
+        '@erpx/server-support/adapters/incident-attachment-read-sources'
+      );
+      const witness = await supportIncidentAttachmentReadSourceImage(db, actor, 'incident-1');
+      expect(JSON.parse(String(witness))).toEqual([
+        { image: '{}', events: null, recipients: null },
+        [{ image: '{}', ticket: '{}', order_id: 'order-1', order: { id: 'order-1' } }],
+      ]);
+      expect(fetchMock.mock.calls.map(call => JSON.parse(String(call[1]!.body)).kind)).toEqual([
+        'support_rd_incident_attachment_source_image',
+        'support_rd_incident_attachment_source_links',
+      ]);
+      expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body)).values).toEqual(['user', 'incident-1', 'company']);
+      expect(JSON.parse(String(fetchMock.mock.calls[1]![1]!.body)).values).toEqual(['incident-1', 'company']);
+      expect(batch).toHaveBeenCalledTimes(2);
     } finally {
       fetchMock.mockRestore();
       delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;

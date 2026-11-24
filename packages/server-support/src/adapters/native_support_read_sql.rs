@@ -23,7 +23,13 @@
 //! It also plans the Support Calendar family: the scoped open-ticket and
 //! open-incident calendar feeds on `support_tickets` and `support_incidents`,
 //! carrying the owner-name/team projection and the actor-scoped read predicate
-//! as fixed native SQL with only scalar values crossing the wire.
+//! as fixed native SQL with only scalar values crossing the wire. It plans the
+//! incident-attachment witness family: the incident image/events/recipients
+//! projection and the incident-ticket link projection used for the private-file
+//! before/after consistency witness. It plans the Sales projection family:
+//! support-case counts, open cases and CRM source cases, where order scope,
+//! ticket-actor policy and source-id-set predicates stay fixed native SQL and
+//! variable id lists cross only as scalar JSON binds.
 //! Reads carry no receipt/audit/outbox ledger: the caller executes them on the
 //! same unit as the surrounding command. No SQL is ever accepted from the wire
 //! and no TypeScript SQL remains for these kinds.
@@ -334,6 +340,83 @@ const READ_EXEC_INCIDENT_METRIC: NativeSupportReadStatement = NativeSupportReadS
     bind_count: 12,
 };
 
+// Fixed closed public projections from People Payroll and Commerce. The source
+// owners author these relation lists; Support only composes them read-only.
+// These witnesses are compiled with the registry tests that assert the planned
+// statements still carry the exact closed fragments.
+#[cfg(test)]
+const SQL_HR_ENGAGEMENTS: &str = "(SELECT \"id\",\"person_id\",\"company_id\",\"branch_id\",\"department_id\",\"worker_type\",\"employment_type\",\"status\",\"start_date\",\"end_date\",\"manager_person_id\",\"job_title\",\"currency\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"pay_group_id\",\"level_id\",\"position_id\",\"self_service_top_level\" FROM hr_engagements)";
+#[cfg(test)]
+const SQL_HR_PEOPLE: &str = "(SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people)";
+#[cfg(test)]
+const SQL_COMMERCE_ORDERS: &str = "(SELECT \"id\",\"company_id\",\"branch_id\",\"department_id\",\"kind\",\"number\",\"party_id\",\"warehouse_id\",\"currency\",\"order_date\",\"due_date\",\"note\",\"state\",\"subtotal_minor\",\"tax_minor\",\"source_id\",\"version\",\"created_by\",\"approved_by\",\"created_at\",\"updated_at\",\"price_list_id\",\"price_list_version\",\"discount_reason\",\"discount_approval_required\",\"discount_approved_by\",\"discount_approved_at\" FROM commerce_orders)";
+
+// Fixed order-scope, ticket-actor and source-authority predicates. Only their
+// scalar values cross the wire; no caller supplies SQL or a relation name.
+#[cfg(test)]
+const SQL_ORDER_SCOPE_T: &str =
+    "t.company_id=? AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?)";
+#[cfg(test)]
+const SQL_ORDER_SCOPE_O: &str =
+    "o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)";
+#[cfg(test)]
+const SQL_TICKET_READ_POLICY_T: &str = "EXISTS(SELECT 1 FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=t.company_id AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=t.branch_id OR g.scope_kind='department' AND g.scope_node_id=t.department_id) AND (iam_role_allows(g.role,g.company_id,'support.read') OR t.source_kind<>'sales_order' AND t.created_by=g.user_id AND iam_role_allows(g.role,g.company_id,'records.read')))";
+#[cfg(test)]
+const SQL_SOURCE_READ_POLICY_T: &str = "(t.source_record_json IS NULL OR (t.source_record_json::jsonb->>'kind'='pos_sale' AND t.source_record_json::jsonb->>'id' IN (SELECT jsonb_array_elements_text(?::jsonb))) OR (t.source_record_json::jsonb->>'kind'='asset' AND t.source_record_json::jsonb->>'id' IN (SELECT jsonb_array_elements_text(?::jsonb))) OR (t.source_record_json::jsonb->>'kind'='pms_record' AND t.source_record_json::jsonb->>'id' IN (SELECT jsonb_array_elements_text(?::jsonb))))";
+
+/// Native successor of the TypeScript incident-attachment image projection.
+/// The caller binds `[user_id, incident_id, company_id]` and receives the
+/// incident snapshot, its events and its recipient/engagement witnesses.
+pub const RD_INCIDENT_ATTACHMENT_SOURCE_IMAGE: &str = "support_rd_incident_attachment_source_image";
+const SQL_INCIDENT_ATTACHMENT_SOURCE_IMAGE: &str = "SELECT to_jsonb(t)::text image,(SELECT jsonb_agg(to_jsonb(event) ORDER BY event.id) FROM support_incident_events event WHERE event.incident_id=t.id)::text events,(SELECT jsonb_agg(jsonb_build_object('person',to_jsonb(person),'engagements',(SELECT jsonb_agg(to_jsonb(engagement) ORDER BY engagement.id) FROM (SELECT \"id\",\"person_id\",\"company_id\",\"branch_id\",\"department_id\",\"worker_type\",\"employment_type\",\"status\",\"start_date\",\"end_date\",\"manager_person_id\",\"job_title\",\"currency\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"pay_group_id\",\"level_id\",\"position_id\",\"self_service_top_level\" FROM hr_engagements) engagement WHERE engagement.person_id=person.id AND engagement.company_id=t.company_id)) ORDER BY person.id) FROM (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) person WHERE person.company_id=t.company_id AND person.user_id IN (?,t.owner_id,t.mitigated_by))::text recipients FROM support_incidents t WHERE t.id=? AND t.company_id=?";
+const READ_INCIDENT_ATTACHMENT_SOURCE_IMAGE: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_INCIDENT_ATTACHMENT_SOURCE_IMAGE,
+    sql: SQL_INCIDENT_ATTACHMENT_SOURCE_IMAGE,
+    bind_count: 3,
+};
+
+/// Native successor of the TypeScript incident-attachment link projection.
+/// The caller binds `[incident_id, company_id]` and receives the same-Company
+/// ticket links with their order references. The Commerce source image and the
+/// lock fence stay with their owners on the caller's unit.
+pub const RD_INCIDENT_ATTACHMENT_SOURCE_LINKS: &str = "support_rd_incident_attachment_source_links";
+const SQL_INCIDENT_ATTACHMENT_SOURCE_LINKS: &str =
+    "SELECT to_jsonb(link)::text image,to_jsonb(ticket)::text ticket,ticket.order_id FROM support_incident_tickets link JOIN support_incidents incident ON incident.id=link.incident_id LEFT JOIN support_tickets ticket ON ticket.id=link.ticket_id AND ticket.company_id=incident.company_id WHERE incident.id=? AND incident.company_id=? ORDER BY link.ticket_id";
+const READ_INCIDENT_ATTACHMENT_SOURCE_LINKS: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_INCIDENT_ATTACHMENT_SOURCE_LINKS,
+    sql: SQL_INCIDENT_ATTACHMENT_SOURCE_LINKS,
+    bind_count: 2,
+};
+
+/// Native successors of the TypeScript Sales Support projections. The variable
+/// customer-id list is a single JSON bind, so every kind has a fixed bind count
+/// and the command-plan route rejects any other arity. Caller binds are the
+/// order-scope scalars for `t` and `o`, the ticket-actor policy scalars and the
+/// projection's final scalar id(s).
+pub const RD_SALES_SUPPORT_COUNTS: &str = "support_rd_sales_support_counts";
+const SQL_SALES_SUPPORT_COUNTS: &str = "SELECT t.customer_id,COUNT(*) count FROM support_tickets t JOIN (SELECT \"id\",\"company_id\",\"branch_id\",\"department_id\",\"kind\",\"number\",\"party_id\",\"warehouse_id\",\"currency\",\"order_date\",\"due_date\",\"note\",\"state\",\"subtotal_minor\",\"tax_minor\",\"source_id\",\"version\",\"created_by\",\"approved_by\",\"created_at\",\"updated_at\",\"price_list_id\",\"price_list_version\",\"discount_reason\",\"discount_approval_required\",\"discount_approved_by\",\"discount_approved_at\" FROM commerce_orders) o ON o.id=t.order_id AND o.company_id=t.company_id AND o.party_id=t.customer_id WHERE t.company_id=? AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?) AND o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?) AND EXISTS(SELECT 1 FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=t.company_id AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=t.branch_id OR g.scope_kind='department' AND g.scope_node_id=t.department_id) AND (iam_role_allows(g.role,g.company_id,'support.read') OR t.source_kind<>'sales_order' AND t.created_by=g.user_id AND iam_role_allows(g.role,g.company_id,'records.read'))) AND t.customer_id IN (SELECT jsonb_array_elements_text(?::jsonb)) AND t.status NOT IN ('closed','cancelled') GROUP BY t.customer_id";
+const READ_SALES_SUPPORT_COUNTS: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_SALES_SUPPORT_COUNTS,
+    sql: SQL_SALES_SUPPORT_COUNTS,
+    bind_count: 14,
+};
+
+pub const RD_SALES_OPEN_SUPPORT_CASES: &str = "support_rd_sales_open_support_cases";
+const SQL_SALES_OPEN_SUPPORT_CASES: &str = "SELECT t.id,t.title,t.status,t.due_date FROM support_tickets t JOIN (SELECT \"id\",\"company_id\",\"branch_id\",\"department_id\",\"kind\",\"number\",\"party_id\",\"warehouse_id\",\"currency\",\"order_date\",\"due_date\",\"note\",\"state\",\"subtotal_minor\",\"tax_minor\",\"source_id\",\"version\",\"created_by\",\"approved_by\",\"created_at\",\"updated_at\",\"price_list_id\",\"price_list_version\",\"discount_reason\",\"discount_approval_required\",\"discount_approved_by\",\"discount_approved_at\" FROM commerce_orders) o ON o.id=t.order_id AND o.company_id=t.company_id AND o.party_id=t.customer_id WHERE t.company_id=? AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?) AND o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?) AND EXISTS(SELECT 1 FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=t.company_id AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=t.branch_id OR g.scope_kind='department' AND g.scope_node_id=t.department_id) AND (iam_role_allows(g.role,g.company_id,'support.read') OR t.source_kind<>'sales_order' AND t.created_by=g.user_id AND iam_role_allows(g.role,g.company_id,'records.read'))) AND t.customer_id=? AND t.status NOT IN ('closed','cancelled') ORDER BY t.updated_at DESC,t.id LIMIT 30";
+const READ_SALES_OPEN_SUPPORT_CASES: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_SALES_OPEN_SUPPORT_CASES,
+    sql: SQL_SALES_OPEN_SUPPORT_CASES,
+    bind_count: 14,
+};
+
+pub const RD_SALES_CUSTOMER_SOURCE_CASES: &str = "support_rd_sales_customer_source_cases";
+const SQL_SALES_CUSTOMER_SOURCE_CASES: &str = "SELECT t.id,t.title,t.status,t.order_id FROM support_tickets t WHERE t.company_id=? AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?) AND EXISTS(SELECT 1 FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=t.company_id AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=t.branch_id OR g.scope_kind='department' AND g.scope_node_id=t.department_id) AND (iam_role_allows(g.role,g.company_id,'support.read') OR t.source_kind<>'sales_order' AND t.created_by=g.user_id AND iam_role_allows(g.role,g.company_id,'records.read'))) AND (t.source_record_json IS NULL OR (t.source_record_json::jsonb->>'kind'='pos_sale' AND t.source_record_json::jsonb->>'id' IN (SELECT jsonb_array_elements_text(?::jsonb))) OR (t.source_record_json::jsonb->>'kind'='asset' AND t.source_record_json::jsonb->>'id' IN (SELECT jsonb_array_elements_text(?::jsonb))) OR (t.source_record_json::jsonb->>'kind'='pms_record' AND t.source_record_json::jsonb->>'id' IN (SELECT jsonb_array_elements_text(?::jsonb)))) AND t.customer_id=? ORDER BY t.updated_at DESC,t.id LIMIT 50";
+const READ_SALES_CUSTOMER_SOURCE_CASES: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_SALES_CUSTOMER_SOURCE_CASES,
+    sql: SQL_SALES_CUSTOMER_SOURCE_CASES,
+    bind_count: 12,
+};
+
 const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SERVICE_COVERAGE_HISTORY,
     READ_SERVICE_TEAM_COVERAGE,
@@ -360,6 +443,11 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_CALENDAR_SUPPORT_INCIDENTS,
     READ_EXEC_TICKET_METRIC,
     READ_EXEC_INCIDENT_METRIC,
+    READ_INCIDENT_ATTACHMENT_SOURCE_IMAGE,
+    READ_INCIDENT_ATTACHMENT_SOURCE_LINKS,
+    READ_SALES_SUPPORT_COUNTS,
+    READ_SALES_OPEN_SUPPORT_CASES,
+    READ_SALES_CUSTOMER_SOURCE_CASES,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -487,6 +575,27 @@ mod tests {
             ),
             (RD_EXEC_TICKET_METRIC, SQL_EXEC_TICKET_METRIC, 16usize),
             (RD_EXEC_INCIDENT_METRIC, SQL_EXEC_INCIDENT_METRIC, 12usize),
+            (
+                RD_INCIDENT_ATTACHMENT_SOURCE_IMAGE,
+                SQL_INCIDENT_ATTACHMENT_SOURCE_IMAGE,
+                3usize,
+            ),
+            (
+                RD_INCIDENT_ATTACHMENT_SOURCE_LINKS,
+                SQL_INCIDENT_ATTACHMENT_SOURCE_LINKS,
+                2usize,
+            ),
+            (RD_SALES_SUPPORT_COUNTS, SQL_SALES_SUPPORT_COUNTS, 14usize),
+            (
+                RD_SALES_OPEN_SUPPORT_CASES,
+                SQL_SALES_OPEN_SUPPORT_CASES,
+                14usize,
+            ),
+            (
+                RD_SALES_CUSTOMER_SOURCE_CASES,
+                SQL_SALES_CUSTOMER_SOURCE_CASES,
+                12usize,
+            ),
         ];
         for (kind, sql, binds) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -506,7 +615,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 25);
+        assert_eq!(STATEMENTS.len(), 30);
     }
 
     #[test]
@@ -559,5 +668,54 @@ mod tests {
         assert_eq!(calendar_tickets.bind_count, 20);
         let calendar_incidents = read_statement(RD_CALENDAR_SUPPORT_INCIDENTS).expect("calendar incident feed");
         assert_eq!(calendar_incidents.bind_count, 19);
+        let image = read_statement(RD_INCIDENT_ATTACHMENT_SOURCE_IMAGE).expect("incident attachment image");
+        assert_eq!(image.bind_count, 3);
+        let links = read_statement(RD_INCIDENT_ATTACHMENT_SOURCE_LINKS).expect("incident attachment links");
+        assert_eq!(links.bind_count, 2);
+        let counts = read_statement(RD_SALES_SUPPORT_COUNTS).expect("sales support counts");
+        assert_eq!(counts.bind_count, 14);
+        let cases = read_statement(RD_SALES_OPEN_SUPPORT_CASES).expect("sales open support cases");
+        assert_eq!(cases.bind_count, 14);
+        let source_cases = read_statement(RD_SALES_CUSTOMER_SOURCE_CASES).expect("sales customer source cases");
+        assert_eq!(source_cases.bind_count, 12);
+    }
+
+    #[test]
+    fn incident_attachment_and_sales_reads_keep_fixed_owner_predicates() {
+        let image = read_statement(RD_INCIDENT_ATTACHMENT_SOURCE_IMAGE).expect("image read");
+        assert!(image.sql.contains("support_incident_events"));
+        assert!(image.sql.contains("support_incidents t WHERE t.id=? AND t.company_id=?"));
+        assert!(image.sql.contains(SQL_HR_ENGAGEMENTS));
+        assert!(image.sql.contains(SQL_HR_PEOPLE));
+        let links = read_statement(RD_INCIDENT_ATTACHMENT_SOURCE_LINKS).expect("links read");
+        assert!(links.sql.contains("support_incident_tickets link JOIN support_incidents"));
+        assert!(links.sql.contains("LEFT JOIN support_tickets ticket"));
+        let counts = read_statement(RD_SALES_SUPPORT_COUNTS).expect("counts read");
+        assert!(counts.sql.contains(SQL_COMMERCE_ORDERS));
+        assert!(counts.sql.contains(SQL_ORDER_SCOPE_T));
+        assert!(counts.sql.contains(SQL_ORDER_SCOPE_O));
+        assert!(counts.sql.contains(SQL_TICKET_READ_POLICY_T));
+        assert!(counts.sql.contains("jsonb_array_elements_text(?::jsonb)"));
+        let cases = read_statement(RD_SALES_OPEN_SUPPORT_CASES).expect("cases read");
+        assert!(cases.sql.contains(SQL_COMMERCE_ORDERS));
+        assert!(cases.sql.contains(SQL_ORDER_SCOPE_T));
+        assert!(cases.sql.contains(SQL_ORDER_SCOPE_O));
+        assert!(cases.sql.contains(SQL_TICKET_READ_POLICY_T));
+        let source = read_statement(RD_SALES_CUSTOMER_SOURCE_CASES).expect("source cases read");
+        assert!(source.sql.contains(SQL_ORDER_SCOPE_T));
+        assert!(source.sql.contains(SQL_TICKET_READ_POLICY_T));
+        assert!(source.sql.contains(SQL_SOURCE_READ_POLICY_T));
+        for kind in [
+            RD_INCIDENT_ATTACHMENT_SOURCE_IMAGE,
+            RD_INCIDENT_ATTACHMENT_SOURCE_LINKS,
+            RD_SALES_SUPPORT_COUNTS,
+            RD_SALES_OPEN_SUPPORT_CASES,
+            RD_SALES_CUSTOMER_SOURCE_CASES,
+        ] {
+            let statement = read_statement(kind).expect("registered owner read kind");
+            assert!(statement.sql.starts_with("SELECT "));
+            assert_eq!(statement.sql.matches('?').count(), statement.bind_count);
+            assert!(!statement.sql.contains(';'));
+        }
     }
 }

@@ -42,6 +42,47 @@ export const SUPPORT_RD_CALENDAR_SUPPORT_TICKETS = 'support_rd_calendar_support_
 export const SUPPORT_RD_CALENDAR_SUPPORT_INCIDENTS = 'support_rd_calendar_support_incidents';
 export const SUPPORT_RD_EXEC_TICKET_METRIC = 'support_rd_exec_ticket_metric';
 export const SUPPORT_RD_EXEC_INCIDENT_METRIC = 'support_rd_exec_incident_metric';
+export const SUPPORT_RD_INCIDENT_ATTACHMENT_SOURCE_IMAGE = 'support_rd_incident_attachment_source_image';
+export const SUPPORT_RD_INCIDENT_ATTACHMENT_SOURCE_LINKS = 'support_rd_incident_attachment_source_links';
+export const SUPPORT_RD_SALES_SUPPORT_COUNTS = 'support_rd_sales_support_counts';
+export const SUPPORT_RD_SALES_OPEN_SUPPORT_CASES = 'support_rd_sales_open_support_cases';
+export const SUPPORT_RD_SALES_CUSTOMER_SOURCE_CASES = 'support_rd_sales_customer_source_cases';
+
+/** Fixed arity of every registered kind, mirrored from the Rust read registry.
+ * The command-plan route re-validates it; rejecting a mismatch here avoids an
+ * unneeded round trip and keeps no SQL fallback on the caller. */
+const BIND_COUNTS: Readonly<Record<string, number>> = {
+  [SUPPORT_RD_SERVICE_COVERAGE_HISTORY]: 1,
+  [SUPPORT_RD_SERVICE_TEAM_COVERAGE]: 5,
+  [SUPPORT_RD_SERVICE_TEAM_NAME]: 2,
+  [SUPPORT_RD_TICKET_PORTAL_RESPONSE]: 1,
+  [SUPPORT_RD_TICKET_PORTAL_ACKNOWLEDGED_AT]: 2,
+  [SUPPORT_RD_TICKET_EVENT_HISTORY]: 1,
+  [SUPPORT_RD_INCIDENT_EVENT_HISTORY]: 1,
+  [SUPPORT_RD_TICKET_INCIDENT_LINKS]: 1,
+  [SUPPORT_RD_INCIDENT_TICKET_LINKS]: 1,
+  [SUPPORT_RD_INCIDENT_TICKET_CANDIDATES]: 4,
+  [SUPPORT_RD_SLA_WORKSPACE_TICKETS]: 5,
+  [SUPPORT_RD_PORTAL_BINDINGS_INSTALLED]: 0,
+  [SUPPORT_RD_SUPPORT_PACKAGE_PORTAL_BINDINGS]: 2,
+  [SUPPORT_RD_SUPPORT_PACKAGE_OBLIGATION_FACTS]: 6,
+  [SUPPORT_RD_TICKET_SOURCE_IMAGE]: 2,
+  [SUPPORT_RD_TICKET_ATTACHMENT_SOURCE_IMAGE]: 2,
+  [SUPPORT_RD_ATTACHMENT_MIGRATION_SCOPE]: 1,
+  [SUPPORT_RD_SERVICE_TEAM_OPTIONS]: 1,
+  [SUPPORT_RD_SERVICE_TEAM_OPTION_HISTORY]: 2,
+  [SUPPORT_RD_SERVICE_TEAM_OPTION_HANDLERS]: 2,
+  [SUPPORT_RD_SERVICE_TEAM_OPTION_COVERAGE]: 2,
+  [SUPPORT_RD_CALENDAR_SUPPORT_TICKETS]: 20,
+  [SUPPORT_RD_CALENDAR_SUPPORT_INCIDENTS]: 19,
+  [SUPPORT_RD_EXEC_TICKET_METRIC]: 16,
+  [SUPPORT_RD_EXEC_INCIDENT_METRIC]: 12,
+  [SUPPORT_RD_INCIDENT_ATTACHMENT_SOURCE_IMAGE]: 3,
+  [SUPPORT_RD_INCIDENT_ATTACHMENT_SOURCE_LINKS]: 2,
+  [SUPPORT_RD_SALES_SUPPORT_COUNTS]: 14,
+  [SUPPORT_RD_SALES_OPEN_SUPPORT_CASES]: 14,
+  [SUPPORT_RD_SALES_CUSTOMER_SOURCE_CASES]: 12,
+};
 
 const unavailable = (): never => {
   throw new ApiError(503, 'SUPPORT_NATIVE_READ_UNAVAILABLE', 'The native Support read service is unavailable.');
@@ -85,6 +126,10 @@ async function planAndRun<T>(
   values: readonly unknown[],
   db: SqlDatabase,
 ): Promise<{ plan: PlannedSupportRead; result: SqlResult<T> }> {
+  const binds = BIND_COUNTS[kind];
+  if (binds === undefined || values.length !== binds) {
+    throw new ApiError(422, 'SUPPORT_NATIVE_READ_BINDS_INVALID', 'The native Support read bind set does not match its registered kind.');
+  }
   const config = configuration();
   const holding = config.holdings[0]!;
   const key = 'sup-read-' + createHash('sha256').update(kind).update('\u0000').update(JSON.stringify(values)).digest('hex').slice(0, 32);

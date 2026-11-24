@@ -1,25 +1,23 @@
 import 'server-only';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
-import {finalRootOwnerProjectionSources as people} from '@erpx/server-people_payroll/public/final-root-owner-projection-sources';
 import {supportOrderAttachmentSourceLocks,supportOrderAttachmentSourceImage} from '@erpx/server-commerce/public/support-attachment-sources';
+import {nativeSupportReadAll,SUPPORT_RD_INCIDENT_ATTACHMENT_SOURCE_IMAGE,SUPPORT_RD_INCIDENT_ATTACHMENT_SOURCE_LINKS} from './native-support-read';
 
 export function supportIncidentAttachmentReadSourceLocks(database:SqlDatabase){return [
- database.prepare('LOCK TABLE support_incidents,support_incident_tickets,support_incident_events,support_tickets,support_ticket_events IN SHARE ROW EXCLUSIVE MODE'),
- supportOrderAttachmentSourceLocks(database),
+  database.prepare('LOCK TABLE support_incidents,support_incident_tickets,support_incident_events,support_tickets,support_ticket_events IN SHARE ROW EXCLUSIVE MODE'),
+  supportOrderAttachmentSourceLocks(database),
 ];}
 /** Existing incident source links select actual same-Company tickets/orders.
- * HR facts are the original recipient foundation, without a People purchase. */
+ * HR facts are the original recipient foundation, without a People purchase.
+ * The image/link projections are owner-planned in Rust; the Commerce source
+ * image and the lock fence stay with their owners on the caller's open unit. */
 export async function supportIncidentAttachmentReadSourceImage(database:SqlDatabase,actor:WorkContext,id:string){
- const incident=await database.prepare(`SELECT to_jsonb(t)::text image,
- (SELECT jsonb_agg(to_jsonb(event) ORDER BY event.id) FROM support_incident_events event WHERE event.incident_id=t.id)::text events,
- (SELECT jsonb_agg(jsonb_build_object('person',to_jsonb(person),'engagements',(SELECT jsonb_agg(to_jsonb(engagement) ORDER BY engagement.id) FROM (${people.hr_engagements}) engagement WHERE engagement.person_id=person.id AND engagement.company_id=t.company_id)) ORDER BY person.id) FROM (${people.hr_people}) person WHERE person.company_id=t.company_id AND person.user_id IN (?,t.owner_id,t.mitigated_by))::text recipients
- FROM support_incidents t WHERE t.id=? AND t.company_id=?`).bind(actor.userId,id,actor.companyId).first<{image:string;events:string|null;recipients:string|null}>();
- if(!incident)return null;
- const links=(await database.prepare(`SELECT to_jsonb(link)::text image,to_jsonb(ticket)::text ticket,ticket.order_id
- FROM support_incident_tickets link JOIN support_incidents incident ON incident.id=link.incident_id
- LEFT JOIN support_tickets ticket ON ticket.id=link.ticket_id AND ticket.company_id=incident.company_id
- WHERE incident.id=? AND incident.company_id=? ORDER BY link.ticket_id`).bind(id,actor.companyId).all<{image:string;ticket:string|null;order_id:string|null}>()).results;
- const sources=[];for(const link of links)sources.push({...link,order:link.order_id?await supportOrderAttachmentSourceImage(database,actor.companyId,link.order_id):null});
- return JSON.stringify([incident,sources]);
+  const incident=(await nativeSupportReadAll<{image:string;events:string|null;recipients:string|null}>(
+    SUPPORT_RD_INCIDENT_ATTACHMENT_SOURCE_IMAGE,[actor.userId,id,actor.companyId],database)).results[0]??null;
+  if(!incident)return null;
+  const links=(await nativeSupportReadAll<{image:string;ticket:string|null;order_id:string|null}>(
+    SUPPORT_RD_INCIDENT_ATTACHMENT_SOURCE_LINKS,[id,actor.companyId],database)).results;
+  const sources=[];for(const link of links)sources.push({...link,order:link.order_id?await supportOrderAttachmentSourceImage(database,actor.companyId,link.order_id):null});
+  return JSON.stringify([incident,sources]);
 }
