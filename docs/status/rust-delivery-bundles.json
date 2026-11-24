@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11899,
+    "revision": 11905,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -178071,6 +178071,114 @@
         "nextAction": "home sums closed union (-2), journal union (-2): 317->313. BEFORE=317.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.identity_access.read-tail-r30",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "title": "identity_access TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4h01",
+          "claimedAt": "2026-11-24T12:29:34.343Z",
+          "heartbeatAt": "2026-11-24T12:29:34.343Z",
+          "expiresAt": "2026-11-24T12:59:34.343Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "F4-F8 probe heads (-10 or more). BEFORE=485.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.sales.read-tail-r28",
+        "goalId": "G4",
+        "owner": "sales",
+        "title": "sales TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-sales/src/**",
+          "tests/unit/sales/**",
+          "tests/integration/sales/**"
+        ],
+        "resources": [
+          "owner:sales"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4h02",
+          "claimedAt": "2026-11-24T12:29:34.794Z",
+          "heartbeatAt": "2026-11-24T12:29:34.794Z",
+          "expiresAt": "2026-11-24T12:59:34.794Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "remaining family or native kind. BEFORE=58.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.learning.read-tail-r17",
+        "goalId": "G4",
+        "owner": "learning",
+        "title": "learning TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-learning/src/**",
+          "tests/unit/learning/**",
+          "tests/integration/learning/**"
+        ],
+        "resources": [
+          "owner:learning"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4h03",
+          "claimedAt": "2026-11-24T12:29:35.188Z",
+          "heartbeatAt": "2026-11-24T12:29:35.188Z",
+          "expiresAt": "2026-11-24T12:59:35.188Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "existsRowProbe / keyedRowRead families (-4). BEFORE=45.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -178079,11 +178187,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1687,
+      "totalPackets": 1690,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 23,
+        "in_progress": 26,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -178093,7 +178201,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T12:29:08.378Z",
+    "updatedAt": "2026-11-24T12:29:35.194Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
