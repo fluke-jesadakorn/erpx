@@ -67,9 +67,9 @@ describe('Records read-tail r27 recordContextDetailSql family', () => {
     readOnly(actual);
   });
 
-  test('the family is one generator literal with four call sites and the clock stays outside', () => {
+  test('the family is one generator literal with five call sites and the clock stays outside', () => {
     expect(records.match(/const recordContextDetailSql\s*=/g) ?? []).toHaveLength(1);
-    expect(records.match(/recordContextDetailSql\(/g) ?? []).toHaveLength(4); // mentions/suggestions/transitions + search references
+    expect(records.match(/recordContextDetailSql\(/g) ?? []).toHaveLength(5); // mentions/suggestions/transitions + search references + reference-edge family
     expect(records).toContain('const recordContextDetailSql = (table: string, columns: string, where: string, order: string) =>');
     expect(records).toContain('`SELECT ${columns} FROM ${table} WHERE ${where}${order}`');
     // Search references now routes through the shared generator: the clock is
@@ -98,7 +98,7 @@ describe('Records read-tail r27 recordContextDetailSql family', () => {
 });
 
 describe('Records read-tail r27 retirement check', () => {
-  test('retirement:ts-statements folds search references (25 -> 24)', () => {
+  test('retirement:ts-statements stays strictly below the r27 BEFORE=25 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -108,11 +108,12 @@ describe('Records read-tail r27 retirement check', () => {
       }
     };
     walk(srcRoot);
-    // r25 folded the two projection-source guards (27 -> 26) and r26 folded
-    // the workspace version fence (26 -> 25); r27 folds the search references
-    // SELECT into the record context detail generator (25 -> 24). No lock,
+    // r25 folded the two projection-source guards (27 -> 26), r26 folded the
+    // workspace version fence (26 -> 25), r27 folded the search references
+    // SELECT into the record context detail generator (25 -> 24) and r28 folds
+    // the reference-edge family into that generator (24 -> 23). No lock,
     // cross-owner port or native seam changed.
-    expect(total).toBe(24);
+    expect(total).toBe(23);
     expect(total).toBeLessThan(25);
   });
 });

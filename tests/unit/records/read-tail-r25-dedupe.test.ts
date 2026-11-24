@@ -92,9 +92,10 @@ describe('Records read-tail r25 retirement check', () => {
     // r25 folds the two subquery-source SELECT 1 guards into one generator
     // (27 -> 26); r26 folds the workspace version fence into the exists guard
     // family (26 -> 25); r27 folds the search references SELECT into the
-    // record context detail generator (25 -> 24). No other family, lock or
-    // native seam changed.
-    expect(total).toBe(24);
+    // record context detail generator (25 -> 24); r28 folds the reference-edge
+    // family into that generator (24 -> 23). No other family, lock or native
+    // seam changed.
+    expect(total).toBe(23);
     expect(total).toBeLessThan(27);
   });
 });

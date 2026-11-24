@@ -63,20 +63,20 @@ export { addPrincipalMentionSchema } from '@erpx/server-records/domain/records';
 const recordVersionExistsSql = existsGuardSql('workspace_records', 'module_id=? AND id=? AND version=? AND archived_at IS NULL');
 // Shared owner-local workspace-record projection for list/get/page reads; identical SQL.
 const recordRowSelectSql = "SELECT module_id,id,section_id,title,description,status,fields_json,version,created_by,updated_at";
-// Retained record_context edges/count consumers share one parameterized family.
-// Each call emits byte-identical prior SQL; only the admitted literal is shared.
-const referenceEdgesSql = (scope: 'host' | 'target', shape: 'references' | 'backlinks' | 'count') => {
+// One owner-local record read SQL family. Each call renders byte-identical
+// prior SQL; only the admitted literals are shared.
+export const recordContextDetailSql = (table: string, columns: string, where: string, order: string) =>
+    `SELECT ${columns} FROM ${table} WHERE ${where}${order}`;
+// Retained record_context edges/count consumers are a thin family over the
+// detail generator; each shape still emits its byte-identical prior SQL.
+export const referenceEdgesSql = (scope: 'host' | 'target', shape: 'references' | 'backlinks' | 'count') => {
     const projection = shape === 'references' ? 'target_module,target_id,kind,ordinal'
         : shape === 'backlinks' ? 'host_module,host_id,kind' : 'COUNT(*) AS count';
     const where = scope === 'host' ? 'host_module=? AND host_id=?' : 'target_module=? AND target_id=?';
     const order = shape === 'references' ? ' ORDER BY ordinal'
         : shape === 'backlinks' ? ' ORDER BY created_at DESC LIMIT 50' : '';
-    return `SELECT ${projection} FROM record_reference_edges WHERE ${where}${order}`;
+    return recordContextDetailSql('record_reference_edges', projection, where, order);
 };
-// Retained record_context detail consumers (mentions/suggestions/transitions)
-// share one parameterized family; each call renders byte-identical prior SQL.
-export const recordContextDetailSql = (table: string, columns: string, where: string, order: string) =>
-    `SELECT ${columns} FROM ${table} WHERE ${where}${order}`;
 function application(provided?: SqlDatabase,actor?:WorkContext) {
     let database = provided!;
     let control: SqlDatabase;
