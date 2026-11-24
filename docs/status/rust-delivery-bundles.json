@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8676,
+    "revision": 8680,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -142498,7 +142498,7 @@
         "owner": "finance",
         "title": "finance TS read tail native cutover (round 17)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -142510,22 +142510,37 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGC6fin",
-          "claimedAt": "2026-11-24T02:36:42.009Z",
-          "heartbeatAt": "2026-11-24T02:36:42.009Z",
-          "expiresAt": "2026-11-24T03:06:42.009Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a24abcaab",
+            "owner": "finance",
+            "before": 2182,
+            "after": 2174,
+            "note": "Supplier reservation guard 5x, bank transaction by id 3x, active dimension definitions 3x shared; FOR UPDATE OF t variants left inline."
+          },
+          {
+            "command": "vitest finance read plan (23) + tsc finance/tests-config",
+            "result": "passed",
+            "sourceSha": "a24abcaab"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: remaining finance groups (supplier instructions 5x, bank statement join 3x, dimension definitions 3x). BEFORE=2178.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC6fin",
+          "at": "2026-11-24T02:44:23.601Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -143148,6 +143163,42 @@
         "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=68.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.read-tail-r18",
+        "goalId": "G4",
+        "owner": "finance",
+        "title": "finance TS read tail native cutover (round 18)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC7fin",
+          "claimedAt": "2026-11-24T02:44:24.671Z",
+          "heartbeatAt": "2026-11-24T02:44:24.671Z",
+          "expiresAt": "2026-11-24T03:14:24.671Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: remaining supplier-instruction EXISTS/count variants and bank statement guards; re-scout. BEFORE=2174.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -143156,7 +143207,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 994,
+      "totalPackets": 995,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -143164,13 +143215,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 614,
+        "blocked": 615,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:43:44.404Z",
+    "updatedAt": "2026-11-24T02:44:24.681Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
