@@ -1,5 +1,6 @@
 import {describe,it,expect,vi} from 'vitest';
 import {readFile} from 'node:fs/promises';
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 const{requestHeaders}=vi.hoisted(()=>({requestHeaders:vi.fn()}));vi.mock('server-only',()=>({}));vi.mock('next/headers',()=>({headers:requestHeaders}));
 import {createNativeJournalListReader} from '../../../packages/feature-finance/src/adapters/server/native-journal-list';
 import {createNativeJournalDetailClient,createNativeJournalWorkspaceClient,createNextNativeJournalDetailReader,createNextNativeJournalWorkspaceReader,NativeFinanceReadError} from '@erpx/feature-finance/public/server';
@@ -210,5 +211,23 @@ describe('native finance journal-list cutover',()=>{
   expect(adapter+bridge+reads).not.toMatch(/listJournals|SELECT \* FROM finance_journals WHERE \$\{clauses/);
   expect(adapter).toMatch(/financeOverviewCounts: async/);
   for(const route of [workplace,feature]){expect(route).toMatch(/nativeJournalList/);expect(route).not.toMatch(/listJournals/);expect(route).toMatch(/NATIVE_FINANCE_UNAVAILABLE/);}
+ });
+});
+
+describe('finance flow-routing posted_by read dedupe',()=>{
+ const SQL='SELECT posted_by FROM finance_journals WHERE id=? AND company_id=?';
+ it('keeps one byte-identical literal and adopts no FOR SHARE variant',async()=>{
+  const text=await readFile(new URL('../../../packages/server-finance/src/adapters/workflow-flow-routing-facts.ts',import.meta.url),'utf8');
+  expect(text.split(SQL).length-1).toBe(1);
+  expect(text).not.toContain('FOR SHARE');
+ });
+ it('both readDefinitionsJournal variants prepare the same SQL and binds',async()=>{
+  const prepares:string[]=[];const binds:unknown[][]=[];
+  const db={prepare:(sql:string)=>{prepares.push(sql);return{bind:(...values:unknown[])=>{binds.push(values);return{first:async()=>({posted_by:'u-1'})};}};}} as unknown as SqlDatabase;
+  const {createFlowRoutingSourceRepository}=await import('@erpx/server-finance/adapters/workflow-flow-routing-facts');
+  const repo=createFlowRoutingSourceRepository(db);
+  await expect(repo.readDefinitionsJournal('j-1','c-1')).resolves.toEqual({posted_by:'u-1'});
+  await expect(repo.readDefinitionsJournal2('j-1','c-1')).resolves.toEqual({posted_by:'u-1'});
+  expect(prepares).toEqual([SQL,SQL]);expect(binds).toEqual([['j-1','c-1'],['j-1','c-1']]);
  });
 });
