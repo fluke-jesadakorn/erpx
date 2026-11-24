@@ -1,8 +1,10 @@
-/** Native joined facts preserve the caller's transaction and original SQL snapshot. */ export const projectReadProjection = {
+/** Native joined facts preserve the caller's transaction and original SQL snapshot. */
+const allocationSumSql = "COALESCE((SELECT SUM(a.amount_minor) FROM staff_project_cost_allocations a WHERE a.journal_line_id=l.id AND a.state IN ('draft','approved')";
+export const projectReadProjection = {
     "taskBinding": "LEFT JOIN staff_project_task_packages b ON b.task_id=t.id",
     "expenseProject": "JOIN staff_projects p ON p.id=? AND p.company_id=?",
-    "allocatedExpense": "COALESCE((SELECT SUM(a.amount_minor) FROM staff_project_cost_allocations a\n        WHERE a.journal_line_id=l.id AND a.state IN ('draft','approved')),0)",
-    "otherAllocation": "COALESCE((SELECT SUM(a.amount_minor)\n        FROM staff_project_cost_allocations a WHERE a.journal_line_id=l.id AND a.state IN ('draft','approved') AND a.id!=?),0)",
+    "allocatedExpense": `${allocationSumSql}),0)`,
+    "otherAllocation": `${allocationSumSql} AND a.id!=?),0)`,
     "taskProject": "LEFT JOIN staff_projects p ON p.id=t.project_id AND p.company_id=t.company_id",
     "taskMember": "EXISTS(SELECT 1 FROM staff_project_members pm WHERE pm.project_id=t.project_id AND pm.user_id=?)",
     "hasTaskBinding": "NOT EXISTS(SELECT 1 FROM staff_project_task_packages b WHERE b.task_id=t.id)"
