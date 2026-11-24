@@ -29,6 +29,7 @@ import {BusinessRuleError} from "@erpx/server-shared/index";
 import {createSupplierBillApplication,type BillPorts,type BillMutation} from "@erpx/server-procurement/application/supplier-bills";
 import type {BillRow as Row} from "@erpx/server-procurement/domain/supplier-bills";
 import {branchDepartmentScope,orderedRead} from './read-tail-sql';
+import {receiptCount,expenseAccountBy} from './read-tail-r20';
 export {supplierBillSchema,supplierBillDecisionSchema,supplierInvoicePolicySchema,matchedBillLines} from "@erpx/server-procurement/domain/supplier-bills";
 const scope=branchDepartmentScope("m");
 const args=(actor:WorkContext)=>[actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId];
@@ -42,7 +43,7 @@ function application(actor:WorkContext,provided?:SqlDatabase){
   const row = await write.prepare(`
     SELECT m.*,p.name supplier_name,o.number order_number,f.version fulfillment_version,
       i.status invoice_status,i.created_by invoice_created_by,i.version invoice_version,
-      (SELECT count(*) FROM procurement_bill_match_receipts br WHERE br.match_id=m.id) receipt_count
+      ${receiptCount("m.id")}
     FROM procurement_bill_matches m
     JOIN (${financePlatformSources.finance_parties}) p ON p.id=m.supplier_id
     JOIN (${commercePlatformSources.commerce_orders}) o ON o.id=m.order_id
@@ -57,7 +58,7 @@ function application(actor:WorkContext,provided?:SqlDatabase){
       COALESCE((SELECT json_agg(br.fulfillment_id ORDER BY f.fulfillment_date,f.id)::text
         FROM procurement_bill_match_receipts br JOIN (${commercePlatformSources.commerce_fulfillments}) f ON f.id=br.fulfillment_id
         WHERE br.match_id=m.id),'[]') receipt_ids_json,
-      (SELECT count(*) FROM procurement_bill_match_receipts br WHERE br.match_id=m.id) receipt_count
+      ${receiptCount("m.id")}
     FROM procurement_bill_matches m
     JOIN (${financePlatformSources.finance_parties}) p ON p.id=m.supplier_id
     JOIN (${commercePlatformSources.commerce_orders}) o ON o.id=m.order_id
@@ -127,7 +128,7 @@ return {lines:lines.results,receipts:receipts.results,events:events.results,acco
  postings:async(id)=>(await (await database()).prepare(`SELECT * FROM (${financePlatformSources.finance_journal_lines}) finance_journal_lines WHERE journal_id=? ORDER BY ordinal`).bind(id).all<Row>()).results,
  receiptLines:async(ids)=>(await (await database()).prepare(`SELECT fl.*,ol.product_id,ol.description,p.sku,p.unit,p.tracking_mode FROM (${commercePlatformSources.commerce_fulfillment_lines}) fl JOIN (${commercePlatformSources.commerce_order_lines}) ol ON ol.id=fl.order_line_id JOIN (${commercePlatformSources.commerce_products}) p ON p.id=ol.product_id WHERE fl.fulfillment_id IN (${ids.map(()=>'?').join(',')}) ORDER BY fl.fulfillment_id,ol.ordinal`).bind(...ids).all<Row>()).results,
  variance:async(id)=>!!await nativeProcurementReadFirst(PROCUREMENT_RD_BILL_MATCH_VARIANCE,[id],await database()),
- varianceAccount:async(id,chartId)=>!!await (await database()).prepare(`SELECT a.id FROM (${financePlatformSources.finance_accounts}) a JOIN (${financePlatformSources.finance_charts}) c ON c.id=a.chart_id AND c.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND a.chart_id=? AND a.currency=c.base_currency AND a.category='expense' AND a.status='active'`).bind(id,actor.companyId,chartId).first(),
+ varianceAccount:async(id,chartId)=>!!await (await database()).prepare(expenseAccountBy(financePlatformSources.finance_accounts,financePlatformSources.finance_charts,"a.id")).bind(id,actor.companyId,chartId).first(),
  commit:async(m,result)=>commit(await database(),actor,m,result),
  receiptHistory:async(id)=>nativeProcurementReadFirst<Row>(PROCUREMENT_RD_BILL_MATCH_RECEIPT_HISTORY,[id],await database()),
  matchingRequired:async()=>!!await nativeProcurementReadFirst(PROCUREMENT_RD_INVOICE_POLICY_MATCHING_REQUIRED,[actor.companyId],await database()),
@@ -171,7 +172,7 @@ async function commit<Result>(write:SqlDatabase,actor:WorkContext,m:BillMutation
  ],{companyId:actor.companyId,branchId:null,departmentId:null});}
  const {input,bill,returnDraft,variance,status}=m;
  const steps:SqlStatement[]=[assertion(write,key,'bill-review',`EXISTS(SELECT 1 FROM procurement_bill_matches m WHERE m.id=? AND m.version=? AND m.status=? AND ${scope})`,[id,input.expectedVersion,bill.status,...args(actor)])];
- if(input.action==='approve'&&variance)steps.push(assertion(write,key,'variance-account',`EXISTS(SELECT 1 FROM (${financePlatformSources.finance_accounts}) a JOIN (${financePlatformSources.finance_charts}) c ON c.id=a.chart_id AND c.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND a.chart_id=? AND a.currency=c.base_currency AND a.category='expense' AND a.status='active')`,[input.varianceAccountId!,actor.companyId,bill.chart_id]));
+ if(input.action==='approve'&&variance)steps.push(assertion(write,key,'variance-account',`EXISTS(${expenseAccountBy(financePlatformSources.finance_accounts,financePlatformSources.finance_charts,"1")})`,[input.varianceAccountId!,actor.companyId,bill.chart_id]));
  if(returnDraft)steps.push(...await stageSupplierBillDraftVoid(write,actor.companyId,{invoiceId:String(bill.invoice_id),invoiceVersion:Number(bill.invoice_version),matchId:id},key,now),stageSupplierBillReceiptLinks(write,id,null));
  if(status==='returned')steps.push(nativeProcurementStatement('procurement_stmt_9', { now: Date.now() }).bind(id));
  steps.push(nativeProcurementStatement('procurement_stmt_10', { now: Date.now() }).bind(status,actor.userId,input.reason,input.action==='approve'&&variance?input.varianceAccountId??null:bill.variance_account_id??null,now,id),event(write,actor,id,key,input.expectedVersion+1,returnDraft?'return-ap-draft':input.action,input.reason,now),await nativeSupplierBillNotification(write,actor,id,key));
