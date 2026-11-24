@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8672,
+    "revision": 8676,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -142606,7 +142606,7 @@
         "owner": "agent",
         "title": "agent TS read tail native cutover (r10)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -142618,22 +142618,37 @@
         "resources": [
           "owner:agent"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGC9age",
-          "claimedAt": "2026-11-24T02:37:13.936Z",
-          "heartbeatAt": "2026-11-24T02:37:13.936Z",
-          "expiresAt": "2026-11-24T03:07:13.936Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-agent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "7db5870e9",
+            "owner": "agent",
+            "before": 69,
+            "after": 68,
+            "note": "Pool member access EXISTS shared by policy read and default-policy assertion; translation guard untouched."
+          },
+          {
+            "command": "vitest agent quota dedupe (8) + tsc agent",
+            "result": "passed",
+            "sourceSha": "7db5870e9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=69.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC9age",
+          "at": "2026-11-24T02:43:43.797Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -143097,6 +143112,42 @@
         "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=68.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.agent.read-tail-r11",
+        "goalId": "G4",
+        "owner": "agent",
+        "title": "agent TS read tail native cutover (round 11)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-agent/src/**",
+          "tests/unit/agent/**",
+          "tests/integration/agent/**"
+        ],
+        "resources": [
+          "owner:agent"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCCage",
+          "claimedAt": "2026-11-24T02:43:44.393Z",
+          "heartbeatAt": "2026-11-24T02:43:44.393Z",
+          "expiresAt": "2026-11-24T03:13:44.393Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=68.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -143105,7 +143156,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 993,
+      "totalPackets": 994,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -143113,13 +143164,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 613,
+        "blocked": 614,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:43:28.381Z",
+    "updatedAt": "2026-11-24T02:43:44.404Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
