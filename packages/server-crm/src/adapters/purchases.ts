@@ -51,6 +51,10 @@ export const crmPurchaseGuestLinkRows=`SELECT link.id,link.company_id,guest.bran
  JOIN crm_contacts contact ON contact.id=link.contact_id AND contact.company_id=link.company_id
  JOIN crm_accounts account ON account.id=contact.account_id AND account.company_id=link.company_id
  JOIN (${crmHotelGuestSources}) guest ON guest.id=link.guest_id AND guest.property_id=link.property_id AND guest.company_id=link.company_id`;
+/** Canonical owner read for the linked-opportunity source witness. The
+ * pre-commit capture and the before-commit recheck execute this same fixed
+ * statement on the caller's open unit; one literal, no caller-supplied SQL. */
+const opportunityWitnessSql=`SELECT witness::text witness FROM (${crmPurchaseOpportunityRows}) opportunity WHERE id=? AND company_id=?`;
 const sourceRows={lead:crmPurchaseLeadRows,activity:crmPurchaseActivityRows,account:crmPurchaseAccountRows,contact:crmPurchaseContactRows,"guest-link":crmPurchaseGuestLinkRows};
 export async function crmNativeReadFilter(kind:CRMPurchaseTarget['kind'],alias:'l'|'x'|'a'|'c'|'g'){
  if(await commercePackageEnforcementMode()==='disabled')return 'true';
@@ -124,9 +128,9 @@ export async function withCRMPurchasedCommand<Result>(actor:WorkContext,command:
   const scopes=capabilities.map(capability=>({companyId:actor.companyId,capability,purpose})),boundaries=scopes.map((scope,index)=>({key:`${key}:${index}`,boundary:purchaseCommandBoundary(database,mode,`${key}:${index}`,scope)!}));
   for(const scope of scopes)await checkPurchasedCapability(database,mode,scope);await database.batch(boundaries.flatMap(item=>item.boundary.before));const result=await run(database),after=await source(database,actor,command.target);
   if(before&&after.witness!==before.witness)throw new ApiError(409,"CRM_SOURCE_CHANGED","The original CRM source changed.");
-  const opportunity=command.opportunity?await database.prepare(`SELECT witness::text witness FROM (${crmPurchaseOpportunityRows}) opportunity WHERE id=? AND company_id=?`).bind(command.target.id,actor.companyId).first<{witness:string}>():null;if(command.opportunity&&!opportunity)throw new ApiError(409,'CRM_SOURCE_CHANGED','The actual linked opportunity source is unavailable.');
+  const opportunity=command.opportunity?await database.prepare(opportunityWitnessSql).bind(command.target.id,actor.companyId).first<{witness:string}>():null;if(command.opportunity&&!opportunity)throw new ApiError(409,'CRM_SOURCE_CHANGED','The actual linked opportunity source is unavailable.');
   const check=async()=>{const current=await source(database,actor,command.target);if(current.witness!==after.witness)throw new ApiError(409,"CRM_SOURCE_CHANGED","The original CRM source changed before commit.");for(const item of sources)if((await source(database,actor,item.target)).witness!==item.source.witness)throw new ApiError(409,"CRM_SOURCE_CHANGED","The captured CRM identity changed before commit.");
-   if(opportunity&&(await database.prepare(`SELECT witness::text witness FROM (${crmPurchaseOpportunityRows}) opportunity WHERE id=? AND company_id=?`).bind(command.target.id,actor.companyId).first<{witness:string}>())?.witness!==opportunity.witness)throw new ApiError(409,'CRM_SOURCE_CHANGED','The actual linked opportunity source changed before commit.');
+   if(opportunity&&(await database.prepare(opportunityWitnessSql).bind(command.target.id,actor.companyId).first<{witness:string}>())?.witness!==opportunity.witness)throw new ApiError(409,'CRM_SOURCE_CHANGED','The actual linked opportunity source changed before commit.');
    await requireCRMCurrentAuthority(database,actor,permissions,key,current);
    if(command.eligibleOwner&&!receipt){const valid=command.target.kind==='activity'?await database.prepare(`SELECT 1 FROM crm_lead_activities c JOIN crm_leads l ON l.id=c.lead_id AND l.company_id=c.company_id WHERE c.id=? AND c.company_id=? AND ${salesRecipientEligibility('l','c.owner_id')}`).bind(command.target.id,actor.companyId).first():await database.prepare(`SELECT 1 FROM crm_leads l WHERE l.id=? AND l.company_id=? AND ${salesRecipientEligibility('l','l.owner_id')}`).bind(command.target.id,actor.companyId).first();if(!valid)throw new ApiError(409,'CRM_OWNER_CHANGED','The assigned original salesperson is no longer eligible.');}
    const observed=await database.batch((await Promise.all(boundaries.map(async item=>[...item.boundary.after, await nativeClearCommandAssertions(database, actor.companyId, item.key)]))).flat());boundaries[0]?.boundary.observe?.(observed);};
