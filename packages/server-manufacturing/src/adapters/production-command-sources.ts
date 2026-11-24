@@ -11,8 +11,8 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';impor
  * redundant TypeScript SQL. This read is deliberately outside the RD_*
  * read-plan registry (it is an atomic witness, not a projection) and stays
  * live TypeScript on the same transaction and snapshot as before. */
-const latestReportActorSelect =
-  "SELECT actor_id FROM manufacturing_order_events WHERE order_id=? AND action='report' ORDER BY version DESC LIMIT 1";
+const reportActorSelect=(suffix:string)=>`SELECT actor_id FROM manufacturing_order_events WHERE order_id=? AND action='report'${suffix}`;
+const latestReportActorSelect=reportActorSelect(" ORDER BY version DESC LIMIT 1");
 
 /** Owner-local fixed guard SQL: the approved-specification witness used by
  * scenario and recommendation purchasing. Both guards execute the identical
@@ -96,7 +96,7 @@ async lastReportActor(id:string){return db
       .bind(id)
       .first<string>("actor_id");},
 guardIndependentPass(key:string,value:"independent-qc",id:string,expectedVersion:number,userId:string){return assertion(db, key, value, independentQcGuardSql, [id, expectedVersion, userId]);},
-async currentReportActor(id:string,expectedVersion:number){return db.prepare("SELECT actor_id FROM manufacturing_order_events WHERE order_id=? AND action='report' AND version=?")
+async currentReportActor(id:string,expectedVersion:number){return db.prepare(reportActorSelect(" AND version=?"))
       .bind(id, expectedVersion).first<string>("actor_id");},
 guardIndependentFail(key:string,value:"independent-qc",id:string,expectedVersion:number,userId:string){return assertion(db, key, value, independentQcGuardSql, [id, expectedVersion, userId]);},
 async lastOutputReportActor(id:string){return db.prepare(latestReportActorSelect).bind(id).first<string>("actor_id");},

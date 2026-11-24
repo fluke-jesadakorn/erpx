@@ -162,10 +162,12 @@ describe('native Manufacturing BOM register transport',()=>{
 describe('Manufacturing finance-close read retirement',()=>{
   const src=new URL('../../../packages/server-manufacturing/src/',import.meta.url).pathname;
   const files=(dir:string):string[]=>nodeFs.readdirSync(dir).flatMap(name=>{const path=nodePath.join(dir,name);return nodeFs.statSync(path).isDirectory()?files(path):path.endsWith('.ts')?[path]:[];});
-  it('removed the four close-source SELECT modules and keeps the owner SELECT KPI at 148',()=>{
+  it('removed the four close-source SELECT modules and keeps the owner SELECT KPI strictly below 148',()=>{
     const paths=files(src);
     expect(paths.some(path=>path.includes('finance-close-source'))).toBe(false);
-    expect(paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0)).toBe(148);
+    const count=paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0);
+    expect(count).toBeLessThan(148);
+    expect(count).toBe(138);
   });
 });
 describe('Manufacturing owner-local report-actor read dedupe',()=>{
@@ -174,7 +176,9 @@ describe('Manufacturing owner-local report-actor read dedupe',()=>{
   const sql="SELECT actor_id FROM manufacturing_order_events WHERE order_id=? AND action='report' ORDER BY version DESC LIMIT 1";
   it('keeps one fixed-SQL definition and switches both QC callers to it',()=>{
     expect(source).toContain('const latestReportActorSelect');
-    expect(source.split(sql)).toHaveLength(2);
+    expect(source).toContain('const reportActorSelect=(suffix:string)=>');
+    expect(source).toContain('reportActorSelect(" ORDER BY version DESC LIMIT 1")');
+    expect(source).toContain('reportActorSelect(" AND version=?")');
     for(const method of ['lastReportActor','lastOutputReportActor']){
       const at=source.indexOf(`async ${method}`);
       const body=source.slice(at,at+260);

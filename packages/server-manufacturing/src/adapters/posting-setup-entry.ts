@@ -6,7 +6,8 @@ import {loadIamAuthority} from '@erpx/server-identity_access/public/iam-store';
 import {assignmentReadSql} from '@erpx/server-identity_access/public/record-source-authority';
 import {platformOwnerProjectionSources as identitySources} from '@erpx/server-identity_access/public/platform-owner-projection-sources';
 import {readPurchasedAccesses} from '@erpx/server-commercial/public/purchase-command-boundary';
-import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {manufacturingClockCte} from '@erpx/server-manufacturing/adapters/purchases';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 export type ManufacturingPostingSetupProductScope={companyId:string;branchId:string|null;departmentId:string|null;userId:string;assignmentId:string;assignmentVersion:number;role:string;sessionId:string;beta?:boolean};
 const capabilities=['manufacturing.materials','manufacturing.costs','inventory.stock-core','finance.production-costing'] as const;
@@ -16,7 +17,7 @@ export async function manufacturingPostingSetupProductEntry(database:SqlDatabase
  if(scope.beta||scope.branchId||scope.departmentId||!scope.sessionId||!Number.isSafeInteger(scope.assignmentVersion)||scope.assignmentVersion<1)return null;
  let iam:Awaited<ReturnType<typeof loadIamAuthority>>;try{iam=await loadIamAuthority(database,scope.companyId,scope.userId,scope.role,scope.sessionId);}catch(error){if(error instanceof ApiError&&(error.status===401||error.status===403))return null;throw error;}
  const access=await readPurchasedAccesses(database,'enforced',scope.companyId,capabilities);if(!capabilities.every(capability=>access[capability].history))return null;
- const current=await database.prepare(`WITH manufacturing_setup_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms) SELECT a.id FROM (${identitySources.assignments}) a CROSS JOIN (SELECT ?::text company_id,NULL::text branch_id,NULL::text department_id) manufacturing_setup_scope CROSS JOIN manufacturing_setup_clock
+ const current=await database.prepare(`WITH ${manufacturingClockCte("manufacturing_setup_clock")} SELECT a.id FROM (${identitySources.assignments}) a CROSS JOIN (SELECT ?::text company_id,NULL::text branch_id,NULL::text department_id) manufacturing_setup_scope CROSS JOIN manufacturing_setup_clock
  WHERE a.id=? AND a.user_id=? AND a.company_id=manufacturing_setup_scope.company_id AND a.role=? AND a.version=? AND a.scope_kind='holding'
  AND ${assignmentReadSql('manufacturing_setup_scope','finance.read')} AND (${assignmentReadSql('manufacturing_setup_scope','finance.write')} OR ${assignmentReadSql('manufacturing_setup_scope','finance.approve')})
  AND ${['manufacturing','inventory','finance'].map(module=>scheduledFeaturePredicate('manufacturing_setup_scope.company_id',module)).join(' AND ')}

@@ -9,6 +9,7 @@ import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/comma
 import {isNativeWorkflowWrite} from "@erpx/server-workflow/public/native-workflow-evidence";
 import {manufacturingPackageEnforcementMode,readPurchasedAccesses,checkPurchasedCapability,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from "@erpx/server-commercial/public/purchase-command-boundary";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
+import {packageClockSql} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-transactions";
 import {isTransactionalSqlDatabase,type SqlDatabase,type SqlResult,type SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
@@ -23,6 +24,12 @@ export type ManufacturingPurchaseControls={newWork:boolean;settleExisting:boolea
  * live TypeScript read on the same transaction and snapshot, and is deliberately
  * outside the RD_* read-plan registry (an atomic witness, not a projection). */
 export const commandReceiptSelect = "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
+/** Shared text-only clock CTE: one definition for every purchased manufacturing
+ * read that pins its source/purchase predicates to a stable now_ms snapshot. */
+export const manufacturingClockCte=(name:string)=>`${name} AS MATERIALIZED (SELECT ${packageClockSql} now_ms)`;
+/** Shared text-only scoped source rows: one definition for the department-tagged
+ * purchase-source wrapper used by workspace records, metrics and attachments. */
+export const manufacturingPurchaseScopedRows=(alias:string)=>`(SELECT source.*,?::text department_id FROM (${manufacturingPurchaseRecordRows}) source) ${alias}`;
 /** Transient guard rows are keyed by the command that staged them. Every
  * purchase/attachment/posting boundary cleans them in the same before/after
  * batch, so the statement lives in one place instead of being copied. The
