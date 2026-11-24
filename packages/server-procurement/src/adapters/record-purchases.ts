@@ -9,6 +9,7 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import {supplierBillOwnerPredicate} from "@erpx/server-procurement/adapters/bill-source-sql";
 import {nativeProcurementReadFirst,PROCUREMENT_RD_RECORD_BILL_MATCH_EXISTS,PROCUREMENT_RD_RECORD_RFQ_EXISTS} from "./native-procurement-read";
 import {sourceScopeExists,sourceVisible} from './read-tail-r25';
+import {actualSourceExists} from './read-tail-r39';
 
 export async function procurementSourcePredicate(database:SqlDatabase,actor:WorkContext|undefined,alias:string,purchased=true){
  return sourcePredicate(database,actor,alias,"commerce.read",purchased);
@@ -37,7 +38,7 @@ export async function procurementSourceReadScope(database:SqlDatabase,actor:Work
  const id=surface==="records"?"workspace_records.id":surface==="staff"?"staff_notifications.record_id":"e.source_id",company=surface==="records"?"workspace_records.company_id":surface==="staff"?"staff_notifications.company_id":"e.company_id";
  const rfq=await procurementSourcePredicate(database,actor,"procurement_source"),visible=sourceVisible("procurement_rfqs","procurement_source",id,company,rfq.where);
  const bill=await supplierBillSourcePredicate(database,actor,"procurement_bill_source"),billVisible=sourceVisible("procurement_bill_matches","procurement_bill_source",id,company,bill.where);
- if(surface==="records")return {where:`(NOT(module_id='procurement' AND (EXISTS(SELECT 1 FROM procurement_rfqs actual_rfq WHERE actual_rfq.id=${id}) OR EXISTS(SELECT 1 FROM procurement_bill_matches actual_bill WHERE actual_bill.id=${id}))) OR ${visible} OR ${billVisible})`,args:[...rfq.args,...bill.args]};
+ if(surface==="records")return {where:`(NOT(module_id='procurement' AND (EXISTS${actualSourceExists("procurement_rfqs","actual_rfq",id)} OR EXISTS${actualSourceExists("procurement_bill_matches","actual_bill",id)})) OR ${visible} OR ${billVisible})`,args:[...rfq.args,...bill.args]};
  const type=surface==="staff"?"staff_notifications.record_type":"e.source_type",promise=await procurementSourcePredicate(database,actor,"procurement_promise_source");
  return {where:`(${type} NOT IN ('procurement_rfq','supplier_promise','supplier_bill') OR (${type}='procurement_rfq' AND ${visible}) OR (${type}='supplier_promise' AND EXISTS(SELECT 1 FROM commerce_orders procurement_promise_source WHERE procurement_promise_source.id=${id} AND procurement_promise_source.company_id=${company} AND procurement_promise_source.kind='purchase' AND ${promise.where})) OR (${type}='supplier_bill' AND ${billVisible}))`,args:[...rfq.args,...promise.args,...bill.args]};
 }
