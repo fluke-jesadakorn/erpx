@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10875,
+    "revision": 10878,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -166551,7 +166551,7 @@
         "owner": "people_payroll",
         "title": "payroll TS read tail native cutover (round 36)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -166563,22 +166563,37 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMppl7",
-          "claimedAt": "2026-11-24T08:59:23.020Z",
-          "heartbeatAt": "2026-11-24T09:05:44.208Z",
-          "expiresAt": "2026-11-24T09:35:44.208Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "5e6a32192",
+            "owner": "people_payroll",
+            "before": 1387,
+            "after": 1356,
+            "note": "Single-predicate, numbered two-predicate, three-predicate and tail projection families share four builders; all FOR UPDATE/SHARE/advisory locks and r1-r35 untouched."
+          },
+          {
+            "command": "vitest payroll r25/r30/r33-r36 (26) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "5e6a32192"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=1390.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMppl7",
+          "at": "2026-11-24T09:11:48.436Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -167949,7 +167964,7 @@
         "owner": "people_payroll",
         "title": "payroll guard and coalesce families (round 37)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -167961,7 +167976,14 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMppl8",
+          "claimedAt": "2026-11-24T09:11:48.607Z",
+          "heartbeatAt": "2026-11-24T09:11:48.607Z",
+          "expiresAt": "2026-11-24T09:41:48.607Z",
+          "generation": 167
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -168054,18 +168076,18 @@
       "totalPackets": 1492,
       "migratedPackets": 330,
       "statusCounts": {
-        "pending": 24,
+        "pending": 23,
         "in_progress": 24,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1112,
+        "blocked": 1113,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:11:30.187Z",
+    "updatedAt": "2026-11-24T09:11:48.612Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
