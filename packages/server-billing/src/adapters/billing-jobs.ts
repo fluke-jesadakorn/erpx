@@ -20,6 +20,10 @@ import {nativeBillingOwnerQuery,nativeBillingOwnerBind} from '@erpx/server-billi
 import {BILLING_INVOICE_BY_ID_SQL,BILLING_ACCOUNT_BY_HOLDING_SQL,BILLING_CUSTOMER_BY_HOLDING_SQL} from './billing-read-tail-r15-sql';
 import type {BillingAccount,BillingInvoiceRow,BillingJobRow} from '@erpx/server-billing/domain/billing';
 import {billingTestFinanceReady} from '@erpx/server-commerce/public/billing-test-finance-ready';
+/** r17 read tail: shared invoice-id read prefix; each caller appends its own predicate. */
+function billingInvoiceIdSql(extra: string) {
+  return `SELECT id FROM billing_invoices WHERE holding_id=$1${extra}`;
+}
 function nativeJobRepository(c:PoolClient):BillingJobRepository{return {invoice:(v0)=>c.query<BillingInvoiceRow>(BILLING_INVOICE_BY_ID_SQL,[v0]),
 mirrorInvoiceState:(v0,v1,v2,v3,v4,v5,v6)=>nativeBillingOwnerQuery(c, 'mirror_invoice_state', [v0,v1,v2,v3,v4,v5,v6]),
 releaseVoidedCosts:(v0)=>nativeBillingOwnerQuery(c, 'release_voided_costs', [v0]),
@@ -39,14 +43,14 @@ retainCurrentCard:(v0,v1)=>nativeBillingOwnerQuery(c, 'retain_current_card', [v0
 pendingJobs:(v0,v1)=>c.query<BillingJobRow>("SELECT * FROM billing_jobs WHERE holding_id=$1 AND state='pending' AND next_at<=$2 ORDER BY created_at,id LIMIT 10",[v0,v1]),
 rescheduleJob:(v0,v1,v2,v3)=>nativeBillingOwnerQuery(c, 'reschedule_job', [v0,v1,v2,v3]),
 pendingEvents:(v0,v1)=>c.query<BillingInboxRow>("SELECT * FROM stripe_inbox WHERE state='pending' AND next_at<=$1 AND payload_json::jsonb #>> '{data,object,customer}'=(SELECT customer_id FROM billing_accounts WHERE holding_id=$2) ORDER BY created_at,id LIMIT 50",[v0,v1]),
-eventInvoices:(v0,v1)=>c.query<{id:string}>("SELECT id FROM billing_invoices WHERE holding_id=$1 AND stripe_id=$2",[v0,v1]),
+eventInvoices:(v0,v1)=>c.query<{id:string}>(billingInvoiceIdSql(" AND stripe_id=$2"),[v0,v1]),
 setupCustomer:(v0)=>c.query<{customer_id:string|null}>(BILLING_CUSTOMER_BY_HOLDING_SQL,[v0]),
 retainSetupState:(v0,v1)=>nativeBillingOwnerQuery(c, 'retain_setup_state', [v0,v1]),
 verifiedSetupCustomer:(v0)=>c.query<{customer_id:string|null}>(BILLING_CUSTOMER_BY_HOLDING_SQL,[v0]),
 retainSetupCard:(v0,v1)=>nativeBillingOwnerQuery(c, 'retain_setup_card', [v0,v1]),
 applyEvent:(v0,v1)=>nativeBillingOwnerQuery(c, 'apply_stripe_event', [v0,v1]),
 rescheduleEvent:(v0,v1,v2)=>nativeBillingOwnerQuery(c, 'reschedule_stripe_event', [v0,v1,v2]),
-staleInvoices:(v0,v1)=>c.query<{id:string}>("SELECT id FROM billing_invoices WHERE holding_id=$1 AND status IN ('open','draft') AND stripe_id IS NOT NULL AND updated_at<$2 LIMIT 10",[v0,v1]),
+staleInvoices:(v0,v1)=>c.query<{id:string}>(billingInvoiceIdSql(" AND status IN ('open','draft') AND stripe_id IS NOT NULL AND updated_at<$2 LIMIT 10"),[v0,v1]),
 paidTargetInvoices:(v0,v1)=>c.query<{id:string}>(`SELECT i.id FROM billing_invoices i
          LEFT JOIN billing_test_finance_projection f ON f.billing_invoice_id=i.id
          WHERE i.holding_id=$1 AND i.rating_model='target' AND i.status='paid'

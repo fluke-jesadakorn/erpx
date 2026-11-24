@@ -22,13 +22,16 @@ import {createBillingEvidence,type BillingEvidenceRepository} from '@erpx/server
 import {nativeBillingOwnerQuery,nativeBillingOwnerBind} from '@erpx/server-billing/adapters/native-billing-owner-write';
 import type {BillingEvidenceSource,BillingScanJob} from '@erpx/server-billing/domain/evidence';
 export {billingEvidenceReconciliationReady} from '@erpx/server-billing/domain/evidence';
+/** r17 read tail: byte-identical pending-scan count prefix shared by the readiness
+ * totals and the scan-queue count. Each caller keeps its own suffix and result type. */
+const BILLING_PENDING_SCAN_COUNT_SQL = "SELECT count(*) FILTER (WHERE source_state IN ('legacy_unscanned','quarantined','scanning','scan_error'))::bigint pending";
 function nativeEvidence(env:RuntimeEnv){const db=env.CONTROL_DB as PostgresDatabase,store=billingEvidenceStore(env),scannerEnvironment={...process.env,ERPX_ATTACHMENTS_V2:'true'};const repository:BillingEvidenceRepository={
-readinessCounts:async()=>(await db.pool.query(`SELECT count(*) FILTER (WHERE source_state IN ('legacy_unscanned','quarantined','scanning','scan_error'))::bigint pending,count(*) FILTER (WHERE source_state='malware_rejected')::bigint sealed_malware FROM billing_evidence`)).rows[0],
+readinessCounts:async()=>(await db.pool.query(`${BILLING_PENDING_SCAN_COUNT_SQL},count(*) FILTER (WHERE source_state='malware_rejected')::bigint sealed_malware FROM billing_evidence`)).rows[0],
 latestFinalReconciliation:async()=>(await db.pool.query(`SELECT ready,created_at FROM billing_evidence_reconciliation_runs WHERE mode='final' AND upload_frozen=true AND checksums_verified=true ORDER BY created_at DESC,id DESC LIMIT 1`)).rows[0],
 sources:async()=>(await db.pool.query<BillingEvidenceSource>('SELECT id,holding_id,object_key,size,sha256,source_state FROM billing_evidence ORDER BY id')).rows,
 sourceLedger:async row=>(await db.pool.query('SELECT bytes FROM billing_evidence_storage_ledger WHERE evidence_id=$1 AND holding_id=$2 AND object_key=$3 AND state=\'stored\'',[row.id,row.holding_id,row.object_key])).rows[0],
 storedTotals:async()=>(await db.pool.query(`SELECT COALESCE(sum(bytes),0)::bigint stored_bytes,(SELECT count(*)::bigint FROM (SELECT object_key FROM billing_evidence_storage_ledger WHERE state='stored' GROUP BY object_key HAVING count(*)>1) duplicate_objects) AS duplicate_objects FROM billing_evidence_storage_ledger WHERE state='stored'`)).rows[0],
-pendingScans:async()=>(await db.pool.query(`SELECT count(*) FILTER (WHERE source_state IN ('legacy_unscanned','quarantined','scanning','scan_error'))::bigint pending FROM billing_evidence`)).rows[0],
+pendingScans:async()=>(await db.pool.query(`${BILLING_PENDING_SCAN_COUNT_SQL} FROM billing_evidence`)).rows[0],
 recordReconciliation:({id,input,uploadFrozen,ready,report,pending,now})=>nativeBillingOwnerQuery(db.pool, 'reconciliation_run', [id,input.mode,uploadFrozen,input.verifyChecksums,input.scanner.engine,input.scanner.definitionUpdatedAt,ready,JSON.stringify({scanPending:pending,...report}),now]),
 claimScan:async(now,lease)=>(await nativeBillingOwnerQuery(db.pool, 'scan_claim', [now,now+60_000,lease])).rows[0],
 scanSource:async id=>(await nativeBillingOwnerQuery(db.pool, 'scan_source', [id])).rows[0] as BillingEvidenceSource | undefined,
