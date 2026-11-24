@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10821,
+    "revision": 10823,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -167287,6 +167287,42 @@
         "nextAction": "Port sales, refunds, sale documents and settlements list reads into pos_list_reads; locks excluded. BEFORE=199.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.workflow.read-tail-r41",
+        "goalId": "G4",
+        "owner": "workflow",
+        "title": "workflow flow routes native read port (round 41)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/**",
+          "tests/unit/workflow/**",
+          "tests/integration/workflow/**"
+        ],
+        "resources": [
+          "owner:workflow"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMwf2",
+          "claimedAt": "2026-11-24T09:04:40.319Z",
+          "heartbeatAt": "2026-11-24T09:04:40.319Z",
+          "expiresAt": "2026-11-24T09:34:40.319Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Add WF_NATIVE_FLOW_ROUTES_BY_COMPANY and cut flow-planning-ports.ts:97/:107 to nativeWorkflowReadAll. BEFORE=54.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -167295,11 +167331,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1475,
+      "totalPackets": 1476,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 23,
-        "in_progress": 18,
+        "in_progress": 19,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -167309,7 +167345,7 @@
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:04:28.844Z",
+    "updatedAt": "2026-11-24T09:04:40.326Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
