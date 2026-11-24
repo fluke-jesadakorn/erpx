@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11797,
+    "revision": 11799,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -175981,7 +175981,7 @@
         "owner": "quality",
         "title": "quality TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -175993,22 +175993,37 @@
         "resources": [
           "owner:quality"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4b23",
-          "claimedAt": "2026-11-24T11:50:46.058Z",
-          "heartbeatAt": "2026-11-24T12:04:33.299Z",
-          "expiresAt": "2026-11-24T12:34:33.299Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-quality/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d6144236f",
+            "owner": "quality",
+            "before": 67,
+            "after": 63,
+            "note": "Supply/manufacturing obligation fact arms share one helper; locks/native/r1-r22 untouched."
+          },
+          {
+            "command": "vitest quality (105) + scoped tsc + 5/5 byte oracle",
+            "result": "passed",
+            "sourceSha": "d6144236f"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=67.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4b23",
+          "at": "2026-11-24T12:09:52.177Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -176809,17 +176824,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 20,
+        "in_progress": 19,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1290,
+        "blocked": 1291,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T12:09:28.659Z",
+    "updatedAt": "2026-11-24T12:09:52.182Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
