@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11433,
+    "revision": 11439,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -167676,6 +167676,20 @@
             "command": "cargo test -p erpx-server-pos --lib (60) + vitest pos (36)",
             "result": "passed",
             "sourceSha": "a2506507a"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a2506507a",
+            "owner": "pos",
+            "before": 199,
+            "after": 195,
+            "note": "Four child-tail reads now native kinds; registry, mounts and bind order unchanged; locks untouched."
+          },
+          {
+            "command": "cargo test -p erpx-server-pos --lib (60) + vitest pos (36)",
+            "result": "passed",
+            "sourceSha": "a2506507a"
           }
         ],
         "retainedLegacy": [],
@@ -167683,8 +167697,8 @@
         "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wGCMpos8",
-          "at": "2026-11-24T11:24:20.186Z",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T11:25:55.940Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
           "nextAction": "Integrated; claim released"
@@ -169266,6 +169280,20 @@
             "command": "cargo test -p erpx-server-support --lib (92) + vitest support (202) + scoped tsc",
             "result": "passed",
             "sourceSha": "a7e244cef"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a7e244cef",
+            "owner": "support",
+            "before": 50,
+            "after": 48,
+            "note": "Ticket evidence items read now native SUPPORT_RD_EVIDENCE_ITEMS; guard and eligibility projections untouched."
+          },
+          {
+            "command": "cargo test -p erpx-server-support --lib (92) + vitest support (202) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "a7e244cef"
           }
         ],
         "retainedLegacy": [],
@@ -169273,8 +169301,8 @@
         "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wGCMsup9",
-          "at": "2026-11-24T11:25:03.353Z",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T11:25:56.297Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
           "nextAction": "Integrated; claim released"
@@ -174204,7 +174232,7 @@
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T11:25:03.357Z",
+    "updatedAt": "2026-11-24T11:25:56.301Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
