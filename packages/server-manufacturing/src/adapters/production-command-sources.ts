@@ -4,6 +4,7 @@ import {productionReadProjection as productionplanningProjection} from '@erpx/se
 import {productionReadProjection as productioninventoryProjection} from '@erpx/server-inventory/public/production-read-projections';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {ownerWrite} from '@erpx/server-manufacturing/adapters/native-owner-write';
 import {manufacturingRowsSelect,manufacturingIdSelect} from './manufacturing-read-sql-fragments';
+import {manufacturingOrderJoinSelect} from './manufacturing-read-tail-r15-sql';
 
 /** Owner-local fixed read: the latest output-report actor on a production
  * order. `lastReportActor` (QC pass) and `lastOutputReportActor` (scrap approval)
@@ -65,7 +66,11 @@ async specifications(companyId:string){return db
           .all<Row>();},
 async orders(companyId:string,branchId:string | null,branchId2:string | null){return db
           .prepare(
-            `SELECT o.*,s.name specification_name,p.name output_name FROM manufacturing_orders o JOIN manufacturing_specifications s ON s.id=o.specification_id ${productioncommerceProjection.outputProduct} WHERE o.company_id=? AND (?::text IS NULL OR o.branch_id=?) ORDER BY o.updated_at DESC`,
+            manufacturingOrderJoinSelect(
+              "o.*,s.name specification_name,p.name output_name",
+              ` ${productioncommerceProjection.outputProduct}`,
+              "o.company_id=? AND (?::text IS NULL OR o.branch_id=?) ORDER BY o.updated_at DESC",
+            ),
           )
           .bind(companyId, branchId, branchId2)
           .all<Row>();},
@@ -79,7 +84,11 @@ guardRecommendationSpecification(key:string,value:"specification-source",value2:
  prepareManufacturingReleaseEvent(value:string,orderId:string,userId:string,reason:string,now:number){return ownerWrite('order.release-event',[value,orderId,userId,reason,now],String(orderId));},
 async scopedOrder(id:string,companyId:string,branchId:string | null,branchId2:string | null){return db
       .prepare(
-        `SELECT o.*,s.output_product_id,s.batch_quantity_milli,p.tracking_mode output_tracking_mode FROM manufacturing_orders o JOIN manufacturing_specifications s ON s.id=o.specification_id ${productioncommerceProjection.outputProduct} WHERE o.id=? AND o.company_id=? AND (?::text IS NULL OR o.branch_id=?)`,
+        manufacturingOrderJoinSelect(
+          "o.*,s.output_product_id,s.batch_quantity_milli,p.tracking_mode output_tracking_mode",
+          ` ${productioncommerceProjection.outputProduct}`,
+          "o.id=? AND o.company_id=? AND (?::text IS NULL OR o.branch_id=?)",
+        ),
       )
       .bind(id, companyId, branchId, branchId2)
       .first<Row>();},
@@ -125,7 +134,11 @@ guardOperationSequence(key:string,value:"routing-sequence",value2:string,value3:
  prepareOrderEvent(value:string,id:string,next:number,action:"cancel" | "reserve" | "issue" | "report" | "pass-qc" | "fail-qc" | "rework" | "scrap" | "complete-operation",userId:string,reason:string,status:string,value2:string,now:number){return ownerWrite('order.event',[value,id,next,action,userId,reason,status,value2,now],String(id));},
 async detailedOrder(id:string,companyId:string,branchId:string | null,branchId2:string | null){return db
       .prepare(
-        `SELECT o.*,s.name specification_name,s.mode,p.name output_name,p.tracking_mode output_tracking_mode FROM manufacturing_orders o JOIN manufacturing_specifications s ON s.id=o.specification_id ${productioncommerceProjection.outputProduct} WHERE o.id=? AND o.company_id=? AND (?::text IS NULL OR o.branch_id=?)`,
+        manufacturingOrderJoinSelect(
+          "o.*,s.name specification_name,s.mode,p.name output_name,p.tracking_mode output_tracking_mode",
+          ` ${productioncommerceProjection.outputProduct}`,
+          "o.id=? AND o.company_id=? AND (?::text IS NULL OR o.branch_id=?)",
+        ),
       )
       .bind(id, companyId, branchId, branchId2)
       .first<Row>();},
@@ -162,7 +175,11 @@ async lotGenealogy(id:string){return db.prepare(`SELECT g.*,i.lot_id input_lot_i
       .bind(id).all<Row>();},
 async openOrders(companyId:string,branchId:string | null,branchId2:string | null){return db
         .prepare(
-          "SELECT o.*,s.name specification_name FROM manufacturing_orders o JOIN manufacturing_specifications s ON s.id=o.specification_id WHERE o.company_id=? AND o.status NOT IN ('completed','cancelled') AND (?::text IS NULL OR o.branch_id=?) ORDER BY o.updated_at DESC",
+          manufacturingOrderJoinSelect(
+            "o.*,s.name specification_name",
+            "",
+            "o.company_id=? AND o.status NOT IN ('completed','cancelled') AND (?::text IS NULL OR o.branch_id=?) ORDER BY o.updated_at DESC",
+          ),
         )
         .bind(companyId, branchId, branchId2)
         .all<Row>();}};}
