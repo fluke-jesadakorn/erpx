@@ -13,3 +13,7 @@ export const NO_ATTACHMENT_LINK_SQL = "SELECT 1 FROM attachment_links link WHERE
  * caller and no result is cached here. */
 export const LINK_SET_ATTACHMENT_EXISTS_SQL = "EXISTS(SELECT 1 FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id JOIN attachments a ON a.id=l.attachment_id";
 export const LINK_SET_ID_SELECT_SQL = "SELECT l.id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id";
+/** Byte-identical link/attachment projection prefix shared by the finance-review
+ * and service-repository selectors. Text only: each call site renders its own
+ * statement with its own binds; no SQL text is accepted from a caller. */
+export const LINK_ATTACHMENT_SELECT_SQL = "SELECT l.id link_id,l.attachment_id";

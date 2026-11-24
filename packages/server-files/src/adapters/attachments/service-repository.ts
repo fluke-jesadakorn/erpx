@@ -6,7 +6,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { AttachmentSourceState, AttachmentComponentKind } from "@erpx/server-files/domain/attachments/types";
 import type { SetRow, LinkRow } from "@erpx/server-files/domain/attachments/service-models";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {LINK_SET_ATTACHMENT_EXISTS_SQL, LINK_SET_ID_SELECT_SQL} from "../read-tail-dedupe-sql";
+import {LINK_ATTACHMENT_SELECT_SQL, LINK_SET_ATTACHMENT_EXISTS_SQL, LINK_SET_ID_SELECT_SQL} from "../read-tail-dedupe-sql";
 const setByIdSql = "SELECT * FROM attachment_sets WHERE id=? AND company_id=?";
 export const usedStorageSql = "SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')";
 export const pendingStorageSql = "SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?";
@@ -522,7 +522,7 @@ export function repository(db: SqlDatabase) {
             id: string;
             companyId: string;
         }) => {
-            return db.prepare(`SELECT l.id link_id,l.attachment_id,a.checksum_sha256,a.media_type,a.bytes,a.source_state
+            return db.prepare(`${LINK_ATTACHMENT_SELECT_SQL},a.checksum_sha256,a.media_type,a.bytes,a.source_state
       FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id LEFT JOIN attachments a ON a.id=l.attachment_id AND a.company_id=s.company_id
       WHERE l.set_id=? AND s.company_id=? AND l.state='draft' ORDER BY l.created_at,l.id`).bind(facts.id, facts.companyId).all<{
                 link_id: string;
@@ -565,7 +565,7 @@ export function repository(db: SqlDatabase) {
             sourceLinkId: string;
             companyId: string;
         }) => {
-            return db.prepare(`SELECT l.id link_id,l.attachment_id,s.target_type source_target_type,s.target_id source_target_id,s.component_kind,s.purpose_key,s.company_id,
+            return db.prepare(`${LINK_ATTACHMENT_SELECT_SQL},s.target_type source_target_type,s.target_id source_target_id,s.component_kind,s.purpose_key,s.company_id,
     a.preview_object_key,a.preview_media_type,a.preview_checksum_sha256,a.preview_bytes,a.source_state
     FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id JOIN attachments a ON a.id=l.attachment_id AND a.company_id=s.company_id
     WHERE l.id=? AND s.company_id=? AND l.state='bound'`).bind(facts.sourceLinkId, facts.companyId).first<Record<string, unknown>>();
