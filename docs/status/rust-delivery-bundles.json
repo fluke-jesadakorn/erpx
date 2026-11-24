@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12003,
+    "revision": 12005,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -178576,7 +178576,7 @@
         "owner": "legal",
         "title": "legal TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -178588,22 +178588,22 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4i01",
-          "claimedAt": "2026-11-24T12:54:30.531Z",
-          "heartbeatAt": "2026-11-24T13:00:27.066Z",
-          "expiresAt": "2026-11-24T13:30:27.067Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next safe family; report blocked with AST evidence if none. BEFORE=188.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with AST evidence; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4i01",
+          "at": "2026-11-24T13:02:00.284Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with AST evidence; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -179337,17 +179337,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 21,
+        "in_progress": 20,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1340,
+        "blocked": 1341,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:01:33.713Z",
+    "updatedAt": "2026-11-24T13:02:00.289Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
