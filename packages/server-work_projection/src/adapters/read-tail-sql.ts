@@ -30,6 +30,9 @@ export const reminderAttendeePointSql = (columns: string) =>
     reminderAttendeesSql(columns, ' AND t.user_id=?');
 /** Invited-attendee scope arm of the candidate query. One definition serves every scope arm. */
 export const attendeeScopeExistsSql = `EXISTS(SELECT 1 FROM calendar_attendees ap WHERE ap.appointment_id=x.id AND ap.user_id=?)`;
+/** Participant-scope arm of the candidate query. The joined body is the only variation between the engagement scope and the person point check. */
+export const participantScopeExistsSql = (body: string) =>
+    `EXISTS(SELECT 1 FROM calendar_appointment_participants ap ${body})`;
 /** Receipt point read by id. The column set and receipt table are the only variation. */
 export const receiptByIdSql = (columns: string, table: string) =>
     `SELECT ${columns} FROM ${table} WHERE id=?`;
