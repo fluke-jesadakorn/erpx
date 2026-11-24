@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12245,
+    "revision": 12247,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -181910,7 +181910,7 @@
         "owner": "finance",
         "title": "finance TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -181922,22 +181922,37 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n38",
-          "claimedAt": "2026-11-24T14:06:24.867Z",
-          "heartbeatAt": "2026-11-24T14:10:58.174Z",
-          "expiresAt": "2026-11-24T14:40:58.174Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "beb30e35c",
+            "owner": "finance",
+            "before": 1851,
+            "after": 1844,
+            "note": "Plan edition point, bank transaction guards, acquisition reads and version guards shared; locks/tax/advisory/native/expansion unions untouched."
+          },
+          {
+            "command": "vitest finance (163) + scoped tsc + 10 byte oracle",
+            "result": "passed",
+            "sourceSha": "beb30e35c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Plan editions status (-2), bank matched_type guards (-2), acquisitions status (-2 reads, -1 guards): 1851->1844. BEFORE=1851.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n38",
+          "at": "2026-11-24T14:14:13.176Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -182057,17 +182072,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 4,
+        "in_progress": 3,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1407,
+        "blocked": 1408,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:11:59.517Z",
+    "updatedAt": "2026-11-24T14:14:13.179Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
