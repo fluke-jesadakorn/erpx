@@ -5,6 +5,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { projectDependencyBlockerCohort, projectMilestoneOverdueCohort } from "@erpx/server-runtime/public/executive/project-milestone-access";
 import { projectOwnerOrMemberSql } from "@erpx/server-projects/adapters/project-read-projections";
+import { evidenceProjectionHead } from './read-tail-r38';
 import { ProjectMilestoneEvidenceRow, ProjectDependencyEvidenceRow, ProjectActualEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
 function projectActualScope() {
     return `p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.department_id=?)
@@ -14,19 +15,13 @@ function projectActualScope() {
  * and by-id readers of each metric execute the identical projection column
  * list; one definition removes the redundant query text and stops the two
  * call sites from drifting apart. */
-const milestoneEvidenceSelect =
-    `SELECT m.id,m.project_id,p.title project_title,m.title,m.due_at,m.owner_user_id,
-      COALESCE(h.legal_name,m.owner_user_id) owner_name,m.state,m.version`;
-const dependencyEvidenceSelect =
-    `SELECT m.id,m.project_id,p.title project_title,m.title,m.due_at,m.state,m.version,
-      COALESCE(blockers.items,'[]'::jsonb)::text blockers_json`;
+const milestoneEvidenceSelect = evidenceProjectionHead('milestone');
+const dependencyEvidenceSelect = evidenceProjectionHead('dependency');
 /** Byte-identical work-log evidence source shared by the paged search and by-id readers. */
-const projectActualHoursEvidenceFrom = (sourceSql: string) => `SELECT l.id,l.project_id,p.title project_title,l.work_date::text work_date,l.work_date::text sort_date,
-        l.minutes,l.user_id,l.state,l.version
+const projectActualHoursEvidenceFrom = (sourceSql: string) => `${evidenceProjectionHead('actual-hours')}
       ${projectActualHoursFrom(sourceSql)}`;
 /** Byte-identical posted-cost projection head shared by the paged search and by-id readers. */
-const projectPostedCostEvidenceHead = `SELECT a.id,a.project_id,p.title project_title,j.entry_date::text entry_date,j.entry_date::text sort_date,
-        j.id journal_id,j.journal_number,j.currency,`;
+const projectPostedCostEvidenceHead = evidenceProjectionHead('posted-cost');
 /** Byte-identical blocker lateral shared by the milestone search and by-id readers. */
 const projectDependencyBlockerLateral = (sourceSql: string) => `FROM staff_project_milestones m JOIN (${sourceSql}) p ON p.id=m.project_id AND p.company_id=m.company_id
     LEFT JOIN LATERAL (

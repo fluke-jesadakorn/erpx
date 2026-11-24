@@ -91,7 +91,8 @@ describe('Projects read-tail r34 staff_tasks point / staff_projects by-ref dedup
     expect(prp).toContain("staffProjectByRefHead('1','hp','hs.source_id',`${post}.company_id`)");
     expect(prp).toContain("staffProjectByRefHead('1','pr',`${alias}.audience_id`,`${alias}.company_id`)");
     expect(prp).toContain('AND iam_same_person(hp.owner_user_id,${user},${task}.company_id))`;}');
-    expect(prp).toContain('OR EXISTS(SELECT 1 FROM staff_project_members hm WHERE hm.project_id=hp.id AND hm.user_id=${user}))`;}');
+    expect(prp).toContain("OR ${memberExistsSql('', 'hm', 'hp', 'id', user)})`;}");
+    expect(prp).not.toContain('OR EXISTS(SELECT 1 FROM staff_project_members hm WHERE hm.project_id=hp.id');
     expect(prp).toContain("projectOwnerOrMemberColumnSql('pr','a.user_id','pm','id','\\n        ')");
     expect(prp).not.toContain('SELECT 1 FROM staff_projects hp WHERE hp.id=');
     expect(prp).not.toContain('SELECT 1 FROM staff_projects pr WHERE pr.id=');
@@ -115,7 +116,7 @@ describe('Projects read-tail r34 staff_tasks point / staff_projects by-ref dedup
     expect(src('clock-cte.ts')).toContain('export const projectsClockCte=');
   });
 
-  test('retirement:ts-statements falls from 105 to 96 after r34', () => {
+  test('retirement:ts-statements is 81 after r38 (BEFORE=88)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {
@@ -126,6 +127,6 @@ describe('Projects read-tail r34 staff_tasks point / staff_projects by-ref dedup
     };
     walk(srcRoot);
     // r33 left 105. Family A 4->1 removes 3; Family B 7->1 removes 6: 105-9 = 96.
-    expect(total).toBe(88); // r37 four-arm fact UNION closed helper (-3) + 3-arm NOT EXISTS proof group (-2): 93->88 // r36 package-actual source + event-fact arms: 95->93 // r35 point-read family merge (projectIdSql -> projectPointReadHead): 96->95
+    expect(total).toBe(81); // r37 four-arm fact UNION closed helper (-3) + 3-arm NOT EXISTS proof group (-2): 93->88 // r36 package-actual source + event-fact arms: 95->93 // r35 point-read family merge (projectIdSql -> projectPointReadHead): 96->95 // r38 member EXISTS closed helper (-4) + evidence super-head (-3): 88->81
   });
 });

@@ -59,7 +59,7 @@ describe('Projects read-tail r35 point-read family merge', () => {
     expect(src('executive-evidence-chains.ts')).toContain('JOIN (${sourceSql}) p ON p.id=m.project_id AND p.company_id=m.company_id');
   });
 
-  test('retirement:ts-statements falls strictly below BEFORE=96', () => {
+  test('retirement:ts-statements is 81 after r38 (BEFORE=88)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {
@@ -71,7 +71,7 @@ describe('Projects read-tail r35 point-read family merge', () => {
     walk(srcRoot);
     // r34 left 96. r35 removes the standalone projectIdSql literal (1->0) by
     // composing the r33 point-read head; its two call sites emit unchanged SQL.
-    expect(total).toBe(88); // r37 four-arm fact UNION closed helper (-3) + 3-arm NOT EXISTS proof group (-2): 93->88 // r36 package-actual source + event-fact arms: 95->93
-    expect(total).toBeLessThan(96);
+    expect(total).toBe(81); // r37 four-arm fact UNION closed helper (-3) + 3-arm NOT EXISTS proof group (-2): 93->88 // r36 package-actual source + event-fact arms: 95->93 // r38 member EXISTS closed helper (-4) + evidence super-head (-3): 88->81
+    expect(total).toBeLessThan(88);
   });
 });

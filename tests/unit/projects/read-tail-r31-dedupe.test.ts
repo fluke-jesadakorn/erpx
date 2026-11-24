@@ -79,7 +79,10 @@ describe('Projects read-tail r31 receipt-event and owner-or-member dedupe', () =
       'projectHandoverSourceSql', 'socialProjectAudienceSql']) {
       expect(defs).toContain(kept);
     }
-    expect(defs).toContain('(p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?))');
+    // r38: the protected member scope now delegates to the closed helper;
+    // its byte-identical render is pinned by read-tail-r38-dedupe.test.ts.
+    expect(defs).toContain("${memberExistsSql('', 'm', 'p', 'id', '?')}");
+    expect(defs).not.toContain('(p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE');
     expect(src('clock-cte.ts')).toContain('export const projectsClockCte=');
     expect(src('read-tail-r23.ts')).toContain('projectAssignmentAuthorityReadSql');
     expect(src('read-tail-r27.ts')).toContain('projectMemberExistsSql');
@@ -109,7 +112,7 @@ describe('Projects read-tail r31 receipt-event and owner-or-member dedupe', () =
     expect(untouchedInvariants()).toBe(true);
   });
 
-  test('retirement:ts-statements is exactly 110 after r31', () => {
+  test('retirement:ts-statements is 81 after r38 (BEFORE=88)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {
@@ -119,8 +122,8 @@ describe('Projects read-tail r31 receipt-event and owner-or-member dedupe', () =
       }
     };
     walk(srcRoot);
-    expect(total).toBeLessThan(112);
-    expect(total).toBe(88); // r37 four-arm fact UNION closed helper (-3) + 3-arm NOT EXISTS proof group (-2): 93->88 // r36 package-actual source + event-fact arms: 95->93 // r35 point-read family merge (projectIdSql -> projectPointReadHead): 96->95 // r30 left 112; r31 receipt-event proof 112->111; owner-or-member column 111->110; r32 purchase-source head 110->108; r33 point-read head and owner-or-member reuse 108->105. r34 staff_tasks point 4->1 (-3) and staff_projects by-ref 7->1 (-6): 105->96
+    expect(total).toBeLessThan(88);
+    expect(total).toBe(81); // r37 four-arm fact UNION closed helper (-3) + 3-arm NOT EXISTS proof group (-2): 93->88 // r36 package-actual source + event-fact arms: 95->93 // r35 point-read family merge (projectIdSql -> projectPointReadHead): 96->95 // r30 left 112; r31 receipt-event proof 112->111; owner-or-member column 111->110; r32 purchase-source head 110->108; r33 point-read head and owner-or-member reuse 108->105. r34 staff_tasks point 4->1 (-3) and staff_projects by-ref 7->1 (-6): 105->96 // r38 member EXISTS closed helper (-4) + evidence super-head (-3): 88->81
   });
 });
 
