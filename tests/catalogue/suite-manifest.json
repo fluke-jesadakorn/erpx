@@ -2527,9 +2527,11 @@
       },
       "ci": {
         "critical": true,
-        "reason": "Benefits next pure read family must stay byte-identical."
+        "reason": "Benefits owner existence guard family must stay one helper."
       },
-      "apps": "apps",
+      "apps": [
+        "apps"
+      ],
       "packages": [
         "@erpx/server-benefits"
       ],
