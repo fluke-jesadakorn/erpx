@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11229,
+    "revision": 11235,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -171980,6 +171980,114 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=29.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.ecommerce.read-tail-r18",
+        "goalId": "G4",
+        "owner": "ecommerce",
+        "title": "ecommerce TS read tail native cutover (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-ecommerce/src/**",
+          "tests/unit/ecommerce/**",
+          "tests/integration/ecommerce/**"
+        ],
+        "resources": [
+          "owner:ecommerce"
+        ],
+        "claim": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMeco3",
+          "claimedAt": "2026-11-24T10:25:13.101Z",
+          "heartbeatAt": "2026-11-24T10:25:13.101Z",
+          "expiresAt": "2026-11-24T10:55:13.101Z",
+          "generation": 168
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=48.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.collaboration.read-tail-r30",
+        "goalId": "G4",
+        "owner": "collaboration",
+        "title": "collaboration TS read tail native cutover (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "tests/unit/collaboration/**",
+          "tests/integration/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "claim": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMcola",
+          "claimedAt": "2026-11-24T10:25:13.342Z",
+          "heartbeatAt": "2026-11-24T10:25:13.342Z",
+          "expiresAt": "2026-11-24T10:55:13.342Z",
+          "generation": 168
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=397.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pms.read-tail-r35",
+        "goalId": "G4",
+        "owner": "pms",
+        "title": "pms TS read tail native cutover (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pms/src/**",
+          "tests/unit/pms/**",
+          "tests/integration/pms/**"
+        ],
+        "resources": [
+          "owner:pms"
+        ],
+        "claim": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMpmsa",
+          "claimedAt": "2026-11-24T10:25:13.626Z",
+          "heartbeatAt": "2026-11-24T10:25:13.626Z",
+          "expiresAt": "2026-11-24T10:55:13.626Z",
+          "generation": 168
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=337.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -171988,11 +172096,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1568,
+      "totalPackets": 1571,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 27,
+        "in_progress": 30,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -172002,7 +172110,7 @@
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T10:24:54.923Z",
+    "updatedAt": "2026-11-24T10:25:13.646Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
