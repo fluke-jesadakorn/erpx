@@ -398,6 +398,12 @@ pub const KINDS: &[&str] = &[
     crate::adapters::list_reads::REFUNDS,
     crate::adapters::list_reads::CONNECTIONS,
     crate::adapters::list_reads::SETTLEMENTS,
+    // POS hotel day-assertion property kinds (round 32): closed, SELECT-only,
+    // Company-scoped, lock-free owner statements ported from the inline
+    // pos-core.ts literals. Row locks, PMS fragments and the day-report/Stripe
+    // registries stay inline.
+    crate::adapters::hotel_reads::REGISTER_PROPERTY,
+    crate::adapters::hotel_reads::FULFILLMENT_PROPERTY,
     // POS Stripe settlement/provider read kinds: closed, SELECT-only owner
     // statements scoped by caller-supplied company/account/livemode + ids.
     // Row locks, advisory/LOCK, PMS reads and the day-report registry stay
@@ -603,6 +609,10 @@ fn sql(kind: &str) -> Option<&'static str> {
         // module and is shared with the transport parity oracle.
         kind if crate::adapters::list_reads::supported(kind) =>
             return crate::adapters::list_reads::sql(kind),
+        // Hotel day-assertion property reads (round 32): authoritative owner
+        // SQL lives in the dedicated module and is shared with the parity oracle.
+        kind if crate::adapters::hotel_reads::supported(kind) =>
+            return crate::adapters::hotel_reads::sql(kind),
         // Stripe settlement/provider reads: authoritative owner SQL lives in
         // the dedicated module and is shared with the transport parity oracle.
         kind if crate::adapters::stripe_reads::supported(kind) =>
@@ -675,7 +685,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 188);
+        assert_eq!(KINDS.len(), 190);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -1257,6 +1267,31 @@ mod tests {
             }
         }
         assert_eq!(crate::adapters::list_reads::KINDS.len(), 4);
+    }
+
+    /// The retired hotel day-assertion property reads are SELECT-only,
+    /// Company-scoped, lock-free owner statements on POS-owned tables. The
+    /// cross-owner PMS day assertion, row locks and the day-report/Stripe
+    /// registries stay inline in their TypeScript callers and modules.
+    #[test]
+    fn hotel_property_kinds_are_select_only_and_lock_free() {
+        for kind in crate::adapters::hotel_reads::KINDS {
+            assert!(supported(kind), "hotel property kind must be mounted: {kind}");
+            let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
+            assert!(stmt.starts_with("SELECT "), "hotel property kind must be SELECT-only: {kind}");
+            assert!(stmt.contains("company_id=?"), "hotel property kind must be Company-scoped: {kind}");
+            for forbidden in [
+                "INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE", "FOR SHARE",
+                "FOR NO KEY UPDATE", "LOCK TABLE", "pg_advisory", "pms_sources", "pms_properties",
+                "pos_day_closes", "pos_stripe_routes",
+            ] {
+                assert!(
+                    !stmt.contains(forbidden),
+                    "hotel property kind must not mutate, lock or cross owners: {kind} contains {forbidden}",
+                );
+            }
+        }
+        assert_eq!(crate::adapters::hotel_reads::KINDS.len(), 2);
     }
 
     /// The retired Stripe settlement/provider reads are SELECT-only, lock-free

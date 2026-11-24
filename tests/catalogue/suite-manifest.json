@@ -78422,6 +78422,33 @@
       },
       "ci": {
         "critical": true,
+        "reason": "POS hotel reads must stay one native statement set."
+      },
+      "apps": [
+        "pos"
+      ],
+      "packages": [
+        "@erpx/server-pos"
+      ],
+      "id": "pos.native-hotel-reads-statement.unit",
+      "files": [
+        "tests/unit/pos/native-pos-hotel-reads-statement.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "pos",
+      "modules": [
+        "pos"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "POS list reads must stay one native statement set."
       },
       "apps": [
@@ -79006,6 +79033,33 @@
       "id": "pos.read-tail-r31-dedupe.unit",
       "files": [
         "tests/unit/pos/read-tail-r31-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "pos",
+      "modules": [
+        "pos"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "POS hotel property reads must stay native."
+      },
+      "apps": [
+        "pos"
+      ],
+      "packages": [
+        "@erpx/server-pos"
+      ],
+      "id": "pos.read-tail-r32-dedupe.unit",
+      "files": [
+        "tests/unit/pos/read-tail-r32-dedupe.test.ts"
       ],
       "framework": "vitest"
     },

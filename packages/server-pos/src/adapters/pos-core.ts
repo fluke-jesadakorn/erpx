@@ -3,6 +3,7 @@ import { nativePosAuditChargeToRoomStatement, nativePosAuditKitchenStartStatemen
 import { nativePosKeyedPendingReversalStatement, nativePosKeyedPreparedDayCloseStatement, nativePosKeyedReceiptByIdStatement, nativePosKeyedReversalBySaleStatement, nativePosKeyedSettingsStatement, nativePosOpenShiftByIdStatement, nativePosOpenShiftByRegisterStatement, nativePosPaymentByIdPlainStatement, nativePosPostingJournalStatement, nativePosRegisterByIdStatement, nativePosRegisterByNameStatement, nativePosRegisterCatalogStatement, nativePosRegistersByKindStatement, nativePosRestaurantRegisterPropertyStatement, nativePosSaleByIdStatement, nativePosTableByNameStatement } from './native-pos-core-statement';
 import { nativePosFulfilledLinesStatement, nativePosFirstPaymentIdStatement, nativePosLinesBySaleStatement, nativePosLinesTotalStatement, nativePosOpenPaymentIdStatement, nativePosPaymentIdBySaleStatement, nativePosPendingPaymentIdStatement, nativePosRefundablePaymentsStatement, nativePosSucceededPaymentTotalStatement } from './native-pos-sale-child';
 import { nativePosChildTailCompletedLineStatement, nativePosChildTailCreatedByStatement, nativePosChildTailLinesSumStatement, nativePosChildTailRefundPaymentStatement } from './native-pos-child-tail';
+import { nativePosFulfillmentPropertyStatement, nativePosRegisterPropertyStatement } from './native-pos-hotel-reads';
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
 import { hospitalityOwnerProjectionSources as pmsProjectionSources } from "@erpx/server-pms/public/hospitality-owner-projection-sources";
 import 'server-only';
@@ -34,11 +35,11 @@ import { posCoreOrganizationFacts } from "@erpx/server-organization/public/pos-c
 function unit(db: SqlDatabase): PosUnit<SqlStatement> {
     return {
         assertHotelDay: async (company,registerId,date) => {
-            const register=await one(db,'SELECT property_id,branch_id FROM pos_registers WHERE company_id=? AND id=?',company,registerId);
+            const register=await nativePosRegisterPropertyStatement(db,company,registerId);
             if(register) await posGuestAccountInterface(db).assertDay(company,register.property_id,register.branch_id,date);
         },
         assertFulfillmentHotelDay: async (company,fulfillmentId,date) => {
-            const rows=await all(db,'SELECT DISTINCT r.property_id,r.branch_id FROM pos_lines l JOIN pos_sales s ON s.id=l.sale_id JOIN pos_registers r ON r.id=s.register_id WHERE s.company_id=? AND l.fulfillment_id=?',company,fulfillmentId);
+            const rows=await nativePosFulfillmentPropertyStatement(db,company,fulfillmentId);
             for(const row of rows) await posGuestAccountInterface(db).assertDay(company,row.property_id,row.branch_id,date);
         },
         reversalRequest: id => one(db, 'SELECT * FROM pos_room_charge_reversal_requests WHERE id=? FOR UPDATE', id),

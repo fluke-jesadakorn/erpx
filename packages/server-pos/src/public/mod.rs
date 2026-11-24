@@ -14,6 +14,7 @@ pub mod audit_reads;
 pub mod sale_child_reads;
 pub mod child_tail_reads;
 pub mod list_reads;
+pub mod hotel_reads;
 pub mod stripe_reads;
 pub mod attachment_read_sources;
 pub mod boundary_reads;

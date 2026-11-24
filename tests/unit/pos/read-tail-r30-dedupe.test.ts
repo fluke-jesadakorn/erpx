@@ -46,7 +46,7 @@ describe('POS read-tail r30 child-tail native cutover', () => {
     expect(read('native-pos-stripe-reads.ts')).toContain("'pos_stripe_");
   });
 
-  test('retirement:ts-statements is strictly lower than the r30 BEFORE=199 baseline (expected 195)', () => {
+  test('retirement:ts-statements stays strictly lower than the r30 BEFORE=199 baseline (189 after r32)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -56,7 +56,7 @@ describe('POS read-tail r30 child-tail native cutover', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(195);
+    expect(total).toBe(189);
     expect(total).toBeLessThan(199);
   });
 });
