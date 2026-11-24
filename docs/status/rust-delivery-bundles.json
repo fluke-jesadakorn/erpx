@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10808,
+    "revision": 10810,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -167062,6 +167062,42 @@
         "nextAction": "Four families: milestone evidence chain, posted cost chain, actual hours source, owner-or-member scope. BEFORE=122.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.talent.read-tail-r32",
+        "goalId": "G4",
+        "owner": "talent",
+        "title": "talent source projection helper dedupe (round 32)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-talent/src/**",
+          "tests/unit/talent/**",
+          "tests/integration/talent/**"
+        ],
+        "resources": [
+          "owner:talent"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMtal5",
+          "claimedAt": "2026-11-24T09:02:36.627Z",
+          "heartbeatAt": "2026-11-24T09:02:36.627Z",
+          "expiresAt": "2026-11-24T09:32:36.627Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "metricSourceRows and sourceRow share SELECT cols FROM from; locks and r20-r31 untouched. BEFORE=48.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -167070,11 +167106,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1469,
+      "totalPackets": 1470,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 17,
+        "in_progress": 18,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -167084,7 +167120,7 @@
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:01:49.618Z",
+    "updatedAt": "2026-11-24T09:02:36.635Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
