@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12465,
+    "revision": 12467,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183490,7 +183490,7 @@
         "owner": "marketing",
         "title": "marketing TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183501,28 +183501,36 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n95",
-          "claimedAt": "2026-11-24T16:09:13.289Z",
-          "heartbeatAt": "2026-11-24T16:11:53.559Z",
-          "expiresAt": "2026-11-24T16:41:53.559Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-marketing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "9bb117cb3",
+            "owner": "marketing",
+            "before": 48,
+            "after": 38,
+            "note": "Source-row guard (-6), actor-scope assignment head (-3), union frame (-1). Family 2 accepts admitted predicate fragments (assignmentReadSql/moduleMember); byte oracles cover 4 sites. FOR SHARE/settlement/native untouched."
+          },
+          {
+            "command": "vitest marketing (56 targeted; 148 owner) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "9bb117cb3"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Source-row guard head (-6), actor-scope guard (-3), union frame (-1): 48->38. BEFORE=48.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261124-d",
-          "agentId": "wH4n70",
-          "at": "2026-11-24T16:09:13.165Z",
+          "agentId": "wH4n95",
+          "at": "2026-11-24T16:26:39.690Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Source-row guard head (-6), actor-scope guard (-3), union frame (-1): 48->38. BEFORE=48."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -184228,17 +184236,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 9,
+        "in_progress": 8,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1447,
+        "blocked": 1448,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:26:01.468Z",
+    "updatedAt": "2026-11-24T16:26:39.693Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
