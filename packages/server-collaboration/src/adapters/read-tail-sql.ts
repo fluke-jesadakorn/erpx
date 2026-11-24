@@ -47,3 +47,12 @@ export const socialPostByIdGuard=(tail:string)=>`SELECT 1 FROM social_posts WHER
  * and rich draft readers in social-home.ts. Only the trailing field predicate
  * varies; the fixed `id=?` prefix, bind order and lock semantics stay unchanged. */
 export const socialPostDraftFieldGuard=(tail:string)=>`SELECT 1 FROM social_post_drafts WHERE id=? AND ${tail}`;
+/** Byte-identical Social agent-reply state guard shared by the failed-reply and
+ * current-lease readers in social-agent.ts. Only the trailing state predicate
+ * varies; the fixed `id=?` prefix, bind order and lock semantics stay unchanged. */
+export const socialAgentReplyStateGuard=(tail:string)=>`EXISTS(SELECT 1 FROM social_agent_replies WHERE id=? AND ${tail})`;
+/** Byte-identical messaging owner/version existence guard shared by the team-owner
+ * and owner-version readers in messaging.ts. Only the table and trailing version
+ * predicate vary; the fixed `id=? AND company_id=? AND owner_id=?` prefix, bind
+ * order and lock semantics stay unchanged. */
+export const messagingOwnerGuard=(table:string,tail:string)=>`EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND owner_id=?${tail})`;

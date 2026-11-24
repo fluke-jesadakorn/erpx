@@ -5338,6 +5338,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "operations"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Collaboration agent reply state guards and messaging owner guards must stay shared helpers."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-collaboration"
+      ],
+      "id": "collaboration.read-tail-r26-dedupe.unit",
+      "files": [
+        "tests/unit/collaboration/read-tail-r26-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "collaboration.rust-collaboration-pg-postgres.integration",
       "lane": "integration",
       "owner": "collaboration",

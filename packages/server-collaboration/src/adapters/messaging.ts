@@ -21,7 +21,7 @@ import { ApiError } from '@erpx/server-runtime/public/http';
 import { createMessagingApplication, type MessagingRepository } from '@erpx/server-collaboration/application/messaging';
 import { nativeOwnerWrite } from '@erpx/server-collaboration/adapters/native-owner-write';
 import {messagingPurchaseControls,requireMessagingCurrentAccount,requireMessagingPurchase,withMessagingPurchasedCommand} from '@erpx/server-collaboration/adapters/messaging-purchases';
-import {messagingTeamMemberExists,messagingMemberIds} from './read-tail-sql';
+import {messagingTeamMemberExists,messagingMemberIds,messagingOwnerGuard} from './read-tail-sql';
 async function inward<T>(action: () => Promise<T>) {
     try {
         return await action();
@@ -63,7 +63,7 @@ function application(db: SqlDatabase, actor: WorkContext, allowProvision=true) {
         }, prepareGeneral(roomId: string, companyId: string, userId: string, id: string, now: number) {
             return write('msg_general_insert', [roomId, companyId, userId, id, now], `msg-general:${roomId}`);
         }, guardTeamOwner(key: string, value: "team-owner", teamId: string, companyId: string, userId: string) {
-            return assertion(db, key, value, "EXISTS(SELECT 1 FROM messaging_teams WHERE id=? AND company_id=? AND owner_id=?)", [teamId, companyId, userId]);
+            return assertion(db, key, value, messagingOwnerGuard("messaging_teams", ""), [teamId, companyId, userId]);
         }, prepareChannel(id: string, companyId: string, name: string, userId: string, teamId: string, privateRoom: boolean, now: number) {
             return write('msg_channel_insert', [id, companyId, name, userId, teamId, privateRoom, now], `msg-channel:${id}`);
         }, async members(value: string, isTeam: boolean, channelTeam: string | null) {
@@ -74,7 +74,7 @@ function application(db: SqlDatabase, actor: WorkContext, allowProvision=true) {
                 user_id: string;
             }>();
         }, guardOwnerVersion(key: string, value: "owner-version", id: string, companyId: string, userId: string, expectedVersion: number, isTeam: boolean) {
-            return assertion(db, key, value, `EXISTS(SELECT 1 FROM ${isTeam ? "messaging_teams" : "messaging_rooms"} WHERE id=? AND company_id=? AND owner_id=? AND version=?)`, [id, companyId, userId, expectedVersion]);
+            return assertion(db, key, value, messagingOwnerGuard(isTeam ? "messaging_teams" : "messaging_rooms", " AND version=?"), [id, companyId, userId, expectedVersion]);
         }, rename(name: string, id: string, isTeam: boolean) {
             return write('msg_rename', [name, id], `msg-rename:${id}`, { target: isTeam ? 'team' : 'room' });
         }, removeMembers(id: string, members: string[], isTeam: boolean) {
