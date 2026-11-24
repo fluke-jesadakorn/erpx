@@ -357,6 +357,19 @@ pub const KINDS: &[&str] = &[
     crate::adapters::day_control_reads::TOTALS,
     crate::adapters::day_control_reads::STOCK_MOVES,
     crate::adapters::day_control_reads::PENDING_REVERSALS,
+    // POS day-report business-date list kinds: closed, SELECT-only owner
+    // statements that the TypeScript day-report bridge requests on the
+    // caller's unit. Lock-bearing day-close reads stay inline in TypeScript.
+    crate::adapters::day_report_reads::DAY_CLOSES,
+    crate::adapters::day_report_reads::SALES,
+    crate::adapters::day_report_reads::SHIFTS,
+    crate::adapters::day_report_reads::PAYMENTS,
+    crate::adapters::day_report_reads::REFUNDS,
+    crate::adapters::day_report_reads::REFUND_PAYMENTS,
+    crate::adapters::day_report_reads::STOCK_MOVES,
+    crate::adapters::day_report_reads::FULFILLMENTS,
+    crate::adapters::day_report_reads::CASH_MOVEMENTS,
+    crate::adapters::day_report_reads::SETTLEMENTS,
     // POS purchase-boundary read kinds: closed, SELECT-only owner statements
     // that the TypeScript purchase bridge requests on the caller's unit.
     crate::adapters::boundary_reads::SALE_CREATE_MODE,
@@ -511,6 +524,10 @@ fn sql(kind: &str) -> Option<&'static str> {
         // module and is shared with the integration parity oracle.
         kind if crate::adapters::day_control_reads::supported(kind) =>
             return crate::adapters::day_control_reads::sql(kind),
+        // Day-report business-date list reads: authoritative owner SQL lives in
+        // the dedicated module and is shared with the integration parity oracle.
+        kind if crate::adapters::day_report_reads::supported(kind) =>
+            return crate::adapters::day_report_reads::sql(kind),
         // Purchase-boundary reads: authoritative owner SQL lives in the
         // dedicated module and is shared with the integration parity oracle.
         kind if crate::adapters::boundary_reads::supported(kind) =>
@@ -571,7 +588,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 135);
+        assert_eq!(KINDS.len(), 145);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -1040,6 +1057,24 @@ mod tests {
             }
         }
         assert_eq!(crate::adapters::core_reads::KINDS.len(), 3);
+    }
+
+    /// The retired day-report list reads are SELECT-only, lock-free owner
+    /// statements scoped by caller-supplied Company/branch/business-date values.
+    #[test]
+    fn day_report_read_kinds_are_select_only() {
+        for kind in crate::adapters::day_report_reads::KINDS {
+            assert!(supported(kind), "day-report read kind must be mounted: {kind}");
+            let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
+            assert!(stmt.starts_with("SELECT "), "day-report kind must be SELECT-only: {kind}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE", "FOR SHARE", "LOCK TABLE"] {
+                assert!(
+                    !stmt.contains(forbidden),
+                    "day-report kind must not mutate or lock: {kind} contains {forbidden}",
+                );
+            }
+        }
+        assert_eq!(crate::adapters::day_report_reads::KINDS.len(), 10);
     }
 
     /// The retired addon/package obligation reads are SELECT-only owner

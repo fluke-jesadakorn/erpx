@@ -1,6 +1,6 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
 import { nativePosSaleByIdStatement, nativePosSettingsCurrencyStatement } from './native-pos-core-statement';
-import { hospitalityOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/hospitality-owner-projection-sources";
+import { nativePosDayClosesStatement, nativePosDaySalesStatement, nativePosDayShiftsStatement, nativePosDayPaymentsStatement, nativePosDayRefundsStatement, nativePosDayRefundPaymentsStatement, nativePosDayStockMovesStatement, nativePosDayFulfillmentsStatement, nativePosDayCashMovementsStatement, nativePosDaySettlementsStatement } from './native-pos-day-report';
 import { hospitalityOwnerProjectionSources as pmsProjectionSources } from "@erpx/server-pms/public/hospitality-owner-projection-sources";
 import 'server-only';
 import { createHash } from 'node:crypto';
@@ -53,39 +53,39 @@ function unit(db: SqlDatabase): PosDayUnit<SqlStatement> {
             company: string;
             branch: string;
             date: string;
-        }) => one(db, 'SELECT id FROM pos_day_closes WHERE company_id=? AND branch_id=? AND business_date=?', facts.company, facts.branch, facts.date),
+        }) => nativePosDayClosesStatement(db, facts),
         readOrganizationNodes1: facts => PosDayOrganizationFacts(db).readOrganizationNodes1(facts),
         readPosSales2: (facts: {
             company: string;
             branch: string;
             date: string;
-        }) => all(db, `SELECT s.*,ps.record_id room_charge_id,rr.reversal_entry_id FROM pos_sales s LEFT JOIN (${pmsProjectionSources.pms_sources}) ps ON ps.source_key='pos:'||s.id||':'||s.id LEFT JOIN pos_room_charge_reversals rr ON rr.sale_id=s.id WHERE s.company_id=? AND s.branch_id=? AND s.business_date=? ORDER BY s.id`, facts.company, facts.branch, facts.date),
+        }) => nativePosDaySalesStatement(db, facts),
         readPosShifts1: (facts: {
             company: string;
             branch: string;
             date: string;
-        }) => all(db, 'SELECT * FROM pos_shifts WHERE company_id=? AND branch_id=? AND business_date=? ORDER BY id', facts.company, facts.branch, facts.date),
+        }) => nativePosDayShiftsStatement(db, facts),
         readPosPayments2: (facts: {
             company: string;
             branch: string;
             date: string;
-        }) => all(db, 'SELECT p.*,s.number sale_number FROM pos_payments p JOIN pos_sales s ON s.id=p.sale_id WHERE s.company_id=? AND s.branch_id=? AND s.business_date=? ORDER BY p.id', facts.company, facts.branch, facts.date),
+        }) => nativePosDayPaymentsStatement(db, facts),
         readPosRefunds1: (facts: {
             company: string;
             branch: string;
             date: string;
-        }) => all(db, 'SELECT r.*,s.number sale_number FROM pos_refunds r JOIN pos_sales s ON s.id=r.sale_id WHERE r.company_id=? AND r.branch_id=? AND r.accounting_date=? ORDER BY r.id', facts.company, facts.branch, facts.date),
+        }) => nativePosDayRefundsStatement(db, facts),
         readPosRefundPayments1: (facts: {
             company: string;
             branch: string;
             date: string;
-        }) => all(db, 'SELECT rp.*,p.method FROM pos_refund_payments rp JOIN pos_refunds r ON r.id=rp.refund_id JOIN pos_payments p ON p.id=rp.payment_id WHERE r.company_id=? AND r.branch_id=? AND r.accounting_date=? ORDER BY rp.id', facts.company, facts.branch, facts.date),
+        }) => nativePosDayRefundPaymentsStatement(db, facts),
         readPosStockMoves1: (facts: {
             company: string;
             date: string;
             company2: string;
             branch: string;
-        }) => all(db, `SELECT * FROM pos_stock_moves WHERE company_id=? AND movement_date=? AND warehouse_id IN (SELECT id FROM (${commerceProjectionSources.commerce_warehouses}) commerce_warehouses WHERE company_id=? AND branch_id=?) ORDER BY id`, facts.company, facts.date, facts.company2, facts.branch),
+        }) => nativePosDayStockMovesStatement(db, facts.company, facts.date, facts.company2, facts.branch),
         readFinanceJournals1: facts => PosDayFinanceFacts(db).readFinanceJournals1(facts),
         readFinanceJournalLines1: facts => PosDayFinanceFacts(db).readFinanceJournalLines1(facts),
         readFinanceJournalLines2: facts => PosDayFinanceFacts(db).readFinanceJournalLines2(facts),
@@ -96,15 +96,15 @@ function unit(db: SqlDatabase): PosDayUnit<SqlStatement> {
             company: string;
             branch: string;
             date: string;
-        }) => all(db, "SELECT id,state FROM pos_fulfillments WHERE company_id=? AND branch_id=? AND business_date=? AND state IN ('queued','preparing','ready') ORDER BY id", facts.company, facts.branch, facts.date),
+        }) => nativePosDayFulfillmentsStatement(db, facts),
         readPosCashMovements1: (facts: {
             company: string;
             branch: string;
             date: string;
-        }) => all(db, 'SELECT m.id FROM pos_cash_movements m JOIN pos_shifts s ON s.id=m.shift_id WHERE s.company_id=? AND s.branch_id=? AND s.business_date=? AND m.approved_by IS NULL ORDER BY m.id', facts.company, facts.branch, facts.date),
+        }) => nativePosDayCashMovementsStatement(db, facts),
         readPosSettlements1: (facts: {
             company: string;
-        }) => all(db, "SELECT id,kind,state,amount_minor,fee_minor,amount_minor-fee_minor net_minor FROM pos_settlements WHERE company_id=? AND ((kind='payout' AND state<>'matched') OR (kind='balance' AND state='unmapped')) ORDER BY id", facts.company),
+        }) => nativePosDaySettlementsStatement(db, facts.company),
         readFinanceJournalLines3: facts => PosDayFinanceFacts(db).readFinanceJournalLines3(facts),
         writePosDayCloses1: () => requireNativeDayClose(),
         readPosDayCloses2: (facts: {

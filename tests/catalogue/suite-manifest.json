@@ -73507,6 +73507,33 @@
       },
       "ci": {
         "critical": true,
+        "reason": "POS day-report native read kinds must stay byte-identical and lock-free."
+      },
+      "apps": [
+        "pos"
+      ],
+      "packages": [
+        "@erpx/server-pos"
+      ],
+      "id": "pos.native-pos-day-report-statement.unit",
+      "files": [
+        "tests/unit/pos/native-pos-day-report-statement.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "pos",
+      "modules": [
+        "pos"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "POS obligation reads must use owner statement kinds and fail closed without native transport."
       },
       "apps": [
