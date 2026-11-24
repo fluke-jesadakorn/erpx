@@ -7,6 +7,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {CustomerPortalSessionActor} from "@erpx/server-customer_360/public/portal-contract";
 import {customerPortalPurchaseScope} from '@erpx/server-customer_authority/public/portal-read-purchases';
 import { recordCustomerPortalFileAccess as nativeRecordCustomerPortalFileAccess } from '@erpx/server-collaboration/adapters/native-attachment-access-event';
+import {scansAggSql} from './read-tail-dedupe-sql';
 /** Preview reads never upgrade these source leases to attachment writes. The
  * verified binding owner takes them before its first document/file snapshot. */
 export function customerPortalFileSourceReadLocks(db:SqlDatabase){return [db.prepare('LOCK TABLE attachment_sets,attachment_links,attachments IN SHARE MODE')];}
@@ -60,7 +61,7 @@ export async function recordCustomerPortalFileAccess(db:SqlDatabase,event:{id:st
 export async function customerPortalSharedPreviewSource(db:SqlDatabase,actor:Pick<CustomerPortalSessionActor,'userId'|'email'>,linkId:string){
  const source=await db.prepare(`SELECT s.company_id,t.id ticket_id,t.order_id,
  jsonb_build_array(to_jsonb(l),to_jsonb(s),to_jsonb(a),to_jsonb(u),to_jsonb(t),to_jsonb(o),
- (SELECT jsonb_agg(to_jsonb(scan) ORDER BY scan.id) FROM attachment_scan_attempts scan WHERE scan.attachment_id=a.id),
+ ${scansAggSql('a')},
  (SELECT jsonb_agg(jsonb_build_array(to_jsonb(b),to_jsonb(i)) ORDER BY b.id,i.user_id)
  FROM (${customer_authorityLastAuditProjectionSources.customer_access_bindings}) b JOIN (${customer_authorityLastAuditProjectionSources.customer_access_identities}) i ON i.binding_id=b.id
  WHERE b.company_id=t.company_id AND b.order_id=t.order_id AND b.customer_id=o.party_id AND b.email=? AND i.user_id=? AND i.email=?))::text image

@@ -1,5 +1,6 @@
 import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import {scansAggSql} from './read-tail-dedupe-sql';
 /** Original immutable Files withdrawal witness; raw software withdrawal never
  * filters this source by purchase, current UI visibility, or the reader's role. */
 export const messagingFileWithdrawalSources=`SELECT l.id link_id,s.id set_id,l.attachment_id source_id,s.company_id,s.target_id room_id,s.component_ref file_id,l.created_by,l.withdrawn_by,l.withdrawn_at,l.withdrawal_reason
@@ -12,7 +13,7 @@ export const messagingFileWithdrawalSources=`SELECT l.id link_id,s.id set_id,l.a
  * message uploader creates its row. Keep that actual intake visible to raw
  * withdrawal even when it is absent from every Messages/Work projection. */
 export const messagingFileIntakeSources=`SELECT l.id link_id,s.id set_id,s.company_id,s.target_id room_id,l.attachment_id source_id,l.created_by,l.state,
- jsonb_build_object('set',to_jsonb(s),'link',to_jsonb(l),'source',to_jsonb(source),'intent',to_jsonb(intent),'withdrawal',to_jsonb(withdrawn),'scans',(SELECT jsonb_agg(to_jsonb(scan) ORDER BY scan.id) FROM attachment_scan_attempts scan WHERE scan.attachment_id=source.id)) image,
+ jsonb_build_object('set',to_jsonb(s),'link',to_jsonb(l),'source',to_jsonb(source),'intent',to_jsonb(intent),'withdrawal',to_jsonb(withdrawn),'scans',${scansAggSql('source')})) image,
  withdrawn.link_id IS NULL OR source.id IS NULL OR source.source_state<>'available' OR intent.id IS NULL OR intent.status NOT IN ('uploaded','ready') OR EXISTS(SELECT 1 FROM attachment_scan_attempts scan WHERE scan.attachment_id=source.id AND scan.state IN ('pending','running')) pending
  FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id
  LEFT JOIN attachments source ON source.id=l.attachment_id AND source.company_id=s.company_id

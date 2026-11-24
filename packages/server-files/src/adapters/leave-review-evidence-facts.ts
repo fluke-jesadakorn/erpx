@@ -1,3 +1,4 @@
+import {NO_ATTACHMENT_LINK_SQL} from './read-tail-dedupe-sql';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import {assertion} from "@erpx/server-workflow/public/command-assertions";export function leaveReviewEvidenceFacts(database:SqlDatabase){return {guard11(key:string,value:"leave-evidence-canonical-count",id:string,company_id:string,length:number){return assertion(database,
           key,
           value,
@@ -53,7 +54,7 @@ guard13(key:string,value:"leave-evidence-legacy-count",id:string,company_id:stri
                     AND source.company_id=? AND source.revoked_at IS NULL
                     AND source.source_state='available'
                     AND NOT EXISTS(
-                      SELECT 1 FROM attachment_links link WHERE link.attachment_id=source.id
+                      ${NO_ATTACHMENT_LINK_SQL}
                     )
                 )=?`,
                 [id, company_id, length],
@@ -76,7 +77,7 @@ guard14(key:string,value:string,sourceId:string,id:string,company_id:string,purp
                       AND COALESCE(source.detected_media_type,source.media_type)=?
                       AND source.bytes=?
                       AND NOT EXISTS(
-                        SELECT 1 FROM attachment_links link WHERE link.attachment_id=source.id
+                        ${NO_ATTACHMENT_LINK_SQL}
                       )
                   )`,
                   [
@@ -133,7 +134,7 @@ guard16(key:string,value:"leave-evidence-required-count",value2:(string | number
                             AND source.company_id=? AND source.purpose=?
                             AND source.revoked_at IS NULL AND source.source_state='available'
                             AND NOT EXISTS(
-                              SELECT 1 FROM attachment_links link WHERE link.attachment_id=source.id
+                              ${NO_ATTACHMENT_LINK_SQL}
                             )` : ""}
                         ) evidence
                       )>=?`,
