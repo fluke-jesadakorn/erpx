@@ -54,7 +54,8 @@ describe('Collaboration read-tail r20 retirement check', () => {
     walk(srcRoot);
     // r20 deduped the 2x byte-identical social_agent_replies lease-identity
     // prefix in work-social-purchases.ts into one shared parameterized fragment.
-    expect(total).toBe(411);
+    // r21 lowers the exact count further, so assert the r20 ceiling (as r17/r18/r19
+    // do) instead of freezing a total that the next retirement slice must reduce.
     expect(total).toBeLessThan(412);
   });
 });

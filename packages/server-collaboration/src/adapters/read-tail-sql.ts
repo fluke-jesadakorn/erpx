@@ -27,3 +27,7 @@ export const socialPostTopicExists=(tag:string)=>`EXISTS(SELECT 1 FROM social_po
 export const socialCommentTopicExists=(tag:string)=>`EXISTS(SELECT 1 FROM social_comment_topics ct JOIN social_comments c ON c.id=ct.comment_id WHERE c.post_id=p.id AND c.state='published' AND ct.tag=${tag})`;
 export const socialCommentAncestorStep=`SELECT parent.* FROM ancestors child JOIN social_comments parent ON parent.id=child.parent_comment_id AND parent.post_id=child.post_id WHERE parent.state='published'`;
 export const socialAgentReplyLeaseIdentity=(tail:string)=>`SELECT 1 FROM social_agent_replies WHERE id=? AND company_id=? AND actor_id=? AND post_id=? AND lease_token=? AND actor_json=? AND owner_type=? AND owner_id=?${tail}`;
+/** Byte-identical project-purchase source-absence guard shared across the two
+ * read-policy call sites in work-social-read-policy.ts. Only the trailing
+ * authorization predicate varies; binds and lock semantics are unchanged. */
+export const projectPurchaseSourceAbsent=(sourceRows:string,purchaseSources:string,predicate:string)=>`SELECT 1 FROM (${sourceRows}) source JOIN (${purchaseSources}) social_project_source ON social_project_source.source_kind=source.kind AND social_project_source.source_id=source.id AND social_project_source.company_id=p.company_id WHERE NOT (${predicate})`;
