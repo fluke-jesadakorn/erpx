@@ -1,4 +1,5 @@
 import{visibleTask,authority}from '@erpx/server-operations/adapters/evaluation-source-policy';
+import {workforceActorScopeSql} from './workforce-actor-scope-source';
 import {nativeOperationsReadFirst,OPERATIONS_RD_RECORD_TASK_PROJECT} from './native-operations-read';
 import 'server-only';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
@@ -99,7 +100,7 @@ export async function workMetricHistoryAccess(database:SqlDatabase,actor:WorkCon
  const result=(tasks:boolean,routines:boolean)=>({'my-tasks':tasks,'open-operations-exceptions':tasks,'exception-resolution-time':tasks,'operations-escalations':tasks,routines});
  if(mode==='disabled'&&projectMode==='disabled')return result(true,true);
  const work=await readPurchasedAccesses(database,mode,actor.companyId,['work.actions','work.advanced-routines']),project=await readPurchasedAccess(database,projectMode,{companyId:actor.companyId,capability:'projects.tasks'});
- const current=authority(actor),live=mode==='disabled'&&projectMode==='disabled'||!!await database.prepare(`SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${current.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args).first();
+ const current=authority(actor),live=mode==='disabled'&&projectMode==='disabled'||!!await database.prepare(workforceActorScopeSql(current.where)).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args).first();
  if(!live)return result(false,false);
  const source=await workTaskProjectionReadScope(database,actor),projectTask=project.history&&!!await database.prepare(`SELECT 1 FROM staff_tasks t WHERE t.company_id=? AND t.project_id IS NOT NULL AND ${source.where} LIMIT 1`).bind(actor.companyId,...source.args).first();
  const routineScope=await routineSourceReadScope(database,actor),projectRoutine=project.history&&!!await database.prepare(`SELECT 1 FROM routine_templates t WHERE t.company_id=? AND t.project_id IS NOT NULL AND ${routineScope.where} LIMIT 1`).bind(actor.companyId,...routineScope.args).first();

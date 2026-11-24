@@ -1,4 +1,5 @@
 import 'server-only';
+import {workforceActorScopeSql} from './workforce-actor-scope-source';
 import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL} from './task-delegation-source';
 import {randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
@@ -78,7 +79,7 @@ export async function withWorkTaskAttachmentContentRead<Result extends {object:S
    const routedAfter=await attachmentReadSource(database,actor.companyId,linkId);assertAttachmentReadRoute(routed,routedAfter);
    if(!after||after.witness!==before.witness||routedAfter?.witness!==routed?.witness||await taskImage(database,actor,before.targetId)!==image)throw changed();
   };
-  const currentScope=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!defer&&!!await database.prepare(`SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${currentScope.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...currentScope.args).first();
+  const currentScope=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!defer&&!!await database.prepare(workforceActorScopeSql(currentScope.where)).bind(actor.companyId,actor.branchId,actor.departmentId,...currentScope.args).first();
   const deniedAuthority=!defer&&!initiallyCurrent?await privateFileDenialAuthorityWitness(database,actor):null;
   const checkpoint=defer?null:new Set((await attachmentDeniedReadAudits(database,actor,linkId)).map(event=>event.id));let result:Result;
   try{result=await read(database);}catch(error){

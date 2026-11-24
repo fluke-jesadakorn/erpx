@@ -479,6 +479,7 @@ describe('Operations staff_tasks snapshot sources share one canonical projection
 
 import {readFileSync} from 'node:fs';
 import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL} from '../../../packages/server-operations/src/adapters/task-delegation-source';
+import {workforceActorScopeSql} from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
 describe('Operations task delegation source dedupe',()=>{
  const fragment='(SELECT jsonb_agg(to_jsonb(delegation) ORDER BY delegation.id) FROM staff_task_delegations delegation WHERE delegation.task_id=t.id AND delegation.company_id=t.company_id)';
  test('the canonical projection owns a single byte-identical delegation read',()=>{
@@ -512,6 +513,21 @@ describe('Operations task image template/schedule source dedupe',()=>{
    expect(source).toContain('${OPERATIONS_TASK_SCHEDULE_SOURCE_SQL}');
    expect(source).not.toContain(templateFragment);
    expect(source).not.toContain(scheduleFragment);
+  }
+ });
+});
+
+describe('Operations workforce actor scope dedupe',()=>{
+ const fragment='SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ';
+ test('the canonical clause owns one byte-identical current-workforce scope read',()=>{
+  expect(workforceActorScopeSql('${current.where}')).toBe(fragment+'${current.where}');
+  expect(workforceActorScopeSql('x').match(/SELECT /g)).toHaveLength(2);
+ });
+ test('both source readers compose the canonical clause and keep no local literal',()=>{
+  for(const name of ['record-purchases.ts','task-attachment-read.ts']){
+   const source=readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+   expect(source).toContain('workforceActorScopeSql(');
+   expect(source).not.toContain(fragment);
   }
  });
 });
