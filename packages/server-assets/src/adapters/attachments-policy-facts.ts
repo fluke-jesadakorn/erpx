@@ -1,12 +1,14 @@
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
+import {assetProjectionFromSql} from "./asset-scope-tuple";
 /** Canonical owner-local id+company keyed single-row read. The attachment
  * descriptor and the assignment lock guard share this one statement so the TS
- * read tail carries no duplicate keyed-row literal. Callers pass only fixed
- * projections, relations and tails; no SQL or relation name is accepted from a
- * request. */
+ * read tail carries no duplicate keyed-row literal. It renders byte-identically
+ * from the generic `assetProjectionFromSql` projection-from head (r29); callers
+ * pass only fixed projections, relations and tails, never request SQL or a
+ * relation name. Locks, native plans and cross-owner settlement sources are unchanged. */
 export const assetIdCompanyReadSql = (projection:string,from:string,tail="") =>
-  `SELECT ${projection} FROM ${from} WHERE id=? AND company_id=?${tail}`;
+  assetProjectionFromSql(projection,` ${from}`,` WHERE id=? AND company_id=?${tail}`);
 /** Owner-local fixed SQL for the Assets attachment target descriptor. Shared by
  * the policy and remaining-operational Files reads so the TS read tail carries
  * no duplicate statement; the native counterpart is
