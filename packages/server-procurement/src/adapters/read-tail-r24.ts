@@ -22,5 +22,10 @@ export const eligiblePurchaseCount = (
   branch: string,
   department: string,
   tail = "",
-) =>
-  `(SELECT count(DISTINCT ${alias}.user_id) FROM (${assignments}) ${alias} WHERE ${alias}.company_id=${company} AND iam_assignment_active(${alias}.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(${alias}.role,${alias}.company_id,'commerce.purchase') AND (${alias}.scope_kind='holding' OR (${alias}.scope_kind='branch' AND ${alias}.scope_node_id=${branch}) OR (${alias}.scope_kind='department' AND ${alias}.scope_node_id=${department}))${tail})`;
+  options?: { roles?: string; wrapper?: (body: string) => string; output?: string },
+) => {
+  const roles = options?.roles ?? `iam_role_allows(${alias}.role,${alias}.company_id,'commerce.purchase')`;
+  const wrapper = options?.wrapper ?? ((body: string) => `(${body})`);
+  const output = options?.output ?? "";
+  return wrapper(`SELECT count(DISTINCT ${alias}.user_id)${output} FROM (${assignments}) ${alias} WHERE ${alias}.company_id=${company} AND iam_assignment_active(${alias}.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND ${roles} AND (${alias}.scope_kind='holding' OR (${alias}.scope_kind='branch' AND ${alias}.scope_node_id=${branch}) OR (${alias}.scope_kind='department' AND ${alias}.scope_node_id=${department}))${tail}`);
+};

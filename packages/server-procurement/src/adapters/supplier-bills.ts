@@ -30,7 +30,7 @@ import {createSupplierBillApplication,type BillPorts,type BillMutation} from "@e
 import type {BillRow as Row} from "@erpx/server-procurement/domain/supplier-bills";
 import {branchDepartmentScope,orderedRead} from './read-tail-sql';
 import {receiptCount,expenseAccountBy} from './read-tail-r20';
-import {memberScopeExclusion} from './read-tail-r24';
+import {eligiblePurchaseCount,memberScopeExclusion} from './read-tail-r24';
 import {fulfillmentLinesBy} from './read-tail-r26';
 import {policyVersionGuard} from './read-tail-r29';
 import {settingsRead} from './read-tail-r27';
@@ -111,7 +111,7 @@ ${billMatchProjection(`
       WHERE br.match_id=? ORDER BY f.fulfillment_date,f.id
     `).bind(id).all<Row>(),
     nativeProcurementReadAll<Row>(PROCUREMENT_RD_BILL_MATCH_EVENTS,[id],write),
-    write.prepare(`SELECT a.id,a.code,a.name FROM (${financePlatformSources.finance_accounts}) a JOIN (${financePlatformSources.finance_charts}) c ON c.id=a.chart_id AND c.company_id=a.company_id WHERE a.company_id=? AND a.chart_id=? AND a.currency=c.base_currency AND a.category='expense' AND a.status='active' ORDER BY a.code`)
+    write.prepare(expenseAccountBy(financePlatformSources.finance_accounts,financePlatformSources.finance_charts,"a.id,a.code,a.name",{idGuard:"",order:" ORDER BY a.code"}))
       .bind(actor.companyId, bill.chart_id).all<Row>(),
   ]);
   const flow = hasPermission(actor, "commerce.read")
@@ -146,7 +146,7 @@ return {lines:lines.results,receipts:receipts.results,events:events.results,acco
  workFacts:async(row)=>{const write=await database();
 let latest:Row|null=null,eligible=0,primary:{userId:string;name:string}|null=null,flowBlocker:string|null=null;
  if(row.status==='returned')latest=await nativeProcurementReadFirst<Row>(PROCUREMENT_RD_LATEST_BILL_BY_FULFILLMENT,[row.fulfillment_id],write);
- if(row.status==='review')eligible=Number(await write.prepare(`SELECT count(DISTINCT c.user_id) n FROM (${identity_accessPlatformSources.assignments}) c WHERE c.company_id=? AND iam_assignment_active(c.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(c.role,c.company_id,'finance.write') AND iam_role_allows(c.role,c.company_id,'finance.approve') AND (c.scope_kind='holding' OR (c.scope_kind='branch' AND c.scope_node_id=?) OR (c.scope_kind='department' AND c.scope_node_id=?)) AND c.user_id<>? AND ${memberScopeExclusion(identity_accessPlatformSources.iam_members,"creator","c.company_id","c.user_id","=?")}`).bind(actor.companyId,row.branch_id,row.department_id,row.created_by,row.created_by).first('n'));
+ if(row.status==='review')eligible=Number(await write.prepare(eligiblePurchaseCount(identity_accessPlatformSources.assignments,"c","?","?","?",` AND c.user_id<>? AND ${memberScopeExclusion(identity_accessPlatformSources.iam_members,"creator","c.company_id","c.user_id","=?")}`,{roles:`iam_role_allows(c.role,c.company_id,'finance.write') AND iam_role_allows(c.role,c.company_id,'finance.approve')`,wrapper:b=>b,output:" n"})).bind(actor.companyId,row.branch_id,row.department_id,row.created_by,row.created_by).first('n'));
  else if(row.status!=='returned'||latest?.id===row.id&&latest.status==='returned'){const flow=await resolveFlow(write,actor,'order',String(row.order_id)),step=flow.steps.find(x=>x.key==='invoicing');primary=step?.primary?{userId:step.primary.userId,name:step.primary.name}:null;flowBlocker=step?.blocker??null;}
  return {latest,eligible,primary,flowBlocker};
 },};return createSupplierBillApplication(ports);

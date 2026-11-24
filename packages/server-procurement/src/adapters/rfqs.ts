@@ -67,7 +67,7 @@ function application(a:WorkContext,provided?:SqlDatabase){
  stageHandoff:async(h)=>{const db=await database(),r=h.detail.rfq;
  await prepareRfqPurchaseHandoff(db,a,String(r.id),h.orderId,h.key,h.editing);
  const sourceGuard=r.request_id?[assertion(db,h.key,'rfq-source-evidence',approvedRequestExists(`(${recordsPlatformSources.employee_requests}) e JOIN procurement_request_orders l ON l.request_id=e.id AND l.order_id=? AND l.rfq_id=?`,'e.',`e.id=? AND e.company_id=?`,'?','?'),[h.orderId,r.id,r.request_id,a.companyId,r.request_evidence_version,r.request_items_json])]:[];
- const currencyGuard=assertion(db,h.key,'rfq-currency',`EXISTS(SELECT 1 FROM (${commercePlatformSources.commerce_settings}) commerce_settings WHERE company_id=? AND currency=?)`,[a.companyId,r.currency]);
+ const currencyGuard=assertion(db,h.key,'rfq-currency',`EXISTS(${settingsRead("1",commercePlatformSources.commerce_settings," AND currency=?")})`,[a.companyId,r.currency]);
  if(h.editing)return [currencyGuard,...sourceGuard,guard(db,a,r,h.key,Number(r.version))];
  return [currencyGuard,...sourceGuard,guard(db,a,r,h.key,h.order.rfqVersion??0),nativeProcurementStatement('procurement_stmt_12', { now: Date.now() }).bind(h.orderId,h.now,r.id),event(db,a,String(r.id),h.key,Number(r.version)+1,'order-created',`Draft purchase order ${h.orderId} created; normal PO approval still required.`,String(h.selected.id),h.now),await nativeRfqNotification(db,a,String(r.id),h.key)];},
  workRows:async()=>{const write=await database();

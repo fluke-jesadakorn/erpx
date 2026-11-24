@@ -3,5 +3,5 @@
  * unchanged. The r17-r26 helpers stay untouched. */
 /** Company-keyed settings read. `columns` is the caller's exact projection and
  * `settings` the owner projection source. No binds, locks or writes introduced. */
-export const settingsRead = (columns: string, settings: string) =>
-  `SELECT ${columns} FROM (${settings}) commerce_settings WHERE company_id=?`;
+export const settingsRead = (columns: string, settings: string, tail = "") =>
+  `SELECT ${columns} FROM (${settings}) commerce_settings WHERE company_id=?${tail}`;

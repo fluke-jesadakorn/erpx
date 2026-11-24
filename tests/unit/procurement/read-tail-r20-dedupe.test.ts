@@ -25,8 +25,8 @@ describe('Procurement read-tail r20 byte-identical / parameterized dedupe', () =
     expect(expenseAccountBy(accounts, charts, 'a.id')).toBe(`SELECT a.id ${base}`);
     expect(expenseAccountBy(accounts, charts, '1')).toBe(`SELECT 1 ${base}`);
     const s = src('supplier-bills.ts');
-    expect(s.match(/expenseAccountBy\(/g)?.length).toBe(2);
-    expect(s.match(/a\.currency=c\.base_currency AND a\.category='expense' AND a\.status='active'/g)?.length).toBe(1);
+    expect(s.match(/expenseAccountBy\(/g)?.length).toBe(3); // varianceAccount id + r43 expense account list route
+    expect((s.match(/a\.currency=c\.base_currency AND a\.category='expense' AND a\.status='active'/g) ?? []).length).toBe(0); // both callers now use the helper
   });
 
   test('HR person-in-company scope renders the exact original literals', () => {
