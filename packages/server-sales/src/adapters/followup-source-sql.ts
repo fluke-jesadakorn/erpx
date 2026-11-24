@@ -2,6 +2,11 @@ import { commercialOwnerProjectionSources as people_payrollProjectionSources } f
 import {packageClockSql} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {scopeTuple} from './read-tail-r29-sql';
 
+/** One byte-identical column-projection composer shared by the Sales-owned
+ * commercial and final-root owner sources. Columns and relation are owner-local
+ * fixed tokens; no caller input enters the rendered statement. */
+export const tableRead=(columns:string,table:string)=>`SELECT ${columns} FROM ${table}`;
+
 export const ownerNameProjection=`(SELECT legal_name FROM (${people_payrollProjectionSources.hr_people}) hr_people WHERE company_id=c.company_id AND user_id=c.owner_id AND merged_into_id IS NULL LIMIT 1) owner_name`;
 export const actorScopeTuple=scopeTuple('actor');
 /** One parameterized assignment-authority scope-read family. The authority

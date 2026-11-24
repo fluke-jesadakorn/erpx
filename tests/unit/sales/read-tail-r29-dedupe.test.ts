@@ -154,7 +154,7 @@ describe('Sales read-tail r29 scope-tuple family', () => {
     expect(native).toContain('export const SALES_RD_NOTIFICATION_ATTEMPT');
     expect(native).toContain('export const SALES_RD_NOTIFICATION_RECONCILIATION_INSTALLED');
     expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(4);
-    expect((commercial.match(/SELECT/g) ?? []).length).toBe(3);
+    expect((commercial.match(/SELECT/g) ?? []).length).toBe(0);
   });
 });
 
@@ -169,8 +169,9 @@ describe('Sales read-tail r29 retirement check', () => {
       }
     };
     walk(srcRoot);
-    // Three scope-tuple literals collapse into one generator (-2).
-    expect(total).toBe(54);
-    expect(total).toBeLessThan(56);
+    // Three scope-tuple literals collapse into one generator (-2); r30 shares
+    // tableRead (-3) and priceListSelect (-1).
+    expect(total).toBe(50);
+    expect(total).toBeLessThan(54);
   });
 });

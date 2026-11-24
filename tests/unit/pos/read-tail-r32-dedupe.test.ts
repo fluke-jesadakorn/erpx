@@ -66,7 +66,7 @@ describe('POS read-tail r32 hotel property native cutover', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(189);
+    expect(total).toBe(188);
     expect(total).toBeLessThan(191);
   });
 });

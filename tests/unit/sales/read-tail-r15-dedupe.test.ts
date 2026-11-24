@@ -39,9 +39,10 @@ describe('Sales read-tail r15 tableRead family', () => {
     expect(family).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
   });
 
-  test('r3 cross-file aliases and their locked commercial literals stay untouched', () => {
+  test('r3 cross-file aliases and their shared-composed commercial literals stay untouched', () => {
     for (const key of ['commerce_customer_notifications', 'customer_followups'] as const) {
-      expect(commercialSrc).toMatch(new RegExp(`^  ${key}: "SELECT `, 'm'));
+      expect(commercialSrc).toContain(`${key}: tableRead(`);
+      expect(commercialSrc).not.toMatch(new RegExp(`^  ${key}: "SELECT `, 'm'));
       expect(src).toContain(`${key}: commercialOwnerProjectionSources.${key},`);
       expect(finalRootOwnerProjectionSources[key]).toBe(commercialOwnerProjectionSources[key]);
     }

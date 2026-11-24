@@ -1,4 +1,5 @@
 import { commercialOwnerProjectionSources } from "./commercial-owner-projection-sources";
+import { tableRead as sharedTableRead } from "./followup-source-sql";
 import "server-only";
 /** Closed native projections for Legal, Asset, Maintenance and Customer joins. Callers retain their original scope/authority filters and execute the composed statement in their supplied transaction. No SQL or relation name is accepted from a caller.
  *
@@ -8,7 +9,7 @@ import "server-only";
 /** One byte-identical column projection family for the three Sales-owned
  * contact/follow-up relations. Column lists and relation names are owner-local
  * constants; no caller input enters the rendered statement. */
-const tableRead = (columns: string, table: string) => `SELECT ${columns} FROM ${table}`;
+const tableRead = sharedTableRead;
 export const finalRootOwnerProjectionSources = {
   commerce_customer_notifications: commercialOwnerProjectionSources.commerce_customer_notifications,
   customer_contact_note_history: tableRead('"id","note_id","version","action","body","reason","actor_id","created_at"', "customer_contact_note_history"),

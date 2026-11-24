@@ -492,7 +492,8 @@ test('final-root Sales projections reuse the one owner fixed SQL for notices and
  const {readFile}=await import('node:fs/promises'),base=new URL("../../../packages/server-sales/src/adapters/",import.meta.url);
  const finalRoot=await readFile(new URL("final-root-owner-projection-sources.ts",base),'utf8'),commercial=await readFile(new URL("commercial-owner-projection-sources.ts",base),'utf8');
  for(const key of ['commerce_customer_notifications','customer_followups']){
-  expect(commercial).toMatch(new RegExp(`^  ${key}: "SELECT `,'m'));
+  expect(commercial).toContain(`${key}: tableRead(`);
+  expect(commercial).not.toMatch(new RegExp(`^  ${key}: "SELECT `,'m'));
   expect(finalRoot).not.toMatch(new RegExp(`^  ${key}: "SELECT `,'m'));
   expect(finalRoot).toContain(`commercialOwnerProjectionSources.${key}`);
  }
