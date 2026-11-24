@@ -74,6 +74,16 @@ import {
   POS_JOURNAL_LINE_NET_SQL,
   SUPPLIER_RECEIPT_SOURCE_SQL,
 } from '../../../packages/server-finance/src/adapters/finance-read-tail-r38-sql';
+import {
+  bankCashLinesSql,
+  ASSET_DEPRECIATIONS_SQL,
+  ASSET_DRAFT_DISPOSAL_SQL,
+  INTERCOMPANY_BY_ID_SQL,
+  openingBalanceSql,
+  documentNumberSql,
+  moneySnapshotExistsSql,
+  posDailyAccountNetSql,
+} from '../../../packages/server-finance/src/adapters/finance-read-tail-r39-sql';
 import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/people-payroll-final-owner-projections';
 import { workflowFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/workflow-final-owner-projections';
 import {
@@ -1057,7 +1067,7 @@ describe('finance read-tail r24 byte-identical SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2038);
-    expect(total).toBe(1951);
+    expect(total).toBe(1942);
   });
 });
 
@@ -1228,7 +1238,7 @@ describe('finance read-tail r30 byte-identical guard-prefix families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2027);
-    expect(total).toBe(1951);
+    expect(total).toBe(1942);
   });
 });
 
@@ -1272,7 +1282,7 @@ describe('finance read-tail r31 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1989);
-    expect(total).toBe(1951);
+    expect(total).toBe(1942);
   });
 });
 
@@ -1317,7 +1327,7 @@ describe('finance read-tail r32 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1985);
-    expect(total).toBe(1951);
+    expect(total).toBe(1942);
   });
 });
 
@@ -1362,7 +1372,7 @@ describe('finance read-tail r33 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1983);
-    expect(total).toBe(1951);
+    expect(total).toBe(1942);
   });
 });
 
@@ -1437,7 +1447,7 @@ describe('finance read-tail r34 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1981);
-    expect(total).toBe(1951);
+    expect(total).toBe(1942);
   });
 });
 
@@ -1486,7 +1496,7 @@ describe('finance read-tail r35 parameterized workforce actor scope family', () 
     };
     walk(root);
     expect(total).toBeLessThan(1974);
-    expect(total).toBe(1951);
+    expect(total).toBe(1942);
   });
 });
 
@@ -1561,7 +1571,7 @@ describe('finance read-tail r36 exact duplicate two-site SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1970);
-    expect(total).toBe(1951);
+    expect(total).toBe(1942);
   });
 });
 
@@ -1615,7 +1625,7 @@ describe('finance read-tail r37 exact duplicate period-exists read family', () =
     };
     walk(root);
     expect(total).toBeLessThan(1966);
-    expect(total).toBe(1951);
+    expect(total).toBe(1942);
   });
 });
 
@@ -1730,6 +1740,123 @@ describe('finance read-tail r38 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1965);
-    expect(total).toBe(1951);
+    expect(total).toBe(1942);
+  });
+});
+
+describe('finance read-tail r39 read families', () => {
+  // 8 families / 17 adapter call sites. Exact families share one payload;
+  // parameterized families render byte-identically for every variant. Callers
+  // keep their own binds and result types. Row locks, tax/assertion SQL and
+  // every r15-r38 helper are untouched. Verified against HEAD by reversal.
+  const EXACT: [string, string][] = [
+    [ASSET_DEPRECIATIONS_SQL, 'SELECT * FROM finance_asset_depreciations WHERE asset_id=? ORDER BY ordinal'],
+    [ASSET_DRAFT_DISPOSAL_SQL, "SELECT 1 FROM finance_asset_disposals WHERE asset_id=? AND status='draft'"],
+    [INTERCOMPANY_BY_ID_SQL, 'SELECT * FROM finance_intercompany_transactions WHERE id=? AND holding_id=?'],
+  ];
+
+  it('exposes three exact byte-identical SQL payloads with no row-lock text', () => {
+    expect(EXACT).toHaveLength(3);
+    for (const [value, sql] of EXACT) {
+      expect(value).toBe(sql);
+      expect(value).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+    }
+  });
+
+  it('renders every parameterized family byte-identically for each variant', () => {
+    expect(bankCashLinesSql('CASH')).toBe("SELECT l.id,l.account_id,l.description,l.debit_minor,l.credit_minor,j.id journal_id,j.journal_number,j.currency,j.entry_date,j.entry_date page_key\n    FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id\n    JOIN finance_accounts a ON a.id=l.account_id AND a.company_id=j.company_id\n    WHERE j.company_id=? AND j.status='posted' AND a.control_kind='bank' AND j.is_opening=0\n    AND (?='' OR j.chart_id=?) AND CASH");
+    expect(openingBalanceSql('\n ')).toBe('SELECT l.account_id AS "accountId",l.dimension_json AS dimensions,SUM(l.base_debit_minor-l.base_credit_minor) AS minor\n FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id\n WHERE j.company_id=? AND j.chart_id=? AND j.status IN (\'posted\',\'reversed\') AND j.entry_date<?\n GROUP BY l.account_id,l.dimension_json HAVING SUM(l.base_debit_minor-l.base_credit_minor)<>0 ORDER BY l.account_id,l.dimension_json');
+    expect(openingBalanceSql(' ')).toBe('SELECT l.account_id AS "accountId",l.dimension_json AS dimensions,SUM(l.base_debit_minor-l.base_credit_minor) AS minor FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=? AND j.chart_id=? AND j.status IN (\'posted\',\'reversed\') AND j.entry_date<? GROUP BY l.account_id,l.dimension_json HAVING SUM(l.base_debit_minor-l.base_credit_minor)<>0 ORDER BY l.account_id,l.dimension_json');
+    expect(documentNumberSql('RC')).toBe("SELECT erpx_sales_document_number(?,'RC',?) number");
+    expect(documentNumberSql('INV')).toBe("SELECT erpx_sales_document_number(?,'INV',?) number");
+    expect(moneySnapshotExistsSql('finance_invoice')).toBe("SELECT 1 FROM money_transaction_snapshots WHERE company_id=? AND source_type='finance_invoice' AND source_id=? AND amount_kind=?");
+    expect(moneySnapshotExistsSql('finance_payment')).toBe("SELECT 1 FROM money_transaction_snapshots WHERE company_id=? AND source_type='finance_payment' AND source_id=? AND amount_kind=?");
+    const posHead = 'SELECT COALESCE(SUM(l.debit_minor-l.credit_minor),0) n FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id\n  SETTINGS WHERE j.company_id=? AND j.entry_date=? AND j.status=\'posted\' AND j.source_type=\'pos\'\n  AND l.dimension_json::jsonb->>\'branchId\'=? AND l.account_id=c.accounts_json::jsonb->>\'';
+    expect(posDailyAccountNetSql('cogs', 'SETTINGS')).toBe(posHead + "cogs'");
+    expect(posDailyAccountNetSql('waste', 'SETTINGS')).toBe(posHead + "waste'");
+  });
+
+  const SITE_LITERALS: Record<string, string[]> = {
+    'finance-bank-automation.ts': ["`SELECT l.id,l.account_id,l.description,l.debit_minor,l.credit_minor,j.id journal_id,j.journal_number,j.currency,j.entry_date,j.entry_date page_key\n    FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id\n    JOIN finance_accounts a ON a.id=l.account_id AND a.company_id=j.company_id\n    WHERE j.company_id=? AND j.status='posted' AND a.control_kind='bank' AND j.is_opening=0\n    AND (?='' OR j.chart_id=?) AND ${availableCashSource}`"],
+    'finance-assets.ts': [
+      '"SELECT * FROM finance_asset_depreciations WHERE asset_id=? ORDER BY ordinal"',
+      '"SELECT 1 FROM finance_asset_disposals WHERE asset_id=? AND status=\'draft\'"',
+    ],
+    'finance-asset-carrying.ts': [
+      '"SELECT * FROM finance_asset_depreciations WHERE asset_id=? ORDER BY ordinal"',
+      "`SELECT l.account_id AS \"accountId\",l.dimension_json AS dimensions,SUM(l.base_debit_minor-l.base_credit_minor) AS minor FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=? AND j.chart_id=? AND j.status IN ('posted','reversed') AND j.entry_date<? GROUP BY l.account_id,l.dimension_json HAVING SUM(l.base_debit_minor-l.base_credit_minor)<>0 ORDER BY l.account_id,l.dimension_json`",
+    ],
+    'finance-asset-policies.ts': ['"SELECT 1 FROM finance_asset_disposals WHERE asset_id=? AND status=\'draft\'"'],
+    'finance-intercompany.ts': ['"SELECT * FROM finance_intercompany_transactions WHERE id=? AND holding_id=?"'],
+    'finance-books.ts': ["`SELECT l.account_id AS \"accountId\",l.dimension_json AS dimensions,SUM(l.base_debit_minor-l.base_credit_minor) AS minor\n FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id\n WHERE j.company_id=? AND j.chart_id=? AND j.status IN ('posted','reversed') AND j.entry_date<?\n GROUP BY l.account_id,l.dimension_json HAVING SUM(l.base_debit_minor-l.base_credit_minor)<>0 ORDER BY l.account_id,l.dimension_json`"],
+    'customer-receipt-issue.ts': ['"SELECT erpx_sales_document_number(?,\'RC\',?) number"'],
+    'sales.ts': ['"SELECT erpx_sales_document_number(?,\'INV\',?) number"'],
+    'finance.ts': [
+      '"SELECT 1 FROM money_transaction_snapshots WHERE company_id=? AND source_type=\'finance_invoice\' AND source_id=? AND amount_kind=?"',
+      '"SELECT 1 FROM money_transaction_snapshots WHERE company_id=? AND source_type=\'finance_payment\' AND source_id=? AND amount_kind=?"',
+    ],
+    'pos-daily-facts.ts': [
+      "`SELECT COALESCE(SUM(l.debit_minor-l.credit_minor),0) n FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id\n  ${posSnapshot().dailySettings} WHERE j.company_id=? AND j.entry_date=? AND j.status='posted' AND j.source_type='pos'\n  AND l.dimension_json::jsonb->>'branchId'=? AND l.account_id=c.accounts_json::jsonb->>'cogs'`",
+      "`SELECT COALESCE(SUM(l.debit_minor-l.credit_minor),0) n FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id\n  ${posSnapshot().dailySettings} WHERE j.company_id=? AND j.entry_date=? AND j.status='posted' AND j.source_type='pos'\n  AND l.dimension_json::jsonb->>'branchId'=? AND l.account_id=c.accounts_json::jsonb->>'waste'`",
+    ],
+  };
+
+  const SITE_OCCURRENCES: Record<string, number> = {
+    'finance-bank-automation.ts': 3,
+    'finance-assets.ts': 2,
+    'finance-asset-carrying.ts': 2,
+    'finance-asset-policies.ts': 1,
+    'finance-intercompany.ts': 2,
+    'finance-books.ts': 1,
+    'customer-receipt-issue.ts': 1,
+    'sales.ts': 1,
+    'finance.ts': 2,
+    'pos-daily-facts.ts': 2,
+  };
+
+  it('removes all 17 inline literals from their 10 files', async () => {
+    expect(Object.values(SITE_OCCURRENCES).reduce((sum, n) => sum + n, 0)).toBe(17);
+    for (const [file, lits] of Object.entries(SITE_LITERALS)) {
+      const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+      expect(text).toContain('finance-read-tail-r39-sql');
+      for (const lit of lits) expect(text.includes(lit)).toBe(false);
+    }
+  });
+
+  it('leaves locks, tax/assertion SQL and r15-r38 helpers untouched', async () => {
+    const assets = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-assets.ts', import.meta.url), 'utf8');
+    expect(assets).toContain("NOT EXISTS(SELECT 1 FROM finance_asset_disposals WHERE asset_id=? AND status='draft')");
+    const ic = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-intercompany.ts', import.meta.url), 'utf8');
+    expect(ic).toContain('EXISTS(SELECT 1 FROM finance_intercompany_transactions WHERE id=? AND holding_id=? AND status=? AND version=?)');
+    const carry = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-asset-carrying.ts', import.meta.url), 'utf8');
+    expect(carry).toContain("j.source_type='book_opening'");
+    const money = await readFile(new URL('../../../packages/server-finance/src/adapters/finance.ts', import.meta.url), 'utf8');
+    expect(money).toContain("SELECT 1 AS present FROM money_transaction_snapshots WHERE company_id=? AND source_type='finance_payment' AND source_id=? AND amount_kind='settled'");
+    const effect = await readFile(new URL('../../../packages/server-finance/src/adapters/expense-native-effects.ts', import.meta.url), 'utf8');
+    expect(effect).toContain("SELECT 1 FROM money_transaction_snapshots WHERE company_id=? AND source_type=? AND source_id=? AND amount_kind=?");
+    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-daily-facts.ts', import.meta.url), 'utf8');
+    expect(pos).toContain("accounts_json::jsonb->>'stripe'");
+    const tax = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
+    expect(tax).toContain('TAX_SOURCE_APPROVED_INVOICE_SQL');
+    const r38 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r38-sql.ts', import.meta.url), 'utf8');
+    expect(r38).toContain('SUPPLIER_RECEIPT_SOURCE_SQL');
+    expect(r38).toContain('POS_JOURNAL_LINE_NET_SQL');
+    const r37 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r37-sql.ts', import.meta.url), 'utf8');
+    expect(r37).toContain('PERIOD_EXISTS_BY_ID_SQL');
+  });
+
+  it('retirement:ts-statements stays strictly below the r38 BEFORE=1951 baseline', () => {
+    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(1951);
+    expect(total).toBe(1942);
   });
 });

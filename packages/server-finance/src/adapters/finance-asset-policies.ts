@@ -1,3 +1,4 @@
+import { ASSET_DRAFT_DISPOSAL_SQL } from './finance-read-tail-r39-sql';
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { ASSET_DEPRECIATION_COUNT_SQL, ASSET_POLICY_EDITION_PENDING_SQL, ASSET_POLICY_RUN_PENDING_SQL } from './finance-read-tail-r24-sql';
 import { OPEN_PERIOD_COVERED_SQL, OPEN_PERIOD_LIST_ASC_SQL } from './finance-read-tail-r34-sql';
@@ -49,7 +50,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async pendingDisposal(id: string) {
             const db = read();
             return db
-                .prepare("SELECT 1 FROM finance_asset_disposals WHERE asset_id=? AND status='draft'")
+                .prepare(ASSET_DRAFT_DISPOSAL_SQL)
                 .bind(id)
                 .first();
         }, async bookRules(companyId: string, chart_id: string | number | null, date: string) {

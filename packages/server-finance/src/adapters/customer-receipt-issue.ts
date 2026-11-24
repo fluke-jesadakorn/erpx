@@ -1,3 +1,4 @@
+import { documentNumberSql } from './finance-read-tail-r39-sql';
 type Row=Record<string,string|number|null>;
 import "server-only";
 import { createHash } from "node:crypto";
@@ -18,7 +19,7 @@ export async function ensureCustomerReceipt(tx: SqlDatabase, actor: WorkContext,
   // A second transaction may have issued the receipt while this one waited for the payment lock.
   const afterLock = await tx.prepare("SELECT id FROM finance_customer_receipts WHERE payment_id=?").bind(paymentId).first<{ id: string }>(); if (afterLock) return afterLock;
   const allocations = (await tx.prepare("SELECT i.id invoice_id,i.invoice_number,a.amount_minor FROM finance_allocations a JOIN finance_invoices i ON i.id=a.invoice_id WHERE a.payment_id=? AND a.company_id=? ORDER BY a.created_at,a.id").bind(paymentId, actor.companyId).all<Row>()).results;
-  const number = await tx.prepare("SELECT erpx_sales_document_number(?,'RC',?) number").bind(actor.companyId, payment.payment_date).first<string>("number");
+  const number = await tx.prepare(documentNumberSql('RC')).bind(actor.companyId, payment.payment_date).first<string>("number");
   const snapshot: ReceiptSnapshot = { schema: "finance.customer-receipt.v1", documentNumber: number!, companyName: await financeSalesCompanyName(tx, actor.companyId), customerName: String(payment.customer_name), customerCode: String(payment.customer_code), date: String(payment.payment_date), currency: String(payment.currency), amountMinor: String(payment.amount_minor), paymentId, paymentVersion: Number(payment.version), bankReference: String(payment.payment_number), journalId: String(payment.journal_id), allocations: allocations.map(row => ({ invoiceId: String(row.invoice_id), invoiceNumber: String(row.invoice_number), amountMinor: String(row.amount_minor) })) };
   const html = renderCustomerReceipt(snapshot), id = `customer-receipt-${paymentId}`, hash = createHash("sha256").update(html).digest("hex");
   await customerReceipt(tx).issue({ id, companyId: actor.companyId, paymentId, number: number ?? "", paymentDate: String(payment.payment_date), currency: String(payment.currency), amountMinor: String(payment.amount_minor), snapshot: JSON.stringify(snapshot), html, hash, userId: actor.userId, now: Date.now() });

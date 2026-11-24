@@ -1,3 +1,4 @@
+import { moneySnapshotExistsSql } from './finance-read-tail-r39-sql';
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { ACCOUNT_SELECT_PREFIX, INVOICE_EXISTS_PREFIX, JOURNAL_SELECT_PREFIX } from './finance-read-tail-r30-sql';
 import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
@@ -426,7 +427,7 @@ function invoiceService(provided?: SqlDatabase) {
             base_currency: string;
         }>(), prepareReviewAttachments: async (actor, invoiceId, version, attachmentSetIds, id) => { attachmentBinding = await prepareAttachmentBinding(await db(actor), actor, { attachmentSetIds, bindingContract: { targetType: 'supplier_bill', bindingType: 'supplier_bill_posting', contexts: [{ purposeKey: 'bill_match_support', componentKind: 'action', componentRef: 'invoice-review' }] }, targetId: invoiceId, expectedTargetVersion: version, commandId: id, bindingId: `${invoiceId}:${version + 1}` }); }, nativeLines: async (actor, invoice, id) => { native = await nativeInvoicePosting(await db(actor), actor, invoice, id); return native ? { lines: native.lines } : null; }, matchedLines: async (actor, invoice, id) => { matched = await (await import('@erpx/server-procurement/public/supplier-bill-matching')).matchedInvoicePosting(await db(actor), actor, invoice, id); return matched ? { lines: matched.lines } : null; }, prepareJournal: async (actor, input, key, status) => { const write = await db(actor), plan = await journalPreparation(write)(actor, input, key, status); journalNative = await journalStatements(write, actor, input, key, status, plan); return plan; }, prepareGoods: async (actor, { invoice, key, periodId, entryDate, gainAccountId, lossAccountId }) => { goods = await (await import('@erpx/server-commerce/public/commerce-goods-accounting')).prepareCommerceInvoiceGoods(await db(actor), actor, { invoice, journal: journalNative!, key, periodId, entryDate, gainAccountId, lossAccountId }); }, preparePostedMoney: async (actor, invoiceId, invoice, total) => {
             const write = await db(actor);
-            const draftSnapshot = await write.prepare("SELECT 1 FROM money_transaction_snapshots WHERE company_id=? AND source_type='finance_invoice' AND source_id=? AND amount_kind=?").bind(actor.companyId, invoiceId, `draft:v${invoice.line_revision}`).first();
+            const draftSnapshot = await write.prepare(moneySnapshotExistsSql('finance_invoice')).bind(actor.companyId, invoiceId, `draft:v${invoice.line_revision}`).first();
             const original=draftSnapshot?{sourceType:"finance_invoice",sourceId:invoiceId,amountKind:`draft:v${invoice.line_revision}`} : null;
             snapshot = original ? (await snapshotMoneyCarry(write, actor, { sourceType: "finance_invoice", sourceId: invoiceId, amountKind: "total", transactionDate: String(invoice.invoice_date), amountUnits: String(total), original })).statement : await legacyMoneySnapshot(write, actor, { sourceType: "finance_invoice", sourceId: invoiceId, amountKind: "total", transactionDate: String(invoice.invoice_date), currency: String(invoice.currency), amountUnits: total });
         }, commitDraft: async ({ actor, input, id, existingId, invoiceId, operation, subtotal, tax, total, revision, now }) => {
@@ -520,7 +521,7 @@ function paymentService(provided?: SqlDatabase) {
             const taxMoneyReversals: SqlStatement[] = [];
             if (payment.withholding_assessment_id) {
                 for (const [amountKind, amount] of [["bank_settled", Number(payment.amount_minor) - Number(payment.withheld_minor)], ["withheld", Number(payment.withheld_minor)]] as const) {
-                    const source = await write.prepare("SELECT 1 FROM money_transaction_snapshots WHERE company_id=? AND source_type='finance_payment' AND source_id=? AND amount_kind=?").bind(actor.companyId, paymentId, amountKind).first();
+                    const source = await write.prepare(moneySnapshotExistsSql('finance_payment')).bind(actor.companyId, paymentId, amountKind).first();
                     if (source && amount > 0)
                         taxMoneyReversals.push((await snapshotMoneyReversal(write, actor, { sourceType: "finance_payment_reversal", sourceId: reversal, amountKind, transactionDate: input.entryDate, original: { sourceType: "finance_payment", sourceId: paymentId, amountKind }, amountUnits: String(amount) })).statement);
                 }

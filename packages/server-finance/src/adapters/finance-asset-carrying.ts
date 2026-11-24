@@ -1,3 +1,4 @@
+import { ASSET_DEPRECIATIONS_SQL, openingBalanceSql } from './finance-read-tail-r39-sql';
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { ApiError } from "@erpx/server-runtime/public/http";
@@ -14,7 +15,7 @@ export const assetCarryingEvidence=(db:SqlDatabase,a:Row,books:AssetCarryBook[])
       .all<Row>()).results,
 legacy:async(assetId)=>(await db
       .prepare(
-        "SELECT * FROM finance_asset_depreciations WHERE asset_id=? ORDER BY ordinal",
+        ASSET_DEPRECIATIONS_SQL,
       )
       .bind(assetId)
       .all<Row>()).results,
@@ -32,7 +33,7 @@ openingRule:async(companyId,primaryChartId,secondaryChartId)=>db
         .first<Row>(),
 primaryOpening:async(companyId,chartId,effectiveDate)=>(await db
           .prepare(
-            `SELECT l.account_id AS "accountId",l.dimension_json AS dimensions,SUM(l.base_debit_minor-l.base_credit_minor) AS minor FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id WHERE j.company_id=? AND j.chart_id=? AND j.status IN ('posted','reversed') AND j.entry_date<? GROUP BY l.account_id,l.dimension_json HAVING SUM(l.base_debit_minor-l.base_credit_minor)<>0 ORDER BY l.account_id,l.dimension_json`,
+            openingBalanceSql(' '),
           )
           .bind(companyId, chartId, effectiveDate)
           .all<Row>()).results,

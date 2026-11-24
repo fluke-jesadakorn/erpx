@@ -1,3 +1,4 @@
+import { documentNumberSql } from './finance-read-tail-r39-sql';
 import{ensureCustomerReceipt}from '@erpx/server-finance/adapters/customer-receipt-issue';
 export{ensureCustomerReceipt};
 
@@ -124,7 +125,7 @@ export async function createSalesInvoiceDraft(actor: WorkContext, raw: z.input<t
     if (!defaults) throw new ApiError(409, "SALES_DEFAULTS_REQUIRED", "Ask Finance to approve sales defaults for this currency.");
     await validateDefaults(tx, actor, { chartId: defaults.chart_id, currency: defaults.currency, receivableAccountId: defaults.receivable_account_id, revenueAccountId: defaults.revenue_account_id, taxAccountId: defaults.tax_account_id ?? undefined, reason: defaults.reason });
     const lines = input.lines.map(line => ({ ...line, accountId: defaults.revenue_account_id, taxAccountId: line.taxBps ? defaults.tax_account_id ?? undefined : undefined })), totals = calculateInvoiceLines(lines);
-    const number = await tx.prepare("SELECT erpx_sales_document_number(?,'INV',?) number").bind(actor.companyId, input.invoiceDate).first<string>("number");
+    const number = await tx.prepare(documentNumberSql('INV')).bind(actor.companyId, input.invoiceDate).first<string>("number");
     const result = await createInvoice(actor, { kind: "receivable", partyId: input.partyId, invoiceNumber: number!, invoiceDate: input.invoiceDate, dueDate: input.dueDate, currency: input.currency, debitAccountId: defaults.receivable_account_id, creditAccountId: defaults.revenue_account_id, taxAccountId: defaults.tax_account_id ?? undefined, subtotal: totals.subtotal, tax: totals.tax, lines }, `${key}-invoice`, undefined, tx);
     return executeCommand(tx, actor, key, "finance.sales-invoice.prepare", input, result.id, 1, { ...result, number, total: minorToDecimal(totals.totalMinor), completionEvidence: { note: input.completionNote, confirmedBy: actor.userId, confirmedAt: Date.now(), invoiceRevision: 1 } }, []);
   };

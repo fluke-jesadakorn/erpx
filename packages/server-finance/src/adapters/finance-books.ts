@@ -1,3 +1,4 @@
+import { openingBalanceSql } from './finance-read-tail-r39-sql';
 import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
 import { JOURNAL_SELECT_PREFIX } from './finance-read-tail-r30-sql';
 import { withFinancePurchasedRead, withFinancePurchasedCommand, withFinanceConfigurationCommand } from "@erpx/server-finance/adapters/purchase-boundary";
@@ -25,10 +26,7 @@ import type {OpeningRow,dimensionSchema,bookRuleSchema} from '@erpx/server-finan
 import {financeReviewSchema} from '@erpx/server-finance/domain/review';
 export {dimensionSchema,bookRuleSchema} from '@erpx/server-finance/domain/books';
 export {financeReviewSchema} from '@erpx/server-finance/domain/review';
-const openingSql = `SELECT l.account_id AS "accountId",l.dimension_json AS dimensions,SUM(l.base_debit_minor-l.base_credit_minor) AS minor
- FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id
- WHERE j.company_id=? AND j.chart_id=? AND j.status IN ('posted','reversed') AND j.entry_date<?
- GROUP BY l.account_id,l.dimension_json HAVING SUM(l.base_debit_minor-l.base_credit_minor)<>0 ORDER BY l.account_id,l.dimension_json`;
+const openingSql = openingBalanceSql('\n ');
 const chartPostedSql = JOURNAL_SELECT_PREFIX + "s WHERE chart_id=? AND status IN ('posted','reversed')";
 async function opening(
   db: SqlDatabase,

@@ -1,3 +1,4 @@
+import { bankCashLinesSql } from './finance-read-tail-r39-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
 import { BANK_TRANSACTION_BY_ID_SQL } from './finance-read-tail-r17-sql';
 import { nativeFinanceBankAutomation } from '@erpx/server-collaboration/adapters/native-finance-bank-automation';
@@ -175,11 +176,7 @@ picker:async(actor,query,chart,search,cashSearch)=>{  const bankSql = `SELECT t.
     JOIN finance_accounts a ON a.id=s.bank_account AND a.company_id=t.company_id
     WHERE t.company_id=? AND t.match_status='unmatched' AND (?='' OR a.chart_id=?)
     AND (?='' OR strpos(lower(t.external_id||' '||COALESCE(t.description,'')),lower(?))>0)`;
-  const cashSql = `SELECT l.id,l.account_id,l.description,l.debit_minor,l.credit_minor,j.id journal_id,j.journal_number,j.currency,j.entry_date,j.entry_date page_key
-    FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id
-    JOIN finance_accounts a ON a.id=l.account_id AND a.company_id=j.company_id
-    WHERE j.company_id=? AND j.status='posted' AND a.control_kind='bank' AND j.is_opening=0
-    AND (?='' OR j.chart_id=?) AND ${availableCashSource}`;
+  const cashSql = bankCashLinesSql(availableCashSource);
   const cashArgs = [actor.companyId, chart, chart];
   const [mappings, groups, rows, targets] = await Promise.all([
     write
@@ -213,11 +210,7 @@ picker:async(actor,query,chart,search,cashSearch)=>{  const bankSql = `SELECT t.
     }),
   ]);
 return {mappings:mappings.results,groups,rows,targets};},
-candidates:async(actor,chart,ids)=>{  const cashSql = `SELECT l.id,l.account_id,l.description,l.debit_minor,l.credit_minor,j.id journal_id,j.journal_number,j.currency,j.entry_date,j.entry_date page_key
-    FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id
-    JOIN finance_accounts a ON a.id=l.account_id AND a.company_id=j.company_id
-    WHERE j.company_id=? AND j.status='posted' AND a.control_kind='bank' AND j.is_opening=0
-    AND (?='' OR j.chart_id=?) AND ${availableCashSource}`;
+candidates:async(actor,chart,ids)=>{  const cashSql = bankCashLinesSql(availableCashSource);
   const cashArgs = [actor.companyId, chart, chart];
 return write
           .prepare(
@@ -248,11 +241,7 @@ return write
             same_day_amount: string;
             same_day_ids: string;
           }>().then(result=>result.results);},
-suggestionTargets:async(actor,chart,suggestedIds)=>{  const cashSql = `SELECT l.id,l.account_id,l.description,l.debit_minor,l.credit_minor,j.id journal_id,j.journal_number,j.currency,j.entry_date,j.entry_date page_key
-    FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id
-    JOIN finance_accounts a ON a.id=l.account_id AND a.company_id=j.company_id
-    WHERE j.company_id=? AND j.status='posted' AND a.control_kind='bank' AND j.is_opening=0
-    AND (?='' OR j.chart_id=?) AND ${availableCashSource}`;
+suggestionTargets:async(actor,chart,suggestedIds)=>{  const cashSql = bankCashLinesSql(availableCashSource);
   const cashArgs = [actor.companyId, chart, chart];
 return write
           .prepare(
