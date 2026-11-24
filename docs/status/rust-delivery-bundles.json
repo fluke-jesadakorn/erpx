@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10542,
+    "revision": 10546,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -163267,7 +163267,7 @@
         "owner": "manufacturing",
         "title": "manufacturing purchased scope select family (round 24)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -163279,28 +163279,36 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMmfg4",
-          "claimedAt": "2026-11-24T08:02:00.610Z",
-          "heartbeatAt": "2026-11-24T08:02:00.610Z",
-          "expiresAt": "2026-11-24T08:32:00.610Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-manufacturing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0e6149d3a",
+            "owner": "manufacturing",
+            "before": 72,
+            "after": 70,
+            "note": "Metric, record and attachment purchased scope selects share manufacturingPurchaseScopedSelect; r4/r11/r15-r23 and locks untouched."
+          },
+          {
+            "command": "vitest manufacturing r15-r24 (40) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "0e6149d3a"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Three purchased scope selects share one text helper. BEFORE=72.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261124-a",
           "agentId": "wGCMmfg4",
-          "at": "2026-11-24T08:01:59.891Z",
+          "at": "2026-11-24T08:15:00.192Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Three purchased scope selects share one text helper. BEFORE=72."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -163996,6 +164004,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=273.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.manufacturing.read-tail-r25",
+        "goalId": "G4",
+        "owner": "manufacturing",
+        "title": "manufacturing jsonb_agg helper unification (round 25)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-manufacturing/src/**",
+          "tests/unit/manufacturing/**",
+          "tests/integration/manufacturing/**"
+        ],
+        "resources": [
+          "owner:manufacturing"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMmfg5",
+          "claimedAt": "2026-11-24T08:15:00.759Z",
+          "heartbeatAt": "2026-11-24T08:15:00.759Z",
+          "expiresAt": "2026-11-24T08:45:00.759Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Six jsonb_agg fragment definitions share one helper. BEFORE=70.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -164004,7 +164048,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1409,
+      "totalPackets": 1410,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 22,
@@ -164012,13 +164056,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1030,
+        "blocked": 1031,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:14:04.210Z",
+    "updatedAt": "2026-11-24T08:15:00.765Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
