@@ -51367,6 +51367,33 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Learning obligation fact head and image frame must stay canonical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-learning"
+      ],
+      "id": "learning.read-tail-r14-dedupe.unit",
+      "files": [
+        "tests/unit/learning/read-tail-r14-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "learning",
+      "modules": [
+        "learning"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Learning native source and evidence reads must stay byte-identical."
       },
       "apps": "learn",

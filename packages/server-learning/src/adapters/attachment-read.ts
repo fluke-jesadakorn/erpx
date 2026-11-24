@@ -11,19 +11,20 @@ import {isTransactionalSqlDatabase,type SqlDatabase,type StoredFile} from '@erpx
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {attachmentDeniedReadAudits} from '@erpx/server-files/public/attachment-denied-read-audits';
 import {attachmentReadSource,attachmentPrivateReadSourceLocks,assertAttachmentReadRoute,requirePrivateAttachmentReaderCurrent,bufferedAttachmentRead,type AttachmentReadRoute,type AttachmentReadSource} from '@erpx/server-files/public/private-attachment-reads';
-import {actorScopeProbe,learningAssignmentsExistsProbe} from './learning-read-sql';
+import {actorScopeProbe,learningAssignmentsExistsProbe,workspaceImageFrame} from './learning-read-sql';
 
 export function isLearningAttachmentReadTarget(target:string){return target==='learning_course'||target==='learning_assignment';}
 const identity=(actor:WorkContext)=>JSON.stringify(actor);
 function changed(){return new ApiError(409,'LEARNING_FILE_READ_CHANGED','The original course, learner evidence or current account changed during its private read.');}
 function image(database:SqlDatabase,companyId:string,type:string,id:string){
- return database.prepare(`SELECT jsonb_build_object('course',to_jsonb(course),'assignments',
+ const body=`'course',to_jsonb(course),'assignments',
  (SELECT jsonb_agg(jsonb_build_object('assignment',to_jsonb(assignment),
  'handoff',(SELECT to_jsonb(handoff) FROM learning_eligibility_handoffs handoff WHERE handoff.assignment_id=assignment.id AND handoff.company_id=assignment.company_id),
  'certificates',(SELECT jsonb_agg(jsonb_build_object('certificate',to_jsonb(certificate),'revocation',to_jsonb(revocation)) ORDER BY certificate.id)
  FROM learning_certificates certificate LEFT JOIN learning_certificate_revocations revocation ON revocation.certificate_id=certificate.id
  WHERE certificate.assignment_id=assignment.id AND certificate.company_id=assignment.company_id)) ORDER BY assignment.id)
- FROM learning_assignments assignment WHERE assignment.course_id=course.id AND assignment.company_id=course.company_id AND (?::text='learning_course' OR assignment.id=?)))::text image
+ FROM learning_assignments assignment WHERE assignment.course_id=course.id AND assignment.company_id=course.company_id AND (?::text='learning_course' OR assignment.id=?))`;
+ return database.prepare(`${workspaceImageFrame(body)}
  FROM learning_courses course WHERE course.company_id=? AND (?::text='learning_course' AND course.id=? OR ?::text='learning_assignment' AND ${learningAssignmentsExistsProbe('selected','selected.id=? AND selected.course_id=course.id AND selected.company_id=course.company_id')})`).bind(type,id,companyId,type,id,type,id).first<string>('image');
 }
 /** Learners keep their original self/material access and certificate identity.

@@ -120,3 +120,11 @@ export const workspaceImageFrame = (body: string) => `SELECT jsonb_build_object(
  * remains the single byte source for the clock body. */
 export const clockedSourceCte = (alias: string, separator = ' ') =>
   `WITH ${alias} AS ${clockProbe.replace('MATERIALIZED (', `MATERIALIZED${separator}(`)}`;
+
+/** r14 — package-obligation fact-row head. All five UNION ALL branches of the
+ * settlement projection select the same four columns; only the union prefix,
+ * the literal kind (with its first-branch alias) and the three projected
+ * expressions vary. The 0::bigint revocation version stays literal at its
+ * caller, so every rendered branch keeps its exact pre-dedupe bytes. */
+export const obligationFactHead = (union: string, kind: string, fields: string) =>
+  `${union}SELECT ${kind},${fields},`;
