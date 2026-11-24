@@ -23,3 +23,6 @@ pub mod owner_write;
 pub mod owner_write_http;
 pub mod wave2;
 pub mod wave2_http;
+
+pub mod native_read;
+pub use crate::adapters::native_read::{bind, BoundPlan, ReadScope};

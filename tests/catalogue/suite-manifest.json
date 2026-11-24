@@ -10866,6 +10866,46 @@
       ]
     },
     {
+      "id": "commercial.native-read-parity-postgres.integration",
+      "lane": "integration",
+      "owner": "commercial",
+      "modules": [
+        "commercial"
+      ],
+      "files": [
+        "tests/integration/commercial/rust-native-read-parity-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Commercial native read plans must match the retained TS authority and PG rows."
+      },
+      "apps": [
+        "apps"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-commercial",
+        "targets": [
+          "native_read_parity_postgres"
+        ],
+        "features": []
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-commercial/Cargo.toml"
+      ],
+      "packages": [
+        "@erpx/server-commercial"
+      ]
+    },
+    {
       "id": "commercial.package-grants.integration",
       "lane": "integration",
       "owner": "commercial",

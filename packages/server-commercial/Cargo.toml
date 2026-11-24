@@ -102,5 +102,9 @@ path = "../../tests/unit/commercial/rust-owner-read.test.rs"
 name = "owner_read_postgres"
 path = "../../tests/integration/commercial/rust-owner-read-postgres.test.rs"
 
+[[test]]
+name = "native_read_parity_postgres"
+path = "../../tests/integration/commercial/rust-native-read-parity-postgres.test.rs"
+
 [lints]
 workspace = true
