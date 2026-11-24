@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12471,
+    "revision": 12473,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -163456,7 +163456,7 @@
         "owner": "commercial",
         "title": "commercial TS read tail native cutover (round 14)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -163468,28 +163468,36 @@
         "resources": [
           "owner:commercial"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n96",
-          "claimedAt": "2026-11-24T16:11:28.772Z",
-          "heartbeatAt": "2026-11-24T16:11:53.559Z",
-          "expiresAt": "2026-11-24T16:41:53.559Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-commercial/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a8045336f",
+            "owner": "commercial",
+            "before": 22,
+            "after": 16,
+            "note": "r1 receipt probe reuse (-1) and six-literal scoped head union (-5); 13 rendered heads byte-identical, bind order unchanged; locks/advisory/native untouched."
+          },
+          {
+            "command": "vitest commercial (55 targeted; 213 owner) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "a8045336f"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Blocked with AST evidence; claim released",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMcom3",
-          "at": "2026-11-24T09:33:25.703Z",
-          "previousStatus": "blocked",
+          "runId": "run-20261124-d",
+          "agentId": "wH4n96",
+          "at": "2026-11-24T16:29:35.890Z",
+          "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Blocked with AST evidence; claim released"
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -184279,17 +184287,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 8,
+        "in_progress": 7,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1449,
+        "blocked": 1450,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:29:02.616Z",
+    "updatedAt": "2026-11-24T16:29:35.894Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
