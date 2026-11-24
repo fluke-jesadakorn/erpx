@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11340,
+    "revision": 11347,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -169186,17 +169186,32 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-workflow/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "57eed3a5c",
+            "owner": "workflow",
+            "before": 53,
+            "after": 50,
+            "note": "Four flow_defaults/flow_routes native kinds replace inline SQL; locks, r24-r41 and r32 max-revision const untouched."
+          },
+          {
+            "command": "cargo test workflow lib (46) + vitest workflow (79) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "57eed3a5c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
-        "nextAction": "Next: safe byte-identical/parameterized family or next native flow-routes cutover; if none report blocked. BEFORE=52.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMwf3",
-          "at": "2026-11-24T10:09:57.716Z",
+          "runId": "run-20261124-b",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T10:38:40.123Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
-          "nextAction": "Next: safe byte-identical/parameterized family or next native flow-routes cutover; if none report blocked. BEFORE=52."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -172441,7 +172456,7 @@
         "owner": "finance",
         "title": "finance read-tail r40 dedupe",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -172453,22 +172468,37 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMfina3",
-          "claimedAt": "2026-11-24T10:27:22.115Z",
-          "heartbeatAt": "2026-11-24T10:34:05.000Z",
-          "expiresAt": "2026-11-24T11:04:05.000Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "cba332a4d",
+            "owner": "finance",
+            "before": 1942,
+            "after": 1929,
+            "note": "Thai source party/status/events, receipt replay, assignment version, posting image, account probe, owned doc, mapping image and payment row share ten helpers; locks, tax and r15-r39 untouched."
+          },
+          {
+            "command": "vitest finance native plan (110) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "cba332a4d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Ten families: thai source party/status/events, receipt replay probe, assignment version, posting receipt image, active account probe, owned document existence, book mapping image, payment row. BEFORE=1942.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMfina3",
+          "at": "2026-11-24T10:38:39.564Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -172687,7 +172717,7 @@
         "owner": "files",
         "title": "files TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -172699,22 +172729,37 @@
         "resources": [
           "owner:files"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMfilb",
-          "claimedAt": "2026-11-24T10:28:17.993Z",
-          "heartbeatAt": "2026-11-24T10:34:05.000Z",
-          "expiresAt": "2026-11-24T11:04:05.000Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f0c7cf576",
+            "owner": "files",
+            "before": 266,
+            "after": 264,
+            "note": "Finance and Field link EXISTS witnesses share FIELD_LINK_EXISTS_SQL; advisory/set locks, native writes and r1-r32 helpers untouched."
+          },
+          {
+            "command": "vitest files r31-r33 (12) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "f0c7cf576"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=266.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMfilb",
+          "at": "2026-11-24T10:38:38.957Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -173334,17 +173379,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 24,
+        "in_progress": 22,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1219,
+        "blocked": 1221,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T10:38:09.055Z",
+    "updatedAt": "2026-11-24T10:38:40.128Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
