@@ -522,8 +522,10 @@ describe('Maintenance package settlement source fixed SQL',()=>{
   // r10 shared the two upstream-source EXISTS witnesses (11 -> 10); r15 shared
   // the two MATERIALIZED scoped CTEs through scopedSourceCte (10 -> 9); r16
   // moved the asset-version lookup into projectionLookup (9 -> 8); r20 shared
-  // the three facts UNION rows through factRow (8 -> 6).
-  expect(source.match(/SELECT/g)).toHaveLength(5);
+  // the three facts UNION rows through factRow (8 -> 6); r22 folded the EXISTS
+  // head into existsGuardPrefix (6 -> 5); r26 delegated settlementEventRows to
+  // settlementRefSource (5 -> 4).
+  expect(source.match(/SELECT/g)).toHaveLength(4);
   expect(count(source,'SELECT work.*,COALESCE')).toBe(0);
   expect(count(source,'SELECT plan.*,COALESCE')).toBe(0);
   expect(source).toContain('ownerSourceSql("maintenance_work_orders","work")');
@@ -569,11 +571,12 @@ describe('Maintenance settlement event row fixed SQL',()=>{
  it('single-sources the full-row read and keeps both composed strings intact',async()=>{
   const {readFile}=await import('node:fs/promises');
   const source=await readFile(new URL(file,import.meta.url),'utf8');
-  expect(source.match(/const settlementEventRows=\(table:"maintenance_preventive_occurrences"\|"maintenance_work_events"\)=>`SELECT \* FROM \$\{table\}`/g)).toHaveLength(1);
-  expect(source.match(/SELECT \* FROM/g)).toHaveLength(1);
+  expect(source.match(/const settlementEventRows=\(table:"maintenance_preventive_occurrences"\|"maintenance_work_events"\)=>settlementRefSource\("\*",table\)/g)).toHaveLength(1);
+  expect(source).toContain('import {settlementRefSource} from "./asset-settlement-refs"');
+  expect(source.match(/SELECT \* FROM/g)??[]).toHaveLength(0);
   // r10 shared the two upstream-source EXISTS witnesses (11 -> 10); r15 shared
-  // the two MATERIALIZED scoped CTEs through scopedSourceCte (10 -> 9).; r16 moved the asset-version lookup into projectionLookup (9 -> 8); r20 shared the three facts UNION rows through factRow (8 -> 6).
-  expect(source.match(/SELECT/g)).toHaveLength(5);
+  // the two MATERIALIZED scoped CTEs through scopedSourceCte (10 -> 9).; r16 moved the asset-version lookup into projectionLookup (9 -> 8); r20 shared the three facts UNION rows through factRow (8 -> 6); r22 folded the EXISTS head into existsGuardPrefix (6 -> 5); r26 delegated settlementEventRows to settlementRefSource (5 -> 4).
+  expect(source.match(/SELECT/g)).toHaveLength(4);
   expect(source).not.toContain('occurrences:"SELECT * FROM maintenance_preventive_occurrences"');
   expect(source).not.toContain('workEvents:"SELECT * FROM maintenance_work_events"');
   expect(source).toContain('settlementEventRows("maintenance_preventive_occurrences")');
@@ -582,6 +585,9 @@ describe('Maintenance settlement event row fixed SQL',()=>{
   const {maintenancePackageSettlementSources}=await import('../../../packages/server-maintenance/src/adapters/package-obligations');
   expect(maintenancePackageSettlementSources.occurrences).toBe('SELECT * FROM maintenance_preventive_occurrences');
   expect(maintenancePackageSettlementSources.workEvents).toBe('SELECT * FROM maintenance_work_events');
+  const {settlementRefSource}=await import('../../../packages/server-maintenance/src/adapters/asset-settlement-refs');
+  expect(settlementRefSource("*","maintenance_preventive_occurrences")).toBe(maintenancePackageSettlementSources.occurrences);
+  expect(settlementRefSource("*","maintenance_work_events")).toBe(maintenancePackageSettlementSources.workEvents);
  });
 });
 
@@ -598,8 +604,8 @@ describe('Maintenance upstream source witness fixed SQL',()=>{
    expect(source).toContain('const workSourceExists=(source:string,alias:string,column:string)=>`${existsGuardPrefix(`${source} ${alias}`)}${alias}.${column}=work.id)`;');
    expect(source.match(/EXISTS\(SELECT 1 FROM/g)??[]).toHaveLength(0);
    // r16 moved the asset-version lookup into projectionLookup (9 -> 8); r20 shared the three facts UNION rows through factRow (8 -> 6);
-   // r22 folded this EXISTS head into the shared existsGuardPrefix (6 -> 5).
-   expect(source.match(/SELECT/g)).toHaveLength(5);
+   // r22 folded this EXISTS head into the shared existsGuardPrefix (6 -> 5); r26 delegated settlementEventRows to settlementRefSource (5 -> 4).
+   expect(source.match(/SELECT/g)).toHaveLength(4);
    expect(source).toContain('`${existsGuardPrefix(`${source} ${alias}`)}${alias}.${column}=work.id)`');
    expect(source).not.toContain('EXISTS(SELECT 1 FROM maintenance_preventive_occurrences occurrence');
    expect(source).not.toContain('EXISTS(SELECT 1 FROM (${maintenanceSettlementConsumptions}) part');
@@ -711,7 +717,7 @@ describe('Maintenance record-image fixed SQL',()=>{
   }
  });
 
- it('retirement:ts-statements stays strictly below the r24 BEFORE=25 baseline',async()=>{
+ it('retirement:ts-statements stays strictly below the r26 BEFORE=23 baseline',async()=>{
   const {readdirSync,readFileSync}=await import('node:fs');
   const {resolve}=await import('node:path');
   let total=0;
@@ -724,8 +730,8 @@ describe('Maintenance record-image fixed SQL',()=>{
    }
   };
   walk(srcRoot);
-  expect(total).toBe(23);
-  expect(total).toBeLessThan(24);
+  expect(total).toBe(22);
+  expect(total).toBeLessThan(23);
  });
 });
 
@@ -993,8 +999,10 @@ describe('Maintenance facts UNION fact-row fixed SQL',()=>{
   expect(source).not.toContain("SELECT 'preventive-plan',plan.id");
   expect(source).not.toContain("SELECT 'occurrence',occurrence.id");
   // r20 folded three SELECT literals into one template: this file is 8 -> 6 and
-  // the owner read-tail total is 32 -> 30 (strictly below BEFORE=32).
-  expect(source.match(/SELECT/g)).toHaveLength(5);
+  // the owner read-tail total is 32 -> 30 (strictly below BEFORE=32); r26
+  // delegated settlementEventRows to settlementRefSource (this file 5 -> 4,
+  // owner total 23 -> 22, strictly below BEFORE=23).
+  expect(source.match(/SELECT/g)).toHaveLength(4);
   // The owner lock and the scope CTE stay untouched; no write/row-lock introduced.
   expect(source).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
   expect(source).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|pg_advisory/i);

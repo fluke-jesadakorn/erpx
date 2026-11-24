@@ -6,6 +6,7 @@ import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/se
 import {assertAssetPackageObligationSources,assetPackageSettlementSources as assets} from "@erpx/server-assets/public/package-obligations";
 import {maintenanceSettlementConsumptions,maintenanceSettlementInventoryReadLocks} from "@erpx/server-inventory/public/maintenance-settlement-sources";
 import {existsGuardPrefix,projectionLookup} from "./projection-lookup";
+import {settlementRefSource} from "./asset-settlement-refs";
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
 /** Canonical owner-local Work/Plan source image for Maintenance package settlement.
  * Both callers share this one fixed statement so the TS read tail carries no
@@ -17,7 +18,7 @@ const work=ownerSourceSql("maintenance_work_orders","work"),plans=ownerSourceSql
 /** Canonical owner-local full-row read shared by the occurrence and work-event
  * settlement sources. Callers pass only an owner-fixed table from the closed
  * union, never request-authored SQL; both composed strings stay byte-identical. */
-const settlementEventRows=(table:"maintenance_preventive_occurrences"|"maintenance_work_events")=>`SELECT * FROM ${table}`;
+const settlementEventRows=(table:"maintenance_preventive_occurrences"|"maintenance_work_events")=>settlementRefSource("*",table);
 /** Canonical owner-local upstream-source witness shared by the preventive and
  * parts-costs package scopes. Both assert that a Work row is backed by a real
  * owner-owned source (preventive occurrence or part consumption); callers pass
