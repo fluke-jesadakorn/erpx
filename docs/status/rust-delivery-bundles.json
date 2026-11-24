@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8407,
+    "revision": 8413,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -120516,7 +120516,7 @@
         "owner": "sales",
         "title": "sales TS read tail native cutover (round 5)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -120528,28 +120528,21 @@
         "resources": [
           "owner:sales"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wAZsal",
-          "claimedAt": "2026-11-23T23:30:57.260Z",
-          "heartbeatAt": "2026-11-24T01:58:28.736Z",
-          "expiresAt": "2026-11-24T02:28:28.736Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest owner-local read family served by the native sales read registry/command-plan; record a strictly lower count.",
+        "blocker": "handoff",
+        "nextAction": "Worker silent >1h, no WIP; released for reassignment.",
         "handoff": {
-          "runId": "run-20261123-h",
+          "runId": "run-20261123-i",
           "agentId": "wAZsal",
-          "at": "2026-11-23T23:30:50.417Z",
+          "at": "2026-11-24T02:12:59.390Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired at 23:30 during active read-tail and composition mounts; WIP reviewed, slices integrated continuously",
-          "nextAction": "Pick the smallest owner-local read family served by the native sales read registry/command-plan; record a strictly lower count."
+          "reason": "handoff",
+          "nextAction": "Worker silent >1h, no WIP; released for reassignment."
         },
         "scopeRefinementRequired": false
       },
@@ -124060,7 +124053,7 @@
         "owner": "agent",
         "title": "agent TS read tail native cutover (round 6)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -124072,28 +124065,21 @@
         "resources": [
           "owner:agent"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wCJ1age",
-          "claimedAt": "2026-11-23T23:30:57.419Z",
-          "heartbeatAt": "2026-11-24T01:58:28.736Z",
-          "expiresAt": "2026-11-24T02:28:28.736Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Dedupe the guided-intake quota template pair (collaboration-guided-intake-quota.ts + workspace-assistant.ts) or the next smallest family; record a strictly lower count.",
+        "blocker": "handoff",
+        "nextAction": "Worker silent >1h, no WIP; released for reassignment.",
         "handoff": {
-          "runId": "run-20261123-h",
+          "runId": "run-20261123-i",
           "agentId": "wCJ1age",
-          "at": "2026-11-23T23:30:50.417Z",
+          "at": "2026-11-24T02:13:00.669Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired at 23:30 during active read-tail and composition mounts; WIP reviewed, slices integrated continuously",
-          "nextAction": "Dedupe the guided-intake quota template pair (collaboration-guided-intake-quota.ts + workspace-assistant.ts) or the next smallest family; record a strictly lower count."
+          "reason": "handoff",
+          "nextAction": "Worker silent >1h, no WIP; released for reassignment."
         },
         "scopeRefinementRequired": false
       },
@@ -139848,6 +139834,78 @@
         "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=85.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.sales.read-tail-r6",
+        "goalId": "G4",
+        "owner": "sales",
+        "title": "sales TS read tail native cutover (r6)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-sales/src/**",
+          "tests/unit/sales/**",
+          "tests/integration/sales/**"
+        ],
+        "resources": [
+          "owner:sales"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGClsal",
+          "claimedAt": "2026-11-24T02:13:02.648Z",
+          "heartbeatAt": "2026-11-24T02:13:02.648Z",
+          "expiresAt": "2026-11-24T02:43:02.648Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Fresh reassignment after silent worker; find byte-identical SELECT groups, text-only. BEFORE measured at HEAD (sales 116 / agent 78).",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.agent.read-tail-r7",
+        "goalId": "G4",
+        "owner": "agent",
+        "title": "agent TS read tail native cutover (r7)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-agent/src/**",
+          "tests/unit/agent/**",
+          "tests/integration/agent/**"
+        ],
+        "resources": [
+          "owner:agent"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCmagen",
+          "claimedAt": "2026-11-24T02:13:04.945Z",
+          "heartbeatAt": "2026-11-24T02:13:04.945Z",
+          "expiresAt": "2026-11-24T02:43:04.945Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Fresh reassignment after silent worker; find byte-identical SELECT groups, text-only. BEFORE measured at HEAD (sales 116 / agent 78).",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -139856,7 +139914,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 928,
+      "totalPackets": 930,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -139864,13 +139922,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 550,
+        "blocked": 552,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:12:19.820Z",
+    "updatedAt": "2026-11-24T02:13:04.975Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
