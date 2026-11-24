@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9944,
+    "revision": 9947,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -156865,7 +156865,7 @@
         "owner": "legal",
         "title": "legal TS read tail native cutover (r27)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -156877,22 +156877,37 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261123-l",
-          "agentId": "wGCTleg",
-          "claimedAt": "2026-11-24T06:04:40.370Z",
-          "heartbeatAt": "2026-11-24T06:04:40.370Z",
-          "expiresAt": "2026-11-24T06:34:40.370Z",
-          "generation": 164
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "898d47f23",
+            "owner": "legal",
+            "before": 249,
+            "after": 246,
+            "note": "Four by-id and item point reads share legalByIdAndItemSql; corpus/citation, locks and r9/r16-r26 untouched."
+          },
+          {
+            "command": "vitest legal r27 (5) + tsc legal/tests",
+            "result": "passed",
+            "sourceSha": "898d47f23"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=249.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCTleg",
+          "at": "2026-11-24T06:15:45.841Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -157521,7 +157536,7 @@
         "owner": "legal",
         "title": "legal TS read tail native cutover (r28)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -157533,7 +157548,14 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCWleg",
+          "claimedAt": "2026-11-24T06:15:46.221Z",
+          "heartbeatAt": "2026-11-24T06:15:46.221Z",
+          "expiresAt": "2026-11-24T06:45:46.221Z",
+          "generation": 164
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -157590,18 +157612,18 @@
       "totalPackets": 1274,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 17,
+        "pending": 16,
         "in_progress": 22,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 904,
+        "blocked": 905,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 164,
-    "updatedAt": "2026-11-24T06:15:27.626Z",
+    "updatedAt": "2026-11-24T06:15:46.239Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
