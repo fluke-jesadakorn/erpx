@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7424,
+    "revision": 7428,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -126620,7 +126620,7 @@
         "owner": "support",
         "title": "support TS read tail native cutover (round 12)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -126632,22 +126632,42 @@
         "resources": [
           "owner:support"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wDW1sup",
-          "claimedAt": "2026-11-23T23:55:12.751Z",
-          "heartbeatAt": "2026-11-23T23:58:58.236Z",
-          "expiresAt": "2026-11-24T00:28:58.236Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0a1dd2bdb",
+            "owner": "support",
+            "before": 131,
+            "after": 130,
+            "note": "SLA workspace tickets via support_rd_sla_workspace_tickets (5 binds)."
+          },
+          {
+            "command": "cargo check -p erpx-server-support + lib (90)",
+            "result": "passed",
+            "sourceSha": "0a1dd2bdb"
+          },
+          {
+            "command": "vitest support native read (20) + tsc root",
+            "result": "passed",
+            "sourceSha": "0a1dd2bdb"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: supportSlaWorkspace tickets read or package-obligation/portal reads; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wDW1sup",
+          "at": "2026-11-24T00:04:11.726Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -126829,6 +126849,42 @@
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to a mounted native read; record a strictly lower count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.support.read-tail-r13",
+        "goalId": "G4",
+        "owner": "support",
+        "title": "support TS read tail native cutover (round 13)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wE21sup",
+          "claimedAt": "2026-11-24T00:04:11.909Z",
+          "heartbeatAt": "2026-11-24T00:04:11.909Z",
+          "expiresAt": "2026-11-24T00:34:11.909Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: package-obligation/portal read family (10 SELECTs) or another owner-local support read into the command-plan; record a strictly lower count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -126837,7 +126893,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 686,
+      "totalPackets": 687,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
@@ -126845,13 +126901,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 325,
+        "blocked": 326,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T00:04:00.337Z",
+    "updatedAt": "2026-11-24T00:04:11.912Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
