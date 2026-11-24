@@ -1,6 +1,7 @@
 import { platformOwnerProjectionSources as people_payrollPlatformSources } from "@erpx/server-people_payroll/public/platform-owner-projection-sources";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import {NODE_BRANCH_ACTIVE_EXISTS} from './organization-read-tail-sources';
 const ROSTER_REQUIRED_SOURCE = "SELECT roster_required FROM organization_positions WHERE company_id=? AND id=?";
 export function peopleDirectoryOrganizationFacts(database: SqlDatabase) {
     return { readDirectoryOptionsNodes(companyId: string, branchId: string | null, branchId2: string | null, departmentId: string | null, departmentId2: string | null) {
@@ -16,7 +17,7 @@ export function peopleDirectoryOrganizationFacts(database: SqlDatabase) {
                 .first<Record<string, string | number | null>>();
         },
         guard3(id: string, value: "branch", branchId: string, companyId: string) {
-            return assertion(database, id, value, "EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active')", [branchId, companyId]);
+            return assertion(database, id, value, NODE_BRANCH_ACTIVE_EXISTS, [branchId, companyId]);
         },
         guard4(id: string, value: "department", departmentId: string | null, departmentId2: string | null, companyId: string, branchId: string) {
             return assertion(database, id, value, "?::text IS NULL OR EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND branch_id=? AND kind='department' AND status='active')", [departmentId, departmentId2, companyId, branchId]);

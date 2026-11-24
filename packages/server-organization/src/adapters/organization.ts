@@ -32,6 +32,7 @@ import type {ChangeFilters,NodeChangeInput,NodeDecisionInput} from '@erpx/server
 export {positionSchema,organizationNodeChangeSchema,organizationNodeDecisionSchema} from '@erpx/server-organization/domain/organization';
 import {organizationGuard}from '@erpx/server-organization/public/organization-graph-guard';
 import {organizationRoster}from '@erpx/server-organization/public/organization-roster-read';
+import {NODE_BRANCH_ACTIVE,NODE_BRANCH_ACTIVE_EXISTS} from './organization-read-tail-sources';
 const HEAD_SEAT_SNAPSHOT_SOURCE =
   "SELECT version,position_id,person_id,effective_at FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=?";
 const nodeImpactSql=`SELECT
@@ -68,7 +69,7 @@ clock:{now:()=>Date.now()},authorize:actor=>requirePermission(actor,'organizatio
  changes:async(actor,filters,page,pageSize)=>{const {predicate,args}=changeSelection(actor.companyId,filters);return (await db.prepare(`SELECT *,NOT iam_same_person(requested_by,?,company_id) independent_reviewer FROM organization_node_changes WHERE ${predicate} ORDER BY updated_at DESC,id LIMIT ? OFFSET ?`).bind(actor.userId,...args,pageSize,(page-1)*pageSize).all<OrganizationNodeChange&{independent_reviewer:boolean}>()).results;},
  events:async(companyId,ids)=>(await db.prepare(`SELECT e.change_id,e.action,e.version,e.created_at,e.snapshot_json,COALESCE(p.legal_name,e.actor_id) actor_name FROM organization_node_change_events e LEFT JOIN (${people_payrollPlatformSources.hr_people}) p ON p.user_id=e.actor_id AND p.company_id=e.company_id AND p.merged_into_id IS NULL WHERE e.company_id=? AND e.change_id IN (${ids.map(()=>'?').join(',')}) ORDER BY e.version,e.created_at,e.id`).bind(companyId,...ids).all<{change_id:string;action:string;version:number;created_at:number;snapshot_json:string;actor_name:string}>()).results,
  graphGuard:(companyId,key)=>organizationGuard(db,companyId,key),replay:(actor,key,operation,id,input)=>replayCommand(db,actor,key,operation,id,input),
- branchActive:async(companyId,id)=>!!await db.prepare("SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active'").bind(id,companyId).first(),
+ branchActive:async(companyId,id)=>!!await db.prepare(NODE_BRANCH_ACTIVE).bind(id,companyId).first(),
  departmentActive:async(companyId,id,branchId)=>!!await db.prepare("SELECT 1 FROM organization_nodes WHERE company_id=? AND id=? AND kind='department' AND status='active' AND branch_id IS NOT DISTINCT FROM ?").bind(companyId,id,branchId).first(),
  node:(companyId,id)=>db.prepare("SELECT id,kind,slug,display_name,branch_id,status,hierarchy_revision FROM organization_nodes WHERE id=? AND company_id=? AND kind IN ('branch','department')").bind(id,companyId).first<OrganizationNode>(),
  reservedDepartment:async(companyId,id)=>!!await db.prepare(`SELECT 1 FROM organization_draft_reservations r WHERE r.company_id=? AND ((r.kind='position' AND EXISTS(SELECT 1 FROM organization_positions p WHERE p.id=r.entity_id AND p.company_id=r.company_id AND p.department_id=?)) OR (r.kind='person' AND EXISTS(SELECT 1 FROM (${people_payrollPlatformSources.hr_engagements}) e WHERE e.id=r.entity_id AND e.company_id=r.company_id AND e.department_id=?))) LIMIT 1`).bind(companyId,id,id).first(),
@@ -84,7 +85,7 @@ clock:{now:()=>Date.now()},authorize:actor=>requirePermission(actor,'organizatio
  relocationAuthority:async(companyId,id)=>{const [head,legacyHead,flow]=await Promise.all([db.prepare(HEAD_SEAT_SNAPSHOT_SOURCE).bind(companyId,id).first<RelocationAuthority['head']&{}>(),db.prepare('SELECT version,person_id FROM department_heads WHERE company_id=? AND department_id=?').bind(companyId,id).first<RelocationAuthority['legacyHead']&{}>(),db.prepare('SELECT id,version,steps_json FROM department_flow_versions WHERE company_id=? AND department_id=? ORDER BY version DESC LIMIT 1').bind(companyId,id).first<RelocationAuthority['flow']&{}>()]);return {head,legacyHead,flow};},
 stageRelocate:async (actor,change,id,appliedNodeId,key,{head,legacyHead,flow},now)=>{
         return [
-          assertion(db,key,"relocation-destination-active","EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active')",[change.branch_id,actor.companyId]),
+          assertion(db,key,"relocation-destination-active",NODE_BRANCH_ACTIVE_EXISTS,[change.branch_id,actor.companyId]),
           assertion(db,key,"relocation-no-children","NOT EXISTS(SELECT 1 FROM organization_nodes WHERE company_id=? AND parent_id=? AND status<>'archived')",[actor.companyId,change.target_node_id]),
           assertion(db,key,"relocation-slug-available","NOT EXISTS(SELECT 1 FROM organization_nodes destination JOIN organization_nodes source ON source.id=? AND source.company_id=destination.company_id WHERE destination.company_id=? AND destination.parent_id=? AND destination.slug=source.slug)",[change.target_node_id,actor.companyId,change.branch_id]),
           assertion(db,key,"relocation-head-unchanged",head

@@ -1,5 +1,6 @@
 import 'server-only';
-import {ORG_NODES_SPACED_N_FROM,ORG_NODES_SPACED_C_JOIN,ORG_NODES_SPACED_B_FROM,ORG_NODES_SPACED_N_JOIN,ORG_NODES_SPACED_B_JOIN} from './organization-nodes-spaced-projections';
+import {ORG_NODES_SPACED_N_FROM,ORG_NODES_SPACED_C_JOIN,ORG_NODES_SPACED_C_FROM,ORG_NODES_SPACED_B_FROM,ORG_NODES_SPACED_N_JOIN,ORG_NODES_SPACED_B_JOIN} from './organization-nodes-spaced-projections';
+import {STAFF_LEVELS_L_JOIN} from './organization-read-tail-sources';
 /** Canonical alias=`organization_nodes` owning node projection shared by the IAM snapshot source map. */
 const ORG_NODES_PROJECTION_SOURCE =
   "FROM (SELECT \"id\", \"kind\", \"slug\", \"display_name\", \"parent_id\", \"company_id\", \"branch_id\", \"status\", \"hierarchy_revision\" FROM organization_nodes) organization_nodes";
@@ -47,20 +48,20 @@ export function identitySnapshotSources(){return {
   "member_directory_organization_nodes_from": ORG_NODES_PROJECTION_SOURCE,
   "operations_staff_policy_facts_organization_positions_pos_join": "JOIN (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"title\", \"level_id\", \"reports_to_position_id\", \"is_ceo\", \"active\", \"version\", \"created_by\", \"created_at\", \"updated_at\", \"requirements\", \"roster_required\" FROM organization_positions) pos",
   "organization_change_assignment_organization_nodes_c_join": ORG_NODES_SPACED_C_JOIN,
-  "payroll_cancellation_grant_organization_nodes_c_from": "FROM (SELECT \"id\", \"kind\", \"slug\", \"display_name\", \"parent_id\", \"company_id\", \"branch_id\", \"status\", \"hierarchy_revision\" FROM organization_nodes) c",
+  "payroll_cancellation_grant_organization_nodes_c_from": ORG_NODES_SPACED_C_FROM,
   "position_gpo_organization_positions_o_join": "JOIN (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"title\", \"level_id\", \"reports_to_position_id\", \"is_ceo\", \"active\", \"version\", \"created_by\", \"created_at\", \"updated_at\", \"requirements\", \"roster_required\" FROM organization_positions) o",
   "position_gpo_organization_positions_position_join": "JOIN (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"title\", \"level_id\", \"reports_to_position_id\", \"is_ceo\", \"active\", \"version\", \"created_by\", \"created_at\", \"updated_at\", \"requirements\", \"roster_required\" FROM organization_positions) position",
   "profile_membership_organization_nodes_c_join": ORG_NODES_SPACED_C_JOIN,
   "user_management_organization_nodes_from": ORG_NODES_PROJECTION_SOURCE,
   "user_management_organization_nodes_n_from": ORG_NODES_SPACED_N_FROM,
-  "work_role_selection_facts_organization_nodes_c_from": "FROM (SELECT \"id\", \"kind\", \"slug\", \"display_name\", \"parent_id\", \"company_id\", \"branch_id\", \"status\", \"hierarchy_revision\" FROM organization_nodes) c",
+  "work_role_selection_facts_organization_nodes_c_from": ORG_NODES_SPACED_C_FROM,
   "work_role_selection_facts_organization_nodes_n_from": ORG_NODES_SPACED_N_FROM,
   "work_role_selection_facts_organization_nodes_b_from": ORG_NODES_SPACED_B_FROM,
-  "workflow_command_authority_organization_nodes_c_from": "FROM (SELECT \"id\", \"kind\", \"slug\", \"display_name\", \"parent_id\", \"company_id\", \"branch_id\", \"status\", \"hierarchy_revision\" FROM organization_nodes) c",
+  "workflow_command_authority_organization_nodes_c_from": ORG_NODES_SPACED_C_FROM,
   "workflow_command_authority_organization_nodes_n_from": ORG_NODES_SPACED_N_FROM,
   "workflow_command_authority_organization_nodes_b_from": ORG_NODES_SPACED_B_FROM,
   "workflow_role_facts_organization_nodes_from": ORG_NODES_PROJECTION_SOURCE,
-  "executive_report_sources_staff_levels_l_join": "JOIN (SELECT \"id\", \"company_id\", \"code\", \"name\", \"rank\", \"active\", \"version\", \"created_at\", \"updated_at\", \"level_number\" FROM staff_levels) l",
-  "gpo_rules_staff_levels_l_join": "JOIN (SELECT \"id\", \"company_id\", \"code\", \"name\", \"rank\", \"active\", \"version\", \"created_at\", \"updated_at\", \"level_number\" FROM staff_levels) l",
-  "operations_staff_policy_facts_staff_levels_l_join": "JOIN (SELECT \"id\", \"company_id\", \"code\", \"name\", \"rank\", \"active\", \"version\", \"created_at\", \"updated_at\", \"level_number\" FROM staff_levels) l"
+  "executive_report_sources_staff_levels_l_join": STAFF_LEVELS_L_JOIN,
+  "gpo_rules_staff_levels_l_join": STAFF_LEVELS_L_JOIN,
+  "operations_staff_policy_facts_staff_levels_l_join": STAFF_LEVELS_L_JOIN
 } as const;}

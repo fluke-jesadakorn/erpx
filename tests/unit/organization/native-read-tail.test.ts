@@ -295,4 +295,30 @@ describe('Organization owner-local read tail', () => {
     expect(c.ORG_NODES_SPACED_B_JOIN).toBe('JOIN (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) b');
   });
 
+  it('shares the C_FROM projection, staff-levels join and branch-active guard literals', async () => {
+    const spaced = await import('../../../packages/server-organization/src/adapters/organization-nodes-spaced-projections');
+    const shared = await import('../../../packages/server-organization/src/adapters/organization-read-tail-sources');
+    const {identitySnapshotSources} = await import('../../../packages/server-organization/src/adapters/identity-snapshot-sources');
+    const id = identitySnapshotSources();
+
+    const cFrom = [
+      'payroll_cancellation_grant_organization_nodes_c_from',
+      'work_role_selection_facts_organization_nodes_c_from',
+      'workflow_command_authority_organization_nodes_c_from',
+    ] as const;
+    for (const key of cFrom) expect(id[key]).toBe(spaced.ORG_NODES_SPACED_C_FROM);
+
+    const lJoin = [
+      'executive_report_sources_staff_levels_l_join',
+      'gpo_rules_staff_levels_l_join',
+      'operations_staff_policy_facts_staff_levels_l_join',
+    ] as const;
+    for (const key of lJoin) expect(id[key]).toBe(shared.STAFF_LEVELS_L_JOIN);
+
+    expect(spaced.ORG_NODES_SPACED_C_FROM).toBe('FROM (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) c');
+    expect(shared.STAFF_LEVELS_L_JOIN).toBe('JOIN (SELECT "id", "company_id", "code", "name", "rank", "active", "version", "created_at", "updated_at", "level_number" FROM staff_levels) l');
+    expect(shared.NODE_BRANCH_ACTIVE_EXISTS).toBe("EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active')");
+    expect(shared.NODE_BRANCH_ACTIVE).toBe("SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active'");
+  });
+
 });
