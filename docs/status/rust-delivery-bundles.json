@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12197,
+    "revision": 12199,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -181091,7 +181091,7 @@
         "owner": "procurement",
         "title": "procurement TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -181103,22 +181103,37 @@
         "resources": [
           "owner:procurement"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n22",
-          "claimedAt": "2026-11-24T13:46:00.590Z",
-          "heartbeatAt": "2026-11-24T13:56:34.987Z",
-          "expiresAt": "2026-11-24T14:26:34.987Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-procurement/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "dae823d1d",
+            "owner": "procurement",
+            "before": 103,
+            "after": 99,
+            "note": "Command receipts NOT EXISTS skeleton and event witness join head shared; FOR SHARE/FOR UPDATE/writes/native untouched."
+          },
+          {
+            "command": "vitest procurement (207) + scoped tsc + 6/6 fragment oracle",
+            "result": "passed",
+            "sourceSha": "dae823d1d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "command_receipts NOT EXISTS skeleton (-3) and join witness pair (-1): 103->99. BEFORE=103.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n22",
+          "at": "2026-11-24T13:59:30.359Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -181589,17 +181604,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 15,
+        "in_progress": 14,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1390,
+        "blocked": 1391,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:59:06.855Z",
+    "updatedAt": "2026-11-24T13:59:30.367Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
