@@ -4,3 +4,6 @@ export const benefitPayrollInputsSql = "SELECT b.*,p.name plan_name FROM benefit
 /** Shared prefix of the current-actor workforce scope probe. Consumers append either
  * ")workforce_actor_scope ..." or ",${packageClockSql} now_ms)workforce_actor_scope ...". */
 export const workforceActorScopeProbe = "SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id";
+/** Byte-identical reviewed payroll-input ownership predicate shared by the
+ * Benefits and People package-settlement fact projections. */
+export const benefitPayrollInputOwnerPredicate = "SELECT 'payroll-input',h.id,h.source_election_version,h.status,to_jsonb(h),e.id IS NULL OR e.status<>'released' OR e.company_id IS DISTINCT FROM h.company_id OR e.person_id IS DISTINCT FROM h.person_id OR e.engagement_id IS DISTINCT FROM h.engagement_id OR e.version<h.source_election_version OR e.currency IS DISTINCT FROM h.currency OR e.employee_deduction_minor IS DISTINCT FROM h.employee_deduction_minor OR e.employer_cost_minor IS DISTINCT FROM h.employer_cost_minor";
