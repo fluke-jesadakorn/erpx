@@ -383,7 +383,53 @@ describe('crm read-tail r19 parameterized projection families', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r18 AFTER=158 baseline', () => {
-    expect(totalSelects()).toBe(153);
+    expect(totalSelects()).toBe(151);
     expect(totalSelects()).toBeLessThan(158);
+  });
+});
+
+describe('crm read-tail r20 parameterized history families', () => {
+  const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+  const src = (name: string) => readFileSync(resolve(owner, 'adapters', name), 'utf8');
+  const totalSelects = () => {
+    let total = 0;
+    for (const rel of readdirSync(owner, { recursive: true })) {
+      if (!String(rel).endsWith('.ts')) continue;
+      total += readFileSync(resolve(owner, String(rel)), 'utf8').match(/SELECT /g)?.length ?? 0;
+    }
+    return total;
+  };
+
+  it('renders the three history facts byte-identically to their pre-dedupe literals', () => {
+    const sales = src('sales-package-obligations.ts');
+    const line = sales.split('\n').find(value => value.includes('const historyFactSql=')) ?? '';
+    const body = line.slice(line.indexOf('`') + 1, line.lastIndexOf('`'));
+    const render = (kind: string, source: string) => body.replace('${kind}', kind).replace('${source}', source);
+    const facts: [string, string][] = [
+      ['lead-history', 'crm_case_events event JOIN leads l ON l.id=event.lead_id'],
+      ['activity-history', 'crm_lead_activity_events event JOIN crm_lead_activities activity ON activity.id=event.activity_id CROSS JOIN scope WHERE activity.company_id=scope.company_id'],
+      ['guest-sharing-history', 'crm_guest_sharing_events event,scope WHERE event.company_id=scope.company_id'],
+    ];
+    for (const [kind, source] of facts)
+      expect(render(kind, source)).toBe(`UNION ALL SELECT '${kind}',event.id,to_jsonb(event),false FROM ${source}`);
+    expect(sales.match(/const historyFactSql=/g)).toHaveLength(1);
+    expect(sales.match(/\$\{historyFactSql\('/g)).toHaveLength(3);
+    expect(sales).not.toContain("UNION ALL SELECT 'lead-history'");
+    expect(sales).not.toContain("UNION ALL SELECT 'activity-history'");
+    expect(sales).not.toContain("UNION ALL SELECT 'guest-sharing-history'");
+  });
+
+  it('keeps the history family read-only and leaves r8-r19 helpers and locks untouched', () => {
+    const sales = src('sales-package-obligations.ts');
+    const lockRe = /INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i;
+    for (const line of sales.split('\n').filter(value => value.includes('historyFactSql(') && !value.includes('const historyFactSql=')))
+      expect(line).not.toMatch(lockRe);
+    expect(sales).toContain('LOCK TABLE crm_accounts,crm_contacts,crm_guest_links,crm_guest_sharing_events,crm_leads,crm_opportunities,crm_case_events,crm_lead_activities,crm_lead_activity_events IN SHARE MODE');
+    expect(sales).toContain('const financeCustomerMissingSql=');
+  });
+
+  it('keeps the owner SELECT KPI strictly below the r19 AFTER=153 baseline', () => {
+    expect(totalSelects()).toBe(151);
+    expect(totalSelects()).toBeLessThan(153);
   });
 });
