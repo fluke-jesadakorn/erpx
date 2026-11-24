@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10852,
+    "revision": 10854,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -167723,6 +167723,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=111.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.runtime.read-tail-r14",
+        "goalId": "G4",
+        "owner": "runtime",
+        "title": "runtime executive generation jobs dedupe (round 14)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-runtime/src/**",
+          "tests/unit/runtime/**",
+          "tests/integration/shared.runtime/**"
+        ],
+        "resources": [
+          "owner:runtime"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMrun2",
+          "claimedAt": "2026-11-24T09:09:04.397Z",
+          "heartbeatAt": "2026-11-24T09:09:04.397Z",
+          "expiresAt": "2026-11-24T09:39:04.397Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Five reads on executive_generation_jobs compose existing executiveGenerationJobsSql. BEFORE=41.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -167731,11 +167767,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1485,
+      "totalPackets": 1486,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 23,
-        "in_progress": 23,
+        "in_progress": 24,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -167745,7 +167781,7 @@
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:08:50.569Z",
+    "updatedAt": "2026-11-24T09:09:04.403Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
