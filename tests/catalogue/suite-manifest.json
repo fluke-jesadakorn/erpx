@@ -274,6 +274,33 @@
       }
     },
     {
+      "lane": "unit",
+      "owner": "agent",
+      "modules": [
+        "agent"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Assistant quota expression and no-op literals must exist once with byte-identical output."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-agent"
+      ],
+      "id": "agent.assistant-quota-dedupe.unit",
+      "files": [
+        "tests/unit/agent/assistant-quota-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "agent.native-agent-evidence-transport.unit",
       "lane": "unit",
       "owner": "agent",
