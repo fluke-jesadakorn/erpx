@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10800,
+    "revision": 10802,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -166939,6 +166939,42 @@
         "nextAction": "Port six keyed register/shift/table reads into core_reads kinds; locks and PMS fragments stay inline. BEFORE=213.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.legal.read-tail-r38",
+        "goalId": "G4",
+        "owner": "legal",
+        "title": "legal fragment families (round 38)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-legal/src/**",
+          "tests/unit/legal/**",
+          "tests/integration/legal/**"
+        ],
+        "resources": [
+          "owner:legal"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMlegb",
+          "claimedAt": "2026-11-24T09:00:26.935Z",
+          "heartbeatAt": "2026-11-24T09:00:26.935Z",
+          "expiresAt": "2026-11-24T09:30:26.935Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Four fragment families: released item guard, member edit point, fact data read, metric count prefix. BEFORE=230.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -166947,11 +166983,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1466,
+      "totalPackets": 1467,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 15,
+        "in_progress": 16,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -166961,7 +166997,7 @@
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:59:52.885Z",
+    "updatedAt": "2026-11-24T09:00:26.940Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
