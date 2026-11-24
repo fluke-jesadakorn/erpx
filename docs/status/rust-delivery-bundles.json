@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10069,
+    "revision": 10077,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -158247,7 +158247,7 @@
         "owner": "marketing",
         "title": "marketing TS read tail native cutover (r28)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -158259,22 +158259,37 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261123-m",
-          "agentId": "wGCMmkt",
-          "claimedAt": "2026-11-24T06:39:48.134Z",
-          "heartbeatAt": "2026-11-24T06:39:48.134Z",
-          "expiresAt": "2026-11-24T07:09:48.134Z",
-          "generation": 165
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-marketing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "521f888d4",
+            "owner": "marketing",
+            "before": 83,
+            "after": 82,
+            "note": "Enforced and legacy analytics campaign projections share one closed-variant helper; r2-r25 and native-read transport WIP untouched."
+          },
+          {
+            "command": "vitest marketing analytics (3) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "521f888d4"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked with evidence. BEFORE=83.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCMmkt",
+          "at": "2026-11-24T06:50:26.538Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -158739,7 +158754,7 @@
         "owner": "billing",
         "title": "billing TS read tail native cutover (round 23)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -158751,22 +158766,37 @@
         "resources": [
           "owner:billing"
         ],
-        "claim": {
-          "runId": "run-20261123-m",
-          "agentId": "wGCMbil2",
-          "claimedAt": "2026-11-24T06:45:39.789Z",
-          "heartbeatAt": "2026-11-24T06:45:39.789Z",
-          "expiresAt": "2026-11-24T07:15:39.789Z",
-          "generation": 165
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-billing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "521f888d4",
+            "owner": "billing",
+            "before": 66,
+            "after": 65,
+            "note": "Pending stripe inbox drain readers share billingPendingInboxSql; advisory locks, FOR UPDATE and point reads untouched."
+          },
+          {
+            "command": "vitest billing r23 (4) + tsc billing",
+            "result": "passed",
+            "sourceSha": "521f888d4"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=66.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCMbil2",
+          "at": "2026-11-24T06:50:26.125Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -158948,6 +158978,78 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=129.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.billing.read-tail-r24",
+        "goalId": "G4",
+        "owner": "billing",
+        "title": "billing TS read tail native cutover (r24)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-billing/src/**",
+          "tests/unit/billing/**",
+          "tests/integration/billing/**"
+        ],
+        "resources": [
+          "owner:billing"
+        ],
+        "claim": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCMbil3",
+          "claimedAt": "2026-11-24T06:50:27.065Z",
+          "heartbeatAt": "2026-11-24T06:50:27.065Z",
+          "expiresAt": "2026-11-24T07:20:27.065Z",
+          "generation": 165
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=65.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.marketing.read-tail-r29",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing TS read tail native cutover (r29)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**",
+          "tests/integration/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCMmkt2",
+          "claimedAt": "2026-11-24T06:50:27.733Z",
+          "heartbeatAt": "2026-11-24T06:50:27.733Z",
+          "expiresAt": "2026-11-24T07:20:27.733Z",
+          "generation": 165
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=82.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -158956,7 +159058,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1302,
+      "totalPackets": 1304,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -158964,13 +159066,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 927,
+        "blocked": 929,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 165,
-    "updatedAt": "2026-11-24T06:49:52.567Z",
+    "updatedAt": "2026-11-24T06:50:27.744Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
