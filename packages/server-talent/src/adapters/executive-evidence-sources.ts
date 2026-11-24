@@ -12,6 +12,13 @@ export function executiveEvidenceSources(database: SqlDatabase) {
             const where = [
                 "r.company_id=?", "(?::text IS NULL OR r.branch_id=?)", "(?::text IS NULL OR r.department_id=?)",
             ];
+            // Owner-local evidence page family. Projection, FROM tail and order
+            // are parameterized; emitted SQL is byte-identical to the former
+            // two inline copies over the same purchased metric source.
+            const evidenceSelect = (projection: string, fromTail: string, order: string) =>
+                `SELECT ${projection}
+      FROM (${source.sql}) ${fromTail}
+      ORDER BY ${order} LIMIT ?`;
             let rows: TalentEvidenceRow[];
             if (input.metric === "open-requisitions") {
                 where.push("r.status='open'");
@@ -25,9 +32,9 @@ export function executiveEvidenceSources(database: SqlDatabase) {
                     where.push("(r.job_title>? OR (r.job_title=? AND r.id>?))");
                     values.push(requisitionCursor.jobTitle, requisitionCursor.jobTitle, requisitionCursor.id);
                 }
-                rows = (await db.prepare(`SELECT r.id,r.job_title,r.target_start_date,r.status,r.version,r.updated_at,r.branch_id,r.department_id
-      FROM (${source.sql}) r WHERE ${where.join(" AND ")}
-      ORDER BY r.job_title,r.id LIMIT ?`)
+                rows = (await db.prepare(evidenceSelect(
+                    'r.id,r.job_title,r.target_start_date,r.status,r.version,r.updated_at,r.branch_id,r.department_id',
+                    `r WHERE ${where.join(" AND ")}`, 'r.job_title,r.id'))
                     .bind(...values, input.limit + 1).all<TalentEvidenceRow>()).results;
             }
             else {
@@ -44,10 +51,10 @@ export function executiveEvidenceSources(database: SqlDatabase) {
                     where.push("(a.updated_at<? OR (a.updated_at=? AND a.id<?))");
                     values.push(applicationCursor.updatedAt, applicationCursor.updatedAt, applicationCursor.id);
                 }
-                rows = (await db.prepare(`SELECT a.id,a.requisition_id,a.status,a.version,a.updated_at,r.job_title,r.branch_id,r.department_id
-      FROM (${source.sql}) a JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id
-      WHERE ${where.join(" AND ")}
-      ORDER BY a.updated_at DESC,a.id DESC LIMIT ?`)
+                rows = (await db.prepare(evidenceSelect(
+                    'a.id,a.requisition_id,a.status,a.version,a.updated_at,r.job_title,r.branch_id,r.department_id',
+                    `a JOIN talent_requisitions r ON r.id=a.requisition_id AND r.company_id=a.company_id
+      WHERE ${where.join(" AND ")}`, 'a.updated_at DESC,a.id DESC'))
                     .bind(...values, input.limit + 1).all<TalentEvidenceRow>()).results;
             }
             return rows;

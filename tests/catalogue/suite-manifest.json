@@ -107909,6 +107909,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "talent",
+      "modules": [
+        "talent"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Talent evidence page reads must stay one helper."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-talent"
+      ],
+      "id": "talent.read-tail-r26-dedupe.unit",
+      "files": [
+        "tests/unit/talent/talent-read-tail-r26-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "talent.rust-talent-application-proposal.unit",
       "lane": "unit",
       "owner": "talent",
