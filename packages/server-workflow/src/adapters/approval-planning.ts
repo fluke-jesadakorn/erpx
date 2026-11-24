@@ -32,6 +32,10 @@ const approvalDecisionHistorySql = `COALESCE(p.legal_name,d.actor_user_id) actor
 const pendingInstanceExistsSql = "EXISTS(SELECT 1 FROM approval_instances WHERE id=? AND version=? AND state='pending' AND current_step=?)";
 /** Byte-identical span shared by the override/non-override approval-version guards; emitted SQL is unchanged. */
 const pendingInstanceAndStepSql = `${pendingInstanceExistsSql} AND EXISTS(SELECT 1 FROM approval_steps WHERE id=? AND `;
+/** Byte-identical record/version EXISTS prefix shared by the legacy-record (guard17)
+ * and route-version (guard49) guards; emitted SQL and bind order stay unchanged. */
+const approvalRecordVersionExists = (table: string, column: string, versionFirst = false) =>
+    `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND ${versionFirst ? `version=? AND ${column}=?` : `${column}=? AND version=?`})`;
 const jsonEachBindSql = "(SELECT value FROM erpx_json_each(?))";
 export { participantSql } from '@erpx/server-workflow/adapters/approval-participant-projection';
 export type { ApprovalKind } from '@erpx/server-workflow/domain/approvals';
@@ -82,7 +86,7 @@ export function nativeApprovalPlanningPorts(database: SqlDatabase, readOverrides
         },
         guard17(key: string, value: "legacy-record", record_id: string, company_id: string, pendingState: "pending_approval" | "in_review", version: number, kind: ApprovalKind) {
             const { table, column } = nativeApprovalRecord(kind);
-            return assertion(database, key, value, `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND ${column}=? AND version=?)`, [record_id, company_id, pendingState, version]);
+            return assertion(database, key, value, approvalRecordVersionExists(table, column), [record_id, company_id, pendingState, version]);
         },
         guard18(key: string, value: string, check: NonNullable<ApprovalRoute["checks"]>[number]) { return assertion(database, key, value, check.query, check.args); },
         async stageInitializeLegacyApprovalEffect(value: string, id: string, ordinal: number, userId: string, authority: "named" | "department" | "hr_admin" | "holding_owner") {
@@ -151,7 +155,7 @@ export function nativeApprovalPlanningPorts(database: SqlDatabase, readOverrides
         },
         guard49(key: string, value: "route-version", id: string, instanceVersion: number, current_step: number, record_id: string, companyId: string, expectedVersion: number, state: "approved" | "pending_approval" | "in_review" | "pending_authorization" | "pending_hr" | "pending_verification" | "start_approval" | "completion_approval", kind: ApprovalKind) {
             const { table, column } = nativeApprovalRecord(kind);
-            return assertion(database, key, value, `${pendingInstanceExistsSql} AND EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=? AND ${column}=?)`, [
+            return assertion(database, key, value, `${pendingInstanceExistsSql} AND ${approvalRecordVersionExists(table, column, true)}`, [
                 id,
                 instanceVersion,
                 current_step,

@@ -30,3 +30,33 @@ describe('approval-version guard dedupe (r27)', () => {
     );
   });
 });
+
+// guard17 (legacy-record) and guard49 (route-version) share the byte-identical
+// record/version EXISTS prefix; no DB execution occurs when building descriptors.
+const guard17 = (ports.repository as unknown as {
+  guard17: (...args: unknown[]) => { kind: string; values: unknown[] };
+}).guard17;
+const guard49 = (ports.repository as unknown as {
+  guard49: (...args: unknown[]) => { kind: string; values: unknown[] };
+}).guard49;
+
+const recordExists = (versionFirst: boolean) =>
+  `EXISTS(SELECT 1 FROM finance_expenses WHERE id=? AND company_id=? AND ${versionFirst ? 'version=? AND status=?' : 'status=? AND version=?'})`;
+
+describe('approval record/version guard dedupe (r28)', () => {
+  it('guard17 emits the unchanged byte-identical SQL and bind order', () => {
+    const stmt = guard17('key', 'legacy-record', 'rec', 'co', 'pending_approval', 3, 'expense');
+    expect(stmt.kind).toBe('wf_native_command_assertions_3');
+    expect(stmt.values).toEqual(['key', 'legacy-record', 'rec', 'co', 'pending_approval', 3, recordExists(false)]);
+  });
+  it('guard49 emits the unchanged byte-identical SQL and bind order', () => {
+    const stmt = guard49('key', 'route-version', 'inst', 5, 2, 'rec', 'co', 9, 'pending', 'expense');
+    expect(stmt.kind).toBe('wf_native_command_assertions_3');
+    expect(stmt.values).toEqual(['key', 'route-version', 'inst', 5, 2, 'rec', 'co', 9, 'pending', pending + ' AND ' + recordExists(true)]);
+  });
+  it('shares one byte-identical EXISTS prefix literal (not re-deduped)', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const src = await readFile(new URL('../../../packages/server-workflow/src/adapters/approval-planning.ts', import.meta.url), 'utf8');
+    expect(src.match(/EXISTS\(SELECT 1 FROM \$\{table\} WHERE id=\? AND company_id=\? AND /g)).toHaveLength(1);
+  });
+});
