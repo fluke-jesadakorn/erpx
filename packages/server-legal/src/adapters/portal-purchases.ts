@@ -9,12 +9,13 @@ import {legalKindCapability} from '@erpx/server-legal/domain/purchases';
 import {legalItemPurchasePredicate,inLegalOwnerUnit,deferLegalOwnerCheck,legalSourceWitness} from '@erpx/server-legal/adapters/purchases';
 import {legalPackageEnforcementMode,checkPurchasedCapability,purchaseCommandBoundary} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {legalPurchaseClockCteSql} from './legal-read-tail-r21-sources';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import {attachmentPrivateReadSourceLocks} from '@erpx/server-files/public/private-attachment-reads';
 export async function legalPortalPurchasePredicate(alias='i',strictHistory=false){
  if(!strictHistory&&await legalPackageEnforcementMode()!=='enforced')return 'TRUE';
- const clock='legal_portal_purchase_clock.now_ms';return `EXISTS(WITH legal_portal_purchase_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms) SELECT 1 FROM legal_portal_purchase_clock WHERE ${legalItemPurchasePredicate(alias,'history',clock)} AND ${purchasedCapabilityPredicate(`${alias}.company_id`,'legal.documents','history',clock)} AND ${purchasedCapabilityPredicate(`${alias}.company_id`,'legal.access','history',clock)} AND ${scheduledFeaturePredicate(`${alias}.company_id`,'legal')})`;
+ const clock='legal_portal_purchase_clock.now_ms';return `EXISTS(WITH legal_portal_purchase_clock AS MATERIALIZED ${legalPurchaseClockCteSql} SELECT 1 FROM legal_portal_purchase_clock WHERE ${legalItemPurchasePredicate(alias,'history',clock)} AND ${purchasedCapabilityPredicate(`${alias}.company_id`,'legal.documents','history',clock)} AND ${purchasedCapabilityPredicate(`${alias}.company_id`,'legal.access','history',clock)} AND ${scheduledFeaturePredicate(`${alias}.company_id`,'legal')})`;
 }
 /** One verified Legal active-destruction guard. Both portal enrollment source
  * reads interpolate the same fixed predicate; keep it in one place so the two
