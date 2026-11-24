@@ -64709,6 +64709,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "organization",
+      "modules": [
+        "organization"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Organization change event snapshot head must stay one helper."
+      },
+      "apps": [
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-organization"
+      ],
+      "id": "organization.read-tail-r46-dedupe.unit",
+      "files": [
+        "tests/unit/organization/read-tail-r46-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "lane": "integration",
       "owner": "organization",
       "modules": [

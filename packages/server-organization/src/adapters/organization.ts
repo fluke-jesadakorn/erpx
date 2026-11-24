@@ -38,6 +38,7 @@ import {nodeChangeByIdCompany} from './organization-read-tail-sources-r40';
 import {relocationVersionSnapshot} from './organization-read-tail-sources-r41';
 import {latestDepartmentFlow,organizationChangeRows} from './organization-read-tail-sources-r42';
 import {nodeChildExists} from './organization-read-tail-sources-r45';
+import {snapshotJsonByAction} from './organization-read-tail-sources-r46';
 import {snapshotProjection,staffLevelNumberSource} from './organization-column-alias-families';
 import {impactCount} from './organization-column-alias-families-r29';
 const HEAD_SEAT_SNAPSHOT_SOURCE =
@@ -87,7 +88,7 @@ clock:{now:()=>Date.now()},authorize:actor=>requirePermission(actor,'organizatio
  slugConflict:async(companyId,branchId,slug)=>!!await db.prepare(nodeChildExists('slug=?')).bind(companyId,branchId,slug).first(),
  change:(companyId,id)=>db.prepare(nodeChangeByIdCompany('*')).bind(id,companyId).first<OrganizationNodeChange>(),
  target:(companyId,id)=>db.prepare(snapshotProjection('branch_id,slug','organization_nodes','id','company_id')).bind(id,companyId).first<{branch_id:string|null;slug:string}>(),
- relocationSnapshot:(companyId,id)=>relocationSnapshot(db,companyId,id),impact:(companyId,id)=>organizationNodeImpact(db,companyId,id),submittedSnapshot:async(id)=>(await db.prepare("SELECT snapshot_json FROM organization_node_change_events WHERE change_id=? AND action='submitted' ORDER BY created_at DESC,id DESC LIMIT 1").bind(id).first<{snapshot_json:string}>())?.snapshot_json??null,
+ relocationSnapshot:(companyId,id)=>relocationSnapshot(db,companyId,id),impact:(companyId,id)=>organizationNodeImpact(db,companyId,id),submittedSnapshot:async(id)=>(await db.prepare(snapshotJsonByAction('submitted','created_at DESC,id')).bind(id).first<{snapshot_json:string}>())?.snapshot_json??null,
  attachmentSets:(companyId,ids)=>attachmentPurposeFacts(db,companyId,ids),prepareReviewBinding:(actor,id,attachmentSetIds,version,key,decision)=>prepareAttachmentBinding(db,actor,{attachmentSetIds,bindingContract:{targetType:'organization_change',bindingType:'organization_change_review',contexts:[{purposeKey:'org_change_proof',componentKind:'action',componentRef:'organization-change-review'}]},targetId:id,expectedTargetVersion:version,commandId:key,bindingId:`${id}:${decision}:${version+1}`}),
  reviewGuards:(actor,id,version,key,requesterId)=>[assertion(db,key,'change-version',changeVersionGuardSource("state='submitted'"),[id,actor.companyId,version]),assertion(db,key,'independent-review','NOT iam_same_person(?,?,?)',[actor.userId,requesterId,actor.companyId])],
  stageCreateNode:async(actor,change,nodeId)=>[await nativeOrgStatement(db,actor.companyId,'node_create',[nodeId,change.node_kind,change.slug,change.display_name,change.node_kind==='branch'?actor.companyId:change.branch_id,actor.companyId,change.branch_id],`org-node:${change.id}`,Date.now())],
