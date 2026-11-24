@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8053,
+    "revision": 8061,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -134578,7 +134578,7 @@
         "owner": "marketing",
         "title": "marketing TS read tail native cutover (round 20)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -134590,22 +134590,42 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGA4mar",
-          "claimedAt": "2026-11-24T01:31:42.312Z",
-          "heartbeatAt": "2026-11-24T01:36:09.340Z",
-          "expiresAt": "2026-11-24T02:06:09.340Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-marketing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "201300b3d",
+            "owner": "marketing",
+            "before": 101,
+            "after": 98,
+            "note": "Local point reads (asset/candidate/history) and attachment owner facts share closed-variant helpers; byte-identical incl. FOR UPDATE variant."
+          },
+          {
+            "command": "vitest marketing dedupe suites (18 + 4)",
+            "result": "passed",
+            "sourceSha": "201300b3d"
+          },
+          {
+            "command": "tsc marketing + catalogue",
+            "result": "passed",
+            "sourceSha": "201300b3d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: attachment owner fact point read or local point reads (asset id, candidate id/lock, history) via closed-variant helpers. BEFORE=101.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGA4mar",
+          "at": "2026-11-24T01:37:57.479Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -134818,7 +134838,7 @@
         "owner": "collaboration",
         "title": "collaboration TS read tail native cutover (round 5)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -134830,22 +134850,42 @@
         "resources": [
           "owner:collaboration"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGA9col",
-          "claimedAt": "2026-11-24T01:32:54.386Z",
-          "heartbeatAt": "2026-11-24T01:36:09.340Z",
-          "expiresAt": "2026-11-24T02:06:09.340Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "201300b3d",
+            "owner": "collaboration",
+            "before": 462,
+            "after": 461,
+            "note": "social-home draft version EXISTS guard shared as draftVersionGuardSql; binds/return unchanged."
+          },
+          {
+            "command": "vitest collaboration services (125)",
+            "result": "passed",
+            "sourceSha": "201300b3d"
+          },
+          {
+            "command": "tsc collaboration",
+            "result": "passed",
+            "sourceSha": "201300b3d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: social-home EXISTS draft read or another byte-identical pair; BEFORE=462.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGA9col",
+          "at": "2026-11-24T01:37:57.789Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -135317,6 +135357,78 @@
         "nextAction": "Next: iam_members FOR SHARE reads (iam-migrations:150, iam-transactions:42) dedupe text while keeping FOR SHARE at each site; or emergency/directory probe pair. BEFORE=576.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.marketing.read-tail-r21",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing TS read tail native cutover (r21)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**",
+          "tests/integration/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGAPmar",
+          "claimedAt": "2026-11-24T01:37:58.088Z",
+          "heartbeatAt": "2026-11-24T01:37:58.088Z",
+          "expiresAt": "2026-11-24T02:07:58.088Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=98.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.collaboration.read-tail-r6",
+        "goalId": "G4",
+        "owner": "collaboration",
+        "title": "collaboration TS read tail native cutover (r6)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "tests/unit/collaboration/**",
+          "tests/integration/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGAQcol",
+          "claimedAt": "2026-11-24T01:37:58.372Z",
+          "heartbeatAt": "2026-11-24T01:37:58.372Z",
+          "expiresAt": "2026-11-24T02:07:58.372Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=461.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -135325,7 +135437,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 841,
+      "totalPackets": 843,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -135333,13 +135445,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 468,
+        "blocked": 470,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:37:33.675Z",
+    "updatedAt": "2026-11-24T01:37:58.376Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
