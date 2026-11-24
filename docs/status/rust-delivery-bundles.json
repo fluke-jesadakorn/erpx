@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9788,
+    "revision": 9798,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -149433,7 +149433,7 @@
         "owner": "marketing",
         "title": "marketing and assets native read-plan mounts",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -149451,28 +149451,21 @@
           "owner:assets",
           "resource:composition"
         ],
-        "claim": {
-          "runId": "run-20261123-l",
-          "agentId": "wGCMmar",
-          "claimedAt": "2026-11-24T05:56:19.419Z",
-          "heartbeatAt": "2026-11-24T05:56:24.357Z",
-          "expiresAt": "2026-11-24T06:26:24.357Z",
-          "generation": 164
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement scout plan: owner HTTP transports for marketing/assets read plans, composition modules + private_development_api mounts, TS clients, caller switches, tests; no TS deletion yet.",
+        "blocker": "released with work preserved",
+        "nextAction": "BLOCKED on cargo verification: 3 attempts of CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo check -j 1 -p erpx-service stalled at 0% CPU on erpx-server-collaboration (logs .scratch/dev/rust-migration/wGCMmar-service-check{,2,3}.log, no error lines). Implementation complete uncommitted: marketing/assets owner HTTP transports, composition modules+mounts, TS clients, config-gated caller switches. TS transport tests 9/9, structure, rustfmt pass. Executable verify: cargo check -j 1 (service) then cargo test -p erpx-server-marketing -p erpx-server-assets --lib.",
         "handoff": {
-          "runId": "run-20261123-k",
+          "runId": "run-20261123-l",
           "agentId": "wGCMmar",
-          "at": "2026-11-24T05:56:18.484Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired at 05:55Z; WIP reviewed in shared checkout; release claims and continue under new generation.",
-          "nextAction": "Implement scout plan: owner HTTP transports for marketing/assets read plans, composition modules + private_development_api mounts, TS clients, caller switches, tests; no TS deletion yet."
+          "at": "2026-11-24T05:56:57.397Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "BLOCKED on cargo verification: 3 attempts of CARGO_INCREMENTAL=0 CARGO_BUILD_JOBS=1 cargo check -j 1 -p erpx-service stalled at 0% CPU on erpx-server-collaboration (logs .scratch/dev/rust-migration/wGCMmar-service-check{,2,3}.log, no error lines). Implementation complete uncommitted: marketing/assets owner HTTP transports, composition modules+mounts, TS clients, config-gated caller switches. TS transport tests 9/9, structure, rustfmt pass. Executable verify: cargo check -j 1 (service) then cargo test -p erpx-server-marketing -p erpx-server-assets --lib."
         },
         "scopeRefinementRequired": false
       },
@@ -155713,6 +155706,172 @@
           "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=151."
         },
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.quality.read-tail-r14",
+        "goalId": "G4",
+        "owner": "quality",
+        "title": "quality TS read tail native cutover (r14)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-quality/src/**",
+          "tests/unit/quality/**",
+          "tests/integration/quality/**"
+        ],
+        "resources": [
+          "owner:quality"
+        ],
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCPqua",
+          "claimedAt": "2026-11-24T05:56:58.119Z",
+          "heartbeatAt": "2026-11-24T05:56:58.119Z",
+          "expiresAt": "2026-11-24T06:26:58.119Z",
+          "generation": 164
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=90.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.maintenance.read-tail-r12",
+        "goalId": "G4",
+        "owner": "maintenance",
+        "title": "maintenance TS read tail native cutover (r12)",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-maintenance/src/**",
+          "tests/unit/maintenance/**",
+          "tests/integration/maintenance/**"
+        ],
+        "resources": [
+          "owner:maintenance"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=42.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.ecommerce.read-tail-r8",
+        "goalId": "G4",
+        "owner": "ecommerce",
+        "title": "ecommerce TS read tail native cutover (r8)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-ecommerce/src/**",
+          "tests/unit/ecommerce/**",
+          "tests/integration/ecommerce/**"
+        ],
+        "resources": [
+          "owner:ecommerce"
+        ],
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCPeco",
+          "claimedAt": "2026-11-24T05:56:59.128Z",
+          "heartbeatAt": "2026-11-24T05:56:59.128Z",
+          "expiresAt": "2026-11-24T06:26:59.128Z",
+          "generation": 164
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=64.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.manufacturing.read-tail-r19",
+        "goalId": "G4",
+        "owner": "manufacturing",
+        "title": "manufacturing TS read tail native cutover (r19)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-manufacturing/src/**",
+          "tests/unit/manufacturing/**",
+          "tests/integration/manufacturing/**"
+        ],
+        "resources": [
+          "owner:manufacturing"
+        ],
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCPman",
+          "claimedAt": "2026-11-24T05:56:59.684Z",
+          "heartbeatAt": "2026-11-24T05:56:59.684Z",
+          "expiresAt": "2026-11-24T06:26:59.685Z",
+          "generation": 164
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=86.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.records.read-tail-r18",
+        "goalId": "G4",
+        "owner": "records",
+        "title": "records TS read tail native cutover (r18)",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-records/src/**",
+          "tests/unit/records/**",
+          "tests/integration/records/**"
+        ],
+        "resources": [
+          "owner:records"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=35.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -155721,21 +155880,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1232,
+      "totalPackets": 1237,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 15,
-        "in_progress": 19,
+        "pending": 17,
+        "in_progress": 21,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 867,
+        "blocked": 868,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 164,
-    "updatedAt": "2026-11-24T05:56:40.128Z",
+    "updatedAt": "2026-11-24T05:56:59.942Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
