@@ -73,7 +73,7 @@ describe('Projects read-tail r27 member EXISTS family dedupe', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(117);
-    expect(total).toBe(108); // r28 assignment-viewer head family 117->115; r29 ordered-image head 115->113; r30 visible-project-rows head 113->112; r31 receipt-event proof 112->111; r31 owner-or-member column 111->110; r32 purchase-source head 110->108.
+    expect(total).toBe(105); // r28 assignment-viewer head family 117->115; r29 ordered-image head 115->113; r30 visible-project-rows head 113->112; r31 receipt-event proof 112->111; r31 owner-or-member column 111->110; r32 purchase-source head 110->108; r33 point-read head and owner-or-member reuse 108->105.
   });
 });
 

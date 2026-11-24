@@ -7,6 +7,7 @@ import {projectsPackageEnforcementMode,readPurchasedAccess} from '@erpx/server-c
 import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {projectsClockCte} from './clock-cte';
 import {projectIdSql} from './project-id-source';
+import {projectPointReadHead} from './read-tail-r33';
 import {assignmentViewerSelect} from './read-tail-r28';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {ApiError} from '@erpx/server-runtime/public/http';
@@ -43,7 +44,7 @@ export async function projectTaskSourceRecordBackdrop(actor:WorkContext,target:P
  const database=(await holdingResources(actor.holdingId)).write,work=await readPurchasedAccess(database,'enforced',{companyId:actor.companyId,capability:'work.actions'});
  if(work.history)return null;
  if(options.strictProduct){
-  const version=actor.authority?.assignmentVersion??actor.iam?.queuedAssignmentVersion??await database.prepare('SELECT version FROM assignments WHERE id=? AND user_id=? AND company_id=? AND role=?').bind(actor.assignmentId,actor.userId,actor.companyId,actor.role).first<number>('version');
+  const version=actor.authority?.assignmentVersion??actor.iam?.queuedAssignmentVersion??await database.prepare(`${projectPointReadHead('version','assignments','user_id')} AND company_id=? AND role=?`).bind(actor.assignmentId,actor.userId,actor.companyId,actor.role).first<number>('version');
   const source=typeof version==='number'?await projectTaskProductRecord(database,{companyId:actor.companyId,branchId:actor.branchId,departmentId:actor.departmentId,userId:actor.userId,assignmentId:actor.assignmentId,assignmentVersion:version,role:actor.role},target):null;
   if(!source)throw new ApiError(404,'PROJECT_TASK_NOT_FOUND','The Project task is unavailable in this workspace.');
   return {kind:'task',title:source.title,status:source.status};

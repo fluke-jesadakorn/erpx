@@ -4,11 +4,11 @@ import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { projectDependencyBlockerCohort, projectMilestoneOverdueCohort } from "@erpx/server-runtime/public/executive/project-milestone-access";
+import { projectOwnerOrMemberSql } from "@erpx/server-projects/adapters/project-read-projections";
 import { ProjectMilestoneEvidenceRow, ProjectDependencyEvidenceRow, ProjectActualEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
 function projectActualScope() {
     return `p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.department_id=?)
-    AND (iam_same_person(p.owner_user_id,?,p.company_id) OR EXISTS(
-      SELECT 1 FROM staff_project_members member WHERE member.project_id=p.id AND iam_same_person(member.user_id,?,p.company_id)))`;
+    AND ${projectOwnerOrMemberSql('p')}`;
 }
 /** Owner-local fixed projections for Projects executive evidence. The search
  * and by-id readers of each metric execute the identical projection column

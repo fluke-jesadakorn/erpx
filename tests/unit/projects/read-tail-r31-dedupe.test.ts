@@ -117,7 +117,7 @@ describe('Projects read-tail r31 receipt-event and owner-or-member dedupe', () =
     };
     walk(srcRoot);
     expect(total).toBeLessThan(112);
-    expect(total).toBe(108); // r30 left 112; r31 receipt-event proof 112->111; owner-or-member column 111->110; r32 purchase-source head 110->108.
+    expect(total).toBe(105); // r30 left 112; r31 receipt-event proof 112->111; owner-or-member column 111->110; r32 purchase-source head 110->108; r33 point-read head and owner-or-member reuse 108->105.
   });
 });
 

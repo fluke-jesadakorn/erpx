@@ -79,6 +79,6 @@ describe('Projects read-tail r32 purchase-source head dedupe', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(110);
-    expect(total).toBe(108); // r31 left 110; r32 purchase-source head 110->108.
+    expect(total).toBe(105); // r31 left 110; r32 purchase-source head 110->108; r33 point-read head and owner-or-member reuse 108->105.
   });
 });
