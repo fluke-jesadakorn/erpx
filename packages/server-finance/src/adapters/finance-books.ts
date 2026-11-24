@@ -24,6 +24,7 @@ const openingSql = `SELECT l.account_id AS "accountId",l.dimension_json AS dimen
  FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id
  WHERE j.company_id=? AND j.chart_id=? AND j.status IN ('posted','reversed') AND j.entry_date<?
  GROUP BY l.account_id,l.dimension_json HAVING SUM(l.base_debit_minor-l.base_credit_minor)<>0 ORDER BY l.account_id,l.dimension_json`;
+const chartPostedSql = "SELECT 1 FROM finance_journals WHERE chart_id=? AND status IN ('posted','reversed')";
 async function opening(
   db: SqlDatabase,
   company: string,
@@ -87,7 +88,7 @@ alreadyActive:async(chartId)=>db
         .first(),
 targetPosted:async(chartId)=>db
           .prepare(
-            "SELECT 1 FROM finance_journals WHERE chart_id=? AND status IN ('posted','reversed')",
+            chartPostedSql,
           )
           .bind(chartId)
           .first(),
@@ -225,7 +226,7 @@ existingRule:async(secondaryChartId)=>write
     .first<{ primary_chart_id: string }>(),
 targetPosted:async(secondaryChartId)=>write
       .prepare(
-        "SELECT 1 FROM finance_journals WHERE chart_id=? AND status IN ('posted','reversed')",
+        chartPostedSql,
       )
       .bind(secondaryChartId)
       .first(),

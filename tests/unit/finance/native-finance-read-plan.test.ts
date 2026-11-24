@@ -170,3 +170,13 @@ describe('finance active-chart base_currency read dedupe', () => {
     expect(binds).toEqual([['ch-1', 'co-1']]);
   });
 });
+
+const POSTED_CHART_SQL = "SELECT 1 FROM finance_journals WHERE chart_id=? AND status IN ('posted','reversed')";
+
+describe('finance books posted-chart existence read dedupe', () => {
+  it('keeps one byte-identical literal and two constant-backed reads', async () => {
+    const text = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-books.ts', import.meta.url), 'utf8');
+    expect(text.split(`"${POSTED_CHART_SQL}"`).length - 1).toBe(1);
+    expect(text.split('chartPostedSql,').length - 1).toBe(2);
+  });
+});
