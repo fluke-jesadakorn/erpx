@@ -240,8 +240,7 @@
             "packages/server-identity_access/src/application/position-gpo.ts",
             "packages/server-identity_access/src/adapters/position-gpo.ts",
             "packages/server-identity_access/src/public/gpo-contract.ts",
-            "packages/server-organization/src/adapters/gpo-sources.ts",
-            "packages/server-people_payroll/src/adapters/gpo-sources.ts"
+            "packages/server-organization/src/adapters/gpo-sources.ts"
           ],
           "regression": [
             "tests/integration/organization/position-gpo.test.ts",
@@ -2866,7 +2865,6 @@
             "packages/server-people_payroll/src/adapters/department-override-facts.ts",
             "packages/server-people_payroll/src/adapters/directory-mapping-person.ts",
             "packages/server-people_payroll/src/adapters/directory-operation-facts.ts",
-            "packages/server-people_payroll/src/adapters/gpo-sources.ts",
             "packages/server-people_payroll/src/adapters/inventory-read-projections.ts",
             "packages/server-people_payroll/src/adapters/leave-evidence.ts",
             "packages/server-people_payroll/src/adapters/leave-self-service.ts",
