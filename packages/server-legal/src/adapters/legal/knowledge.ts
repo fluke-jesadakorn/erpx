@@ -14,6 +14,7 @@ import { legalStatePointSql } from '../legal-read-tail-r33-sources';
 import { legalActiveDestructionGuardHead } from '../legal-read-tail-r46-sources';
 import { legalAttachmentAvailableSql } from '../legal-read-tail-r47-sources';
 import { legalDisposedGuardSql } from '../legal-read-tail-r39-sources';
+import { legalCorpusSourceCleanHead } from '../legal-read-tail-r48-sources';
 /** Shared by search and direct citations; aliases must be legal_documents d and legal_items i.
  * Retained for the command-side availability check in `citations.ts` and the AI evidence reads. */
 export const legalEvidenceDocumentAvailableSql = `${legalAttachmentAvailableSql('clean_link','clean_file')} AND ${legalDisposedGuardSql('disposed','d.id')} ${legalActiveDestructionGuardHead()}`;
@@ -32,7 +33,7 @@ function application(db:SqlDatabase,a:WorkContext,view?:LegalKnowledgeView,citat
  reviewed:async()=>(view?.sources??[]).filter(source=>source.kind==="document"),
  authored:async()=>[],
  authoredItem:async()=>view?.authoredItems??[],
- documentAvailable:async id=>{const d={id};return Boolean(await db.prepare(`SELECT 1 FROM legal_documents d JOIN legal_items i ON i.id=d.item_id WHERE d.id=? AND ${v.sql} AND ${(await purchase()).where} AND ${cleanDocument}`).bind(d.id, ...v.values).first());},
+ documentAvailable:async id=>{const d={id};return Boolean(await db.prepare(legalCorpusSourceCleanHead(`${v.sql} AND ${(await purchase()).where} AND ${cleanDocument}`)).bind(d.id, ...v.values).first());},
  textApproved:async(reviewId,documentId)=>{const source={text_review_id:reviewId},d={id:documentId};return Boolean(await db.prepare(legalStatePointSql("1","legal_text_reviews","document_id","approved")).bind(source.text_review_id, d.id).first());},
  recordReads:async rows=>{const ai=rows.filter(row=>row.action==="ai.source.read");if(ai.length){const statements=await Promise.all(ai.map(source=>legalAccessEvent(db,a.companyId,a.userId).record(source.identifier,source.action,source.item_id,source.document_id,source.now)));await db.batch(statements);}}
  }});}

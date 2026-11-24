@@ -17,6 +17,7 @@ import { legalLawCorpus } from '@erpx/server-collaboration/adapters/native-legal
 import { legalActiveDestructionGuardHead } from '../legal-read-tail-r46-sources';
 import { legalAttachmentAvailableSql } from '../legal-read-tail-r47-sources';
 import { legalDisposedGuardSql } from '../legal-read-tail-r39-sources';
+import { legalCorpusSourceCleanHead } from '../legal-read-tail-r48-sources';
 export {legalChunkSchema} from "@erpx/server-legal/domain/law-corpus";
 export {fetchOfficialLawSource} from "@erpx/server-legal/adapters/legal/law-source-provider";
 export {drainLegalSourceChecks} from "@erpx/server-legal/adapters/legal/law-source-worker";
@@ -47,7 +48,7 @@ review:(facts:{id:string;id2:string;companyId:string;reviewKind:"law"|"document"
 decideReview:(facts:{fact0:"approved" | "retired";actorId:string;now:number;reason:string;id:string;reviewKind:"law"|"document";})=>stage(db.prepare(`UPDATE ${reviewTables[facts.reviewKind].table} SET state=?,reviewed_by=?,reviewed_at=?,review_reason=?,version=version+1 WHERE id=?`).bind(facts.fact0,facts.actorId,facts.now,facts.reason,facts.id)),
 async reviewSourceCheck(facts){return stage(await nativeCorpus.reviewSourceCheck(facts));},
 async advanceRecord(facts){return stage(await nativeCorpus.advanceRecord({now:facts.now,id:facts.id}));},
-requireLegalCorpusSourceClean:(key:string,values:string[])=>stage(assertion(db,key,"legal-corpus-source-clean",`EXISTS(SELECT 1 FROM legal_documents d JOIN legal_items i ON i.id=d.item_id WHERE d.id=? AND d.item_id=? AND i.company_id=? AND d.checksum=? AND ${legalDisposedGuardSql('x','d.id')} AND ${legalAttachmentAvailableSql()})`,values)),
+requireLegalCorpusSourceClean:(key:string,values:string[])=>stage(assertion(db,key,"legal-corpus-source-clean",`EXISTS(${legalCorpusSourceCleanHead(`d.item_id=? AND i.company_id=? AND d.checksum=? AND ${legalDisposedGuardSql('x','d.id')} AND ${legalAttachmentAvailableSql()}`)})`,values)),
 requireLawSourceCurrent:(key:string,values:string[])=>stage(assertion(db,key,"law-source-current","EXISTS(SELECT 1 FROM legal_law_sources WHERE id=? AND company_id=? AND rule_id=? AND state='active')",values)),
 requireLawSourceCheckCurrent:(key:string,values:string[])=>stage(assertion(db,key,"law-source-check-current","EXISTS(SELECT 1 FROM legal_law_source_checks WHERE id=? AND state='pending_review' AND checksum=? AND candidate_revision_id IS NULL)",values)),
 requireLawRevisionCurrent:(key:string,values:string[])=>stage(assertion(db,key,"law-revision-current","EXISTS(SELECT 1 FROM legal_law_revisions WHERE id=? AND rule_id=? AND state='approved')",values)),

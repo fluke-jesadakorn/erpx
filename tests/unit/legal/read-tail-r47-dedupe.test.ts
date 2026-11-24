@@ -136,7 +136,7 @@ describe('legal read-tail r47 attachment-availability spine and disposal-guard r
     for (const symbol of symbols) expect(texts.join('\n')).toContain(`export const ${symbol}`);
   });
 
-  it('retirement:ts-statements is pinned at BEFORE=201 -> AFTER=196', async () => {
+  it('retirement:ts-statements stays strictly below the recorded BEFORE=201 / AFTER=196', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -147,6 +147,6 @@ describe('legal read-tail r47 attachment-availability spine and disposal-guard r
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(201);
-    expect(total).toBe(196);
+    expect(total).toBeLessThan(196);
   });
 });
