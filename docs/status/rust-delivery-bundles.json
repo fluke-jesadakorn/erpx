@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12084,
+    "revision": 12086,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -180209,6 +180209,42 @@
         "nextAction": "Rank3 holding point reads via billingPointReadSql (-4) plus Rank1 legacy beta_billing head (-1): 53->48.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.inventory.read-tail-r46",
+        "goalId": "G4",
+        "owner": "inventory",
+        "title": "inventory r14 journal leftover and schema readiness probes",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "tests/unit/inventory/**",
+          "tests/integration/inventory/**"
+        ],
+        "resources": [
+          "owner:inventory"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n07",
+          "claimedAt": "2026-11-24T13:26:22.279Z",
+          "heartbeatAt": "2026-11-24T13:26:22.279Z",
+          "expiresAt": "2026-11-24T13:56:22.279Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Rank1 sales count journal reuses r14 helper (-1), Rank2 schemaReadySql whitelist (-2), Rank3 jsonb inList fragment (-1): 320->316.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -180217,11 +180253,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1726,
+      "totalPackets": 1727,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 11,
+        "in_progress": 12,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -180231,7 +180267,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:25:55.487Z",
+    "updatedAt": "2026-11-24T13:26:22.287Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
