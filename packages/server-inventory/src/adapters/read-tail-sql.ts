@@ -153,3 +153,12 @@ export const journalAccountLineExistsSql = (accountKey: string, amountColumn: st
  *  statement, binds and scope. r11-r25 helpers above are left untouched. */
 export const sourceScopeRowsSql = (rows: string, alias: string) =>
   `SELECT ${alias}.*,NULL::text department_id FROM (${rows}) ${alias}`;
+/** r27: parameterized package-obligation document rows. The transfer, transit
+ *  and valuation pending-document probes are byte-identical across the POS and
+ *  PMS package reads except for the trailing pending projection. Only the SQL
+ *  text is shared; every caller keeps its own statement, binds and scope.
+ *  r11-r26 helpers above are left untouched. */
+export const packageObligationDocumentRowsSql = (pending: string) =>
+  `    UNION ALL SELECT 'transfer',t.id,t.version,t.status,t.total_value_minor${pending} FROM inventory_transfers t,scope WHERE t.company_id=scope.company_id AND t.status NOT IN ('posted','cancelled','rejected')\n` +
+  `    UNION ALL SELECT 'transit',t.id,t.version,t.status,0${pending} FROM inventory_transit t,scope WHERE t.company_id=scope.company_id AND t.status NOT IN ('completed','cancelled')\n` +
+  `    UNION ALL SELECT 'valuation',l.id,l.version,l.status,l.amount_minor${pending} FROM inventory_landed_costs l,scope WHERE l.company_id=scope.company_id AND l.status NOT IN ('posted','cancelled','rejected')`;

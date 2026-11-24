@@ -1,7 +1,7 @@
 import {serviceInitialPhysicalStockMarkedRows} from '@erpx/server-inventory/adapters/service-initial-physical-stock-count-source-sql';
 import {posInitialPhysicalStockCountSourceRows,posInitialPhysicalStockMarkedRows} from '@erpx/server-inventory/adapters/pos-initial-physical-stock-count-source-sql';
 import {supplyInventoryTerminalReceipts} from '@erpx/server-inventory/adapters/supply-terminal-receipts';
-import {postedInitialPhysicalStockSourceSql,terminalReceiptMatchSql,sourceExistsSql} from './read-tail-sql';
+import {postedInitialPhysicalStockSourceSql,terminalReceiptMatchSql,sourceExistsSql,packageObligationDocumentRowsSql} from './read-tail-sql';
 import {recordAttachmentVersionSourceReadLocks} from '@erpx/server-files/public/record-version-receipts';
 import "server-only";
 import { createHash } from "node:crypto";
@@ -32,9 +32,7 @@ export async function posInventoryPackageObligations(owner: PostgresDatabase, da
   // Ordinary documents retain their original conservative attribution; the new private source is exact.
   const facts = (await database.prepare(`WITH scope AS (SELECT ?::text company_id)
     SELECT 'count' kind,c.id,c.version,c.status,c.net_value_minor amount,true pending FROM inventory_counts c,scope WHERE c.company_id=scope.company_id AND c.status NOT IN ('posted','cancelled','rejected') AND NOT EXISTS(SELECT 1 FROM (${posInitialPhysicalStockMarkedRows} UNION ALL ${serviceInitialPhysicalStockMarkedRows}) marker WHERE marker.id=c.id)
-    UNION ALL SELECT 'transfer',t.id,t.version,t.status,t.total_value_minor,true FROM inventory_transfers t,scope WHERE t.company_id=scope.company_id AND t.status NOT IN ('posted','cancelled','rejected')
-    UNION ALL SELECT 'transit',t.id,t.version,t.status,0,true FROM inventory_transit t,scope WHERE t.company_id=scope.company_id AND t.status NOT IN ('completed','cancelled')
-    UNION ALL SELECT 'valuation',l.id,l.version,l.status,l.amount_minor,true FROM inventory_landed_costs l,scope WHERE l.company_id=scope.company_id AND l.status NOT IN ('posted','cancelled','rejected')
+${packageObligationDocumentRowsSql(',true')}
 
     UNION ALL SELECT 'pos-initial-count',c.id,c.version,c.status,c.net_value_minor,
       NOT COALESCE(${sourceExistsSql(posInitialPhysicalStockCountSourceRows,'source','c.id','c.company_id')} AND ${terminalReceiptMatchSql(supplyInventoryTerminalReceipts,'count','c.id','c.company_id','c.status','c.version')},false)
