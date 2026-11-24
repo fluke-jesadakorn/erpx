@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10546,
+    "revision": 10550,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -163448,7 +163448,7 @@
         "owner": "identity_access",
         "title": "identity revoked session probe family (round 19)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -163460,22 +163460,37 @@
         "resources": [
           "owner:identity_access"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMida4",
-          "claimedAt": "2026-11-24T08:07:21.331Z",
-          "heartbeatAt": "2026-11-24T08:07:21.331Z",
-          "expiresAt": "2026-11-24T08:37:21.331Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "c407b5643",
+            "owner": "identity_access",
+            "before": 530,
+            "after": 528,
+            "note": "Two qmark callers and one pg twin share revokedSessionProbeSql; locks, control-plane reads and r13-r18 helpers untouched."
+          },
+          {
+            "command": "vitest identity r13-r19 (31) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "c407b5643"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Revoked session probe shared by two qmark callers and one pg caller. BEFORE=530.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMida4",
+          "at": "2026-11-24T08:15:17.832Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -164040,6 +164055,42 @@
         "nextAction": "Six jsonb_agg fragment definitions share one helper. BEFORE=70.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.identity_access.read-tail-r20",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "title": "identity session by user and same person column (round 20)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMida5",
+          "claimedAt": "2026-11-24T08:15:18.248Z",
+          "heartbeatAt": "2026-11-24T08:15:18.248Z",
+          "expiresAt": "2026-11-24T08:45:18.248Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Session by user tails and same person column probes share parameterized helpers. BEFORE=528.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -164048,7 +164099,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1410,
+      "totalPackets": 1411,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 22,
@@ -164056,13 +164107,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1031,
+        "blocked": 1032,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:15:00.765Z",
+    "updatedAt": "2026-11-24T08:15:18.253Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
