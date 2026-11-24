@@ -111,3 +111,11 @@ export const sourceExistsSql = (rows: string, alias: string, id: string, company
  * and independent statement. r11-r21 helpers above are left untouched. */
 export const journalLineSumSql = (column: string) =>
   `(SELECT sum(${column}) FROM finance_journal_lines WHERE journal_id=j.id)`;
+/** r23: parameterized child-line ownership EXISTS guard. A child composite row
+ * (count/landed/transit/transfer lot, allocation or event) is admitted only
+ * while its owning line still belongs to the parent document. The table, row
+ * alias, child FK and parent FK vary per consumer; only the SQL text is shared.
+ * Every caller keeps its own statement, binds and scope. r11-r22 helpers above
+ * are left untouched. */
+export const childLineOwnerExistsSql = (table: string, alias: string, childFk: string, parentFk: string) =>
+  `EXISTS(SELECT 1 FROM ${table} ${alias} WHERE ${alias}.id=child.${childFk} AND ${alias}.${parentFk}=d.id)`;
