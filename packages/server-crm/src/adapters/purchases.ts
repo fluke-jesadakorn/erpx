@@ -22,6 +22,7 @@ import type {Row} from '@erpx/server-commerce/public/commerce';
 import {crmLeadSchema,type CRMLeadInput} from "@erpx/server-crm/domain/leads";
 import {salesRecipientEligibility} from "@erpx/server-sales/public/sales-recipient";
 import {commercialOwnerProjectionSources as organizationProjectionSources} from "@erpx/server-organization/public/commercial-owner-projection-sources";
+import {crmCreatorLeadScopeSql} from "./read-tail-r24-sql";
 
 export type CRMPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type CRMPurchaseTarget={kind:"lead"|"activity"|"account"|"contact"|"guest-link";id:string};
@@ -87,7 +88,7 @@ export const crmHotelReservationProbeSql=`SELECT 1 FROM (${crmHotelReservationSo
  * join shared by the Sales-obligation lead-disqualify and opportunity-win fact
  * sites. Callers pass only their differing tail; rendered SQL stays byte-identical. */
 export const crmCaseEventReceiptWitnessSql=`SELECT 1 FROM crm_case_events event JOIN command_receipts receipt ON event.id='crm-event-'||receipt.command_id||`;
-export const crmAccountCreatedByScopeSql=`(?::text IS NULL OR account.created_by=? OR EXISTS(SELECT 1 FROM crm_leads lead WHERE lead.account_id=account.id AND lead.company_id=account.company_id AND lead.branch_id=? AND (?::text IS NULL OR lead.department_id=?)))`;
+export const crmAccountCreatedByScopeSql=crmCreatorLeadScopeSql('account','lead','lead.account_id=account.id','lead.company_id=account.company_id');
 export const crmPurchaseGuestLinkRows=`SELECT link.id,link.company_id,guest.branch_id,NULL::text department_id,account.created_by,
  jsonb_build_object('link',jsonb_build_array(link.id,link.company_id,link.contact_id,link.guest_id,link.property_id),'contact',${contactIdentity},'guest',to_jsonb(guest)) witness FROM crm_guest_links link
  JOIN crm_contacts contact ON contact.id=link.contact_id AND contact.company_id=link.company_id
@@ -112,7 +113,7 @@ async function source(database:SqlDatabase,actor:WorkContext,target:CRMPurchaseT
  const identity=target.kind==="account"?"l.account_id":target.kind==="contact"?"l.contact_id":"l.contact_id";
  const scoped=target.kind==="lead"||target.kind==="activity"
   ?"(?::text IS NULL OR actual.branch_id=?) AND (?::text IS NULL OR actual.department_id=?)"
-  :`(?::text IS NULL OR actual.created_by=? OR EXISTS(SELECT 1 FROM crm_leads l WHERE ${identity}=${target.kind==="guest-link"?"(SELECT contact_id FROM crm_guest_links WHERE id=actual.id)":"actual.id"} AND l.company_id=actual.company_id AND l.branch_id=? AND (?::text IS NULL OR l.department_id=?)))`;
+  :crmCreatorLeadScopeSql('actual','l',`${identity}=${target.kind==="guest-link"?"(SELECT contact_id FROM crm_guest_links WHERE id=actual.id)":"actual.id"}`,'l.company_id=actual.company_id');
  const args=target.kind==="lead"||target.kind==="activity"?[actor.branchId,actor.branchId,actor.departmentId,actor.departmentId]:[actor.branchId,actor.userId,actor.branchId,actor.departmentId,actor.departmentId];
  const row=await database.prepare(`SELECT id,company_id,branch_id,department_id,witness::text witness FROM (${sourceRows[target.kind]}) actual WHERE id=? AND company_id=? AND ${scoped}`).bind(target.id,actor.companyId,...args).first<Source>();
  if(!row||target.kind==="guest-link"&&actor.branchId&&row.branch_id!==actor.branchId)throw new ApiError(404,"CRM_SOURCE_NOT_FOUND","The original CRM source is unavailable in this workspace.");

@@ -18,11 +18,11 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {createCRMIdentityApplication,type CRMIdentityPorts,type CRMIdentityMutation} from "@erpx/server-crm/application/identities";
 import {crmIdentityCommand} from "@erpx/server-crm/domain/identities";
 import {requireCRMPurchasedRead,crmReferenceHistory,crmReferencePurchaseControls,withCRMPurchasedCommand,crmNativeReadFilter,type CRMPurchaseTarget} from "@erpx/server-crm/adapters/purchases";
-const contactScopeSql=`(?::text IS NULL OR acc.created_by=? OR EXISTS(SELECT 1 FROM crm_leads l WHERE l.contact_id=c.id AND l.branch_id=? AND (?::text IS NULL OR l.department_id=?)))`;
-/** r15: one parameterized literal for the account/contact created-by lead scope
- * shared by the account and contact workspace reads; rendered SQL stays
- * byte-identical to the pre-dedupe text. */
-const accountOrContactLeadScopeSql=(field:string,ref:string,company:string)=>`(?::text IS NULL OR a.created_by=? OR EXISTS(SELECT 1 FROM crm_leads l WHERE l.${field}=${ref} AND l.company_id=${company} AND l.branch_id=? AND (?::text IS NULL OR l.department_id=?)))`;
+import {crmCreatorLeadScopeSql} from "./read-tail-r24-sql";
+/** G4 r24: the creator (created_by) lead-scope guards render through the one
+ * owner helper; every rendered string stays byte-identical to the prior text. */
+const contactScopeSql=crmCreatorLeadScopeSql('acc','l','l.contact_id=c.id','');
+const accountOrContactLeadScopeSql=(field:string,ref:string,company:string)=>crmCreatorLeadScopeSql('a','l',`l.${field}=${ref}`,`l.company_id=${company}`);
 function application(a:WorkContext,provided?:SqlDatabase){let resource:Promise<SqlDatabase>|null=provided?Promise.resolve(provided):null;const database=()=>resource??=holdingResources(a.holdingId).then(x=>x.write);
 const ports:CRMIdentityPorts={canGuestReview:hasPermission(a,'commerce.approve')&&hasPermission(a,'pms.read'),canReview:hasPermission(a,'commerce.approve'),canCreate:hasPermission(a,'commerce.sales'),clock:{now:()=>Date.now()},authorize:permission=>{requirePermission(a,permission);},
 replay:async(key,operation,id,input)=>replayCommand(await database(),a,key,operation,id,input),
