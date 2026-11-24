@@ -234,4 +234,51 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     expect(locks.match(/SELECT/g)).toHaveLength(4);
     expect(locks).toContain("'settings',(SELECT to_jsonb(s) FROM ai_company_settings s WHERE s.company_id=?)");
   });
+
+  /** Verbatim pre-dedupe parameterized active-private-session witness (r15 -> r16 BEFORE: 61 SELECTs).
+   * activePrivateSession used the equivalent reversed inner join, normalized here to sessions-first. */
+  const activeSessionTemplate =
+    "SELECT 1 FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id WHERE s.id=? AND s.company_id=? AND s.user_id=? AND s.assignment_id=? AND c.status='active' AND c.expires_at>${expiresAt}";
+  const activeSessionBoundBefore =
+    "SELECT 1 FROM ai_private_session_controls c JOIN ai_private_sessions s ON s.id=c.session_id WHERE s.id=? AND s.company_id=? AND s.user_id=? AND s.assignment_id=? AND c.status='active' AND c.expires_at>?";
+
+  it('r16: authors the parameterized active-private-session witness once', async () => {
+    const gov = await src('adapters/agent-governance.ts');
+    const def = gov.match(/const agentActivePrivateSessionSql = \(expiresAt: string\) =>\s*`(SELECT [^`]*?)`;/)?.[1];
+    expect(def).toBe(activeSessionTemplate);
+    expect(gov.match(/SELECT 1 FROM ai_private_sessions s JOIN ai_private_session_controls c ON c\.session_id=s\.id/g)).toHaveLength(1);
+    expect(gov.match(/agentActivePrivateSessionSql\(/g)).toHaveLength(2);
+  });
+
+  it('r16: both consumers render the exact witness with unchanged binds', async () => {
+    const gov = await src('adapters/agent-governance.ts');
+    const def = gov.match(/const agentActivePrivateSessionSql = \(expiresAt: string\) =>\s*`(SELECT [^`]*?)`;/)?.[1]!;
+    const render = (exp: string) => def.replace('${expiresAt}', exp);
+    expect(render('?').replace(
+      'ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id',
+      'ai_private_session_controls c JOIN ai_private_sessions s ON s.id=c.session_id',
+    )).toBe(activeSessionBoundBefore);
+    expect(render('floor(extract(epoch FROM clock_timestamp())*1000)::bigint')).toBe(
+      "SELECT 1 FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id WHERE s.id=? AND s.company_id=? AND s.user_id=? AND s.assignment_id=? AND c.status='active' AND c.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint",
+    );
+    expect(gov).toContain("db.prepare(agentActivePrivateSessionSql('?'))");
+    expect(gov).toContain('.bind(sessionId,companyId,userId,assignmentId,now).first()');
+    expect(gov).toContain("`EXISTS(${agentActivePrivateSessionSql('floor(extract(epoch FROM clock_timestamp())*1000)::bigint')})`,[sessionId,companyId,userId,assignmentId]");
+  });
+
+  it('r16: the translation guard, locks and r7-r15 families stay untouched', async () => {
+    const gov = await src('adapters/agent-governance.ts');
+    const assistant = await src('adapters/workspace-assistant.ts');
+    const locks = await src('adapters/social-ai-source-locks.ts');
+    expect(gov).toContain(`const agentPoolMemberAccessSql = '${poolMemberAccess}';`);
+    expect(gov).toContain(`const privateSessionSelectSql = '${privateSessionSelect}';`);
+    for (const lock of [
+      '"SELECT session_id FROM ai_private_session_controls WHERE session_id=? FOR SHARE"',
+      '"SELECT x.id FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id JOIN agent_catalog c ON c.id=v.agent_id WHERE x.id=? FOR SHARE OF x,v,c"',
+      '"SELECT id FROM agent_pools WHERE id=? FOR SHARE"',
+    ]) expect(gov).toContain(lock);
+    expect(locks.match(/SELECT/g)).toHaveLength(4);
+    expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
+    expect(assistant).toContain('"SELECT state,answer_json FROM ai_workspace_turns WHERE id=?"');
+  });
 });

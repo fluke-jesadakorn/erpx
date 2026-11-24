@@ -25,6 +25,11 @@ const agentPoolMemberAccessSql = 'EXISTS(SELECT 1 FROM agent_pool_members m WHER
 /** Byte-identical Agent private-session projection shared by workspaceSessions and sessionRecord.
  * Each call site keeps its own binds; the native session owner remains the authority. */
 const privateSessionSelectSql = 'SELECT s.id,s.user_id,s.assignment_id,s.conversation_key,s.generation,s.created_at,c.* FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id WHERE s.company_id=?';
+/** Parameterized Agent active-private-session witness shared by activePrivateSession (bound expiry)
+ * and guardPrivateSession (DB-clock expiry). The expiry expression is the only variation; both call
+ * sites keep their own binds; the native session owner remains the authority. */
+const agentActivePrivateSessionSql = (expiresAt: string) =>
+  `SELECT 1 FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id WHERE s.id=? AND s.company_id=? AND s.user_id=? AND s.assignment_id=? AND c.status='active' AND c.expires_at>${expiresAt}`;
 async function exposed<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 function bindRepository(db:SqlDatabase):AgentGovernanceRepository<SqlStatement>{return {async policyCandidates(companyId:string,userId:string){return (await db.prepare(
     `SELECT x.id,x.version assignment_version,x.scope_path,x.pool_id,x.agent_version_id,
@@ -36,11 +41,10 @@ function bindRepository(db:SqlDatabase):AgentGovernanceRepository<SqlStatement>{
        AND (x.user_id=? OR ${agentPoolMemberAccessSql})
      ORDER BY length(x.scope_path) DESC,x.created_at DESC,x.id`,
   ).bind(companyId,userId,userId).all<Row>()).results;},
-async activePrivateSession(sessionId:string,companyId:string,userId:string,assignmentId:string,now:number){return db.prepare("SELECT 1 FROM ai_private_session_controls c JOIN ai_private_sessions s ON s.id=c.session_id WHERE s.id=? AND s.company_id=? AND s.user_id=? AND s.assignment_id=? AND c.status='active' AND c.expires_at>?")
+async activePrivateSession(sessionId:string,companyId:string,userId:string,assignmentId:string,now:number){return db.prepare(agentActivePrivateSessionSql('?'))
     .bind(sessionId,companyId,userId,assignmentId,now).first();},
 lockSession(sessionId:string){return db.prepare("SELECT session_id FROM ai_private_session_controls WHERE session_id=? FOR SHARE").bind(sessionId);},
-guardPrivateSession(key:string,value:"private-session",sessionId:string,companyId:string,userId:string,assignmentId:string){return assertion(db,key,value,`EXISTS(SELECT 1 FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id
-      WHERE s.id=? AND s.company_id=? AND s.user_id=? AND s.assignment_id=? AND c.status='active' AND c.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint)`,[sessionId,companyId,userId,assignmentId]);},
+guardPrivateSession(key:string,value:"private-session",sessionId:string,companyId:string,userId:string,assignmentId:string){return assertion(db,key,value,`EXISTS(${agentActivePrivateSessionSql('floor(extract(epoch FROM clock_timestamp())*1000)::bigint')})`,[sessionId,companyId,userId,assignmentId]);},
 guardDefaultPolicy(key:string,value:"agent-default",companyId:string,path:string,userId:string){return assertion(db,key,value,`NOT EXISTS(SELECT 1 FROM agent_assignments x WHERE x.company_id=? AND x.status='active'
     AND (x.scope_path='/' OR ?=x.scope_path OR starts_with(?,x.scope_path||'/') OR starts_with(?,x.scope_path||'?'))
     AND (x.user_id=? OR ${agentPoolMemberAccessSql}))`,[companyId,path,path,path,userId,userId]);},
