@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12449,
+    "revision": 12451,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183550,7 +183550,7 @@
         "owner": "files",
         "title": "files TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183561,28 +183561,36 @@
         "resources": [
           "owner:files"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n93",
-          "claimedAt": "2026-11-24T16:09:12.776Z",
-          "heartbeatAt": "2026-11-24T16:11:53.559Z",
-          "expiresAt": "2026-11-24T16:41:53.559Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0cd2929b3",
+            "owner": "files",
+            "before": 242,
+            "after": 239,
+            "note": "Unaliased attachment_events head (-1), attachment_sets star head (-1), social draft guard inline EXISTS reuse (-1). Advisory/FOR UPDATE/LOCK TABLE/nativeWrite untouched."
+          },
+          {
+            "command": "vitest files (111) + scoped tsc + byte render-back",
+            "result": "passed",
+            "sourceSha": "0cd2929b3"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "attachment_events head (-1): 242->241. BEFORE=242.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261124-d",
-          "agentId": "wH4n72",
-          "at": "2026-11-24T16:09:12.650Z",
+          "agentId": "wH4n93",
+          "at": "2026-11-24T16:19:09.502Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "attachment_events head (-1): 242->241. BEFORE=242."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -184103,17 +184111,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 13,
+        "in_progress": 12,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1441,
+        "blocked": 1442,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:18:38.031Z",
+    "updatedAt": "2026-11-24T16:19:09.506Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
