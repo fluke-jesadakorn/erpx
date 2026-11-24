@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11566,
+    "revision": 11599,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261124-b",
+      "runId": "run-20261124-c",
       "agentId": "lead-opencode",
-      "startedAt": "2026-11-24T10:09:57.716Z",
-      "heartbeatAt": "2026-11-24T11:01:04.525Z",
-      "expiresAt": "2026-11-24T11:31:04.525Z",
-      "generation": 168,
-      "tokenHash": "6affae4cfd21e7a40f8122a896d2b19fd2cfab4ae34cf9f82c1d035009eda6cc"
+      "startedAt": "2026-11-24T11:32:49.939Z",
+      "heartbeatAt": "2026-11-24T11:32:49.939Z",
+      "expiresAt": "2026-11-24T12:02:49.940Z",
+      "generation": 169,
+      "tokenHash": "eac3f45906eed752625f2bb4dc251a340a6a580a6b89a15f666d16287f0d616e"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -154408,12 +154408,12 @@
           "owner:customer_360"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a32",
-          "claimedAt": "2026-11-24T11:30:15.866Z",
-          "heartbeatAt": "2026-11-24T11:30:15.866Z",
-          "expiresAt": "2026-11-24T12:00:15.866Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:55.437Z",
+          "heartbeatAt": "2026-11-24T11:32:55.437Z",
+          "expiresAt": "2026-11-24T12:02:55.437Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -154439,10 +154439,10 @@
         "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:15.694Z",
+          "agentId": "wF4a32",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
@@ -173396,12 +173396,12 @@
           "owner:records"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a01",
-          "claimedAt": "2026-11-24T11:30:05.965Z",
-          "heartbeatAt": "2026-11-24T11:30:05.965Z",
-          "expiresAt": "2026-11-24T12:00:05.965Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:50.109Z",
+          "heartbeatAt": "2026-11-24T11:32:50.109Z",
+          "expiresAt": "2026-11-24T12:02:50.109Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -173413,9 +173413,9 @@
         "handoff": {
           "runId": "run-20261124-b",
           "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:05.795Z",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=27."
         },
         "scopeRefinementRequired": false
@@ -173439,12 +173439,12 @@
           "owner:inventory"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a02",
-          "claimedAt": "2026-11-24T11:30:06.294Z",
-          "heartbeatAt": "2026-11-24T11:30:06.294Z",
-          "expiresAt": "2026-11-24T12:00:06.294Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:50.271Z",
+          "heartbeatAt": "2026-11-24T11:32:50.271Z",
+          "expiresAt": "2026-11-24T12:02:50.271Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -173455,10 +173455,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=338.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:06.128Z",
+          "agentId": "wF4a02",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=338."
         },
         "scopeRefinementRequired": false
@@ -173482,12 +173482,12 @@
           "owner:ecommerce"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a03",
-          "claimedAt": "2026-11-24T11:30:06.609Z",
-          "heartbeatAt": "2026-11-24T11:30:06.609Z",
-          "expiresAt": "2026-11-24T12:00:06.609Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:50.447Z",
+          "heartbeatAt": "2026-11-24T11:32:50.447Z",
+          "expiresAt": "2026-11-24T12:02:50.447Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -173498,10 +173498,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=47.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:06.453Z",
+          "agentId": "wF4a03",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=47."
         },
         "scopeRefinementRequired": false
@@ -173525,12 +173525,12 @@
           "owner:learning"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a04",
-          "claimedAt": "2026-11-24T11:30:06.923Z",
-          "heartbeatAt": "2026-11-24T11:30:06.923Z",
-          "expiresAt": "2026-11-24T12:00:06.923Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:50.606Z",
+          "heartbeatAt": "2026-11-24T11:32:50.606Z",
+          "expiresAt": "2026-11-24T12:02:50.606Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -173541,10 +173541,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=57.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:06.766Z",
+          "agentId": "wF4a04",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=57."
         },
         "scopeRefinementRequired": false
@@ -173568,12 +173568,12 @@
           "owner:quality"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a05",
-          "claimedAt": "2026-11-24T11:30:07.236Z",
-          "heartbeatAt": "2026-11-24T11:30:07.236Z",
-          "expiresAt": "2026-11-24T12:00:07.236Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:50.761Z",
+          "heartbeatAt": "2026-11-24T11:32:50.761Z",
+          "expiresAt": "2026-11-24T12:02:50.761Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -173584,10 +173584,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=70.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:07.081Z",
+          "agentId": "wF4a05",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=70."
         },
         "scopeRefinementRequired": false
@@ -173611,12 +173611,12 @@
           "owner:organization"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a06",
-          "claimedAt": "2026-11-24T11:30:07.547Z",
-          "heartbeatAt": "2026-11-24T11:30:07.547Z",
-          "expiresAt": "2026-11-24T12:00:07.547Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:50.932Z",
+          "heartbeatAt": "2026-11-24T11:32:50.932Z",
+          "expiresAt": "2026-11-24T12:02:50.932Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -173627,10 +173627,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=244.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:07.390Z",
+          "agentId": "wF4a06",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=244."
         },
         "scopeRefinementRequired": false
@@ -173654,12 +173654,12 @@
           "owner:billing"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a07",
-          "claimedAt": "2026-11-24T11:30:07.858Z",
-          "heartbeatAt": "2026-11-24T11:30:07.858Z",
-          "expiresAt": "2026-11-24T12:00:07.858Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:51.117Z",
+          "heartbeatAt": "2026-11-24T11:32:51.117Z",
+          "expiresAt": "2026-11-24T12:02:51.117Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -173670,10 +173670,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=60.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:07.700Z",
+          "agentId": "wF4a07",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=60."
         },
         "scopeRefinementRequired": false
@@ -173697,12 +173697,12 @@
           "owner:people_payroll"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a08",
-          "claimedAt": "2026-11-24T11:30:08.166Z",
-          "heartbeatAt": "2026-11-24T11:30:08.166Z",
-          "expiresAt": "2026-11-24T12:00:08.166Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:51.279Z",
+          "heartbeatAt": "2026-11-24T11:32:51.279Z",
+          "expiresAt": "2026-11-24T12:02:51.279Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -173713,10 +173713,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=1306.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:08.014Z",
+          "agentId": "wF4a08",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=1306."
         },
         "scopeRefinementRequired": false
@@ -173740,12 +173740,12 @@
           "owner:talent"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a09",
-          "claimedAt": "2026-11-24T11:30:08.479Z",
-          "heartbeatAt": "2026-11-24T11:30:08.479Z",
-          "expiresAt": "2026-11-24T12:00:08.479Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:51.459Z",
+          "heartbeatAt": "2026-11-24T11:32:51.459Z",
+          "expiresAt": "2026-11-24T12:02:51.459Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -173756,10 +173756,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=44.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:08.322Z",
+          "agentId": "wF4a09",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=44."
         },
         "scopeRefinementRequired": false
@@ -173834,12 +173834,12 @@
           "owner:manufacturing"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a10",
-          "claimedAt": "2026-11-24T11:30:08.791Z",
-          "heartbeatAt": "2026-11-24T11:30:08.791Z",
-          "expiresAt": "2026-11-24T12:00:08.791Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:51.626Z",
+          "heartbeatAt": "2026-11-24T11:32:51.626Z",
+          "expiresAt": "2026-11-24T12:02:51.626Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -173850,10 +173850,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=52.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:08.636Z",
+          "agentId": "wF4a10",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=52."
         },
         "scopeRefinementRequired": false
@@ -173877,12 +173877,12 @@
           "owner:pms"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a11",
-          "claimedAt": "2026-11-24T11:30:09.114Z",
-          "heartbeatAt": "2026-11-24T11:30:09.114Z",
-          "expiresAt": "2026-11-24T12:00:09.114Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:51.828Z",
+          "heartbeatAt": "2026-11-24T11:32:51.828Z",
+          "expiresAt": "2026-11-24T12:02:51.828Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -173893,10 +173893,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=332.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:08.957Z",
+          "agentId": "wF4a11",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=332."
         },
         "scopeRefinementRequired": false
@@ -173920,12 +173920,12 @@
           "owner:finance"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a12",
-          "claimedAt": "2026-11-24T11:30:09.425Z",
-          "heartbeatAt": "2026-11-24T11:30:09.425Z",
-          "expiresAt": "2026-11-24T12:00:09.425Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:52.007Z",
+          "heartbeatAt": "2026-11-24T11:32:52.007Z",
+          "expiresAt": "2026-11-24T12:02:52.007Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -173936,10 +173936,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=1929.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:09.270Z",
+          "agentId": "wF4a12",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=1929."
         },
         "scopeRefinementRequired": false
@@ -173963,12 +173963,12 @@
           "owner:work_projection"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a13",
-          "claimedAt": "2026-11-24T11:30:09.737Z",
-          "heartbeatAt": "2026-11-24T11:30:09.737Z",
-          "expiresAt": "2026-11-24T12:00:09.737Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:52.171Z",
+          "heartbeatAt": "2026-11-24T11:32:52.171Z",
+          "expiresAt": "2026-11-24T12:02:52.171Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -173979,10 +173979,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=52.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:09.582Z",
+          "agentId": "wF4a13",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=52."
         },
         "scopeRefinementRequired": false
@@ -174006,12 +174006,12 @@
           "owner:marketing"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a14",
-          "claimedAt": "2026-11-24T11:30:10.059Z",
-          "heartbeatAt": "2026-11-24T11:30:10.059Z",
-          "expiresAt": "2026-11-24T12:00:10.059Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:52.330Z",
+          "heartbeatAt": "2026-11-24T11:32:52.330Z",
+          "expiresAt": "2026-11-24T12:02:52.330Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -174022,10 +174022,10 @@
         "nextAction": "Unify module-membership EXISTS/ALLOWED pair in module-membership.ts and purchases.ts:42 with a closed variant renderer. BEFORE=65.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:09.896Z",
+          "agentId": "wF4a14",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Unify module-membership EXISTS/ALLOWED pair in module-membership.ts and purchases.ts:42 with a closed variant renderer. BEFORE=65."
         },
         "scopeRefinementRequired": false
@@ -174049,12 +174049,12 @@
           "owner:projects"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a15",
-          "claimedAt": "2026-11-24T11:30:10.394Z",
-          "heartbeatAt": "2026-11-24T11:30:10.394Z",
-          "expiresAt": "2026-11-24T12:00:10.394Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:52.493Z",
+          "heartbeatAt": "2026-11-24T11:32:52.493Z",
+          "expiresAt": "2026-11-24T12:02:52.493Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -174065,10 +174065,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=112.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:10.228Z",
+          "agentId": "wF4a15",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=112."
         },
         "scopeRefinementRequired": false
@@ -174092,12 +174092,12 @@
           "owner:operations"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a16",
-          "claimedAt": "2026-11-24T11:30:10.711Z",
-          "heartbeatAt": "2026-11-24T11:30:10.711Z",
-          "expiresAt": "2026-11-24T12:00:10.711Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:52.653Z",
+          "heartbeatAt": "2026-11-24T11:32:52.653Z",
+          "expiresAt": "2026-11-24T12:02:52.653Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -174108,10 +174108,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=108.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:10.555Z",
+          "agentId": "wF4a16",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=108."
         },
         "scopeRefinementRequired": false
@@ -174135,12 +174135,12 @@
           "owner:agent"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a17",
-          "claimedAt": "2026-11-24T11:30:11.026Z",
-          "heartbeatAt": "2026-11-24T11:30:11.026Z",
-          "expiresAt": "2026-11-24T12:00:11.026Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:52.815Z",
+          "heartbeatAt": "2026-11-24T11:32:52.815Z",
+          "expiresAt": "2026-11-24T12:02:52.815Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -174151,10 +174151,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=53.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:10.871Z",
+          "agentId": "wF4a17",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=53."
         },
         "scopeRefinementRequired": false
@@ -174178,12 +174178,12 @@
           "owner:workflow"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a18",
-          "claimedAt": "2026-11-24T11:30:11.345Z",
-          "heartbeatAt": "2026-11-24T11:30:11.345Z",
-          "expiresAt": "2026-11-24T12:00:11.345Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:52.978Z",
+          "heartbeatAt": "2026-11-24T11:32:52.978Z",
+          "expiresAt": "2026-11-24T12:02:52.978Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -174194,10 +174194,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=50.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:11.188Z",
+          "agentId": "wF4a18",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=50."
         },
         "scopeRefinementRequired": false
@@ -174221,12 +174221,12 @@
           "owner:legal"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a19",
-          "claimedAt": "2026-11-24T11:30:11.656Z",
-          "heartbeatAt": "2026-11-24T11:30:11.656Z",
-          "expiresAt": "2026-11-24T12:00:11.656Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:53.163Z",
+          "heartbeatAt": "2026-11-24T11:32:53.163Z",
+          "expiresAt": "2026-11-24T12:02:53.163Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -174237,10 +174237,10 @@
         "nextAction": "Destruction guard 3 sites -> 1 (-2) and executive obligation/hold spine heads 2x2 -> 2 (-2). BEFORE=203.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:11.500Z",
+          "agentId": "wF4a19",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Destruction guard 3 sites -> 1 (-2) and executive obligation/hold spine heads 2x2 -> 2 (-2). BEFORE=203."
         },
         "scopeRefinementRequired": false
@@ -174264,12 +174264,12 @@
           "owner:manage_erpx"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a20",
-          "claimedAt": "2026-11-24T11:30:11.973Z",
-          "heartbeatAt": "2026-11-24T11:30:11.973Z",
-          "expiresAt": "2026-11-24T12:00:11.973Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:53.319Z",
+          "heartbeatAt": "2026-11-24T11:32:53.319Z",
+          "expiresAt": "2026-11-24T12:02:53.319Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -174280,10 +174280,10 @@
         "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none report blocked. BEFORE=23.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:11.811Z",
+          "agentId": "wF4a20",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none report blocked. BEFORE=23."
         },
         "scopeRefinementRequired": false
@@ -174307,12 +174307,12 @@
           "owner:crm"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a21",
-          "claimedAt": "2026-11-24T11:30:12.289Z",
-          "heartbeatAt": "2026-11-24T11:30:12.289Z",
-          "expiresAt": "2026-11-24T12:00:12.289Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:53.535Z",
+          "heartbeatAt": "2026-11-24T11:32:53.535Z",
+          "expiresAt": "2026-11-24T12:02:53.535Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -174323,10 +174323,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=119.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:12.128Z",
+          "agentId": "wF4a21",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=119."
         },
         "scopeRefinementRequired": false
@@ -174350,12 +174350,12 @@
           "owner:collaboration"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a22",
-          "claimedAt": "2026-11-24T11:30:12.601Z",
-          "heartbeatAt": "2026-11-24T11:30:12.601Z",
-          "expiresAt": "2026-11-24T12:00:12.601Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:53.771Z",
+          "heartbeatAt": "2026-11-24T11:32:53.771Z",
+          "expiresAt": "2026-11-24T12:02:53.771Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -174366,10 +174366,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=390.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:12.447Z",
+          "agentId": "wF4a22",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=390."
         },
         "scopeRefinementRequired": false
@@ -174393,12 +174393,12 @@
           "owner:files"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a23",
-          "claimedAt": "2026-11-24T11:30:12.906Z",
-          "heartbeatAt": "2026-11-24T11:30:12.906Z",
-          "expiresAt": "2026-11-24T12:00:12.906Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:53.936Z",
+          "heartbeatAt": "2026-11-24T11:32:53.936Z",
+          "expiresAt": "2026-11-24T12:02:53.936Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -174409,10 +174409,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=262.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:12.752Z",
+          "agentId": "wF4a23",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=262."
         },
         "scopeRefinementRequired": false
@@ -174436,12 +174436,12 @@
           "owner:maintenance"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a24",
-          "claimedAt": "2026-11-24T11:30:13.217Z",
-          "heartbeatAt": "2026-11-24T11:30:13.217Z",
-          "expiresAt": "2026-11-24T12:00:13.217Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:54.103Z",
+          "heartbeatAt": "2026-11-24T11:32:54.103Z",
+          "expiresAt": "2026-11-24T12:02:54.103Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -174452,10 +174452,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=25.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:13.060Z",
+          "agentId": "wF4a24",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=25."
         },
         "scopeRefinementRequired": false
@@ -174479,12 +174479,12 @@
           "owner:planning"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a25",
-          "claimedAt": "2026-11-24T11:30:13.534Z",
-          "heartbeatAt": "2026-11-24T11:30:13.534Z",
-          "expiresAt": "2026-11-24T12:00:13.534Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:54.271Z",
+          "heartbeatAt": "2026-11-24T11:32:54.271Z",
+          "expiresAt": "2026-11-24T12:02:54.271Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -174495,10 +174495,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=21.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:13.374Z",
+          "agentId": "wF4a25",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=21."
         },
         "scopeRefinementRequired": false
@@ -174522,12 +174522,12 @@
           "owner:procurement"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a26",
-          "claimedAt": "2026-11-24T11:30:13.873Z",
-          "heartbeatAt": "2026-11-24T11:30:13.873Z",
-          "expiresAt": "2026-11-24T12:00:13.873Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:54.448Z",
+          "heartbeatAt": "2026-11-24T11:32:54.448Z",
+          "expiresAt": "2026-11-24T12:02:54.448Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -174538,10 +174538,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=111.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:13.701Z",
+          "agentId": "wF4a26",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=111."
         },
         "scopeRefinementRequired": false
@@ -174565,12 +174565,12 @@
           "owner:assets"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a27",
-          "claimedAt": "2026-11-24T11:30:14.221Z",
-          "heartbeatAt": "2026-11-24T11:30:14.221Z",
-          "expiresAt": "2026-11-24T12:00:14.221Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:54.610Z",
+          "heartbeatAt": "2026-11-24T11:32:54.610Z",
+          "expiresAt": "2026-11-24T12:02:54.610Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -174581,10 +174581,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=14.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:14.048Z",
+          "agentId": "wF4a27",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=14."
         },
         "scopeRefinementRequired": false
@@ -174608,12 +174608,12 @@
           "owner:runtime"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a28",
-          "claimedAt": "2026-11-24T11:30:14.557Z",
-          "heartbeatAt": "2026-11-24T11:30:14.557Z",
-          "expiresAt": "2026-11-24T12:00:14.557Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:54.771Z",
+          "heartbeatAt": "2026-11-24T11:32:54.771Z",
+          "expiresAt": "2026-11-24T12:02:54.771Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -174624,10 +174624,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=30.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:14.386Z",
+          "agentId": "wF4a28",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=30."
         },
         "scopeRefinementRequired": false
@@ -174651,12 +174651,12 @@
           "owner:sales"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a29",
-          "claimedAt": "2026-11-24T11:30:14.876Z",
-          "heartbeatAt": "2026-11-24T11:30:14.876Z",
-          "expiresAt": "2026-11-24T12:00:14.876Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:54.930Z",
+          "heartbeatAt": "2026-11-24T11:32:54.930Z",
+          "expiresAt": "2026-11-24T12:02:54.930Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -174667,10 +174667,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=63.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:14.716Z",
+          "agentId": "wF4a29",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=63."
         },
         "scopeRefinementRequired": false
@@ -174694,12 +174694,12 @@
           "owner:customer_authority"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a30",
-          "claimedAt": "2026-11-24T11:30:15.197Z",
-          "heartbeatAt": "2026-11-24T11:30:15.197Z",
-          "expiresAt": "2026-11-24T12:00:15.198Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:55.116Z",
+          "heartbeatAt": "2026-11-24T11:32:55.116Z",
+          "expiresAt": "2026-11-24T12:02:55.116Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -174710,10 +174710,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=28.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:15.038Z",
+          "agentId": "wF4a30",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=28."
         },
         "scopeRefinementRequired": false
@@ -174737,12 +174737,12 @@
           "owner:identity_access"
         ],
         "claim": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a31",
-          "claimedAt": "2026-11-24T11:30:15.528Z",
-          "heartbeatAt": "2026-11-24T11:30:15.528Z",
-          "expiresAt": "2026-11-24T12:00:15.528Z",
-          "generation": 168
+          "claimedAt": "2026-11-24T11:32:55.278Z",
+          "heartbeatAt": "2026-11-24T11:32:55.278Z",
+          "expiresAt": "2026-11-24T12:02:55.278Z",
+          "generation": 169
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -174753,10 +174753,10 @@
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=508.",
         "handoff": {
           "runId": "run-20261124-b",
-          "agentId": "wF4a01",
-          "at": "2026-11-24T11:30:15.364Z",
+          "agentId": "wF4a31",
+          "at": "2026-11-24T11:32:49.939Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
+          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
           "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=508."
         },
         "scopeRefinementRequired": false
@@ -174781,8 +174781,8 @@
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T11:30:15.874Z",
+    "lastCoordinatorGeneration": 169,
+    "updatedAt": "2026-11-24T11:32:55.444Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -174817,10 +174817,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261124-a",
-      "runId": "run-20261124-b",
-      "at": "2026-11-24T10:09:57.717Z",
-      "reason": "Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
+      "previousRunId": "run-20261124-b",
+      "runId": "run-20261124-c",
+      "at": "2026-11-24T11:32:49.940Z",
+      "reason": "Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
       "wipReviewed": true,
       "previousRunStopped": true
     },
