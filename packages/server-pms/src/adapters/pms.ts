@@ -1,6 +1,7 @@
 import {decodePmsRecord,type PmsStoredRecord} from "@erpx/server-pms/domain/stored-record";
 import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
 import { PMS_STRIPE_REFUND_COLUMNS_SQL } from "./pms-read-tail-r22-sql";
+import { PMS_RECORDS_PROJECTION_PREFIX_SQL } from "./pms-read-tail-r24-sql";
 import { PMS_SCOPED_RECORDS_SQL } from "./pms-read-tail-r23-sql";
 import { roomChargeReversalWork } from "@erpx/server-pos/public/room-charge-reversal-queue";
 import { withPmsPurchasedCommand } from "@erpx/server-pms/adapters/purchase-boundary";
@@ -508,10 +509,10 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
         readAllPmsRecords: (arg0: string) => readAllPmsRecords(db, arg0),
         readPmsInventoryCommand: (propertyId: string) => readPmsInventoryCommand(db,propertyId),
         readPmsReservationCommand:(propertyId:string,guestId:string,source:string,externalRef:string)=>db.prepare(`
-          SELECT id,kind,data_json,version,updated_at FROM pms_records WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit')
-          UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records WHERE property_id=? AND kind='stay' AND data_json::jsonb->>'state' IN ('reserved','in_house')
-          UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records WHERE property_id=? AND kind='guest' AND id=?
-          UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records WHERE property_id=? AND kind='reservation' AND ?<>'' AND data_json::jsonb->>'source'=? AND data_json::jsonb->>'externalRef'=?
+          ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit')
+          UNION ALL ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? AND kind='stay' AND data_json::jsonb->>'state' IN ('reserved','in_house')
+          UNION ALL ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? AND kind='guest' AND id=?
+          UNION ALL ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? AND kind='reservation' AND ?<>'' AND data_json::jsonb->>'source'=? AND data_json::jsonb->>'externalRef'=?
           ORDER BY id`).bind(propertyId,propertyId,propertyId,guestId,propertyId,externalRef,source,externalRef).all<PmsStoredRecord>().then(rows=>rows.results.map(decodePmsRecord)),
         readPmsHousekeepingCommand:(propertyId:string,targetId:string,targetKind:'task'|'room')=>db.prepare(`WITH target AS (
           SELECT CASE WHEN kind='task' THEN data_json::jsonb->>'roomId' ELSE id END room_id FROM pms_records WHERE property_id=? AND kind=? AND id=?

@@ -45,7 +45,7 @@ describe('pms read-tail r21 parameterized recipient cross-join dedupe', () => {
   it('lowers the pms owner SELECT KPI strictly below the r20 after=477 baseline', async () => {
     let count = 0;
     for (const file of await tsFiles(dir)) count += (await readFile(file, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(435);
+    expect(count).toBe(420);
     expect(count).toBeLessThan(477);
   });
 });

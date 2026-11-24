@@ -69241,6 +69241,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PMS records projection prefix must stay one constant."
+      },
+      "apps": [
+        "booking"
+      ],
+      "packages": [
+        "@erpx/server-pms"
+      ],
+      "id": "pms.read-tail-r24-dedupe.unit",
+      "files": [
+        "tests/unit/pms/pms-read-tail-r24-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "pms.reports.integration",
       "lane": "integration",
       "owner": "pms",

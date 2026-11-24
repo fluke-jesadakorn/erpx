@@ -3,21 +3,22 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { PmsReadSelection } from "@erpx/feature-pms/lib/pms-read-selection";
 import type { PmsSetupFacts } from "@erpx/feature-pms/lib/pms-read";
 import { decodePmsRecord, type PmsStoredRecord } from "@erpx/server-pms/domain/stored-record";
+import { PMS_RECORDS_PROJECTION_PREFIX_SQL } from "../pms-read-tail-r24-sql";
 import { nativePmsReadAll, PMS_RD_INVENTORY_COMMAND } from "../native-pms-read";
 import * as application from "@erpx/server-pms/application/read-repository";
 const stayPredicate = `(data_json::jsonb->>'state' IN ('reserved','in_house') OR
     data_json::jsonb->>'arrival'=? OR data_json::jsonb->>'departure'=?)`;
 export const pmsDashboardRecordsSql = `WITH selected_stays AS MATERIALIZED (
- SELECT id,kind,data_json,version,updated_at FROM pms_records WHERE property_id=? AND kind='stay' AND ${stayPredicate}
+ ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? AND kind='stay' AND ${stayPredicate}
 ), scope AS (SELECT ?::text property_id), selected_records AS (
  SELECT * FROM selected_stays
- UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records
+ UNION ALL ${PMS_RECORDS_PROJECTION_PREFIX_SQL}
  WHERE property_id=(SELECT property_id FROM scope) AND kind IN ('room_type','room','rate')
- UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records
+ UNION ALL ${PMS_RECORDS_PROJECTION_PREFIX_SQL}
  WHERE property_id=(SELECT property_id FROM scope) AND kind='task' AND data_json::jsonb->>'state' NOT IN ('done','superseded')
- UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records
+ UNION ALL ${PMS_RECORDS_PROJECTION_PREFIX_SQL}
  WHERE property_id=(SELECT property_id FROM scope) AND kind='guest_account' AND data_json::jsonb->>'state'!='closed' AND (data_json::jsonb->>'due')::bigint>0
- UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records
+ UNION ALL ${PMS_RECORDS_PROJECTION_PREFIX_SQL}
  WHERE property_id=(SELECT property_id FROM scope) AND kind='guest' AND id IN (SELECT data_json::jsonb->>'guestId' FROM selected_stays)
 ) SELECT * FROM selected_records ORDER BY updated_at,id`;
 function repository(db: SqlDatabase): application.PmsReadRepository {
@@ -98,11 +99,11 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
         }>(),
         allRecords: (facts: {
             propertyId: string;
-        }) => db.prepare("SELECT id,kind,data_json,version,updated_at FROM pms_records WHERE property_id=? ORDER BY updated_at,id").bind(facts.propertyId).all<PmsStoredRecord>().then(rows => rows.results.map(decodePmsRecord)),
+        }) => db.prepare(`${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? ORDER BY updated_at,id`).bind(facts.propertyId).all<PmsStoredRecord>().then(rows => rows.results.map(decodePmsRecord)),
         configuration: (facts: {
             propertyId: string;
             propertyId2: string;
-        }) => db.prepare(`SELECT id,kind,data_json,version,updated_at FROM pms_records WHERE property_id=? AND (
+        }) => db.prepare(`${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? AND (
    kind IN ('room_type','room','rate') OR (kind='reservation' AND id IN (
      SELECT reservation_id FROM pms_booking_emails WHERE property_id=? AND state!='sent' ORDER BY created_at DESC LIMIT 50
    ))) ORDER BY updated_at,id`).bind(facts.propertyId, facts.propertyId2).all<PmsStoredRecord>().then(rows => rows.results.map(decodePmsRecord)),
@@ -116,7 +117,7 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
    stays AS (SELECT id,data_json::jsonb data FROM pms_records WHERE property_id=? AND kind='stay' AND (id IN (SELECT id FROM chosen) OR data_json::jsonb->>'reservationId' IN (SELECT id FROM reservations))),
    guestAccounts AS (SELECT data->>'guestAccountId' id FROM stays),
    groups AS (SELECT id FROM pms_records WHERE property_id=? AND kind='block' AND data_json::jsonb->>'kind'='group' AND data_json::jsonb->>'state'='active' AND COALESCE(data_json::jsonb->>'bookingChangeId','')='' ORDER BY updated_at DESC,id LIMIT 50)
-   SELECT id,kind,data_json,version,updated_at FROM pms_records WHERE property_id=? AND (
+   ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? AND (
     kind IN ('room_type','room','rate') OR id IN (SELECT id FROM groups) OR id IN (SELECT id FROM chosen) OR id IN (SELECT id FROM reservations) OR id IN (SELECT id FROM stays) OR id IN (SELECT id FROM guestAccounts)
     OR (kind='guest' AND id IN (SELECT data->>'guestId' FROM stays UNION SELECT data->>'guestId' FROM chosen))
     OR (kind='entry' AND data_json::jsonb->>'guestAccountId' IN (SELECT id FROM guestAccounts))) ORDER BY updated_at,id`).bind(facts.propertyId, facts.seedsJson, facts.propertyId2, facts.propertyId3, facts.propertyId3).all<PmsStoredRecord>().then(rows => rows.results.map(decodePmsRecord)),
@@ -180,7 +181,7 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
    UNION SELECT data->>'reservationId' FROM stays
    UNION SELECT data->>'guestId' FROM stays UNION SELECT data->>'guestId' FROM chosen
  ), selected_records AS (
- SELECT id,kind,data_json,version,updated_at FROM pms_records WHERE property_id=?
+ ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=?
  AND kind IN ('room','guest','room_type','rate','entry','refund','correction','task','block','shift','item','lost','movement') AND (
    id IN (SELECT id FROM chosen) OR id IN (SELECT id FROM stays)
    OR (kind='reservation' AND id IN (SELECT data->>'reservationId' FROM stays))
@@ -196,7 +197,7 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
    OR (kind='item' AND id IN (SELECT data->>'itemId' FROM inventory_recent WHERE kind='movement'))
    OR id IN (SELECT id FROM inventory_recent)
  ) UNION SELECT related.* FROM linked_ids linked JOIN LATERAL (
- SELECT id,kind,data_json,version,updated_at FROM pms_records
+ ${PMS_RECORDS_PROJECTION_PREFIX_SQL}
  WHERE property_id=? AND id=linked.id OFFSET 0
  ) related ON true
  ) SELECT * FROM selected_records ORDER BY updated_at,id`).bind(facts.propertyId, facts.seedsJson, facts.propertyId2, facts.propertyId3,facts.propertyId3, facts.roomView, facts.inventoryView, facts.nightView, facts.businessDate, facts.propertyId4, facts.roomView2, facts.propertyId5, facts.inventoryView2, facts.from, facts.to, facts.from2, facts.to2, facts.propertyId6, facts.inventoryView3, facts.inventoryView4, facts.propertyId7, facts.roomView3, facts.nightView2, facts.roomView4, facts.roomView5, facts.fact24, facts.nightView3, facts.nightView4,facts.propertyId6).all<PmsStoredRecord>().then(rows => rows.results.map(decodePmsRecord)),
@@ -216,7 +217,7 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
             from2: string;
             to3: string;
             from3: string;
-        }) => db.prepare(`SELECT id,kind,data_json,version,updated_at FROM pms_records WHERE property_id=? AND (
+        }) => db.prepare(`${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? AND (
     kind IN ('room_type','room')
     OR (kind='rate' AND data_json::jsonb->>'from'<=? AND data_json::jsonb->>'to'>=?)
     OR (kind='stay' AND data_json::jsonb->>'state' IN ('reserved','in_house','checked_out')
@@ -234,7 +235,7 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
       SELECT id FROM selected UNION
       SELECT value FROM selected CROSS JOIN LATERAL jsonb_each_text(data)
         WHERE key IN ('guestId','reservationId','guestAccountId','roomId','typeId','rateId')
-    ) SELECT id,kind,data_json,version,updated_at FROM pms_records WHERE property_id=?
+    ) ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=?
       AND (id IN (SELECT id FROM related) OR (kind='entry' AND data_json::jsonb->>'guestAccountId' IN
         (SELECT id FROM selected WHERE kind='guest_account' UNION SELECT data->>'guestAccountId' FROM selected)))
     ORDER BY updated_at,id`).bind(facts.propertyId, facts.id, facts.propertyId2).all<PmsStoredRecord>().then(rows => rows.results.map(decodePmsRecord))
