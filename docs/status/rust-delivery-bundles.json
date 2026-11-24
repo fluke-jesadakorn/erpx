@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11223,
+    "revision": 11225,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -171294,7 +171294,7 @@
         "owner": "ecommerce",
         "title": "ecommerce TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -171306,22 +171306,37 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMeco2",
-          "claimedAt": "2026-11-24T10:16:14.145Z",
-          "heartbeatAt": "2026-11-24T10:20:25.536Z",
-          "expiresAt": "2026-11-24T10:50:25.536Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-ecommerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1e4925b85",
+            "owner": "ecommerce",
+            "before": 50,
+            "after": 48,
+            "note": "review/cart-abandon/checkout receipt guards share receiptAuditGuard; LOCK TABLE, binds and all other statements untouched."
+          },
+          {
+            "command": "vitest ecommerce dedupe r6/r17 (67) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "1e4925b85"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "receiptAuditGuard family in package-obligations.ts: 3 guards -> 1 frame, byte-identical, no binds added, locks untouched. Expected 50->48. BEFORE=50.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMeco2",
+          "at": "2026-11-24T10:23:45.013Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -171947,17 +171962,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 30,
+        "in_progress": 29,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1187,
+        "blocked": 1188,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T10:20:25.543Z",
+    "updatedAt": "2026-11-24T10:23:45.020Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
