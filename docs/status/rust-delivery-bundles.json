@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7772,
+    "revision": 7776,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -131468,7 +131468,7 @@
         "owner": "customer_authority",
         "title": "customer_authority TS read tail native cutover (r10)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -131480,22 +131480,42 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG54cua",
-          "claimedAt": "2026-11-24T01:06:01.918Z",
-          "heartbeatAt": "2026-11-24T01:07:51.653Z",
-          "expiresAt": "2026-11-24T01:37:51.653Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-customer_authority/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "7946b50f2",
+            "owner": "customer_authority",
+            "before": 93,
+            "after": 92,
+            "note": "Reviewer actor_eligible CASE shared by binding and rows; bind order and alias preserved."
+          },
+          {
+            "command": "vitest customer authority native read history (18)",
+            "result": "passed",
+            "sourceSha": "7946b50f2"
+          },
+          {
+            "command": "tsc customer_authority",
+            "result": "passed",
+            "sourceSha": "7946b50f2"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local dedupe; BEFORE=93.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG54cua",
+          "at": "2026-11-24T01:09:47.014Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -131605,6 +131625,42 @@
         "nextAction": "Next: exact-string duplicate scan again (ecommerce.ts/executive-metric-projections.ts remaining) or owner-local family; BEFORE=76.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.customer_authority.read-tail-r11",
+        "goalId": "G4",
+        "owner": "customer_authority",
+        "title": "customer_authority TS read tail native cutover (round 11)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-customer_authority/src/**",
+          "tests/unit/customer_authority/**",
+          "tests/integration/customer_authority/**"
+        ],
+        "resources": [
+          "owner:customer_authority"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG58cua",
+          "claimedAt": "2026-11-24T01:09:47.238Z",
+          "heartbeatAt": "2026-11-24T01:09:47.238Z",
+          "expiresAt": "2026-11-24T01:39:47.238Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: portal release-gate helper dedupe across portal-purchases/portal-support/attachment-purchases (keep alias + wrapped assertion form) or binding/order prefix; avoid proof/digest families. BEFORE=92.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -131613,7 +131669,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 776,
+      "totalPackets": 777,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -131621,13 +131677,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 398,
+        "blocked": 399,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:08:23.809Z",
+    "updatedAt": "2026-11-24T01:09:47.242Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
