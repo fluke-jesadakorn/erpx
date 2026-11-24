@@ -118,6 +118,6 @@ describe('Customer Authority read-tail r38 canonical projection/source head fami
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(40);
-    expect(total).toBe(28);
+    expect(total).toBe(27);
   });
 });

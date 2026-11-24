@@ -1,17 +1,24 @@
 import { finalRootOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/final-root-owner-projection-sources";
+import { evidenceSource } from "./customer-authority-read-tail-r41-sources";
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { DuplicateReviewEvidenceRow, IdentityChangeEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
-const identityChangeSource = `SELECT e.id,e.change_id,e.action,e.customer_version,e.created_at,e.version,c.status change_status,c.version change_version,p.name customer_name,p.code customer_code
+const identityChangeSource = evidenceSource(
+  'e.id,e.change_id,e.action,e.customer_version,e.created_at,e.version,c.status change_status,c.version change_version,p.name customer_name,p.code customer_code',
+  `
   FROM customer_identity_change_events e
   JOIN customer_identity_changes c ON c.id=e.change_id
   JOIN (${financeProjectionSources.finance_parties}) p ON p.id=c.customer_id AND p.company_id=c.company_id AND p.kind='customer'
-  WHERE c.company_id=? AND e.created_at>=? AND e.created_at<?`;
-const duplicateReviewEvidenceSource = `SELECT r.id,l.name left_name,l.code left_code,q.name right_name,q.code right_code,r.status,r.created_at,r.updated_at,r.version
+  WHERE c.company_id=? AND e.created_at>=? AND e.created_at<?`,
+);
+const duplicateReviewEvidenceSource = evidenceSource(
+  'r.id,l.name left_name,l.code left_code,q.name right_name,q.code right_code,r.status,r.created_at,r.updated_at,r.version',
+  `
     FROM customer_duplicate_reviews r
     JOIN (${financeProjectionSources.finance_parties}) l ON l.id=r.left_customer_id AND l.company_id=r.company_id AND l.kind='customer'
-    JOIN (${financeProjectionSources.finance_parties}) q ON q.id=r.right_customer_id AND q.company_id=r.company_id AND q.kind='customer'`;
+    JOIN (${financeProjectionSources.finance_parties}) q ON q.id=r.right_customer_id AND q.company_id=r.company_id AND q.kind='customer'`,
+);
 export function executiveMainEvidenceSources(db: SqlDatabase) {
     return { async factsSearchDuplicateReviewEvidence(cursor: {
             updatedAt: number;

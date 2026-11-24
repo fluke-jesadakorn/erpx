@@ -89,6 +89,6 @@ describe('Customer Authority read-tail r35 scalar projection family', () => {
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(43);
     // r39 further reduced the tail (39 -> 34); keep the current exact pin.
-    expect(total).toBe(28);
+    expect(total).toBe(27);
   });
 });

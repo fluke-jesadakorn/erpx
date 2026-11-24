@@ -19018,6 +19018,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "customer_authority",
+      "modules": [
+        "customer_authority"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "CA executive evidence source head must stay one builder."
+      },
+      "apps": [
+        "account"
+      ],
+      "packages": [
+        "@erpx/server-customer_authority"
+      ],
+      "id": "customer_authority.read-tail-r41-dedupe.unit",
+      "files": [
+        "tests/unit/customer_authority/read-tail-r41-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "customer_authority.rust-customer-access-http.unit",
       "lane": "unit",
       "owner": "customer_authority",

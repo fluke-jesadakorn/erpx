@@ -90,6 +90,6 @@ describe('Customer Authority read-tail r33 company-scope probe family', () => {
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(49);
     // r39 further reduced the tail (39 -> 34); keep the current exact pin.
-    expect(total).toBe(28);
+    expect(total).toBe(27);
   });
 });
