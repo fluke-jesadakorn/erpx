@@ -147,8 +147,9 @@ describe('Sales read-tail r27 retirement check', () => {
       }
     };
     walk(srcRoot);
-    // r27 collapses three ecommerce order-scope literals into one generator (-2).
-    expect(total).toBe(58);
+    // r27 collapsed three order-scope literals (-2); r28 collapsed three
+    // authority-scope reads into one generator (-2).
+    expect(total).toBe(56);
     expect(total).toBeLessThan(60);
   });
 });

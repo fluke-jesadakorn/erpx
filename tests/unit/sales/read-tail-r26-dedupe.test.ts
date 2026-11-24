@@ -136,7 +136,8 @@ describe('Sales read-tail r26 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(58);
+    // r28 collapses three authority-scope reads into one generator (-2).
+    expect(total).toBe(56);
     expect(total).toBeLessThan(60);
   });
 });

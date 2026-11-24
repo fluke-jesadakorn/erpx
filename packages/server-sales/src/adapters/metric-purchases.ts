@@ -8,7 +8,7 @@ import {commercePackageEnforcementMode,readPurchasedAccesses} from "@erpx/server
 import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {crmCommerceOrderSources} from "@erpx/server-commerce/public/crm-purchase-sources";
 import {crmFinanceCustomerSources} from "@erpx/server-finance/public/crm-purchase-sources";
-import {actorScopeTuple,clockNowMs,followupMetricPrefix} from "./followup-source-sql";
+import {actorScopeTuple,authorityScopeRead,clockNowMs,followupMetricPrefix} from "./followup-source-sql";
 /** One alias-parameterized CRM membership EXISTS shared by the metric history
  * gate (unqualified) and the enforced source projection (`selected` alias).
  * No caller input enters the SQL text; only the alias token changes. */
@@ -20,7 +20,7 @@ const followupSourceSelect=`${followupMetricPrefix} FROM customer_followups foll
 const rows=`${followupSourceSelect} JOIN (${crmFinanceCustomerSources}) customer ON customer.id=actual.party_id AND customer.company_id=actual.company_id WHERE actual.kind IN ('sales','quote')`;
 export async function salesFollowupMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){
  const mode=await commercePackageEnforcementMode(),access=await readPurchasedAccesses(database,mode,actor.companyId,["sales.quotes","sales.orders"]);if(mode!=="enforced")return {"overdue-followups":true};
- const current=actor.modules.includes("crm")&&hasPermission(actor,"commerce.read")&&!!await database.prepare(`SELECT ${assignmentReadSql("sales_metric_scope","commerce.read")} AND ${crmAssignmentExists()} allowed FROM ${actorScopeTuple} sales_metric_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.companyId,actor.branchId,actor.departmentId).first<boolean>("allowed");
+ const current=actor.modules.includes("crm")&&hasPermission(actor,"commerce.read")&&!!await database.prepare(authorityScopeRead(assignmentReadSql("sales_metric_scope","commerce.read"),actorScopeTuple,"sales_metric_scope",` AND ${crmAssignmentExists()}`)).bind(actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.companyId,actor.branchId,actor.departmentId).first<boolean>("allowed");
  return {"overdue-followups":current&&(access["sales.quotes"].history||access["sales.orders"].history)};
 }
 /** The original quotation/Sales source decides each follow-up capability,

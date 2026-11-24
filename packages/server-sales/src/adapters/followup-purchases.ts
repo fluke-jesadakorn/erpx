@@ -12,7 +12,7 @@ import {crmFinanceCustomerSources,crmFinanceSourceReadLocks} from '@erpx/server-
 import {crmCommerceOrderSources,crmCommerceSourceReadLocks} from '@erpx/server-commerce/public/crm-purchase-sources';
 import type {WorkItem} from '@erpx/feature-work_projection/lib/work-item';
 import {salesRecipientEligibility} from '@erpx/server-sales/adapters/recipient';
-import {actorScopeTuple,clockNowMs,followupMetricPrefix} from './followup-source-sql';
+import {actorScopeTuple,authorityScopeRead,clockNowMs,followupMetricPrefix} from './followup-source-sql';
 export type FollowupPurchaseTarget={kind:'followup'|'order';id:string};
 type Source={id:string;company_id:string;branch_id:string;department_id:string|null;order_kind:'quote'|'sales';witness:string;owner_id:string|null;due_date:string|null;status:string|null;version:number|null};
 const orders=`SELECT actual.*,jsonb_build_array(actual.id,actual.company_id,actual.branch_id,actual.department_id,actual.kind,actual.party_id,actual.currency) witness FROM (${crmCommerceOrderSources}) actual JOIN (${crmFinanceCustomerSources}) customer ON customer.id=actual.party_id AND customer.company_id=actual.company_id AND customer.kind='customer' WHERE actual.kind IN ('quote','sales')`;
@@ -29,7 +29,7 @@ async function source(database:SqlDatabase,actor:WorkContext,target:FollowupPurc
  if(!row)throw new ApiError(404,'CUSTOMER_FOLLOWUP_SOURCE_NOT_FOUND','The actual customer quotation or Sales source is unavailable in this workspace.');return row;
 }
 async function authority(database:SqlDatabase,actor:WorkContext,permissions:readonly string[],record?:Source){
- for(const permission of permissions){if(!hasPermission(actor,permission))throw new ApiError(403,'FOLLOWUP_ACCESS_CHANGED','Choose a current authorized Sales role.');const current=await database.prepare(`SELECT ${assignmentReadSql('followup_authority',permission)} allowed FROM ${actorScopeTuple} followup_authority`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,record?.branch_id??actor.branchId,record?.department_id??actor.departmentId).first<boolean>('allowed');if(!current)throw new ApiError(403,'FOLLOWUP_ACCESS_CHANGED','The original customer follow-up assignment is no longer current.');}
+ for(const permission of permissions){if(!hasPermission(actor,permission))throw new ApiError(403,'FOLLOWUP_ACCESS_CHANGED','Choose a current authorized Sales role.');const current=await database.prepare(authorityScopeRead(assignmentReadSql('followup_authority',permission),actorScopeTuple,'followup_authority')).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,record?.branch_id??actor.branchId,record?.department_id??actor.departmentId).first<boolean>('allowed');if(!current)throw new ApiError(403,'FOLLOWUP_ACCESS_CHANGED','The original customer follow-up assignment is no longer current.');}
 }
 export async function followupPurchasedAccess(database:SqlDatabase,actor:WorkContext,target?:FollowupPurchaseTarget):Promise<FollowupPurchaseControls|undefined>{
  const mode=await commercePackageEnforcementMode();if(mode==='disabled')return undefined;const actual=target?await source(database,actor,target):undefined;await authority(database,actor,['commerce.read'],actual);const values=Object.values(await readPurchasedAccesses(database,mode,actor.companyId,actual?[capability(actual.order_kind)]:['sales.quotes','sales.orders']));return {newWork:values.some(value=>value.newWork),settleExisting:values.some(value=>value.settleExisting),history:values.some(value=>value.history),revision:values.map(value=>value.revision).join(':')};
