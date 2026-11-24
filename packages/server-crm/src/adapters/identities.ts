@@ -18,6 +18,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {createCRMIdentityApplication,type CRMIdentityPorts,type CRMIdentityMutation} from "@erpx/server-crm/application/identities";
 import {crmIdentityCommand} from "@erpx/server-crm/domain/identities";
 import {requireCRMPurchasedRead,crmReferenceHistory,crmReferencePurchaseControls,withCRMPurchasedCommand,crmNativeReadFilter,type CRMPurchaseTarget} from "@erpx/server-crm/adapters/purchases";
+const contactScopeSql=`(?::text IS NULL OR acc.created_by=? OR EXISTS(SELECT 1 FROM crm_leads l WHERE l.contact_id=c.id AND l.branch_id=? AND (?::text IS NULL OR l.department_id=?)))`;
 function application(a:WorkContext,provided?:SqlDatabase){let resource:Promise<SqlDatabase>|null=provided?Promise.resolve(provided):null;const database=()=>resource??=holdingResources(a.holdingId).then(x=>x.write);
 const ports:CRMIdentityPorts={canGuestReview:hasPermission(a,'commerce.approve')&&hasPermission(a,'pms.read'),canReview:hasPermission(a,'commerce.approve'),canCreate:hasPermission(a,'commerce.sales'),clock:{now:()=>Date.now()},authorize:permission=>{requirePermission(a,permission);},
 replay:async(key,operation,id,input)=>replayCommand(await database(),a,key,operation,id,input),
@@ -29,10 +30,10 @@ async identities(){const write=await database(); const [accounts,contacts,custom
  const guestLinks=hasPermission(a,'pms.read')&&await crmReferenceHistory(write,a,'pms.reservations')?(await write.prepare(`SELECT g.id,g.contact_id,g.guest_id,g.property_id,g.sharing_state,g.sharing_evidence,g.version,p.name property_name
   FROM crm_guest_links g JOIN (${pmsProjectionSources.pms_properties}) p ON p.id=g.property_id AND p.company_id=g.company_id
   JOIN crm_contacts c ON c.id=g.contact_id AND c.company_id=g.company_id JOIN crm_accounts acc ON acc.id=c.account_id
-  WHERE g.company_id=? AND ${await crmNativeReadFilter('guest-link','g')} AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR acc.created_by=? OR EXISTS(SELECT 1 FROM crm_leads l WHERE l.contact_id=c.id AND l.branch_id=? AND (?::text IS NULL OR l.department_id=?))) ORDER BY g.created_at DESC LIMIT 200`)
+  WHERE g.company_id=? AND ${await crmNativeReadFilter('guest-link','g')} AND (?::text IS NULL OR p.branch_id=?) AND ${contactScopeSql} ORDER BY g.created_at DESC LIMIT 200`)
   .bind(a.companyId,a.branchId,a.branchId,a.branchId,a.userId,a.branchId,a.departmentId,a.departmentId).all<Row>()).results:[];
  return {accounts:accounts.results,contacts:contacts.results,customers:customers.results,guestLinks};},
-async contact(contactId){const write=await database();return await write.prepare("SELECT c.id,c.name,c.account_id FROM crm_contacts c JOIN crm_accounts acc ON acc.id=c.account_id WHERE c.id=? AND c.company_id=? AND (?::text IS NULL OR acc.created_by=? OR EXISTS(SELECT 1 FROM crm_leads l WHERE l.contact_id=c.id AND l.branch_id=? AND (?::text IS NULL OR l.department_id=?)))").bind(contactId,a.companyId,a.branchId,a.userId,a.branchId,a.departmentId,a.departmentId).first<Row>();},
+async contact(contactId){const write=await database();return await write.prepare(`SELECT c.id,c.name,c.account_id FROM crm_contacts c JOIN crm_accounts acc ON acc.id=c.account_id WHERE c.id=? AND c.company_id=? AND ${contactScopeSql}`).bind(contactId,a.companyId,a.branchId,a.userId,a.branchId,a.departmentId,a.departmentId).first<Row>();},
 async stays(contactId){const write=await database();return (await write.prepare(`SELECT g.guest_id,r.id reservation_id,r.data_json::jsonb->>'state' reservation_state,
   s.id stay_id,s.data_json::jsonb->>'state' stay_state,s.data_json::jsonb->>'arrival' arrival,
   s.data_json::jsonb->>'departure' departure,p.id property_id

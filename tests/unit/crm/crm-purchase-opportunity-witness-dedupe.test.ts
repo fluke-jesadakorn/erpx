@@ -35,4 +35,12 @@ describe('crm purchase opportunity witness read family', () => {
     expect(identities).toContain('write.prepare(activeCustomerPartiesSql)');
     expect(leads).toContain('write.prepare(activeCustomerPartiesSql)');
   });
+
+  it('keeps one crm_leads contact-scope predicate shared by the guest-link and contact reads', async () => {
+    const identities = await readFile(adapter('identities.ts'), 'utf8');
+    const predicate = '(?::text IS NULL OR acc.created_by=? OR EXISTS(SELECT 1 FROM crm_leads l WHERE l.contact_id=c.id AND l.branch_id=? AND (?::text IS NULL OR l.department_id=?)))';
+    expect(identities.split(predicate).length - 1).toBe(1);
+    expect(identities).toContain('const contactScopeSql=`' + predicate + '`;');
+    expect(identities.match(/\$\{contactScopeSql\}/g)).toHaveLength(2);
+  });
 });
