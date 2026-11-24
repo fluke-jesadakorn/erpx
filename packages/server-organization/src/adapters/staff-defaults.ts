@@ -6,6 +6,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {requirePermission} from "@erpx/server-identity_access/public/iam-permissions";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import {requireCompanyAuthority} from "@erpx/server-operations/public/staff-policy";
+import {activePositionLookup} from './organization-read-tail-sources-r50';
 import {stageOrganizationLevelLeavePolicy,stageOrganizationPayRecommendation,stageOrganizationLeaveRecommendation} from "@erpx/server-people_payroll/public/organization-defaults";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {BusinessRuleError} from "@erpx/server-shared/index";
@@ -36,7 +37,7 @@ async function catalog(db:SqlDatabase,actor:WorkContext){
   return { pay, leave };
 }
 function application(db:SqlDatabase,actor:WorkContext){return createStaffDefaultApplication({clock:{now:()=>Date.now()},canSeePay:canSeeDefaultPay(actor),async authorizePeople(){actor=requirePermission(actor,'people.manage');},async authorizeLeavePolicy(){actor=requirePermission(actor,'leave.policy.manage');},authorizeCompanyLeavePolicy:async()=>{await requireCompanyAuthority(db,actor,'leave.policy.manage');},catalog:()=>catalog(db,actor),replay:(key,operation,id,input)=>replayCommand(db,actor,key,operation,id,input),
- position:async(id)=>!!await db.prepare("SELECT id FROM organization_positions WHERE id=? AND company_id=? AND active=1 AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)").bind(id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).first(),
+ position:async(id)=>!!await db.prepare(activePositionLookup('id', "active=1 AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)")).bind(id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).first(),
  payGroup:async(id,currency)=>!!await db.prepare(`SELECT id FROM (${people_payrollPlatformSources.hr_pay_groups}) hr_pay_groups WHERE id=? AND company_id=? AND status='active' AND frequency='monthly' AND currency=?`).bind(id,actor.companyId,currency).first(),
  payVersion:async(id)=>Number((await db.prepare(maxVersionSource('position_pay_defaults','position_id')).bind(actor.companyId,id).first<{version:number}>())?.version??0),
  level:(id)=>db.prepare(staffLevelNumberSource('id','company_id')).bind(id,actor.companyId).first<{level_number:number}>(),

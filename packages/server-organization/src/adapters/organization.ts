@@ -40,6 +40,7 @@ import {latestDepartmentFlow,organizationChangeRows} from './organization-read-t
 import {nodeChildExists} from './organization-read-tail-sources-r45';
 import {snapshotJsonByAction} from './organization-read-tail-sources-r46';
 import {fullNodeSelection} from './organization-read-tail-sources-r49';
+import {nodeExistsGuard} from './organization-read-tail-sources-r50';
 import {snapshotProjection,staffLevelNumberSource} from './organization-column-alias-families';
 import {impactCount} from './organization-column-alias-families-r29';
 const HEAD_SEAT_SNAPSHOT_SOURCE =
@@ -93,7 +94,7 @@ clock:{now:()=>Date.now()},authorize:actor=>requirePermission(actor,'organizatio
  attachmentSets:(companyId,ids)=>attachmentPurposeFacts(db,companyId,ids),prepareReviewBinding:(actor,id,attachmentSetIds,version,key,decision)=>prepareAttachmentBinding(db,actor,{attachmentSetIds,bindingContract:{targetType:'organization_change',bindingType:'organization_change_review',contexts:[{purposeKey:'org_change_proof',componentKind:'action',componentRef:'organization-change-review'}]},targetId:id,expectedTargetVersion:version,commandId:key,bindingId:`${id}:${decision}:${version+1}`}),
  reviewGuards:(actor,id,version,key,requesterId)=>[assertion(db,key,'change-version',changeVersionGuardSource("state='submitted'"),[id,actor.companyId,version]),assertion(db,key,'independent-review','NOT iam_same_person(?,?,?)',[actor.userId,requesterId,actor.companyId])],
  stageCreateNode:async(actor,change,nodeId)=>[await nativeOrgStatement(db,actor.companyId,'node_create',[nodeId,change.node_kind,change.slug,change.display_name,change.node_kind==='branch'?actor.companyId:change.branch_id,actor.companyId,change.branch_id],`org-node:${change.id}`,Date.now())],
- stageNodeVersion:(actor,change,key)=>[assertion(db,key,'node-version','EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND hierarchy_revision=? AND kind=? AND branch_id IS NOT DISTINCT FROM ?)',[change.target_node_id,actor.companyId,change.expected_node_version!,change.node_kind,change.action==='relocate'?change.source_branch_id:change.branch_id])],
+ stageNodeVersion:(actor,change,key)=>[assertion(db,key,'node-version',nodeExistsGuard('hierarchy_revision=? AND kind=? AND branch_id IS NOT DISTINCT FROM ?'),[change.target_node_id,actor.companyId,change.expected_node_version!,change.node_kind,change.action==='relocate'?change.source_branch_id:change.branch_id])],
  relocationAuthority:async(companyId,id)=>{const [head,legacyHead,flow]=await Promise.all([db.prepare(HEAD_SEAT_SNAPSHOT_SOURCE).bind(companyId,id).first<RelocationAuthority['head']&{}>(),db.prepare(DEPARTMENT_HEAD_SNAPSHOT_SOURCE).bind(companyId,id).first<RelocationAuthority['legacyHead']&{}>(),db.prepare(DEPARTMENT_FLOW_SNAPSHOT_SOURCE).bind(companyId,id).first<RelocationAuthority['flow']&{}>()]);return {head,legacyHead,flow};},
 stageRelocate:async (actor,change,id,appliedNodeId,key,{head,legacyHead,flow},now)=>{
         return [

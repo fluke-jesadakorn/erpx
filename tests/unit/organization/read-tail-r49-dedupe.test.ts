@@ -153,7 +153,7 @@ describe('Organization read-tail r49 dedupe', () => {
     };
     walk(srcRoot);
     // r49 collapses three pairs of read-tail SELECTs into three shared helpers (-3).
-    expect(space).toBe(234);
+    expect(space).toBe(230);
     expect(space).toBeLessThan(237);
   });
 });
