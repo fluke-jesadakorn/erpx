@@ -47,7 +47,9 @@ describe('Benefits read-tail r9 byte-identical dedupe', () => {
       expect(text, name).not.toContain(benefitWindowFactPrefix);
       expect(text.match(/benefitWindowFactPrefix/g) ?? [], name).toHaveLength(2);
     }
-    expect(src('benefits-read-sql.ts').split(benefitWindowFactPrefix)).toHaveLength(2);
+    // r23 composes this prefix through benefitLearningFactArm; the exported
+    // value is still asserted byte-for-byte in the test above.
+    expect(src('benefits-read-sql.ts').match(/export const benefitWindowFactPrefix\s*=/g) ?? []).toHaveLength(1);
   });
 
   test('composed SQL stays byte-identical to the pre-dedupe literal', () => {
@@ -76,7 +78,9 @@ describe('Benefits read-tail r10 byte-identical dedupe', () => {
       expect(text, name).not.toContain(benefitDependentFactPrefix);
       expect(text.match(/benefitDependentFactPrefix/g) ?? [], name).toHaveLength(2);
     }
-    expect(src('benefits-read-sql.ts').split(benefitDependentFactPrefix)).toHaveLength(2);
+    // r23 composes this prefix through benefitLearningFactArm; the exported
+    // value is still asserted byte-for-byte in the test above.
+    expect(src('benefits-read-sql.ts').match(/export const benefitDependentFactPrefix\s*=/g) ?? []).toHaveLength(1);
   });
 
   test('composed SQL stays byte-identical to the pre-dedupe literal', () => {

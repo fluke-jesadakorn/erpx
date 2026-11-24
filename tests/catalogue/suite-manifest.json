@@ -2633,9 +2633,11 @@
       },
       "ci": {
         "critical": true,
-        "reason": "Benefits source existence probe wrapper must stay one builder."
+        "reason": "Benefits union fact arms must stay one generator."
       },
-      "apps": "apps",
+      "apps": [
+        "people"
+      ],
       "packages": [
         "@erpx/server-benefits"
       ],

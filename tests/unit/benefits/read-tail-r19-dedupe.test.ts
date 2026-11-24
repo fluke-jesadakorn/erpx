@@ -34,7 +34,10 @@ describe('Benefits read-tail r19 parameterized learning fact arm family', () => 
   });
 
   test('generator has one owner literal and two composed callers', () => {
-    expect(src('benefits-read-sql.ts').match(/benefitLearningFactArm/g) ?? []).toHaveLength(1);
+    // One owner definition; r23 reuses the same generator for the three
+    // package-settlement fact-arm prefixes in this file.
+    expect(src('benefits-read-sql.ts').match(/export const benefitLearningFactArm\s*=/g) ?? []).toHaveLength(1);
+    expect(src('benefits-read-sql.ts').match(/benefitLearningFactArm\(/g) ?? []).toHaveLength(3);
     const text = src('package-obligations.ts');
     expect(text).not.toContain("UNION ALL SELECT 'learning-consumption',");
     expect(text).not.toContain("UNION ALL SELECT 'missing-learning-consumption',");
