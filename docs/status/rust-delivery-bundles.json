@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7750,
+    "revision": 7751,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -131300,6 +131300,36 @@
         "nextAction": "Next: timeline (20) owner-local dedupe or package-obligations (6) byte-identical pair; avoid portal (blocked) and the visibility predicate. BEFORE=36.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "integrate.work_projection.calendar-read-mount",
+        "goalId": "G3",
+        "owner": "work_projection",
+        "title": "Mount the work projection native calendar read router",
+        "kind": "integration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "src/composition/src/**",
+          "packages/server-work_projection/src/**",
+          "tests/integration/work_projection/**"
+        ],
+        "resources": [
+          "owner:work_projection",
+          "resource:composition"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Scout found calendar_read_router (work/owner-read) defined at packages/server-work_projection/src/adapters/calendar_read_http.rs:277 but never mounted in src/composition/src/private_development_api.rs. Compose per-holding targets like other owner routers, mount under existing-business, add config failure code, extend boundary allowlist, and add an in-process route test. Requires resource:composition.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -131322,7 +131352,7 @@
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:04:20.545Z",
+    "updatedAt": "2026-11-24T01:05:11.655Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
