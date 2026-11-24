@@ -1,4 +1,5 @@
 import { PP_RD23_HR_ENGAGEMENTS_ACTIVE_FOR_PERSON_NOT_EXISTS } from './pp-read-tail-r23-sources';
+import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
 import { PP_RD29_LIFECYCLE_CASE_FOR_ENGAGEMENT_SQL } from './pp-read-tail-r29-sources';
 import { ppRd27IdVersionStatusInGuard } from './pp-read-tail-r27-sources';
 import { PP_RD24_PEOPLE_PERSON_USER_SAME_SQL, PP_RD24_PEOPLE_PERSON_USER_OK_SQL } from './pp-read-tail-r24-sources';
@@ -252,7 +253,7 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
                 .bind(companyId, personId, id, effectiveAt);
         },
         guard42(key: string, value: "prepared-package", companyId: string, value2: string, package_id: string, revision: number) {
-            return assertion(database, key, value, "EXISTS(SELECT 1 FROM people_position_packages WHERE company_id=? AND position_id=? AND package_id=? AND revision=?)", [
+            return assertion(database, key, value, ppRd30Exists4Guard('people_position_packages','company_id','position_id','package_id','revision'), [
                 companyId,
                 value2,
                 package_id,

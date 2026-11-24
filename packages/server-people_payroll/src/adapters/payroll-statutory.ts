@@ -1,4 +1,5 @@
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
+import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
 import { ppRd27IdCompanyEngagementApprovedVersionGuard } from './pp-read-tail-r27-sources';
 import { payrollStatutory } from '@erpx/server-collaboration/adapters/native-payroll-statutory';
 import { withPayrollPurchasedCommand, withPayrollPurchasedRead } from "@erpx/server-people_payroll/adapters/payroll-purchases";
@@ -32,7 +33,7 @@ function application(provided?: SqlDatabase) {
         },
         profile(id: string, companyId: string) { return database.prepare(ppRd25ByIdCompany('hr_thai_payroll_profiles')).bind(id, companyId).first<Profile>(); },
         lockProfile(value: string) { return database.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(value); },
-        guardProfileVersion(key: string, value: "profile", id: string, companyId: string, status: "draft" | "approved", version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_thai_payroll_profiles WHERE id=? AND company_id=? AND status=? AND version=?)", [id, companyId, status, version]); },
+        guardProfileVersion(key: string, value: "profile", id: string, companyId: string, status: "draft" | "approved", version: number) { return assertion(database, key, value, ppRd30Exists4Guard('hr_thai_payroll_profiles','id','company_id','status','version'), [id, companyId, status, version]); },
         guardNonOverlappingApproval(key: string, value: "overlap", engagement_id: string, companyId: string, tax_year: number, effective_to: string, effective_from: string) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_thai_payroll_profiles WHERE engagement_id=? AND company_id=? AND tax_year=? AND status='approved' AND effective_from<=? AND effective_to>=?)", [engagement_id, companyId, tax_year, effective_to, effective_from]); },
         decideProfile(status: "approved" | "superseded", status2: "approved" | "superseded", userId: string, now: number, id: string, companyId: string) { return payrollStatutory(database).decideProfile({ status, status2, userId, now, id, companyId }); },
         ...payrollStatutoryDecisionEffects(()=>database),

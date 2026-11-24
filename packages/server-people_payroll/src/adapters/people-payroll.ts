@@ -1,4 +1,5 @@
 import { PP_RD23_HR_COMP_REVISIONS_SQL, PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL, PP_RD23_HR_PAY_GROUPS_ACTIVE_CURRENCY_GUARD, PP_RD23_HR_TIME_ENTRIES_OVERTIME_SQL, PP_RD23_OVERTIME_PAYROLL_HANDOFFS_SQL, PP_RD23_POSTED_PAYROLL_RUN_GUARD } from './pp-read-tail-r23-sources';
+import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
 import { ppRd26IdCompanyVersionStatusGuard, ppRd26CommandReceiptPriorSql, ppRd26RunIdGuard } from './pp-read-tail-r26-sources';
 import { ppRd27IdByIdCompanySql } from './pp-read-tail-r27-sources';
 import { PP_RD28_ADVANCE_REPAYMENTS_SQL } from './pp-read-tail-r28-sources';
@@ -224,7 +225,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
                 adapter_id: string | null;
             }>();
         },
-        guard67(commandId: string, value: "pack-status", packId: string, status: string, record_version: number, source_digest: string) { return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_country_packs WHERE id=? AND status=? AND record_version=? AND source_digest=?)", [packId, status, record_version, source_digest]); },
+        guard67(commandId: string, value: "pack-status", packId: string, status: string, record_version: number, source_digest: string) { return assertion(database, commandId, value, ppRd30Exists4Guard('hr_country_packs','id','status','record_version','source_digest'), [packId, status, record_version, source_digest]); },
         stageTransitionCountryPackEffect(status: "superseded" | "active" | "validated", proof: string, userId: string, now: number, packId: string) { return nativePpStatement('people_payroll_stmt_18').bind(status, proof, userId, now, packId); },
         stageTransitionCountryPackEffect2(...args) { return payrollWorkflowFacts(database).stageTransitionCountryPackEffect2(...args); },
         readCalculateItemPayee(person_id: string, company_id: string) {
@@ -301,7 +302,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
             }>();
         },
         guard82(key: string, value: "task-version", taskId: string, companyId: string, expectedTaskVersion: number, userId: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM people_preparation_tasks WHERE id=? AND company_id=? AND version=? AND status='pending' AND clearance_type='payroll' AND assignee_id=?)", [taskId, companyId, expectedTaskVersion, userId]); },
-        guard83(key: string, value: "engagement-pay-group", engagement_id: string, companyId: string, payGroupId: string, currency: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND company_id=? AND pay_group_id=? AND currency=?)", [engagement_id, companyId, payGroupId, currency]); },
+        guard83(key: string, value: "engagement-pay-group", engagement_id: string, companyId: string, payGroupId: string, currency: string) { return assertion(database, key, value, ppRd30Exists4Guard('hr_engagements','id','company_id','pay_group_id','currency'), [engagement_id, companyId, payGroupId, currency]); },
         guard84(key: string, value: "one-final-pay", taskId: string) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_payroll_final_pay_preparations WHERE task_id=? AND status!='cancelled')", [taskId]); },
         guard85(key: string, value: "statutory-pack", id: string, record_version: number, sourceDigest: string) { return assertion(database, key, value, PP_RD24_STATUTORY_PACK_GUARD, [id, record_version, sourceDigest]); },
         stagePrepareFinalPayEffect(runId: string, companyId: string, payGroupId: string, value: string | null, engagement_id: string, periodStart: string, periodEnd: string, payDate: string, currency: string, userId: string, now: number, now2: number) { return nativePpStatement('people_payroll_stmt_19').bind(runId, companyId, payGroupId, value, engagement_id, periodStart, periodEnd, payDate, currency, userId, now, now2); },

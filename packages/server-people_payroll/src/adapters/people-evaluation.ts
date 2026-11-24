@@ -1,4 +1,5 @@
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
+import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
 import { PP_RD23_EVAL_ASSESSMENT_VERSION_GUARD } from './pp-read-tail-r23-sources';
 import { PP_RD22_ENGAGEMENT_VERSION_GUARD } from './pp-read-tail-r22-sources';
 import { ppRd21IdVersionStatusGuard } from './pp-read-tail-r21-sources';
@@ -47,7 +48,7 @@ function application(provided?: SqlDatabase) {
         readSaveEvaluationDefinitionEffect(...args) { return peopleEvaluationOrganizationFacts(database).readSaveEvaluationDefinitionEffect(...args); },
         guard7(key: string, value: "unique-cycle", companyId: string, id: string, year: number) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_evaluation_definitions WHERE company_id=? AND kind='cycle' AND id<>? AND (payload_json::jsonb->>'year')::integer=?)", [companyId, id, year]); },
         stageSaveEvaluationDefinitionEffect(value: string) { return database.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(value); },
-        guard9(key: string, value: "criteria-version", id: string, companyId: string, kind: "skill" | "benchmark" | "policy" | "role" | "band" | "cycle", expectedVersion: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_evaluation_definitions WHERE id=? AND company_id=? AND kind=? AND version=?)", [id, companyId, kind, expectedVersion]); },
+        guard9(key: string, value: "criteria-version", id: string, companyId: string, kind: "skill" | "benchmark" | "policy" | "role" | "band" | "cycle", expectedVersion: number) { return assertion(database, key, value, ppRd30Exists4Guard('hr_evaluation_definitions','id','company_id','kind','version'), [id, companyId, kind, expectedVersion]); },
         stageSaveEvaluationDefinitionEffect2(value: string, userId: string, reason: string, now: number, id: string) { return nativePpStatement('people_eval_stmt_1').bind(value, userId, reason, now, id); },
         stageSaveEvaluationDefinitionEffect3(id: string, companyId: string, kind: "skill" | "benchmark" | "policy" | "role" | "band" | "cycle", value: string, userId: string, userId2: string, reason: string, now: number, now2: number) { return nativePpStatement('people_eval_stmt_2').bind(id, companyId, kind, value, userId, userId2, reason, now, now2); },
         readEvaluationWorkspaceDefinitions(companyId: string) {
