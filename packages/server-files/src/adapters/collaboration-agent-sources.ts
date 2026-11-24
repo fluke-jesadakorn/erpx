@@ -1,6 +1,7 @@
 import { socialDraftAttachmentJoin } from '@erpx/server-collaboration/public/social-draft-file-projection';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { SELECT_ATTACHMENT_ID_SQL } from './read-tail-r27-source-sql';
+import { PRIVATE_IMAGE_COLUMNS_SQL } from './read-tail-r28-source-sql';
 export function collaborationAgentSources(db: SqlDatabase) {
     return { async legacyPostImages(post_id: string, post_id2: string, companyId: string) {
             return db.prepare(`${SELECT_ATTACHMENT_ID_SQL} ${socialDraftAttachmentJoin}
@@ -10,7 +11,7 @@ export function collaborationAgentSources(db: SqlDatabase) {
                 id: string;
             }>();
         }, async imageSource(id: string, companyId: string, post_id: string, post_id2: string, post_id3: string, value: string | null) {
-            return db.prepare(`SELECT a.object_key,a.checksum_sha256,a.media_type,a.bytes FROM attachments a ${socialDraftAttachmentJoin}
+            return db.prepare(`${PRIVATE_IMAGE_COLUMNS_SQL} FROM attachments a ${socialDraftAttachmentJoin}
           WHERE a.id=? AND d.company_id=? AND a.owner_type='social_draft'
             AND (d.published_post_id=? OR (d.edit_post_id=? AND d.edit_saved_version IS NOT NULL) OR (d.comment_parent_post_id=? AND d.published_comment_id=?))
             AND a.revoked_at IS NULL AND a.media_type IN ('image/jpeg','image/png','image/webp')`)

@@ -2,10 +2,11 @@ import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {socialDraftAttachmentJoin} from '@erpx/server-collaboration/public/social-draft-file-projection';
 import {SCANS_WITNESS_SQL} from './read-tail-dedupe-sql';
+import {PRIVATE_IMAGE_COLUMNS_SQL} from './read-tail-r28-source-sql';
 /** Closed original Social AI source association. Only native draft images
  * published on this exact post/comment may select a private storage key. */
 export async function socialAgentImageSource(database:SqlDatabase,input:{id:string;companyId:string;postId:string;commentId:string|null}){
- return database.prepare(`SELECT a.object_key,a.checksum_sha256,a.media_type,a.bytes,
+ return database.prepare(`${PRIVATE_IMAGE_COLUMNS_SQL},
  jsonb_build_object('attachment',to_jsonb(a),'draft',to_jsonb(d),'intent',to_jsonb(u),
  ${SCANS_WITNESS_SQL}
  FROM attachments a ${socialDraftAttachmentJoin} LEFT JOIN upload_intents u ON u.id=a.upload_id AND u.company_id=a.company_id

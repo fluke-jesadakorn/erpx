@@ -6,8 +6,9 @@ import type {PortalAttachmentWrite,PortalAttachmentUnit,PortalAttachmentReposito
 import { legalAccessEvents } from '@erpx/server-collaboration/adapters/native-legal-access-events';
 import { legalPortalStagedStatements } from '@erpx/server-collaboration/adapters/native-legal-portal-staged';
 import {usedStorageSql,pendingStorageSql} from './attachments/service-repository';
+import {PRIVATE_IMAGE_COLUMNS_SQL} from './read-tail-r28-source-sql';
 function unit(db:SqlDatabase):PortalAttachmentUnit{const nativeAccess=legalAccessEvents(db),nativeStaged=legalPortalStagedStatements(db);const writes=new WeakMap<PortalAttachmentWrite,SqlStatement>();function stage(statement:SqlStatement):PortalAttachmentWrite{const write:PortalAttachmentWrite={owner:"files"};writes.set(write,statement);return write;}
-function stagedSource(facts:PortalAttachmentStageScope){return db.prepare(`SELECT a.object_key,a.checksum_sha256,a.media_type,a.bytes,s.expected_target_version,
+function stagedSource(facts:PortalAttachmentStageScope){return db.prepare(`${PRIVATE_IMAGE_COLUMNS_SQL},s.expected_target_version,
  CASE WHEN s.state='draft' AND l.state='draft' AND i.status='ready' AND a.source_state='available' AND a.revoked_at IS NULL THEN 1 ELSE 0 END recovery_draft,
  jsonb_build_object('source',to_jsonb(a),'upload',to_jsonb(i),'link',to_jsonb(l),'set',to_jsonb(s))::text image,
  CASE WHEN a.owner_type='legal_item' AND a.owner_id=? AND a.purpose='legal_portal_submission' AND a.created_by=? AND a.object_key=? AND a.original_name=?
