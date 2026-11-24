@@ -1,4 +1,5 @@
 import "server-only";
+import {receiptImage} from './read-tail-r19';
 import {randomUUID} from "node:crypto";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -18,7 +19,7 @@ import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/comma
 
 export type ProcurementAttachmentPurchase={companyId:string;capability:"supply.purchasing";purpose:CapabilityPurpose;actor:WorkContext;targetId:string;targetType:"procurement_rfq"|"supplier_bill_match";witness:string};
 const image="SELECT (to_jsonb(r)-'version'-'updated_at')::text image FROM procurement_rfqs r WHERE id=? AND company_id=?";
-const billImage=()=>`SELECT jsonb_build_object('bill',to_jsonb(r)-'version'-'updated_at','receipts',(SELECT jsonb_agg(jsonb_build_object('binding',to_jsonb(br),'receipt',to_jsonb(f),'order',to_jsonb(o)) ORDER BY br.id) FROM procurement_bill_match_receipts br JOIN commerce_fulfillments f ON f.id=br.fulfillment_id JOIN commerce_orders o ON o.id=f.order_id WHERE br.match_id=r.id))::text image FROM procurement_bill_matches r WHERE r.id=? AND r.company_id=? AND ${supplierBillOwnerPredicate("r")}`;
+const billImage=()=>`SELECT jsonb_build_object('bill',to_jsonb(r)-'version'-'updated_at','receipts',${receiptImage("r.id")})::text image FROM procurement_bill_matches r WHERE r.id=? AND r.company_id=? AND ${supplierBillOwnerPredicate("r")}`;
 /** The actual Files transaction takes these leases before its first source or
  * receipt snapshot; a pool preflight cannot hold a transaction source lease. */
 export async function procurementAttachmentSourceReadLocks(database:SqlDatabase,scopes:readonly ProcurementAttachmentPurchase[]){

@@ -3,6 +3,7 @@ import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type {TargetRow} from "@erpx/server-files/public/contracts/attachments-operational";
 import {nativeProcurementReadFirst,PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH} from "./native-procurement-read";
+import {pointVersionGuard} from './read-tail-r19';
 /** Owner-native read: the statement is planned by the Procurement native read
  * port (`RD_OPERATIONAL_ATTACHMENT_BILL_MATCH`) and executed on the caller's
  * open unit. This module carries no SQL for this read. */
@@ -24,7 +25,7 @@ if(!allowedTargets.has(targetType))return null;
     db,
     commandId,
     `attachment-owner-${index}`,
-    `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=?)`,
+    pointVersionGuard(table),
     [targetId, companyId, version],
   );
 }

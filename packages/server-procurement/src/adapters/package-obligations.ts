@@ -6,6 +6,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {supplyCommerceSettlementSources as commerce,supplyCommerceSettlementSourceReadLocks} from "@erpx/server-commerce/public/supply-package-sources";
 import {recordAttachmentVersionSteps,recordAttachmentVersionSourceReadLocks} from "@erpx/server-files/public/record-version-receipts";
+import {tableRead} from './read-tail-r19';
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
 export async function lockSupplyProcurementPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){
@@ -20,8 +21,8 @@ export async function lockSupplyProcurementPackageObligationSources(owner:Postgr
 }
 export function assertSupplyProcurementPackageObligationSources(owner:PostgresDatabase,database:SqlDatabase,companyId:string){owner.assertActiveTransaction(database);if(sources.get(database)!==companyId)throw Error("SUPPLY_PROCUREMENT_PACKAGE_OBLIGATION_SOURCE_REQUIRED");}
 export const supplyProcurementSettlementSources={
- rfqs:"SELECT * FROM procurement_rfqs",bills:"SELECT * FROM procurement_bill_matches",billReceipts:"SELECT * FROM procurement_bill_match_receipts",
- billLines:"SELECT * FROM procurement_bill_match_lines",billEvents:"SELECT * FROM procurement_bill_match_events",promises:"SELECT * FROM procurement_delivery_promises",
+ rfqs:tableRead("procurement_rfqs"),bills:tableRead("procurement_bill_matches"),billReceipts:tableRead("procurement_bill_match_receipts"),
+ billLines:tableRead("procurement_bill_match_lines"),billEvents:tableRead("procurement_bill_match_events"),promises:tableRead("procurement_delivery_promises"),
 } as const;
 /** Standing supplier/product identity and reviewed matching configuration are
  * retained history. An actual unresolved demand, receipt or promise is duty;
