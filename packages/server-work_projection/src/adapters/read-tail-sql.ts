@@ -10,3 +10,9 @@ export const appointmentProbe = (columns: string, extra = '') =>
     `SELECT ${columns} FROM calendar_appointments WHERE id=? AND company_id=?${extra}`;
 /** Confirms the actor is an invited attendee of the calendar appointment. One definition serves every authority check and inbox source. */
 export const invitedAttendeeSql = "SELECT 1 FROM calendar_attendees WHERE appointment_id=? AND company_id=? AND user_id=?";
+/** Work-cache revision read. The full snapshot and a filtered watermark subset share one definition. */
+export const workCacheRevisionsSql = (sourceTables?: string[]) => {
+    const revision = sourceTables?.length ? "revision::text revision" : "revision";
+    const filter = sourceTables?.length ? ` WHERE table_name IN (${sourceTables.map(() => "?").join(",")})` : "";
+    return `SELECT table_name,${revision} FROM work_cache_revisions${filter} ORDER BY table_name`;
+};

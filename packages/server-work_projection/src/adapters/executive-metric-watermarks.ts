@@ -1,2 +1,2 @@
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';export async function executiveMetricWatermarks(sourceDb:SqlDatabase,sourceTables:string[]){return (await sourceDb.prepare(`SELECT table_name,revision::text revision FROM work_cache_revisions WHERE table_name IN (${sourceTables.map(() => "?").join(",")}) ORDER BY table_name`)
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import {workCacheRevisionsSql} from './read-tail-sql';export async function executiveMetricWatermarks(sourceDb:SqlDatabase,sourceTables:string[]){return (await sourceDb.prepare(workCacheRevisionsSql(sourceTables))
       .bind(...sourceTables).all<{ table_name: string; revision: string }>()).results;}
