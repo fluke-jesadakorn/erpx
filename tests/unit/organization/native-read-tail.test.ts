@@ -256,4 +256,43 @@ describe('Organization owner-local read tail', () => {
     expect(firstOp).toBe('JOIN (SELECT "id","company_id","branch_id","department_id","title","level_id","reports_to_position_id","is_ceo","active","version","created_by","created_at","updated_at","requirements","roster_required" FROM organization_positions) op');
   });
 
+  it('shares one canonical spaced-column projection per alias across the IAM snapshot source maps', async () => {
+    const c = await import('../../../packages/server-organization/src/adapters/organization-nodes-spaced-projections');
+    const {identitySnapshotSources} = await import('../../../packages/server-organization/src/adapters/identity-snapshot-sources');
+    const {learningTalentSnapshotSources} = await import('../../../packages/server-organization/src/adapters/learning-talent-snapshot-sources');
+    const {collaborationNotificationSnapshotSources} = await import('../../../packages/server-organization/src/adapters/collaboration-notification-snapshot-sources');
+    const id = identitySnapshotSources();
+    const lt = learningTalentSnapshotSources();
+    const cn = collaborationNotificationSnapshotSources();
+
+    const nFrom = [
+      'access_diagnosis_organization_nodes_n_from',
+      'authorization_organization_nodes_n_from',
+      'executive_authority_source_organization_nodes_n_from',
+      'executive_metric_projections_organization_nodes_n_from',
+      'executive_report_sources_organization_nodes_n_from',
+      'user_management_organization_nodes_n_from',
+      'work_role_selection_facts_organization_nodes_n_from',
+      'workflow_command_authority_organization_nodes_n_from',
+    ] as const;
+    for (const key of nFrom) expect(id[key]).toBe(c.ORG_NODES_SPACED_N_FROM);
+    expect(lt.learning_adapters_executive_metric_projections_organization_nodes_n_from).toBe(c.ORG_NODES_SPACED_N_FROM);
+    expect(lt.talent_adapters_executive_metric_projections_organization_nodes_n_from).toBe(c.ORG_NODES_SPACED_N_FROM);
+    expect(cn.organization_channels_organization_nodes_n_from).toBe(c.ORG_NODES_SPACED_N_FROM);
+
+    const groups: Array<[Record<string,string>, readonly string[], string]> = [
+      [id, ['authorization_organization_nodes_c_join','directory_projection_facts_organization_nodes_c_join','executive_authority_source_organization_nodes_c_join','executive_connection_facts_organization_nodes_c_join','executive_report_sources_organization_nodes_c_join','organization_change_assignment_organization_nodes_c_join','profile_membership_organization_nodes_c_join'], c.ORG_NODES_SPACED_C_JOIN],
+      [id, ['access_diagnosis_organization_nodes_b_from','authorization_organization_nodes_b_from','executive_authority_source_organization_nodes_b_from','executive_report_sources_organization_nodes_b_from','work_role_selection_facts_organization_nodes_b_from','workflow_command_authority_organization_nodes_b_from'], c.ORG_NODES_SPACED_B_FROM],
+      [id, ['authorization_organization_nodes_n_join','executive_main_evidence_sources_organization_nodes_n_join','executive_report_sources_organization_nodes_n_join','finance_delegation_organization_nodes_n_join','gpo_rules_organization_nodes_n_join','iam_my_access_organization_nodes_n_join'], c.ORG_NODES_SPACED_N_JOIN],
+      [id, ['authorization_organization_nodes_b_join','executive_main_evidence_sources_organization_nodes_b_join','executive_metric_projections_organization_nodes_b_join','executive_report_sources_organization_nodes_b_join','iam_api_organization_nodes_b_join'], c.ORG_NODES_SPACED_B_JOIN],
+    ];
+    for (const [map, keys, value] of groups) for (const key of keys) expect(map[key]).toBe(value);
+
+    expect(c.ORG_NODES_SPACED_N_FROM).toBe('FROM (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) n');
+    expect(c.ORG_NODES_SPACED_C_JOIN).toBe('JOIN (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) c');
+    expect(c.ORG_NODES_SPACED_B_FROM).toBe('FROM (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) b');
+    expect(c.ORG_NODES_SPACED_N_JOIN).toBe('JOIN (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) n');
+    expect(c.ORG_NODES_SPACED_B_JOIN).toBe('JOIN (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) b');
+  });
+
 });
