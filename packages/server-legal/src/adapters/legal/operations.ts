@@ -9,6 +9,7 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import {saveEmployeeRequest,employeeRequestSchema} from '@erpx/server-records/public/employee-requests';
 import {access,guards,visibility,tables} from "@erpx/server-legal/adapters/legal/access";
+import {nextDocumentVersionSql} from "@erpx/server-legal/adapters/legal/documents";
 import {legalCommand,hash} from "@erpx/server-legal/adapters/legal/service";
 import {executedCopies} from "@erpx/server-legal/adapters/legal/executed-copies";
 import {previewLegalImport} from "@erpx/server-legal/domain/operations";
@@ -45,7 +46,7 @@ holdPreview:async(id)=>db
       .bind(id, ...v.values)
       .all(),
 proposedAi:(facts:{proposalId:string;id:string;actorId:string;})=>db.prepare("SELECT source_version,source_hash,proposal FROM legal_ai_proposals WHERE id=? AND item_id=? AND created_by=? AND state='proposed'").bind(facts.proposalId,facts.id,facts.actorId).first<{ source_version: number; source_hash: string; proposal: string }>(),
-nextDocumentVersion:(facts:{id:string;})=>db.prepare("SELECT coalesce(max(version),0)+1 n FROM legal_documents WHERE item_id=?").bind(facts.id).first<{ n: number }>(),
+nextDocumentVersion:(facts:{id:string;})=>db.prepare(nextDocumentVersionSql).bind(facts.id).first<{ n: number }>(),
 async reviewedAiDocument(facts){return stage(await nativeOps.aiDocument({documentId:facts.documentId,itemId:facts.id,version:facts.next,name:facts.name,checksum:facts.checksum,bytes:facts.bytes,body:facts.body,actorId:facts.actorId,now:facts.now}));},
 async acceptProposal(facts){return stage(await nativeOps.acceptProposal({proposalJson:facts.fact0,proposalId:facts.proposalId}));},
 async advanceItem(facts){return stage(await nativeOps.advanceItem({now:facts.now,id:facts.id}));},

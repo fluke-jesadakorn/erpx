@@ -18,16 +18,18 @@ import type {LegalWrite} from "@erpx/server-legal/application/service";
 import {legalDocumentProvider} from "@erpx/server-legal/adapters/legal/document-provider";
 import { legalDocuments } from '@erpx/server-collaboration/adapters/native-legal-documents';
 type InspectionFacts={inspectionId:string;id:string;kind:"ocr"|"verify";resultJson:string;actorId:string;now:number;item_id:string};
+/** Shared by canonical/stored document version reads and the operations read. */
+export const nextDocumentVersionSql = "SELECT coalesce(max(version),0)+1 n FROM legal_documents WHERE item_id=?";
 function application(db:SqlDatabase,a:WorkContext,storage?:FileStore):ReturnType<typeof createLegalDocumentApplication>{const nativeDocs=legalDocuments(db,a.companyId,a.userId);const inspections=new WeakMap<LegalWrite,InspectionFacts>();const fileFacts=legalDocumentSourceFacts(db),nativeWrites=new WeakMap<LegalWrite,SqlStatement>();const stage=(statement:SqlStatement):LegalWrite=>{const write:LegalWrite={owner:"legal"};nativeWrites.set(write,statement);return write;};const resolve=(writes:LegalWrite[])=>writes.map(write=>{const statement=nativeWrites.get(write);if(!statement)throw new Error("LEGAL_DOCUMENT_REPOSITORY_MISMATCH");return statement;});const files=()=>{if(!storage)throw new Error("LEGAL_DOCUMENT_FILES_REQUIRED");return storage;};
 return createLegalDocumentApplication({actor:a,access:(id,p)=>access(db,a,id,p),storage:{get:key=>files().get(key),head:key=>files().head(key),put:(key,bytes,options)=>files().put(key,bytes,options)} satisfies DocumentStorage,clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},hash:bytes=>createHash("sha256").update(bytes).digest("hex"),utf8:value=>Buffer.from(value),ascii:bytes=>Buffer.from(bytes).toString(),hex:bytes=>Buffer.from(bytes).toString("hex"),error:(status,code,message)=>new ApiError(status,code,message),provider:legalDocumentProvider(db,a.companyId,(status,code,message)=>new ApiError(status,code,message)),fileIntake:{readOnly:()=>attachmentsV2ReadOnly(),createSet:(input,key,options)=>createAttachmentSet(db,a,input,key,options),reserve:(set,input,key,options)=>reserveAttachmentFile(db,a,set,input,key,options),complete:(intent,bytes,options)=>completeAttachmentUpload(db,files(),a,intent,bytes,options),scan:id=>scanAttachmentNow(db,files(),id),binding:async(input,options)=>{const result=await prepareAttachmentBinding(db,a,input,options);return {...result,guards:result.guards.map(stage),steps:result.steps.map(stage)};},content:(link,variant,options)=>attachmentContent(db,files(),a,link,variant,options)},repository:{
 approvedVersion:(facts:{id:string;})=>db.prepare("SELECT cycle,document_id,document_hash FROM legal_approvals WHERE item_id=? AND decision='approved' ORDER BY cycle DESC LIMIT 1").bind(facts.id).first<{cycle:number;document_id:string;document_hash:string}>(),
 async retainExecutedCopy(facts){return stage(await nativeDocs.retainExecutedCopy(facts));},
 async lockExecutedDocument(facts){return stage(await nativeDocs.lockExecutedDocument(facts));},
 cleanSource:facts=>fileFacts.cleanSource(facts),
-nextVersion:(facts:{id:string;})=>db.prepare("SELECT coalesce(max(version),0)+1 n FROM legal_documents WHERE item_id=?").bind(facts.id).first<{ n: number }>(),
+nextVersion:(facts:{id:string;})=>db.prepare(nextDocumentVersionSql).bind(facts.id).first<{ n: number }>(),
 async insertCanonicalDocument(facts){return stage(await nativeDocs.insertCanonicalDocument(facts));},
 async advanceCanonicalItem(facts){return stage(await nativeDocs.advanceCanonicalItem(facts));},
-nextStoredVersion:(facts:{id:string;})=>db.prepare("SELECT coalesce(max(version),0)+1 n FROM legal_documents WHERE item_id=?").bind(facts.id).first<{ n: number }>(),
+nextStoredVersion:(facts:{id:string;})=>db.prepare(nextDocumentVersionSql).bind(facts.id).first<{ n: number }>(),
 async insertStoredDocument(facts){return stage(await nativeDocs.insertStoredDocument(facts));},
 async advanceStoredItem(facts){return stage(await nativeDocs.advanceStoredItem(facts));},
 document:(facts:{id:string;})=>db.prepare("SELECT * FROM legal_documents WHERE id=?").bind(facts.id).first<DocumentVersion>(),
