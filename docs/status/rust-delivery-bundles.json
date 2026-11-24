@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7971,
+    "revision": 7975,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -133761,7 +133761,7 @@
         "owner": "marketing",
         "title": "marketing TS read tail native cutover (r19)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -133773,22 +133773,42 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG91mar",
-          "claimedAt": "2026-11-24T01:24:23.829Z",
-          "heartbeatAt": "2026-11-24T01:29:05.622Z",
-          "expiresAt": "2026-11-24T01:59:05.622Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-marketing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "68a958c2a",
+            "owner": "marketing",
+            "before": 102,
+            "after": 101,
+            "note": "Scoped and public active-form reads share activeFormSql variants; byte-identical, binds preserved."
+          },
+          {
+            "command": "vitest active form + asset lock (6)",
+            "result": "passed",
+            "sourceSha": "68a958c2a"
+          },
+          {
+            "command": "tsc marketing scoped + catalogue",
+            "result": "passed",
+            "sourceSha": "68a958c2a"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe TS-only dedupe; if none, report blocked with evidence. BEFORE=102.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG91mar",
+          "at": "2026-11-24T01:31:41.995Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -134222,6 +134242,42 @@
         "nextAction": "Next: scan for another byte-identical family; if none, report blocked. BEFORE=169.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.marketing.read-tail-r20",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing TS read tail native cutover (round 20)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**",
+          "tests/integration/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGA4mar",
+          "claimedAt": "2026-11-24T01:31:42.312Z",
+          "heartbeatAt": "2026-11-24T01:31:42.312Z",
+          "expiresAt": "2026-11-24T02:01:42.312Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: attachment owner fact point read or local point reads (asset id, candidate id/lock, history) via closed-variant helpers. BEFORE=101.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -134230,7 +134286,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 822,
+      "totalPackets": 823,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -134238,13 +134294,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 448,
+        "blocked": 449,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:31:07.316Z",
+    "updatedAt": "2026-11-24T01:31:42.316Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
