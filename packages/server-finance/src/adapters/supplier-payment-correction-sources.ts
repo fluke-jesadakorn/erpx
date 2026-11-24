@@ -1,4 +1,5 @@
 import "server-only";
+import {journalLineEvidenceSql} from './finance-read-tail-r22-sql';
 /** Only the original Finance reversal receipt and mirror journal establish a
  * corrected payment. A voided status or a caller source label cannot do so. */
 export const financePaymentReversalSources=`SELECT payment.id,payment.company_id,payment.journal_id original_journal_id,reversal.reversal_journal_id,reversal.fx_reversal_journal_id,command.command_id reverse_command_id
@@ -9,8 +10,8 @@ export const financePaymentReversalSources=`SELECT payment.id,payment.company_id
  JOIN finance_financial_events original_capture ON original_capture.journal_id=original.id AND original_capture.company_id=payment.company_id AND original_capture.source_type=original.source_type AND original_capture.source_id IS NOT DISTINCT FROM original.source_id AND original_capture.legacy_snapshot=0
  JOIN finance_financial_events correction_capture ON correction_capture.journal_id=correction.id AND correction_capture.company_id=payment.company_id AND correction_capture.source_type='payment_reversal' AND correction_capture.source_id=payment.id AND correction_capture.legacy_snapshot=0
  WHERE payment.status='voided' AND original.reversed_by=reversal.reversed_by AND original.reversed_at=reversal.reversed_at
- AND original_capture.evidence_json::jsonb->'lines'=(SELECT jsonb_agg(to_jsonb(line) ORDER BY line.ordinal) FROM finance_journal_lines line WHERE line.journal_id=original.id)
- AND correction_capture.evidence_json::jsonb->'lines'=(SELECT jsonb_agg(to_jsonb(line) ORDER BY line.ordinal) FROM finance_journal_lines line WHERE line.journal_id=correction.id)
+ AND original_capture.evidence_json::jsonb->'lines'=${journalLineEvidenceSql('original.id')}
+ AND correction_capture.evidence_json::jsonb->'lines'=${journalLineEvidenceSql('correction.id')}
  AND (SELECT count(*) FROM finance_journal_lines line WHERE line.journal_id=original.id)>=2
  AND (SELECT count(*) FROM finance_journal_lines line WHERE line.journal_id=original.id)=(SELECT count(*) FROM finance_journal_lines line WHERE line.journal_id=correction.id)
  AND NOT EXISTS(SELECT 1 FROM finance_journal_lines line LEFT JOIN finance_journal_lines mirror ON mirror.journal_id=correction.id AND mirror.ordinal=line.ordinal WHERE line.journal_id=original.id AND (mirror.id IS NULL OR mirror.account_id<>line.account_id OR (mirror.debit_minor,mirror.credit_minor,mirror.base_debit_minor,mirror.base_credit_minor,mirror.dimension_json) IS DISTINCT FROM (line.credit_minor,line.debit_minor,line.base_credit_minor,line.base_debit_minor,line.dimension_json)))

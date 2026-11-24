@@ -35,6 +35,7 @@ import {
 } from '../../../packages/server-finance/src/adapters/finance-read-tail-r18-sql';
 import { rootOwnerExistsSql, materializedClockCteSql } from '../../../packages/server-finance/src/adapters/finance-read-tail-r19-sql';
 import { idCompanyStatusVersionGuard, aggByCompany } from '../../../packages/server-finance/src/adapters/finance-read-tail-r20-sql';
+import { journalLineEvidenceSql } from '../../../packages/server-finance/src/adapters/finance-read-tail-r22-sql';
 import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/people-payroll-final-owner-projections';
 import { workflowFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/workflow-final-owner-projections';
 import {
@@ -826,5 +827,66 @@ describe('finance read-tail r21 byte-identical SQL variants', () => {
   it('keeps exactly two SELECT-bearing templates in the shared helper', async () => {
     const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r20-sql.ts', import.meta.url), 'utf8');
     expect(shared.split('SELECT ').length - 1).toBe(2);
+  });
+});
+
+const R22_EVIDENCE_TEMPLATE = (ref: string) =>
+  `(SELECT jsonb_agg(to_jsonb(line) ORDER BY line.ordinal) FROM finance_journal_lines line WHERE line.journal_id=${ref})`;
+const R22_EVIDENCE_SITES: [string, string][] = [
+  ['bank-statement-settlement.ts', 'journal.id'],
+  ['sales-receipt-sources.ts', 'journal.id'],
+  ['supplier-payment-correction-sources.ts', 'original.id'],
+  ['supplier-payment-correction-sources.ts', 'correction.id'],
+  ['supply-package-obligations.ts', 'journal.id'],
+];
+const R22_MONEY_EXTRA = ' AND (m.source_id IN(SELECT id FROM journals) OR m.source_id IN(SELECT id FROM owner_orders))';
+const R22_MONEY_SQL = `(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.source_type,m.source_id,m.amount_kind) FROM money_transaction_snapshots m WHERE m.company_id=?${R22_MONEY_EXTRA})`;
+
+describe('finance read-tail r22 byte-identical SQL families', () => {
+  it('renders the captured journal-line evidence projection byte-identically for every ref', () => {
+    for (const [, ref] of R22_EVIDENCE_SITES) {
+      expect(journalLineEvidenceSql(ref)).toBe(R22_EVIDENCE_TEMPLATE(ref));
+      expect(journalLineEvidenceSql(ref)).not.toMatch(/FOR UPDATE|FOR SHARE/);
+    }
+  });
+
+  it('backs all five evidence sites with the helper and no inline literal', async () => {
+    let calls = 0;
+    for (const file of new Set(R22_EVIDENCE_SITES.map(([f]) => f))) {
+      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(text).toContain("from './finance-read-tail-r22-sql'");
+      expect(text).toContain('journalLineEvidenceSql');
+      for (const [f, ref] of R22_EVIDENCE_SITES) {
+        if (f !== file) continue;
+        expect(text.split(R22_EVIDENCE_TEMPLATE(ref)).length - 1).toBe(0);
+        expect(text.split("${journalLineEvidenceSql('" + ref + "')}").length - 1).toBe(1);
+      }
+      calls += (text.match(/journalLineEvidenceSql\(/g) ?? []).length;
+    }
+    expect(calls).toBe(5);
+  });
+
+  it('keeps exactly one SELECT-bearing template in the r22 helper', async () => {
+    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r22-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split('SELECT ').length - 1).toBe(1);
+  });
+
+  it('renders the manufacturing money extra-predicate variant byte-identically with no lock text', () => {
+    const rendered = aggByCompany('m', 'money_transaction_snapshots', 'source_type,source_id,amount_kind', R22_MONEY_EXTRA);
+    expect(rendered).toBe(R22_MONEY_SQL);
+    expect(rendered).not.toMatch(/FOR UPDATE|FOR SHARE/);
+  });
+
+  it('backs the manufacturing money site with the shared helper and no inline literal', async () => {
+    const text = await readFile(new URL('../../../packages/server-finance/src/adapters/manufacturing-existing-posting-setup.ts', import.meta.url), 'utf8');
+    expect(text).toContain("from './finance-read-tail-r20-sql'");
+    expect(text.split(R22_MONEY_SQL).length - 1).toBe(0);
+    expect(text.split("aggByCompany('m','money_transaction_snapshots','source_type,source_id,amount_kind',' AND (m.source_id IN(SELECT id FROM journals) OR m.source_id IN(SELECT id FROM owner_orders))')").length - 1).toBe(1);
+  });
+
+  it('backs the familyEvidence entries projection with the shared helper and no inline literal', async () => {
+    const text = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    expect(text.split('(SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM finance_current_tax_entries t WHERE t.company_id=? AND').length - 1).toBe(0);
+    expect(text.split("aggByCompany('t','finance_current_tax_entries','id',` AND").length - 1).toBe(1);
   });
 });

@@ -1,4 +1,5 @@
 import 'server-only';
+import {journalLineEvidenceSql} from './finance-read-tail-r22-sql';
 /** Original Finance Treasury receipts retain their exact immutable issued copy,
  * command and single invoice allocation. The consuming Commerce owner must
  * separately resolve this invoice through its actual Sales relationship. */
@@ -17,5 +18,5 @@ export const financeSalesReceiptOriginalSources=`SELECT p.id,p.company_id,p.part
  AND receipt.snapshot_json::jsonb->>'paymentId'=p.id AND receipt.snapshot_json::jsonb->>'journalId'=p.journal_id
  AND jsonb_array_length(receipt.snapshot_json::jsonb->'allocations')=1
  AND receipt.snapshot_json::jsonb->'allocations' @> jsonb_build_array(jsonb_build_object('invoiceId',invoice.id,'amountMinor',allocation.amount_minor::text))
- AND captured.evidence_json::jsonb->'lines'=(SELECT jsonb_agg(to_jsonb(line) ORDER BY line.ordinal) FROM finance_journal_lines line WHERE line.journal_id=journal.id)
+ AND captured.evidence_json::jsonb->'lines'=${journalLineEvidenceSql('journal.id')}
  AND NOT EXISTS(SELECT 1 FROM finance_allocations other WHERE other.payment_id=p.id AND other.id<>allocation.id)`;

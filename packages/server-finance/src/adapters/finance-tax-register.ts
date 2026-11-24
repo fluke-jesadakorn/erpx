@@ -77,8 +77,8 @@ export async function reviewVatEntry(actor: WorkContext, id: string, action: "ap
 const familyEvidenceSql = `jsonb_build_object(
   'returns',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',r.id,'version',r.version,'status',r.status,'journal',r.credit_journal_id) ORDER BY r.id) ${commerceSnapshotSources().finance_tax_register_commerce_returns_r_from} WHERE r.company_id=? AND r.invoice_id=?),'[]'::jsonb),
   'billingCredits',COALESCE((SELECT jsonb_agg(jsonb_build_object('id',r.id,'version',r.version,'status',r.status,'journal',r.credit_journal_id) ORDER BY r.id) FROM finance_billing_corrections r WHERE r.company_id=? AND r.invoice_id=?),'[]'::jsonb),
-  'entries',COALESCE((SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM finance_current_tax_entries t WHERE t.company_id=? AND
-    ((t.source_type='invoice' AND t.source_id=?) OR (t.source_type='commerce_return' AND t.source_id IN (SELECT id ${commerceSnapshotSources().finance_tax_register_commerce_returns_from} WHERE company_id=? AND invoice_id=?)) OR (t.source_type='billing_credit' AND t.source_id IN (SELECT id FROM finance_billing_corrections WHERE company_id=? AND invoice_id=?)))),'[]'::jsonb))::text`;
+  'entries',COALESCE(${aggByCompany('t','finance_current_tax_entries','id',` AND
+    ((t.source_type='invoice' AND t.source_id=?) OR (t.source_type='commerce_return' AND t.source_id IN (SELECT id ${commerceSnapshotSources().finance_tax_register_commerce_returns_from} WHERE company_id=? AND invoice_id=?)) OR (t.source_type='billing_credit' AND t.source_id IN (SELECT id FROM finance_billing_corrections WHERE company_id=? AND invoice_id=?))))`)},'[]'::jsonb))::text`;
 async function familyEvidence(write: SqlDatabase, actor: WorkContext, familyId: string) {
     return String(await write.prepare(`SELECT ${familyEvidenceSql} value`).bind(actor.companyId, familyId, actor.companyId, familyId, actor.companyId, familyId, actor.companyId, familyId, actor.companyId, familyId).first("value"));
 }

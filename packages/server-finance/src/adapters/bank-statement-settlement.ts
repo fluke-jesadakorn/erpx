@@ -1,5 +1,6 @@
 import 'server-only';
 import {supplierPaymentOriginalSources} from '@erpx/server-finance/adapters/supplier-payment-correction-sources';
+import {journalLineEvidenceSql} from './finance-read-tail-r22-sql';
 
 /** Fixed movement and statement aliases. Supplier confirmation has its own
  * receipt and immutable posting capture, not generic payment money snapshots. */
@@ -19,7 +20,7 @@ const supplierBatchMovementSettled=`EXISTS(SELECT 1 FROM (${supplierPaymentOrigi
   AND EXISTS(SELECT 1 FROM command_receipts exported WHERE exported.command_id=batch.export_command_id AND exported.operation='finance.supplier_batch.export' AND exported.record_id=batch.id AND exported.actor_id=batch.exported_by AND exported.authority_json::jsonb->>'companyId'=batch.company_id AND exported.result_json::jsonb->>'id'=batch.id AND exported.result_json::jsonb->>'sha256'=batch.export_hash AND exported.result_json::jsonb->>'rows'=(SELECT count(*)::text FROM finance_supplier_instructions item WHERE item.batch_id=batch.id))
   AND captured.evidence_json::jsonb->'journal'->>'id'=journal.id AND captured.evidence_json::jsonb->'journal'->>'status'='posted'
   AND captured.evidence_json::jsonb->'journal'->>'source_type'=journal.source_type AND captured.evidence_json::jsonb->'journal'->>'source_id'=journal.source_id AND captured.evidence_json::jsonb->'journal'->>'company_id'=journal.company_id AND captured.evidence_json::jsonb->'journal'->>'chart_id'=journal.chart_id AND captured.evidence_json::jsonb->'journal'->>'period_id'=journal.period_id AND captured.evidence_json::jsonb->'journal'->>'currency'=journal.currency AND captured.evidence_json::jsonb->'journal'->>'entry_date'=journal.entry_date
-  AND captured.evidence_json::jsonb->'lines'=(SELECT jsonb_agg(to_jsonb(line) ORDER BY line.ordinal) FROM finance_journal_lines line WHERE line.journal_id=journal.id)
+  AND captured.evidence_json::jsonb->'lines'=${journalLineEvidenceSql('journal.id')}
   AND (SELECT count(*)>=2 AND sum(line.debit_minor)=payment.amount_minor AND sum(line.base_debit_minor)=payment.amount_minor AND sum(line.debit_minor-line.credit_minor)=0 AND sum(line.base_debit_minor-line.base_credit_minor)=0 FROM finance_journal_lines line WHERE line.journal_id=journal.id)
   AND (SELECT sum(line.debit_minor-line.credit_minor) FROM finance_journal_lines line WHERE line.journal_id=journal.id AND line.account_id=r.bank_account)=movement.amount_minor
  )`;

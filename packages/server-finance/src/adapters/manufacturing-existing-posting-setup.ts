@@ -6,6 +6,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {validateCommercePostingFinanceReferences} from '@erpx/server-finance/adapters/commerce-posting-setup';
 import {salesGoodsPostingFinanceState} from '@erpx/server-finance/adapters/sales-goods-posting-setup';
 import {manufacturingExistingPostingEconomicReferences} from '@erpx/server-manufacturing/public/existing-posting-sources';
+import {aggByCompany} from './finance-read-tail-r20-sql';
 
 /** Only the original Manufacturing owner's actual Finance foreign keys. Full
  * owner rows stay private; no caller SQL, source label or Company-wide scan. */
@@ -17,7 +18,7 @@ export async function manufacturingExistingPostingFinancialHistory(database:SqlD
  'lines',(SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id) FROM finance_journal_lines l JOIN journals actual ON actual.id=l.journal_id),
  'captures',(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM finance_financial_events c JOIN journals actual ON actual.id=c.journal_id),
  'books',(SELECT jsonb_agg(to_jsonb(b) ORDER BY b.primary_journal_id,b.secondary_journal_id) FROM books b),
- 'money',(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.source_type,m.source_id,m.amount_kind) FROM money_transaction_snapshots m WHERE m.company_id=? AND (m.source_id IN(SELECT id FROM journals) OR m.source_id IN(SELECT id FROM owner_orders)))
+ 'money',${aggByCompany('m','money_transaction_snapshots','source_type,source_id,amount_kind',' AND (m.source_id IN(SELECT id FROM journals) OR m.source_id IN(SELECT id FROM owner_orders))')}
  )::text image,
  EXISTS(SELECT 1 FROM books b WHERE b.company_id<>? OR NOT EXISTS(SELECT 1 FROM finance_journals j WHERE j.id=b.secondary_journal_id AND j.company_id=b.company_id))
  OR EXISTS(SELECT 1 FROM finance_financial_events c JOIN journals actual ON actual.id=c.journal_id WHERE c.company_id<>?) invalid`).bind(JSON.stringify(source.journalIds),JSON.stringify(source.orderIds),actor.companyId,actor.companyId,actor.companyId).first<{image:string;invalid:boolean}>();
