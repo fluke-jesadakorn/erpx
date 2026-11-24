@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8433,
+    "revision": 8439,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -138741,7 +138741,7 @@
         "owner": "support",
         "title": "support TS read tail native cutover (round 17)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -138753,7 +138753,14 @@
         "resources": [
           "owner:support"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCpsup",
+          "claimedAt": "2026-11-24T02:15:31.062Z",
+          "heartbeatAt": "2026-11-24T02:15:31.062Z",
+          "expiresAt": "2026-11-24T02:45:31.062Z",
+          "generation": 161
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -138774,8 +138781,8 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
-        "nextAction": "Integrated; claim released",
+        "blocker": null,
+        "nextAction": "Continuation round (r18) under this task id because the owners map lacks a support key: target support-evidence (5), incident-attachment-read-sources (4), sales-projection (3); keep portal/service-access untouched. BEFORE=103.",
         "handoff": {
           "runId": "run-20261123-i",
           "agentId": "wGCusup",
@@ -139611,7 +139618,7 @@
         "owner": "runtime",
         "title": "runtime TS read tail native cutover (r4)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -139623,22 +139630,34 @@
         "resources": [
           "owner:runtime"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCdrun",
-          "claimedAt": "2026-11-24T02:09:41.747Z",
-          "heartbeatAt": "2026-11-24T02:09:41.747Z",
-          "expiresAt": "2026-11-24T02:39:41.747Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "runtime byte-identical scan (58 literal nodes)",
+            "result": "passed",
+            "sourceSha": "e4cc41bc3",
+            "note": "58 distinct SELECT-bearing literals; COMMIT/ROLLBACK excluded; executive drawer untouched."
+          },
+          {
+            "command": "vitest runtime (96) + tsc runtime",
+            "result": "passed",
+            "sourceSha": "e4cc41bc3"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=54.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with evidence.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCdrun",
+          "at": "2026-11-24T02:15:30.401Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with evidence."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -139647,7 +139666,7 @@
         "owner": "platform_administration",
         "title": "platform_administration TS read tail native cutover (round 9)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -139659,22 +139678,34 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCepad",
-          "claimedAt": "2026-11-24T02:11:16.998Z",
-          "heartbeatAt": "2026-11-24T02:11:16.998Z",
-          "expiresAt": "2026-11-24T02:41:16.998Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "platform byte-identical scan (42 SELECTs)",
+            "result": "passed",
+            "sourceSha": "8837f37d0",
+            "note": "0 repeated SELECT-bearing literals outside excluded legal-release/executive-projection families; probe helper already canonical."
+          },
+          {
+            "command": "vitest platform dedupe (10) + tsc platform",
+            "result": "passed",
+            "sourceSha": "8837f37d0"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: non-excluded byte-identical SELECT family; if none, report blocked. BEFORE=42.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with evidence.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCepad",
+          "at": "2026-11-24T02:15:29.277Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with evidence."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -140124,17 +140155,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 28,
+        "in_progress": 27,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 559,
+        "blocked": 560,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:14:49.178Z",
+    "updatedAt": "2026-11-24T02:15:31.069Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
