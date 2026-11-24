@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7729,
+    "revision": 7737,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -129803,7 +129803,7 @@
         "owner": "marketing",
         "title": "marketing TS read tail native cutover (round 15)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -129815,22 +129815,42 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG14mar",
-          "claimedAt": "2026-11-24T00:36:04.446Z",
-          "heartbeatAt": "2026-11-24T00:58:38.177Z",
-          "expiresAt": "2026-11-24T01:28:38.177Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-marketing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e4f7df0b1",
+            "owner": "marketing",
+            "before": 109,
+            "after": 107,
+            "note": "Immediate reviewer check and reviewer command assertion share one guard."
+          },
+          {
+            "command": "cargo check -p erpx-server-marketing",
+            "result": "passed",
+            "sourceSha": "e4f7df0b1"
+          },
+          {
+            "command": "vitest marketing units (56) + tsc marketing",
+            "result": "passed",
+            "sourceSha": "e4f7df0b1"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to a mounted native read; record a strictly lower spaced count (BEFORE=109).",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG14mar",
+          "at": "2026-11-24T01:03:21.252Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -130007,7 +130027,7 @@
         "owner": "people_payroll",
         "title": "people_payroll TS read tail native cutover (round 13)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -130019,22 +130039,42 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG18peo",
-          "claimedAt": "2026-11-24T00:38:02.730Z",
-          "heartbeatAt": "2026-11-24T00:58:38.177Z",
-          "expiresAt": "2026-11-24T01:28:38.177Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e4f7df0b1",
+            "owner": "people_payroll",
+            "before": 1635,
+            "after": 1633,
+            "note": "Source blocker and payroll source guard rows share RD_PAYROLL_ITEM_SOURCE_ROWS."
+          },
+          {
+            "command": "cargo check -p erpx-server-people-payroll + lib (67)",
+            "result": "passed",
+            "sourceSha": "e4f7df0b1"
+          },
+          {
+            "command": "vitest read-plan (27) + tsc people_payroll",
+            "result": "passed",
+            "sourceSha": "e4f7df0b1"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or use the read-plan port; record a strictly lower spaced count (BEFORE=1635).",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG18peo",
+          "at": "2026-11-24T01:03:21.576Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -131012,6 +131052,78 @@
         "nextAction": "TS-only dedupe candidates (no new composition): workflow-flow-routing posted_by pair, chart base_currency 5 copies, finance_journals chart-id existence reads; BEFORE=2267; preserve lock-free reads.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.marketing.read-tail-r16",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing TS read tail native cutover (r16)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**",
+          "tests/integration/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG47mar",
+          "claimedAt": "2026-11-24T01:03:21.783Z",
+          "heartbeatAt": "2026-11-24T01:03:21.783Z",
+          "expiresAt": "2026-11-24T01:33:21.783Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local family; record a strictly lower spaced count (BEFORE=107).",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.people_payroll.read-tail-r14",
+        "goalId": "G4",
+        "owner": "people_payroll",
+        "title": "people_payroll TS read tail native cutover (r14)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/**",
+          "tests/unit/people_payroll/**",
+          "tests/integration/people_payroll/**"
+        ],
+        "resources": [
+          "owner:people_payroll"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG48peo",
+          "claimedAt": "2026-11-24T01:03:21.986Z",
+          "heartbeatAt": "2026-11-24T01:03:21.986Z",
+          "expiresAt": "2026-11-24T01:33:21.986Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local family; record a strictly lower spaced count (BEFORE=1633).",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -131020,7 +131132,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 766,
+      "totalPackets": 768,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -131028,13 +131140,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 388,
+        "blocked": 390,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:03:08.131Z",
+    "updatedAt": "2026-11-24T01:03:21.990Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
