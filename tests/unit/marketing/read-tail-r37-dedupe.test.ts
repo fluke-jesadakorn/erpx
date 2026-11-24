@@ -63,7 +63,8 @@ describe("marketing module-membership probe dedupe (r37)", () => {
     }
   });
 
-  it("retirement:ts-statements KPI is 64 (strictly below BEFORE=65)", async () => {
-    expect(await selectTokens()).toBe(64);
+  it("retirement:ts-statements KPI stays strictly below BEFORE=65", async () => {
+    // r38 lowers the owner tail further (62); this round only pins the baseline drop.
+    expect(await selectTokens()).toBeLessThan(65);
   });
 });

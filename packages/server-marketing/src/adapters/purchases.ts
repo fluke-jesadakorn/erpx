@@ -17,6 +17,7 @@ import {crmMarketingSourceReadLocks,publicSubmissionReceiptWitness} from "@erpx/
 import type {PublicMarketingForm} from "@erpx/server-marketing/application/public-form";
 import {marketingActorScopeSql} from "./marketing-actor-scope-sql";
 import {marketingModuleMemberSql} from "./module-membership";
+import {formAssetReadHead} from "./form-asset-read-head";
 import {marketingPurchaseRowsSql} from "./marketing-purchase-rows-sql";
 export type MarketingPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type MarketingPurchaseTarget={kind:"asset"|"candidate"|"campaign"|"campaign-cost";id:string};
@@ -28,7 +29,7 @@ const rows={asset:marketingPurchaseAssetRows,candidate:marketingPurchaseCandidat
 /** Owner-local fixed form-asset snapshot shared by the retained public-submission
  * before/after check. Both reads execute this exact statement inside the caller's
  * Holding transaction; one source keeps the fresh-approval witness from drifting. */
-const formAssetRow:string="SELECT id,company_id,version,status,configuration_json FROM marketing_assets WHERE id=? AND company_id=? AND kind='form'";
+const formAssetRow:string=formAssetReadHead({kind:'form-row'});
 export async function marketingCandidateReadFilter(alias:'c'|'marketing_lead_candidates'){return await commercePackageEnforcementMode()==='disabled'?'true':`EXISTS(SELECT 1 FROM (${marketingPurchaseCandidateRows}) native_candidate WHERE native_candidate.id=${alias}.id AND native_candidate.company_id=${alias}.company_id)`;}
 type Source={id:string;company_id:string;branch_id:string|null;department_id:string|null;witness:string};
 const marketingAssignmentAllowedSql=(alias:string,permission:string)=>`SELECT ${assignmentReadSql(alias,permission)} allowed FROM ${marketingActorScopeSql} ${alias}`;
