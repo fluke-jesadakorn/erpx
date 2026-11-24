@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8125,
+    "revision": 8128,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -136316,6 +136316,93 @@
         "nextAction": "Brand residual 7: executive-metric-projections.ts:20, executive-evidence-sources.ts:30, branding.ts:18/30, workspace-choice-brand.ts:4, attachment-read.ts:30 (2). Remove/replace any covered by existing native brand functions; owner paths only, no composition. Report blocked per-statement if a native port is required.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.records.context-read-port",
+        "goalId": "G4",
+        "owner": "records",
+        "title": "records record_context native read port",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-records/src/**",
+          "tests/unit/records/**",
+          "tests/integration/records/**"
+        ],
+        "resources": [
+          "owner:records"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Build native record_context read port + router in owner crate with PG parity test; no composition edits. Unblocks retire.records.read-tail-r13.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.customer_360.timeline-activity-port",
+        "goalId": "G4",
+        "owner": "customer_360",
+        "title": "customer 360 timeline activity native port",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-customer_360/src/**",
+          "tests/unit/customer_360/**",
+          "tests/integration/customer_360/**"
+        ],
+        "resources": [
+          "owner:customer_360"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Build native customer timeline activity read port + router in owner crate with parity test; no composition edits. Unblocks retire.customer_360.read-tail-r4.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.ecommerce.executive-metric-port",
+        "goalId": "G4",
+        "owner": "ecommerce",
+        "title": "ecommerce executive metric native port",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-ecommerce/src/**",
+          "tests/unit/ecommerce/**",
+          "tests/integration/ecommerce/**"
+        ],
+        "resources": [
+          "owner:ecommerce"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement native ecommerce executive metric reader (3 aggregates + org labels) with source rows and parity test; no composition/native-sdk edits. Follow scout plan.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -136324,10 +136411,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 860,
+      "totalPackets": 863,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 14,
+        "pending": 17,
         "in_progress": 32,
         "ready_for_integration": 0,
         "integrating": 0,
@@ -136338,7 +136425,7 @@
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:45:25.733Z",
+    "updatedAt": "2026-11-24T01:45:40.832Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
