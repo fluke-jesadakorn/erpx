@@ -12,10 +12,11 @@ const ecommerceFollowupOrderScope=`EXISTS(SELECT 1 FROM orders o WHERE o.id=foll
 const ecommerceNoticeOrderScope=`EXISTS(SELECT 1 FROM orders o WHERE o.id=notice.order_id)`;
 const orderDeliveryExistsSql=`SELECT 1 FROM deliveries f WHERE f.order_id=o.id`;
 const commandAuditPrefixSql=`SELECT 1 FROM command_receipts receipt JOIN audit_events audit ON audit.command_id=receipt.command_id AND audit.record_id=`;
+const allRows=(table:string)=>`SELECT * FROM ${table}`;
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
 export async function lockSalesPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.batch([...salesCommerceSettlementSourceReadLocks(database),...crmFinanceSourceReadLocks(database)]);await database.prepare('LOCK TABLE sales_price_lists,sales_price_list_items,customer_followups,customer_followup_events,customer_contact_notes,customer_contact_note_history,commerce_customer_notifications,commerce_customer_notification_settings,sales_notification_execution_authorizations,sales_notification_execution_attempts,sales_notification_reconciliations,command_receipts,audit_events IN SHARE MODE').run();sources.set(database,companyId);}
 export function assertSalesPackageObligationSources(owner:PostgresDatabase,database:SqlDatabase,companyId:string){owner.assertActiveTransaction(database);if(sources.get(database)!==companyId)throw Error('SALES_PACKAGE_OBLIGATION_SOURCE_REQUIRED');}
-export const salesPackageSettlementSources={...baseCommerce,followups:'SELECT * FROM customer_followups',followupEvents:'SELECT * FROM customer_followup_events',notices:'SELECT * FROM commerce_customer_notifications',noticeAuthorities:'SELECT * FROM sales_notification_execution_authorizations',noticeAttempts:'SELECT * FROM sales_notification_execution_attempts'} as const;
+export const salesPackageSettlementSources={...baseCommerce,followups:allRows('customer_followups'),followupEvents:allRows('customer_followup_events'),notices:allRows('commerce_customer_notifications'),noticeAuthorities:allRows('sales_notification_execution_authorizations'),noticeAttempts:allRows('sales_notification_execution_attempts')} as const;
 /** Native sources, including failed lineage and provider uncertainty. Shared
  * customer identities and approved historical price books are retained records,
  * rather than an invented perpetual clearing obligation. */
