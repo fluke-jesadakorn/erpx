@@ -73,6 +73,6 @@ describe('quality read-tail r20 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(72);
-    expect(total).toBe(70);
+    expect(total).toBe(67);
   });
 });

@@ -3,12 +3,13 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {commerceQualityOriginRows} from '@erpx/server-commerce/public/quality-purchase-sources';
 import {qualitySourceRows} from './quality-source-rows-sql';
 import {qualityLineageSeedSql,qualityLineageStepSql} from './quality-lineage-recursion-sql';
+import {qualityReturnAnchorSql} from './quality-return-anchor-sql';
 /** Raw retained quarantine and immutable decisions. The Inventory withdrawal
  * reader proves actual Sales return identity; a source_type alone never grants
  * a Count or Quality command. Invalid declared origins remain unresolved. */
 const returnHoldSources=`WITH RECURSIVE anchors AS(
- SELECT h.id,h.company_id source_company FROM inventory_quality_holds h WHERE h.source_type='customer_return'
- UNION SELECT origin.hold_id,origin.company_id FROM (${commerceQualityOriginRows}) origin WHERE origin.kind='customer-return'),
+ ${qualityReturnAnchorSql("h.id,h.company_id source_company","inventory_quality_holds h"," WHERE h.source_type='customer_return'")}
+ UNION ${qualityReturnAnchorSql("origin.hold_id,origin.company_id",`(${commerceQualityOriginRows}) origin`," WHERE origin.kind='customer-return'")}),
  lineage AS(${qualityLineageSeedSql("anchors.id,anchors.source_company","anchors")} UNION ALL
  ${qualityLineageStepSql("child.id,parent.source_company","parent")} JOIN inventory_quality_holds original ON original.id=parent.id
  JOIN inventory_counts count ON count.id=original.disposition_count_id AND count.quality_hold_id=original.id AND count.status='posted'
