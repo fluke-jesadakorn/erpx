@@ -1,4 +1,5 @@
 import {staffProjectByRefHead} from './read-tail-r34';
+import {notExistsRow} from './read-tail-r37';
 /** Native joined facts preserve the caller's transaction and original SQL snapshot. */
 const allocationSumSql = "COALESCE((SELECT SUM(a.amount_minor) FROM staff_project_cost_allocations a WHERE a.journal_line_id=l.id AND a.state IN ('draft','approved')";
 export const projectReadProjection = {
@@ -8,7 +9,7 @@ export const projectReadProjection = {
     "otherAllocation": `${allocationSumSql} AND a.id!=?),0)`,
     "taskProject": "LEFT JOIN staff_projects p ON p.id=t.project_id AND p.company_id=t.company_id",
     "taskMember": "EXISTS(SELECT 1 FROM staff_project_members pm WHERE pm.project_id=t.project_id AND pm.user_id=?)",
-    "hasTaskBinding": "NOT EXISTS(SELECT 1 FROM staff_project_task_packages b WHERE b.task_id=t.id)"
+    "hasTaskBinding": notExistsRow('staff_project_task_packages','b','b.task_id=t.id')
 } as const;
 /** Owner facts used inside existing joined task and handover snapshots. */
 export function projectTaskOwnerSql(task:string,user:string){return `EXISTS(${staffProjectByRefHead('1','hp',`${task}.project_id`,`${task}.company_id`,' ','\n      ')} AND iam_same_person(hp.owner_user_id,${user},${task}.company_id))`;}

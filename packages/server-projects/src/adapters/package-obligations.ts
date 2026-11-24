@@ -4,6 +4,7 @@ import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgre
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {projectTaskSettlementSources as operations,lockProjectTaskSettlementSources} from "@erpx/server-operations/public/project-package-obligation-sources";
+import {notExistsRow,projectFactUnionArms} from './read-tail-r37';
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
 export async function lockProjectPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){
@@ -31,7 +32,8 @@ export const projectAssignmentScopeSql=(alias:string)=>`(SELECT ?::text company_
  * relation, equality and bind order stays exactly as in the former inline
  * copies. The two gap parameters preserve the original newline position. */
 export const projectPackageActualProof=(kind:string,alias:string,measure:string,kindGap:string,idGap:string)=>
- `NOT EXISTS(SELECT 1 FROM staff_project_package_actuals actual WHERE actual.source_kind='${kind}'${kindGap}AND actual.source_id=${alias}.id${idGap}AND actual.source_version=${alias}.version AND actual.company_id=${alias}.company_id AND actual.project_id=${alias}.project_id AND actual.${measure}=${alias}.${measure})`;
+ notExistsRow('staff_project_package_actuals','actual',
+ `actual.source_kind='${kind}'${kindGap}AND actual.source_id=${alias}.id${idGap}AND actual.source_version=${alias}.version AND actual.company_id=${alias}.company_id AND actual.project_id=${alias}.project_id AND actual.${measure}=${alias}.${measure}`);
 /** Byte-identical receipt-event proof arm shared by the work-log and
  * cost-allocation arms of projectPackageObligations. Only the event table, row
  * alias, operation prefix and the two FK columns vary; newlines, indentation
@@ -42,7 +44,8 @@ export const projectReceiptEventProof=(table:string,alias:string,op:string,fkId:
  * cost-allocation arms of the package-actual fact read. Only the source
  * relation, row alias and measure column vary; no binds and no whitespace gaps. */
 export const packageActualSourceProof=(relation:string,alias:string,measure:string)=>
-  `NOT EXISTS(SELECT 1 FROM ${relation} ${alias} WHERE ${alias}.id=a.source_id AND ${alias}.project_id=a.project_id AND ${alias}.company_id=a.company_id AND ${alias}.version=a.source_version AND ${alias}.state='approved' AND ${alias}.${measure}=a.${measure})`;
+  notExistsRow(relation,alias,
+    `${alias}.id=a.source_id AND ${alias}.project_id=a.project_id AND ${alias}.company_id=a.company_id AND ${alias}.version=a.source_version AND ${alias}.state='approved' AND ${alias}.${measure}=a.${measure}`);
 type EventFactArmArgs={kind:string;alias:string;state:string;table:string;op:string;fkId:string;fkVer:string;
   actualKind:string;measure:string;kindGap:string;idGap:string;scopeGuard:string;relation:string;whereScope:string};
 /** Byte-identical closed work-log/cost-allocation UNION arm. The first emitted
@@ -73,19 +76,7 @@ export async function projectPackageObligations(owner:PostgresDatabase,database:
  AND command.result_json::jsonb->>'status'='completed' AND (command.result_json::jsonb->>'version')::bigint<=p.version))
  SELECT 'project' kind,p.id,p.version,p.lifecycle_status state,
  p.lifecycle_status<>'completed' OR NOT EXISTS(SELECT 1 FROM accepted h WHERE h.project_id=p.id) pending FROM projects p,scope WHERE scope.is_base
- UNION ALL SELECT 'milestone',m.id,m.version,m.state,
- p.id IS NULL OR m.state NOT IN ('completed','cancelled') OR NOT EXISTS
- (SELECT 1 FROM staff_project_milestone_events event WHERE event.milestone_id=m.id AND event.milestone_version=m.version AND event.action=m.state)
- FROM staff_project_milestones m CROSS JOIN scope LEFT JOIN projects p ON p.id=m.project_id WHERE scope.is_base AND m.company_id=scope.company_id
- UNION ALL SELECT 'task',t.id,t.version,t.state,p.id IS NULL OR t.state NOT IN ('completed','cancelled')
- OR (t.state='completed' AND NOT EXISTS(SELECT 1 FROM staff_project_task_packages binding JOIN staff_project_milestones m ON m.id=binding.milestone_id
- WHERE binding.task_id=t.id AND binding.company_id=t.company_id AND binding.project_id=t.project_id AND m.project_id=t.project_id AND m.company_id=t.company_id))
- FROM (${operations.tasks}) t CROSS JOIN scope LEFT JOIN projects p ON p.id=t.project_id WHERE scope.is_base AND t.company_id=scope.company_id AND t.project_id IS NOT NULL
- UNION ALL SELECT 'routine-template',t.id,t.version,CASE WHEN t.published=1 THEN 'published' ELSE 'draft' END,p.id IS NULL OR t.published=1
- FROM (${operations.templates}) t CROSS JOIN scope LEFT JOIN projects p ON p.id=t.project_id WHERE scope.is_base AND t.company_id=scope.company_id AND t.project_id IS NOT NULL
- UNION ALL SELECT 'routine-schedule',s.id,s.version,s.state,p.id IS NULL OR s.state='active' OR s.company_id IS DISTINCT FROM t.company_id
- FROM (${operations.schedules}) s JOIN (${operations.templates}) t ON t.id=s.template_id CROSS JOIN scope LEFT JOIN projects p ON p.id=t.project_id
- WHERE scope.is_base AND s.company_id=scope.company_id AND t.project_id IS NOT NULL
+ ${projectFactUnionArms(operations)}
  ${eventFactArm({kind:'work-log',alias:'l',state:'submitted',table:'staff_project_work_log_events',op:'project.actual-time.',fkId:'work_log_id',fkVer:'work_log_version',actualKind:'work_log',measure:'minutes',kindGap:' ',idGap:'\n ',scopeGuard:'',relation:'staff_project_work_logs',whereScope:'scope.is_base AND '})}
  ${eventFactArm({kind:'cost-allocation',alias:'c',state:'draft',table:'staff_project_cost_allocation_events',op:'project.cost-allocation.',fkId:'allocation_id',fkVer:'allocation_version',actualKind:'cost_allocation',measure:'amount_minor',kindGap:'\n ',idGap:' ',scopeGuard:'scope.is_base AND ',relation:'staff_project_cost_allocations',whereScope:''})}
  UNION ALL SELECT 'package-actual',a.id,a.source_version,a.source_kind,p.id IS NULL OR m.id IS NULL OR m.project_id<>a.project_id OR m.company_id<>a.company_id

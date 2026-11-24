@@ -116,7 +116,7 @@ describe('Projects read-tail r36 package-actual source and event-fact arm dedupe
     expect(readFileSync(resolve(srcRoot, 'adapters/project_actuals.rs'), 'utf8')).toContain('FROM staff_project_cost_allocations');
   });
 
-  test('retirement:ts-statements is 93 after r36 (BEFORE=95)', () => {
+  test('retirement:ts-statements is 88 after r37 (BEFORE=93)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {
@@ -126,10 +126,12 @@ describe('Projects read-tail r36 package-actual source and event-fact arm dedupe
       }
     };
     walk(srcRoot);
-    // r35 left 95. r36 Rank1 folds the two package-actual source NOT EXISTS
+    // r36 left 93. r37 closes the four-arm fact UNION (-3) and the
+    // three-arm NOT EXISTS proof group (-2). r35 left 95. r36 Rank1 folds
+    // the two package-actual source NOT EXISTS
     // witnesses into one helper (96-in-file -> 95-in-file, -1) and Rank2 folds
     // the work-log/cost-allocation UNION arms into one closed helper (-1).
-    expect(total).toBe(93);
+    expect(total).toBe(88);
     expect(total).toBeLessThan(95);
   });
 });
