@@ -3,6 +3,7 @@ import {productionReadProjection as productionfinanceProjection} from '@erpx/ser
 import {productionReadProjection as productionplanningProjection} from '@erpx/server-planning/public/production-read-projections';
 import {productionReadProjection as productioninventoryProjection} from '@erpx/server-inventory/public/production-read-projections';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {ownerWrite} from '@erpx/server-manufacturing/adapters/native-owner-write';
+import {manufacturingRowsSelect,manufacturingIdSelect} from './manufacturing-read-sql-fragments';
 
 /** Owner-local fixed read: the latest output-report actor on a production
  * order. `lastReportActor` (QC pass) and `lastOutputReportActor` (scrap approval)
@@ -52,13 +53,13 @@ const specificationOperationsGuardSql=(extra=" ")=>`NOT EXISTS(SELECT 1 FROM man
 
 export function productionCommandSources(db:SqlDatabase){return {async specification(value:(string | number)[],v:number|undefined){return db
     .prepare(
-      `SELECT * FROM manufacturing_specifications WHERE id=? AND company_id=? ${v ? "AND version=?" : ""}`,
+      manufacturingRowsSelect("manufacturing_specifications", `id=? AND company_id=? ${v ? "AND version=?" : ""}`),
     )
     .bind(...value)
     .first<Row>();},
 async specifications(companyId:string){return db
           .prepare(
-            "SELECT * FROM manufacturing_specifications WHERE company_id=? ORDER BY updated_at DESC",
+            manufacturingRowsSelect("manufacturing_specifications", "company_id=? ORDER BY updated_at DESC"),
           )
           .bind(companyId)
           .all<Row>();},
@@ -70,7 +71,7 @@ async orders(companyId:string,branchId:string | null,branchId2:string | null){re
           .all<Row>();},
 async accountingProfiles(companyId:string){return db.prepare("SELECT id,status,version,currency,chart_id,inventory_account_id,wip_account_id,labor_account_id,overhead_account_id FROM manufacturing_accounting_profiles WHERE company_id=? ORDER BY updated_at DESC")
           .bind(companyId).all<Row>();},
-async specificationLines(specificationId:string){return db.prepare("SELECT * FROM manufacturing_specification_lines WHERE specification_id=? ORDER BY ordinal")
+async specificationLines(specificationId:string){return db.prepare(manufacturingRowsSelect("manufacturing_specification_lines", "specification_id=? ORDER BY ordinal"))
       .bind(specificationId).all<Row>();},
 guardScenarioSpecification(key:string,value:"specification-source",specificationId:string,companyId:string,specificationVersion:number){return assertion(db, key, value, approvedSpecGuardSql, [specificationId, companyId, specificationVersion]);},
 guardRecommendationSpecification(key:string,value:"specification-source",value2:string,companyId:string,value3:number){return assertion(db, key, value, approvedSpecGuardSql, [value2, companyId, value3]);},
@@ -88,12 +89,12 @@ async orderSpecificationLines(specification_id:string | number | null){return db
         )
         .bind(specification_id)
         .all<Row>();},
-lockOrder(id:string){return db.prepare("SELECT id FROM manufacturing_orders WHERE id=? FOR UPDATE").bind(id);},
+lockOrder(id:string){return db.prepare(`${manufacturingIdSelect("manufacturing_orders")} WHERE id=? FOR UPDATE`).bind(id);},
 guardOrderVersion(key:string,value:"order",id:string,expectedVersion:number,status:string | number | null){return assertion(db, key, value, "EXISTS(SELECT 1 FROM manufacturing_orders WHERE id=? AND version=? AND status=?)", [id, expectedVersion, status]);},
  prepareMaterialReservation(value:string,id:string,warehouse_id:string | number | null,product_id:string | number | null,required:number,expiresAt:number,userId:string,now:number){return ownerWrite('order.reservation',[value,id,warehouse_id,product_id,required,expiresAt,userId,now],String(id));},
 async materialReservation(id:string,product_id:string | number | null){return db
           .prepare(
-            "SELECT * FROM manufacturing_material_reservations WHERE order_id=? AND product_id=?",
+            manufacturingRowsSelect("manufacturing_material_reservations", "order_id=? AND product_id=?"),
           )
           .bind(id, product_id)
           .first<Row>();},
@@ -115,7 +116,7 @@ async currentReportActor(id:string,expectedVersion:number){return db.prepare(rep
       .bind(id, expectedVersion).first<string>("actor_id");},
 guardIndependentFail(key:string,value:"independent-qc",id:string,expectedVersion:number,userId:string){return assertion(db, key, value, independentQcGuardSql, [id, expectedVersion, userId]);},
 async lastOutputReportActor(id:string){return db.prepare(latestReportActorSelect).bind(id).first<string>("actor_id");},
-async operation(operationId:string,specification_id:string | number | null){return db.prepare("SELECT * FROM manufacturing_specification_operations WHERE id=? AND specification_id=?")
+async operation(operationId:string,specification_id:string | number | null){return db.prepare(manufacturingRowsSelect("manufacturing_specification_operations", "id=? AND specification_id=?"))
       .bind(operationId, specification_id).first<Row>();},
 guardOperationSequence(key:string,value:"routing-sequence",value2:string,value3:number,id:string){return assertion(db, key, value, `${specificationOperationsGuardSql(" AND op.ordinal<? ")}${operationEventDoneGuardSql}`, [value2, value3, id]);},
  prepareOperationEvent(value:string,id:string,operationId:string,next:number,laborMinutes:number,machineMinutes:number,reason:string,userId:string,now:number){return ownerWrite('order.operation-event',[value,id,operationId,next,laborMinutes,machineMinutes,reason,userId,now],String(id));},
@@ -136,16 +137,16 @@ async orderReservations(id:string){return db
         .all<Row>();},
 async orderEvents(id:string){return db
         .prepare(
-          "SELECT * FROM manufacturing_order_events WHERE order_id=? ORDER BY version",
+          manufacturingRowsSelect("manufacturing_order_events", "order_id=? ORDER BY version"),
         )
         .bind(id)
         .all<Row>();},
 async costSnapshot(id:string){return db
-      .prepare("SELECT * FROM manufacturing_cost_snapshots WHERE order_id=?")
+      .prepare(manufacturingRowsSelect("manufacturing_cost_snapshots", "order_id=?"))
       .bind(id)
       .first<Row>();},
 async productGenealogy(id:string){return db
-        .prepare("SELECT * FROM manufacturing_genealogy WHERE order_id=?")
+        .prepare(manufacturingRowsSelect("manufacturing_genealogy", "order_id=?"))
         .bind(id)
         .all<Row>();},
 async orderPostings(id:string){return db.prepare(`SELECT p.*,j.status journal_status FROM manufacturing_order_postings p ${productionfinanceProjection.journal} WHERE p.order_id=? ORDER BY p.source_order_version`)

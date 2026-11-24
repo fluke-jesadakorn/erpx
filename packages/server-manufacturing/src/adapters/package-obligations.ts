@@ -4,6 +4,7 @@ import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgre
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {manufacturingPurchaseOrderRows,manufacturingPurchaseSourceReadLocks} from "@erpx/server-manufacturing/adapters/purchases";
+import {manufacturingRowsSelect} from "./manufacturing-read-sql-fragments";
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
 export async function lockManufacturingPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.batch(manufacturingPurchaseSourceReadLocks(database));await database.prepare("LOCK TABLE manufacturing_material_reservations,manufacturing_genealogy,manufacturing_cost_snapshots,manufacturing_operation_events,manufacturing_material_lot_issues,manufacturing_output_lots,manufacturing_lot_genealogy,manufacturing_inventory_moves,manufacturing_cost_pools,manufacturing_cost_allocations IN SHARE MODE").run();sources.set(database,companyId);}
@@ -13,10 +14,10 @@ export function assertManufacturingPackageObligationSources(owner:PostgresDataba
 export const manufacturingPackageSettlementSources={
  orders:`SELECT o.*,COALESCE(valid.advanced,false) advanced,valid.id IS NOT NULL source_valid FROM manufacturing_orders o LEFT JOIN (${manufacturingPurchaseOrderRows}) valid ON valid.id=o.id AND valid.company_id=o.company_id`,
  postings:"SELECT p.*,profile.chart_id,profile.currency profile_currency,profile.wip_account_id FROM manufacturing_order_postings p LEFT JOIN manufacturing_accounting_profiles profile ON profile.id=p.profile_id AND profile.company_id=p.company_id",
- costMovements:"SELECT * FROM manufacturing_cost_movements",
- costPools:"SELECT * FROM manufacturing_cost_pools",
- costAllocations:"SELECT * FROM manufacturing_cost_allocations",
- materialReservations:"SELECT * FROM manufacturing_material_reservations",
+ costMovements:manufacturingRowsSelect("manufacturing_cost_movements"),
+ costPools:manufacturingRowsSelect("manufacturing_cost_pools"),
+ costAllocations:manufacturingRowsSelect("manufacturing_cost_allocations"),
+ materialReservations:manufacturingRowsSelect("manufacturing_material_reservations"),
  stockFootprint:`SELECT o.id order_id,o.company_id,o.warehouse_id,s.output_product_id product_id FROM manufacturing_orders o JOIN manufacturing_specifications s ON s.id=o.specification_id AND s.company_id=o.company_id UNION SELECT o.id,o.company_id,o.warehouse_id,line.product_id FROM manufacturing_orders o JOIN manufacturing_specification_lines line ON line.specification_id=o.specification_id`,
 } as const;
 export async function manufacturingPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){

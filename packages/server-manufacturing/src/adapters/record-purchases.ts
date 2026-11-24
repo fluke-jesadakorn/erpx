@@ -6,8 +6,8 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {manufacturingPackageEnforcementMode,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {manufacturingPurchaseRecordRows,requireManufacturingPurchasedRead,manufacturingClockCte,manufacturingPurchaseScopedRows,type ManufacturingPurchaseTarget} from "@erpx/server-manufacturing/adapters/purchases";
-import {manufacturingSelectedAssignmentExists} from "./manufacturing-read-sql-fragments";
-const nativeIds="SELECT id FROM manufacturing_specifications UNION ALL SELECT id FROM manufacturing_orders UNION ALL SELECT id FROM planning_scenarios UNION ALL SELECT id FROM planning_recommendations";
+import {manufacturingSelectedAssignmentExists,manufacturingIdSelect} from "./manufacturing-read-sql-fragments";
+const nativeIds=["manufacturing_specifications","manufacturing_orders","planning_scenarios","planning_recommendations"].map(manufacturingIdSelect).join(" UNION ALL ");
 /** Actual source policy/purchase is evaluated before each consumer's limit. */
 export async function manufacturingSourceReadScope(database:SqlDatabase,actor:WorkContext,surface:"staff"|"inbox"|"records"){
  const mode=await manufacturingPackageEnforcementMode();if(mode!=="enforced"){if(mode==="shadow")await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:"manufacturing.execution"});return {where:"TRUE",args:[] as unknown[]};}

@@ -20,3 +20,8 @@ export const manufacturingScopedCte = (name: string, source: string, alias: stri
 
 export const manufacturingActorScopeRows = () =>
   `(SELECT ?::text company_id,?::text branch_id,?::text department_id)`;
+
+export const manufacturingRowsSelect = (table: string, where = "") =>
+  `SELECT * FROM ${table}${where ? ` WHERE ${where}` : ""}`;
+
+export const manufacturingIdSelect = (table: string) => `SELECT id FROM ${table}`;

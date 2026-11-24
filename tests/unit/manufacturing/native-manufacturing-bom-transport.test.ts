@@ -167,7 +167,7 @@ describe('Manufacturing finance-close read retirement',()=>{
     expect(paths.some(path=>path.includes('finance-close-source'))).toBe(false);
     const count=paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0);
     expect(count).toBeLessThan(148);
-    expect(count).toBe(126);
+    expect(count).toBe(109);
   });
 });
 describe('Manufacturing owner-local report-actor read dedupe',()=>{
@@ -422,10 +422,13 @@ describe('Manufacturing read-tail text-only fragment dedupe', () => {
     expect(f.manufacturingScopedCte('postings', 'manufacturing_order_postings', 'p')).toBe(ctePostings);
     expect(f.manufacturingScopedCte('movements', 'manufacturing_cost_movements', 'm')).toBe(cteMovements);
     expect(f.manufacturingActorScopeRows()).toBe(actorScope);
+    expect(f.manufacturingRowsSelect('manufacturing_cost_movements')).toBe('SELECT * FROM manufacturing_cost_movements');
+    expect(f.manufacturingRowsSelect('manufacturing_specifications', 'company_id=? ORDER BY updated_at DESC')).toBe('SELECT * FROM manufacturing_specifications WHERE company_id=? ORDER BY updated_at DESC');
+    expect(f.manufacturingIdSelect('manufacturing_orders')).toBe('SELECT id FROM manufacturing_orders');
   });
   it('keeps one text-only definition and routes every caller through it', () => {
     const fragment = adapter('manufacturing-read-sql-fragments.ts');
-    expect(fragment.match(/\bSELECT\b/g)).toHaveLength(7);
+    expect(fragment.match(/\bSELECT\b/g)).toHaveLength(9);
     expect(fragment).not.toMatch(/^import /m);
     expect(fragment).not.toMatch(/compositionRoot|registerRead|readPlanRegistry/);
     for (const [name, old, helper] of [
@@ -436,6 +439,11 @@ describe('Manufacturing read-tail text-only fragment dedupe', () => {
       ['posting-setup-sources.ts', [cteOrders, ctePostings, cteMovements], 'manufacturingScopedCte'],
       ['purchases.ts', [actorScope], 'manufacturingActorScopeRows'],
       ['attachment-read.ts', [actorScope], 'manufacturingActorScopeRows'],
+      ['production-command-sources.ts', ['SELECT * FROM manufacturing_specifications WHERE company_id=? ORDER BY updated_at DESC', 'SELECT * FROM manufacturing_cost_snapshots WHERE order_id=?'], 'manufacturingRowsSelect'],
+      ['production-command-sources.ts', ['SELECT id FROM manufacturing_orders WHERE id=? FOR UPDATE'], 'manufacturingIdSelect'],
+      ['package-obligations.ts', ['SELECT * FROM manufacturing_cost_movements'], 'manufacturingRowsSelect'],
+      ['metric-purchases.ts', ['SELECT id FROM manufacturing_orders'], 'manufacturingIdSelect'],
+      ['record-purchases.ts', ['SELECT id FROM manufacturing_specifications UNION ALL'], 'manufacturingIdSelect'],
     ] as const) {
       const text = adapter(name);
       for (const literal of old) expect(text).not.toContain(literal);
