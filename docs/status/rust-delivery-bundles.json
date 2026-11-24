@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12232,
+    "revision": 12236,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -181424,7 +181424,7 @@
         "owner": "inventory",
         "title": "inventory reservations CTE and marked count guards",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -181435,22 +181435,37 @@
         "resources": [
           "owner:inventory"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n28",
-          "claimedAt": "2026-11-24T13:49:06.419Z",
-          "heartbeatAt": "2026-11-24T14:04:54.024Z",
-          "expiresAt": "2026-11-24T14:34:54.024Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "81d274f8e",
+            "owner": "inventory",
+            "before": 316,
+            "after": 314,
+            "note": "Reservations CTE head has 0 literal tokens (honest delta), marked count guard and replay prefix each -1; locks/native untouched."
+          },
+          {
+            "command": "vitest inventory r44-r47 (21) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "81d274f8e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Reservations CTE head (-2), positive marked count guard (-1), replay probe prefix (-1): 316->312.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n28",
+          "at": "2026-11-24T14:08:50.580Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -181814,7 +181829,7 @@
         "owner": "procurement",
         "title": "procurement TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -181826,22 +181841,37 @@
         "resources": [
           "owner:procurement"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n37",
-          "claimedAt": "2026-11-24T14:00:21.170Z",
-          "heartbeatAt": "2026-11-24T14:04:54.024Z",
-          "expiresAt": "2026-11-24T14:34:54.024Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-procurement/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "81d274f8e",
+            "owner": "procurement",
+            "before": 99,
+            "after": 95,
+            "note": "Recursive attachment version witness seed parameterized and RFQ outer frame shared; RETURNED whitespace canonicalized, binds unchanged; writes/locks/native untouched."
+          },
+          {
+            "command": "vitest procurement (121) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "81d274f8e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Recursive attachment version witness seed (-3), RFQ ARRAY outer frame (-1): 99->95. BEFORE=99.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n37",
+          "at": "2026-11-24T14:08:50.999Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -181927,17 +181957,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 6,
+        "in_progress": 4,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1403,
+        "blocked": 1405,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:08:16.921Z",
+    "updatedAt": "2026-11-24T14:08:51.003Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
