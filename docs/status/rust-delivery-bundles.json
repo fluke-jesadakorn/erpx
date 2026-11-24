@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9637,
+    "revision": 9645,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -153304,7 +153304,7 @@
         "owner": "collaboration",
         "title": "collaboration TS read tail native cutover (r19)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -153316,22 +153316,37 @@
         "resources": [
           "owner:collaboration"
         ],
-        "claim": {
-          "runId": "run-20261123-k",
-          "agentId": "wGCLcol",
-          "claimedAt": "2026-11-24T05:34:21.843Z",
-          "heartbeatAt": "2026-11-24T05:34:21.843Z",
-          "expiresAt": "2026-11-24T06:04:21.843Z",
-          "generation": 163
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "af5131afa",
+            "owner": "collaboration",
+            "before": 413,
+            "after": 412,
+            "note": "Comment ancestor step fragment shared; r11-r18 unchanged; locks untouched."
+          },
+          {
+            "command": "vitest collaboration r16-r19 (20) + tsc collaboration/tests",
+            "result": "passed",
+            "sourceSha": "af5131afa"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=413.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCLcol",
+          "at": "2026-11-24T05:42:29.693Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -153664,7 +153679,7 @@
         "owner": "runtime",
         "title": "runtime TS read tail native cutover (r9)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -153676,22 +153691,37 @@
         "resources": [
           "owner:runtime"
         ],
-        "claim": {
-          "runId": "run-20261123-k",
-          "agentId": "wGCMrun",
-          "claimedAt": "2026-11-24T05:36:44.101Z",
-          "heartbeatAt": "2026-11-24T05:36:44.101Z",
-          "expiresAt": "2026-11-24T06:06:44.101Z",
-          "generation": 163
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-runtime/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "af5131afa",
+            "owner": "runtime",
+            "before": 47,
+            "after": 44,
+            "note": "Executive report shares family shared; r5-r8 and control-plane locks/migrations untouched."
+          },
+          {
+            "command": "vitest runtime r5-r9 (22) + tsc runtime",
+            "result": "passed",
+            "sourceSha": "af5131afa"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=47.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCMrun",
+          "at": "2026-11-24T05:42:29.207Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -154053,6 +154083,78 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=259.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.runtime.read-tail-r10",
+        "goalId": "G4",
+        "owner": "runtime",
+        "title": "runtime TS read tail native cutover (r10)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-runtime/src/**",
+          "tests/unit/runtime/**",
+          "tests/integration/runtime/**"
+        ],
+        "resources": [
+          "owner:runtime"
+        ],
+        "claim": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCNrun",
+          "claimedAt": "2026-11-24T05:42:30.251Z",
+          "heartbeatAt": "2026-11-24T05:42:30.251Z",
+          "expiresAt": "2026-11-24T06:12:30.251Z",
+          "generation": 163
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=44.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.collaboration.read-tail-r20",
+        "goalId": "G4",
+        "owner": "collaboration",
+        "title": "collaboration TS read tail native cutover (r20)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "tests/unit/collaboration/**",
+          "tests/integration/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "claim": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCNcol",
+          "claimedAt": "2026-11-24T05:42:30.807Z",
+          "heartbeatAt": "2026-11-24T05:42:30.807Z",
+          "expiresAt": "2026-11-24T06:12:30.807Z",
+          "generation": 163
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=412.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -154061,7 +154163,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1204,
+      "totalPackets": 1206,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -154069,13 +154171,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 830,
+        "blocked": 832,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 163,
-    "updatedAt": "2026-11-24T05:42:11.083Z",
+    "updatedAt": "2026-11-24T05:42:30.814Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
