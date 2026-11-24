@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7995,
+    "revision": 8003,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -133216,7 +133216,7 @@
         "owner": "files",
         "title": "files TS read tail native cutover (r3)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -133229,22 +133229,42 @@
         "resources": [
           "owner:files"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG80fil",
-          "claimedAt": "2026-11-24T01:18:26.212Z",
-          "heartbeatAt": "2026-11-24T01:29:05.622Z",
-          "expiresAt": "2026-11-24T01:59:05.622Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b64b06ed1",
+            "owner": "files",
+            "before": 377,
+            "after": 367,
+            "note": "Advisory lock x8, checksum x2, set lock x2, publication x2 share module constants; locks still execute."
+          },
+          {
+            "command": "structure:check + catalogue (1382) + tsc files",
+            "result": "passed",
+            "sourceSha": "b64b06ed1"
+          },
+          {
+            "command": "vitest files attachment units (37)",
+            "result": "passed",
+            "sourceSha": "b64b06ed1"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: scan for a safe owner-local dedupe/delete; if none, report blocked with evidence. BEFORE=377.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG80fil",
+          "at": "2026-11-24T01:33:33.531Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -134185,7 +134205,7 @@
         "owner": "crm",
         "title": "crm TS read tail native cutover (round 6)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -134197,22 +134217,42 @@
         "resources": [
           "owner:crm"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGA0crm",
-          "claimedAt": "2026-11-24T01:28:40.212Z",
-          "heartbeatAt": "2026-11-24T01:29:05.622Z",
-          "expiresAt": "2026-11-24T01:59:05.622Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-crm/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b64b06ed1",
+            "owner": "crm",
+            "before": 190,
+            "after": 189,
+            "note": "Guest link and contact reads share contactScopeSql; aliases/binds unchanged."
+          },
+          {
+            "command": "vitest crm units (53)",
+            "result": "passed",
+            "sourceSha": "b64b06ed1"
+          },
+          {
+            "command": "tsc crm",
+            "result": "passed",
+            "sourceSha": "b64b06ed1"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: actor scope triple (6x) or packageClockSql (4x) or crm_leads contact subquery (2x); keep byte parity. BEFORE=190.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGA0crm",
+          "at": "2026-11-24T01:33:33.833Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -134558,6 +134598,80 @@
         "nextAction": "Next: social-home EXISTS draft read or another byte-identical pair; BEFORE=462.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.files.read-tail-r4",
+        "goalId": "G4",
+        "owner": "files",
+        "title": "files TS read tail native cutover (r4)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "packages/server-files/package.json",
+          "tests/unit/files/**",
+          "tests/integration/files/**"
+        ],
+        "resources": [
+          "owner:files"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGAAfil",
+          "claimedAt": "2026-11-24T01:33:34.026Z",
+          "heartbeatAt": "2026-11-24T01:33:34.026Z",
+          "expiresAt": "2026-11-24T02:03:34.026Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe dedupe; if none, report blocked. BEFORE=367.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.crm.read-tail-r7",
+        "goalId": "G4",
+        "owner": "crm",
+        "title": "crm TS read tail native cutover (r7)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-crm/src/**",
+          "packages/server-crm/package.json",
+          "tests/unit/crm/**",
+          "tests/integration/crm/**"
+        ],
+        "resources": [
+          "owner:crm"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGABcrm",
+          "claimedAt": "2026-11-24T01:33:34.222Z",
+          "heartbeatAt": "2026-11-24T01:33:34.222Z",
+          "expiresAt": "2026-11-24T02:03:34.222Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe dedupe; if none, report blocked. BEFORE=189.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -134566,7 +134680,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 828,
+      "totalPackets": 830,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -134574,13 +134688,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 454,
+        "blocked": 456,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:32:54.395Z",
+    "updatedAt": "2026-11-24T01:33:34.225Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
