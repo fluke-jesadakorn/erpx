@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9598,
+    "revision": 9605,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -152380,7 +152380,7 @@
         "owner": "sales",
         "title": "sales TS read tail native cutover (r16)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -152392,28 +152392,36 @@
         "resources": [
           "owner:sales"
         ],
-        "claim": {
-          "runId": "run-20261123-k",
-          "agentId": "wGCHsal",
-          "claimedAt": "2026-11-24T05:25:38.312Z",
-          "heartbeatAt": "2026-11-24T05:25:39.041Z",
-          "expiresAt": "2026-11-24T05:55:39.041Z",
-          "generation": 163
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-sales/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0822a1431",
+            "owner": "sales",
+            "before": 71,
+            "after": 70,
+            "note": "Scoped settlement source MATERIALIZED CTE family shared; r7-r15 generators and locks preserved."
+          },
+          {
+            "command": "vitest sales r13-r16 + services (135) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "0822a1431"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=71.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-j",
+          "runId": "run-20261123-k",
           "agentId": "wGCHsal",
-          "at": "2026-11-24T05:25:21.119Z",
+          "at": "2026-11-24T05:37:10.215Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired at 05:16Z; all claims and WIP reviewed in shared checkout; release claims and continue under new generation.",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=71."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -152648,7 +152656,7 @@
         "owner": "procurement",
         "title": "procurement TS read tail native cutover (round 24)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -152660,22 +152668,37 @@
         "resources": [
           "owner:procurement"
         ],
-        "claim": {
-          "runId": "run-20261123-k",
-          "agentId": "wGCKpro",
-          "claimedAt": "2026-11-24T05:27:32.769Z",
-          "heartbeatAt": "2026-11-24T05:27:32.769Z",
-          "expiresAt": "2026-11-24T05:57:32.769Z",
-          "generation": 163
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-procurement/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0822a1431",
+            "owner": "procurement",
+            "before": 142,
+            "after": 140,
+            "note": "Eligible purchase count and member scope exclusion families shared; receipts guard, locks and r17-r23 untouched."
+          },
+          {
+            "command": "vitest procurement r19-r24 (30) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "0822a1431"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=142.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCKpro",
+          "at": "2026-11-24T05:37:10.665Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -153341,7 +153364,7 @@
         "owner": "sales",
         "title": "sales TS read tail native cutover (r17)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -153353,7 +153376,14 @@
         "resources": [
           "owner:sales"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCMsal",
+          "claimedAt": "2026-11-24T05:37:11.018Z",
+          "heartbeatAt": "2026-11-24T05:37:11.018Z",
+          "expiresAt": "2026-11-24T06:07:11.018Z",
+          "generation": 163
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -153615,6 +153645,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=43.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.procurement.read-tail-r25",
+        "goalId": "G4",
+        "owner": "procurement",
+        "title": "procurement TS read tail native cutover (r25)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-procurement/src/**",
+          "tests/unit/procurement/**",
+          "tests/integration/procurement/**"
+        ],
+        "resources": [
+          "owner:procurement"
+        ],
+        "claim": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCMpro",
+          "claimedAt": "2026-11-24T05:37:11.468Z",
+          "heartbeatAt": "2026-11-24T05:37:11.468Z",
+          "expiresAt": "2026-11-24T06:07:11.468Z",
+          "generation": 163
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=140.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -153623,21 +153689,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1196,
+      "totalPackets": 1197,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 16,
+        "pending": 15,
         "in_progress": 30,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 819,
+        "blocked": 821,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 163,
-    "updatedAt": "2026-11-24T05:36:45.739Z",
+    "updatedAt": "2026-11-24T05:37:11.477Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
