@@ -202,10 +202,38 @@ describe('quality package-obligation scope and clock CTE dedupe',()=>{
   const clockSites=[['packages/server-quality/src/adapters/record-purchases.ts','quality_source_clock'],['packages/server-quality/src/adapters/product-entry.ts','quality_entry_clock'],['packages/server-quality/src/adapters/calendar-quality-facts.ts','quality_calendar_clock']] as const;
   for(const [path,name] of clockSites){const text=readFileSync(source(path),'utf8');expect(text).toContain(`qualityClockCte("${name}")`);expect(text).not.toContain(`WITH ${name} AS MATERIALIZED (SELECT`);}
  });
- test('the owner TS statement KPI stays strictly below 105',()=>{
+ test('the owner TS statement KPI stays strictly below 100',()=>{
   const count=files(source('packages/server-quality/src')).reduce((total,path)=>total+(readFileSync(path,'utf8').match(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)?.length??0),0);
-  expect(count).toBeLessThan(105);
-  expect(count).toBe(100);
+  expect(count).toBeLessThan(100);
+  expect(count).toBe(97);
+ });
+});
+describe('quality command-receipt guard dedupe',()=>{
+ const source=(path:string)=>resolve(process.cwd(),path);
+ test('one parameterized helper reproduces the four receipt authority/result guards',async()=>{
+  const {qualityReceiptGuardSql}=await import('../../../packages/server-quality/src/adapters/quality-receipt-guard-sql');
+  const cases=[
+   ['hold.id','quality.hold.release','hold.company_id','version','hold.version::text','hold.released_by'],
+   ['alert.id','quality.alert.acknowledge','hold.company_id','version','alert.version::text','alert.acknowledged_by'],
+   ['spec.id','quality.spec.activate','spec.company_id','status',"'active'",'spec.approved_by'],
+   ['spec.id','quality.spec.cancel','spec.company_id','status',"'cancelled'",undefined],
+  ] as const;
+  const expected=[
+   "SELECT 1 FROM command_receipts receipt WHERE receipt.record_id=hold.id AND receipt.operation='quality.hold.release' AND receipt.actor_id=hold.released_by AND receipt.authority_json::jsonb->>'companyId'=hold.company_id AND receipt.result_json::jsonb->>'version'=hold.version::text",
+   "SELECT 1 FROM command_receipts receipt WHERE receipt.record_id=alert.id AND receipt.operation='quality.alert.acknowledge' AND receipt.actor_id=alert.acknowledged_by AND receipt.authority_json::jsonb->>'companyId'=hold.company_id AND receipt.result_json::jsonb->>'version'=alert.version::text",
+   "SELECT 1 FROM command_receipts receipt WHERE receipt.record_id=spec.id AND receipt.operation='quality.spec.activate' AND receipt.actor_id=spec.approved_by AND receipt.authority_json::jsonb->>'companyId'=spec.company_id AND receipt.result_json::jsonb->>'status'='active'",
+   "SELECT 1 FROM command_receipts receipt WHERE receipt.record_id=spec.id AND receipt.operation='quality.spec.cancel' AND receipt.authority_json::jsonb->>'companyId'=spec.company_id AND receipt.result_json::jsonb->>'status'='cancelled'",
+  ] as const;
+  for(const [record,operation,company,field,value,actor] of cases){
+   const sql=qualityReceiptGuardSql(record,operation,company,field,value,actor);
+   const i=cases.findIndex(item=>item[0]===record&&item[1]===operation);
+   expect(sql).toBe(expected[i]);
+   expect(sql.match(/SELECT /g)).toHaveLength(1);
+  }
+  const adapter=readFileSync(source('packages/server-quality/src/adapters/supply-package-obligations.ts'),'utf8');
+  expect(adapter.match(/qualityReceiptGuardSql\(/g)).toHaveLength(4);
+  expect(adapter).not.toContain('SELECT 1 FROM command_receipts receipt');
+  expect(readFileSync(source('packages/server-quality/src/adapters/quality-receipt-guard-sql.ts'),'utf8').match(/SELECT /g)).toHaveLength(1);
  });
 });
 describe('quality hold child aggregate dedupe',()=>{
