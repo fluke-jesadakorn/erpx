@@ -259,3 +259,18 @@ describe('customer authority portal attachment binding-current read family', () 
     expect(proof).toContain('.prepare(bindingIdentityCurrentSql)');
   });
 });
+
+describe('customer authority access reviewer eligible CASE dedupe', () => {
+  const access = () => new URL('../../../packages/server-customer_authority/src/adapters/access.ts', import.meta.url);
+
+  it('keeps one actor-eligible CASE literal shared by the binding and workspace-row reads', async () => {
+    const src = await readFile(access(), 'utf8');
+    // One canonical declaration; both reads interpolate it so the
+    // CASE WHEN EXISTS(...) actor_eligible text cannot drift between them.
+    expect(src).toContain('const actorEligible=`CASE WHEN EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) m WHERE ${reviewers} AND m.user_id=?) THEN 1 ELSE 0 END actor_eligible`;');
+    expect(src.match(/actor_eligible/g)).toHaveLength(1);
+    expect(src.match(/\$\{actorEligible\}/g)).toHaveLength(2);
+    // The distinct reviewers COUNT read is retained unchanged (parity).
+    expect(src).toContain('SELECT COUNT(DISTINCT m.user_id) FROM (${identity_accessProjectionSources.assignments}) m WHERE ${reviewers}) reviewers');
+  });
+});
