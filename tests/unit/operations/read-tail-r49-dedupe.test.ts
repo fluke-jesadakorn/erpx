@@ -73,14 +73,15 @@ describe('operations read-tail r49 EXISTS/CTE-head retirement', () => {
     expect(purchases).toContain('EXISTS(WITH ${viewer} AS MATERIALIZED${OPERATIONS_VIEWER_CLOCK_SQL} SELECT 1 FROM');
     expect(scope.match(/export const operationsViewerClockHead/g)).toHaveLength(1);
     expect(scope.match(/operationsClockCte\(/g)).toHaveLength(2); // false + true call sites
-    // The spare and native reads stay untouched.
-    expect(alert).toContain('EXISTS(SELECT 1 FROM iam_roles role');
+    // r50 retired the spare iam_roles probe; LOCK and native reads stay untouched.
+    expect(alert.match(/operationsTableExists\(/g)).toHaveLength(1);
+    expect(alert).not.toContain('EXISTS(SELECT 1 FROM iam_roles role');
     expect(alert).toContain('LOCK TABLE staff_tasks');
     expect(alert).toContain('OPERATIONS_RD_WORK_TASK_ALERT_IMAGE');
     expect(purchases).toContain('nativeOperationsReadFirst');
   });
 
-  it('retirement:ts-statements lowers the operations SELECT KPI from 89 to 84', async () => {
+  it('retirement:ts-statements lowers the operations SELECT KPI from 89 to 82', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -90,7 +91,7 @@ describe('operations read-tail r49 EXISTS/CTE-head retirement', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBe(84);
+    expect(total).toBe(82);
     expect(total).toBeLessThan(89);
   });
 });

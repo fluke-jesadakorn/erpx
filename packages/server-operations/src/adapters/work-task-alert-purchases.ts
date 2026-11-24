@@ -22,6 +22,7 @@ import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-t
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 import {nativeOperationsReadFirst,OPERATIONS_RD_WORK_TASK_ALERT_SOURCE,OPERATIONS_RD_WORK_TASK_ALERT_IMAGE} from './native-operations-read';
 import {operationsJoinSourceExists} from './join-source-exists';
+import {operationsTableExists} from './identity-policy-version-guard';
 
 /** Canonical Work-alert recipient viewer column projection, shared by the read
  * scope and the recipient lookup so the two fragments cannot drift. The clock
@@ -29,7 +30,7 @@ import {operationsJoinSourceExists} from './join-source-exists';
 const workAlertViewerColumns = `CROSS JOIN LATERAL(SELECT assignment.id assignment_id,assignment.user_id,assignment.role,assignment.scope_kind,assignment.scope_node_id,`;
 
 function nativeStaff(viewer:string){return `(SELECT COUNT(*) FROM (${people.hr_people}) person JOIN (${people.hr_engagements}) engagement ON engagement.person_id=person.id AND engagement.company_id=person.company_id WHERE person.company_id=t.company_id AND person.status='active' AND person.merged_into_id IS NULL AND iam_same_person(person.user_id,${viewer}.user_id,person.company_id) AND engagement.status='active' AND engagement.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (engagement.end_date IS NULL OR engagement.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')) AND (${viewer}.scope_kind='holding' OR ${viewer}.scope_kind='branch' AND ${viewer}.scope_node_id=engagement.branch_id OR ${viewer}.scope_kind='department' AND ${viewer}.scope_node_id=engagement.department_id))=1`;}
-function authority(viewer:string,social='TRUE'){return `iam_assignment_active(${viewer}.assignment_id,${viewer}.now_ms) AND iam_principal_active(${viewer}.user_id,t.company_id,${viewer}.now_ms) AND EXISTS(SELECT 1 FROM iam_roles role WHERE role.id=${viewer}.role AND role.company_id IN ('*',t.company_id) AND role.status='active') AND ${nativeStaff(viewer)} AND ${scheduledFeaturePredicate('t.company_id','operations')} AND ${taskParticipantReadPolicy('t.id','t.company_id',viewer)} AND (${social})`;}
+function authority(viewer:string,social='TRUE'){return `iam_assignment_active(${viewer}.assignment_id,${viewer}.now_ms) AND iam_principal_active(${viewer}.user_id,t.company_id,${viewer}.now_ms) AND ${operationsTableExists('iam_roles role',`role.id=${viewer}.role AND role.company_id IN ('*',t.company_id) AND role.status='active'`)} AND ${nativeStaff(viewer)} AND ${scheduledFeaturePredicate('t.company_id','operations')} AND ${taskParticipantReadPolicy('t.id','t.company_id',viewer)} AND (${social})`;}
 function purchased(socialRequired:string){return `${purchasedCapabilityPredicate('t.company_id','work.actions','settle-existing','work_alert_clock.now_ms')} AND (t.template_id IS NULL OR ${purchasedCapabilityPredicate('t.company_id','work.advanced-routines','settle-existing','work_alert_clock.now_ms')}) AND (NOT ${socialRequired} OR ${purchasedCapabilityPredicate('t.company_id','work.social','settle-existing','work_alert_clock.now_ms')})`;}
 /** Only actual ordinary Task recipients participate; Project and every other
  * product's foundation actions retain their separate original owner. */

@@ -1,15 +1,17 @@
 import 'server-only';
-/** Canonical single-row child JSON projection for the Operations task image.
- *  Table, alias, foreign key and outer alias are the only varying bytes; every
- *  rendering is byte-identical to the original inline literals. */
-export const operationsChildJsonSql = (table:string,alias:string,fk:string,outer:string) => `(SELECT to_jsonb(${alias}) FROM ${table} ${alias} WHERE ${alias}.id=${outer}.${fk} AND ${alias}.company_id=${outer}.company_id)`;
+/** Canonical single-row child JSON renderer. Table, alias and the complete
+ *  id/company expressions are the only varying bytes; both exported helpers
+ *  delegate here so the family keeps one definition. */
+const childJsonSql = (table:string,alias:string,id:string,company:string) => `(SELECT to_jsonb(${alias}) FROM ${table} ${alias} WHERE ${alias}.id=${id} AND ${alias}.company_id=${company})`;
+/** Outer-row child projection: foreign key and outer alias are joined into the
+ *  renderer's expressions. Rendering stays byte-identical to the old literal. */
+export const operationsChildJsonSql = (table:string,alias:string,fk:string,outer:string) => childJsonSql(table,alias,`${outer}.${fk}`,`${outer}.company_id`);
 /** Canonical task-scoped aggregated child JSON projection for the Operations
  *  task image. Table, alias and outer alias are the only varying bytes. */
 export const operationsChildAggJsonSql = (table:string,alias:string,outer:string) => `(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${table} ${alias} WHERE ${alias}.task_id=${outer}.id AND ${alias}.company_id=${outer}.company_id)`;
-/** Canonical bound-parameter child JSON projection for the Operations routine
- *  reference image. Table and alias are the only varying bytes; each rendering
- *  is byte-identical to the original inline literals. */
-export const operationsChildJsonByBoundId = (table:string,alias:string) => `(SELECT to_jsonb(${alias}) FROM ${table} ${alias} WHERE ${alias}.id=? AND ${alias}.company_id=?)`;
+/** Bound-parameter child projection for the routine reference image. Thin
+ *  alias over the one renderer; binds and rendering stay unchanged. */
+export const operationsChildJsonByBoundId = (table:string,alias:string) => childJsonSql(table,alias,'?','?');
 /** Canonical source projections shared by the Operations task image SQL clauses. */
 export const OPERATIONS_TASK_DELEGATION_SOURCE_SQL = operationsChildAggJsonSql('staff_task_delegations','delegation','t');
 /** Canonical routine-template projection shared by the Operations task image SQL clauses. */
