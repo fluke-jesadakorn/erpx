@@ -6,6 +6,7 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';impor
 import {manufacturingRowsSelect,manufacturingIdSelect} from './manufacturing-read-sql-fragments';
 import {manufacturingOrderJoinSelect} from './manufacturing-read-tail-r15-sql';
 import {manufacturingAccountingProfileSelect} from './manufacturing-read-tail-r19-sql';
+import {manufacturingExistsGuard} from './manufacturing-read-tail-r20-sql';
 
 /** Owner-local fixed read: the latest output-report actor on a production
  * order. `lastReportActor` (QC pass) and `lastOutputReportActor` (scrap approval)
@@ -25,7 +26,7 @@ const latestReportActorSelect=reportActorSelect(" ORDER BY version DESC LIMIT 1"
  * live-read replacement) and is deliberately outside the RD_* read-plan
  * registry (an atomic witness, not a projection). */
 const approvedSpecGuardSql =
-  "EXISTS(SELECT 1 FROM manufacturing_specifications WHERE id=? AND company_id=? AND version=? AND status='approved')";
+  manufacturingExistsGuard("manufacturing_specifications","id=? AND company_id=? AND version=? AND status='approved'");
 
 /** Owner-local fixed guard SQL: the independent-QC witness shared by the pass
  * and fail transition guards. Both guards execute the identical EXISTS on the
@@ -35,7 +36,7 @@ const approvedSpecGuardSql =
  * replacement) and is deliberately outside the RD_* read-plan registry (an
  * atomic witness, not a projection). */
 const independentQcGuardSql =
-  "EXISTS(SELECT 1 FROM manufacturing_order_events WHERE order_id=? AND action='report' AND version=? AND actor_id<>?)";
+  manufacturingExistsGuard("manufacturing_order_events","order_id=? AND action='report' AND version=? AND actor_id<>?");
 
 /** Owner-local fixed guard SQL: the completed-operation witness shared by the
  * routing-completion and operation-sequence guards. Both guards execute the
@@ -100,7 +101,7 @@ async orderSpecificationLines(specification_id:string | number | null){return db
         .bind(specification_id)
         .all<Row>();},
 lockOrder(id:string){return db.prepare(`${manufacturingIdSelect("manufacturing_orders")} WHERE id=? FOR UPDATE`).bind(id);},
-guardOrderVersion(key:string,value:"order",id:string,expectedVersion:number,status:string | number | null){return assertion(db, key, value, "EXISTS(SELECT 1 FROM manufacturing_orders WHERE id=? AND version=? AND status=?)", [id, expectedVersion, status]);},
+guardOrderVersion(key:string,value:"order",id:string,expectedVersion:number,status:string | number | null){return assertion(db, key, value, manufacturingExistsGuard("manufacturing_orders","id=? AND version=? AND status=?"), [id, expectedVersion, status]);},
  prepareMaterialReservation(value:string,id:string,warehouse_id:string | number | null,product_id:string | number | null,required:number,expiresAt:number,userId:string,now:number){return ownerWrite('order.reservation',[value,id,warehouse_id,product_id,required,expiresAt,userId,now],String(id));},
 async materialReservation(id:string,product_id:string | number | null){return db
           .prepare(
@@ -112,7 +113,7 @@ guardCurrentMaterialReservation(key:string,value:string,id:string | number | nul
           db,
           key,
           value,
-          "EXISTS(SELECT 1 FROM manufacturing_material_reservations WHERE id=? AND consumed_milli=0 AND released_milli=0 AND expires_at>?)",
+          manufacturingExistsGuard("manufacturing_material_reservations","id=? AND consumed_milli=0 AND released_milli=0 AND expires_at>?"),
           [id, now],
         );},
 guardCompleteRouting(key:string,value:"completed-routing",value2:string,id:string){return assertion(db, key, value, `${specificationOperationsGuardSql()}${operationEventDoneGuardSql}`, [value2, id]);},
