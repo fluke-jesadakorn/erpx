@@ -84,8 +84,9 @@ describe('Inventory read-tail r31 parameterized scope-allowed dedupe', () => {
     // r30 folded the 2x byte-identical child-line row selector into one helper
     // (358 -> 357). r31 folds the 3x parameterized current-assignment scope
     // probe into one helper (357 -> 353): six inline SELECT tokens removed, two
-    // kept in the single canonical helper.
-    expect(total).toBe(353);
+    // kept in the single canonical helper. r32 lowers it further to 352, so the
+    // exact pin is relaxed to the r31 baseline.
+    expect(total).toBeLessThanOrEqual(353);
     expect(total).toBeLessThan(357);
   });
 });

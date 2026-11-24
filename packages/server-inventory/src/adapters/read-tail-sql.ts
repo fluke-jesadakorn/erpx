@@ -189,3 +189,10 @@ export const childLineRowsSql = (table: string, lineFk: string) =>
  *  untouched. */
 export const scopeAllowedSql = (scope: string, permission: string) =>
   `SELECT ${assignmentReadSql(scope, permission)} allowed FROM (SELECT ?::text company_id,?::text branch_id,NULL::text department_id) ${scope}`;
+/** r32: parameterized quality-disposal count source. The sales and ecommerce
+ *  settlement reads share one byte-identical projection/join; only the quality
+ *  hold source rows and the trailing source-type predicate vary. Every caller
+ *  keeps its own source rows, binds and independent statement. r11-r31 helpers
+ *  above are left untouched. */
+export const disposalCountsSql = (holds: string, tail = '') =>
+  `SELECT count.*,hold.source_type quality_source_type,hold.source_id quality_source_id FROM inventory_counts count JOIN (${holds}) hold ON hold.id=count.quality_hold_id${tail}`;
