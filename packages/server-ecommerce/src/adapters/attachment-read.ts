@@ -12,10 +12,10 @@ import {isTransactionalSqlDatabase,type SqlDatabase,type StoredFile} from '@erpx
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {attachmentReadSource,attachmentPrivateReadSourceLocks,assertAttachmentReadRoute,attachmentReadChanged,requirePrivateAttachmentReaderCurrent,bufferedAttachmentRead,type AttachmentReadRoute,type AttachmentReadSource} from '@erpx/server-files/public/private-attachment-reads';
 import {ecommerceCommerceSourceReadLocks} from '@erpx/server-ecommerce/adapters/commerce-source-locks';
+import {ecommerceListingEvidence} from './read-tail-sql';
 
 async function ecommerceImage(database:SqlDatabase,actor:WorkContext,id:string){
- return database.prepare(`SELECT jsonb_build_object('listing',to_jsonb(l),'channel',to_jsonb(c),'product',to_jsonb(p))::text image
- FROM ecommerce_listings l JOIN ecommerce_channels c ON c.id=l.channel_id JOIN commerce_products p ON p.id=l.product_id AND p.company_id=c.company_id WHERE l.id=? AND c.company_id=?`).bind(id,actor.companyId).first<string>('image');
+ return database.prepare(ecommerceListingEvidence("jsonb_build_object('listing',to_jsonb(l),'channel',to_jsonb(c),'product',to_jsonb(p))::text image\n")).bind(id,actor.companyId).first<string>('image');
 }
 /** Actual listing/channel/product sources remain leased through lazy bytes and
  * original current read policy. Listing media never grants a Sales/Stock role. */

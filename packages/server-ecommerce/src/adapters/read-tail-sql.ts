@@ -22,3 +22,8 @@ export const ecommerceListingChannelRow = (columns: string) =>
  *  callers rebuild byte-identically. Binds unchanged. */
 export const ecommerceSourceIdentity = (columns: string, from: string) =>
   `SELECT ${columns} FROM ${from} WHERE x.id=?`;
+/** r15: one parameterized listing-evidence read; the attachment content and
+ *  purchase-witness callers rebuild byte-identically. Binds unchanged. The
+ *  projection may carry a trailing newline to preserve the caller's line break. */
+export const ecommerceListingEvidence = (projection: string, l = 'l', c = 'c', p = 'p') =>
+  `SELECT ${projection} FROM ecommerce_listings ${l} JOIN ecommerce_channels ${c} ON ${c}.id=${l}.channel_id JOIN commerce_products ${p} ON ${p}.id=${l}.product_id AND ${p}.company_id=${c}.company_id WHERE ${l}.id=? AND ${c}.company_id=?`;

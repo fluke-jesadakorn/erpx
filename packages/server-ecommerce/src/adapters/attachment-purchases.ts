@@ -16,10 +16,10 @@ import {financeDeferredEffectStatements} from '@erpx/server-finance/public/finan
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {hasModuleAccess} from '@erpx/catalogue/module-access';
 import {ecommerceCommerceSourceReadLocks} from '@erpx/server-ecommerce/adapters/commerce-source-locks';
-import {ecommerceModuleAssignment,ecommerceScopeRow} from './read-tail-sql';
+import {ecommerceModuleAssignment,ecommerceScopeRow,ecommerceListingEvidence} from './read-tail-sql';
 
 export type EcommerceAttachmentPurchase={companyId:string;capability:'sales.ecommerce';purpose:CapabilityPurpose;actor:WorkContext;id:string;witness:string;approverRequired:boolean};
-const sourceQuery=`SELECT jsonb_build_array(to_jsonb(listing)-'version'-'updated_at',to_jsonb(channel),product.id,product.company_id)::text witness FROM ecommerce_listings listing JOIN ecommerce_channels channel ON channel.id=listing.channel_id JOIN commerce_products product ON product.id=listing.product_id AND product.company_id=channel.company_id WHERE listing.id=? AND channel.company_id=?`;
+const sourceQuery=ecommerceListingEvidence("jsonb_build_array(to_jsonb(listing)-'version'-'updated_at',to_jsonb(channel),product.id,product.company_id)::text witness",'listing','channel','product');
 /** r12: one parameterized reviewer-scope read. The authority check and the
  *  command-boundary assertion rebuild byte-identically. Text only: binds unchanged. */
 const reviewScopeSql = (projection: string, scope: string) =>
