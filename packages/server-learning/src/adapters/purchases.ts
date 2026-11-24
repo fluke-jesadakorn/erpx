@@ -16,6 +16,7 @@ import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packa
 
 import type {LearningCapability,LearningPurchaseControls} from "@erpx/server-learning/domain/purchase-controls";
 export type {LearningCapability,LearningPurchaseControls} from "@erpx/server-learning/domain/purchase-controls";
+import {actorScopeProbe,coursesImage} from "./learning-read-sql";
 type Target={kind:"course"|"assignment"|"certificate";id:string};
 const commands=new WeakMap<SqlDatabase,{actorId:string;assignmentId:string;target:Target;operation:string}>();
 /** Private owner marker, never a public transaction registration port. */
@@ -25,7 +26,7 @@ async function current(database:SqlDatabase,actor:WorkContext,key:string,permiss
  const row=await database.prepare(`SELECT ${assignmentReadSql("learning_scope",permission)}
  AND EXISTS(SELECT 1 FROM assignments learning_module WHERE learning_module.id=? AND learning_module.company_id=learning_scope.company_id
  AND learning_module.user_id=? AND learning_module.role=? AND EXISTS(SELECT 1 FROM erpx_json_each(learning_module.modules_json) module WHERE module.value='learning')) allowed FROM
- (SELECT ?::text company_id,?::text branch_id,?::text department_id) learning_scope`)
+ ${actorScopeProbe}) learning_scope`)
   .bind(actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();
  if(!row?.allowed)throw new ApiError(403,"LEARNING_ACCESS_CHANGED","Choose a current Learning assignment.");
  await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await nativeClearCommandAssertions(database, actor.companyId, key)]);
@@ -70,7 +71,7 @@ export async function withLearningPurchasedRead<Result>(owner:SqlDatabase,actor:
   await sourceLeases(database,actor);const key=`learning-reference-read:${randomUUID()}`;
   await current(database,actor,key,'records.read');
   const witness=async()=>JSON.stringify({people:await learningWorkerReferenceWitness(database,actor.companyId),learning:await database.prepare(`SELECT jsonb_build_object(
-  'courses',(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM learning_courses c WHERE c.company_id=?),
+  'courses',${coursesImage},
   'assignments',(SELECT jsonb_agg(to_jsonb(a) ORDER BY a.id) FROM learning_assignments a WHERE a.company_id=?))::text image`).bind(actor.companyId,actor.companyId).first<string>('image')});
   const before=await witness(),result=await run(database);await flushFinanceDeferredEffects(database);
   if(JSON.stringify(actor)!==context||await witness()!==before)throw new ApiError(409,'LEARNING_SOURCE_CHANGED','The original learner references changed during the read.');
