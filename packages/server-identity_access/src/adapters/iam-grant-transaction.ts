@@ -1,5 +1,5 @@
 import 'server-only';
-import { samePersonQuerySql, assignmentActiveQuerySql } from "./iam-probe-sql";
+import { samePersonQuerySql, assignmentActiveQuerySql, publishedRoleSql } from "./iam-probe-sql";
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
 import type {PoolClient} from 'pg';
 import type {IamActor} from '@erpx/server-identity_access/domain/iam-actor';
@@ -39,7 +39,7 @@ grantTargetMember: async (facts) => {
         },
 grantPublishedRole: async (facts) => {
             const { input } = facts;
-            return (await c.query("SELECT r.*,v.permissions_json,v.grantable_json,v.scopes_json FROM iam_roles r JOIN iam_role_revisions v ON v.company_id=r.company_id AND v.role_id=r.id AND v.revision=r.published_revision WHERE r.company_id IN ('*',$1) AND r.id=$2 AND r.status='active'", [actor.companyId, input.roleId])).rows[0] ?? null;
+            return (await c.query(publishedRoleSql('$1', '$2'), [actor.companyId, input.roleId])).rows[0] ?? null;
         },
 grantScopeNode: async (facts) => {
             const { input } = facts;

@@ -33,3 +33,9 @@ export const verifiedUserEmailSql = 'SELECT email,"emailVerified" verified FROM 
  * is accepted from a caller; the projection SQL is fixed here. */
 export const idNameEmailByUserIdsSql = (ids: string[]) =>
   `SELECT id,name,email FROM "user" WHERE id IN (${ids.map(() => "?").join(",")})`;
+/** Parameterized published-role projection shared by the iam role store
+ * (qmark binds) and the native grant transaction (pg positional binds). Only
+ * the two fixed placeholder tokens from those owner callers are accepted; the
+ * projection SQL is fixed here. No lock or control-plane read is changed. */
+export const publishedRoleSql = (companyParam: string, roleParam: string) =>
+  `SELECT r.*,v.permissions_json,v.grantable_json,v.scopes_json FROM iam_roles r JOIN iam_role_revisions v ON v.company_id=r.company_id AND v.role_id=r.id AND v.revision=r.published_revision WHERE r.company_id IN ('*',${companyParam}) AND r.id=${roleParam} AND r.status='active'`;

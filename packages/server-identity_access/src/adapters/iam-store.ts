@@ -5,6 +5,7 @@ import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/ser
 const peoplepayrollSources=peoplepayrollSnapshotSources();
 import { createIamAuthority, type IamAuthorityMember } from "@erpx/server-identity_access/application/authority";
 import { iamDb } from "@erpx/server-identity_access/public/iam-db";
+import { publishedRoleSql } from "./iam-probe-sql";
 import "server-only";
 import type { PermissionActor, RoleRevision } from "@erpx/feature-identity_access/lib/iam";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
@@ -12,7 +13,7 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 export async function iamRole(db: SqlDatabase, companyId: string, id: string): Promise<RoleRevision | null> {
     db = iamDb(db);
     const r = await db
-        .prepare(`SELECT r.*,v.permissions_json,v.grantable_json,v.scopes_json FROM iam_roles r JOIN iam_role_revisions v ON v.company_id=r.company_id AND v.role_id=r.id AND v.revision=r.published_revision WHERE r.company_id IN ('*',?) AND r.id=? AND r.status='active'`)
+        .prepare(publishedRoleSql('?', '?'))
         .bind(companyId, id)
         .first<{
         id: string;
