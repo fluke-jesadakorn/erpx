@@ -65747,6 +65747,33 @@
       ]
     },
     {
+      "lane": "unit",
+      "owner": "platform_administration",
+      "modules": [
+        "platform_administration"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Platform release child jsonb aggregation sources must stay byte-identical."
+      },
+      "apps": [
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-platform_administration"
+      ],
+      "id": "platform_administration.attachment-source-child-agg-dedupe.unit",
+      "files": [
+        "tests/unit/platform_administration/attachment-source-child-agg-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "platform_administration.backup-restore-operations.integration",
       "lane": "integration",
       "owner": "platform_administration",
