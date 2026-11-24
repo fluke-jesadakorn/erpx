@@ -4,6 +4,7 @@ import type {PoolClient} from 'pg';
 import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgres';
 import {calculateTargetBillingPeriod as calculate,type TargetBillingRepository} from '@erpx/server-billing/application/target';
 import {nativeBillingOwnerQuery} from '@erpx/server-billing/adapters/native-billing-owner-write';
+import {BILLING_ROLLOUT_ELIGIBILITY_SQL,BILLING_LEGACY_ENROLLMENT_OVERLAP_SQL,BILLING_MONTH_INVOICE_SQL} from './billing-read-tail-r16-sql';
 import type * as D from '@erpx/server-billing/domain/target';
 export type {TargetMeasuredEvidence,TargetRatedLine,TargetBillingPeriodView} from '@erpx/server-billing/domain/target';
 export function nativeTargetBillingRepository(c:PoolClient):TargetBillingRepository{return {operatingCosts:(value0,value1)=>c.query<D.OperatingCostsRow>(`SELECT o.category,o.amount_satang,e.source_state
@@ -29,13 +30,9 @@ assignedPrice:(value0,value1)=>nativeBillingOwnerQuery(c,'selected_target_price'
 approvedRating:(value0,value1)=>c.query<D.ApprovedRatingRow>("SELECT * FROM billing_target_rated_periods WHERE holding_id=$1 AND month=$2 AND state='approved'",[value0,value1]),
 approvedInvoice:(value0)=>c.query<D.ApprovedInvoiceRow>("SELECT id,total_satang,status,stripe_id FROM billing_invoices WHERE id=$1",[value0]),
 approvedStatements:async(value0,value1)=>(await nativeBillingOwnerQuery(c,'target_statements',[value0,value1])) as {rows:D.ApprovedStatementsRow[];rowCount:number|null},
-rolloutEligibility:(value0,value1)=>c.query<D.RolloutEligibilityRow>(`SELECT 1 FROM billing_target_sandbox_holdings WHERE holding_id=$1
-     UNION ALL SELECT 1 FROM billing_target_rollout_approvals
-     WHERE holding_id=$1 AND effective_month<=$2 LIMIT 1`,[value0,value1]),
-legacyEnrollmentOverlap:(value0,value1,value2)=>c.query<D.LegacyEnrollmentOverlapRow>(`SELECT 1 FROM billing_enrollments WHERE holding_id=$1 AND plan_id<>'platform_usage'
-     AND started_at<$3 AND COALESCE(ended_at,effective_at,9223372036854775807)>$2`,[value0,value1,value2]),
-monthInvoices:(value0,value1)=>c.query<D.MonthInvoicesRow>(`SELECT 1 FROM billing_invoices i JOIN billing_periods p ON p.id=i.period_id
-     WHERE i.holding_id=$1 AND p.month=$2 AND i.status<>'void'`,[value0,value1]),
+rolloutEligibility:(value0,value1)=>c.query<D.RolloutEligibilityRow>(BILLING_ROLLOUT_ELIGIBILITY_SQL,[value0,value1]),
+legacyEnrollmentOverlap:(value0,value1,value2)=>c.query<D.LegacyEnrollmentOverlapRow>(BILLING_LEGACY_ENROLLMENT_OVERLAP_SQL,[value0,value1,value2]),
+monthInvoices:(value0,value1)=>c.query<D.MonthInvoicesRow>(BILLING_MONTH_INVOICE_SQL,[value0,value1]),
 paymentConsent:(value0)=>c.query<D.PaymentConsentRow>("SELECT payment_mode,consent_at,card_json FROM billing_accounts WHERE holding_id=$1",[value0]),
 ratingSnapshot:async(value0,value1)=>c.query<D.RatingSnapshotRow>(`SELECT * FROM (${await nativeCommercialOwnerRead(COMMERCIAL_RD_USAGE_SNAPSHOT)}) billing_usage_snapshots WHERE holding_id=$1 AND month=$2`,[value0,value1]),
 ratingMeters:async(value0,value1)=>c.query<D.RatingMetersRow>(`SELECT source_key,meter_kind,company_id,branch_id,funding_source,quantity,

@@ -18,6 +18,12 @@ function commercialSubscriptionSource() {
         AND (b.current_period_end IS NULL OR b.current_period_end*1000>?)
     )`;
 }
+/** Byte-identical projection prefix shared by the subscription search, the
+ * enrollment point read and the legacy point read. Callers keep their own binds,
+ * filters and result type; the CTE text itself is not duplicated. */
+function commercialSubscriptionSelect() {
+    return `${commercialSubscriptionSource()} SELECT source_kind,record_id,plan_name,status,started_at,effective_at,record_version FROM subscriptions`;
+}
 function overdueInvoiceSource() {
     return `SELECT i.id,i.kind,i.status,i.total_satang,i.due_at,i.updated_at,p.month
     FROM billing_invoices i JOIN billing_periods p ON p.id=i.period_id AND p.holding_id=i.holding_id
@@ -53,7 +59,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 conditions.push("(source_kind>? OR (source_kind=? AND record_id>?))");
                 values.push(cursor.sourceKind, cursor.sourceKind, cursor.recordId);
             }
-            const rows = (await sourceDb.prepare(`${commercialSubscriptionSource()} SELECT source_kind,record_id,plan_name,status,started_at,effective_at,record_version FROM subscriptions
+            const rows = (await sourceDb.prepare(`${commercialSubscriptionSelect()}
     ${conditions.length ? `WHERE ${conditions.join(" AND ")}` : ""} ORDER BY source_kind,record_id LIMIT ?`)
                 .bind(...values, input.limit + 1).all<CommercialSubscriptionRow>()).results;
             return { rows };
@@ -65,9 +71,9 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         }> {
             const sourceDb = (await runtimeEnv()).CONTROL_DB;
             const row = decoded.sourceKind === "enrollment"
-                ? await sourceDb.prepare(`${commercialSubscriptionSource()} SELECT source_kind,record_id,plan_name,status,started_at,effective_at,record_version FROM subscriptions
+                ? await sourceDb.prepare(`${commercialSubscriptionSelect()}
         WHERE source_kind='enrollment' AND record_id=? LIMIT 1`).bind(actor.holdingId, now, now, actor.holdingId, now, decoded.recordId).first<CommercialSubscriptionRow>()
-                : await sourceDb.prepare(`${commercialSubscriptionSource()} SELECT source_kind,record_id,plan_name,status,started_at,effective_at,record_version FROM subscriptions
+                : await sourceDb.prepare(`${commercialSubscriptionSelect()}
         WHERE source_kind='legacy' AND record_id=? LIMIT 1`).bind(actor.holdingId, now, now, actor.holdingId, now, decoded.recordId).first<CommercialSubscriptionRow>();
             return { row };
         }, async factsSearchOverdueInvoiceEvidence(cursorValue: {

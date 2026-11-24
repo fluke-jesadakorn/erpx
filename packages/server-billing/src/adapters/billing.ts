@@ -11,6 +11,7 @@ import type {BillingActor,BillingInput,BillingReceipt,BillingAccount,BillingEnro
 import type {BillingStripe} from '@erpx/server-billing/domain/stripe';
 import {calculateTargetBillingPeriod} from '@erpx/server-billing/adapters/billing-target';
 import {calculateTargetRolloutReadiness} from '@erpx/server-billing/adapters/billing-target-rollout';
+import {BILLING_ROLLOUT_ELIGIBILITY_SQL,BILLING_LEGACY_ENROLLMENT_OVERLAP_SQL,BILLING_MONTH_INVOICE_SQL} from './billing-read-tail-r16-sql';
 export {billingInput} from '@erpx/server-billing/domain/billing';
 export type {BillingActor,BillingInput} from '@erpx/server-billing/domain/billing';
 export function nativeBillingRepository(c:PoolClient):BillingRepository{return {
@@ -71,14 +72,10 @@ approvedExtraPeriod:(value0,value1)=>nativeBillingOwnerQuery(c, 'APPROVED_RATED_
 availableExtraEvidence:(value0,value1)=>nativeBillingOwnerQuery(c, 'available_evidence', [value0,value1]),
 recordTargetExtra:(value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11)=>nativeBillingOwnerQuery(c, 'record_target_extra', [value0,value1,value2,value3,value4,value5,value6,value7,value8,value9,value10,value11]),
 lockTargetSnapshot:async(value0,value1)=>c.query<Record<string,unknown>>(`SELECT snapshot_id FROM (${await nativeCommercialOwnerRead(COMMERCIAL_RD_USAGE_SNAPSHOT)}) billing_usage_snapshots WHERE holding_id=$1 AND month=$2 FOR UPDATE`,[value0,value1]),
-targetRolloutEligible:(value0,value1)=>c.query<Record<string,unknown>>(`SELECT 1 FROM billing_target_sandbox_holdings WHERE holding_id=$1
-           UNION ALL SELECT 1 FROM billing_target_rollout_approvals
-           WHERE holding_id=$1 AND effective_month<=$2 LIMIT 1`,[value0,value1]),
+targetRolloutEligible:(value0,value1)=>c.query<Record<string,unknown>>(BILLING_ROLLOUT_ELIGIBILITY_SQL,[value0,value1]),
 approvedTargetPeriod:(value0,value1)=>nativeBillingOwnerQuery(c, 'APPROVED_RATED_PERIOD', [value0,value1]),
-legacyEnrollmentOverlap:(value0,value1,value2)=>c.query<BillingEnrollment>(`SELECT 1 FROM billing_enrollments WHERE holding_id=$1 AND plan_id<>'platform_usage'
-           AND started_at<$3 AND COALESCE(ended_at,effective_at,9223372036854775807)>$2`,[value0,value1,value2]),
-monthInvoiceExists:(value0,value1)=>c.query<BillingInvoiceRow>(`SELECT 1 FROM billing_invoices i JOIN billing_periods p ON p.id=i.period_id
-           WHERE i.holding_id=$1 AND p.month=$2 AND i.status<>'void'`,[value0,value1]),
+legacyEnrollmentOverlap:(value0,value1,value2)=>c.query<BillingEnrollment>(BILLING_LEGACY_ENROLLMENT_OVERLAP_SQL,[value0,value1,value2]),
+monthInvoiceExists:(value0,value1)=>c.query<BillingInvoiceRow>(BILLING_MONTH_INVOICE_SQL,[value0,value1]),
 activeTargetEnrollment:(value0)=>nativeBillingOwnerQuery(c, 'active_target_enrollment', [value0]),
 enrollTarget:(value0,value1,value2)=>nativeBillingOwnerQuery(c, 'enroll_target', [value0,value1,value2]),
 retainedTargetEnrollment:(value0)=>nativeBillingOwnerQuery(c, 'active_target_enrollment', [value0]),
