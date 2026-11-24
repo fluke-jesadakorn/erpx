@@ -1,9 +1,10 @@
 import "server-only";
-/** Tail-parameterized variant of followupCustomerOrderRead for the followup
- * workspace list and calendar facts heads. The FROM-tail join, WHERE-tail,
- * column list, scope and order are owner-local fixed tokens composed by callers;
- * no caller input enters the rendered statement, so each call stays byte-identical
- * to its original literal. */
+import {followupCustomerOrderRead} from './followup-customer-order-read';
+/** Tail-parameterized view of followupCustomerOrderRead kept as a stable r31
+ * export: the seven call arguments map positionally onto the primary generator
+ * (whereTail -> predicate, order -> order, joinTail -> extraJoin), so both
+ * workspace and calendar heads keep their byte-identical SQL and bind order.
+ * The statement literal lives only in followupCustomerOrderRead. */
 export const followupCustomerOrderTailRead = (
   orders: string,
   columns: string,
@@ -12,5 +13,4 @@ export const followupCustomerOrderTailRead = (
   whereTail: string,
   order: string,
   joinTail = '',
-) =>
-  `SELECT ${columns} FROM customer_followups c JOIN (${orders}) o ON o.id=c.order_id AND o.company_id=c.company_id${joinTail} WHERE ${scope} AND ${purchaseWhere} AND ${whereTail} ${order}`;
+) => followupCustomerOrderRead(orders, columns, scope, purchaseWhere, whereTail, order, joinTail);

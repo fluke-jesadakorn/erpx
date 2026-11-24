@@ -80,11 +80,13 @@ describe('Sales read-tail r31 tail-parameterized followup order join', () => {
     },
   );
 
-  test('one tail variant, one primary generator, no inlined head at either caller', () => {
+  test('one primary generator, tail delegator, no inlined head at either caller', () => {
     expect(typeof followupCustomerOrderTailRead).toBe('function');
     expect(followupCustomerOrderTailRead.length).toBe(6);
     expect((tailRead.match(/export const followupCustomerOrderTailRead\s*=/g) ?? []).length).toBe(1);
-    expect((tailRead.match(/SELECT/g) ?? []).length).toBe(1);
+    expect((tailRead.match(/SELECT/g) ?? []).length).toBe(0);
+    expect(tailRead).toContain("import {followupCustomerOrderRead} from './followup-customer-order-read';");
+    expect(tailRead).toContain('followupCustomerOrderRead(orders, columns, scope, purchaseWhere, whereTail, order, joinTail)');
     expect(followups).toContain('followupCustomerOrderTailRead(');
     expect(calendar).toContain('followupCustomerOrderTailRead(');
     expect(followups).not.toContain('`SELECT c.*,${ownerNameProjection},o.number order_number');
@@ -198,7 +200,7 @@ describe('Sales read-tail r31 retirement check', () => {
     expect((rustRegistry.match(/pub const RD_\w+: &str =/g) ?? []).length).toBe(4);
   });
 
-  test('retirement:ts-statements drops from 50 to 47', () => {
+  test('retirement:ts-statements drops from 50 to 46', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -209,7 +211,8 @@ describe('Sales read-tail r31 retirement check', () => {
     };
     walk(srcRoot);
     // r31: tail variant (+1), list (-1), calendar (-1), work (-1), byKey (-1).
-    expect(total).toBe(47);
+    // r33: tail generator delegates to the primary generator (-1).
+    expect(total).toBe(46);
     expect(total).toBeLessThan(50);
   });
 });
