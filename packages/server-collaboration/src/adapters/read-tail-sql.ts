@@ -31,3 +31,7 @@ export const socialAgentReplyLeaseIdentity=(tail:string)=>`SELECT 1 FROM social_
  * read-policy call sites in work-social-read-policy.ts. Only the trailing
  * authorization predicate varies; binds and lock semantics are unchanged. */
 export const projectPurchaseSourceAbsent=(sourceRows:string,purchaseSources:string,predicate:string)=>`SELECT 1 FROM (${sourceRows}) source JOIN (${purchaseSources}) social_project_source ON social_project_source.source_kind=source.kind AND social_project_source.source_id=source.id AND social_project_source.company_id=p.company_id WHERE NOT (${predicate})`;
+/** Byte-identical publish-receipt witness shared between the work package-obligation
+ * facts query and the social draft-replay guard. Only the post-id and actor-id column
+ * expressions vary; the operation literal, binds and lock semantics are unchanged. */
+export const socialPostPublishReceipt=(postId:string,actorId:string)=>`SELECT 1 FROM command_receipts receipt WHERE receipt.operation='social.post.publish' AND receipt.record_id=${postId} AND receipt.actor_id=${actorId} AND receipt.result_json::jsonb->>'id'=${postId}`;

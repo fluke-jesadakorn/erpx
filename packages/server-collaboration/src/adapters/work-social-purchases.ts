@@ -23,7 +23,7 @@ import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-fea
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
-import {requestedSourcesJsonb,workSocialPostsAgg,workSocialCommentsAgg,workSocialSourcesAgg,socialPurchaseActorFeature,socialPostByIdPredicate,socialAgentReplyLeaseIdentity} from './read-tail-sql';
+import {requestedSourcesJsonb,workSocialPostsAgg,workSocialCommentsAgg,workSocialSourcesAgg,socialPurchaseActorFeature,socialPostByIdPredicate,socialAgentReplyLeaseIdentity,socialPostPublishReceipt} from './read-tail-sql';
 
 import {executeCommand,replayCommand} from '@erpx/server-workflow/public/commands';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
@@ -84,7 +84,7 @@ export async function withWorkSocialCommand<Result>(owner:SqlDatabase,actor:Staf
  return inSocialUnit(owner,actor,async database=>{
   const receipt=await database.prepare('SELECT operation,actor_id,record_id FROM command_receipts WHERE command_id=?').bind(command.key).first<{operation:string;actor_id:string;record_id:string}>();
   if(receipt&&(receipt.operation!==command.operation||receipt.actor_id!==actor.userId))throw new ApiError(409,'IDEMPOTENCY_CONFLICT','This command key belongs to another original Social action.');
-  const published=command.publishedDraftReplay&&command.id?await database.prepare("SELECT 1 FROM social_post_drafts draft JOIN social_posts post ON post.id=draft.published_post_id AND post.company_id=draft.company_id WHERE draft.id=? AND draft.company_id=? AND draft.author_id=? AND EXISTS(SELECT 1 FROM command_receipts receipt WHERE receipt.operation='social.post.publish' AND receipt.record_id=post.id AND receipt.actor_id=draft.author_id AND receipt.result_json::jsonb->>'id'=post.id)").bind(command.id,actor.companyId,actor.userId).first():null;
+  const published=command.publishedDraftReplay&&command.id?await database.prepare(`SELECT 1 FROM social_post_drafts draft JOIN social_posts post ON post.id=draft.published_post_id AND post.company_id=draft.company_id WHERE draft.id=? AND draft.company_id=? AND draft.author_id=? AND EXISTS(${socialPostPublishReceipt('post.id','draft.author_id')})`).bind(command.id,actor.companyId,actor.userId).first():null;
   const retained=command.operation==='work.handover.publish'&&command.id?await database.prepare('SELECT 1 FROM social_posts WHERE id=? AND company_id=? AND author_id=?').bind(command.id,actor.companyId,actor.userId).first():null;
   const purpose=receipt||published||retained?'history':command.purpose,key=`work-social:${randomUUID()}`,sources=await actualSources(database,actor,command),source=await sourceFacts(database,actor.companyId,sources),codes=await capabilities(database,actor,command,sources,purpose),scopes=[...codes.map(capability=>({mode:capability.startsWith('projects.')?project:mode,companyId:actor.companyId,capability,purpose})),...await pmsSocialSourcePurchaseScopes(database,actor,sources.filter(source=>source.kind==='pms_record').map(source=>source.id),purpose)],fences=scopes.flatMap((scope,index)=>{const boundary= purchaseCommandBoundary(database,scope.mode,`${key}:${index}`,scope);return boundary?[{...scope,key:`${key}:${index}`,boundary}]:[];});
   const audiences=await Promise.all((await actualAudienceProjects(database,actor,command)).map(async id=>({id,image:await socialProjectAudienceSource(database,actor,id)})));
