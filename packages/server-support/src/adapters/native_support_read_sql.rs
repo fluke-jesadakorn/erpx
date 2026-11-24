@@ -17,7 +17,9 @@
 //! `service_team_members` and `service_team_coverage`. It also plans the
 //! incident-detail ticket candidate read on `support_tickets` and
 //! `support_incident_tickets`, and the SLA workspace active-ticket read on
-//! `support_tickets`.
+//! `support_tickets`. It finally plans the package-obligation/Portal read
+//! family: the Portal table fence probe, the binding/response/identity/ack
+//! aggregate and the Company-wide ticket/incident/session/SLA obligation facts.
 //! Reads carry no receipt/audit/outbox ledger: the caller executes them on the
 //! same unit as the surrounding command. No SQL is ever accepted from the wire
 //! and no TypeScript SQL remains for these kinds.
@@ -160,6 +162,38 @@ const READ_SLA_WORKSPACE_TICKETS: NativeSupportReadStatement = NativeSupportRead
     bind_count: 5,
 };
 
+/// Native successors of the TypeScript package-obligation/Portal read family.
+/// The caller binds `[]` for the Portal table fence probe, `[now, company_id]`
+/// for the binding aggregate and `[company_id, company_id, company_id, now,
+/// company_id, now]` for the obligation facts. Only revisions/counts leave the
+/// owner; customer content and staff identities never cross this read.
+pub const RD_PORTAL_BINDINGS_INSTALLED: &str = "support_rd_portal_bindings_installed";
+const SQL_PORTAL_BINDINGS_INSTALLED: &str =
+    "SELECT to_regclass('support_ticket_portal_bindings') IS NOT NULL installed";
+const READ_PORTAL_BINDINGS_INSTALLED: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_PORTAL_BINDINGS_INSTALLED,
+    sql: SQL_PORTAL_BINDINGS_INSTALLED,
+    bind_count: 0,
+};
+
+pub const RD_SUPPORT_PACKAGE_PORTAL_BINDINGS: &str = "support_rd_support_package_portal_bindings";
+const SQL_SUPPORT_PACKAGE_PORTAL_BINDINGS: &str =
+    "SELECT binding.id,to_jsonb(binding) binding,(SELECT jsonb_agg(to_jsonb(event) ORDER BY event.id) FROM support_ticket_portal_events event WHERE event.binding_id=binding.id) events,(SELECT jsonb_agg(to_jsonb(identity) ORDER BY identity.binding_id) FROM support_ticket_portal_identities identity WHERE identity.binding_id=binding.id) identities,(SELECT jsonb_agg(to_jsonb(response) ORDER BY response.id) FROM support_ticket_portal_responses response WHERE response.binding_id=binding.id) responses,(SELECT jsonb_agg(to_jsonb(ack) ORDER BY ack.id) FROM support_ticket_portal_acknowledgements ack WHERE ack.binding_id=binding.id) acknowledgements,binding.status='draft' OR binding.status='approved' AND binding.expires_at>? pending FROM support_ticket_portal_bindings binding WHERE binding.company_id=? ORDER BY binding.id";
+const READ_SUPPORT_PACKAGE_PORTAL_BINDINGS: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_SUPPORT_PACKAGE_PORTAL_BINDINGS,
+    sql: SQL_SUPPORT_PACKAGE_PORTAL_BINDINGS,
+    bind_count: 2,
+};
+
+pub const RD_SUPPORT_PACKAGE_OBLIGATION_FACTS: &str = "support_rd_support_package_obligation_facts";
+const SQL_SUPPORT_PACKAGE_OBLIGATION_FACTS: &str =
+    "SELECT 'ticket' kind,id,version,status state FROM support_tickets WHERE company_id=? AND source_kind<>'field_service' AND status NOT IN ('closed','cancelled') UNION ALL SELECT 'incident',id,version,status FROM support_incidents WHERE company_id=? AND status NOT IN ('closed','cancelled') UNION ALL SELECT 'session',id,version,status FROM support_sessions WHERE company_id=? AND status IN ('pending','approved') AND expires_at>? UNION ALL SELECT 'sla',t.id,COALESCE(a.version,0),CASE WHEN a.id IS NULL THEN 'undrained' ELSE 'unacknowledged' END FROM support_tickets t LEFT JOIN support_sla_alerts a ON a.ticket_id=t.id WHERE t.company_id=? AND a.acknowledged_by IS NULL AND (a.id IS NOT NULL OR (t.sla_clock_json->>'breachedAt')::bigint IS NOT NULL OR t.sla_clock_json->>'state'='running' AND ((t.sla_clock_json->>'dueAt')::bigint<? OR t.status IN ('closed','cancelled'))) ORDER BY kind,id";
+const READ_SUPPORT_PACKAGE_OBLIGATION_FACTS: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_SUPPORT_PACKAGE_OBLIGATION_FACTS,
+    sql: SQL_SUPPORT_PACKAGE_OBLIGATION_FACTS,
+    bind_count: 6,
+};
+
 /// Native successor of the TypeScript portal-preview ticket source image read.
 /// The caller binds `[ticket_id, company_id]` and receives the owned snapshot
 /// used as the before/after consistency witness.
@@ -248,6 +282,9 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_INCIDENT_TICKET_LINKS,
     READ_INCIDENT_TICKET_CANDIDATES,
     READ_SLA_WORKSPACE_TICKETS,
+    READ_PORTAL_BINDINGS_INSTALLED,
+    READ_SUPPORT_PACKAGE_PORTAL_BINDINGS,
+    READ_SUPPORT_PACKAGE_OBLIGATION_FACTS,
     READ_TICKET_SOURCE_IMAGE,
     READ_TICKET_ATTACHMENT_SOURCE_IMAGE,
     READ_ATTACHMENT_MIGRATION_SCOPE,
@@ -324,6 +361,21 @@ mod tests {
                 SQL_SLA_WORKSPACE_TICKETS,
                 5usize,
             ),
+            (
+                RD_PORTAL_BINDINGS_INSTALLED,
+                SQL_PORTAL_BINDINGS_INSTALLED,
+                0usize,
+            ),
+            (
+                RD_SUPPORT_PACKAGE_PORTAL_BINDINGS,
+                SQL_SUPPORT_PACKAGE_PORTAL_BINDINGS,
+                2usize,
+            ),
+            (
+                RD_SUPPORT_PACKAGE_OBLIGATION_FACTS,
+                SQL_SUPPORT_PACKAGE_OBLIGATION_FACTS,
+                6usize,
+            ),
             (RD_TICKET_SOURCE_IMAGE, SQL_TICKET_SOURCE_IMAGE, 2usize),
             (
                 RD_TICKET_ATTACHMENT_SOURCE_IMAGE,
@@ -373,7 +425,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 18);
+        assert_eq!(STATEMENTS.len(), 21);
     }
 
     #[test]
@@ -402,6 +454,12 @@ mod tests {
         assert_eq!(candidates.bind_count, 4);
         let sla_tickets = read_statement(RD_SLA_WORKSPACE_TICKETS).expect("SLA workspace tickets");
         assert_eq!(sla_tickets.bind_count, 5);
+        let installed = read_statement(RD_PORTAL_BINDINGS_INSTALLED).expect("portal fence probe");
+        assert_eq!(installed.bind_count, 0);
+        let bindings = read_statement(RD_SUPPORT_PACKAGE_PORTAL_BINDINGS).expect("portal binding aggregate");
+        assert_eq!(bindings.bind_count, 2);
+        let facts = read_statement(RD_SUPPORT_PACKAGE_OBLIGATION_FACTS).expect("obligation facts");
+        assert_eq!(facts.bind_count, 6);
         let source_image = read_statement(RD_TICKET_SOURCE_IMAGE).expect("ticket source image");
         assert_eq!(source_image.bind_count, 2);
         let attachment_image = read_statement(RD_TICKET_ATTACHMENT_SOURCE_IMAGE).expect("ticket attachment source image");

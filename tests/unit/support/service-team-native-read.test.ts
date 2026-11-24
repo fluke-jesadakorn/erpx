@@ -408,4 +408,48 @@ describe('support service-team coverage native read', () => {
       delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
     }
   });
+
+  it('carries no retired package-obligation/Portal SQL in the switched adapter', async () => {
+    const adapter = await source('packages/server-support/src/adapters/package-obligations.ts');
+    expect(adapter).not.toContain('SELECT');
+    for (const constant of [
+      'SUPPORT_RD_PORTAL_BINDINGS_INSTALLED',
+      'SUPPORT_RD_SUPPORT_PACKAGE_PORTAL_BINDINGS',
+      'SUPPORT_RD_SUPPORT_PACKAGE_OBLIGATION_FACTS',
+    ]) expect(adapter).toContain(constant);
+  });
+
+  it('plans the package-obligation/Portal family in Rust with owner-scoped binds', async () => {
+    const factsValues = ['company', 'company', 'company', 42, 'company', 42];
+    const portalValues = [42, 'company'];
+    const batch = vi.fn(async () => [{ results: [{ id: 'binding-1', pending: true }], success: true, meta: { changes: 0, duration: 0 } }]);
+    const db = { prepare: vi.fn(() => ({ bind: vi.fn() })), batch } as unknown as SqlDatabase;
+    process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      ok('SELECT binding.id FROM support_ticket_portal_bindings', portalValues),
+    );
+    try {
+      const {
+        nativeSupportReadAll,
+        SUPPORT_RD_PORTAL_BINDINGS_INSTALLED,
+        SUPPORT_RD_SUPPORT_PACKAGE_PORTAL_BINDINGS,
+        SUPPORT_RD_SUPPORT_PACKAGE_OBLIGATION_FACTS,
+      } = await import('@erpx/server-support/adapters/native-support-read');
+      const cases: [string, unknown[]][] = [
+        [SUPPORT_RD_PORTAL_BINDINGS_INSTALLED, []],
+        [SUPPORT_RD_SUPPORT_PACKAGE_PORTAL_BINDINGS, portalValues],
+        [SUPPORT_RD_SUPPORT_PACKAGE_OBLIGATION_FACTS, factsValues],
+      ];
+      for (const [kind, values] of cases) {
+        fetchMock.mockClear();
+        await expect(nativeSupportReadAll(kind, values, db)
+          .then((result: { results: unknown[] }) => result.results)).resolves.toEqual([{ id: 'binding-1', pending: true }]);
+        expect(String(fetchMock.mock.calls[0]![0])).toContain('/support/command-plan');
+        expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({ kind, values });
+      }
+    } finally {
+      fetchMock.mockRestore();
+      delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
+    }
+  });
 });

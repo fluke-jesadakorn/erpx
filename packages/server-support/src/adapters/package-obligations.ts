@@ -4,6 +4,7 @@ import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postg
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 
 import { packageSettlementSource, withPackageSettlementSources, type PackageSettlementSourceLock } from "@erpx/server-commercial/public/package-settlement-sources";
+import { nativeSupportReadAll, SUPPORT_RD_PORTAL_BINDINGS_INSTALLED, SUPPORT_RD_SUPPORT_PACKAGE_PORTAL_BINDINGS, SUPPORT_RD_SUPPORT_PACKAGE_OBLIGATION_FACTS } from "@erpx/server-support/adapters/native-support-read";
 
 type Input = { companyId: string; packageId: string; packageVersion: number; moduleId: string; now: number };
 type Fact = { kind: string; id: string; version: number; state: string };
@@ -25,7 +26,7 @@ export async function lockSupportPackageObligationSources(owner: PostgresDatabas
   // The enclosing settlement already holds the strong package fence. All new
   // Portal writers require that same fence, so this pre-install catalogue read
   // cannot race a normal Portal birth; ordinary pre-1065 paths remain valid.
-  if(await database.prepare("SELECT to_regclass('support_ticket_portal_bindings') IS NOT NULL installed").first<boolean>('installed')){
+  if((await nativeSupportReadAll<{installed:boolean}>(SUPPORT_RD_PORTAL_BINDINGS_INSTALLED, [], database)).results[0]?.installed){
     await database.prepare('LOCK TABLE support_ticket_portal_bindings,support_ticket_portal_events,support_ticket_portal_identities,support_ticket_portal_reads,support_ticket_portal_responses,support_ticket_portal_acknowledgements IN SHARE MODE').run();
     portalSources.add(database);
   }
@@ -43,30 +44,8 @@ export async function supportPackageObligations(owner: PostgresDatabase, transac
   // only its own reviewed access; it never inherits ticket/SLA obligations.
   if (input.moduleId !== "support" || !["support","support-portal"].includes(input.packageId) || input.packageVersion !== 1 || !input.companyId ||
     !Number.isSafeInteger(input.now) || input.now < 0) throw new Error("SUPPORT_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
-  const portal=portalSources.has(transaction)?(await transaction.prepare(`SELECT binding.id,to_jsonb(binding) binding,
-    (SELECT jsonb_agg(to_jsonb(event) ORDER BY event.id) FROM support_ticket_portal_events event WHERE event.binding_id=binding.id) events,
-    (SELECT jsonb_agg(to_jsonb(identity) ORDER BY identity.binding_id) FROM support_ticket_portal_identities identity WHERE identity.binding_id=binding.id) identities,
-    (SELECT jsonb_agg(to_jsonb(response) ORDER BY response.id) FROM support_ticket_portal_responses response WHERE response.binding_id=binding.id) responses,
-    (SELECT jsonb_agg(to_jsonb(ack) ORDER BY ack.id) FROM support_ticket_portal_acknowledgements ack WHERE ack.binding_id=binding.id) acknowledgements,
-    binding.status='draft' OR binding.status='approved' AND binding.expires_at>? pending
-    FROM support_ticket_portal_bindings binding WHERE binding.company_id=? ORDER BY binding.id`).bind(input.now,input.companyId).all<{id:string;pending:boolean}>()).results:[];
-  const facts = input.packageId==='support-portal'?[]:(await transaction.prepare(`
-    SELECT 'ticket' kind,id,version,status state FROM support_tickets
-      WHERE company_id=? AND source_kind<>'field_service' AND status NOT IN ('closed','cancelled')
-    UNION ALL
-    SELECT 'incident',id,version,status FROM support_incidents
-      WHERE company_id=? AND status NOT IN ('closed','cancelled')
-    UNION ALL
-    SELECT 'session',id,version,status FROM support_sessions
-      WHERE company_id=? AND status IN ('pending','approved') AND expires_at>?
-    UNION ALL
-    SELECT 'sla',t.id,COALESCE(a.version,0),CASE WHEN a.id IS NULL THEN 'undrained' ELSE 'unacknowledged' END
-      FROM support_tickets t LEFT JOIN support_sla_alerts a ON a.ticket_id=t.id
-      WHERE t.company_id=? AND a.acknowledged_by IS NULL AND (a.id IS NOT NULL
-        OR (t.sla_clock_json->>'breachedAt')::bigint IS NOT NULL
-        OR t.sla_clock_json->>'state'='running' AND (
-          (t.sla_clock_json->>'dueAt')::bigint<? OR t.status IN ('closed','cancelled')))
-    ORDER BY kind,id`).bind(input.companyId, input.companyId, input.companyId, input.now, input.companyId, input.now).all<Fact>()).results;
+  const portal=portalSources.has(transaction)?(await nativeSupportReadAll<{id:string;pending:boolean}>(SUPPORT_RD_SUPPORT_PACKAGE_PORTAL_BINDINGS, [input.now,input.companyId], transaction)).results:[];
+  const facts = input.packageId==='support-portal'?[]:(await nativeSupportReadAll<Fact>(SUPPORT_RD_SUPPORT_PACKAGE_OBLIGATION_FACTS, [input.companyId, input.companyId, input.companyId, input.now, input.companyId, input.now], transaction)).results;
   // Counts/revisions leave the owner. Customer content, staff identities and
   // private evidence never enter a Commercial observation.
   const revision = createHash("sha256").update(JSON.stringify({ companyId: input.companyId,
