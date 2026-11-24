@@ -1,7 +1,6 @@
 import { finalRootOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/final-root-owner-projection-sources";
-import { finalRootOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/final-root-owner-projection-sources";
-import {assignmentEligibilityExists} from './assignment-eligibility-source';
+import {assignmentEligibilityExists,assignmentSource} from './assignment-eligibility-source';
 import "server-only";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
@@ -29,7 +28,7 @@ const actorEligible=`CASE WHEN ${assignmentEligibilityExists(`m WHERE ${reviewer
 function ports(a:WorkContext) { return {actorId:a.userId,companyScope:!a.branchId&&!a.departmentId,require:(permission:"commerce.read"|"commerce.sales"|"commerce.approve")=>requirePermission(a,permission),canApprove:()=>hasPermission(a,'commerce.approve'),canSales:()=>hasPermission(a,'commerce.sales'),canRead:()=>hasPermission(a,'commerce.read'),clock:{now:()=>Date.now()},error:(status:number,code:string,message:string)=>new ApiError(status,code,message)}; }
 function repository(a:WorkContext,write:SqlDatabase):AccessRepository { return {
  binding:id=>write.prepare(`SELECT b.*,o.number,o.state order_state,o.branch_id,o.department_id,${actorEligible} FROM customer_access_bindings b JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=b.order_id AND o.company_id=b.company_id WHERE b.id=? AND ${scope}`).bind(a.userId,id,...args(a)).first<Row>(),
- rows:async()=> (await write.prepare(`SELECT b.*,o.number,o.state order_state,${actorEligible},(SELECT COUNT(DISTINCT m.user_id) FROM (${identity_accessProjectionSources.assignments}) m WHERE ${reviewers}) reviewers FROM customer_access_bindings b JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=b.order_id AND o.company_id=b.company_id WHERE ${scope} ORDER BY b.updated_at DESC,b.id`).bind(a.userId,...args(a)).all<Row>()).results,
+ rows:async()=> (await write.prepare(`SELECT b.*,o.number,o.state order_state,${actorEligible},(${assignmentSource('COUNT(DISTINCT m.user_id)')} m WHERE ${reviewers}) reviewers FROM customer_access_bindings b JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=b.order_id AND o.company_id=b.company_id WHERE ${scope} ORDER BY b.updated_at DESC,b.id`).bind(a.userId,...args(a)).all<Row>()).results,
  sources:async()=> (await write.prepare(`SELECT o.id,o.number,o.version,p.name FROM (${commerceProjectionSources.commerce_orders}) o JOIN (${financeProjectionSources.finance_parties}) p ON p.id=o.party_id AND p.company_id=o.company_id WHERE ${scope} AND o.kind IN ('sales','quote') AND o.state IN ('confirmed','converted','partially_fulfilled','fulfilled') ORDER BY o.updated_at DESC LIMIT 250`).bind(...args(a)).all<Row>()).results,
  events:async id=>(await nativeOwnerReadAll<Row>(CA_RD_ACCESS_EVENTS,[id],write,a.holdingSlug)).results,
  reads:async id=>(await nativeOwnerReadAll<Row>(CA_RD_ACCESS_READS,[id],write,a.holdingSlug)).results,

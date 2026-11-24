@@ -15,7 +15,7 @@ import {
 } from '../../../packages/server-customer_authority/src/adapters/native-owner-read';
 import { readExecutiveMetricProjection } from '../../../packages/server-customer_authority/src/adapters/executive-metric-projections';
 import { portalPurchaseBindingSource } from '../../../packages/server-customer_authority/src/adapters/portal-purchase-binding-source';
-import { assignmentEligibilityExists } from '../../../packages/server-customer_authority/src/adapters/assignment-eligibility-source';
+import { assignmentEligibilityExists, assignmentSource } from '../../../packages/server-customer_authority/src/adapters/assignment-eligibility-source';
 import { finalRootOwnerProjectionSources as commerce } from '../../../packages/server-commerce/src/public/final-root-owner-projection-sources';
 import { finalRootOwnerProjectionSources as identity_access } from '../../../packages/server-identity_access/src/public/final-root-owner-projection-sources';
 
@@ -275,15 +275,19 @@ describe('customer authority assignment-projection existence core dedupe', () =>
     const managerSrc = await readFile(manager(), 'utf8');
     // One canonical declaration; both readers interpolate their own alias and
     // predicate so the verified SQL cannot drift while one SELECT is counted.
-    expect(src).toContain('export const assignmentEligibilityExists = (body: string) => `EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) ${body})`;');
-    expect(src.match(/SELECT 1 FROM/g)).toHaveLength(1);
+    expect(src).toContain("export const assignmentSource = (projection = '1') => `SELECT ${projection} FROM (${identity_accessProjectionSources.assignments})`;");
+    expect(src).toContain('export const assignmentEligibilityExists = (body: string) => `EXISTS(${assignmentSource()} ${body})`;');
+    expect(src.match(/SELECT \$\{projection\} FROM/g)).toHaveLength(1);
+    expect(src.match(/SELECT/g)).toHaveLength(1);
     expect(accessSrc).toContain('const actorEligible=`CASE WHEN ${assignmentEligibilityExists(`m WHERE ${reviewers} AND m.user_id=?`)} THEN 1 ELSE 0 END actor_eligible`;');
     expect(accessSrc.match(/actor_eligible/g)).toHaveLength(1);
     expect(accessSrc.match(/\$\{actorEligible\}/g)).toHaveLength(2);
     expect(managerSrc).toContain('assignmentEligibilityExists(`a JOIN (${people_payrollProjectionSources.hr_people}) p ON p.user_id=a.user_id');
     expect(managerSrc).not.toContain('EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) a JOIN');
-    // The distinct reviewers COUNT read is retained unchanged (parity).
-    expect(accessSrc).toContain('SELECT COUNT(DISTINCT m.user_id) FROM (${identity_accessProjectionSources.assignments}) m WHERE ${reviewers}) reviewers');
+    // The distinct reviewers COUNT reuses the same projection-parameterized
+    // source, so only one literal SELECT remains in the owner TS read tail.
+    expect(accessSrc).toContain("(${assignmentSource('COUNT(DISTINCT m.user_id)')} m WHERE ${reviewers}) reviewers");
+    expect(accessSrc).not.toContain('SELECT COUNT(DISTINCT m.user_id) FROM (${identity_accessProjectionSources.assignments})');
   });
 
   it('reproduces the exact assignment-projection existence SQL for both readers', () => {
@@ -293,6 +297,9 @@ describe('customer authority assignment-projection existence core dedupe', () =>
     ]) {
       expect(assignmentEligibilityExists(body)).toBe(`EXISTS(SELECT 1 FROM (${identity_access.assignments}) ${body})`);
     }
+    // The reviewers COUNT reuses the same source and renders byte-identically
+    // to the previously inlined projection subquery.
+    expect(assignmentSource('COUNT(DISTINCT m.user_id)')).toBe(`SELECT COUNT(DISTINCT m.user_id) FROM (${identity_access.assignments})`);
   });
 });
 
