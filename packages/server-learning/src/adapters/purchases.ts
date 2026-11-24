@@ -2,7 +2,6 @@ import "server-only";
 import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import {randomUUID} from "node:crypto";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {lockQueuedCommandAuthority} from "@erpx/server-identity_access/public/queued-command-authority";
 import {learningWorkerReferenceSourceReadLocks,learningWorkerReferenceWitness} from "@erpx/server-people_payroll/public/learning-worker-references";
@@ -16,17 +15,15 @@ import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packa
 
 import type {LearningCapability,LearningPurchaseControls} from "@erpx/server-learning/domain/purchase-controls";
 export type {LearningCapability,LearningPurchaseControls} from "@erpx/server-learning/domain/purchase-controls";
-import {actorScopeProbe,assignmentsImage,coursesImage,moduleGrantAssignmentProbe} from "./learning-read-sql";
+import {assignmentsImage,coursesImage,currentAssignmentScopeHead,moduleGrantAssignmentProbe} from "./learning-read-sql";
 type Target={kind:"course"|"assignment"|"certificate";id:string};
 const commands=new WeakMap<SqlDatabase,{actorId:string;assignmentId:string;target:Target;operation:string}>();
 /** Private owner marker, never a public transaction registration port. */
 export function learningOwnsAttachmentAction(database:SqlDatabase,actor:WorkContext,id:string){const command=commands.get(database);return command?.actorId===actor.userId&&command.assignmentId===actor.assignmentId&&command.target.kind==="assignment"&&command.target.id===id&&command.operation==="learning.assignment.complete";}
 const capabilities:LearningCapability[]=["learn.courses","learn.assignments","learn.results","learn.certificates","people.learner-reference"];
 async function current(database:SqlDatabase,actor:WorkContext,key:string,permission:string){
- const row=await database.prepare(`SELECT ${assignmentReadSql("learning_scope",permission)}
- AND ${moduleGrantAssignmentProbe('learning_module',`learning_module.id=? AND learning_module.company_id=learning_scope.company_id
- AND learning_module.user_id=? AND learning_module.role=?`)} allowed FROM
- ${actorScopeProbe}) learning_scope`)
+ const grant=`\n AND ${moduleGrantAssignmentProbe('learning_module',`learning_module.id=? AND learning_module.company_id=learning_scope.company_id\n AND learning_module.user_id=? AND learning_module.role=?`)}`;
+ const row=await database.prepare(currentAssignmentScopeHead('learning_scope',permission,grant,'\n '))
   .bind(actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();
  if(!row?.allowed)throw new ApiError(403,"LEARNING_ACCESS_CHANGED","Choose a current Learning assignment.");
  await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await nativeClearCommandAssertions(database, actor.companyId, key)]);

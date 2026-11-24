@@ -7,12 +7,12 @@ import {hasModuleAccess} from "@erpx/catalogue/module-access";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {learningPackageEnforcementMode,readPurchasedAccesses} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
-import {actorScopeProbe,clockProbe,sourceLiteral} from "./learning-read-sql";
+import {clockProbe,currentAssignmentScopeHead,sourceLiteral} from "./learning-read-sql";
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 const capabilities={'learning-completions':'learn.results','overdue-required-learning':'learn.assignments'} as const;
 export async function learningMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){
  const mode=await learningPackageEnforcementMode(),access=await readPurchasedAccesses(database,mode,actor.companyId,['learn.assignments','learn.results']);if(mode!=='enforced')return {'learning-completions':true,'overdue-required-learning':true};
- const current=hasModuleAccess(actor.modules,'learning')&&hasPermission(actor,'records.read')&&!!await database.prepare(`SELECT ${assignmentReadSql('learning_metric_scope','records.read')} allowed FROM ${actorScopeProbe}) learning_metric_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first('allowed');
+ const current=hasModuleAccess(actor.modules,'learning')&&hasPermission(actor,'records.read')&&!!await database.prepare(currentAssignmentScopeHead('learning_metric_scope','records.read')).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first('allowed');
  return {'learning-completions':current&&access['learn.assignments'].history&&access['learn.results'].history,'overdue-required-learning':current&&access['learn.assignments'].history};
 }
 export async function learningMetricSource(database:SqlDatabase,actor:WorkContext,id:string){

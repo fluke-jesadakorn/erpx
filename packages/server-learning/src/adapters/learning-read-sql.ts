@@ -57,3 +57,11 @@ export const metricLabelProjection = (label: string, source: string) =>
  * rendered query keeps its exact pre-dedupe bytes. */
 export const learningAssignmentsExistsProbe = (alias: string, conditions: string) =>
   `EXISTS(SELECT 1 FROM learning_assignments ${alias} WHERE ${conditions})`;
+
+/** r9 — the current assignment read-scope head is byte-identical at the metric
+ * history and purchase authority callers: both select the same assignmentReadSql
+ * projection and the same actorScopeProbe frame. Only the scope alias, the
+ * permission and an optional grant clause differ, so one parameterized source
+ * keeps both rendered queries equal. */
+export const currentAssignmentScopeHead = (alias: string, permission: string, grant = '', separator = ' ') =>
+  `SELECT ${assignmentReadSql(alias, permission)}${grant} allowed FROM${separator}${actorScopeProbe}) ${alias}`;
