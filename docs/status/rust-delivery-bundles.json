@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10520,
+    "revision": 10524,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -162883,7 +162883,7 @@
         "owner": "pms",
         "title": "pms scoped records native read port",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -162895,28 +162895,36 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMpms3",
-          "claimedAt": "2026-11-24T07:54:22.542Z",
-          "heartbeatAt": "2026-11-24T07:54:22.542Z",
-          "expiresAt": "2026-11-24T08:24:22.542Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pms/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "53111399a",
+            "owner": "pms",
+            "before": 404,
+            "after": 367,
+            "note": "Four scoped records readers move to byte-identical native PMS_RD_* kinds; locks, PMS fragments and day-report registry untouched."
+          },
+          {
+            "command": "cargo test -p erpx-server-pms --lib (60) + vitest pms (70) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "53111399a"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Implement four scoped-records RD kinds and switch pms.ts readers; keep locks inline. BEFORE=404.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-n",
+          "runId": "run-20261124-a",
           "agentId": "wGCMpms3",
-          "at": "2026-11-24T07:53:21.211Z",
+          "at": "2026-11-24T08:09:14.739Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long worker integration; WIP reviewed by lead; all live claims re-claimed with the same agents under a new generation",
-          "nextAction": "Implement four scoped-records RD kinds and switch pms.ts readers; keep locks inline. BEFORE=404."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -163648,6 +163656,42 @@
         "nextAction": "Port pos_settlements and stripe scoped payment/refund reads to native kinds; keep locks inline. BEFORE=223.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pms.read-tail-r29",
+        "goalId": "G4",
+        "owner": "pms",
+        "title": "pms TS read tail native cutover (round 29)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pms/src/**",
+          "tests/unit/pms/**",
+          "tests/integration/pms/**"
+        ],
+        "resources": [
+          "owner:pms"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMpms4",
+          "claimedAt": "2026-11-24T08:09:15.086Z",
+          "heartbeatAt": "2026-11-24T08:09:15.086Z",
+          "expiresAt": "2026-11-24T08:39:15.086Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=367.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -163656,7 +163700,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1399,
+      "totalPackets": 1400,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 18,
@@ -163664,13 +163708,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 1028,
+        "blocked": 1029,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:07:56.078Z",
+    "updatedAt": "2026-11-24T08:09:15.090Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
