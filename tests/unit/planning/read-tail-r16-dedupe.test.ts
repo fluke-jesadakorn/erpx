@@ -129,8 +129,9 @@ describe('Planning read-tail r16 generalized source-row head', () => {
     };
     walk(srcRoot);
     // r16: the two canonical purchase witness rows (-2) and the compact
-    // resource witness row folded into the generalized r15 head (-1).
-    expect(total).toBe(22);
+    // resource witness row folded into the generalized r15 head (-1);
+    // r17 folded the shortage/executive projection heads (22 -> 21).
+    expect(total).toBe(21);
     expect(total).toBeLessThan(25);
   });
 });

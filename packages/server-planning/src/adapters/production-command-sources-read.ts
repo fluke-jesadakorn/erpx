@@ -1,6 +1,7 @@
 import {productionReadProjection as productionmanufacturingProjection} from '@erpx/server-manufacturing/public/production-read-projections';
 import {productionReadProjection as productioncommerceProjection} from '@erpx/server-commerce/public/production-read-projections';
 import {productionReadProjection as productionorganizationProjection} from '@erpx/server-organization/public/production-read-projections';
+import {planningSelectFrom} from "./planning-select-from-sql";
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {productionResourcesExists,planningAllocatedMinutes} from "./planning-guard-sql";import {planningCommandExistsGuard} from "./planning-command-guard-sql";import {planningScopedBranchList} from "./planning-scoped-list-sql";import {planningScopedBranchRow} from "./planning-scoped-row-sql";
 
 const sourceJoins = `
@@ -11,17 +12,16 @@ const sourceJoins = `
     LEFT JOIN planning_recommendations r ON r.scenario_id=s.id`;
 const shortageProjection = `
     LEFT JOIN LATERAL (
-      SELECT COALESCE(jsonb_agg(jsonb_build_object(
+      ${planningSelectFrom(`COALESCE(jsonb_agg(jsonb_build_object(
         'product_name',COALESCE(p.name,'Unknown product'),
         'required_milli',(entry.value->>'requiredMilli')::numeric::text,
         'available_milli',(entry.value->>'availableMilli')::numeric::text,
         'shortage_milli',(entry.value->>'shortageMilli')::numeric::text
       ) ORDER BY COALESCE(p.name,entry.value->>'productId')) FILTER (WHERE (entry.value->>'shortageMilli')::numeric>0),'[]'::jsonb)::text shortage_items_json,
-      count(*) FILTER (WHERE (entry.value->>'shortageMilli')::numeric>0)::text shortage_count
-      FROM jsonb_array_elements(COALESCE(s.shortages_json::jsonb,'[]'::jsonb)) AS entry(value)
-      ${productioncommerceProjection.executiveShortageProduct}
+      count(*) FILTER (WHERE (entry.value->>'shortageMilli')::numeric>0)::text shortage_count`, '      ', `jsonb_array_elements(COALESCE(s.shortages_json::jsonb,'[]'::jsonb)) AS entry(value)
+      ${productioncommerceProjection.executiveShortageProduct}`)}
     ) shortage ON TRUE`;
-const projection = `SELECT s.id scenario_id,s.company_id,s.branch_id,branch.display_name branch_name,
+const projection = planningSelectFrom(`s.id scenario_id,s.company_id,s.branch_id,branch.display_name branch_name,
       s.warehouse_id,w.name warehouse_name,s.specification_id,spec.name specification_name,
       spec.output_product_id,output.name output_product_name,s.specification_version,
       s.demand_quantity_milli::text demand_quantity_milli,s.due_date,s.capacity_minutes::text capacity_minutes,
@@ -29,8 +29,7 @@ const projection = `SELECT s.id scenario_id,s.company_id,s.branch_id,branch.disp
       r.id recommendation_id,r.status recommendation_status,r.recommended_quantity_milli::text recommended_quantity_milli,
       r.required_minutes::text required_minutes,r.feasible_date,r.version recommendation_version,
       r.scenario_version,r.created_at recommendation_created_at,r.updated_at recommendation_updated_at,
-      COALESCE(shortage.shortage_count,'0') shortage_count,COALESCE(shortage.shortage_items_json,'[]') shortage_items_json
-    FROM planning_scenarios s ${sourceJoins} ${shortageProjection}`;
+      COALESCE(shortage.shortage_count,'0') shortage_count,COALESCE(shortage.shortage_items_json,'[]') shortage_items_json`, '    ', `planning_scenarios s ${sourceJoins} ${shortageProjection}`);
 export function productionCommandSources(db:SqlDatabase){return {async scenarios(companyId:string,branchId:string | null,branchId2:string | null){return db
           .prepare(
             planningScopedBranchList('p.*,s.name specification_name', `planning_scenarios p ${productionmanufacturingProjection.scenarioSpecification}`, 'p.company_id=?', 'p.branch_id=?', 'p.updated_at DESC'),
