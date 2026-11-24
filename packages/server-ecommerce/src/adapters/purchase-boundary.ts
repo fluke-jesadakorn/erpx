@@ -13,6 +13,7 @@ import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-avail
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
+import {ecommerceModuleAssignment,ecommerceScopeRow} from './read-tail-sql';
 type Target={kind:'channel'|'listing'|'cart'|'checkout';id:string};
 type Source={company_id:string;branch_id:string|null;department_id:string|null;version:number;identity:string;image:string};
 export type EcommercePurchaseCommand={operation:string;key:string;id:string;purpose:'new-work'|'settle-existing';review?:boolean;before?:Target;after:Target};
@@ -45,9 +46,9 @@ async function current(database:SqlDatabase,actor:WorkContext,review=false,read=
  if(!hasModuleAccess(actor.modules,'ecommerce'))throw new ApiError(403,'MODULE_FORBIDDEN','Your current role cannot access E-commerce.');
  const bound=await requireQueuedCommandAuthority(database,actor,read?'commerce.read':'commerce.sales');
  if(review)await requireQueuedCommandAuthority(database,bound,'commerce.approve');
- const selected=await database.prepare("SELECT 1 FROM assignments WHERE id=? AND company_id=? AND (jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> '[\"ecommerce\"]'::jsonb)").bind(actor.assignmentId,actor.companyId).first();
+ const selected=await database.prepare(ecommerceModuleAssignment()).bind(actor.assignmentId,actor.companyId).first();
  if(!selected)throw new ApiError(403,'ECOMMERCE_ACCESS_CHANGED','The selected assignment no longer permits Ecommerce.');
- if(!await database.prepare(`SELECT ${scheduledFeaturePredicate('ecommerce_release.company_id','ecommerce')} allowed FROM (SELECT ?::text company_id) ecommerce_release`).bind(actor.companyId).first<boolean>('allowed'))throw new ApiError(403,'FEATURE_COMING_SOON','Ecommerce is not released for this Company.');
+ if(!await database.prepare(`SELECT ${scheduledFeaturePredicate('ecommerce_release.company_id','ecommerce')} allowed FROM ${ecommerceScopeRow('ecommerce_release')}`).bind(actor.companyId).first<boolean>('allowed'))throw new ApiError(403,'FEATURE_COMING_SOON','Ecommerce is not released for this Company.');
  return bound;
 }
 export async function requireEcommercePurchasedRead(database:SqlDatabase,actor:WorkContext,target?:Target){
