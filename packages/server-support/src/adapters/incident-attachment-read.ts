@@ -1,7 +1,7 @@
 import 'server-only';
 import {supportIncidentAttachmentReadSourceLocks,supportIncidentAttachmentReadSourceImage} from '@erpx/server-support/adapters/incident-attachment-read-sources';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
+import {workforceActorScopeCurrent} from './workforce-actor-scope-read';
 import {privateFileDenialAuthorityWitness,privateFileDenialAuthoritySourceLocks} from '@erpx/server-identity_access/public/private-file-denial-authority';
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
@@ -27,7 +27,7 @@ export async function withSupportIncidentAttachmentContentRead<Result extends {o
   await database.batch([...supportIncidentAttachmentReadSourceLocks(database),attachmentPrivateReadSourceLocks(database),...privateFileDenialAuthoritySourceLocks(database)]);
   await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);await database.batch(purchase.slice(1));
   const source=await attachmentReadSource(database,actor.companyId,linkId);assertAttachmentReadRoute(selected,source);if(!source)throw changed();
-  const before=await supportIncidentAttachmentReadSourceImage(database,actor,source.targetId),currentScope=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!!await database.prepare(`SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${currentScope.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...currentScope.args).first();
+  const before=await supportIncidentAttachmentReadSourceImage(database,actor,source.targetId),initiallyCurrent=await workforceActorScopeCurrent(database,actor);
   const deniedAuthority=initiallyCurrent?null:await privateFileDenialAuthorityWitness(database,actor),checkpoint=new Set((await attachmentDeniedReadAudits(database,actor,linkId)).map(event=>event.id));
   const check=async(authorizeSource:boolean,denial=false)=>{
    if(identity(actor)!==context)throw changed();

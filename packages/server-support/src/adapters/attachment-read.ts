@@ -1,6 +1,6 @@
 import 'server-only';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
+import {workforceActorScopeCurrent} from './workforce-actor-scope-read';
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {privateFileDenialAuthorityWitness,privateFileDenialAuthoritySourceLocks} from '@erpx/server-identity_access/public/private-file-denial-authority';
 import {companyPurchaseReadLocks} from '@erpx/server-commercial/public/purchase-command-boundary';
@@ -40,7 +40,7 @@ export async function withSupportAttachmentContentRead<Result extends {object:St
   await database.batch([database.prepare('LOCK TABLE support_tickets,support_ticket_events IN SHARE ROW EXCLUSIVE MODE'),supportOrderAttachmentSourceLocks(database),fieldServiceAssetAttachmentSourceLocks(database),fieldServiceCustomerAttachmentSourceLocks(database),posAttachmentReadSourceLocks(database),socialPmsAttachmentSourceReadLocks(database),attachmentPrivateReadSourceLocks(database),...privateFileDenialAuthoritySourceLocks(database)]);
   await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);await database.batch(companyPurchaseReadLocks(database,actor.companyId).slice(1));
   const source=await attachmentReadSource(database,actor.companyId,linkId);assertAttachmentReadRoute(selected,source);if(!source)throw changed();const before=await image(database,actor.companyId,source.targetId);
-  const current=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!!await database.prepare(`SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${current.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args).first(),deniedAuthority=initiallyCurrent?null:await privateFileDenialAuthorityWitness(database,actor),checkpoint=new Set((await attachmentDeniedReadAudits(database,actor,linkId)).map(event=>event.id));
+  const initiallyCurrent=await workforceActorScopeCurrent(database,actor),deniedAuthority=initiallyCurrent?null:await privateFileDenialAuthorityWitness(database,actor),checkpoint=new Set((await attachmentDeniedReadAudits(database,actor,linkId)).map(event=>event.id));
   const check=async(authorizeSource:boolean,denial=false)=>{
    if(JSON.stringify(actor)!==context)throw changed();
    if(denial&&!initiallyCurrent){if(await privateFileDenialAuthorityWitness(database,actor)!==deniedAuthority)throw changed();}else await requirePrivateAttachmentReaderCurrent(database,actor);
