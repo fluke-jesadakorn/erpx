@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7987,
+    "revision": 7991,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -134057,7 +134057,7 @@
         "owner": "talent",
         "title": "talent TS read tail native cutover (round 15)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -134069,22 +134069,42 @@
         "resources": [
           "owner:talent"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG97tal",
-          "claimedAt": "2026-11-24T01:27:44.380Z",
-          "heartbeatAt": "2026-11-24T01:29:05.622Z",
-          "expiresAt": "2026-11-24T01:59:05.622Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-talent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "118944e12",
+            "owner": "talent",
+            "before": 78,
+            "after": 77,
+            "note": "Package settlement offer/handoff projections share offerEventPrefix; byte-identical; lock modes untouched."
+          },
+          {
+            "command": "vitest talent transport (20)",
+            "result": "passed",
+            "sourceSha": "118944e12"
+          },
+          {
+            "command": "tsc talent",
+            "result": "passed",
+            "sourceSha": "118944e12"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: scan for a safe fragment; if none, report blocked. BEFORE=78.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG97tal",
+          "at": "2026-11-24T01:32:42.628Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -134446,6 +134466,42 @@
         "nextAction": "Next: scan for another byte-identical projection pair; keep assertion fragments/flow_*. BEFORE=81.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.talent.read-tail-r16",
+        "goalId": "G4",
+        "owner": "talent",
+        "title": "talent TS read tail native cutover (round 16)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-talent/src/**",
+          "tests/unit/talent/**",
+          "tests/integration/talent/**"
+        ],
+        "resources": [
+          "owner:talent"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGA8tal",
+          "claimedAt": "2026-11-24T01:32:42.836Z",
+          "heartbeatAt": "2026-11-24T01:32:42.836Z",
+          "expiresAt": "2026-11-24T02:02:42.836Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: scan for one more byte-identical fragment; if none, report blocked. BEFORE=77.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -134454,7 +134510,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 826,
+      "totalPackets": 827,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -134462,13 +134518,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 452,
+        "blocked": 453,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:32:19.431Z",
+    "updatedAt": "2026-11-24T01:32:42.840Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
