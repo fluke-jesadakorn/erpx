@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7573,
+    "revision": 7595,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -128829,6 +128829,402 @@
         "nextAction": "Next: records-employee-requests-owned-facts quotation lookups or rfqs.ts linkedRfq; record a strictly lower spaced count (BEFORE=208).",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.identity_access.read-tail-r4",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "title": "identity_access TS read tail native cutover (r4)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG01ida",
+          "claimedAt": "2026-11-24T00:34:22.950Z",
+          "heartbeatAt": "2026-11-24T00:34:22.950Z",
+          "expiresAt": "2026-11-24T01:04:22.950Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to an owner native read; BEFORE=589 spaced statements; record strictly lower.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.records.read-tail-r11",
+        "goalId": "G4",
+        "owner": "records",
+        "title": "records TS read tail native cutover (r11)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-records/src/**",
+          "tests/unit/records/**",
+          "tests/integration/records/**"
+        ],
+        "resources": [
+          "owner:records"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG02rec",
+          "claimedAt": "2026-11-24T00:34:23.130Z",
+          "heartbeatAt": "2026-11-24T00:34:23.130Z",
+          "expiresAt": "2026-11-24T01:04:23.130Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to an owner native read; BEFORE=44 spaced statements; record strictly lower.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.talent.read-tail-r10",
+        "goalId": "G4",
+        "owner": "talent",
+        "title": "talent TS read tail native cutover (r10)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-talent/src/**",
+          "tests/unit/talent/**",
+          "tests/integration/talent/**"
+        ],
+        "resources": [
+          "owner:talent"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG03tal",
+          "claimedAt": "2026-11-24T00:34:23.350Z",
+          "heartbeatAt": "2026-11-24T00:34:23.350Z",
+          "expiresAt": "2026-11-24T01:04:23.350Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to an owner native read; BEFORE=89 spaced statements; record strictly lower.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.customer_authority.read-tail-r8",
+        "goalId": "G4",
+        "owner": "customer_authority",
+        "title": "customer_authority TS read tail native cutover (r8)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-customer_authority/src/**",
+          "tests/unit/customer_authority/**",
+          "tests/integration/customer_authority/**"
+        ],
+        "resources": [
+          "owner:customer_authority"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG04cua",
+          "claimedAt": "2026-11-24T00:34:23.590Z",
+          "heartbeatAt": "2026-11-24T00:34:23.590Z",
+          "expiresAt": "2026-11-24T01:04:23.590Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to an owner native read; BEFORE=100 spaced statements; record strictly lower.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.workflow.read-tail-r14",
+        "goalId": "G4",
+        "owner": "workflow",
+        "title": "workflow TS read tail native cutover (r14)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/**",
+          "tests/unit/workflow/**",
+          "tests/integration/workflow/**"
+        ],
+        "resources": [
+          "owner:workflow"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG05wor",
+          "claimedAt": "2026-11-24T00:34:23.765Z",
+          "heartbeatAt": "2026-11-24T00:34:23.765Z",
+          "expiresAt": "2026-11-24T01:04:23.765Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to an owner native read; BEFORE=87 spaced statements; record strictly lower.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.projects.read-tail-r8",
+        "goalId": "G4",
+        "owner": "projects",
+        "title": "projects TS read tail native cutover (r8)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-projects/src/**",
+          "tests/unit/projects/**",
+          "tests/integration/projects/**"
+        ],
+        "resources": [
+          "owner:projects"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG06pro",
+          "claimedAt": "2026-11-24T00:34:23.941Z",
+          "heartbeatAt": "2026-11-24T00:34:23.941Z",
+          "expiresAt": "2026-11-24T01:04:23.941Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to an owner native read; BEFORE=156 spaced statements; record strictly lower.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.maintenance.read-tail-r3",
+        "goalId": "G4",
+        "owner": "maintenance",
+        "title": "maintenance TS read tail native cutover (r3)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-maintenance/src/**",
+          "tests/unit/maintenance/**",
+          "tests/integration/maintenance/**"
+        ],
+        "resources": [
+          "owner:maintenance"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG07mai",
+          "claimedAt": "2026-11-24T00:34:24.135Z",
+          "heartbeatAt": "2026-11-24T00:34:24.135Z",
+          "expiresAt": "2026-11-24T01:04:24.135Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to an owner native read; BEFORE=49 spaced statements; record strictly lower.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.field_service.read-tail-r4",
+        "goalId": "G4",
+        "owner": "field_service",
+        "title": "field_service TS read tail native cutover (r4)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-field_service/src/**",
+          "tests/unit/field_service/**",
+          "tests/integration/field_service/**"
+        ],
+        "resources": [
+          "owner:field_service"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG08fse",
+          "claimedAt": "2026-11-24T00:34:24.328Z",
+          "heartbeatAt": "2026-11-24T00:34:24.328Z",
+          "expiresAt": "2026-11-24T01:04:24.328Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to an owner native read; BEFORE=6 spaced statements; record strictly lower.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.customer_360.read-tail-r1",
+        "goalId": "G4",
+        "owner": "customer_360",
+        "title": "customer_360 TS read tail native cutover (r1)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-customer_360/src/**",
+          "tests/unit/customer_360/**",
+          "tests/integration/customer_360/**"
+        ],
+        "resources": [
+          "owner:customer_360"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG09c360",
+          "claimedAt": "2026-11-24T00:34:24.556Z",
+          "heartbeatAt": "2026-11-24T00:34:24.556Z",
+          "expiresAt": "2026-11-24T01:04:24.556Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to an owner native read; BEFORE=43 spaced statements; record strictly lower.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.platform_administration.read-tail-r1",
+        "goalId": "G4",
+        "owner": "platform_administration",
+        "title": "platform_administration TS read tail native cutover (r1)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-platform_administration/src/**",
+          "tests/unit/platform_administration/**",
+          "tests/integration/platform_administration/**"
+        ],
+        "resources": [
+          "owner:platform_administration"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG10pad",
+          "claimedAt": "2026-11-24T00:34:24.756Z",
+          "heartbeatAt": "2026-11-24T00:34:24.756Z",
+          "expiresAt": "2026-11-24T01:04:24.756Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to an owner native read; BEFORE=58 spaced statements; record strictly lower.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.manage_erpx.read-tail-r1",
+        "goalId": "G4",
+        "owner": "manage_erpx",
+        "title": "manage_erpx TS read tail native cutover (r1)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-manage_erpx/src/**",
+          "tests/unit/manage_erpx/**",
+          "tests/integration/manage_erpx/**"
+        ],
+        "resources": [
+          "owner:manage_erpx"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG11mne",
+          "claimedAt": "2026-11-24T00:34:24.974Z",
+          "heartbeatAt": "2026-11-24T00:34:24.974Z",
+          "expiresAt": "2026-11-24T01:04:24.974Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to an owner native read; BEFORE=40 spaced statements; record strictly lower.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -128837,11 +129233,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 723,
+      "totalPackets": 734,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
-        "in_progress": 20,
+        "in_progress": 31,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -128851,7 +129247,7 @@
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T00:33:02.818Z",
+    "updatedAt": "2026-11-24T00:34:24.978Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
