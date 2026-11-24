@@ -370,6 +370,20 @@ pub const KINDS: &[&str] = &[
     crate::adapters::day_report_reads::FULFILLMENTS,
     crate::adapters::day_report_reads::CASH_MOVEMENTS,
     crate::adapters::day_report_reads::SETTLEMENTS,
+    // POS sale-child detail read kinds: closed, SELECT-only owner statements
+    // keyed by sale id. Lock-bearing, PMS-fragment and refund-child reads stay
+    // inline in the TypeScript callers.
+    crate::adapters::sale_child_reads::LINES_WITH_FULFILLMENT,
+    crate::adapters::sale_child_reads::PAYMENTS_ORDERED,
+    crate::adapters::sale_child_reads::LINES_ALL,
+    crate::adapters::sale_child_reads::PAYMENTS_SUCCEEDED_TOTAL,
+    crate::adapters::sale_child_reads::PAYMENT_PENDING_ID,
+    crate::adapters::sale_child_reads::PAYMENTS_REFUNDABLE,
+    crate::adapters::sale_child_reads::PAYMENT_ID,
+    crate::adapters::sale_child_reads::LINES_FULFILLMENT_DETAIL,
+    crate::adapters::sale_child_reads::PAYMENT_FIRST_ID,
+    crate::adapters::sale_child_reads::LINES_TOTAL,
+    crate::adapters::sale_child_reads::PAYMENT_OPEN_ID,
     // POS purchase-boundary read kinds: closed, SELECT-only owner statements
     // that the TypeScript purchase bridge requests on the caller's unit.
     crate::adapters::boundary_reads::SALE_CREATE_MODE,
@@ -528,6 +542,10 @@ fn sql(kind: &str) -> Option<&'static str> {
         // the dedicated module and is shared with the integration parity oracle.
         kind if crate::adapters::day_report_reads::supported(kind) =>
             return crate::adapters::day_report_reads::sql(kind),
+        // Sale-child detail reads keyed by sale id: authoritative owner SQL
+        // lives in the dedicated module and is shared with the parity oracle.
+        kind if crate::adapters::sale_child_reads::supported(kind) =>
+            return crate::adapters::sale_child_reads::sql(kind),
         // Purchase-boundary reads: authoritative owner SQL lives in the
         // dedicated module and is shared with the integration parity oracle.
         kind if crate::adapters::boundary_reads::supported(kind) =>
@@ -588,7 +606,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 145);
+        assert_eq!(KINDS.len(), 156);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -1075,6 +1093,26 @@ mod tests {
             }
         }
         assert_eq!(crate::adapters::day_report_reads::KINDS.len(), 10);
+    }
+
+    /// The retired sale-child detail reads are SELECT-only, lock-free owner
+    /// statements scoped by one caller-supplied sale id. No caller SQL is
+    /// accepted; transport only selects the statement text.
+    #[test]
+    fn sale_child_read_kinds_are_select_only() {
+        for kind in crate::adapters::sale_child_reads::KINDS {
+            assert!(supported(kind), "sale-child read kind must be mounted: {kind}");
+            let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
+            assert!(stmt.starts_with("SELECT "), "sale-child kind must be SELECT-only: {kind}");
+            assert!(stmt.contains("sale_id=?"), "sale-child kind must be keyed by sale id: {kind}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE", "FOR SHARE", "LOCK TABLE", "pg_advisory", "pms_sources", "pms_properties"] {
+                assert!(
+                    !stmt.contains(forbidden),
+                    "sale-child kind must not mutate, lock or cross owners: {kind} contains {forbidden}",
+                );
+            }
+        }
+        assert_eq!(crate::adapters::sale_child_reads::KINDS.len(), 11);
     }
 
     /// The retired addon/package obligation reads are SELECT-only owner

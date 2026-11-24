@@ -1,5 +1,6 @@
 import { nativePosAll } from './native-owner-write';
 import { nativePosCashMovementsStatement, nativePosConnectionsStatement, nativePosRegisterByIdStatement, nativePosSalesEvidenceStatement, nativePosShiftsStatement, nativePosTablesStatement } from './native-pos-core-statement';
+import { nativePosSaleLinesStatement, nativePosSalePaymentsStatement } from './native-pos-sale-child';
 import { nativePosRegistersStatement, nativePosRegistersFrontStatement, nativePosSaleStatement, nativePosSettingsStatement } from './native-pos-registers-statement';
 import { roomChargeReversalWork } from "@erpx/server-pos/adapters/room-charge-reversal-queue";
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
@@ -97,10 +98,10 @@ function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
         readFinanceAccounts1: facts => PosReadFinanceFacts(db).readFinanceAccounts1(facts),
         readPosLines2: (facts: {
             id: string | number | boolean | null;
-        }) => all(db, 'SELECT l.*,f.state fulfillment_state,f.version fulfillment_version,f.kind,f.cost_minor fulfillment_cost FROM pos_lines l JOIN pos_fulfillments f ON f.id=l.fulfillment_id WHERE l.sale_id=? ORDER BY l.id', facts.id),
+        }) => nativePosSaleLinesStatement(db, facts.id),
         readPosPayments2: (facts: {
             id: string | number | boolean | null;
-        }) => all(db, 'SELECT * FROM pos_payments WHERE sale_id=? ORDER BY created_at', facts.id),
+        }) => nativePosSalePaymentsStatement(db, facts.id),
         readFinanceBankTransactions1: facts => PosReadFinanceFacts(db).readFinanceBankTransactions1(facts),
         readPmsSources1: (facts: {
             id: string | number | boolean | null;

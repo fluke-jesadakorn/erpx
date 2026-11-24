@@ -1,5 +1,6 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
 import { nativePosPaymentByIdPlainStatement, nativePosPostingJournalStatement, nativePosRegisterByIdStatement, nativePosRegisterCatalogStatement, nativePosSaleByIdStatement } from './native-pos-core-statement';
+import { nativePosFulfilledLinesStatement, nativePosFirstPaymentIdStatement, nativePosLinesBySaleStatement, nativePosLinesTotalStatement, nativePosOpenPaymentIdStatement, nativePosPaymentIdBySaleStatement, nativePosPendingPaymentIdStatement, nativePosRefundablePaymentsStatement, nativePosSucceededPaymentTotalStatement } from './native-pos-sale-child';
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
 import { hospitalityOwnerProjectionSources as pmsProjectionSources } from "@erpx/server-pms/public/hospitality-owner-projection-sources";
 import 'server-only';
@@ -131,13 +132,13 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => nativePosRun(db, '', 'core_writepossales2_129', [facts.fact0, facts.id]),
         readPosLines1: (facts: {
             id: string | number | boolean | null;
-        }) => all(db, 'SELECT * FROM pos_lines WHERE sale_id=?', facts.id),
+        }) => nativePosLinesBySaleStatement(db, facts.id),
         readPosPayments2: (facts: {
             id: string | number | boolean | null;
-        }) => one(db, "SELECT COALESCE(SUM(amount_minor-refunded_minor),0) amount FROM pos_payments WHERE sale_id=? AND state='succeeded'", facts.id),
+        }) => nativePosSucceededPaymentTotalStatement(db, facts.id),
         readPosPayments3: (facts: {
             id: string | number | boolean | null;
-        }) => one(db, "SELECT id FROM pos_payments WHERE sale_id=? AND state IN ('requested','pending','exception')", facts.id),
+        }) => nativePosPendingPaymentIdStatement(db, facts.id),
         readPosFulfillments1: (facts: {
             itemId: string;
         }) => one(db, 'SELECT * FROM pos_fulfillments WHERE id=? FOR UPDATE', facts.itemId),
@@ -148,7 +149,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         writeFinanceInvoices1: facts => posCoreFinanceFacts(db).writeFinanceInvoices1(facts),
         readPosPayments4: (facts: {
             id: string | number | boolean | null;
-        }) => all(db, "SELECT * FROM pos_payments WHERE sale_id=? AND state='succeeded' AND amount_minor>refunded_minor", facts.id),
+        }) => nativePosRefundablePaymentsStatement(db, facts.id),
         writeFinancePayments2: facts => posCoreFinanceFacts(db).writeFinancePayments2(facts),
         writeFinanceAllocations1: facts => posCoreFinanceFacts(db).writeFinanceAllocations1(facts),
         writePosSales3: (facts: {
@@ -323,7 +324,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => one(db, 'SELECT sale_id FROM pos_room_charge_reversals WHERE sale_id=?', facts.id),
         readPosPayments6: (facts: {
             id: string | number | boolean | null;
-        }) => one(db, 'SELECT id FROM pos_payments WHERE sale_id=?', facts.id),
+        }) => nativePosPaymentIdBySaleStatement(db, facts.id),
         readPmsSources1: (facts: {
             fact0: string;
             company: string;
@@ -331,7 +332,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => one(db, `SELECT ps.property_id,ps.record_id FROM (${pmsProjectionSources.pms_sources}) ps JOIN (${pmsProjectionSources.pms_properties}) p ON p.id=ps.property_id WHERE ps.source_key=? AND p.company_id=? AND p.branch_id=?`, facts.fact0, facts.company, facts.branch_id),
         readPosLines2: (facts: {
             id: string | number | boolean | null;
-        }) => all(db, 'SELECT l.*,f.kind,f.state fulfillment_state,f.cost_minor fulfillment_cost,f.quantity_milli fulfillment_quantity,f.warehouse_id,f.product_id FROM pos_lines l JOIN pos_fulfillments f ON f.id=l.fulfillment_id WHERE l.sale_id=? ORDER BY l.id', facts.id),
+        }) => nativePosFulfilledLinesStatement(db, facts.id),
         readPosLines3: (facts: {
             fulfillment_id: string | number | boolean | null;
             id: string | number | boolean | null;
@@ -377,10 +378,10 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => one(db, "SELECT id FROM pos_shifts WHERE id=? AND state='open'", facts.shift_id),
         readPosPayments7: (facts: {
             id: string | number | boolean | null;
-        }) => one(db, 'SELECT id FROM pos_payments WHERE sale_id=? LIMIT 1', facts.id),
+        }) => nativePosFirstPaymentIdStatement(db, facts.id),
         readPosLines5: (facts: {
             id: string | number | boolean | null;
-        }) => one(db, 'SELECT COALESCE(SUM(subtotal_minor+tax_minor+discount_minor),0) n FROM pos_lines WHERE sale_id=?', facts.id),
+        }) => nativePosLinesTotalStatement(db, facts.id),
         readPmsProperties2: (facts: {
             propertyId: string;
             company: string;
@@ -505,7 +506,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => nativePosRun(db, '', 'core_writeposrefunds5_503', [facts.id, facts.id2]),
         readPosPayments17: (facts: {
             saleId: string;
-        }) => one(db, "SELECT id FROM pos_payments WHERE sale_id=? AND (state IN ('requested','pending','exception') OR state='succeeded' AND amount_minor>refunded_minor)", facts.saleId),
+        }) => nativePosOpenPaymentIdStatement(db, facts.saleId),
         readPosRefundPayments6: (facts: {
             saleId: string;
         }) => one(db, "SELECT rp.id FROM pos_refund_payments rp JOIN pos_payments p ON p.id=rp.payment_id WHERE p.sale_id=? AND rp.state<>'succeeded'", facts.saleId),
