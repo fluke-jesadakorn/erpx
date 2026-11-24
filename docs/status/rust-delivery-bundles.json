@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9905,
+    "revision": 9912,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -156427,7 +156427,7 @@
         "owner": "maintenance",
         "title": "maintenance TS read tail native cutover (r13)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -156439,7 +156439,14 @@
         "resources": [
           "owner:maintenance"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCVmai",
+          "claimedAt": "2026-11-24T06:11:07.402Z",
+          "heartbeatAt": "2026-11-24T06:11:07.402Z",
+          "expiresAt": "2026-11-24T06:41:07.402Z",
+          "generation": 164
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -157034,6 +157041,114 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=58.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.work_projection.read-tail-r16",
+        "goalId": "G4",
+        "owner": "work_projection",
+        "title": "work_projection TS read tail native cutover (r16)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-work_projection/src/**",
+          "tests/unit/work_projection/**",
+          "tests/integration/work_projection/**"
+        ],
+        "resources": [
+          "owner:work_projection"
+        ],
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCVwp",
+          "claimedAt": "2026-11-24T06:11:07.817Z",
+          "heartbeatAt": "2026-11-24T06:11:07.817Z",
+          "expiresAt": "2026-11-24T06:41:07.817Z",
+          "generation": 164
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=72.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.agent.read-tail-r18",
+        "goalId": "G4",
+        "owner": "agent",
+        "title": "agent TS read tail native cutover (r18)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-agent/src/**",
+          "tests/unit/agent/**",
+          "tests/integration/agent/**"
+        ],
+        "resources": [
+          "owner:agent"
+        ],
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCVage",
+          "claimedAt": "2026-11-24T06:11:08.219Z",
+          "heartbeatAt": "2026-11-24T06:11:08.219Z",
+          "expiresAt": "2026-11-24T06:41:08.219Z",
+          "generation": 164
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=58.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.crm.read-tail-r23",
+        "goalId": "G4",
+        "owner": "crm",
+        "title": "crm TS read tail native cutover (r23)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-crm/src/**",
+          "tests/unit/crm/**",
+          "tests/integration/crm/**"
+        ],
+        "resources": [
+          "owner:crm"
+        ],
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCVcrm",
+          "claimedAt": "2026-11-24T06:11:08.639Z",
+          "heartbeatAt": "2026-11-24T06:11:08.639Z",
+          "expiresAt": "2026-11-24T06:41:08.639Z",
+          "generation": 164
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=146.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -157042,11 +157157,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1262,
+      "totalPackets": 1265,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 16,
-        "in_progress": 19,
+        "pending": 15,
+        "in_progress": 23,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -157056,7 +157171,7 @@
       }
     },
     "lastCoordinatorGeneration": 164,
-    "updatedAt": "2026-11-24T06:10:52.736Z",
+    "updatedAt": "2026-11-24T06:11:08.646Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
