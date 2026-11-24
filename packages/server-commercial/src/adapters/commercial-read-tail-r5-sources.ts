@@ -1,11 +1,11 @@
 import "server-only";
-/** Parameterized SELECT-only idempotency/receipt probe family shared by the
- * Commercial grant store (G4 read-tail r5). The builder owns one SQL literal and
- * renders each original read byte-identically; every consumer still prepares and
- * binds its own independent statement and keeps its exports. Arguments are
- * code-owned table/column fragments only, never request input. The r1/r3/r4
- * helpers stay untouched. Pure read: no INSERT, UPDATE, DELETE, LOCK TABLE,
- * FOR UPDATE/SHARE and no advisory lock. */
+import { scopedReadHead } from "./commercial-read-tail-r14-sources";
+/** Parameterized id-scoped receipt/existence probe family shared by the
+ * Commercial grant store (G4 read-tail r5). The single scoped head owns the SQL
+ * literal; every consumer still prepares and binds its own independent statement
+ * and keeps its exports. Arguments are code-owned table/column fragments only,
+ * never request input. The r1 read now delegates here with one unchanged bind.
+ * Pure read: no writes, no table locks and no advisory locks. */
 export function receiptProbe(table: string, columns: string) {
-  return `SELECT ${columns} FROM ${table} WHERE id=?`;
+  return scopedReadHead(columns, table, 'id');
 }

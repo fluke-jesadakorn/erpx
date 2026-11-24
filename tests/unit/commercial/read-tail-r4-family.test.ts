@@ -46,8 +46,8 @@ describe('Commercial read-tail r4 byte-identical / parameterized family', () => 
     expect(st).not.toContain(SEAT);
   });
 
-  test('r1/r3 helpers and advisory-lock statements stay untouched', () => {
-    expect(adapters('commercial-read-tail-r1-sources.ts')).toContain('commercialChangeSetReceiptSql');
+  test('r3 helpers and advisory-lock statements stay untouched', () => {
+    expect(() => adapters('commercial-read-tail-r1-sources.ts')).toThrow();
     expect(adapters('commercial-read-tail-r3-sources.ts')).toContain('seatHistorySql');
     expect(adapters('package-grants.ts')).toContain('SELECT pg_advisory_xact_lock(hashtextextended(?,0))');
     expect(adapters('purchase-command-boundary.ts')).toContain('SELECT pg_advisory_xact_lock(hashtextextended(?,0))');
@@ -68,6 +68,7 @@ describe('Commercial read-tail r4 byte-identical / parameterized family', () => 
       }
     };
     walk(srcRoot);
+    expect(total).toBe(16);
     expect(total).toBeLessThan(38);
   });
 });

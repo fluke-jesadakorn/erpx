@@ -13264,6 +13264,33 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Commercial scoped read head and receipt probe must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-commercial"
+      ],
+      "id": "commercial.read-tail-r14-dedupe.unit",
+      "files": [
+        "tests/unit/commercial/read-tail-r14-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "commercial",
+      "modules": [
+        "commercial"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Commercial seat history reads must stay one byte-identical builder."
       },
       "apps": "apps",

@@ -37,10 +37,13 @@ describe('Commercial read-tail r13 parameterized month-scoped read family', () =
     [SNAPSHOT_FULL, SNAPSHOT_SEAT, METER_SQL].forEach(readOnly);
   });
 
-  test('one shared literal; r6 helper delegates and projection composes the builder', () => {
+  test('one shared scoped head; r13 and r6 delegate and projection composes it', () => {
     const shared = src('commercial-read-tail-r13-sources.ts');
-    expect(shared.match(/SELECT /g)).toHaveLength(1);
+    expect(shared.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(shared).toContain("scopedReadHead(columns, table, 'month', '\\n      ')");
     expect(shared).toContain('export function monthScopedRead');
+    const head = src('commercial-read-tail-r14-sources.ts');
+    expect(head).toContain("month: 'month=?',");
     expect(shared).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
 
     const r6 = src('commercial-read-tail-r6-sources.ts');
@@ -56,7 +59,6 @@ describe('Commercial read-tail r13 parameterized month-scoped read family', () =
 
   test('r1-r12 helpers, source locks and native statement kinds stay untouched', () => {
     for (const [file, symbol] of [
-      ['commercial-read-tail-r1-sources.ts', 'commercialChangeSetReceiptSql'],
       ['commercial-read-tail-r3-sources.ts', 'seatHistorySql'],
       ['commercial-read-tail-r4-sources.ts', 'purchaseFactAgg'],
       ['commercial-read-tail-r5-sources.ts', 'receiptProbe'],
@@ -91,6 +93,6 @@ describe('Commercial read-tail r13 parameterized month-scoped read family', () =
     };
     walk(srcRoot);
     expect(total).toBeLessThan(23);
-    expect(total).toBe(22);
+    expect(total).toBe(16);
   });
 });

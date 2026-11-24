@@ -278,7 +278,7 @@ pub const PLANS: &[ReadPlan] = &[
     ReadPlan {
         kind: RD_CHANGE_SET_EXISTS,
         category: CATEGORY_PACKAGE_GRANTS,
-        caller: "commercial-read-tail-r1-sources.commercialChangeSetReceiptSql",
+        caller: "commercial-read-tail-r5-sources.receiptProbe",
         sql: SQL_CHANGE_SET_EXISTS,
         binds: &[BindField::EventId],
         scope: EVENT,

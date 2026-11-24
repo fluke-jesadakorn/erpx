@@ -28,8 +28,8 @@ describe('Commercial read-tail r9 parameterized Holding-scoped usage-snapshot fa
     expect(pj).toContain('.bind(binding.id).all<{ month: string }>()');
   });
 
-  test('r1/r3/r4/r5/r6/r7/r8 helpers and advisory/row locks stay untouched', () => {
-    expect(adapters('commercial-read-tail-r1-sources.ts')).toContain('commercialChangeSetReceiptSql');
+  test('r3/r4/r5/r6/r7/r8 helpers and advisory/row locks stay untouched', () => {
+    expect(() => adapters('commercial-read-tail-r1-sources.ts')).toThrow();
     expect(adapters('commercial-read-tail-r3-sources.ts')).toContain('seatHistorySql');
     expect(adapters('commercial-read-tail-r4-sources.ts')).toContain('purchaseFactAgg');
     expect(adapters('commercial-read-tail-r5-sources.ts')).toContain('receiptProbe');
@@ -41,9 +41,12 @@ describe('Commercial read-tail r9 parameterized Holding-scoped usage-snapshot fa
     expect(adapters('purchase-command-boundary.ts')).toContain('SELECT company_id,package_id FROM company_package_grants ORDER BY company_id,package_id FOR SHARE');
   });
 
-  test('shared module declares the read literal exactly once', () => {
+  test('the single scoped head owns the literal and the r9 module delegates', () => {
     const shared = adapters('commercial-read-tail-r9-sources.ts');
-    expect(shared.match(/SELECT /g)).toHaveLength(1);
+    expect(shared.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(shared).toContain("scopedReadHead(columns, 'billing_usage_snapshots', 'holding', ' ', rest)");
+    const head = adapters('commercial-read-tail-r14-sources.ts');
+    expect(head).toContain("holding: 'holding_id=?',");
   });
 
   test('retirement:ts-statements is strictly lower than BEFORE=29', () => {
@@ -56,7 +59,7 @@ describe('Commercial read-tail r9 parameterized Holding-scoped usage-snapshot fa
       }
     };
     walk(srcRoot);
-    expect(total).toBe(22);
+    expect(total).toBe(16);
     expect(total).toBeLessThan(29);
   });
 });

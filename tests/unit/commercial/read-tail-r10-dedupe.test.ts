@@ -60,7 +60,7 @@ describe('Commercial read-tail r10 parameterized EXISTS package-source family', 
   });
 
   test('r1-r9 helpers, source locks and native statement kinds stay untouched', () => {
-    expect(src('commercial-read-tail-r1-sources.ts')).toContain('commercialChangeSetReceiptSql');
+    expect(() => src('commercial-read-tail-r1-sources.ts')).toThrow();
     expect(src('commercial-read-tail-r3-sources.ts')).toContain('seatHistorySql');
     expect(src('commercial-read-tail-r4-sources.ts')).toContain('purchaseFactAgg');
     expect(src('commercial-read-tail-r5-sources.ts')).toContain('receiptProbe');
@@ -90,6 +90,6 @@ describe('Commercial read-tail r10 parameterized EXISTS package-source family', 
     };
     walk(srcRoot);
     expect(total).toBeLessThan(28);
-    expect(total).toBe(22);
+    expect(total).toBe(16);
   });
 });

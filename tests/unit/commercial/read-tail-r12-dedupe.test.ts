@@ -52,7 +52,6 @@ describe('Commercial read-tail r12 parameterized purchase-scope read family', ()
 
   test('r1-r11 helpers, source locks and native statement kinds stay untouched', () => {
     for (const [file, symbol] of [
-      ['commercial-read-tail-r1-sources.ts', 'commercialChangeSetReceiptSql'],
       ['commercial-read-tail-r3-sources.ts', 'seatHistorySql'],
       ['commercial-read-tail-r4-sources.ts', 'purchaseFactAgg'],
       ['commercial-read-tail-r5-sources.ts', 'receiptProbe'],
@@ -85,6 +84,6 @@ describe('Commercial read-tail r12 parameterized purchase-scope read family', ()
     };
     walk(srcRoot);
     expect(total).toBeLessThan(24);
-    expect(total).toBe(22);
+    expect(total).toBe(16);
   });
 });

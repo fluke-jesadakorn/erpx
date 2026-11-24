@@ -1,4 +1,4 @@
-import { commercialChangeSetReceiptSql } from "./commercial-read-tail-r1-sources";
+import { receiptProbe } from "./commercial-read-tail-r5-sources";
 import { flushFinanceDeferredEffects } from "@erpx/server-finance/public/finance-transactions";
 
 import { nativeCommercialOwnerWrite, NativeCommercialOwnerWriteError } from "@erpx/server-commercial/adapters/native-owner-write";
@@ -40,7 +40,7 @@ export function companyPackageLifecycle(owner: PostgresDatabase, holdingId: stri
     if (packageGrantRevision(input.companyId, before) !== input.expectedRevision) {
       // An identical concurrent Apply can commit between the first receipt
       // lookup and this read. Recover its receipt before stale/obligation gates.
-      if (replay && await owner.prepare(commercialChangeSetReceiptSql).bind(input.idempotencyKey).first()) return ordinary();
+      if (replay && await owner.prepare(receiptProbe("company_package_change_sets","1")).bind(input.idempotencyKey).first()) return ordinary();
       throw new Error("STALE_PACKAGE_BATCH");
     }
     const settlement = input.changes.flatMap(change => {
@@ -73,7 +73,7 @@ export function companyPackageLifecycle(owner: PostgresDatabase, holdingId: stri
       await authorize(owner, input.companyId);
       // A committed receipt may be recovered even after its preview expires or
       // the current package advanced. The normal batch owns hash/replay checks.
-      const committed = await owner.prepare(commercialChangeSetReceiptSql).bind(input.idempotencyKey).first();
+      const committed = await owner.prepare(receiptProbe("company_package_change_sets","1")).bind(input.idempotencyKey).first();
       let wrote = false;
       const run = async (transaction: SqlDatabase) => {
         const result = await store.batch.applyIn(transaction, input, async comparison => {

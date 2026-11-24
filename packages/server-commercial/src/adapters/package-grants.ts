@@ -1,5 +1,4 @@
 import "server-only";
-import { commercialChangeSetReceiptSql } from "./commercial-read-tail-r1-sources";
 import { purchaseFactAgg } from "./commercial-read-tail-r4-sources";
 import { receiptProbe } from "./commercial-read-tail-r5-sources";
 import { companyScopedStarSql } from "./commercial-read-tail-r8-sources";
@@ -67,7 +66,7 @@ export function packageGrantStore(db: PostgresDatabase, ports: {
         return row ? grantFromRow(row) : null;
       },
       receipt: async key => {
-        if (await database.prepare(commercialChangeSetReceiptSql).bind(key).first()) throw new Error("IDEMPOTENCY_CONFLICT");
+        if (await database.prepare(receiptProbe("company_package_change_sets","1")).bind(key).first()) throw new Error("IDEMPOTENCY_CONFLICT");
         const row = await database.prepare(receiptProbe("company_package_grant_events","request_hash,after_json")).bind(key).first<{ request_hash: string; after_json: CompanyPackageGrant | string }>();
         return row ? { hash: row.request_hash, grant: typeof row.after_json === "string" ? JSON.parse(row.after_json) as CompanyPackageGrant : row.after_json } : null;
       },
