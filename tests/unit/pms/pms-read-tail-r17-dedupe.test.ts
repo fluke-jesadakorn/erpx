@@ -49,8 +49,9 @@ describe('pms read-tail r17 byte-identical guard dedupe', () => {
   it('lowers the pms owner SELECT KPI strictly below the r16 after=501 baseline', async () => {
     let count = 0;
     for (const file of await tsFiles(dir)) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
-    // r18 deduped the 4x booking-payment point read below the r17 after=492 baseline.
-    expect(count).toBe(489);
+    // r18 deduped the 4x booking-payment point read below the r17 after=492 baseline;
+    // r19 deduped the two 4x import-batches/postings projection fragments below r18 after=489.
+    expect(count).toBe(483);
     expect(count).toBeLessThan(501);
   });
 });
