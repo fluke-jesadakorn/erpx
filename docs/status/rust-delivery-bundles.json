@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8604,
+    "revision": 8608,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -139081,8 +139081,8 @@
             "sourceSha": "a2fd6cd7c",
             "owner": "inventory",
             "before": 541,
-            "after": 508,
-            "note": "Six full-SQL literal groups shared via read-tail-sql; statements independent; pre-existing transport failure noted."
+            "after": 520,
+            "note": "Six literal groups shared; committed occurrence basis 541->520."
           },
           {
             "command": "vitest inventory targeted (86; 1 pre-existing) + tsc inventory",
@@ -141774,7 +141774,7 @@
         "owner": "collaboration",
         "title": "collaboration TS read tail native cutover (round 11)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -141786,22 +141786,37 @@
         "resources": [
           "owner:collaboration"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCRcol",
-          "claimedAt": "2026-11-24T02:29:22.763Z",
-          "heartbeatAt": "2026-11-24T02:29:22.763Z",
-          "expiresAt": "2026-11-24T02:59:22.764Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0ecab100c",
+            "owner": "collaboration",
+            "before": 454,
+            "after": 441,
+            "note": "social task origin, room member agg, follow exists, team member exists, legacy/native union shared; binds/locks unchanged."
+          },
+          {
+            "command": "vitest collaboration targeted (131) + tsc collaboration",
+            "result": "passed",
+            "sourceSha": "0ecab100c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Scout: social_task_origins EXISTS 4x (-3), messaging_room_members jsonb_agg 3x (-2), social_follows post EXISTS 3x (-2), messaging_team_members EXISTS 3x (-2), legacy/native CTE union 3x (-2). Read-only, binds unchanged. BEFORE=454.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCRcol",
+          "at": "2026-11-24T02:36:06.864Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -142235,6 +142250,42 @@
         "nextAction": "Next: staff_levels l JOIN 3x (-2), organization_nodes EXISTS 3x across commerce-facts/organization/people-directory-facts (-2), and remaining projection families. BEFORE=342.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.collaboration.read-tail-r12",
+        "goalId": "G4",
+        "owner": "collaboration",
+        "title": "collaboration TS read tail native cutover (round 12)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "tests/unit/collaboration/**",
+          "tests/integration/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC4col",
+          "claimedAt": "2026-11-24T02:36:07.274Z",
+          "heartbeatAt": "2026-11-24T02:36:07.274Z",
+          "expiresAt": "2026-11-24T03:06:07.274Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: re-scout remaining collaboration read tails after r11. BEFORE=441.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -142243,7 +142294,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 976,
+      "totalPackets": 977,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -142251,13 +142302,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 596,
+        "blocked": 597,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:34:39.570Z",
+    "updatedAt": "2026-11-24T02:36:07.306Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
