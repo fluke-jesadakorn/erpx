@@ -19,6 +19,7 @@ import type {LegalWrite} from "@erpx/server-legal/application/service";
 import {legalDocumentProvider} from "@erpx/server-legal/adapters/legal/document-provider";
 import { legalDocuments } from '@erpx/server-collaboration/adapters/native-legal-documents';
 import {legalDocumentByIdSql,legalFilesAdvisoryLockSql} from '../legal-read-tail-r9-sources';
+import {legalDisposedDocumentPrefix} from '../legal-read-tail-r20-sources';
 type InspectionFacts={inspectionId:string;id:string;kind:"ocr"|"verify";resultJson:string;actorId:string;now:number;item_id:string};
 /** Shared by canonical/stored document version reads and the operations read. */
 export const nextDocumentVersionSql = "SELECT coalesce(max(version),0)+1 n FROM legal_documents WHERE item_id=?";
@@ -35,7 +36,7 @@ nextStoredVersion:(facts:{id:string;})=>db.prepare(nextDocumentVersionSql).bind(
 async insertStoredDocument(facts){return stage(await nativeDocs.insertStoredDocument(facts));},
 async advanceStoredItem(facts){return stage(await nativeDocs.advanceStoredItem(facts));},
 document:(facts:{id:string;})=>db.prepare(legalDocumentByIdSql).bind(facts.id).first<DocumentVersion>(),
-disposed:(facts:{id:string;})=>db.prepare("SELECT 1 FROM legal_disposals WHERE document_id=?").bind(facts.id).first(),
+disposed:(facts:{id:string;})=>db.prepare(`${legalDisposedDocumentPrefix}=?`).bind(facts.id).first(),
 destroying:(facts:{item_id:string;})=>db.prepare("SELECT 1 FROM legal_destructions WHERE item_id=? AND state='executing'").bind(facts.item_id).first(),
 async recordExport(facts){await (await nativeDocs.accessEvent({identifier:facts.identifier,itemId:facts.item_id,id:facts.id,actorId:facts.actorId,action:facts.fact4,now:facts.now})).run();},
 preservationLock:()=>stage(db.prepare(legalFilesAdvisoryLockSql)),
@@ -54,7 +55,7 @@ submission:(facts:{id:string;})=>db.prepare("SELECT u.*,s.item_id FROM legal_ext
     }>(),
 async recordSubmissionRead(facts){await (await nativeDocs.accessEvent({identifier:facts.identifier,itemId:facts.item_id,id:facts.null,actorId:facts.actorId,action:facts.fact4,now:facts.now})).run();},
 requireExecutedApproval:(key:string,values:(string | number)[])=>stage(assertion(db,key,"legal-executed-approval","EXISTS(SELECT 1 FROM legal_approvals WHERE item_id=? AND cycle=? AND document_id=? AND document_hash=? AND decision='approved') AND "+legalLaterApprovalGuardSql,values)),
-requireExecutedAuthority:(key:string,documentId:string,values:string[])=>stage(assertion(db,key,`legal-executed-authority-${documentId}`,"EXISTS(SELECT 1 FROM legal_documents WHERE id=? AND item_id=?) AND NOT EXISTS(SELECT 1 FROM legal_disposals WHERE document_id=?)",values)),
+requireExecutedAuthority:(key:string,documentId:string,values:string[])=>stage(assertion(db,key,`legal-executed-authority-${documentId}`,`EXISTS(SELECT 1 FROM legal_documents WHERE id=? AND item_id=?) AND NOT EXISTS(${legalDisposedDocumentPrefix}=?)`,values)),
 persistInspection:async (writes):Promise<number>=>{if(await legalPackageEnforcementMode()==="disabled")return(await db.batch(resolve(writes)))[1].meta.changes;const facts=writes.map(write=>inspections.get(write)).find((value):value is InspectionFacts=>!!value);if(!facts||writes.length!==2)throw new ApiError(503,"LEGAL_INSPECTION_SOURCE_REQUIRED","Inspection requires its original owner source.");return withLegalPurchasedCommand(db,a,{key:`legal-inspection:${facts.inspectionId}`,id:facts.item_id,operation:"legal.document.inspect",purpose:"settle-existing",permission:"legal.read",additional:["legal.documents"]},async owner=>{const source=await documentAccess(owner,a,facts.id),result=JSON.parse(facts.resultJson) as {checksum?:string};if(source.item_id!==facts.item_id||result.checksum!==source.checksum)throw new ApiError(409,"LEGAL_SOURCE_CHANGED","The inspected Legal original changed.");const outcome=await owner.batch([owner.prepare(legalFilesAdvisoryLockSql),await legalDocuments(owner,a.companyId,a.userId).inspection({inspectionId:facts.inspectionId,id:facts.id,kind:facts.kind,resultJson:facts.resultJson,actorId:facts.actorId,now:facts.now,itemId:facts.item_id})]);return outcome[1].meta.changes;});},
 guardChanges:(id,version,key,edit,allowFrozen,preparation)=>guards(db,a,id,version,key,edit,allowFrozen,preparation).map(stage),
 event:async(id,action,note,version,identifier,now)=>stage(await nativeDocs.event({id,action,note,version,identifier,now})),replay:(key,operation,id,input)=>replayCommand(db,a,key,operation,id,input),commit:async(key,operation,input,id,version,result,writes)=>executeCommand(db,a,key,operation,input,id,version,result,writes.map(write=>{const statement=nativeWrites.get(write);if(!statement)throw new Error("LEGAL_DOC_REPOSITORY_MISMATCH");return statement;})),
