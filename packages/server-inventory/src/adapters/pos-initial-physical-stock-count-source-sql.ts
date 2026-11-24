@@ -1,11 +1,11 @@
 import 'server-only';
-import {singleCountLineMarkerSql,countCreateMarkedRowsSql,childJsonAggSql,childJoinJsonAggSql} from './read-tail-sql';
+import {singleCountLineMarkerSql,countCreateMarkedRowsSql,childJsonAggSql,childJoinJsonAggSql,countEvidenceRowHeadSql} from './read-tail-sql';
 export const posInitialPhysicalStockCapabilities=['pos.sales','inventory.stock-core','finance.pos-posting'] as const;
 export const posInitialPhysicalStockMarker='_posInitialPhysicalStockCount';
 export type PosInitialPhysicalStockProof={kind:'pos-initial-physical-stock-count';countId:string;companyId:string;warehouseId:string;branchId:string;productId:string;countCommandId:string;posSetupCommandId:string;posSetupRequestHash:string;posBootstrapReceiptId:string;posBootstrapRequestHash:string;posBootstrapAuditId:string;posApprovalReceiptId:string;posApprovalRequestHash:string;posApprovalAuditId:string;posAccountingImageHash:string;chartId:string;inventoryAccountId:string;varianceAccountId:string;currency:string};
 /** Retained proof uses only existing Count, mapping and original POS receipt/audit
  * tables; ordinary pre-1061 readers never query the additive source relation. */
-export const posInitialPhysicalStockCountSourceRows=`SELECT c.id,c.company_id,c.branch_id,c.warehouse_id,line.product_id,receipt.command_id source_command_id,receipt.result_json::jsonb->'${posInitialPhysicalStockMarker}' source_proof
+export const posInitialPhysicalStockCountSourceRows=`${countEvidenceRowHeadSql(`line.product_id,receipt.command_id source_command_id,receipt.result_json::jsonb->'${posInitialPhysicalStockMarker}' source_proof`)}
  FROM inventory_counts c JOIN command_receipts receipt ON receipt.operation='inventory.count.create' AND receipt.record_id=c.id AND c.id='count-'||receipt.command_id AND receipt.actor_id=c.created_by AND receipt.authority_json::jsonb->>'companyId'=c.company_id
  JOIN inventory_count_lines line ON line.count_id=c.id
  JOIN command_receipts goods ON goods.command_id=receipt.result_json::jsonb->'${posInitialPhysicalStockMarker}'->>'posSetupCommandId' AND goods.record_id=c.company_id AND goods.operation='commerce.pos-posting-setup.initialize' AND goods.authority_json::jsonb->>'companyId'=c.company_id AND goods.result_json::jsonb->>'id'=c.company_id AND goods.result_json::jsonb->>'status'='configured' AND goods.result_json::jsonb->>'version'='1' AND goods.request_hash=receipt.result_json::jsonb->'${posInitialPhysicalStockMarker}'->>'posSetupRequestHash'

@@ -307,3 +307,10 @@ export const packageObligationCountHeadSql = `WITH scope AS (SELECT ?::text comp
  *  count sources/adapters, native transport and r11-r41 helpers stay untouched. */
 export const countScopeRowsSql = (rows: string) =>
   ` c.company_id=scope.company_id AND c.status NOT IN ('posted','cancelled','rejected') AND NOT EXISTS(SELECT 1 FROM (${rows}) marker WHERE marker.id=c.id)`;
+/** r43: the four initial-physical-stock evidence readers and the quality
+ *  disposal evidence reader all project the same c-alias four-column head.
+ *  Each caller supplies the remaining projection/joins verbatim, so every
+ *  emitted statement stays byte-identical with its own binds and tail. Locks,
+ *  native transport, count adapters and r11-r42 helpers stay untouched. */
+export const countEvidenceRowHeadSql = (tail: string) =>
+  `SELECT c.id,c.company_id,c.branch_id,c.warehouse_id,${tail}`;

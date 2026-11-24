@@ -1,10 +1,11 @@
 import "server-only";
+import {countEvidenceRowHeadSql} from './read-tail-sql';
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {qualityPurchaseSourceRows} from "@erpx/server-quality/public/purchase-sources";
 /** Existing controlled disposal only: actual reciprocal source FKs, immutable
  * request event and original Quality command receipt establish Count identity.
  * Manual Count creation/amendment never enters through this reader. */
-export const qualityDisposalCountRows=`SELECT c.id,c.company_id,c.branch_id,c.warehouse_id,c.quality_hold_id,source.kind,source.stock_capability,source.finance_capability,source.witness source_witness,receipt.command_id source_command_id
+export const qualityDisposalCountRows=`${countEvidenceRowHeadSql(`c.quality_hold_id,source.kind,source.stock_capability,source.finance_capability,source.witness source_witness,receipt.command_id source_command_id`)}
  FROM inventory_counts c JOIN inventory_quality_holds h ON h.id=c.quality_hold_id AND h.company_id=c.company_id AND h.branch_id=c.branch_id AND h.warehouse_id=c.warehouse_id
  JOIN inventory_quality_disposition_events e ON e.hold_id=h.id AND e.count_id=c.id AND e.action='request' AND e.actor_id=c.created_by
  JOIN command_receipts receipt ON receipt.operation='quality.hold.disposition.scrap' AND receipt.record_id=h.id AND receipt.actor_id=c.created_by AND receipt.authority_json::jsonb->>'companyId'=c.company_id AND receipt.result_json::jsonb->>'countId'=c.id AND e.id='quality-disposition-'||receipt.command_id AND c.id='quality-scrap-'||receipt.command_id

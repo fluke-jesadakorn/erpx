@@ -1,5 +1,5 @@
 import 'server-only';
-import {singleCountLineMarkerSql,countCreateMarkedRowsSql,childJsonAggSql,childJoinJsonAggSql} from './read-tail-sql';
+import {singleCountLineMarkerSql,countCreateMarkedRowsSql,childJsonAggSql,childJoinJsonAggSql,countEvidenceRowHeadSql} from './read-tail-sql';
 import {manufacturingPostingSetupReceiptRows,manufacturingExistingPostingMarker} from '@erpx/server-commerce/public/manufacturing-existing-posting-proof';
 export const manufacturingInitialPhysicalStockCapabilities=['manufacturing.materials','manufacturing.costs','inventory.stock-core','finance.production-costing'] as const;
 export const manufacturingInitialPhysicalStockMarker='_manufacturingInitialPhysicalStockCount';
@@ -7,7 +7,7 @@ export type ManufacturingInitialPhysicalStockProof={kind:'manufacturing-initial-
 /** Existing-table proof keeps pre-1059 ordinary readers schema compatible.
  * 1059 guarantees every committed private Count marker has its native source;
  * additive1060 guarantees the distinct existing-mapping receipt alternative. Invalid markers are never ordinary Supply records. */
-export const manufacturingInitialPhysicalStockCountSourceRows=`SELECT c.id,c.company_id,c.branch_id,c.warehouse_id,line.product_id,receipt.command_id source_command_id,receipt.result_json::jsonb->'${manufacturingInitialPhysicalStockMarker}' source_proof
+export const manufacturingInitialPhysicalStockCountSourceRows=`${countEvidenceRowHeadSql(`line.product_id,receipt.command_id source_command_id,receipt.result_json::jsonb->'${manufacturingInitialPhysicalStockMarker}' source_proof`)}
  FROM inventory_counts c JOIN command_receipts receipt ON receipt.operation='inventory.count.create' AND receipt.record_id=c.id AND c.id='count-'||receipt.command_id AND receipt.actor_id=c.created_by AND receipt.authority_json::jsonb->>'companyId'=c.company_id
  JOIN inventory_count_lines line ON line.count_id=c.id
  JOIN (${manufacturingPostingSetupReceiptRows}) goods ON goods.command_id=receipt.result_json::jsonb->'${manufacturingInitialPhysicalStockMarker}'->>'manufacturingSetupCommandId' AND goods.record_id=c.company_id AND goods.authority_json::jsonb->>'companyId'=c.company_id AND goods.result_json::jsonb->>'id'=c.company_id AND goods.result_json::jsonb->>'version'='1' AND goods.request_hash=receipt.result_json::jsonb->'${manufacturingInitialPhysicalStockMarker}'->>'manufacturingSetupRequestHash'
