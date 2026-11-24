@@ -70088,7 +70088,7 @@
       "lane": "unit",
       "owner": "pms",
       "modules": [
-        "booking"
+        "pms"
       ],
       "fixture": "none",
       "requires": {
