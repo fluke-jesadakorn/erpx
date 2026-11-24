@@ -1,5 +1,6 @@
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { ACCOUNT_SELECT_PREFIX } from './finance-read-tail-r30-sql';
+import { EARLIER_PERIODS_GUARD_SQL, PERIOD_OPEN_END_DATE_GUARD_SQL } from './finance-read-tail-r45-sql';
 import { CHART_ID_BY_COMPANY_SQL } from './finance-read-tail-r36-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
 import { nativeFinanceReporting } from '@erpx/server-collaboration/adapters/native-finance-reporting';
@@ -79,7 +80,7 @@ function nativeReporting(provided?:SqlDatabase) {
             const write = await database();
             return executeCommand(write, actor, key, op, input, id, 1, { id, status: "draft", version: 1, profitMinor: profit, sourceFingerprint }, [
                 ...sourceGuards(write, actor, key, input.chartId, profile.id, profile.version, sourceRevision),
-                assertion(write, key, "earlier-periods", "NOT EXISTS(SELECT 1 FROM finance_periods WHERE company_id=? AND id<>? AND start_date<=? AND end_date>=? AND state<>'closed')", [actor.companyId, input.periodId, input.endDate, input.startDate]),
+                assertion(write, key, "earlier-periods", EARLIER_PERIODS_GUARD_SQL, [actor.companyId, input.periodId, input.endDate, input.startDate]),
                 assertion(write, key, "year-drafts", "NOT EXISTS(SELECT 1 FROM finance_journals WHERE company_id=? AND chart_id=? AND entry_date BETWEEN ? AND ? AND status IN ('draft','in_review'))", [actor.companyId, input.chartId, input.startDate, input.endDate]),
                 await nativeFinanceReporting(write, actor.companyId).yearClosingInsert([id, actor.companyId, input.chartId, profile.id, profile.version, input.startDate, input.endDate, input.periodId, input.retainedEarningsAccountId, sourceRevision, sourceFingerprint, JSON.stringify(snapshot), profit, input.reason, actor.userId, now, now]),
                 await nativeFinanceReporting(write, actor.companyId).statementEventPrepared([`year-closing-event-${key}`, id, actor.companyId, actor.userId, input.reason, key, now]),
@@ -90,7 +91,7 @@ function nativeReporting(provided?:SqlDatabase) {
             return executeCommand(write, actor, key, op, input, id, next, { id, status, version: next, profitMinor: Number(row.profit_minor), journalId: journal?.result.id ?? null }, [
                 ...(action === "post" ? sourceGuards(write, actor, key, String(row.chart_id), String(row.profile_id), Number(row.profile_version), Number(row.source_revision)) : []),
                 assertion(write, key, "closing-version", idCompanyStatusVersionGuard("finance_year_closings", "draft"), [id, actor.companyId, input.expectedVersion]),
-                ...(action === "post" ? [assertion(write, key, "closing-period", "EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND end_date=?)", [row.period_id, actor.companyId, row.end_date]), assertion(write, key, "earlier-periods", "NOT EXISTS(SELECT 1 FROM finance_periods WHERE company_id=? AND id<>? AND start_date<=? AND end_date>=? AND state<>'closed')", [actor.companyId, row.period_id, row.end_date, row.start_date])] : []),
+                ...(action === "post" ? [assertion(write, key, "closing-period", PERIOD_OPEN_END_DATE_GUARD_SQL, [row.period_id, actor.companyId, row.end_date]), assertion(write, key, "earlier-periods", EARLIER_PERIODS_GUARD_SQL, [actor.companyId, row.period_id, row.end_date, row.start_date])] : []),
                 ...(journal?.steps ?? []), ...(money ? [money.statement] : []),
                 await nativeFinanceReporting(write, actor.companyId).yearClosingDecision([status, journal?.result.id ?? null, actor.userId, input.reason, now, now, id]),
                 await nativeFinanceReporting(write, actor.companyId).statementEventDecision([`year-closing-event-${key}`, id, actor.companyId, status, actor.userId, next, input.reason, key, now]),

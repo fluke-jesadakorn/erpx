@@ -2,6 +2,7 @@ import { financeAccountingProfiles } from '@erpx/server-collaboration/adapters/n
 import { withFinancePurchasedRead, withFinanceConfigurationCommand } from "@erpx/server-finance/adapters/purchase-boundary";
 import { ACTIVE_CHART_BASE_CURRENCY_SQL } from "./chart-base-currency-dedupe-sql";
 import { CHART_EXISTS_BY_COMPANY_SQL } from './finance-read-tail-r36-sql';
+import { ACTIVE_THB_CHART_GUARD_SQL, NO_APPROVED_PROFILE_GUARD_SQL } from './finance-read-tail-r45-sql';
 import { financeOwnerDecisionEffects } from "@erpx/server-workflow/public/finance-owner-decision-effects";
 import { createAccountingProfiles } from '@erpx/server-finance/application/accounting-profiles';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
@@ -36,8 +37,8 @@ function profileService(provided?: SqlDatabase) {
             const { actor, key, input, id } = facts;
             const write = await db(actor);
             return executeCommand(write, actor, key, "finance.profile.prepare", input, id, 1, { id, status: "draft", version: 1 }, [
-                assertion(write, key, "ledger", "EXISTS(SELECT 1 FROM finance_charts WHERE id=? AND company_id=? AND status='active' AND base_currency='THB')", [input.statutoryChartId, actor.companyId]),
-                assertion(write, key, "profile", "NOT EXISTS(SELECT 1 FROM finance_accounting_profiles WHERE company_id=? AND status='approved')", [actor.companyId]),
+                assertion(write, key, "ledger", ACTIVE_THB_CHART_GUARD_SQL, [input.statutoryChartId, actor.companyId]),
+                assertion(write, key, "profile", NO_APPROVED_PROFILE_GUARD_SQL, [actor.companyId]),
                 await financeAccountingProfiles(write, actor.companyId).create({ id, companyId: actor.companyId, statutoryChartId: input.statutoryChartId, standard: input.standard, fiscalStartMonth: input.fiscalStartMonth, effectiveDate: input.effectiveDate, eligibilityEvidence: input.eligibilityEvidence, policyEvidence: input.policyEvidence, taxBasis: input.taxBasis, inventoryPolicy: input.inventoryPolicy, depreciationPolicy: input.depreciationPolicy, userId: actor.userId, now: Date.now() }),
             ]);
         }, profile: async (facts) => { const { id, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_accounting_profiles WHERE id=? AND company_id=?").bind(id, actor.companyId).first<AccountingProfile>(); }, commitProfileDecision: async (facts) => {
@@ -46,8 +47,8 @@ function profileService(provided?: SqlDatabase) {
             return executeCommand(write, actor, key, operation, input, id, input.expectedVersion + 1, { id, status, version: input.expectedVersion + 1 }, [
                 assertion(write, key, "profile", "EXISTS(SELECT 1 FROM finance_accounting_profiles WHERE id=? AND company_id=? AND version=? AND status='draft')", [id, actor.companyId, input.expectedVersion]),
                 ...(decision === "approve" ? [
-                    assertion(write, key, "ledger", "EXISTS(SELECT 1 FROM finance_charts WHERE id=? AND company_id=? AND status='active' AND base_currency='THB')", [profile.statutory_chart_id, actor.companyId]),
-                    assertion(write, key, "single-statutory-ledger", "NOT EXISTS(SELECT 1 FROM finance_accounting_profiles WHERE company_id=? AND status='approved')", [actor.companyId]),
+                    assertion(write, key, "ledger", ACTIVE_THB_CHART_GUARD_SQL, [profile.statutory_chart_id, actor.companyId]),
+                    assertion(write, key, "single-statutory-ledger", NO_APPROVED_PROFILE_GUARD_SQL, [actor.companyId]),
                 ] : []),
                 await financeAccountingProfiles(write, actor.companyId).decide({ status, userId: actor.userId, reason: input.reason, now, id, companyId: actor.companyId }),
                 financeOwnerDecisionEffects(write).appendRetainedLayoutDecision({id:crypto.randomUUID(),commandId:key,recordId:id,action:operation,actorId:actor.userId,assignmentId:actor.assignmentId,reviewedVersion:input.expectedVersion,inputDigest:createHash("sha256").update(JSON.stringify(input)).digest("hex"),createdAt:now}),

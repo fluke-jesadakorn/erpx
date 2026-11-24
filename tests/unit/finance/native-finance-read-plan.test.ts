@@ -811,7 +811,7 @@ describe('finance read-tail r20 byte-identical SQL dedupe', () => {
     expect(tax.split("aggByCompany('t','finance_current_tax_entries','id',' AND t.chart_id=? AND t.claim_month=?')").length - 1).toBe(1);
     expect(tax.split('t.company_id=? AND t.chart_id=? AND t.claim_month=?').length - 1).toBe(0);
     const attach = await readFile(new URL('../../../packages/server-finance/src/adapters/commerce-attachment-sources.ts', import.meta.url), 'utf8');
-    expect(attach.split("aggByCompany('p','finance_parties','id',' AND p.id IN(SELECT jsonb_array_elements_text(?::jsonb))')").length - 1).toBe(1);
+    expect(attach.split("aggByCompany('p','finance_parties','id',' AND p.id IN(' + jsonbArrayTextSql('') + ')')").length - 1).toBe(1);
     const r18 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r18-sql.ts', import.meta.url), 'utf8');
     expect(r18.split('r.currency=?)').length - 1).toBeGreaterThan(0);
     const wh = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-withholding-remittance.ts', import.meta.url), 'utf8');
@@ -830,7 +830,7 @@ const R21_VARIANTS: [string, string, string, string[], string][] = [
   [
     'commerce-attachment-sources.ts',
     '(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM finance_parties p WHERE p.company_id=? AND p.id IN(SELECT jsonb_array_elements_text(?::jsonb)))',
-    "aggByCompany('p','finance_parties','id',' AND p.id IN(SELECT jsonb_array_elements_text(?::jsonb))')",
+    "aggByCompany('p','finance_parties','id',' AND p.id IN(' + jsonbArrayTextSql('') + ')')",
     ["p", "finance_parties", "id", " AND p.id IN(SELECT jsonb_array_elements_text(?::jsonb))"],
     'parties',
   ],
@@ -1079,7 +1079,7 @@ describe('finance read-tail r24 byte-identical SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2038);
-    expect(total).toBe(1884);
+    expect(total).toBe(1860);
   });
 });
 
@@ -1250,7 +1250,7 @@ describe('finance read-tail r30 byte-identical guard-prefix families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2027);
-    expect(total).toBe(1884);
+    expect(total).toBe(1860);
   });
 });
 
@@ -1294,7 +1294,7 @@ describe('finance read-tail r31 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1989);
-    expect(total).toBe(1884);
+    expect(total).toBe(1860);
   });
 });
 
@@ -1339,7 +1339,7 @@ describe('finance read-tail r32 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1985);
-    expect(total).toBe(1884);
+    expect(total).toBe(1860);
   });
 });
 
@@ -1384,7 +1384,7 @@ describe('finance read-tail r33 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1983);
-    expect(total).toBe(1884);
+    expect(total).toBe(1860);
   });
 });
 
@@ -1459,7 +1459,7 @@ describe('finance read-tail r34 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1981);
-    expect(total).toBe(1884);
+    expect(total).toBe(1860);
   });
 });
 
@@ -1508,7 +1508,7 @@ describe('finance read-tail r35 parameterized workforce actor scope family', () 
     };
     walk(root);
     expect(total).toBeLessThan(1974);
-    expect(total).toBe(1884);
+    expect(total).toBe(1860);
   });
 });
 
@@ -1562,7 +1562,9 @@ describe('finance read-tail r36 exact duplicate two-site SQL families', () => {
     expect(pos).toContain('FOR SHARE');
     expect(pos).toContain('FOR UPDATE');
     const acct = await readFile(new URL('../../../packages/server-finance/src/adapters/accounting-profiles.ts', import.meta.url), 'utf8');
-    expect(acct).toContain("EXISTS(SELECT 1 FROM finance_charts WHERE id=? AND company_id=? AND status='active' AND base_currency='THB')");
+    expect(acct).toContain('ACTIVE_THB_CHART_GUARD_SQL');
+    const r45 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r45-sql.ts', import.meta.url), 'utf8');
+    expect(r45).toContain("EXISTS(SELECT 1 FROM finance_charts WHERE id=? AND company_id=? AND status='active' AND base_currency='THB')");
     const r35 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r35-sql.ts', import.meta.url), 'utf8');
     expect(r35).toContain('WORKFORCE_ACTOR_SCOPE_SQL');
     const r34 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r34-sql.ts', import.meta.url), 'utf8');
@@ -1583,7 +1585,7 @@ describe('finance read-tail r36 exact duplicate two-site SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1970);
-    expect(total).toBe(1884);
+    expect(total).toBe(1860);
   });
 });
 
@@ -1637,7 +1639,7 @@ describe('finance read-tail r37 exact duplicate period-exists read family', () =
     };
     walk(root);
     expect(total).toBeLessThan(1966);
-    expect(total).toBe(1884);
+    expect(total).toBe(1860);
   });
 });
 
@@ -1752,7 +1754,7 @@ describe('finance read-tail r38 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1965);
-    expect(total).toBe(1884);
+    expect(total).toBe(1860);
   });
 });
 
@@ -1869,7 +1871,7 @@ describe('finance read-tail r39 read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1951);
-    expect(total).toBe(1884);
+    expect(total).toBe(1860);
   });
 });
 
@@ -1991,6 +1993,6 @@ describe('finance read-tail r40 read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1942);
-    expect(total).toBe(1884);
+    expect(total).toBe(1860);
   });
 });

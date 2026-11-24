@@ -1,4 +1,5 @@
 import { documentNumberSql } from './finance-read-tail-r39-sql';
+import { versionStatusGuard } from './finance-read-tail-r45-sql';
 import{ensureCustomerReceipt}from '@erpx/server-finance/adapters/customer-receipt-issue';
 export{ensureCustomerReceipt};
 
@@ -51,7 +52,7 @@ async function prepareDefaults(tx:SqlDatabase,actor:WorkContext,input:z.infer<ty
  const id=`sales-defaults-${key}`,previous=await replayCommand<{id:string;status:'draft';version:1}>(tx,actor,key,'finance.sales-defaults.prepare',id,request);if(previous)return previous;
  const accounts=await validateDefaults(tx,actor,input),now=Date.now();
  return executeCommand(tx,actor,key,'finance.sales-defaults.prepare',request,id,1,{id,status:'draft' as const,version:1 as const},[
-  ...accounts.map((account,index)=>assertion(tx,key,`account-${index}`,'EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND version=? AND status=\'active\')',[account.id,actor.companyId,account.version])),
+  ...accounts.map((account,index)=>assertion(tx,key,`account-${index}`,versionStatusGuard("finance_accounts"),[account.id,actor.companyId,account.version])),
   await financeSalesDefaults(tx,actor.companyId).create({id,companyId:actor.companyId,chartId:input.chartId,currency:input.currency,receivableAccountId:input.receivableAccountId,revenueAccountId:input.revenueAccountId,taxAccountId:input.taxAccountId??null,reason:input.reason,userId:actor.userId,now}),
  ]);
 }

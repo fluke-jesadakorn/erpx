@@ -1,5 +1,6 @@
 import {financeOwnedSnapshotSources as peoplepayrollSnapshotSources} from "@erpx/server-people_payroll/public/finance-owned-snapshot-sources";
 import { ACCOUNT_SELECT_PREFIX } from './finance-read-tail-r30-sql';
+import { OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
 import { financePayrollRemittance } from '@erpx/server-collaboration/adapters/native-finance-payroll-remittance';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import {assertion} from "@erpx/server-workflow/public/command-assertions";import type {PostedRun} from '@erpx/server-people_payroll/public/payroll-remittance-contract';export function payrollRemittanceSources(database:SqlDatabase){return {postedRun(runId:string,companyId:string){return database.prepare(`SELECT r.id,r.version,r.currency,r.period_end,j.chart_id,p.journal_id
     ${peoplepayrollSnapshotSources().payroll_remittance_sources_hr_payroll_runs_r_from} ${peoplepayrollSnapshotSources().payroll_remittance_sources_hr_payroll_postings_p_join} ON p.run_id=r.id
@@ -15,8 +16,7 @@ bankTransaction(bankTransactionId:string,companyId:string){return database.prepa
   }>();},
 bankAccount(bankAccountId:string,companyId:string,chart_id:string,currency:string){return database.prepare(`${ACCOUNT_SELECT_PREFIX}id=? AND company_id=? AND chart_id=?
     AND category='asset' AND currency=? AND status='active'`).bind(bankAccountId,companyId,chart_id,currency).first();},
-periods(companyId:string,transaction_date:string,transaction_date2:string){return database.prepare(`SELECT id FROM finance_periods WHERE company_id=? AND state='open'
-    AND start_date<=? AND end_date>=?`).bind(companyId,transaction_date,transaction_date2).all<{id:string}>();},
+periods(companyId:string,transaction_date:string,transaction_date2:string){return database.prepare(OPEN_PERIOD_IDS_SQL).bind(companyId,transaction_date,transaction_date2).all<{id:string}>();},
 guard9(key:string,value:"liability-balance",journal_id:string,value2:string,amountMinor:number,runId:string,kind:"withholding_tax" | "social_security"){return assertion(database,key,value,`(SELECT COALESCE(SUM(credit_minor-debit_minor),0) FROM finance_journal_lines WHERE journal_id=? AND description=?)
       >= ? + (SELECT COALESCE(SUM(amount_minor),0) ${peoplepayrollSnapshotSources().payroll_remittance_sources_hr_payroll_statutory_remittances_from} WHERE run_id=? AND kind=?)`,
       [journal_id,value2,amountMinor,runId,kind]);},

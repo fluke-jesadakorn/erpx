@@ -4,6 +4,7 @@ import { moneySnapshotExistsSql } from './finance-read-tail-r39-sql';
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { ACCOUNT_SELECT_PREFIX, INVOICE_EXISTS_PREFIX, JOURNAL_SELECT_PREFIX } from './finance-read-tail-r30-sql';
 import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
+import { PERIOD_OPEN_END_DATE_GUARD_SQL } from './finance-read-tail-r45-sql';
 import { SUPPLIER_RESERVATION_GUARD_SQL, BANK_TRANSACTION_BY_ID_SQL } from './finance-read-tail-r17-sql';
 import {requireLegacyFinanceJournal} from './document-purchases';
 import { CHART_BASE_CURRENCY_BY_ID_SQL } from './finance-read-tail-r15-sql';
@@ -624,7 +625,7 @@ function fxService(provided?: SqlDatabase) {
             const { actor, key, input, output, runId, calculated, rates, now } = facts;
             const write = await db(actor);
             return saveCommand(write, actor, key, "finance.fx-revaluation.prepare", input, output, [
-                assertion(write, key, "period", "EXISTS(SELECT 1 FROM finance_periods WHERE id=? AND company_id=? AND state='open' AND end_date=?)", [input.periodId, actor.companyId, input.entryDate]),
+                assertion(write, key, "period", PERIOD_OPEN_END_DATE_GUARD_SQL, [input.periodId, actor.companyId, input.entryDate]),
                 assertion(write, key, "posted-run", "NOT EXISTS(SELECT 1 FROM finance_fx_revaluation_runs WHERE period_id=? AND chart_id=? AND status='posted')", [input.periodId, input.chartId]),
                 await nativeFinanceOwnerWrite(write, actor, 'finance_stmt_45', [runId, actor.companyId, input.chartId, input.periodId, input.entryDate, calculated.chart.base_currency, JSON.stringify(rates), calculated.sourceHash, input.gainAccountId, input.lossAccountId, input.proof, actor.userId, now, now]),
                 ...await Promise.all(calculated.exposures.map(async (row, index) => nativeFinanceOwnerWrite(write, actor, 'finance_stmt_46', [`${runId}-${index}`, runId, row.invoiceId, row.kind, row.currency, row.controlAccountId, row.transactionOutstanding, row.priorBase, row.revaluedBase, row.adjustment, row.rateMicros]))),
