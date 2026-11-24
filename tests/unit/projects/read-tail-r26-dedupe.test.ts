@@ -1,0 +1,86 @@
+import { describe, expect, test } from 'vitest';
+import { readFileSync, readdirSync, type Dirent } from 'node:fs';
+import { resolve } from 'node:path';
+import { projectPackageActualProof } from '../../../packages/server-projects/src/adapters/package-obligations';
+
+const srcRoot = resolve(__dirname, '../../../packages/server-projects/src');
+const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
+
+// Verbatim pre-dedupe guards from HEAD before the r26 edit. These are
+// byte-identity oracles only, never live query sources.
+const workLogGuard = `NOT EXISTS(SELECT 1 FROM staff_project_package_actuals actual WHERE actual.source_kind='work_log' AND actual.source_id=l.id
+ AND actual.source_version=l.version AND actual.company_id=l.company_id AND actual.project_id=l.project_id AND actual.minutes=l.minutes)`;
+const costAllocationGuard = `NOT EXISTS(SELECT 1 FROM staff_project_package_actuals actual WHERE actual.source_kind='cost_allocation'
+ AND actual.source_id=c.id AND actual.source_version=c.version AND actual.company_id=c.company_id AND actual.project_id=c.project_id AND actual.amount_minor=c.amount_minor)`;
+
+describe('Projects read-tail r26 package-actual proof guard family dedupe', () => {
+  test('helper reproduces both former inline package-actual guards byte for byte', () => {
+    expect(projectPackageActualProof('work_log', 'l', 'minutes', ' ', '\n ')).toBe(workLogGuard);
+    expect(projectPackageActualProof('cost_allocation', 'c', 'amount_minor', '\n ', ' ')).toBe(costAllocationGuard);
+    // Only the source kind, alias, measure column and two whitespace gaps vary.
+    expect(workLogGuard).toContain("actual.source_kind='work_log'");
+    expect(costAllocationGuard).toContain("actual.source_kind='cost_allocation'");
+    expect(workLogGuard).toContain('actual.minutes=l.minutes');
+    expect(costAllocationGuard).toContain('actual.amount_minor=c.amount_minor');
+  });
+
+  test('both call sites compose the helper and keep their outer predicates unchanged', () => {
+    const obligations = src('package-obligations.ts');
+    expect(obligations).toContain("projectPackageActualProof('work_log','l','minutes',' ','\\n ')");
+    expect(obligations).toContain("projectPackageActualProof('cost_allocation','c','amount_minor','\\n ',' ')");
+    expect(obligations).not.toContain("NOT EXISTS(SELECT 1 FROM staff_project_package_actuals actual WHERE actual.source_kind='work_log'");
+    expect(obligations).not.toContain("NOT EXISTS(SELECT 1 FROM staff_project_package_actuals actual WHERE actual.source_kind='cost_allocation'");
+    expect(obligations).toContain("OR (l.state='approved' AND ");
+    expect(obligations).toContain("OR (scope.is_base AND c.state='approved' AND ");
+    expect(locksUntouched()).toBe(true);
+  });
+
+  test('locks, r2-r25 helpers and spaced JOIN constants stay untouched', () => {
+    const obligations = src('package-obligations.ts');
+    expect(obligations).toContain('export const projectRowsSql=');
+    expect(obligations).toContain('const tableRowsSql=`SELECT * FROM `;');
+    expect(obligations).toContain('export const projectAssignmentScopeSql=');
+    expect(obligations).toContain('LOCK TABLE staff_projects,staff_project_members,staff_project_milestones');
+
+    const defs = src('project-read-projections.ts');
+    for (const kept of ['projectTaskOwnerSql', 'projectTaskMemberSql', 'projectOwnerOrMemberSql',
+      'projectOwnerOrMemberColumnSql', 'projectMemberScopeSql', 'projectMemberScopeGuard',
+      'projectHandoverSourceSql', 'socialProjectAudienceSql']) {
+      expect(defs).toContain(kept);
+    }
+    expect(src('clock-cte.ts')).toContain('export const projectsClockCte=');
+    expect(src('read-tail-r23.ts')).toContain('projectAssignmentAuthorityReadSql');
+    expect(src('executive-metric-projections.ts')).toContain('const groupedMetricSelect =');
+    expect(src('executive-main-evidence-sources.ts')).toContain('const projectDependencyBlockerLateral =');
+    const chains = src('executive-evidence-chains.ts');
+    expect(chains).toContain('JOIN (${sourceSql}) p ON p.id=m.project_id AND p.company_id=m.company_id');
+    expect(chains).toContain('JOIN (${financeProjectionSources.finance_journal_lines}) l ON l.id=a.journal_line_id');
+    expect(chains).toContain('JOIN (${sourceSql}) p ON p.id=l.project_id AND p.company_id=l.company_id');
+    expect(src('social-purchase-sources.ts')).toContain('LOCK TABLE staff_projects,staff_project_members IN SHARE MODE');
+    expect(src('purchases.ts')).toContain('LOCK TABLE staff_projects,staff_project_members IN SHARE ROW EXCLUSIVE MODE');
+    expect(src('scheduled-tasks.ts')).toContain('FOR UPDATE OF t');
+    expect(src('task-purchases.ts')).toContain("${lock?' FOR UPDATE':''}");
+  });
+
+  test('retirement:ts-statements stays strictly below the r25 BEFORE=119 baseline', () => {
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true }) as Dirent[]) {
+        const p = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(p);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(srcRoot);
+    expect(total).toBeLessThan(119);
+    expect(total).toBe(118);
+  });
+});
+
+function locksUntouched(): boolean {
+  const obligations = src('package-obligations.ts');
+  return obligations.includes('lockProjectTaskSettlementSources(database)')
+    && obligations.includes('owner.assertActiveTransaction(database)')
+    && obligations.includes('PROJECT_PACKAGE_OBLIGATION_SOURCE_REQUIRED')
+    && obligations.includes('createHash("sha256")');
+}

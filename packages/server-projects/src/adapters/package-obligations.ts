@@ -25,6 +25,13 @@ const tableRowsSql=`SELECT * FROM `;
  * metric authority reads; one definition keeps the emitted SQL unchanged and
  * only the scope alias varies per caller. */
 export const projectAssignmentScopeSql=(alias:string)=>`(SELECT ?::text company_id,?::text branch_id,?::text department_id) ${alias}`;
+/** Byte-identical package-actual proof guard shared by the work-log and
+ * cost-allocation arms of projectPackageObligations. Only the source kind,
+ * source alias, measure column and the two whitespace gaps vary; every source
+ * relation, equality and bind order stays exactly as in the former inline
+ * copies. The two gap parameters preserve the original newline position. */
+export const projectPackageActualProof=(kind:string,alias:string,measure:string,kindGap:string,idGap:string)=>
+ `NOT EXISTS(SELECT 1 FROM staff_project_package_actuals actual WHERE actual.source_kind='${kind}'${kindGap}AND actual.source_id=${alias}.id${idGap}AND actual.source_version=${alias}.version AND actual.company_id=${alias}.company_id AND actual.project_id=${alias}.project_id AND actual.${measure}=${alias}.${measure})`;
 export const projectPackageSettlementSources={
  projects:projectRowsSql,members:`${tableRowsSql}staff_project_members`,milestones:`${tableRowsSql}staff_project_milestones`,
  workLogs:`${tableRowsSql}staff_project_work_logs`,costs:`${tableRowsSql}staff_project_cost_allocations`,actuals:`${tableRowsSql}staff_project_package_actuals`,handoffs:`${tableRowsSql}staff_project_handoffs`,
@@ -64,8 +71,7 @@ export async function projectPackageObligations(owner:PostgresDatabase,database:
  AND command.actor_id=event.actor_id AND command.authority_json::jsonb->>'companyId'=l.company_id
  AND command.result_json::jsonb->>'id'=l.id AND command.result_json::jsonb->>'version'=l.version::text
  AND command.result_json::jsonb->>'state'=l.state WHERE event.work_log_id=l.id AND event.work_log_version=l.version AND event.action=l.state)
- OR (l.state='approved' AND NOT EXISTS(SELECT 1 FROM staff_project_package_actuals actual WHERE actual.source_kind='work_log' AND actual.source_id=l.id
- AND actual.source_version=l.version AND actual.company_id=l.company_id AND actual.project_id=l.project_id AND actual.minutes=l.minutes))
+ OR (l.state='approved' AND ${projectPackageActualProof('work_log','l','minutes',' ','\n ')})
  FROM staff_project_work_logs l CROSS JOIN scope LEFT JOIN projects p ON p.id=l.project_id WHERE scope.is_base AND l.company_id=scope.company_id
  UNION ALL SELECT 'cost-allocation',c.id,c.version,c.state,p.id IS NULL OR c.state='draft' OR NOT EXISTS
  (SELECT 1 FROM staff_project_cost_allocation_events event JOIN command_receipts command ON command.record_id=c.id
@@ -73,8 +79,7 @@ export async function projectPackageObligations(owner:PostgresDatabase,database:
  AND command.actor_id=event.actor_id AND command.authority_json::jsonb->>'companyId'=c.company_id
  AND command.result_json::jsonb->>'id'=c.id AND command.result_json::jsonb->>'version'=c.version::text
  AND command.result_json::jsonb->>'state'=c.state WHERE event.allocation_id=c.id AND event.allocation_version=c.version AND event.action=c.state)
- OR (scope.is_base AND c.state='approved' AND NOT EXISTS(SELECT 1 FROM staff_project_package_actuals actual WHERE actual.source_kind='cost_allocation'
- AND actual.source_id=c.id AND actual.source_version=c.version AND actual.company_id=c.company_id AND actual.project_id=c.project_id AND actual.amount_minor=c.amount_minor))
+ OR (scope.is_base AND c.state='approved' AND ${projectPackageActualProof('cost_allocation','c','amount_minor','\n ',' ')})
  FROM staff_project_cost_allocations c CROSS JOIN scope LEFT JOIN projects p ON p.id=c.project_id WHERE c.company_id=scope.company_id
  UNION ALL SELECT 'package-actual',a.id,a.source_version,a.source_kind,p.id IS NULL OR m.id IS NULL OR m.project_id<>a.project_id OR m.company_id<>a.company_id
  OR (a.source_kind='work_log' AND NOT EXISTS(SELECT 1 FROM staff_project_work_logs l WHERE l.id=a.source_id AND l.project_id=a.project_id AND l.company_id=a.company_id AND l.version=a.source_version AND l.state='approved' AND l.minutes=a.minutes))
