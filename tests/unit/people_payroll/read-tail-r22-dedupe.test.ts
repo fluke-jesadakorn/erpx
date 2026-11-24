@@ -85,6 +85,6 @@ describe('People Payroll read-tail r22 byte-identical / parameterized family ded
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1491);
-    expect(total).toBe(1351);
+    expect(total).toBe(1344);
   });
 });

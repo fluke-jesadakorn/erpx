@@ -1,3 +1,4 @@
+import {ppRd38SinglePredTail} from './pp-read-tail-r38-sources';
 import {ppRd36ThreePred} from './pp-read-tail-r36-sources';
 import { PP_RD23_HR_ENGAGEMENTS_ID_COMPANY_EXISTS, PP_RD23_LEAVE_TYPES_ID_COMPANY_EXISTS } from './pp-read-tail-r23-sources';
 import { ppRd27LeaveRequestListSql, ppRd27IdByIdCompanySql } from './pp-read-tail-r27-sources';
@@ -237,7 +238,7 @@ function serviceContext(provided?: SqlDatabase,providedOwned=false): LeaveSelfSe
                 version: number;
                 effective_from: string;
                 effective_to: string | null;
-            }>(database, 'SELECT id,name,version,effective_from,effective_to FROM leave_policy_versions WHERE company_id=? ORDER BY name,version DESC', companyId);
+            }>(database, ppRd38SinglePredTail('id,name,version,effective_from,effective_to', 'leave_policy_versions', 'company_id', ' ORDER BY name,version DESC'), companyId);
         },
         readLeaveAdministrationTypespoliciescalendarsengagementsassignmentseligibilities3(companyId: string) {
             return rows<{

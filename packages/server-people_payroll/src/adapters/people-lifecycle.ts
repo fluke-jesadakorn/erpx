@@ -1,3 +1,4 @@
+import {ppRd38SinglePredTail} from './pp-read-tail-r38-sources';
 import {ppRd36SinglePred, ppRd36ThreePred, ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
 import { PP_RD23_HR_ENGAGEMENTS_ACTIVE_FOR_PERSON_NOT_EXISTS } from './pp-read-tail-r23-sources';
 import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
@@ -89,14 +90,14 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
         },
         readPeopleLifecycleDataPositions(...args) { return peopleLifecycleOrganizationFacts(database, client).readPeopleLifecycleDataPositions(...args); },
         readPeopleLifecycleDataAllPackages(companyId: string) {
-            return database.prepare("SELECT * FROM people_access_packages WHERE company_id=? ORDER BY definition->>'name',id")
+            return database.prepare(ppRd38SinglePredTail('*', 'people_access_packages', 'company_id', " ORDER BY definition->>'name',id"))
                 .bind(companyId)
                 .all<AccessPackage>();
         },
         readPeopleLifecycleDataCases(...args) { return peopleLifecycleIdentityAccessFacts(database, client).readPeopleLifecycleDataCases(...args); },
         readPeopleLifecycleDataTasks(companyId: string, hrView: boolean) {
             return database.prepare(hrView
-                ? "SELECT * FROM people_preparation_tasks WHERE company_id=? ORDER BY updated_at DESC,id"
+                ? ppRd38SinglePredTail('*', 'people_preparation_tasks', 'company_id', ' ORDER BY updated_at DESC,id')
                 : "SELECT id,position_id,case_id,kind,title,status,assignee_id,version,updated_at,application_id,clearance_type FROM people_preparation_tasks WHERE company_id=? AND (clearance_type IS NULL OR clearance_type='directory') ORDER BY updated_at DESC,id")
                 .bind(companyId)
                 .all<PreparationTask>();

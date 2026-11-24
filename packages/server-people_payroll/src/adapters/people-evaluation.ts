@@ -1,3 +1,4 @@
+import { ppRd38SinglePredTail } from './pp-read-tail-r38-sources';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
 import { ppRd31StatusGuard } from './pp-read-tail-r31-sources';
@@ -54,7 +55,7 @@ function application(provided?: SqlDatabase) {
         stageSaveEvaluationDefinitionEffect2(value: string, userId: string, reason: string, now: number, id: string) { return nativePpStatement('people_eval_stmt_1').bind(value, userId, reason, now, id); },
         stageSaveEvaluationDefinitionEffect3(id: string, companyId: string, kind: "skill" | "benchmark" | "policy" | "role" | "band" | "cycle", value: string, userId: string, userId2: string, reason: string, now: number, now2: number) { return nativePpStatement('people_eval_stmt_2').bind(id, companyId, kind, value, userId, userId2, reason, now, now2); },
         readEvaluationWorkspaceDefinitions(companyId: string) {
-            return database.prepare("SELECT id,kind,version,payload_json,updated_at FROM hr_evaluation_definitions WHERE company_id=? ORDER BY kind,id").bind(companyId).all<{
+            return database.prepare(ppRd38SinglePredTail("id,kind,version,payload_json,updated_at", "hr_evaluation_definitions", "company_id", " ORDER BY kind,id")).bind(companyId).all<{
                 id: string;
                 kind: DefinitionKind;
                 version: number;
