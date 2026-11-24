@@ -18,7 +18,10 @@ import {createReleaseAcceptanceApplication,type ReleaseRepository} from "@erpx/s
 import type {ReleaseRow,ReviewRow} from "@erpx/server-platform_administration/domain/release-acceptance";
 import { nativeReleaseEvents } from '@erpx/server-collaboration/adapters/native-release-events';
 
-
+/** Code-owned guard SQL repeated across release command steps. Kept here once so
+ * owner guards never repeat the same fixed statement in every command step. */
+export const RELEASE_VERSION_GUARD_SQL = 'EXISTS(SELECT 1 FROM company_release_acceptances WHERE company_id=? AND id=? AND version=? AND revoked_at IS NULL)';
+export const RELEASE_ROW_LOCK_SQL = 'SELECT id FROM company_release_acceptances WHERE company_id=? AND id=? FOR UPDATE';
 
 /** Code-owned SQL expressions only. Used by owner, API, queue and scheduled guards. */
 
@@ -65,8 +68,8 @@ function repository(db:SqlDatabase,companyId:string,work?:WorkContext):ReleaseRe
  review:async(command,row,facts)=>{const {key,operation,id,input}=command,{inputs,scope,version,now}=facts,a=workActor(),actor=a,criterion={permission:facts.permission};return executeCommand(db, actor, key, operation, input, id, version, { id, version, criterionId: input.criterionId, state: input.state }, [
     authorityGuard(db, key, actor, criterion.permission),
     ...(await inputsGuard(db, actor, key, inputs.configurationRevision, inputs.setupVersion, scope)),
-    db.prepare('SELECT id FROM company_release_acceptances WHERE company_id=? AND id=? FOR UPDATE').bind(actor.companyId, id),
-    assertion(db, key, 'release-version', 'EXISTS(SELECT 1 FROM company_release_acceptances WHERE company_id=? AND id=? AND version=? AND revoked_at IS NULL)', [actor.companyId, id, input.expectedVersion]),
+    db.prepare(RELEASE_ROW_LOCK_SQL).bind(actor.companyId, id),
+    assertion(db, key, 'release-version', RELEASE_VERSION_GUARD_SQL, [actor.companyId, id, input.expectedVersion]),
     assertion(db, key, 'release-latest', 'EXISTS(SELECT 1 FROM company_release_acceptances WHERE company_id=? AND id=? AND id=(SELECT latest.id FROM company_release_acceptances latest WHERE latest.company_id=? AND latest.scope_version=? ORDER BY latest.created_at DESC,latest.id DESC LIMIT 1))', [actor.companyId, id, actor.companyId, scope]),
     assertion(db, key, 'release-independent', 'NOT iam_same_person(?,?,?)', [actor.userId, row.requested_by, actor.companyId]),
     await nativeOwnerWrite('pl_release_gate_review_upsert',[
@@ -77,8 +80,8 @@ function repository(db:SqlDatabase,companyId:string,work?:WorkContext):ReleaseRe
   ]);},
  revoke:async(command,facts)=>{const {key,operation,id,input}=command,{version,now}=facts,a=workActor(),actor=a;return executeCommand(db, actor, key, operation, input, id, version, { id, version, state: 'pending' as const }, [
     authorityGuard(db, key, actor, 'organization.manage'),
-    db.prepare('SELECT id FROM company_release_acceptances WHERE company_id=? AND id=? FOR UPDATE').bind(actor.companyId, id),
-    assertion(db, key, 'release-version', 'EXISTS(SELECT 1 FROM company_release_acceptances WHERE company_id=? AND id=? AND version=? AND revoked_at IS NULL)', [actor.companyId, id, input.expectedVersion]),
+    db.prepare(RELEASE_ROW_LOCK_SQL).bind(actor.companyId, id),
+    assertion(db, key, 'release-version', RELEASE_VERSION_GUARD_SQL, [actor.companyId, id, input.expectedVersion]),
     await nativeOwnerWrite('pl_release_revoke',[now,version,now,actor.companyId,id],`pl-revoke:${key}`,{companyId:actor.companyId,now},()=>db.prepare(NATIVE_OWNER_WRITE_NOOP_SQL)),
     await nativeReleaseEvents(db).revoked({ key, companyId: actor.companyId, releaseId: id, version, userId: actor.userId, detail: JSON.stringify(input), now }),
   ]);},
@@ -89,7 +92,7 @@ function repository(db:SqlDatabase,companyId:string,work?:WorkContext):ReleaseRe
   targetId:id,expectedTargetVersion:input.expectedVersion,commandId:key,bindingId:`${id}:evidence:${version}`,
  });return {commit:async now=>executeCommand(db,actor,key,operation,input,id,version,{id,version,manifest:prepared.manifest},[
   authorityGuard(db,key,actor,'organization.manage'),
-  assertion(db,key,'release-evidence-current','EXISTS(SELECT 1 FROM company_release_acceptances WHERE company_id=? AND id=? AND version=? AND revoked_at IS NULL)',[actor.companyId,id,input.expectedVersion]),
+  assertion(db,key,'release-evidence-current',RELEASE_VERSION_GUARD_SQL,[actor.companyId,id,input.expectedVersion]),
   ...prepared.guards,
   await nativeOwnerWrite('pl_release_version_step',[version,now,actor.companyId,id],`pl-version:${key}`,{companyId:actor.companyId,now},()=>db.prepare(NATIVE_OWNER_WRITE_NOOP_SQL)),
   ...prepared.steps,
