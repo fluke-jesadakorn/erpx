@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10413,
+    "revision": 10415,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -162370,7 +162370,7 @@
         "owner": "assets",
         "title": "assets TS read tail native cutover (round 25)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -162382,22 +162382,37 @@
         "resources": [
           "owner:assets"
         ],
-        "claim": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMast7",
-          "claimedAt": "2026-11-24T07:34:15.904Z",
-          "heartbeatAt": "2026-11-24T07:34:15.904Z",
-          "expiresAt": "2026-11-24T08:04:15.904Z",
-          "generation": 166
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-assets/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ce010a497",
+            "owner": "assets",
+            "before": 21,
+            "after": 20,
+            "note": "Field service attachment image fallback removed in favor of native RD_FS_ASSET_ATTACHMENT_IMAGE; binds and mount transports untouched."
+          },
+          {
+            "command": "vitest assets native transports (46) + tsc root/tests",
+            "result": "passed",
+            "sourceSha": "ce010a497"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=21.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated at 20; residual blocked with evidence",
+        "handoff": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMast7",
+          "at": "2026-11-24T07:45:36.643Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Integrated at 20; residual blocked with evidence"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -162865,17 +162880,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 27,
+        "in_progress": 26,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 1008,
+        "blocked": 1009,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 166,
-    "updatedAt": "2026-11-24T07:45:17.918Z",
+    "updatedAt": "2026-11-24T07:45:36.652Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
