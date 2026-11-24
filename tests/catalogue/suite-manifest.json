@@ -13060,6 +13060,31 @@
       }
     },
     {
+      "lane": "unit",
+      "owner": "crm",
+      "modules": [
+        "crm"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "CRM native image witness must stay byte-identical across account and opportunity."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-crm"
+      ],
+      "id": "crm.attachment-native-image-dedupe.unit",
+      "files": [
+        "tests/unit/crm/attachment-native-image-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "crm.crm.integration",
       "lane": "integration",
       "owner": "crm",
@@ -61847,6 +61872,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "people_payroll",
+      "modules": [
+        "people_payroll"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Payroll r26 read families must stay byte-identical."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-people_payroll"
+      ],
+      "id": "people_payroll.read-tail-r26-dedupe.unit",
+      "files": [
+        "tests/unit/people_payroll/read-tail-r26-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "people_payroll.retirement.integration",
       "lane": "integration",
       "owner": "people_payroll",
@@ -67283,6 +67333,31 @@
       "id": "pms.read-tail-r17-dedupe.unit",
       "files": [
         "tests/unit/pms/pms-read-tail-r17-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PMS booking payment point read must stay one byte-identical literal."
+      },
+      "apps": "booking",
+      "packages": [
+        "@erpx/server-pms"
+      ],
+      "id": "pms.read-tail-r18-dedupe.unit",
+      "files": [
+        "tests/unit/pms/pms-read-tail-r18-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
