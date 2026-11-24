@@ -1,7 +1,7 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { type RecurrenceRule } from "@erpx/feature-work_projection/lib/calendar-recurrence";
-import { occurrenceExceptionPointSql } from './read-tail-sql';
+import { occurrenceExceptionPointSql, appointmentAttendeeSeriesSql } from './read-tail-sql';
 
 export const occurrenceResponseSql="SELECT response FROM calendar_occurrence_responses WHERE appointment_id=? AND company_id=? AND occurrence_key=? AND user_id=?";
 
@@ -45,12 +45,10 @@ export function calendarAvailabilityWorkProjectionFacts(db: SqlDatabase) {
             value2: number;
             value3: string[];
         }) => {
-            return db.prepare(`SELECT a.id,a.starts_at,a.ends_at,a.timezone,a.status,a.all_day,
-    s.frequency,s.interval_count,s.weekdays,s.end_kind,s.occurrence_count,s.until_date,t.user_id,t.response
-    FROM calendar_appointments a JOIN calendar_attendees t ON t.appointment_id=a.id AND t.company_id=a.company_id
-    LEFT JOIN calendar_series s ON s.appointment_id=a.id
-    WHERE a.company_id=? AND a.status='scheduled' AND a.starts_at<? AND t.response!='declined'
-    AND t.user_id IN (${facts.value3.map(() => "?").join(",")})`).bind(facts.value1, facts.value2, ...facts.value3).all<{
+            return db.prepare(appointmentAttendeeSeriesSql(
+                'a.id,a.starts_at,a.ends_at,a.timezone,a.status,a.all_day,s.frequency,s.interval_count,s.weekdays,s.end_kind,s.occurrence_count,s.until_date,t.user_id,t.response',
+                `a.company_id=? AND a.status='scheduled' AND a.starts_at<? AND t.response!='declined' AND t.user_id IN (${facts.value3.map(() => "?").join(",")})`
+            )).bind(facts.value1, facts.value2, ...facts.value3).all<{
                 id: string;
                 starts_at: number;
                 ends_at: number;

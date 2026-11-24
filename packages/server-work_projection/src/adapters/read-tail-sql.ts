@@ -36,3 +36,6 @@ export const dailyPlanSql = (columns: string, extra = '') =>
 /** Calendar source image snapshot by id and company. The projection expression and source table are the only variation. */
 export const calendarImageSql = (expression: string, table: 'calendar_announcements' | 'calendar_appointments') =>
     `SELECT ${expression} image FROM ${table} row WHERE id=? AND company_id=?`;
+/** Appointment/attendee/series joined range read. The projection columns and predicates are the only variation between the availability and reminder fact units; the join shape and series column set are shared. */
+export const appointmentAttendeeSeriesSql = (columns: string, where: string) =>
+    `SELECT ${columns} FROM calendar_appointments a JOIN calendar_attendees t ON t.appointment_id=a.id AND t.company_id=a.company_id LEFT JOIN calendar_series s ON s.appointment_id=a.id WHERE ${where}`;
