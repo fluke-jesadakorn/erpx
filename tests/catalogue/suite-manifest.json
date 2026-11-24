@@ -4712,6 +4712,33 @@
       ]
     },
     {
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Collaboration social purchase actor, post and messaging member reads must stay byte-identical."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-collaboration"
+      ],
+      "id": "collaboration.read-tail-r16-dedupe.unit",
+      "files": [
+        "tests/unit/collaboration/read-tail-r16-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "collaboration.rust-collaboration-pg-postgres.integration",
       "lane": "integration",
       "owner": "collaboration",

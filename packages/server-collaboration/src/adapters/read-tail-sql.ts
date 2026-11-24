@@ -19,3 +19,6 @@ export const messagingRoomTeamId=`(SELECT team_id FROM messaging_rooms WHERE id=
 export const socialAiMonthlyUsageCount=`SELECT count(*) FROM social_ai_usage WHERE company_id=? AND month=?`;
 export const publishedCommentRead=`SELECT 1 FROM social_comments WHERE id=? AND post_id=? AND state='published'`;
 export const socialPostDraftById=`SELECT * FROM social_post_drafts WHERE id=? AND company_id=?`;
+export const socialPurchaseActorFeature=(predicate:string)=>`SELECT 1 FROM social_purchase_actor WHERE ${predicate}`;
+export const socialPostByIdPredicate=(predicate:string)=>`SELECT 1 FROM social_posts p WHERE p.id=? AND p.company_id=? AND ${predicate}`;
+export const messagingMemberIds=(table:string,column:string)=>`SELECT user_id FROM ${table} WHERE ${column}=?`;

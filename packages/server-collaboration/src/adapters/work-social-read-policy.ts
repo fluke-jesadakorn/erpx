@@ -23,7 +23,7 @@ import {workSocialNativePostPredicate,workSocialUnresolvedPostPredicate,operatio
 import {sourceAccessSql} from '@erpx/server-collaboration/public/social-source-policy';
 
 import{units}from '@erpx/server-collaboration/adapters/work-social-unit-state';
-import {workforceActorScopeExists,jsonbTextIds} from './read-tail-sql';
+import {workforceActorScopeExists,jsonbTextIds,socialPurchaseActorFeature} from './read-tail-sql';
 type Reader=Pick<StaffActor,'companyId'|'userId'>&Partial<StaffActor>;
 type ReadScope={prefix:string;where:string;args:SqlValue[]};
 export const actorKey=(actor:StaffActor)=>JSON.stringify([actor.companyId,actor.branchId,actor.departmentId,actor.userId,actor.assignmentId,actor.role,actor.authority??null,actor.iam??null]);
@@ -63,8 +63,8 @@ export async function workSocialPresentation(database:SqlDatabase,actor:StaffAct
  const accesses=await readPurchasedAccesses(database,mode,actor.companyId,['work.social','work.actions']);
  const actualRevision=mode==='disabled'?(await readPurchasedAccesses(database,'enforced',actor.companyId,['pms.front-desk']))['pms.front-desk'].revision:accesses['work.social'].revision;
  const scope=actorScope(actor),revision=createHash('sha256').update(JSON.stringify([actualRevision,context])).digest('hex');
- const base=mode==='enforced'?`EXISTS(SELECT 1 FROM social_purchase_actor WHERE ${scheduledFeaturePredicate('social_purchase_actor.company_id','collaboration')})`:'TRUE';
- const taskReady=Boolean(await database.prepare(`${scope.prefix}SELECT 1 FROM social_purchase_actor WHERE ${scheduledFeaturePredicate('social_purchase_actor.company_id','operations')}`).bind(...scope.args).first());
+ const base=mode==='enforced'?`EXISTS(${socialPurchaseActorFeature(scheduledFeaturePredicate('social_purchase_actor.company_id','collaboration'))})`:'TRUE';
+ const taskReady=Boolean(await database.prepare(`${scope.prefix}${socialPurchaseActorFeature(scheduledFeaturePredicate('social_purchase_actor.company_id','operations'))}`).bind(...scope.args).first());
  const active=Boolean(await database.prepare(`${scope.prefix}SELECT 1 WHERE ${base}`).bind(...scope.args).first());
  const minimal=(value:typeof accesses[string])=>({newWork:active&&value.newWork,settleExisting:active&&value.settleExisting,history:active&&value.history,revision});
  const purchase=mode==='enforced'?minimal(accesses['work.social']):undefined;

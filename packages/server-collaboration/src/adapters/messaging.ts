@@ -21,7 +21,7 @@ import { ApiError } from '@erpx/server-runtime/public/http';
 import { createMessagingApplication, type MessagingRepository } from '@erpx/server-collaboration/application/messaging';
 import { nativeOwnerWrite } from '@erpx/server-collaboration/adapters/native-owner-write';
 import {messagingPurchaseControls,requireMessagingCurrentAccount,requireMessagingPurchase,withMessagingPurchasedCommand} from '@erpx/server-collaboration/adapters/messaging-purchases';
-import {messagingTeamMemberExists} from './read-tail-sql';
+import {messagingTeamMemberExists,messagingMemberIds} from './read-tail-sql';
 async function inward<T>(action: () => Promise<T>) {
     try {
         return await action();
@@ -68,7 +68,7 @@ function application(db: SqlDatabase, actor: WorkContext, allowProvision=true) {
             return write('msg_channel_insert', [id, companyId, name, userId, teamId, privateRoom, now], `msg-channel:${id}`);
         }, async members(value: string, isTeam: boolean, channelTeam: string | null) {
             return db
-                .prepare(`SELECT user_id FROM ${isTeam || channelTeam ? 'messaging_team_members' : 'messaging_room_members'} WHERE ${isTeam || channelTeam ? 'team_id' : 'room_id'}=?`)
+                .prepare(messagingMemberIds(isTeam || channelTeam ? 'messaging_team_members' : 'messaging_room_members', isTeam || channelTeam ? 'team_id' : 'room_id'))
                 .bind(value)
                 .all<{
                 user_id: string;
@@ -158,7 +158,7 @@ export async function createMessagingRoom(db:SqlDatabase,actor:WorkContext,input
 export async function createMessagingTeam(db:SqlDatabase,actor:WorkContext,input:z.infer<typeof teamSchema>,key:string){return withMessagingPurchasedCommand(db,actor,{key,operation:'messaging.team-create',id:`team-${key}`,team:true,purpose:'new-work'},tx=>exposed(()=>application(tx, actor).createMessagingTeam(actor,input,key)));}
 export async function createMessagingChannel(db:SqlDatabase,actor:WorkContext,teamId:string,input:z.infer<typeof channelSchema>,key:string){return withMessagingPurchasedCommand(db,actor,{key,operation:'messaging.channel-create',id:`channel-${key}`,purpose:'new-work'},tx=>exposed(()=>application(tx, actor).createMessagingChannel(actor,teamId,input,key)));}
 export async function messagingMembers(db:SqlDatabase,actor:WorkContext,id:string,isTeam:boolean){await requireMessagingPurchase(db,actor,'history');return exposed(()=>application(db, actor).messagingMembers(actor,id,isTeam));}
-export async function manageMessaging(db:SqlDatabase,actor:WorkContext,id:string,isTeam:boolean,input:z.infer<typeof manageSchema>,key:string){return withMessagingPurchasedCommand(db,actor,{key,operation:'messaging.manage',id,team:isTeam,purpose:async tx=>{const original=await tx.prepare(`SELECT name FROM ${isTeam?'messaging_teams':'messaging_rooms'} WHERE id=? AND company_id=?`).bind(id,actor.companyId).first<{name:string}>(),members=(await tx.prepare(`SELECT user_id FROM ${isTeam?'messaging_team_members':'messaging_room_members'} WHERE ${isTeam?'team_id':'room_id'}=?`).bind(id).all<{user_id:string}>()).results.map(row=>row.user_id);return original?.name===input.name&&input.members.every(user=>members.includes(user))?'settle-existing':'new-work';}},tx=>exposed(()=>application(tx, actor).manageMessaging(actor,id,isTeam,input,key)));}
+export async function manageMessaging(db:SqlDatabase,actor:WorkContext,id:string,isTeam:boolean,input:z.infer<typeof manageSchema>,key:string){return withMessagingPurchasedCommand(db,actor,{key,operation:'messaging.manage',id,team:isTeam,purpose:async tx=>{const original=await tx.prepare(`SELECT name FROM ${isTeam?'messaging_teams':'messaging_rooms'} WHERE id=? AND company_id=?`).bind(id,actor.companyId).first<{name:string}>(),members=(await tx.prepare(messagingMemberIds(isTeam?'messaging_team_members':'messaging_room_members',isTeam?'team_id':'room_id')).bind(id).all<{user_id:string}>()).results.map(row=>row.user_id);return original?.name===input.name&&input.members.every(user=>members.includes(user))?'settle-existing':'new-work';}},tx=>exposed(()=>application(tx, actor).manageMessaging(actor,id,isTeam,input,key)));}
 export async function messagingOverview(db:SqlDatabase,actor:WorkContext){const purchase=await messagingPurchaseControls(db,actor);if(purchase&&!purchase.history)return {teams:[],rooms:[],purchase};return withMessagingPurchasedCommand(db,actor,{key:`messages-overview:${crypto.randomUUID()}`,operation:'messaging.overview',id:actor.companyId,companyScope:true,purpose:purchase?.newWork===true?'new-work':'history'},async tx=>({...await exposed(()=>application(tx, actor, purchase?.newWork!==false).messagingOverview(actor)),...(purchase?{purchase}:{})}));}
 export async function messagingHistory(db:SqlDatabase,actor:WorkContext,id:string,before?:number,after?:number){await requireMessagingPurchase(db,actor,'history');return exposed(()=>application(db, actor).messagingHistory(actor,id,before,after));}
 export async function sendMessagingMessage(db:SqlDatabase,actor:WorkContext,roomId:string,input:z.infer<typeof messageSchema>,key:string){return withMessagingPurchasedCommand(db,actor,{key,operation:'messaging.send',id:roomId,privateFiles:input.files.length>0,purpose:'new-work'},tx=>exposed(()=>application(tx, actor).sendMessagingMessage(actor,roomId,input,key)));}
