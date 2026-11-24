@@ -344,3 +344,23 @@ export const transitEventQuantitySumSql = (kind: string) =>
  *  varies; every caller keeps its own statement, binds and independent rows.
  *  The native command SQL mirror is deliberately left untouched. */
 export const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
+
+/** r47: the reservations CTE head is shared by the executive metric and
+ *  evidence reads; only the literal text is deduplicated and the head carries
+ *  zero binds. Every caller keeps its own byte-identical tail, statement and
+ *  binds. Locks, native transport, count adapters and r11-r46 helpers stay
+ *  untouched. */
+export const reservationsCteHeadSql = `WITH reservations AS (
+  ${reservedWarehouseProductQtySql}
+  FROM inventory_active_reservations GROUP BY warehouse_id,product_id
+  )`;
+/** r47: the positive marked-count EXISTS guard in the manufacturing and POS
+ *  package-obligation reads shares one byte-identical literal; only the marked
+ *  row source varies and the scope.full prefix stays outside. Every caller
+ *  keeps its own statement, binds and tail. */
+export const markedCountExistsSql = (rows: string) =>
+  `c.company_id=scope.company_id AND EXISTS(SELECT 1 FROM (${rows}) marker WHERE marker.id=c.id)`;
+/** r47: the command-receipt replay probe prefix is shared by the record-scoped
+ *  purchase probe and the unscoped initial-count probe; only the trailing
+ *  record_id and actor/company predicates vary, in their original bind order. */
+export const replayProbePrefixSql = 'SELECT 1 FROM command_receipts WHERE command_id=? AND operation=?';

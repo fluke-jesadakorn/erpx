@@ -17,15 +17,18 @@ describe('Inventory read-tail r11 byte-identical dedupe', () => {
     }
   });
 
-  test('warehouse-product sum has one owner literal and five composed callers', () => {
+  test('warehouse-product sum has one owner literal and two composed callers after r47', () => {
     const main = src('executive-main-evidence-sources.ts');
     const metric = src('executive-metric-projections.ts');
     for (const [name, text] of [['executive-main-evidence-sources.ts', main], ['executive-metric-projections.ts', metric]] as const) {
       expect(text, name).not.toContain(reservedWarehouseProductQtySql);
-      expect(text.match(/reservedWarehouseProductQtySql/g) ?? [], name).toHaveLength(name.startsWith('executive-main') ? 2 : 3);
+      // r47 folds the three inline heads into reservationsCteHeadSql; the two
+      // executive adapters no longer reference the r11 sum helper directly.
+      expect(text.match(/reservedWarehouseProductQtySql/g) ?? [], name).toHaveLength(0);
     }
     const shared = src('read-tail-sql.ts');
     expect(shared.split(reservedWarehouseProductQtySql)).toHaveLength(2);
+    expect(shared.match(/reservedWarehouseProductQtySql/g) ?? []).toHaveLength(3); // definition + r36 head + r47 head
   });
 
   test('single-count-line marker has one owner literal and four callers', () => {

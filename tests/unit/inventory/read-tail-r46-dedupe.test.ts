@@ -113,7 +113,7 @@ describe('Inventory read-tail r46 dedupe', () => {
     expect(shared).not.toMatch(lockRe);
   });
 
-  test('retirement:ts-statements KPI is 316 (strictly below r45 320)', () => {
+  test('retirement:ts-statements KPI is 314 after r47 (strictly below r46 316)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -125,7 +125,9 @@ describe('Inventory read-tail r46 dedupe', () => {
     walk(srcRoot);
     // Rank1 (-1), Rank2 (-2), Rank3 (-1) fold into shared helpers: 320 -> 316.
     // Locks, native transport, count adapters and r11-r45 helpers stay untouched.
-    expect(total).toBe(316);
-    expect(total).toBeLessThan(320);
+    // r47 folds 3 head references into 1 shared head (0 token delta), 2 marked
+    // guards and 2 replay probes into one helper each (-1 each): 316 -> 314.
+    expect(total).toBe(314);
+    expect(total).toBeLessThan(316);
   });
 });

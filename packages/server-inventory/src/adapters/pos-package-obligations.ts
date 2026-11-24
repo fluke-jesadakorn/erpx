@@ -1,7 +1,7 @@
 import {serviceInitialPhysicalStockMarkedRows} from '@erpx/server-inventory/adapters/service-initial-physical-stock-count-source-sql';
 import {posInitialPhysicalStockCountSourceRows,posInitialPhysicalStockMarkedRows} from '@erpx/server-inventory/adapters/pos-initial-physical-stock-count-source-sql';
 import {supplyInventoryTerminalReceipts} from '@erpx/server-inventory/adapters/supply-terminal-receipts';
-import {postedInitialPhysicalStockSourceSql,terminalReceiptMatchSql,sourceExistsSql,packageObligationDocumentRowsSql,packageObligationCountHeadSql,countScopeRowsSql} from './read-tail-sql';
+import {postedInitialPhysicalStockSourceSql,terminalReceiptMatchSql,sourceExistsSql,packageObligationDocumentRowsSql,packageObligationCountHeadSql,countScopeRowsSql,markedCountExistsSql} from './read-tail-sql';
 import {recordAttachmentVersionSourceReadLocks} from '@erpx/server-files/public/record-version-receipts';
 import "server-only";
 import { createHash } from "node:crypto";
@@ -35,7 +35,7 @@ ${packageObligationDocumentRowsSql(',true')}
 
     UNION ALL SELECT 'pos-initial-count',c.id,c.version,c.status,c.net_value_minor,
       NOT COALESCE(${sourceExistsSql(posInitialPhysicalStockCountSourceRows,'source','c.id','c.company_id')} AND ${terminalReceiptMatchSql(supplyInventoryTerminalReceipts,'count','c.id','c.company_id','c.status','c.version')},false)
-      FROM inventory_counts c,scope WHERE c.company_id=scope.company_id AND EXISTS(SELECT 1 FROM (${posInitialPhysicalStockMarkedRows}) marker WHERE marker.id=c.id)
+      FROM inventory_counts c,scope WHERE ${markedCountExistsSql(posInitialPhysicalStockMarkedRows)}
     UNION ALL SELECT 'pos-initial-stock',concat(stock.warehouse_id,':',stock.product_id),stock.version,'stock',stock.value_minor,stock.quantity_milli<0 OR stock.value_minor<0 FROM commerce_stock stock,scope WHERE ${postedInitialPhysicalStockSourceSql(posInitialPhysicalStockCountSourceRows,'posted')}
     ORDER BY kind,id`).bind(input.companyId).all()).results;
   return { companyId: input.companyId, packageId: input.packageId, moduleId: "inventory", observedAt: input.now,

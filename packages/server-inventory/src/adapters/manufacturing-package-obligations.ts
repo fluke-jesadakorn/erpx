@@ -9,7 +9,7 @@ import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgre
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {assertManufacturingPackageObligationSources,manufacturingPackageSettlementSources as manufacturing} from "@erpx/server-manufacturing/public/package-obligations";
-import {childJsonAggSql,childJoinJsonAggSql,postedInitialPhysicalStockSourceSql,scopeExistsSql,terminalReceiptMatchSql,sourceExistsSql,countScopeRowsSql} from './read-tail-sql';
+import {childJsonAggSql,childJoinJsonAggSql,postedInitialPhysicalStockSourceSql,scopeExistsSql,terminalReceiptMatchSql,sourceExistsSql,countScopeRowsSql,markedCountExistsSql} from './read-tail-sql';
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
 export async function lockManufacturingInventoryPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.batch(recordAttachmentVersionSourceReadLocks(database));await database.prepare("LOCK TABLE command_receipts,inventory_count_lot_lines,inventory_count_decisions,inventory_adjustment_moves,commerce_stock,inventory_lots,inventory_lot_balances,inventory_counts,inventory_count_lines,inventory_transfers,inventory_transfer_lines,inventory_transit,inventory_transit_lines,inventory_transit_events,inventory_landed_costs,inventory_landed_cost_lines IN SHARE MODE").run();sources.set(database,companyId);}
 export async function manufacturingInventoryPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
@@ -25,7 +25,7 @@ export async function manufacturingInventoryPackageObligations(owner:PostgresDat
  ${childJsonAggSql('inventory_count_decisions','event','event.count_id=c.id')},
  ${childJsonAggSql('inventory_adjustment_moves','move','move.count_id=c.id')})::text,
  NOT COALESCE(${sourceExistsSql(manufacturingInitialPhysicalStockCountSourceRows,'source','c.id','c.company_id')} AND ${terminalReceiptMatchSql(supplyInventoryTerminalReceipts,'count','c.id','c.company_id','c.status','c.version')},false)
- FROM inventory_counts c,scope WHERE scope.full AND c.company_id=scope.company_id AND EXISTS(SELECT 1 FROM (${manufacturingInitialPhysicalStockMarkedRows}) marker WHERE marker.id=c.id)
+ FROM inventory_counts c,scope WHERE scope.full AND ${markedCountExistsSql(manufacturingInitialPhysicalStockMarkedRows)}
  UNION ALL SELECT 'manufacturing-initial-stock',concat(stock.warehouse_id,':',stock.product_id),to_jsonb(stock)::text,stock.quantity_milli<0 OR stock.value_minor<0 FROM commerce_stock stock,scope WHERE scope.full AND ${postedInitialPhysicalStockSourceSql(manufacturingInitialPhysicalStockCountSourceRows,'posted')}
  UNION ALL SELECT 'transfer',t.id,to_jsonb(t)::text,true FROM inventory_transfers t,scope WHERE scope.full AND t.company_id=scope.company_id AND t.status NOT IN ('posted','cancelled','rejected')
  UNION ALL SELECT 'transit',t.id,to_jsonb(t)::text,true FROM inventory_transit t,scope WHERE scope.full AND t.company_id=scope.company_id AND t.status NOT IN ('completed','cancelled')

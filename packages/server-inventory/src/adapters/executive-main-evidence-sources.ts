@@ -3,15 +3,12 @@ import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { AvailableStockEvidenceRow, InventoryShortageEvidenceRow, InventoryMovementEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
-import { evidencePositionRowsSql, reservedWarehouseProductQtySql, stockPositionSourcesSql, inventoryMovementEvidenceRowsSql, executivePositionPointSql } from './read-tail-sql';
+import { evidencePositionRowsSql, reservationsCteHeadSql, stockPositionSourcesSql, inventoryMovementEvidenceRowsSql, executivePositionPointSql } from './read-tail-sql';
 const availableStockPositions = stockPositionSourcesSql(commerceProjectionSources.commerce_warehouses, ` AND w.status='active'
   JOIN (${commerceProjectionSources.commerce_products}) p ON p.id=s.product_id AND p.company_id=w.company_id AND p.status='active'
   LEFT JOIN reservations r ON r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id
   WHERE (?::text IS NULL OR w.branch_id=?)`);
-const inventoryShortagePositions = `WITH reservations AS (
-    ${reservedWarehouseProductQtySql}
-    FROM inventory_active_reservations GROUP BY warehouse_id,product_id
-  )
+const inventoryShortagePositions = `${reservationsCteHeadSql}
   SELECT w.id warehouse_id,p.id product_id,p.sku,p.name product_name,p.unit,w.name warehouse_name,
     COALESCE(s.quantity_milli,0)::text on_hand_milli,COALESCE(r.quantity_milli,0)::text reserved_milli,
     inventory_quarantined_quantity(w.id,p.id)::text quarantined_milli,

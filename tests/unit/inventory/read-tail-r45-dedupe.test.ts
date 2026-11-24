@@ -84,7 +84,7 @@ describe('Inventory read-tail r45 parameterized transit-event sum dedupe', () =>
     expect(shared).not.toMatch(lockRe);
   });
 
-  test('retirement:ts-statements KPI is 316 after r46 (strictly below 320)', () => {
+  test('retirement:ts-statements KPI is 314 after r47 (strictly below 316)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -98,7 +98,9 @@ describe('Inventory read-tail r45 parameterized transit-event sum dedupe', () =>
     // (-1), the three to_regclass probes into one whitelisted builder (-2) and
     // the jsonb inList fragment into one helper (-1): 320 -> 316. Locks,
     // native transport, count adapters and r11-r45 helpers stay untouched.
-    expect(total).toBe(316);
-    expect(total).toBeLessThan(320);
+    // r47 lowers the KPI to 314 with the shared head, marked-count and replay
+    // probe-prefix helpers.
+    expect(total).toBe(314);
+    expect(total).toBeLessThan(316);
   });
 });

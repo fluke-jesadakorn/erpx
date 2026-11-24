@@ -6,7 +6,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
-import { reservedWarehouseProductQtySql } from './read-tail-sql';
+import { reservationsCteHeadSql } from './read-tail-sql';
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const spec = specs[id];
     let sql = '', values: unknown[] = [];
@@ -20,10 +20,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
             : breakdown === "warehouse" ? "w.name"
                 : "p.sku||' · '||p.name||' · '||w.name";
         const groupId = breakdown === "product" ? "p.id" : breakdown === "warehouse" ? "w.id" : "p.id||':'||w.id";
-        sql = `WITH reservations AS (
-        ${reservedWarehouseProductQtySql}
-        FROM inventory_active_reservations GROUP BY warehouse_id,product_id
-      ), positions AS (
+        sql = `${reservationsCteHeadSql}, positions AS (
         SELECT w.id warehouse_id,w.name warehouse_name,w.branch_id,p.id product_id,p.sku,p.name product_name,p.unit,
           ${groupId} group_id,${label} group_label,
           GREATEST(s.quantity_milli::numeric-GREATEST(COALESCE(r.quantity_milli,0),inventory_quarantined_quantity(w.id,p.id)::numeric),0) available_milli
@@ -41,10 +38,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     if (id === "inventory-shortages") {
         const label = breakdown === "warehouse" ? "w.name" : breakdown === "product" ? "p.sku||' · '||p.name" : "'Inventory shortages'";
         const groupId = breakdown === "warehouse" ? "w.id" : breakdown === "product" ? "p.id" : "'all'";
-        sql = `WITH reservations AS (
-        ${reservedWarehouseProductQtySql}
-        FROM inventory_active_reservations GROUP BY warehouse_id,product_id
-      ), positions AS (
+        sql = `${reservationsCteHeadSql}, positions AS (
         SELECT r.id,r.version,w.id warehouse_id,w.name warehouse_name,p.id product_id,p.sku,p.name product_name,p.unit,
           r.current_reorder_point_milli::numeric reorder_point_milli,
           GREATEST(COALESCE(s.quantity_milli,0)::numeric-GREATEST(COALESCE(res.quantity_milli,0),inventory_quarantined_quantity(w.id,p.id)::numeric),0) available_milli,

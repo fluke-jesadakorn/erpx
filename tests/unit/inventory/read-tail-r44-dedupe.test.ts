@@ -141,8 +141,9 @@ describe('Inventory read-tail r44 head dedupe', () => {
     // countAuthorityScopeSql folds two into one (322 -> 321). Locks, native
     // transport, count adapters and r11-r43 helpers stay untouched.
     // r45 folds two transit-event quantity sums into one helper (321 -> 320);
-    // r46 folds three families into shared helpers (320 -> 316).
-    expect(total).toBeLessThanOrEqual(316);
+    // r46 folds three families into shared helpers (320 -> 316); r47 folds the
+    // head, marked-count and replay-probe families (316 -> 314).
+    expect(total).toBeLessThanOrEqual(314);
     expect(total).toBeLessThan(325);
   });
 });
