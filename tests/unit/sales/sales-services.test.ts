@@ -459,6 +459,17 @@ test('Sales read-tail cross-file prefixes share one byte-identical SQL constant 
  }
 });
 
+test('Sales metric CRM membership EXISTS reuses one alias-parameterized SQL generator with byte-identical output',async()=>{
+ const {readFile}=await import('node:fs/promises'),ts=await import('typescript'),source=await readFile(new URL("../../../packages/server-sales/src/adapters/metric-purchases.ts",import.meta.url),'utf8');
+ const file=ts.createSourceFile('metric-purchases.ts',source,ts.ScriptTarget.Latest,true,ts.ScriptKind.TS),decls=file.statements.filter(ts.isVariableStatement).flatMap(s=>[...s.declarationList.declarations]).filter(d=>d.name.getText(file)==='crmAssignmentExists');
+ expect(decls).toHaveLength(1);
+ const code=ts.transpileModule(`const ${decls[0].getText(file)};`,{compilerOptions:{target:ts.ScriptTarget.ES2022,module:ts.ModuleKind.CommonJS}}).outputText;
+ const gen=new Function(`${code}\nreturn crmAssignmentExists;`)() as (alias?:string)=>string;
+ expect(gen()).toBe(`EXISTS(SELECT 1 FROM assignments WHERE id=? AND (jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array('crm'::text)))`);
+ expect(gen('selected')).toBe(`EXISTS(SELECT 1 FROM assignments selected WHERE selected.id=? AND (jsonb_array_length(selected.modules_json::jsonb)=0 OR selected.modules_json::jsonb @> jsonb_build_array('crm'::text)))`);
+ expect(source.match(/crmAssignmentExists/g)).toHaveLength(3);
+});
+
 test('final-root Sales projections reuse the one owner fixed SQL for notices and follow-ups',async()=>{
  const {readFile}=await import('node:fs/promises'),base=new URL("../../../packages/server-sales/src/adapters/",import.meta.url);
  const finalRoot=await readFile(new URL("final-root-owner-projection-sources.ts",base),'utf8'),commercial=await readFile(new URL("commercial-owner-projection-sources.ts",base),'utf8');
