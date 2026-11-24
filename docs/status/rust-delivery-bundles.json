@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7871,
+    "revision": 7879,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -132141,7 +132141,7 @@
         "owner": "finance",
         "title": "finance TS read tail native cutover (r8)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -132153,22 +132153,42 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG61fin",
-          "claimedAt": "2026-11-24T01:10:25.892Z",
-          "heartbeatAt": "2026-11-24T01:16:16.832Z",
-          "expiresAt": "2026-11-24T01:46:16.832Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "9598831be",
+            "owner": "finance",
+            "before": 2266,
+            "after": 2262,
+            "note": "Five active chart base currency reads share one literal; no FOR SHARE variant adopted."
+          },
+          {
+            "command": "vitest finance read plan (6)",
+            "result": "passed",
+            "sourceSha": "9598831be"
+          },
+          {
+            "command": "tsc finance",
+            "result": "passed",
+            "sourceSha": "9598831be"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "TS-only dedupe if available; if none safe, report blocked with evidence. BEFORE=2266.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG61fin",
+          "at": "2026-11-24T01:18:25.995Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -132453,7 +132473,7 @@
         "owner": "files",
         "title": "files TS read tail native cutover (round 2)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -132466,22 +132486,37 @@
         "resources": [
           "owner:files"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG68fil",
-          "claimedAt": "2026-11-24T01:13:57.659Z",
-          "heartbeatAt": "2026-11-24T01:16:16.832Z",
-          "expiresAt": "2026-11-24T01:46:16.832Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "9598831be",
+            "owner": "files",
+            "before": 378,
+            "after": 377,
+            "note": "Orphan commercial owner projection adapter, barrel and package exports deleted; zero live consumers."
+          },
+          {
+            "command": "structure:check + test:catalogue (1379) + tsc files",
+            "result": "passed",
+            "sourceSha": "9598831be"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Delete the orphan commercial-owner-projection-sources adapter + public barrel + package.json export entries (no live consumers), or dedupe attachment-purpose/production-command pair. BEFORE=378.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG68fil",
+          "at": "2026-11-24T01:18:00.886Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -132879,6 +132914,80 @@
         "nextAction": "Next: signerAccess UNION ALL reads or EXISTS-with-JOIN variants; dedupe byte-identical subsets only. BEFORE=307.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.files.read-tail-r3",
+        "goalId": "G4",
+        "owner": "files",
+        "title": "files TS read tail native cutover (r3)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "packages/server-files/package.json",
+          "tests/unit/files/**",
+          "tests/integration/files/**"
+        ],
+        "resources": [
+          "owner:files"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG80fil",
+          "claimedAt": "2026-11-24T01:18:26.212Z",
+          "heartbeatAt": "2026-11-24T01:18:26.212Z",
+          "expiresAt": "2026-11-24T01:48:26.212Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: scan for a safe owner-local dedupe/delete; if none, report blocked with evidence. BEFORE=377.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.read-tail-r9",
+        "goalId": "G4",
+        "owner": "finance",
+        "title": "finance TS read tail native cutover (r9)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "packages/server-finance/package.json",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG81fin",
+          "claimedAt": "2026-11-24T01:18:26.437Z",
+          "heartbeatAt": "2026-11-24T01:18:26.437Z",
+          "expiresAt": "2026-11-24T01:48:26.437Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: scan for a safe owner-local dedupe/delete; if none, report blocked with evidence. BEFORE=2262.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -132887,7 +132996,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 798,
+      "totalPackets": 800,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -132895,13 +133004,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 423,
+        "blocked": 425,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:17:45.449Z",
+    "updatedAt": "2026-11-24T01:18:26.441Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
