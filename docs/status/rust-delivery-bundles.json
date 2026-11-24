@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12382,
+    "revision": 12384,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183534,6 +183534,42 @@
         "nextAction": "attachment_events head (-1): 242->241. BEFORE=242.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.read-tail-r51",
+        "goalId": "G4",
+        "owner": "finance",
+        "title": "finance ordered-list families",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n73",
+          "claimedAt": "2026-11-24T15:39:56.458Z",
+          "heartbeatAt": "2026-11-24T15:39:56.458Z",
+          "expiresAt": "2026-11-24T16:09:56.458Z",
+          "generation": 170
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Ordered-list company variants via r42 reuse (-17) and active account projection (-5): 1805->1783.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -183542,11 +183578,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1793,
+      "totalPackets": 1794,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 11,
+        "in_progress": 12,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -183556,7 +183592,7 @@
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T15:38:28.522Z",
+    "updatedAt": "2026-11-24T15:39:56.465Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
