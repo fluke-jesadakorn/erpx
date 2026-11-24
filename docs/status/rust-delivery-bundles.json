@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12221,
+    "revision": 12224,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261124-c",
       "agentId": "lead-opencode",
       "startedAt": "2026-11-24T11:32:49.939Z",
-      "heartbeatAt": "2026-11-24T13:56:34.987Z",
-      "expiresAt": "2026-11-24T14:26:34.987Z",
+      "heartbeatAt": "2026-11-24T14:04:54.024Z",
+      "expiresAt": "2026-11-24T14:34:54.024Z",
       "generation": 169,
       "tokenHash": "eac3f45906eed752625f2bb4dc251a340a6a580a6b89a15f666d16287f0d616e"
     },
@@ -180821,7 +180821,7 @@
         "owner": "quality",
         "title": "quality projection, point and evidence heads",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -180832,22 +180832,37 @@
         "resources": [
           "owner:quality"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n16",
-          "claimedAt": "2026-11-24T13:41:24.904Z",
-          "heartbeatAt": "2026-11-24T13:56:34.987Z",
-          "expiresAt": "2026-11-24T14:26:34.987Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-quality/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "6dba1eb47",
+            "owner": "quality",
+            "before": 57,
+            "after": 34,
+            "note": "Closed projections, point reads and evidence heads route through qualitySourceArmHead/evidenceHead; LOCK TABLE/native/EXISTS guards untouched."
+          },
+          {
+            "command": "vitest quality (144) + scoped tsc + 15/15 golden diff",
+            "result": "passed",
+            "sourceSha": "6dba1eb47"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "P closed projections via qualitySourceArmHead (-6), Q point reads (-5), R evidence heads via exported evidenceHead (-9): 57->37.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n16",
+          "at": "2026-11-24T14:05:44.660Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -181424,8 +181439,8 @@
           "runId": "run-20261124-c",
           "agentId": "wH4n28",
           "claimedAt": "2026-11-24T13:49:06.419Z",
-          "heartbeatAt": "2026-11-24T13:56:34.987Z",
-          "expiresAt": "2026-11-24T14:26:34.987Z",
+          "heartbeatAt": "2026-11-24T14:04:54.024Z",
+          "expiresAt": "2026-11-24T14:34:54.024Z",
           "generation": 169
         },
         "baseSha": null,
@@ -181509,8 +181524,8 @@
           "runId": "run-20261124-c",
           "agentId": "wH4n30",
           "claimedAt": "2026-11-24T13:54:22.745Z",
-          "heartbeatAt": "2026-11-24T13:56:34.987Z",
-          "expiresAt": "2026-11-24T14:26:34.987Z",
+          "heartbeatAt": "2026-11-24T14:04:54.024Z",
+          "expiresAt": "2026-11-24T14:34:54.024Z",
           "generation": 169
         },
         "baseSha": null,
@@ -181679,8 +181694,8 @@
           "runId": "run-20261124-c",
           "agentId": "wH4n34",
           "claimedAt": "2026-11-24T13:58:02.383Z",
-          "heartbeatAt": "2026-11-24T13:58:02.383Z",
-          "expiresAt": "2026-11-24T14:28:02.383Z",
+          "heartbeatAt": "2026-11-24T14:04:54.024Z",
+          "expiresAt": "2026-11-24T14:34:54.024Z",
           "generation": 169
         },
         "baseSha": null,
@@ -181714,8 +181729,8 @@
           "runId": "run-20261124-c",
           "agentId": "wH4n35",
           "claimedAt": "2026-11-24T13:59:06.846Z",
-          "heartbeatAt": "2026-11-24T13:59:06.846Z",
-          "expiresAt": "2026-11-24T14:29:06.846Z",
+          "heartbeatAt": "2026-11-24T14:04:54.024Z",
+          "expiresAt": "2026-11-24T14:34:54.024Z",
           "generation": 169
         },
         "baseSha": null,
@@ -181749,8 +181764,8 @@
           "runId": "run-20261124-c",
           "agentId": "wH4n36",
           "claimedAt": "2026-11-24T14:00:08.096Z",
-          "heartbeatAt": "2026-11-24T14:00:08.096Z",
-          "expiresAt": "2026-11-24T14:30:08.096Z",
+          "heartbeatAt": "2026-11-24T14:04:54.024Z",
+          "expiresAt": "2026-11-24T14:34:54.024Z",
           "generation": 169
         },
         "baseSha": null,
@@ -181785,8 +181800,8 @@
           "runId": "run-20261124-c",
           "agentId": "wH4n37",
           "claimedAt": "2026-11-24T14:00:21.170Z",
-          "heartbeatAt": "2026-11-24T14:00:21.170Z",
-          "expiresAt": "2026-11-24T14:30:21.170Z",
+          "heartbeatAt": "2026-11-24T14:04:54.024Z",
+          "expiresAt": "2026-11-24T14:34:54.024Z",
           "generation": 169
         },
         "baseSha": null,
@@ -181810,17 +181825,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 7,
+        "in_progress": 6,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1400,
+        "blocked": 1401,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:04:38.998Z",
+    "updatedAt": "2026-11-24T14:05:44.667Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
