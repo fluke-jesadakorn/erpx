@@ -11,7 +11,12 @@ import { agentMonthlyUsageColsSql } from './agent-monthly-usage-source';
  * usage projection. Every quota caller reuses the byte-identical shared core;
  * no adapter authors its own literal. */
 export const agentWorkspaceMonthlyUsageSql = `${agentMonthlyUsageColsSql} AS month FROM ai_workspace_turns`;
-const quotaSql = `${recordsSocialUsageCountSql}+${recordsExpenseUsageCountSql}+(SELECT COUNT(*) FROM (${recordsRequestUsageSql} UNION ALL ${recordsFinanceUsageSql} UNION ALL ${agentWorkspaceMonthlyUsageSql} UNION ALL ${recordsExecutiveUsageSql}) WHERE company_id=? AND month=?)`;
+/** One owner-authored count over the records quota union. The count casing and
+ * the optional alias are the only differences between the quota read and the
+ * collaboration guard; both call sites keep their own binds. */
+export const recordsQuotaCountSql = (count: 'count' | 'COUNT', alias: 'calls' | '' = ''): string =>
+  `(SELECT ${count}(*) FROM (${recordsRequestUsageSql} UNION ALL ${recordsFinanceUsageSql} UNION ALL ${agentWorkspaceMonthlyUsageSql} UNION ALL ${recordsExecutiveUsageSql})${alias ? ` ${alias}` : ''} WHERE company_id=? AND month=?)`;
+const quotaSql = `${recordsSocialUsageCountSql}+${recordsExpenseUsageCountSql}+${recordsQuotaCountSql('COUNT')}`;
 export function recordsAiQuota(database: SqlDatabase) {
     return {
         read(args: string[], companyId: string) {

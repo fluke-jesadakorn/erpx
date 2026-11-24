@@ -38,7 +38,7 @@ describe('Agent read-tail r8 monthly-usage source dedupe', () => {
 
   it('leaves the distinct translation guard untouched', async () => {
     const assistant = await src('adapters/workspace-assistant.ts');
-    // The translation guard keeps its own `calls` alias, not the shared core.
-    expect(assistant).toContain(') calls WHERE company_id=? AND created_at>=?');
+    // The translation guard delegates with the closed `calls` alias.
+    expect(assistant).toContain("`${assistantQuotaSql('calls')}`");
   });
 });

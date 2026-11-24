@@ -3,9 +3,14 @@ import { agentTurnEvidenceSql } from './turn-evidence-projection-source';
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+/** The one owner-authored fixed head for Agent workspace-turn count guards.
+ * The comparator is the only textual difference between the rate guard and the
+ * executive quota guard; each call site keeps its own two binds. */
+export const agentTurnCountGuardSql = (op: '>=' | '>'): string =>
+  `(SELECT count(*) FROM ai_workspace_turns WHERE company_id=? AND created_at${op}?)`;
 /** The one owner-authored fixed SQL for the Agent assistant-rate guard.
  * Every rate guard reuses this text; no adapter authors its own literal. */
-export const agentAssistantRateGuardSql = "(SELECT count(*) FROM ai_workspace_turns WHERE company_id=? AND created_at>?)<20";
+export const agentAssistantRateGuardSql = `${agentTurnCountGuardSql('>')}<20`;
 export function GuidedIntakeAgentFacts(database: SqlDatabase) {
     return { readPrepareGuidedIntakePrevious(id: string) {
             return database.prepare(`${agentTurnEvidenceSql("t.user_id,t.company_id,t.assignment_id,t.scope_key,t.question,t.paths_json,t.state,t.sources_json,t.answer_json,t.private_session_id,e.governance_snapshot_json")} WHERE t.id=?`)

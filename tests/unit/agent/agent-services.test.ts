@@ -124,7 +124,8 @@ describe('Agent assistant-rate fixed-SQL read family',()=>{
   const base=new URL('../../../packages/server-agent/src/adapters/',import.meta.url);
   const owner=await readFile(new URL('operations-guided-intake-facts.ts',base),'utf8');
   const consumer=await readFile(new URL('workspace-assistant.ts',base),'utf8');
-  expect(owner.match(/\(SELECT count\(\*\) FROM ai_workspace_turns WHERE company_id=\? AND created_at>\?\)<20/g)??[]).toHaveLength(1);
+  expect(owner.match(/\(SELECT count\(\*\) FROM ai_workspace_turns WHERE company_id=\? AND created_at>\?\)<20/g)??[]).toHaveLength(0);
+  expect(owner.match(/agentTurnCountGuardSql\('>'\)\}<20/g)??[]).toHaveLength(1);
   expect(consumer.match(/\(SELECT count\(\*\) FROM ai_workspace_turns WHERE company_id=\? AND created_at>\?\)<20/g)??[]).toHaveLength(0);
   expect(consumer).toContain('agentAssistantRateGuardSql');
  });

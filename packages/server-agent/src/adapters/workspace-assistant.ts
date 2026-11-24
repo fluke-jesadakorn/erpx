@@ -2,12 +2,6 @@ import { nativeOwnerWrite, nativeOwnerWriteNoopSql } from './native-owner-write'
 import { agentAssistantRateGuardSql } from './operations-guided-intake-facts';
 import { agentTurnEvidenceSql } from './turn-evidence-projection-source';
 import { assistantQuotaSql } from './assistant-quota-sql';
-import {agentFinanceDatedUsage} from '@erpx/server-finance/public/agent-ai-usage-projection';
-import {agentSocialMonthlyCount} from '@erpx/server-collaboration/public/agent-ai-usage-projection';
-import {agentExpenseMonthlyCount} from '@erpx/server-people_payroll/public/agent-ai-usage-projection';
-import {agentRequestMonthlyCount} from '@erpx/server-records/public/agent-ai-usage-projection';
-import {agentExecutiveDatedUsage} from '@erpx/server-runtime/public/agent-ai-usage-projection';
-import {financeAiCompanyAllowanceSql} from '@erpx/server-manage_erpx/public/finance-ai-quota-sources';
 import {clearAgentBootstrapAssertion} from "@erpx/server-workflow/public/agent-bootstrap-assertions";
 import {aiRequestQuotaLock} from "@erpx/server-agent/adapters/ai-quota";
 import "server-only";
@@ -54,13 +48,13 @@ async conversationTurns(companyId:string,userId:string,assignmentId:string,value
     .bind(companyId,userId,assignmentId,value,key,sessionId).all<Row>()).results;},
 async previousTurn(id:string){return db.prepare(agentWorkspaceTurnByIdSql("*")).bind(id).first<Row&{user_id:string;assignment_id:string;scope_key:string;company_id:string}>();},
 guardRate(id:string,companyId:string,value:number){return assertion(db,id,"assistant-rate",agentAssistantRateGuardSql,[companyId,value]);},
-guardQuota(id:string,companyId:string,value:number,value2:string){return assertion(db,id,"assistant-quota",`${assistantQuotaSql()}`,[companyId,value,companyId,value2,companyId,value2,companyId,value2,companyId]);},
+guardQuota(id:string,companyId:string,value:number,value2:string){return assertion(db,id,"assistant-quota",`${assistantQuotaSql('ai_calls')}`,[companyId,value,companyId,value2,companyId,value2,companyId,value2,companyId]);},
 async prepareTurn(id:string,companyId:string,userId:string,assignmentId:string,value:string,conversationKey:string,question:string,value2:string,now:number,sessionId:string){return nativeOwnerWrite('ag_workspace_turn_insert',[id,companyId,userId,assignmentId,value,conversationKey,question,value2,now,now,sessionId],`ag-turn:${id}`,{companyId,now},()=>db.prepare(nativeOwnerWriteNoopSql));},
 clearReservationAssertions(id:string,companyId:string){return clearAgentBootstrapAssertion(db,id,companyId);},
 async prepareAnswer(value:string,sourcesJson:string,now:number,id:string){return nativeOwnerWrite('ag_workspace_turn_ready',[value,sourcesJson,now,id],`ag-turn-ready:${id}`,{now},()=>db.prepare(nativeOwnerWriteNoopSql));},
 async prepareFailedTurn(value:string,now:number,id:string){return nativeOwnerWrite('ag_workspace_turn_failed',[value,now,id],`ag-turn-failed:${id}`,{now},()=>db.prepare(nativeOwnerWriteNoopSql));},
 async translationTurn(id:string){return db.prepare(agentWorkspaceTurnByIdSql("state,answer_json")).bind(id).first<Row>();},
-guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota",`(SELECT count(*) FROM (SELECT company_id,created_at FROM ai_workspace_turns UNION ALL ${agentExecutiveDatedUsage()} UNION ALL ${agentFinanceDatedUsage()}) calls WHERE company_id=? AND created_at>=?)+(${agentSocialMonthlyCount()})+(${agentExpenseMonthlyCount()})+(${agentRequestMonthlyCount()})<${financeAiCompanyAllowanceSql}`,[companyId,value,companyId,month,companyId,month,companyId,month,companyId]);},
+guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota",`${assistantQuotaSql('calls')}`,[companyId,value,companyId,month,companyId,month,companyId,month,companyId]);},
 async prepareTranslation(id:string,companyId:string,userId:string,assignmentId:string,value:string,value2:string,value3:"Translate the previous AI response for English display.",value4:string,now:number,sessionId:string){return nativeOwnerWrite('ag_workspace_turn_insert',[id,companyId,userId,assignmentId,value,value2,value3,value4,now,now,sessionId],`ag-turn:${id}`,{companyId,now},()=>db.prepare(nativeOwnerWriteNoopSql));},
 clearTranslationAssertions(id:string,companyId:string){return clearAgentBootstrapAssertion(db,id,companyId);},
 async prepareEnglishDisplay(value:string,id:string,companyId:string,userId:string){return nativeOwnerWrite('ag_workspace_turn_english',[value,id,companyId,userId],`ag-turn-english:${id}`,{companyId},()=>db.prepare(nativeOwnerWriteNoopSql));},

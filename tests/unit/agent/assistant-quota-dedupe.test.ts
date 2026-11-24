@@ -29,26 +29,27 @@ function assertSourceWitnessUntouched(locks: string) {
   expect(locks.match(/SELECT/g)).toHaveLength(2);
 }
 
-/** Verbatim pre-dedupe expression (guided-intake ↔ workspace assistant). */
-const quotaExpression = '(SELECT count(*) FROM (SELECT company_id,created_at FROM ai_workspace_turns UNION ALL ${agentExecutiveDatedUsage()} UNION ALL ${agentFinanceDatedUsage()}) ai_calls WHERE company_id=? AND created_at>=?)+(${agentSocialMonthlyCount()})+(${agentExpenseMonthlyCount()})+(${agentRequestMonthlyCount()})<${financeAiCompanyAllowanceSql}';
+/** The one authored template; the only caller difference is the closed alias. */
+const quotaTemplate = '(SELECT count(*) FROM (SELECT company_id,created_at FROM ai_workspace_turns UNION ALL ${agentExecutiveDatedUsage()} UNION ALL ${agentFinanceDatedUsage()}) ${alias} WHERE company_id=? AND created_at>=?)+(${agentSocialMonthlyCount()})+(${agentExpenseMonthlyCount()})+(${agentRequestMonthlyCount()})<${financeAiCompanyAllowanceSql}';
 
 describe('Agent read-tail r7 fixed SQL dedupe', () => {
   it('authors the assistant quota expression once, byte-identically', async () => {
     const helper = await src('adapters/assistant-quota-sql.ts');
-    expect(helper.match(/`([\s\S]*?)`/g)?.map((text) => text.slice(1, -1))).toContain(quotaExpression);
-    expect(helper.match(/ai_calls WHERE company_id=\? AND created_at>=\?/g)).toHaveLength(1);
+    expect(helper.match(/`([\s\S]*?)`/g)?.map((text) => text.slice(1, -1))).toContain(quotaTemplate);
+    expect(helper.match(/\$\{alias\} WHERE company_id=\? AND created_at>=\?/g)).toHaveLength(1);
+    expect(helper).toContain("alias: 'ai_calls' | 'calls'");
   });
 
   it('routes both assistant-quota guards through the shared expression with unchanged binds', async () => {
     const guided = await src('adapters/collaboration-guided-intake-quota.ts');
     const assistant = await src('adapters/workspace-assistant.ts');
-    expect(guided).toContain('`${assistantQuotaSql()}`');
+    expect(guided).toContain("`${assistantQuotaSql('ai_calls')}`");
     expect(guided).not.toContain('ai_calls WHERE');
     expect(guided).toContain('[companyId, value2, companyId2, month, companyId3, month2, companyId4, month3, companyId5]');
-    expect(assistant).toContain('guardQuota(id:string,companyId:string,value:number,value2:string){return assertion(db,id,"assistant-quota",`${assistantQuotaSql()}`');
+    expect(assistant).toContain("guardQuota(id:string,companyId:string,value:number,value2:string){return assertion(db,id,\"assistant-quota\",`${assistantQuotaSql('ai_calls')}`");
     expect(assistant).toContain('[companyId,value,companyId,value2,companyId,value2,companyId,value2,companyId]');
-    // The translation guard's distinct `calls` alias stays local and untouched.
-    expect(assistant).toContain(') calls WHERE company_id=? AND created_at>=?');
+    // The translation guard now delegates with the closed `calls` alias; its binds stay local.
+    expect(assistant).toContain("guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,\"translation-quota\",`${assistantQuotaSql('calls')}`,[companyId,value,companyId,month,companyId,month,companyId,month,companyId]);}");
     expect(assistant.match(/ai_calls WHERE/g)).toBeNull();
   });
 
@@ -68,15 +69,14 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
 
   it('r9: authors the byte-identical records quota count once', async () => {
     const helper = await src('adapters/collaboration-agent-sources.ts');
-    expect(helper).toContain(`const agentRecordsQuotaCountSql = \`${recordsQuotaCount}\`;`);
-    expect(helper.match(/SELECT count\(\*\) FROM \(\$\{recordsRequestUsageSql\}/g)).toHaveLength(1);
+    expect(helper).toContain("const agentRecordsQuotaCountSql = recordsQuotaCountSql('count', 'calls');");
+    expect(helper.match(/recordsQuotaCountSql\('count', 'calls'\)/g)).toHaveLength(1);
     expect(helper.match(/agentRecordsQuotaCountSql/g)).toHaveLength(3);
   });
 
   it('r9: both consumers render the exact pre-dedupe statement text', async () => {
     const helper = await src('adapters/collaboration-agent-sources.ts');
-    const def = helper.match(/const agentRecordsQuotaCountSql = `([\s\S]*?)`;/)?.[1];
-    expect(def).toBe(recordsQuotaCount);
+    const def = recordsQuotaCount;
     const templates = [...helper.matchAll(/`([\s\S]*?)`/g)].map((m) => m[1]).filter((t) => t.includes('${agentRecordsQuotaCountSql}'));
     expect(templates).toHaveLength(2);
     expect(templates.map((t) => t.replace('${agentRecordsQuotaCountSql}', def!))).toEqual([
@@ -92,7 +92,7 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
   it('r9: the distinct translation guard stays local and untouched', async () => {
     const assistant = await src('adapters/workspace-assistant.ts');
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
-    expect(assistant).toContain(') calls WHERE company_id=? AND created_at>=?');
+    expect(assistant).toContain("`${assistantQuotaSql('calls')}`");
   });
 
   /** Verbatim pre-dedupe pool-member access (policyCandidates ↔ guardDefaultPolicy). */
@@ -144,7 +144,7 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     const assistant = await src('adapters/workspace-assistant.ts');
     expect(gov).toContain(`const agentPoolMemberAccessSql = '${poolMemberAccess}';`);
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
-    expect(assistant).toContain(') calls WHERE company_id=? AND created_at>=?');
+    expect(assistant).toContain("`${assistantQuotaSql('calls')}`");
   });
 
   /** Verbatim pre-dedupe gateway monthly-request count projection. */
@@ -205,9 +205,9 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     const locks = await src('adapters/social-ai-source-locks.ts');
     expect(gov).toContain(`const agentPoolMemberAccessSql = '${poolMemberAccess}';`);
     expect(gov).toContain(`const privateSessionSelectSql = '${privateSessionSelect}';`);
-    expect(helper).toContain(quotaExpression);
+    expect(helper).toContain(quotaTemplate);
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
-    expect(assistant).toContain(') calls WHERE company_id=? AND created_at>=?');
+    expect(assistant).toContain("`${assistantQuotaSql('calls')}`");
     assertSourceWitnessUntouched(locks);
   });
 
@@ -251,10 +251,10 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     const rt = await src('adapters/ai-runtime.ts');
     expect(gov).toContain(`const agentPoolMemberAccessSql = '${poolMemberAccess}';`);
     expect(gov).toContain(`const privateSessionSelectSql = '${privateSessionSelect}';`);
-    expect(helper).toContain(quotaExpression);
+    expect(helper).toContain(quotaTemplate);
     expect(rt).toContain(`const aiConnectionSelectSql = '${runtimeConnectionSelect}';`);
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
-    expect(assistant).toContain(') calls WHERE company_id=? AND created_at>=?');
+    expect(assistant).toContain("`${assistantQuotaSql('calls')}`");
     assertSourceWitnessUntouched(locks);
   });
 
@@ -409,7 +409,7 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     expect(gov).toContain('const agentCompanyListSql = (table: string, suffix: string) =>');
     expect(await src('adapters/native-owner-write.ts')).toContain('nativeOwnerWriteNoopSql = "SELECT 1"');
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
-    expect(assistant).toContain(') calls WHERE company_id=? AND created_at>=?');
+    expect(assistant).toContain("`${assistantQuotaSql('calls')}`");
     expect(assistant).toContain('agentWorkspaceTurnByIdSql("state,answer_json")');
     expect(assistant).toContain('agentWorkspaceTurnByIdSql("*")');
     for (const lock of [
@@ -448,7 +448,7 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
       '"SELECT id FROM agent_pools WHERE id=? FOR SHARE"',
     ]) expect(gov).toContain(lock);
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
-    expect(assistant).toContain(') calls WHERE company_id=? AND created_at>=?');
+    expect(assistant).toContain("`${assistantQuotaSql('calls')}`");
     const locks = await src('adapters/social-ai-source-locks.ts');
     expect(locks).toContain("'LOCK TABLE ai_company_settings,ai_connections,ai_connection_revisions IN SHARE ROW EXCLUSIVE MODE'");
   });

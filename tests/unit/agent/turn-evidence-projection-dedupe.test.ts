@@ -43,7 +43,7 @@ describe('Agent read-tail r15 turn-evidence projection family dedupe', () => {
   it('leaves the translation guard and the lock statements untouched', async () => {
     const assistant = await src('adapters/workspace-assistant.ts');
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string)');
-    expect(assistant).toContain(') calls WHERE company_id=? AND created_at>=?');
+    expect(assistant).toContain("`${assistantQuotaSql('calls')}`");
     expect(assistant).toContain('agentWorkspaceTurnByIdSql("state,answer_json")');
     expect(assistant).toContain('agentWorkspaceTurnByIdSql("*")');
     const governance = await src('adapters/agent-governance.ts');

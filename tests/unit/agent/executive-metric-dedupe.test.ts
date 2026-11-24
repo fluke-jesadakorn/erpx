@@ -42,7 +42,7 @@ describe('Agent read-tail r14 executive metric count family dedupe', () => {
   it('leaves the translation guard and the lock statements untouched', async () => {
     const assistant = await src('adapters/workspace-assistant.ts');
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string)');
-    expect(assistant).toContain(') calls WHERE company_id=? AND created_at>=?');
+    expect(assistant).toContain("`${assistantQuotaSql('calls')}`");
     const governance = await src('adapters/agent-governance.ts');
     expect(governance).toContain('"SELECT session_id FROM ai_private_session_controls WHERE session_id=? FOR SHARE"');
     expect(governance).toContain('"SELECT x.id FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id JOIN agent_catalog c ON c.id=v.agent_id WHERE x.id=? FOR SHARE OF x,v,c"');
