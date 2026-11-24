@@ -22,6 +22,7 @@ import {staffGuard} from '@erpx/server-operations/adapters/staff-policy';
 import {projectTaskRecordPolicy} from '@erpx/server-operations/adapters/project-task-record-policy';
 import {workTaskOwnsAttachmentAction} from '@erpx/server-operations/adapters/work-task-purchases';
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
+import {nativeOperationsReadFirst,OPERATIONS_RD_TASK_ATTACHMENT_ASSIGNEE} from './native-operations-read';
 
 export type WorkTaskAttachmentPurchase={companyId:string;targetId:string;actor:WorkContext;purpose:CapabilityPurpose;capabilities:string[];witness:string;ownedAction:boolean;writer:'creator'|'assignee'|'delegate'};
 function source(ownedAction:boolean){return `SELECT t.id,t.company_id,t.branch_id,t.department_id,t.project_id,t.state,t.creator_user_id,t.assignee_user_id,t.template_id,social.work_social,
@@ -40,7 +41,7 @@ export async function workTaskAttachmentPurchaseScope(database:SqlDatabase,actor
  // The existing Project owner separately licenses its actual foundation.
  if(row.project_id)return null;
  if(mode==='enforced'&&operation!=='read'&&!isTransactionalSqlDatabase(database)&&!fileUnits.has(database)&&!ownedAction)throw new ApiError(503,'WORK_TASK_FILE_TRANSACTION_REQUIRED','Task evidence requires its complete owned Files or task transaction.');
- const creator=row.state==='draft',assigned=await database.prepare('SELECT iam_same_person(?,?,?) assigned').bind(row.assignee_user_id,actor.userId,actor.companyId).first<boolean>('assigned');
+ const creator=row.state==='draft',assignee=await nativeOperationsReadFirst<{assigned:boolean}>(OPERATIONS_RD_TASK_ATTACHMENT_ASSIGNEE,[row.assignee_user_id,actor.userId,actor.companyId],database),assigned=!!assignee?.assigned;
  return {companyId:actor.companyId,targetId:id,actor,purpose:creator?'new-work':'settle-existing',capabilities:['work.actions',...(row.template_id?['work.advanced-routines']:[]),...(row.work_social?['work.social']:[])],witness:row.witness,ownedAction,writer:creator?'creator':assigned?'assignee':'delegate'};
 }
 export async function authorizeWorkTaskAttachmentPurchase(database:SqlDatabase,actor:WorkContext,type:string,id:string,operation:AttachmentOperation){

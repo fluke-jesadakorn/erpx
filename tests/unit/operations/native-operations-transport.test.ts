@@ -226,3 +226,17 @@ describe('native Operations fixed task-source read plans',()=>{
     expect(source).toContain('READ_WORK_TASK_SOURCE,');
   });
 });
+
+describe('native Operations task attachment assignee read plan',()=>{
+  const adapter=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  it('retires the task-attachment-purchases assignee TypeScript literal',()=>{
+    const source=adapter('task-attachment-purchases.ts');
+    expect(source).not.toContain('SELECT iam_same_person(?,?,?) assigned');
+    expect(source).toContain('OPERATIONS_RD_TASK_ATTACHMENT_ASSIGNEE');
+  });
+  it('registers the assignee read in the native allow-list',()=>{
+    const source=readFileSync(new URL('../../../packages/server-operations/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
+    expect(source).toContain('operations_rd_task_attachment_assignee');
+    expect(source).toContain('READ_TASK_ATTACHMENT_ASSIGNEE,');
+  });
+});

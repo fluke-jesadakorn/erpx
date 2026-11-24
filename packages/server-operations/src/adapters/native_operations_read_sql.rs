@@ -192,6 +192,19 @@ const READ_WORK_TASK_SOURCE: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `task-attachment-purchases` assignee
+/// identity read. The owner plans this literal; the caller executes it on its
+/// open unit with the same `[assignee_user_id, user_id, company_id]` bind and
+/// reads the `assigned` column exactly as the retired `.first('assigned')` did.
+pub const RD_TASK_ATTACHMENT_ASSIGNEE: &str = "operations_rd_task_attachment_assignee";
+const SQL_TASK_ATTACHMENT_ASSIGNEE: &str = "SELECT iam_same_person(?,?,?) assigned";
+const READ_TASK_ATTACHMENT_ASSIGNEE: NativeReadStatement = NativeReadStatement {
+    kind: RD_TASK_ATTACHMENT_ASSIGNEE,
+    sql: SQL_TASK_ATTACHMENT_ASSIGNEE,
+    bind_count: 3,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_TASK_PROJECTION_SOURCE,
     READ_APP_UPLOAD_TASK_STATE,
@@ -206,6 +219,7 @@ const READS: &[NativeReadStatement] = &[
     READ_OPERATIONS_EXCEPTION_EVENTS,
     READ_RECORD_TASK_PROJECT,
     READ_WORK_TASK_SOURCE,
+    READ_TASK_ATTACHMENT_ASSIGNEE,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -471,5 +485,25 @@ mod tests {
             source.sql,
             "SELECT id,company_id,branch_id,department_id,creator_user_id,assignee_user_id,project_id,template_id,schedule_id,state,version FROM staff_tasks WHERE id=? AND company_id=?"
         );
+    }
+
+    #[test]
+    fn task_attachment_assignee_plan_is_holding_scoped_and_ledger_free() {
+        let read = read_statement(RD_TASK_ATTACHMENT_ASSIGNEE).expect("read kind");
+        let upper = read.sql.to_ascii_uppercase();
+        assert!(upper.starts_with("SELECT"), "{}", read.kind);
+        assert!(!upper.contains("INSERT"));
+        assert!(!upper.contains("UPDATE"));
+        assert!(!upper.contains("DELETE"));
+        assert_eq!(read.bind_count, 3);
+        assert_eq!(read.sql.matches('?').count(), 3);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_TASK_ATTACHMENT_ASSIGNEE));
+    }
+
+    #[test]
+    fn task_attachment_assignee_sql_matches_retired_typescript_literal() {
+        let read = read_statement(RD_TASK_ATTACHMENT_ASSIGNEE).expect("read kind");
+        assert_eq!(read.sql, "SELECT iam_same_person(?,?,?) assigned");
     }
 }
