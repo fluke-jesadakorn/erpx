@@ -15,6 +15,7 @@ import {customerPortalSourceReadLocks} from '@erpx/server-customer_authority/ada
 import {portalSupportInstalled,portalSupportSourceReadLocks} from '@erpx/server-customer_authority/adapters/portal-support-sources';
 import {customerPortalPurchaseScope} from '@erpx/server-customer_authority/adapters/portal-read-purchases';
 import {jsonbAggFact,bindingsExists} from './customer-authority-read-sql';
+import {jsonbImageProjection} from './customer-authority-read-tail-r23-sources';
 
 type Actor={userId:string;email:string};
 type Projection={items:{binding_id:string;sharedFiles:{linkId:string}[]}[]};
@@ -37,8 +38,8 @@ async function source(database:SqlDatabase,actor:Actor,installed:boolean):Promis
  ${jsonbAggFact('o')} FROM (${commerce.commerce_orders}) o WHERE ${bindingsExists('b.order_id=o.id AND b.company_id=o.company_id')}),
  ${jsonbAggFact('f')} FROM (${commerce.commerce_fulfillments}) f JOIN (${commerce.commerce_orders}) o ON o.id=f.order_id WHERE ${bindingsExists('b.order_id=f.order_id AND b.company_id=o.company_id')}),
  ${jsonbAggFact('a')} FROM customer_portal_actions a WHERE ${bindingsExists('b.id=a.binding_id')}),${support})::text core,
- COALESCE((SELECT jsonb_agg(jsonb_build_object('id',i.binding_id,'image',to_jsonb(i)::text,'userId',i.user_id,'email',i.email) ORDER BY i.binding_id) FROM customer_access_identities i JOIN bindings b ON b.id=i.binding_id),'[]'::jsonb) identities,
- COALESCE((SELECT jsonb_agg(jsonb_build_object('id',r.id,'image',to_jsonb(r)::text,'bindingId',r.binding_id,'userId',r.user_id,'bindingVersion',r.binding_version,'projectionVersion',r.projection_version) ORDER BY r.id) FROM customer_access_reads r JOIN bindings b ON b.id=r.binding_id WHERE r.user_id=?),'[]'::jsonb) reads`).bind(actor.email.toLowerCase(),actor.userId).first<{core:string;identities:string;reads:string}>();
+ COALESCE(${jsonbImageProjection("'id',i.binding_id,'image',to_jsonb(i)::text,'userId',i.user_id,'email',i.email",'i.binding_id','FROM customer_access_identities i JOIN bindings b ON b.id=i.binding_id')},'[]'::jsonb) identities,
+ COALESCE(${jsonbImageProjection("'id',r.id,'image',to_jsonb(r)::text,'bindingId',r.binding_id,'userId',r.user_id,'bindingVersion',r.binding_version,'projectionVersion',r.projection_version",'r.id','FROM customer_access_reads r JOIN bindings b ON b.id=r.binding_id WHERE r.user_id=?')},'[]'::jsonb) reads`).bind(actor.email.toLowerCase(),actor.userId).first<{core:string;identities:string;reads:string}>();
  if(!row)throw changed();return sourceSchema.parse({core:row.core,identities:JSON.parse(row.identities),reads:JSON.parse(row.reads)});
 }
 
