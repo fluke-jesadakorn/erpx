@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11025,
+    "revision": 11028,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -140027,7 +140027,7 @@
         "owner": "platform_administration",
         "title": "platform_administration TS read tail native cutover (round 9)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -140039,14 +140039,7 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMpad2",
-          "claimedAt": "2026-11-24T09:27:33.663Z",
-          "heartbeatAt": "2026-11-24T09:33:43.274Z",
-          "expiresAt": "2026-11-24T10:03:43.274Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -140061,18 +140054,32 @@
             "command": "vitest platform dedupe (10) + tsc platform",
             "result": "passed",
             "sourceSha": "8837f37d0"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-platform_administration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d722108dc",
+            "owner": "platform_administration",
+            "before": 33,
+            "after": 32,
+            "note": "latestReleaseRowSql and releaseAcceptanceRowSql share parameterized row head; lock family and prior helpers untouched."
+          },
+          {
+            "command": "vitest platform r9 (30) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "d722108dc"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Blocked with evidence.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCepad",
-          "at": "2026-11-24T02:15:29.277Z",
-          "previousStatus": "blocked",
+          "runId": "run-20261124-a",
+          "agentId": "wGCMpad2",
+          "at": "2026-11-24T09:37:07.911Z",
+          "previousStatus": "in_progress",
           "reason": "handoff",
-          "nextAction": "Blocked with evidence."
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -149097,7 +149104,7 @@
         "owner": "platform_administration",
         "title": "platform_administration TS read tail native cutover (r10)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -149109,7 +149116,14 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMpad3",
+          "claimedAt": "2026-11-24T09:37:26.565Z",
+          "heartbeatAt": "2026-11-24T09:37:26.565Z",
+          "expiresAt": "2026-11-24T10:07:26.565Z",
+          "generation": 167
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -149130,7 +149144,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261123-j",
@@ -169851,7 +169865,7 @@
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:36:51.491Z",
+    "updatedAt": "2026-11-24T09:37:26.575Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
