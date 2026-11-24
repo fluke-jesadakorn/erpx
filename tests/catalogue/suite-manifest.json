@@ -65455,6 +65455,31 @@
       ]
     },
     {
+      "lane": "unit",
+      "owner": "planning",
+      "modules": [
+        "planning"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Planning resource EXISTS and allocated minutes guard families must stay byte-identical."
+      },
+      "apps": "planning",
+      "packages": [
+        "@erpx/server-planning"
+      ],
+      "id": "planning.read-tail-r5-dedupe.unit",
+      "files": [
+        "tests/unit/planning/read-tail-r5-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "planning.rust-planning-capacity-resources.unit",
       "lane": "unit",
       "owner": "planning",
@@ -68590,6 +68615,31 @@
       "id": "pms.read-tail-r21-dedupe.unit",
       "files": [
         "tests/unit/pms/pms-read-tail-r21-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PMS stripe refund columns, rollout and recipient families must stay byte-identical."
+      },
+      "apps": "booking",
+      "packages": [
+        "@erpx/server-pms"
+      ],
+      "id": "pms.read-tail-r22-dedupe.unit",
+      "files": [
+        "tests/unit/pms/pms-read-tail-r22-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -106969,11 +107019,9 @@
       },
       "ci": {
         "critical": true,
-        "reason": "Work projection native owner-write noop SQL must stay byte-identical and centralized."
+        "reason": "Work projection inert noop placeholder must stay one literal."
       },
-      "apps": [
-        "apps"
-      ],
+      "apps": "apps",
       "packages": [
         "@erpx/server-work_projection"
       ],

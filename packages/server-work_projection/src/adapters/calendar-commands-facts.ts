@@ -1,6 +1,7 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {nativeOwnerWrite,nativeOwnerWriteRow} from "./native-owner-write";
+import {noopSql} from "./read-tail-sql";
 /** Calendar owner facts. Every write is dispatched to the native Work kind
  * registry axum router, which executes the owner SQL and its receipt/audit/
  * outbox in one Rust transaction. Every read goes through the native owner-read
@@ -8,7 +9,7 @@ import {nativeOwnerWrite,nativeOwnerWriteRow} from "./native-owner-write";
  * statements are inert placeholders that keep caller batches structurally
  * identical. */
 export function calendarCommandsWorkProjectionFacts(db: SqlDatabase) {
-    const noop = () => db.prepare("SELECT 1");
+    const noop = () => db.prepare(noopSql);
     return {
         write14: async (facts: { value1: string; value2: string; value3: string; value4: string; value5: string; }) => nativeOwnerWrite('wp_cal_occurrence_exception_upsert',[facts.value1,facts.value2,facts.value3,facts.value4,facts.value5],`wp-cal-14:${facts.value2}:${facts.value3}`,{companyId:facts.value1},noop),
         write15: async (facts: { value1: number; value2: string; value3: string; }) => nativeOwnerWrite('wp_cal_appointment_version_bump',[facts.value1,facts.value2,facts.value3],`wp-cal-15:${facts.value2}:${facts.value1}`,{companyId:facts.value3},noop),

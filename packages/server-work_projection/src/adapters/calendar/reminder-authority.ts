@@ -9,7 +9,7 @@ import type {CalendarCommand} from '@erpx/server-work_projection/public/rules/ca
 import {purchasedCapabilityPredicate,packageClockSql} from '@erpx/server-commercial/public/purchased-capability-sql';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import { nativeOwnerWrite } from "../native-owner-write";
-import { versionById } from '../read-tail-sql';
+import { versionById, noopSql } from '../read-tail-sql';
 /** Closed native aliases a/t. Responses and mutable row versions do not change
  * the captured reminder configuration; their current policy is checked live. */
 const configuration=`jsonb_build_object('record',to_jsonb(a)-ARRAY['version','updated_at'],'attendee',to_jsonb(t)-ARRAY['response','response_at'],'series',(SELECT to_jsonb(s)-'version' FROM calendar_series s WHERE s.appointment_id=a.id AND s.company_id=a.company_id),'exceptions',(SELECT jsonb_agg(to_jsonb(e)-'version' ORDER BY e.occurrence_key) FROM calendar_occurrence_exceptions e WHERE e.appointment_id=a.id AND e.company_id=a.company_id))::text`;
@@ -27,7 +27,7 @@ export async function captureCalendarReminderAuthority(database:SqlDatabase,acto
   for(const recipient of recipients){const image=await calendarReminderConfiguration(database,actor.companyId,id,recipient.user_id);if(!image)throw new ApiError(409,'CALENDAR_REMINDER_SOURCE_CHANGED','The exact reminder configuration is unavailable.');await nativeOwnerWrite('wp_reminder_authorization_insert',[
     key,id,recipient.user_id,actor.companyId,actor.userId,actor.assignmentId,input.action,
     JSON.stringify(snapshot(bound)),hash(image),recipient.version,Date.now(),
-  ],`wp-reminder-auth:${key}:${id}:${recipient.user_id}`,{companyId:actor.companyId},()=>database.prepare("SELECT 1"));}
+  ],`wp-reminder-auth:${key}:${id}:${recipient.user_id}`,{companyId:actor.companyId},()=>database.prepare(noopSql));}
  }
  return bound;
 }

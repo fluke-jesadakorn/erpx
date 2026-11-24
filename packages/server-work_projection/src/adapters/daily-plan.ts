@@ -9,6 +9,7 @@ import { createDailyPlan, type DailyPlanUnit, type DailyPlanResult } from "@erpx
 import type { PlanRow } from "@erpx/server-work_projection/domain/daily-plan";
 import type { SqlStatement } from "@erpx/server-runtime/public/runtime/types";
 import { nativeOwnerWrite, nativeOwnerWriteRow } from "./native-owner-write";
+import { noopSql } from "./read-tail-sql";
 const service = createDailyPlan<SqlStatement>({ clock: { now: () => Date.now() }, error: (status, code, message) => new ApiError(status, code, message) });
 export function dailyPlanUnit(db: SqlDatabase): DailyPlanUnit<SqlStatement> {
     return {
@@ -18,7 +19,7 @@ export function dailyPlanUnit(db: SqlDatabase): DailyPlanUnit<SqlStatement> {
         lock: (companyId, userId, date) => db.prepare("SELECT version FROM staff_daily_plans WHERE company_id=? AND user_id=? AND plan_date=? FOR UPDATE").bind(companyId, userId, date),
         version: (key, companyId, userId, date, version) => assertion(db, key, "daily-plan-version", "COALESCE((SELECT version FROM staff_daily_plans WHERE company_id=? AND user_id=? AND plan_date=?),0)=?", [companyId, userId, date, version]),
         // Native axum owner write executes the plan upsert and its ledger.
-        write: async (companyId, userId, date, items, version, key, now, expected) => nativeOwnerWrite('wp_daily_plan_write',[companyId,userId,date,items,version,key,now,expected],`wp-daily-plan:${key}`,{companyId,now},()=>db.prepare("SELECT 1")),
+        write: async (companyId, userId, date, items, version, key, now, expected) => nativeOwnerWrite('wp_daily_plan_write',[companyId,userId,date,items,version,key,now,expected],`wp-daily-plan:${key}`,{companyId,now},()=>db.prepare(noopSql)),
         written: (key, companyId, userId, date, version) => assertion(db, key, "daily-plan-written", "EXISTS(SELECT 1 FROM staff_daily_plans WHERE company_id=? AND user_id=? AND plan_date=? AND version=? AND last_command_id=?)", [companyId, userId, date, version, key]),
         replay: (actor, key, id, input) => replayCommand<DailyPlanResult>(db, actor, key, "daily.plan.save", id, input),
         execute: (actor, key, input, id, result, effects) => executeCommand(db, actor, key, "daily.plan.save", input, id, result.version, result, effects)
