@@ -37,6 +37,7 @@ import { collaborationHomeSources as operations } from '@erpx/server-operations/
 import {handoverAcknowledgements} from '@erpx/server-operations/public/handover-acknowledgement-read';
 import {workSocialReadScope,workSocialPresentation} from '@erpx/server-collaboration/public/work-social-read-policy';
 import {withWorkSocialCommand} from '@erpx/server-collaboration/adapters/work-social-purchases';
+const draftVersionGuardSql = "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND version=? AND published_post_id IS NULL)";
 async function inward<T>(action: () => Promise<T>) {
     try {
         return await action();
@@ -71,7 +72,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
             return db.prepare("SELECT * FROM social_post_drafts WHERE id=? AND company_id=?")
                 .bind(id, companyId).first<PostDraft>();
         }, async commentDraftExists(id: string) { return db.prepare("SELECT 1 FROM social_post_drafts WHERE id=? AND comment_parent_post_id IS NOT NULL").bind(id).first(); }, async richDraftExists(id: string) { return db.prepare("SELECT 1 FROM social_post_drafts WHERE id=? AND rich_content_json IS NOT NULL").bind(id).first(); }, guardDraftVersion(key: string, value: "draft-version", id: string, userId: string, expectedVersion: number) {
-            return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND version=? AND published_post_id IS NULL)", [id, userId, expectedVersion]);
+            return assertion(db, key, value, draftVersionGuardSql, [id, userId, expectedVersion]);
         }, updateDraft(body: string, branch: string | null, department: string | null, value: "company" | "branch" | "department" | "participants" | "team" | "project" | null, audienceId: string | null, value2: string, value3: string, purpose: "update" | "plan" | "blocker" | "handover" | "announcement", value4: string, value5: string | null, value6: string | null, now: number, id: string) {
             return nativeOwnerWriteDescriptor(db, 'SH_DRAFT_UPDATE', [body, branch, department, value, audienceId, value2, value3, purpose, value4, value5, value6, now, id]);
         }, prepareDraft(recordId: string, userId: string, companyId: string, branch: string | null, body: string, now: number, now2: number, department: string | null, value: "company" | "branch" | "department" | "participants" | "team" | "project" | null, audienceId: string | null, value2: string, value3: string, purpose: "update" | "plan" | "blocker" | "handover" | "announcement", value4: string, value5: string | null, value6: string | null) {
@@ -82,7 +83,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
                 .bind(id, companyId, userId)
                 .first<PostDraft>();
         }, guardPublishDraft(key: string, value: "draft", id: string, userId: string, version: number) {
-            return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND version=? AND published_post_id IS NULL)", [id, userId, version]);
+            return assertion(db, key, value, draftVersionGuardSql, [id, userId, version]);
         }, preparePost(postId: string, userId: string, name: string, companyId: string, branch_id: string | null, body: string, key: string, now: number, now2: number, department_id: string | null, audience_kind: "company" | "branch" | "department" | "participants" | "team" | "project", audience_id: string | null, purpose: "update" | "plan" | "blocker" | "handover" | "announcement", value: string, content_json: string | null, rich_content_json: string | null) {
             return nativeOwnerWriteDescriptor(db, 'SH_POST_PREPARE', [postId, userId, name, companyId, branch_id, body, key, now, now2, department_id, audience_kind, audience_id, purpose, value, content_json, rich_content_json]);
         }, prepareParticipant(postId: string, userId: string) { return nativeOwnerWriteDescriptor(db, 'SH_PARTICIPANT_PREPARE', [postId, userId]); }, prepareSource(postId: string, ordinal: number, kind: "staff_task" | "staff_project" | "pms_record", id: string) {
