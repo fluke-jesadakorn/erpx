@@ -9,7 +9,7 @@ import {hasModuleAccess} from '@erpx/catalogue/module-access';
  * Assets, events, finance links and Maintenance work share this one literal so
  * the TS read tail carries no duplicate statement. Callers pass only fixed
  * aliases and owner-owned FROM fragments; no SQL is accepted from a request. */
-const assetPhysicalAggSql = (alias:string,from:string) =>
+export const assetPhysicalAggSql = (alias:string,from:string) =>
   `(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${from})`;
 export function assetsFinancialPhysicalSourceLocks(database:SqlDatabase){return [database.prepare('LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE')];}
 export async function assetsFinancialPhysicalSource(database:SqlDatabase,companyId:string,financeAssetId:string){

@@ -435,3 +435,23 @@ it('shares one canonical scope tuple across the Assets private attachment author
  expect(count(probe,tuple)).toBe(1);
  expect(probe).toContain('allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id)');
 });
+it('shares the canonical lineage aggregate with the Assets purchase owner source (36->35)',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+ const aggregate=await readFile(new URL('financial-workflow-sources.ts',base),'utf8');
+ const purchases=await readFile(new URL('purchases.ts',base),'utf8');
+ const count=(text:string,needle:string)=>text.split(needle).length-1;
+ // The r10 helper owns the single aggregate token; exporting it lets the
+ // separate purchase owner source reuse the same literal without a second one.
+ expect(aggregate).toContain('export const assetPhysicalAggSql = (alias:string,from:string) =>');
+ expect(purchases.match(/SELECT/g)).toHaveLength(2);
+ expect(purchases).toContain('import {assetPhysicalAggSql} from "./financial-workflow-sources"');
+ expect(count(purchases,'${assetPhysicalAggSql("link","operational_asset_finance_links link WHERE link.asset_id=r.id")}')).toBe(1);
+ // No duplicate raw finance-link aggregate remains at the purchase call site.
+ expect(count(purchases,'(SELECT jsonb_agg(to_jsonb(link) ORDER BY link.id) FROM operational_asset_finance_links link WHERE link.asset_id=r.id)')).toBe(0);
+ // Byte parity: the helper template composes the exact prior purchase SQL.
+ const alias="link",from="operational_asset_finance_links link WHERE link.asset_id=r.id";
+ expect(`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${from})`).toBe('(SELECT jsonb_agg(to_jsonb(link) ORDER BY link.id) FROM operational_asset_finance_links link WHERE link.asset_id=r.id)');
+ // The distinct r10 consumer and the closed r12 scope tuple stay untouched.
+ expect(count(aggregate,'assetPhysicalAggSql(')).toBe(4);
+});
