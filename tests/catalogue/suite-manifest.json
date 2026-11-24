@@ -51837,6 +51837,33 @@
       ]
     },
     {
+      "lane": "unit",
+      "owner": "manage_erpx",
+      "modules": [
+        "manage_erpx"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "beta_policy projection must exist once and stay byte-identical for access and hospitality consumers."
+      },
+      "apps": [
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-manage_erpx"
+      ],
+      "id": "manage_erpx.beta-policy-projection-dedupe.unit",
+      "files": [
+        "tests/unit/manage_erpx/beta-policy-projection-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "manage_erpx.native-onboarding-transport.unit",
       "lane": "unit",
       "owner": "manage_erpx",
