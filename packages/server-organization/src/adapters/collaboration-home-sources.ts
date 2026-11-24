@@ -1,8 +1,9 @@
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import {ORG_ACTIVE_BRANCHES_SOURCE} from './org-sources';
 export function collaborationHomeSources(db: SqlDatabase) {
     return { async branches(companyId: string, branchId: string | null, branchId2: string | null) {
-            return db.prepare("SELECT id,display_name FROM organization_nodes WHERE kind='branch' AND company_id=? AND status='active' AND (?::text IS NULL OR id=?)")
+            return db.prepare(ORG_ACTIVE_BRANCHES_SOURCE)
                 .bind(companyId, branchId, branchId2).all<{
                 id: string;
                 display_name: string;

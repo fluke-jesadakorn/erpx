@@ -147,4 +147,19 @@ describe('Organization owner-local read tail', () => {
     expect(ORG_COMPANY_DISPLAY_NAME_SOURCE).toBe("SELECT display_name FROM organization_nodes WHERE id=? AND kind='company'");
   });
 
+  it('shares one canonical active-branch source across the collaboration home and beta readers', async () => {
+    const {ORG_ACTIVE_BRANCHES_SOURCE} = await import('../../../packages/server-organization/src/adapters/org-sources');
+    const {collaborationHomeSources} = await import('@erpx/server-organization/adapters/collaboration-home-sources');
+    const {betaManagementFacts} = await import('@erpx/server-organization/adapters/beta-management-facts');
+    const rows = [{id: 'branch', display_name: 'Branch'}] as never[];
+    const rowsAll = vi.fn(async () => ({results: rows}));
+    const bind = vi.fn(() => ({all: rowsAll}));
+    const seen: string[] = [];
+    const handle = {prepare: vi.fn((sql: string) => {seen.push(sql); return {bind};})} as unknown as SqlDatabase;
+    await expect(collaborationHomeSources(handle).branches('company', 'branch', 'branch')).resolves.toEqual({results: rows});
+    await expect(betaManagementFacts(handle).branches('company', 'branch', 'branch')).resolves.toEqual(rows);
+    expect(seen).toEqual([ORG_ACTIVE_BRANCHES_SOURCE, ORG_ACTIVE_BRANCHES_SOURCE]);
+    expect(ORG_ACTIVE_BRANCHES_SOURCE).toBe("SELECT id,display_name FROM organization_nodes WHERE kind='branch' AND company_id=? AND status='active' AND (?::text IS NULL OR id=?)");
+  });
+
 });

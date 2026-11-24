@@ -18,3 +18,7 @@ export const ORG_NODE_DISPLAY_NAME_SOURCE =
  * Each caller keeps its own binding and supplied transaction. */
 export const ORG_COMPANY_DISPLAY_NAME_SOURCE =
   "SELECT display_name FROM organization_nodes WHERE id=? AND kind='company'";
+/** Canonical active branch-list read shared by the collaboration home and beta management readers.
+ * Each caller keeps its own binding and supplied transaction. */
+export const ORG_ACTIVE_BRANCHES_SOURCE =
+  "SELECT id,display_name FROM organization_nodes WHERE kind='branch' AND company_id=? AND status='active' AND (?::text IS NULL OR id=?)";
