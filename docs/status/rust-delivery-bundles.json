@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8039,
+    "revision": 8041,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -116320,7 +116320,7 @@
         "owner": "commerce",
         "title": "Mount Commerce quality receipt-origin read router",
         "kind": "integration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116330,22 +116330,39 @@
         "resources": [
           "resource:composition"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG43cor",
-          "claimedAt": "2026-11-24T00:58:07.060Z",
-          "heartbeatAt": "2026-11-24T01:36:09.340Z",
-          "expiresAt": "2026-11-24T02:06:09.340Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-service --features existing-business,private-development-api",
+            "result": "passed",
+            "sourceSha": "984cb2a4e"
+          },
+          {
+            "command": "cargo test -p erpx-server-commerce --test quality_receipt_origin_read (6)",
+            "result": "passed",
+            "sourceSha": "984cb2a4e"
+          },
+          {
+            "command": "mount/route/gates verified at HEAD",
+            "result": "passed",
+            "sourceSha": "984cb2a4e",
+            "note": "mount 4421/7226, route quality-receipt-origin, allowlist 12249; no TS delta possible within Rust-only path."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Mounted; owner router tests verify the read envelope.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with evidence; cutover task queued.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG43cor",
+          "at": "2026-11-24T01:37:06.810Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with evidence; cutover task queued."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -135154,7 +135171,7 @@
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:36:52.214Z",
+    "updatedAt": "2026-11-24T01:37:06.815Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
