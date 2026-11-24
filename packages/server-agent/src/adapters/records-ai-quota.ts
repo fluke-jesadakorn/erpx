@@ -6,10 +6,11 @@ import { recordsFinanceUsageSql } from '@erpx/server-finance/public/records-ai-u
 import { recordsRequestUsageSql } from '@erpx/server-records/public/ai-usage-projection';
 import { recordsExecutiveUsageSql } from '@erpx/server-platform_administration/public/records-ai-usage-projection';
 import { recordsAiMonthlyLimitSql } from '@erpx/server-manage_erpx/public/records-ai-limit-projection';
+import { agentMonthlyUsageColsSql } from './agent-monthly-usage-source';
 /** The one owner-authored fixed SQL for the Agent workspace-turns monthly
- * usage projection. Every quota caller reuses this text; no adapter authors
- * its own literal. */
-export const agentWorkspaceMonthlyUsageSql = "SELECT company_id,to_char(to_timestamp(created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM') AS month FROM ai_workspace_turns";
+ * usage projection. Every quota caller reuses the byte-identical shared core;
+ * no adapter authors its own literal. */
+export const agentWorkspaceMonthlyUsageSql = `${agentMonthlyUsageColsSql} AS month FROM ai_workspace_turns`;
 const quotaSql = `${recordsSocialUsageCountSql}+${recordsExpenseUsageCountSql}+(SELECT COUNT(*) FROM (${recordsRequestUsageSql} UNION ALL ${recordsFinanceUsageSql} UNION ALL ${agentWorkspaceMonthlyUsageSql} UNION ALL ${recordsExecutiveUsageSql}) WHERE company_id=? AND month=?)`;
 export function recordsAiQuota(database: SqlDatabase) {
     return {
