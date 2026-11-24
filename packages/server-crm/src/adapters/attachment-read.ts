@@ -20,18 +20,23 @@ import {actorScopeSql,crmPurchaseAccountRows,crmPurchaseOpportunityRows,crmPurch
  * witnesses; callers pass the owned row projection and their alias predicate so
  * the rendered SQL stays byte-identical to the retired inline pair. */
 const nativeImageSql=(rows:string,predicate:string)=>`'native',(SELECT jsonb_agg(to_jsonb(native)) FROM (${rows}) native WHERE ${predicate})`;
+/** r17: one parameterized related-image aggregate shared by the three CRM
+ * attachment witness lists. Callers pass only the row alias and its owned
+ * FROM/WHERE tail, so every rendered subquery stays byte-identical to the
+ * retired inline form. */
+const crmRelatedAggSql=(alias:string,from:string)=>`SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${from}`;
 
 type Target='crm_account'|'crm_opportunity';
 export function isCRMAttachmentReadTarget(target:string):target is Target{return target==='crm_account'||target==='crm_opportunity';}
 type Source={image:string;customer_id:string|null;quote_id:string|null;sales_id:string|null;reservation_id:string|null};
 async function image(database:SqlDatabase,companyId:string,target:Target,id:string){
  const row=target==='crm_account'?await database.prepare(`SELECT jsonb_build_object('account',to_jsonb(account),
-  'contacts',(SELECT jsonb_agg(to_jsonb(contact) ORDER BY contact.id) FROM crm_contacts contact WHERE contact.account_id=account.id AND contact.company_id=account.company_id),
-  'leads',(SELECT jsonb_agg(to_jsonb(lead) ORDER BY lead.id) FROM crm_leads lead WHERE lead.account_id=account.id AND lead.company_id=account.company_id),
+  'contacts',(${crmRelatedAggSql('contact','crm_contacts contact WHERE contact.account_id=account.id AND contact.company_id=account.company_id')}),
+  'leads',(${crmRelatedAggSql('lead','crm_leads lead WHERE lead.account_id=account.id AND lead.company_id=account.company_id')}),
   ${nativeImageSql(crmPurchaseAccountRows,'native.id=account.id AND native.company_id=account.company_id')})::text image,
   account.finance_party_id customer_id,NULL::text quote_id,NULL::text sales_id,NULL::text reservation_id FROM crm_accounts account WHERE account.id=? AND account.company_id=?`).bind(id,companyId).first<Source>()
  :await database.prepare(`SELECT jsonb_build_object('opportunity',to_jsonb(opportunity),'lead',to_jsonb(lead),'account',to_jsonb(account),'contact',to_jsonb(contact),
-  'guestLinks',(SELECT jsonb_agg(to_jsonb(link) ORDER BY link.id) FROM crm_guest_links link WHERE link.company_id=lead.company_id AND link.contact_id=lead.contact_id),
+  'guestLinks',(${crmRelatedAggSql('link','crm_guest_links link WHERE link.company_id=lead.company_id AND link.contact_id=lead.contact_id')}),
   ${nativeImageSql(crmPurchaseOpportunityRows,'native.id=lead.id AND native.company_id=lead.company_id')})::text image,
   opportunity.customer_id,opportunity.quote_id,opportunity.sales_id,opportunity.reservation_id FROM crm_opportunities opportunity JOIN crm_leads lead ON lead.id=opportunity.lead_id
   LEFT JOIN crm_accounts account ON account.id=lead.account_id AND account.company_id=lead.company_id
