@@ -1,4 +1,5 @@
 import "server-only";
+import {qualityObligationFactArm} from './quality-obligation-fact-arm-sql';
 import {createHash} from "node:crypto";
 import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgres";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
@@ -12,8 +13,8 @@ export async function manufacturingQualityPackageObligations(owner:PostgresDatab
  // Physical overlap is deliberately conservative withdrawal evidence, never a
  // purchase grant or authority to inspect another owner's Quality record.
  const facts=(await database.prepare(`WITH scope AS${qualityPackageScopeCte},orders AS MATERIALIZED(SELECT o.* FROM (${manufacturing.orders}) o,scope WHERE o.company_id=scope.company_id AND (scope.full OR o.advanced OR NOT o.source_valid)),holds AS MATERIALIZED(SELECT h.* FROM inventory_quality_holds h,scope WHERE h.company_id=scope.company_id AND EXISTS(SELECT 1 FROM (${manufacturing.stockFootprint}) source JOIN orders o ON o.id=source.order_id AND o.company_id=source.company_id WHERE source.company_id=h.company_id AND source.warehouse_id=h.warehouse_id AND source.product_id=h.product_id))
- SELECT 'quality-hold' kind,h.id,to_jsonb(h)::text fact FROM holds h WHERE h.status NOT IN ('released','cancelled','disposed')
- UNION ALL SELECT 'quality-alert',a.id,to_jsonb(a)::text FROM inventory_quality_alerts a JOIN holds h ON h.id=a.hold_id WHERE a.acknowledged_by IS NULL
+ ${qualityObligationFactArm(`'quality-hold' kind,h.id,to_jsonb(h)::text fact`,`holds h`,` WHERE h.status NOT IN ('released','cancelled','disposed')`)}
+ UNION ALL ${qualityObligationFactArm(`'quality-alert',a.id,to_jsonb(a)::text`,`inventory_quality_alerts a JOIN holds h ON h.id=a.hold_id`,` WHERE a.acknowledged_by IS NULL`)}
  ORDER BY kind,id`).bind(input.companyId,input.packageId==="manufacturing").all()).results;
  return {companyId:input.companyId,packageId:input.packageId,moduleId:"quality",observedAt:input.now,revision:createHash("sha256").update(JSON.stringify({companyId:input.companyId,packageVersion:input.packageVersion,facts})).digest("hex"),outstanding:facts.length};
 }

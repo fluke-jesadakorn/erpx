@@ -1,4 +1,5 @@
 import "server-only";
+import {qualityObligationFactArm} from './quality-obligation-fact-arm-sql';
 import {createHash} from "node:crypto";
 import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgres";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
@@ -29,7 +30,7 @@ export async function supplyQualityPackageObligations(owner:PostgresDatabase,dat
  SELECT hold.*,source.kind source_kind,source.witness FROM inventory_quality_holds hold CROSS JOIN scope
  LEFT JOIN (${qualityPurchaseSourceRows}) source ON source.id=hold.id AND source.company_id=hold.company_id
  WHERE hold.company_id=scope.company_id AND source.kind IS DISTINCT FROM 'customer-return' AND (scope.full OR source.kind IS DISTINCT FROM 'receipt'))
- SELECT 'hold' kind,hold.id,jsonb_build_array(to_jsonb(hold),
+ ${qualityObligationFactArm(`'hold' kind,hold.id,jsonb_build_array(to_jsonb(hold),
  ${qualityChildAggSql('inventory_quality_inspections','inspection','hold_id','hold.id')},
  ${qualityChildAggSql('inventory_quality_cancellations','event','hold_id','hold.id')},
  ${qualityChildAggSql('inventory_quality_disposition_events','event','hold_id','hold.id')}) fact,
@@ -45,14 +46,14 @@ export async function supplyQualityPackageObligations(owner:PostgresDatabase,dat
  JOIN command_receipts receipt ON event.id='quality-disposition-'||receipt.command_id AND receipt.record_id=count.id AND receipt.operation='inventory.count.post'
  AND receipt.actor_id=event.actor_id AND receipt.authority_json::jsonb->>'companyId'=hold.company_id
  WHERE count.id=hold.disposition_count_id AND count.quality_hold_id=hold.id AND count.company_id=hold.company_id AND count.warehouse_id=hold.warehouse_id
- AND count.status='posted' AND count.approved_by=hold.disposed_by)),false) pending FROM holds hold
- UNION ALL SELECT 'alert',alert.id,to_jsonb(alert),hold.status NOT IN ('released','cancelled','disposed') AND
+ AND count.status='posted' AND count.approved_by=hold.disposed_by)),false) pending`,`holds hold`)}
+ UNION ALL ${qualityObligationFactArm(`'alert',alert.id,to_jsonb(alert),hold.status NOT IN ('released','cancelled','disposed') AND
  (alert.acknowledged_by IS NULL OR alert.acknowledged_at IS NULL OR NOT EXISTS(${qualityReceiptGuardSql('alert.id','quality.alert.acknowledge','hold.company_id','version','alert.version::text','alert.acknowledged_by')}))
- FROM inventory_quality_alerts alert JOIN holds hold ON hold.id=alert.hold_id
- UNION ALL SELECT 'specification',spec.id,jsonb_build_array(to_jsonb(spec),${qualityChildAggSql('inventory_quality_spec_metrics','metric','spec_id','spec.id')}),
+`,`inventory_quality_alerts alert JOIN holds hold ON hold.id=alert.hold_id`)}
+ UNION ALL ${qualityObligationFactArm(`'specification',spec.id,jsonb_build_array(to_jsonb(spec),${qualityChildAggSql('inventory_quality_spec_metrics','metric','spec_id','spec.id')}),
  NOT COALESCE((spec.status IN ('active','superseded') AND spec.approved_by IS NOT NULL AND spec.activated_at IS NOT NULL AND EXISTS(${qualityReceiptGuardSql('spec.id','quality.spec.activate','spec.company_id','status',"'active'",'spec.approved_by')}))
  OR(spec.status='cancelled' AND EXISTS(${qualityReceiptGuardSql('spec.id','quality.spec.cancel','spec.company_id','status',"'cancelled'")})),false)
- FROM inventory_quality_specs spec,scope WHERE spec.company_id=scope.company_id ORDER BY kind,id`).bind(input.companyId,input.packageId==="supply").all<{kind:string;id:string;fact:unknown;pending:boolean}>()).results;
+`,`inventory_quality_specs spec,scope`,` WHERE spec.company_id=scope.company_id ORDER BY kind,id`)}`).bind(input.companyId,input.packageId==="supply").all<{kind:string;id:string;fact:unknown;pending:boolean}>()).results;
  return {companyId:input.companyId,packageId:input.packageId,moduleId:"quality",observedAt:input.now,
  revision:createHash("sha256").update(JSON.stringify({companyId:input.companyId,packageVersion:input.packageVersion,facts})).digest("hex"),outstanding:facts.filter(fact=>fact.pending!==false).length};
 }
