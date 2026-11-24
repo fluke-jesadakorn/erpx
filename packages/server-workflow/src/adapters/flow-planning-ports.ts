@@ -1,6 +1,6 @@
 import { workflowFinalOwnerProjections as commerceFinalOwnerProjections } from '@erpx/server-commerce/public/workflow-final-owner-projections';
 import {workflowWave3Statement} from './native-workflow-wave3';
-import {nativeWorkflowReadFirst} from './native-workflow-read';
+import {nativeWorkflowReadAll,nativeWorkflowReadFirst} from './native-workflow-read';
 import {approvalStepsByInstanceSql} from './approval-projection-sources';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
@@ -10,8 +10,6 @@ import { workflowFinalOwnerProjections as peoplepayrollFinalOwnerProjections } f
 const commerceFinalSources=commerceFinalOwnerProjections(),financeFinalSources=financeFinalOwnerProjections(),peoplepayrollFinalSources=peoplepayrollFinalOwnerProjections();
 /** Byte-identical span shared by the order flow's stock_gl and invoicing branches; emitted SQL is unchanged. */
 const orderFulfilledExistsSql = `WHEN d.state='fulfilled' AND EXISTS(SELECT 1 ${commerceFinalSources.flow_routing_commerce_fulfillments_f_from} `;
-/** Byte-identical company-scoped flow-routes read fragment shared by the bulk read and the single-route read; emitted SQL is unchanged. */
-const flowRoutesByCompanySql = "SELECT * FROM flow_routes WHERE company_id=?";
 /** Byte-identical span shared by the flow-defaults revision read and the route-version guard; emitted SQL is unchanged. */
 const flowDefaultsMaxRevisionSql = "SELECT COALESCE(MAX(revision),0)";
 /** Byte-identical generator family for company-scoped flow-event history reads; callers choose the projection and optional record filter, emitted SQL and bind order are unchanged. */
@@ -94,17 +92,17 @@ export function nativeFlowPlanningPorts(database: SqlDatabase): FlowPlanningPort
         readDefinitionsDelivery(source_id: string | number | null) { return commerce_flow_routing(database).readDefinitionsDelivery(source_id); },
         readDefinitionsPaymentBatch(company_id: string, id: string | number | null) { if (!hasPolicyReadSnapshot()) return people_payroll_flow_routing(database).readDefinitionsPaymentBatch(company_id, id);
             return nativePolicyRead(database, JSON.stringify(["flow-payment-batches",company_id]), async () => new Map((await people_payroll_flow_routing(database).readWorkflowPaymentBatches(company_id)).results.map(row => [row.source_id,row]))).then(rows => rows.get(String(id)) ?? null); },
-        readSharedFlowReferencesRoutesdefaultsevents(companyId: string) { return database.prepare(flowRoutesByCompanySql).bind(companyId).all<Route & {
+        async readSharedFlowReferencesRoutesdefaultsevents(companyId: string) { return {results: await nativeWorkflowReadAll<Route & {
             kind: string;
             record_id: string;
-        }>(); },
+        }>('wf_native_flow_routes_by_company', [companyId], companyId, database)}; },
         readSharedFlowReferencesRoutesdefaultsevents2(companyId: string) { return database.prepare("SELECT * FROM flow_defaults WHERE company_id=? ORDER BY CASE WHEN department_id IS NOT NULL THEN 3 WHEN branch_id IS NOT NULL THEN 2 ELSE 1 END DESC,revision DESC").bind(companyId).all<DefaultRow & {
             kind: string;
             branch_id: string | null;
             department_id: string | null;
         }>(); },
         readSharedFlowReferencesRoutesdefaultsevents3(companyId: string) { return database.prepare(flowEventsHistorySql('kind,record_id,action,actor_name,created_at,reason,step_key')).bind(companyId).all<FlowHistoryRow>(); },
-        readReadFlowRoute(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string) { return database.prepare(`${flowRoutesByCompanySql} AND kind=? AND record_id=?`).bind(companyId, kind, id).first<Route>(); },
+        async readReadFlowRoute(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string) { const rows = await nativeWorkflowReadAll<Route>('wf_native_flow_routes_by_company_kind_record', [companyId, kind, id], companyId, database); return rows[0] ?? null; },
         readReadFlowDefaultsRevision(companyId: string) { return database.prepare(`${flowDefaultsMaxRevisionSql} revision FROM flow_defaults WHERE company_id=?`).bind(companyId).first<{
             revision: number;
         }>(); },

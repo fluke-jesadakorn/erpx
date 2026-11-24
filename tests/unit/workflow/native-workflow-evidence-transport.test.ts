@@ -917,3 +917,70 @@ describe('workflow export receipt result_json dedupe (r32)', () => {
     expect(refund.bind).toHaveBeenCalledWith('refund-key', 'finance.refund.export');
   });
 });
+
+describe('workflow flow-routes read tail (r41 native read plan)', () => {
+  it('carries no retired owner SQL for the switched reads', async () => {
+    const source = await readFile(
+      new URL('../../../packages/server-workflow/src/adapters/flow-planning-ports.ts', import.meta.url),
+      'utf8',
+    );
+    expect(source).not.toContain('flowRoutesByCompanySql');
+    expect(source).not.toContain('SELECT * FROM flow_routes WHERE company_id=?');
+    expect(source).not.toContain('AND kind=? AND record_id=?`).bind(companyId, kind, id)');
+  });
+
+  it('plans both flow-routes reads through the mounted native read with no local SQL', async () => {
+    const rows = [{ kind: 'expense', record_id: 'record-1' }];
+    const all = vi.fn(async () => rows);
+    vi.resetModules();
+    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+      nativeWorkflowReadAll: all,
+      nativeWorkflowReadFirst: vi.fn(),
+    }));
+    try {
+      const { nativeFlowPlanningPorts } = await import(
+        '../../../packages/server-workflow/src/adapters/flow-planning-ports'
+      );
+      const prepare = vi.fn();
+      const db = { prepare } as never;
+      const repo = nativeFlowPlanningPorts(db).repository;
+      expect(await repo.readSharedFlowReferencesRoutesdefaultsevents('company')).toEqual({ results: rows });
+      expect(all).toHaveBeenCalledWith(
+        'wf_native_flow_routes_by_company',
+        ['company'],
+        'company',
+        db,
+      );
+      expect(await repo.readReadFlowRoute('company', 'expense', 'record-1')).toEqual(rows[0]);
+      expect(all).toHaveBeenCalledWith(
+        'wf_native_flow_routes_by_company_kind_record',
+        ['company', 'expense', 'record-1'],
+        'company',
+        db,
+      );
+      expect(prepare).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.resetModules();
+    }
+  });
+
+  it('keeps the by-id read first-row parity when the native plan returns no rows', async () => {
+    const all = vi.fn(async () => [] as unknown[]);
+    vi.resetModules();
+    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+      nativeWorkflowReadAll: all,
+      nativeWorkflowReadFirst: vi.fn(),
+    }));
+    try {
+      const { nativeFlowPlanningPorts } = await import(
+        '../../../packages/server-workflow/src/adapters/flow-planning-ports'
+      );
+      const db = { prepare: vi.fn() } as never;
+      expect(await nativeFlowPlanningPorts(db).repository.readReadFlowRoute('company', 'leave', 'rec-2')).toBeNull();
+    } finally {
+      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.resetModules();
+    }
+  });
+});

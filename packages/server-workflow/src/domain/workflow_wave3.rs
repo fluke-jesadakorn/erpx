@@ -138,6 +138,13 @@ pub const WF_NATIVE_LEGAL_DECISION_HISTORY: &str = "wf_native_legal_decision_his
 /// on the Workflow-owned approval tables; the TypeScript bridge executes it on
 /// the caller's open company unit and carries no receipt/assertion semantics.
 pub const WF_NATIVE_FLOW_DEFINITIONS_INSTANCE: &str = "wf_native_flow_definitions_instance";
+/// Owner-authored caller-unit reads for the company-scoped flow-routes family.
+/// Each is byte-identical to the retired TypeScript literal it replaces; the
+/// planner resolves it to one fixed SELECT executed on the caller's open unit
+/// and carries no receipt/assertion semantics.
+pub const WF_NATIVE_FLOW_ROUTES_BY_COMPANY: &str = "wf_native_flow_routes_by_company";
+pub const WF_NATIVE_FLOW_ROUTES_BY_COMPANY_KIND_RECORD: &str =
+    "wf_native_flow_routes_by_company_kind_record";
 /// Owner-authored caller-unit read for the finance sales-invoice completion
 /// receipt family. The mounted wave3-command planner resolves it to one fixed
 /// SELECT on the Workflow-owned command ledger; the TypeScript bridge executes
@@ -200,6 +207,8 @@ pub const KINDS: &[&str] = &[
     WF_NATIVE_APPROVAL_ADMINISTRATION_QUEUE,
     WF_NATIVE_LEGAL_DECISION_HISTORY,
     WF_NATIVE_FLOW_DEFINITIONS_INSTANCE,
+    WF_NATIVE_FLOW_ROUTES_BY_COMPANY,
+    WF_NATIVE_FLOW_ROUTES_BY_COMPANY_KIND_RECORD,
     WF_NATIVE_FINANCE_SALES_COMPLETION,
     WF_NATIVE_FINANCE_SOURCE_REVISION,
     WF_NATIVE_PROJECT_WORKER_COMMAND_EVIDENCE,
@@ -456,6 +465,11 @@ fn statement(kind: &str) -> Option<(&'static str, usize)> {
         ),
         WF_NATIVE_FLOW_DEFINITIONS_INSTANCE => (
             "SELECT * FROM approval_instances WHERE company_id=? AND record_type=? AND record_id=? ORDER BY insertion_order DESC LIMIT 1",
+            3,
+        ),
+        WF_NATIVE_FLOW_ROUTES_BY_COMPANY => ("SELECT * FROM flow_routes WHERE company_id=?", 1),
+        WF_NATIVE_FLOW_ROUTES_BY_COMPANY_KIND_RECORD => (
+            "SELECT * FROM flow_routes WHERE company_id=? AND kind=? AND record_id=?",
             3,
         ),
         WF_NATIVE_FINANCE_SALES_COMPLETION => (
@@ -875,6 +889,57 @@ mod tests {
             .is_ok()
         );
         assert!(plan(WF_NATIVE_FLOW_DEFINITIONS_INSTANCE, vec![json!("company")]).is_err());
+    }
+
+    /// The company-scoped flow-routes reads stay byte-identical to the retired
+    /// TypeScript literals, SELECT-only and fixed to their exact bind counts.
+    #[test]
+    fn flow_routes_read_kinds_are_fixed_company_scoped_select() {
+        let (sql, expected) = statement(WF_NATIVE_FLOW_ROUTES_BY_COMPANY)
+            .expect("registered owner read kind");
+        assert_eq!(sql, "SELECT * FROM flow_routes WHERE company_id=?");
+        assert_eq!(expected, 1);
+        assert_eq!(sql.matches('?').count(), expected);
+
+        let (by_id_sql, by_id_expected) = statement(WF_NATIVE_FLOW_ROUTES_BY_COMPANY_KIND_RECORD)
+            .expect("registered owner read kind");
+        assert_eq!(
+            by_id_sql,
+            "SELECT * FROM flow_routes WHERE company_id=? AND kind=? AND record_id=?"
+        );
+        assert_eq!(by_id_expected, 3);
+        assert_eq!(by_id_sql.matches('?').count(), by_id_expected);
+
+        for sql in [sql, by_id_sql] {
+            assert!(sql.starts_with("SELECT "), "read must be SELECT-only: {sql}");
+            assert!(sql.contains("FROM flow_routes"), "read must stay owner-local: {sql}");
+            assert!(sql.contains("company_id=?"), "read must stay company-scoped: {sql}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE", "FOR SHARE", "LOCK TABLE"] {
+                assert!(!sql.contains(forbidden), "read must not mutate or lock: {forbidden}");
+            }
+        }
+
+        assert!(supported(WF_NATIVE_FLOW_ROUTES_BY_COMPANY));
+        assert!(supported(WF_NATIVE_FLOW_ROUTES_BY_COMPANY_KIND_RECORD));
+        assert!(
+            plan(WF_NATIVE_FLOW_ROUTES_BY_COMPANY, vec![json!("company")]).is_ok()
+        );
+        assert!(plan(WF_NATIVE_FLOW_ROUTES_BY_COMPANY, vec![]).is_err());
+        assert!(plan(WF_NATIVE_FLOW_ROUTES_BY_COMPANY, vec![json!("company"), json!("expense")]).is_err());
+        assert!(
+            plan(
+                WF_NATIVE_FLOW_ROUTES_BY_COMPANY_KIND_RECORD,
+                vec![json!("company"), json!("expense"), json!("record-1")]
+            )
+            .is_ok()
+        );
+        assert!(
+            plan(
+                WF_NATIVE_FLOW_ROUTES_BY_COMPANY_KIND_RECORD,
+                vec![json!("company"), json!("expense")]
+            )
+            .is_err()
+        );
     }
 
     /// The owner-local finance sales-invoice completion receipt read stays
