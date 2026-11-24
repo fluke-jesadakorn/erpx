@@ -1,3 +1,4 @@
+import { versionStatusGuardSql } from './finance-read-tail-r52-sql';
 import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { financeAccountingProfiles } from '@erpx/server-collaboration/adapters/native-finance-accounting-profiles';
 import { withFinancePurchasedRead, withFinanceConfigurationCommand } from "@erpx/server-finance/adapters/purchase-boundary";
@@ -46,7 +47,7 @@ function profileService(provided?: SqlDatabase) {
             const { actor, key, operation, input, id, status, decision, profile, now } = facts;
             const write = await db(actor);
             return executeCommand(write, actor, key, operation, input, id, input.expectedVersion + 1, { id, status, version: input.expectedVersion + 1 }, [
-                assertion(write, key, "profile", "EXISTS(SELECT 1 FROM finance_accounting_profiles WHERE id=? AND company_id=? AND version=? AND status='draft')", [id, actor.companyId, input.expectedVersion]),
+                assertion(write, key, "profile", versionStatusGuardSql('finance_accounting_profiles', "'draft'", ''), [id, actor.companyId, input.expectedVersion]),
                 ...(decision === "approve" ? [
                     assertion(write, key, "ledger", ACTIVE_THB_CHART_GUARD_SQL, [profile.statutory_chart_id, actor.companyId]),
                     assertion(write, key, "single-statutory-ledger", NO_APPROVED_PROFILE_GUARD_SQL, [actor.companyId]),

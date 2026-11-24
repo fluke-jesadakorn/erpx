@@ -1,3 +1,4 @@
+import { versionStatusGuardSql } from './finance-read-tail-r52-sql';
 import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { chartPointSql, financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { bankTxnGuardSql } from './finance-read-tail-r48-sql';
@@ -100,7 +101,7 @@ decideEditionCommit:async(facts)=>{const {actor,id,input,key,op,e,journalId,stat
         db,
         key,
         "instrument-version",
-        "EXISTS(SELECT 1 FROM finance_instrument_editions WHERE id=? AND company_id=? AND version=? AND status='draft')",
+        versionStatusGuardSql('finance_instrument_editions', "'draft'", ''),
         [id, actor.companyId, input.expectedVersion],
       ),
         await nativeFinanceInstruments(db, actor.companyId).editionDecision([status, actor.userId, journal?.result.id ?? null, updatedAt, id,]),
@@ -152,7 +153,7 @@ decideRunCommit:async(facts)=>{const {actor,id,input,key,op,row,run,journalId,st
         db,
         key,
         "instrument-run-version",
-        "EXISTS(SELECT 1 FROM finance_instrument_runs WHERE id=? AND company_id=? AND version=? AND status='draft')",
+        versionStatusGuardSql('finance_instrument_runs', "'draft'", ''),
         [id, actor.companyId, input.expectedVersion],
       ),
         await nativeFinanceInstruments(db, actor.companyId).runDecision([status, actor.userId, journal?.result.id ?? null, updatedAt, id,]),

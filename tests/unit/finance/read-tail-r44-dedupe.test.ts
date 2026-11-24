@@ -96,9 +96,9 @@ describe('Finance read-tail r44 retirement check', () => {
       }
     };
     walk(srcRoot);
-    // r44 collapsed 21 inline into five helpers (1884 -> 1868); r45 removes eight more (-> 1860); r46 removes nine more (-> 1851); r48 removes seven more (-> 1844); r49 removes 32 more (-> 1812); r50 removes seven more (-> 1805).
-    expect(total).toBe(1783);
-    expect(total).toBeLessThanOrEqual(1783);
+    // r44 collapsed 21 inline into five helpers (1884 -> 1868); r45 removes eight more (-> 1860); r46 removes nine more (-> 1851); r48 removes seven more (-> 1844); r49 removes 32 more (-> 1812); r50 removes seven more (-> 1805); r51 removes 22 (-> 1783); r52 removes 19 (-> 1764).
+    expect(total).toBe(1764);
+    expect(total).toBeLessThanOrEqual(1764);
     expect(total).toBeLessThan(1884);
   });
 });

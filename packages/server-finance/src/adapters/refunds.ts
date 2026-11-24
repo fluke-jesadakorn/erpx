@@ -1,3 +1,4 @@
+import { versionStatusGuardSql } from './finance-read-tail-r52-sql';
 import { REFUND_INSTRUCTION_POINT_SQL } from './finance-read-tail-r38-sql';
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { ACCOUNT_SELECT_PREFIX } from './finance-read-tail-r30-sql';
@@ -93,7 +94,7 @@ function refundService(provided?:SqlDatabase,presentation?:{historyOnly:boolean;
             const { actor, key, input, id, row, now, owner } = facts;
             const write = await db(actor);
             return executeCommand(write, actor, key, 'finance.refund.exception', input, id, input.expectedVersion + 1, { id, status: input.outcome, version: input.expectedVersion + 1 }, [
-                assertion(write, key, 'instruction', 'EXISTS(SELECT 1 FROM finance_refund_instructions WHERE id=? AND company_id=? AND version=? AND status=?)', [id, actor.companyId, input.expectedVersion, row.status]),
+                assertion(write, key, 'instruction', versionStatusGuardSql('finance_refund_instructions', '?', ''), [id, actor.companyId, input.expectedVersion, row.status]),
                 await nativeFinanceRefunds(write, actor.companyId).instructionResolve([input.outcome, input.evidence, actor.userId, now, id]),
                 await nativeFinanceRefunds(write, actor.companyId).obligationBump2([now, owner.id]),
                 await nativeRefundNotification(write, actor, key, String(owner.id), input.outcome === 'unknown' ? 'review' : 'treasury', 'Refund bank exception updated: review source evidence before retrying', actor.userId),
@@ -106,7 +107,7 @@ function refundService(provided?:SqlDatabase,presentation?:{historyOnly:boolean;
                 ...(attachmentBinding?.guards ?? []),
                 write.prepare('SELECT id FROM finance_refund_obligations WHERE id=? AND company_id=? FOR UPDATE').bind(owner.id, actor.companyId),
                 assertion(write, key, 'instruction', "EXISTS(SELECT 1 FROM finance_refund_instructions WHERE id=? AND company_id=? AND version=? AND status IN ('exported','unknown'))", [id, actor.companyId, input.expectedVersion]),
-                assertion(write, key, 'obligation', "EXISTS(SELECT 1 FROM finance_refund_obligations WHERE id=? AND company_id=? AND version=? AND status='approved' AND outstanding_minor>=?)", [owner.id, actor.companyId, owner.version, amount]),
+                assertion(write, key, 'obligation', versionStatusGuardSql('finance_refund_obligations', "'approved'", ' AND outstanding_minor>=?'), [owner.id, actor.companyId, owner.version, amount]),
                 ...(foreignSource ? [refundForeignCreditGuard(write, key, owner.id, sourceBase)] : []),
                 assertion(write, key, 'bank', "EXISTS(SELECT 1 FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=? AND t.version=? AND t.match_status IN ('unmatched','proposed') AND t.amount_minor=? AND t.currency=? AND s.bank_account=?)", [input.bankTransactionId, actor.companyId, input.bankVersion, outgoing ? -amount : amount, owner.currency, row.bank_account]),
                 ...journal.steps,

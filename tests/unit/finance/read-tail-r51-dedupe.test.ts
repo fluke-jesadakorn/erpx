@@ -3,6 +3,7 @@ import { resolve } from 'node:path';
 import { describe, expect, test } from 'vitest';
 import { activeAccountListSql } from '../../../packages/server-finance/src/adapters/finance-read-tail-r51-sql';
 import { financeReferenceListSql } from '../../../packages/server-finance/src/adapters/finance-read-tail-r42-sql';
+import { versionStatusGuardSql } from '../../../packages/server-finance/src/adapters/finance-read-tail-r52-sql';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-finance/src');
 const adapters = resolve(srcRoot, 'adapters');
@@ -97,11 +98,15 @@ describe('Finance read-tail r51 helper definitions and retained guards', () => {
     expect(count(read('finance-read-tail-r42-sql.ts'), 'export const financeReferenceListSql =')).toBe(1);
   });
 
-  test('S4 version/status EXISTS guards, locks, tax, advisory and native code stay untouched', () => {
+  test('S4 version/status EXISTS guards delegated to r52; locks, tax, advisory and native code stay untouched', () => {
     expect(read('finance-business-contracts.ts')).toContain('EXISTS(SELECT 1 FROM finance_business_contracts WHERE id=? AND company_id=? AND status=? AND version=?)');
-    expect(read('finance-asset-policies.ts')).toContain("EXISTS(SELECT 1 FROM finance_asset_policy_editions WHERE id=? AND company_id=? AND version=? AND status='draft')");
-    expect(read('finance-instruments.ts')).toContain("EXISTS(SELECT 1 FROM finance_instrument_editions WHERE id=? AND company_id=? AND version=? AND status='draft')");
-    expect(read('finance-instruments.ts')).toContain("EXISTS(SELECT 1 FROM finance_instrument_runs WHERE id=? AND company_id=? AND version=? AND status='draft')");
+    const draft = (table: string) => versionStatusGuardSql(table, "'draft'", '');
+    expect(draft('finance_asset_policy_editions')).toBe("EXISTS(SELECT 1 FROM finance_asset_policy_editions WHERE id=? AND company_id=? AND version=? AND status='draft')");
+    expect(draft('finance_instrument_editions')).toBe("EXISTS(SELECT 1 FROM finance_instrument_editions WHERE id=? AND company_id=? AND version=? AND status='draft')");
+    expect(draft('finance_instrument_runs')).toBe("EXISTS(SELECT 1 FROM finance_instrument_runs WHERE id=? AND company_id=? AND version=? AND status='draft')");
+    expect(read('finance-asset-policies.ts')).toContain("versionStatusGuardSql('finance_asset_policy_editions', \"'draft'\", '')");
+    expect(read('finance-instruments.ts')).toContain("versionStatusGuardSql('finance_instrument_editions', \"'draft'\", '')");
+    expect(read('finance-instruments.ts')).toContain("versionStatusGuardSql('finance_instrument_runs', \"'draft'\", '')");
     expect(read('advisory-lock-dedupe-sql.ts')).toContain('FINANCE_ADVISORY_XACT_LOCK_SQL');
     expect(read('pos-core-facts.ts')).toContain('FOR SHARE');
     expect(read('commerce-facts.ts')).toContain('FOR UPDATE');
@@ -109,7 +114,7 @@ describe('Finance read-tail r51 helper definitions and retained guards', () => {
     expect(readRepo('packages/server-collaboration/src/adapters/native-finance-billing-corrections.ts')).toContain('Native-owned finance billing correction statements.');
   });
 
-  test('retirement:ts-statements reaches the r51 target of 1783', () => {
+  test('retirement:ts-statements reaches the r52 target of 1764', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -121,8 +126,9 @@ describe('Finance read-tail r51 helper definitions and retained guards', () => {
     walk(srcRoot);
     // 17 ordered company lists reuse r42, five active-account lists use the new
     // r51 projection helper, and the invoice-read reuse keeps status='active':
-    // -23 literals, +1 helper declaration (1805 -> 1783).
-    expect(total).toBe(1783);
+    // -23 literals, +1 helper declaration (1805 -> 1783); r52 delegates 20
+    // version/status guards to one helper (-20 literals, +1: 1783 -> 1764).
+    expect(total).toBe(1764);
     expect(total).toBeLessThan(1805);
   });
 });

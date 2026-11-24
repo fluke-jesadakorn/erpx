@@ -1079,7 +1079,7 @@ describe('finance read-tail r24 byte-identical SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2038);
-    expect(total).toBe(1783);
+    expect(total).toBe(1764);
   });
 });
 
@@ -1250,7 +1250,7 @@ describe('finance read-tail r30 byte-identical guard-prefix families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2027);
-    expect(total).toBe(1783);
+    expect(total).toBe(1764);
   });
 });
 
@@ -1294,7 +1294,7 @@ describe('finance read-tail r31 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1989);
-    expect(total).toBe(1783);
+    expect(total).toBe(1764);
   });
 });
 
@@ -1339,7 +1339,7 @@ describe('finance read-tail r32 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1985);
-    expect(total).toBe(1783);
+    expect(total).toBe(1764);
   });
 });
 
@@ -1384,7 +1384,7 @@ describe('finance read-tail r33 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1983);
-    expect(total).toBe(1783);
+    expect(total).toBe(1764);
   });
 });
 
@@ -1459,7 +1459,7 @@ describe('finance read-tail r34 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1981);
-    expect(total).toBe(1783);
+    expect(total).toBe(1764);
   });
 });
 
@@ -1508,7 +1508,7 @@ describe('finance read-tail r35 parameterized workforce actor scope family', () 
     };
     walk(root);
     expect(total).toBeLessThan(1974);
-    expect(total).toBe(1783);
+    expect(total).toBe(1764);
   });
 });
 
@@ -1585,7 +1585,7 @@ describe('finance read-tail r36 exact duplicate two-site SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1970);
-    expect(total).toBe(1783);
+    expect(total).toBe(1764);
   });
 });
 
@@ -1639,7 +1639,7 @@ describe('finance read-tail r37 exact duplicate period-exists read family', () =
     };
     walk(root);
     expect(total).toBeLessThan(1966);
-    expect(total).toBe(1783);
+    expect(total).toBe(1764);
   });
 });
 
@@ -1754,7 +1754,7 @@ describe('finance read-tail r38 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1965);
-    expect(total).toBe(1783);
+    expect(total).toBe(1764);
   });
 });
 
@@ -1871,7 +1871,7 @@ describe('finance read-tail r39 read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1951);
-    expect(total).toBe(1783);
+    expect(total).toBe(1764);
   });
 });
 
@@ -1975,7 +1975,8 @@ describe('finance read-tail r40 read families', () => {
     expect(docs).toContain('FOR SHARE');
     expect(docs).toContain('finance-document-owner');
     const pay = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-withholding.ts', import.meta.url), 'utf8');
-    expect(pay).toContain("EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND version=? AND status='active' AND category='liability'");
+    expect(pay).toContain("versionStatusGuardSql('finance_accounts', \"'active'\", \" AND category='liability' AND control_kind='none' AND currency='THB'\")");
+    expect(pay).not.toContain("EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND version=? AND status='active' AND category='liability'");
     const r39 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r39-sql.ts', import.meta.url), 'utf8');
     expect(r39).toContain('bankCashLinesSql');
     const r15 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r15-sql.ts', import.meta.url), 'utf8');
@@ -1994,6 +1995,6 @@ describe('finance read-tail r40 read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1942);
-    expect(total).toBe(1783);
+    expect(total).toBe(1764);
   });
 });

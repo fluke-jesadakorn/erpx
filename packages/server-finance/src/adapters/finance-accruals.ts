@@ -1,3 +1,4 @@
+import { versionStatusGuardSql } from './finance-read-tail-r52-sql';
 import { activeAccountListSql } from './finance-read-tail-r51-sql';
 import { accrualRunRowsSql, accrualScheduleRowsSql } from './finance-read-tail-r42-sql';
 import { ACCRUAL_SCHEDULE_POINT_SQL } from './finance-read-tail-r38-sql';
@@ -47,7 +48,7 @@ function accrualService(provided?:SqlDatabase) {
             const { actor, key, action, input, scheduleId, version, status, row, now } = facts;
             const write = await db(actor);
             return executeCommand(write, actor, key, `finance.accrual.${action}`, input, scheduleId, version, { id: scheduleId, status, version }, [
-                assertion(write, key, "schedule-version", "EXISTS(SELECT 1 FROM finance_accrual_schedules WHERE id=? AND company_id=? AND version=? AND status=?)", [scheduleId, actor.companyId, input.expectedVersion, row.status]),
+                assertion(write, key, "schedule-version", versionStatusGuardSql('finance_accrual_schedules', '?', ''), [scheduleId, actor.companyId, input.expectedVersion, row.status]),
                 await nativeFinanceAccruals(write, actor.companyId).scheduleDecision([status, status, actor.userId, now, scheduleId]),
                 await nativeFinanceAccruals(write, actor.companyId).eventDecision([`accrual-event-${key}`, scheduleId, actor.companyId, action === "approve" ? "approved" : "cancelled", actor.userId, version, input.reason, JSON.stringify({ status }), now]),
             ]);

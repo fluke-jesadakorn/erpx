@@ -1,3 +1,4 @@
+import { versionStatusGuardSql } from './finance-read-tail-r52-sql';
 import { tableByIdSql } from './finance-read-tail-r49-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead,requireFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
 import { CHART_BASE_CURRENCY_BY_ID_SQL } from './finance-read-tail-r15-sql';
@@ -121,7 +122,7 @@ reviseCommit:async(facts)=>{const {actor,key,op,parentId,input,id,parent,invoice
         write,
         key,
         "parent",
-        "EXISTS(SELECT 1 FROM finance_collection_cases WHERE id=? AND company_id=? AND version=? AND status=?) AND NOT EXISTS(SELECT 1 FROM finance_collection_cases WHERE parent_case_id=?) AND NOT EXISTS(SELECT 1 FROM finance_collection_deliveries d JOIN finance_collection_cases c ON c.id=d.case_id WHERE c.root_id=?)",
+        versionStatusGuardSql('finance_collection_cases', '?', ') AND NOT EXISTS(SELECT 1 FROM finance_collection_cases WHERE parent_case_id=?) AND NOT EXISTS(SELECT 1 FROM finance_collection_deliveries d JOIN finance_collection_cases c ON c.id=d.case_id WHERE c.root_id=?'),
         [
           parentId,
           actor.companyId,
@@ -186,7 +187,7 @@ decisionCommit:async(facts)=>{const {actor,id,input,action,key,op,row,invoice,st
       write,
       key,
       "case-version",
-      "EXISTS(SELECT 1 FROM finance_collection_cases WHERE id=? AND company_id=? AND version=? AND status=?)",
+      versionStatusGuardSql('finance_collection_cases', '?', ''),
       [id, actor.companyId, input.expectedVersion, row.status],
     ),
   );

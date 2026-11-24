@@ -1,3 +1,4 @@
+import { versionStatusGuardSql } from './finance-read-tail-r52-sql';
 import { idCompanyStatusVersionGuard, aggByCompany } from './finance-read-tail-r20-sql';
 import { TAX_SOURCE_APPROVED_INVOICE_SQL, TAX_SOURCE_APPROVED_COMMERCE_RETURN_SQL, TAX_SOURCE_APPROVED_BILLING_CREDIT_SQL } from './finance-read-tail-r24-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
@@ -160,7 +161,7 @@ function vatService(provided?: SqlDatabase) {
             const { actor, key, operation, input, id, status, verifiedSource, entry } = facts;
             const write = await db(actor);
             return executeCommand(write, actor, key, operation, input, id, input.expectedVersion + 1, { id, status, version: input.expectedVersion + 1 }, [
-                assertion(write, key, "tax-entry", "EXISTS(SELECT 1 FROM finance_tax_entries WHERE id=? AND company_id=? AND version=? AND status='prepared')", [id, actor.companyId, input.expectedVersion]), ...(verifiedSource ? sourceGuards(write, actor, key, entry.source_type as VatSourceType, verifiedSource.source) : []),
+                assertion(write, key, "tax-entry", versionStatusGuardSql('finance_tax_entries', "'prepared'", ''), [id, actor.companyId, input.expectedVersion]), ...(verifiedSource ? sourceGuards(write, actor, key, entry.source_type as VatSourceType, verifiedSource.source) : []),
                 await nativeFinanceTaxRegister(write, actor.companyId).taxEntryDecision([status, actor.userId, input.reason, Date.now(), id]),
                 decision(write, actor, key, id, operation, input.expectedVersion, input),
             ]);
@@ -169,7 +170,7 @@ function vatService(provided?: SqlDatabase) {
             const write = await db(actor);
             return executeCommand(write, actor, key, operation, { entryId, ...input }, id, 1, { id, status: "prepared", version: 1, entryCount: members.length }, [
                 familyGuard(write, actor, key, familyId, json),
-                assertion(write, key, "vat-correction-current", "EXISTS(SELECT 1 FROM finance_current_tax_entries WHERE id=? AND company_id=? AND version=? AND status='approved')", [entryId, actor.companyId, input.expectedEntryVersion]),
+                assertion(write, key, "vat-correction-current", versionStatusGuardSql('finance_current_tax_entries', "'approved'", ''), [entryId, actor.companyId, input.expectedEntryVersion]),
                 assertion(write, key, "vat-correction-volume", "(SELECT COUNT(*) FROM finance_vat_corrections WHERE company_id=? AND status='prepared')<100", [actor.companyId]),
                 await nativeFinanceTaxRegister(write, actor.companyId).vatCorrectionInsert([id, actor.companyId, previous.chart_id, entryId, familyId, input.reason, json, actor.userId, Date.now()]),
                 ...(await Promise.all(members.map(async (member, index) => [

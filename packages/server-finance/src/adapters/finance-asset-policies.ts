@@ -1,3 +1,4 @@
+import { versionStatusGuardSql } from './finance-read-tail-r52-sql';
 import { financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { ASSET_DRAFT_DISPOSAL_SQL } from './finance-read-tail-r39-sql';
@@ -111,7 +112,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
             return await nativeFinanceOwnerWriteSystem(db, 'system', 'supersede_policy_edition', [now, id]);
         }, guardPolicyVersion(key: string, value: "asset-policy-version", id: string, companyId: string, expectedVersion: number) {
             const db = read();
-            return assertion(db, key, value, "EXISTS(SELECT 1 FROM finance_asset_policy_editions WHERE id=? AND company_id=? AND version=? AND status='draft')", [id, companyId, expectedVersion]);
+            return assertion(db, key, value, versionStatusGuardSql('finance_asset_policy_editions', "'draft'", ''), [id, companyId, expectedVersion]);
         }, async decidePolicy(value: "active" | "rejected", userId: string, now: number, id: string) {
             const db = read();
             return await nativeFinanceOwnerWriteSystem(db, 'system', 'decide_policy_edition', [value, userId, now, id]);

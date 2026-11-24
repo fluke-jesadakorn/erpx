@@ -1,3 +1,4 @@
+import { versionStatusGuardSql } from './finance-read-tail-r52-sql';
 import { financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { ASSET_DEPRECIATIONS_SQL, ASSET_DRAFT_DISPOSAL_SQL } from './finance-read-tail-r39-sql';
@@ -26,7 +27,7 @@ export { assetSchema, assetEditSchema, assetActivationSchema, assetDepreciationS
 function assetGuards(write: SqlDatabase, actor: WorkContext, id: string, asset: Asset) {
     return [
         write.prepare("SELECT id FROM finance_assets WHERE id=? AND company_id=? FOR UPDATE").bind(asset.id, actor.companyId),
-        assertion(write, id, "asset-version", "EXISTS(SELECT 1 FROM finance_assets WHERE id=? AND company_id=? AND version=? AND status=?)", [asset.id, actor.companyId, asset.version, asset.status]),
+        assertion(write, id, "asset-version", versionStatusGuardSql('finance_assets', '?', ''), [asset.id, actor.companyId, asset.version, asset.status]),
     ];
 }
 async function event(write: SqlDatabase, actor: WorkContext, key: string, assetId: string, assetVersion: number, type: string, payload: unknown, createdAt: number) {

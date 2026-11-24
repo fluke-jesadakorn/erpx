@@ -1,3 +1,4 @@
+import { versionStatusGuardSql } from './finance-read-tail-r52-sql';
 import { financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { bankCashLinesSql } from './finance-read-tail-r39-sql';
@@ -139,7 +140,7 @@ decisionCommit:async(facts)=>{const {actor,id,input,key,op,group,prepared,curren
             write,
             key,
             `journal-${l.id}`,
-            "EXISTS(SELECT 1 FROM finance_journals WHERE id=? AND company_id=? AND version=? AND status='posted')",
+            versionStatusGuardSql('finance_journals', "'posted'", ''),
             [l.journal_id, actor.companyId, l.version],
           ),
             await nativeFinanceBankAutomation(write, actor.companyId).matchTargetInsert([l.id, id]),

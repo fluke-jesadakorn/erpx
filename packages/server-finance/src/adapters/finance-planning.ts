@@ -1,3 +1,4 @@
+import { versionStatusGuardSql } from './finance-read-tail-r52-sql';
 import { PLAN_EDITION_POINT_SQL } from './finance-read-tail-r38-sql';
 import { planEditionPointSql } from './finance-read-tail-r48-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
@@ -66,7 +67,7 @@ saveCommit:async(facts)=>{const {actor,kind,base,content,key,op,input,edition,id
         write,
         key,
         "parent",
-        "EXISTS(SELECT 1 FROM finance_plan_editions WHERE id=? AND company_id=? AND version=? AND status='approved')",
+        versionStatusGuardSql('finance_plan_editions', "'approved'", ''),
         [base.parentId, actor.companyId, base.expectedVersion!],
       ),
     );}return executeCommand(
@@ -110,7 +111,7 @@ decisionCommit:async(facts)=>{const {actor,id,input,action,key,op,row,now}=facts
         write,
         key,
         "version",
-        "EXISTS(SELECT 1 FROM finance_plan_editions WHERE id=? AND company_id=? AND version=? AND status='draft')",
+        versionStatusGuardSql('finance_plan_editions', "'draft'", ''),
         [id, actor.companyId, input.expectedVersion],
       ),await financePlanning(db, actor.companyId).reviewEdition({ status: action === "approve" ? "approved" : "rejected", userId: actor.userId, reason: input.reason, now, id }),
     ],
