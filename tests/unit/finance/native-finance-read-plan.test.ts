@@ -36,6 +36,7 @@ import {
 import { rootOwnerExistsSql, materializedClockCteSql } from '../../../packages/server-finance/src/adapters/finance-read-tail-r19-sql';
 import { idCompanyStatusVersionGuard, aggByCompany } from '../../../packages/server-finance/src/adapters/finance-read-tail-r20-sql';
 import { journalLineEvidenceSql } from '../../../packages/server-finance/src/adapters/finance-read-tail-r22-sql';
+import { bookRootUnionSql, peopleRunsCteSql, peoplePostingsCteSql, journalAggregateCtesSql, netPayableFactSql, payrollUnpostedFactSql, statutoryLiabilityFactSql, statutoryLateralSql, secondaryJournalFactSql } from '../../../packages/server-finance/src/adapters/finance-read-tail-r23-sql';
 import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/people-payroll-final-owner-projections';
 import { workflowFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/workflow-final-owner-projections';
 import {
@@ -888,5 +889,56 @@ describe('finance read-tail r22 byte-identical SQL families', () => {
     const text = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
     expect(text.split('(SELECT jsonb_agg(to_jsonb(t) ORDER BY t.id) FROM finance_current_tax_entries t WHERE t.company_id=? AND').length - 1).toBe(0);
     expect(text.split("aggByCompany('t','finance_current_tax_entries','id',` AND").length - 1).toBe(1);
+  });
+});
+
+const R23_ROOT = "SELECT ${alias}.id,${alias}.company_id UNION SELECT book.primary_journal_id,${alias}.company_id FROM finance_book_postings book WHERE book.secondary_journal_id=${alias}.id AND book.company_id=${alias}.company_id";
+const R23_RUNS = "runs AS MATERIALIZED(SELECT r.* FROM (${people.runs}) r,scope WHERE r.company_id=scope.company_id),";
+const R23_POSTINGS = "postings AS MATERIALIZED(SELECT p.*,r.company_id,r.currency FROM (${people.postings}) p JOIN runs r ON r.id=p.run_id),";
+const R23_JOURNALS = "journal_ids AS MATERIALIZED(SELECT id FROM owned_journals UNION SELECT book.secondary_journal_id FROM finance_book_postings book JOIN owned_journals owned ON owned.id=book.primary_journal_id),\n journals AS MATERIALIZED(SELECT j.*,COALESCE((SELECT SUM(l.debit_minor-l.credit_minor) FROM finance_journal_lines l WHERE l.journal_id=j.id),0) imbalance,\n (SELECT COUNT(*) FROM finance_journal_lines l WHERE l.journal_id=j.id) line_count,COALESCE((SELECT SUM(l.debit_minor) FROM finance_journal_lines l WHERE l.journal_id=j.id),0) debit_total";
+const R23_NET_PAYABLE = "UNION ALL SELECT 'net-payable',r.id,r.version,r.status,to_jsonb(r),(SELECT COALESCE(SUM(i.net_minor),0) FROM (${people.items}) i WHERE i.run_id=r.id AND i.status='posted')<>COALESCE((SELECT SUM(item.amount_minor) FROM batches b JOIN (${people.batchItems}) item ON item.batch_id=b.id WHERE b.source_type='payroll' AND b.source_id=r.id AND b.status='settled' AND item.status='settled'),0) FROM runs r WHERE r.status='posted'";
+const R23_UNPOSTED = "UNION ALL SELECT 'payroll-unposted',r.id,r.version,r.status,to_jsonb(r),r.status<>'cancelled' AND (r.status<>'posted' OR NOT EXISTS(SELECT 1 FROM postings p WHERE p.run_id=r.id)) FROM runs r";
+const R23_STATUTORY = "UNION ALL SELECT 'statutory-liability',p.run_id||':'||line.description,1,line.description,jsonb_build_object('posting',to_jsonb(p),'accountId',line.account_id,'amount',line.amount),line.amount<>COALESCE((SELECT SUM(remittance.amount_minor) FROM (${people.remittances}) remittance WHERE remittance.company_id=p.company_id AND remittance.run_id=p.run_id AND remittance.kind=CASE WHEN line.description='Payroll tax' THEN 'withholding_tax' ELSE 'social_security' END),0)";
+const R23_LATERAL = "FROM postings p CROSS JOIN LATERAL(SELECT l.account_id,l.description,SUM(l.credit_minor-l.debit_minor) amount FROM finance_journal_lines l WHERE l.journal_id=p.journal_id AND l.description IN ('Payroll tax','Payroll social security') GROUP BY l.description,l.account_id) line";
+const R23_SECONDARY = "UNION ALL SELECT 'secondary-journal',book.secondary_journal_id,book.source_version,'posted',to_jsonb(book)||jsonb_build_object('journal',to_jsonb(secondary),'rule',to_jsonb(rule)),book.company_id IS DISTINCT FROM owned.company_id OR primary_journal.id IS NULL OR secondary.id IS NULL OR secondary.status<>'posted' OR secondary.imbalance<>0 OR secondary.line_count<2 OR rule.id IS NULL OR rule.company_id IS DISTINCT FROM owned.company_id OR rule.status<>'approved' OR rule.reviewed_by IS NULL OR rule.reviewed_by=rule.prepared_by OR rule.primary_chart_id IS DISTINCT FROM primary_journal.chart_id OR rule.secondary_chart_id IS DISTINCT FROM secondary.chart_id OR secondary.currency IS DISTINCT FROM primary_journal.currency FROM owned_journals owned JOIN finance_book_postings book ON book.primary_journal_id=owned.id LEFT JOIN journals primary_journal ON primary_journal.id=owned.id LEFT JOIN journals secondary ON secondary.id=book.secondary_journal_id LEFT JOIN finance_book_rules rule ON rule.id=book.rule_id";
+
+describe('finance read-tail r23 byte-identical SQL families', () => {
+  it('renders every shared fragment byte-identically and without lock text', () => {
+    const rendered = [
+      bookRootUnionSql('${alias}'),peopleRunsCteSql('${people.runs}'),peoplePostingsCteSql('${people.postings}'),
+      journalAggregateCtesSql(),netPayableFactSql('${people.items}','${people.batchItems}'),payrollUnpostedFactSql(),
+      statutoryLiabilityFactSql('${people.remittances}'),statutoryLateralSql(),secondaryJournalFactSql(),
+    ];
+    for (const sql of rendered) expect(sql).not.toMatch(/FOR UPDATE|FOR SHARE/);
+    expect(rendered).toEqual([
+      R23_ROOT,R23_RUNS,R23_POSTINGS,R23_JOURNALS,R23_NET_PAYABLE,R23_UNPOSTED,R23_STATUTORY,R23_LATERAL,R23_SECONDARY,
+    ]);
+  });
+
+  it('backs all three book-root sites with the helper and no inline literal', async () => {
+    for (const file of ['pos','manufacturing','service']) {
+      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}-initial-stock-journal-sources.ts`, import.meta.url), 'utf8');
+      expect(text).toContain("from './finance-read-tail-r23-sql'");
+      expect(text.split("const roots=").length - 1).toBe(0);
+      expect(text.split("bookRootUnionSql(alias)").length - 1).toBe(2);
+    }
+  });
+
+  it('backs both People fact families with the helpers and no inline literal', async () => {
+    for (const file of ['people-package-obligations.ts','people-addon-package-obligations.ts']) {
+      const text = await readFile(new URL(`../../../packages/server-finance/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(text).toContain("from './finance-read-tail-r23-sql'");
+      for (const literal of [R23_RUNS,R23_POSTINGS,R23_NET_PAYABLE,R23_UNPOSTED,R23_STATUTORY,R23_LATERAL])
+        expect(text.split(literal).length - 1).toBe(0);
+      expect(text.split('UNION ALL SELECT \'secondary-journal\'').length - 1).toBe(file === 'people-addon-package-obligations.ts' ? 1 : 0);
+    }
+    const addon = await readFile(new URL('../../../packages/server-finance/src/adapters/people-addon-package-obligations.ts', import.meta.url), 'utf8');
+    expect(addon.split("journalAggregateCtesSql()").length - 1).toBe(2);
+    expect(addon.split("SELECT COUNT(*) FROM finance_journal_lines l WHERE l.journal_id=j.id) line_count,COALESCE").length - 1).toBe(0);
+  });
+
+  it('keeps the r23 helper SELECT count at the deduplicated total', async () => {
+    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r23-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split('SELECT ').length - 1).toBe(19);
   });
 });
