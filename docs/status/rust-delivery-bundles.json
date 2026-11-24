@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7776,
+    "revision": 7780,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -130287,7 +130287,7 @@
         "owner": "legal",
         "title": "legal TS read tail native cutover (r6)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -130299,22 +130299,42 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG23leg",
-          "claimedAt": "2026-11-24T00:47:24.851Z",
-          "heartbeatAt": "2026-11-24T01:07:51.653Z",
-          "expiresAt": "2026-11-24T01:37:51.653Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "bf6a74cb4",
+            "owner": "legal",
+            "before": 316,
+            "after": 315,
+            "note": "Upload and replay share portalReceiptReadSql; byte-identical."
+          },
+          {
+            "command": "cargo check -p erpx-server-legal",
+            "result": "passed",
+            "sourceSha": "bf6a74cb4"
+          },
+          {
+            "command": "vitest legal units (196) + tsc legal",
+            "result": "passed",
+            "sourceSha": "bf6a74cb4"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or use an existing native read; record a strictly lower spaced count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG23leg",
+          "at": "2026-11-24T01:10:04.072Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -131661,6 +131681,42 @@
         "nextAction": "Next: portal release-gate helper dedupe across portal-purchases/portal-support/attachment-purchases (keep alias + wrapped assertion form) or binding/order prefix; avoid proof/digest families. BEFORE=92.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.legal.read-tail-r7",
+        "goalId": "G4",
+        "owner": "legal",
+        "title": "legal TS read tail native cutover (round 7)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-legal/src/**",
+          "tests/unit/legal/**",
+          "tests/integration/legal/**"
+        ],
+        "resources": [
+          "owner:legal"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG59leg",
+          "claimedAt": "2026-11-24T01:10:04.270Z",
+          "heartbeatAt": "2026-11-24T01:10:04.270Z",
+          "expiresAt": "2026-11-24T01:40:04.270Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: legal_members snapshot sources (3) or SELECT 1 FROM legal_members family (3 + EXISTS variant 4); avoid knowledge.ts guard, trust/PDF/malware. BEFORE=315.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -131669,7 +131725,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 777,
+      "totalPackets": 778,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -131677,13 +131733,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 399,
+        "blocked": 400,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:09:47.242Z",
+    "updatedAt": "2026-11-24T01:10:04.275Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
