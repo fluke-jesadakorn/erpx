@@ -17,14 +17,24 @@ import {workforceActorScopeProbe} from "@erpx/server-benefits/adapters/benefits-
  * SQL is unchanged. */
 const benefitSourceClock=`(SELECT ${packageClockSql} now_ms)`;
 const activeEngagementScope=`EXISTS(SELECT 1 FROM (${people.engagements}) e WHERE e.person_id=p.id AND e.company_id=p.company_id AND e.status='active')`;
-const nativeSources=`SELECT r.id,r.company_id,'plan' kind,NULL::text person_user_id,TRUE current_person FROM benefit_plans r
- UNION ALL SELECT r.id,r.company_id,'window',NULL::text,TRUE FROM benefit_enrollment_windows r
- UNION ALL SELECT r.id,r.company_id,'dependent',p.user_id,p.status='active' AND p.merged_into_id IS NULL AND ${activeEngagementScope} FROM benefit_dependents r JOIN (${people.people}) p ON p.id=r.person_id AND p.company_id=r.company_id
- UNION ALL SELECT r.id,r.company_id,'election',p.user_id,p.status='active' AND p.merged_into_id IS NULL AND ${activeEngagementScope} FROM benefit_elections r JOIN benefit_plans plan ON plan.id=r.plan_id AND plan.company_id=r.company_id JOIN (${people.people}) p ON p.id=r.person_id AND p.company_id=r.company_id`;
-const benefitActualProbe=`SELECT 1 FROM (${nativeSources}) benefit_actual WHERE`;
+/** Byte-identical owner-local native-source UNION arm generator. The first arm
+ * carries the column aliases; person-backed arms add the active-engagement
+ * predicate and people snapshot, and the election arm adds its plan join. */
+export const nativeSourceArm=(kind:string,table:string,first=false,person=false,join='')=>{
+ const user=person?'p.user_id':'NULL::text';
+ const current=person?`p.status='active' AND p.merged_into_id IS NULL AND ${activeEngagementScope}`:'TRUE';
+ return `SELECT r.id,r.company_id,'${kind}'${first?' kind':''},${user}${first?' person_user_id':''},${current}${first?' current_person':''} FROM ${table} r${join}${person?` JOIN (${people.people}) p ON p.id=r.person_id AND p.company_id=r.company_id`:''}`;
+};
+const nativeSources=`${nativeSourceArm('plan','benefit_plans',true)}
+ UNION ALL ${nativeSourceArm('window','benefit_enrollment_windows')}
+ UNION ALL ${nativeSourceArm('dependent','benefit_dependents',false,true)}
+ UNION ALL ${nativeSourceArm('election','benefit_elections',false,true,' JOIN benefit_plans plan ON plan.id=r.plan_id AND plan.company_id=r.company_id')}`;
+/** Byte-identical owner-local existence probe over the native-source family. */
+export const nativeSourcesProbe=(alias:string)=>`SELECT 1 FROM (${nativeSources}) ${alias}`;
+const benefitActualProbe=`${nativeSourcesProbe('benefit_actual')} WHERE`;
 function visible(actor:WorkContext,id:string,company:string,purchased=true,electionOnly=false){
  const current=currentAssignmentReadScope(actor,"workforce_actor_scope"),read=hasModuleAccess(actor.modules,"benefits")&&hasPermission(actor,"records.read"),review=hasPermission(actor,"benefits.review")?"iam_role_allows(?,?,'benefits.review')":"FALSE",reviewArgs=hasPermission(actor,"benefits.review")?[actor.role,actor.companyId]:[];
- return {sql:`EXISTS(WITH benefit_source_clock AS MATERIALIZED${benefitSourceClock} SELECT 1 FROM (${nativeSources}) benefit_source CROSS JOIN benefit_source_clock CROSS JOIN LATERAL(SELECT benefit_source.company_id,?::text branch_id,?::text department_id)workforce_actor_scope
+ return {sql:`EXISTS(WITH benefit_source_clock AS MATERIALIZED${benefitSourceClock} ${nativeSourcesProbe('benefit_source')} CROSS JOIN benefit_source_clock CROSS JOIN LATERAL(SELECT benefit_source.company_id,?::text branch_id,?::text department_id)workforce_actor_scope
  WHERE benefit_source.id=${id} AND benefit_source.company_id=${company} AND ${electionOnly?"benefit_source.kind='election'":"TRUE"} AND ${read?'TRUE':'FALSE'} AND ${current.where} AND iam_role_allows(?,?,'records.read') AND EXISTS(${benefitAssignmentSelectSql})
  AND (benefit_source.kind IN ('plan','window') OR (benefit_source.person_user_id=? AND benefit_source.current_person) OR (benefit_source.kind='election' AND ${review}))
  AND ${purchased?purchasedCapabilityPredicate('benefit_source.company_id','people.benefits','history','benefit_source_clock.now_ms'):'TRUE'} AND ${scheduledFeaturePredicate('benefit_source.company_id','benefits')})`,args:[actor.branchId,actor.departmentId,...current.args,actor.role,actor.companyId,actor.assignmentId,actor.userId,...reviewArgs]};
