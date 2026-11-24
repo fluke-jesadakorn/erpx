@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10997,
+    "revision": 11001,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -163413,7 +163413,7 @@
         "owner": "commercial",
         "title": "commercial TS read tail native cutover (round 14)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -163425,25 +163425,18 @@
         "resources": [
           "owner:commercial"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMcom3",
-          "claimedAt": "2026-11-24T09:27:34.258Z",
-          "heartbeatAt": "2026-11-24T09:29:40.847Z",
-          "expiresAt": "2026-11-24T09:59:40.847Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "handoff",
         "nextAction": "Blocked with AST evidence; claim released",
         "handoff": {
           "runId": "run-20261124-a",
-          "agentId": "wGCMcom6",
-          "at": "2026-11-24T08:13:29.111Z",
+          "agentId": "wGCMcom3",
+          "at": "2026-11-24T09:33:25.703Z",
           "previousStatus": "blocked",
           "reason": "handoff",
           "nextAction": "Blocked with AST evidence; claim released"
@@ -169501,6 +169494,43 @@
         "nextAction": "Next: safe byte-identical/parameterized head or fragment family; if none, report blocked. BEFORE=399.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.billing.read-tail-r26",
+        "goalId": "G4",
+        "owner": "billing",
+        "title": "billing native workspace read cutover (round 26)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-billing/src/**",
+          "tests/unit/billing/**",
+          "tests/integration/commercial/billing.test.ts",
+          "tests/provider/commercial/billing-stripe-sandbox.test.ts"
+        ],
+        "resources": [
+          "owner:billing"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMbil6",
+          "claimedAt": "2026-11-24T09:33:26.565Z",
+          "heartbeatAt": "2026-11-24T09:33:26.565Z",
+          "expiresAt": "2026-11-24T10:03:26.565Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Delete nativeBillingView/billingView TS SQL (3 literals in billing.ts), make billing-presentation and billing-api view native-authoritative/fail-closed, update unit oracles; migrate billingView test callers. BEFORE=63, expected 60.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -169509,7 +169539,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1521,
+      "totalPackets": 1522,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 24,
@@ -169517,13 +169547,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1136,
+        "blocked": 1137,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:33:07.969Z",
+    "updatedAt": "2026-11-24T09:33:26.572Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
