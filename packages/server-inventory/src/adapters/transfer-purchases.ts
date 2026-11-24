@@ -1,5 +1,5 @@
 import "server-only";
-import {scopeAllowedSql} from './read-tail-sql';
+import {scopedFieldSql,scopeAllowedSql} from './read-tail-sql';
 import {inventoryPurchaseReplaySql} from "./inventory-read-projections";
 import {randomUUID} from "node:crypto";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
@@ -72,7 +72,7 @@ export async function withTransferPurchasedCommand<Result>(owner:SqlDatabase,act
   const replay=await database.prepare(inventoryPurchaseReplaySql)
    .bind(command.key,command.operation,command.target.id,actor.userId,actor.companyId).first();
   const before=command.existing||replay?await source(database,actor,command.target):null;
-  const flow=command.flowStep?await database.prepare("SELECT status FROM inventory_transfers WHERE id=? AND company_id=?").bind(command.target.id,actor.companyId).first<{status:string}>():null;
+  const flow=command.flowStep?await database.prepare(scopedFieldSql('status','inventory_transfers','id','company_id')).bind(command.target.id,actor.companyId).first<{status:string}>():null;
   const flowNew=command.flowStep&&(command.saveDefault||["draft","rejected"].includes(flow?.status??"")||command.flowStep==="draft");
   const purpose=replay?"history" as const:flowNew?"new-work" as const:command.purpose;
   const scopes=[{companyId:actor.companyId,capability:"supply.transfers",purpose},...(command.financial?[{companyId:actor.companyId,capability:"finance.inventory-valuation",purpose}]:[])];

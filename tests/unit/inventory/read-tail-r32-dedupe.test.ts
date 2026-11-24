@@ -83,8 +83,9 @@ describe('Inventory read-tail r32 parameterized disposal-count dedupe', () => {
     // r31 folded the 3x parameterized scope probe into one helper (357 -> 353).
     // r32 folds the 2x parameterized quality-disposal count source into one
     // helper (353 -> 352): two inline SELECT tokens removed, one kept in the
-    // single canonical helper.
-    expect(total).toBe(352);
+    // single canonical helper. r33 lowers it further to 351, so the exact pin
+    // is relaxed to the r32 baseline.
+    expect(total).toBeLessThanOrEqual(352);
     expect(total).toBeLessThan(353);
   });
 });

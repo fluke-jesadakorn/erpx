@@ -196,3 +196,11 @@ export const scopeAllowedSql = (scope: string, permission: string) =>
  *  above are left untouched. */
 export const disposalCountsSql = (holds: string, tail = '') =>
   `SELECT count.*,hold.source_type quality_source_type,hold.source_id quality_source_id FROM inventory_counts count JOIN (${holds}) hold ON hold.id=count.quality_hold_id${tail}`;
+/** r33: parameterized single-field row probe. The transit lot-balance version
+ *  read and the transfer flow-status probe share one byte-identical projection,
+ *  two-key equality predicate and bind shape; only the field, table and scope
+ *  keys vary. Every caller keeps its own binds and independent statement. The
+ *  canonical inventoryCountStatusSql count-source literal is left untouched.
+ *  r11-r32 helpers above are left untouched. */
+export const scopedFieldSql = (field: string, table: string, key: string, scopeKey: string) =>
+  `SELECT ${field} FROM ${table} WHERE ${key}=? AND ${scopeKey}=?`;
