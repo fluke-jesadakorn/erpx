@@ -1,4 +1,5 @@
 import { nativeOwnerWrite, nativeOwnerWriteNoopSql } from './native-owner-write';
+import { agentTurnEvidenceSql } from './turn-evidence-projection-source';
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
@@ -7,7 +8,7 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 export const agentAssistantRateGuardSql = "(SELECT count(*) FROM ai_workspace_turns WHERE company_id=? AND created_at>?)<20";
 export function GuidedIntakeAgentFacts(database: SqlDatabase) {
     return { readPrepareGuidedIntakePrevious(id: string) {
-            return database.prepare("SELECT t.user_id,t.company_id,t.assignment_id,t.scope_key,t.question,t.paths_json,t.state,t.sources_json,t.answer_json,t.private_session_id,e.governance_snapshot_json FROM ai_workspace_turns t LEFT JOIN ai_invocation_evidence e ON e.turn_id=t.id WHERE t.id=?")
+            return database.prepare(`${agentTurnEvidenceSql("t.user_id,t.company_id,t.assignment_id,t.scope_key,t.question,t.paths_json,t.state,t.sources_json,t.answer_json,t.private_session_id,e.governance_snapshot_json")} WHERE t.id=?`)
                 .bind(id).first<{
                 user_id: string;
                 company_id: string;

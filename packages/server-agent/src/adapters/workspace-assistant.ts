@@ -1,5 +1,6 @@
 import { nativeOwnerWrite, nativeOwnerWriteNoopSql } from './native-owner-write';
 import { agentAssistantRateGuardSql } from './operations-guided-intake-facts';
+import { agentTurnEvidenceSql } from './turn-evidence-projection-source';
 import { assistantQuotaSql } from './assistant-quota-sql';
 import {agentFinanceDatedUsage} from '@erpx/server-finance/public/agent-ai-usage-projection';
 import {agentSocialMonthlyCount} from '@erpx/server-collaboration/public/agent-ai-usage-projection';
@@ -48,7 +49,7 @@ import type {AiEndpoint} from '@erpx/server-agent/adapters/ai-transport';
 async function exposed<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 async function inward<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof ApiError)throw new BusinessRuleError(error.status,error.code,error.message);throw error;}}
 function bindRepository(db:SqlDatabase):AssistantRepository<SqlStatement>{return {clearAuthorityAssertions(key:string,companyId:string){return clearAgentBootstrapAssertion(db,key,companyId);},
-async conversationTurns(companyId:string,userId:string,assignmentId:string,value:string,key:string,sessionId:string){return (await db.prepare("SELECT t.id,t.question,t.paths_json,t.sources_json,t.answer_json,t.english_answer_json,t.state,t.created_at,e.governance_snapshot_json FROM ai_workspace_turns t LEFT JOIN ai_invocation_evidence e ON e.turn_id=t.id WHERE t.company_id=? AND t.user_id=? AND t.assignment_id=? AND t.scope_key=? AND t.conversation_key=? AND t.private_session_id=? AND t.state='ready' ORDER BY t.created_at DESC LIMIT 20")
+async conversationTurns(companyId:string,userId:string,assignmentId:string,value:string,key:string,sessionId:string){return (await db.prepare(`${agentTurnEvidenceSql("t.id,t.question,t.paths_json,t.sources_json,t.answer_json,t.english_answer_json,t.state,t.created_at,e.governance_snapshot_json")} WHERE t.company_id=? AND t.user_id=? AND t.assignment_id=? AND t.scope_key=? AND t.conversation_key=? AND t.private_session_id=? AND t.state='ready' ORDER BY t.created_at DESC LIMIT 20`)
     .bind(companyId,userId,assignmentId,value,key,sessionId).all<Row>()).results;},
 async previousTurn(id:string){return db.prepare("SELECT * FROM ai_workspace_turns WHERE id=?").bind(id).first<Row&{user_id:string;assignment_id:string;scope_key:string;company_id:string}>();},
 guardRate(id:string,companyId:string,value:number){return assertion(db,id,"assistant-rate",agentAssistantRateGuardSql,[companyId,value]);},
