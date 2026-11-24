@@ -81,7 +81,10 @@ describe('Files read-tail r40 parameterized family', () => {
       expect(git('rev-parse', `HEAD:${p}`).trim()).toBe(git('hash-object', p).trim());
     }
     const changed = git('diff', '--name-only', '--', 'packages/server-files/src').trim().split('\n').filter(Boolean);
-    expect(changed.every(p => p === rel(SR))).toBe(true);
+    expect(changed.every(p => [
+      rel(SR), rel('field-file-writer-owner.ts'), rel('attachments/service.ts'),
+      rel('legal-destruction-source-facts.ts'), rel('messaging-upload-rollback.ts'),
+    ].includes(p))).toBe(true);
   });
 
   test('retirement:ts-statements is strictly below the r38 BEFORE=255 baseline', () => {
@@ -99,9 +102,9 @@ describe('Files read-tail r40 parameterized family', () => {
       }
     };
     walk(srcRoot);
-    // r38 left 255; r40 lowers 255->254 (two attestation heads -> one helper).
-    expect(literal).toBe(254);
-    expect(total).toBe(255);
+    // r40 left 254; r41 lowers 254->251 (three shared read heads -> three helpers).
+    expect(literal).toBe(251);
+    expect(total).toBe(252);
     expect(literal).toBeLessThan(255);
     expect(total).toBeLessThan(256);
   });

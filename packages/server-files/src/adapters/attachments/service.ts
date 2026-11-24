@@ -85,6 +85,7 @@ import { repository } from "@erpx/server-files/adapters/attachments/service-repo
 import { nativeWrite, resolveNativeEffects, type NativeContext } from "../native-files-command";
 import { STORAGE_LEDGER_PRESENCE_SQL } from "../read-tail-r29-source-sql";
 import { ATTACHMENT_REFERENCE_HEAD_SQL } from "../read-tail-r34-source-sql";
+import { FIELD_ATTACHMENT_OWNED_HEAD_SQL } from "../read-tail-r41-source-sql";
 let nativeContext: NativeContext = { companyId: '', key: 'files-native', now: Date.now() };
 function setNativeContext(actor: WorkContext, key: string) {
   nativeContext = { companyId: actor.companyId, key, now: Date.now(), holdingId: actor.holdingId, holdingSlug: actor.holdingSlug };
@@ -479,6 +480,6 @@ export function publicAttachmentPublication(db: SqlDatabase, files: FileStore, i
 export function drainAttachmentScans(db: SqlDatabase, files: FileStore, attachmentId?: string, options: {
     offlineMigration?: boolean;
 } = {}) { return service.drainAttachmentScans(unit(db), byteStore(files), attachmentId, options); }
-export async function scanAttachmentNow(db: SqlDatabase, files: FileStore, attachmentId: string) { const owned=await db.prepare('SELECT erpx_files_field_attachment_owned(?) AS owned').bind(attachmentId).first<{owned:boolean}>();if(owned?.owned)throw new ApiError(503,'FIELD_FILE_SCAN_NATIVE_REQUIRED','The native Field file scanner is required.');return service.scanAttachmentNow(unit(db), byteStore(files), attachmentId); }
+export async function scanAttachmentNow(db: SqlDatabase, files: FileStore, attachmentId: string) { const owned=await db.prepare(`${FIELD_ATTACHMENT_OWNED_HEAD_SQL} AS owned`).bind(attachmentId).first<{owned:boolean}>();if(owned?.owned)throw new ApiError(503,'FIELD_FILE_SCAN_NATIVE_REQUIRED','The native Field file scanner is required.');return service.scanAttachmentNow(unit(db), byteStore(files), attachmentId); }
 export function attachmentDestructionEligibility(db: SqlDatabase, attachmentId: string, now = Date.now()) { return service.attachmentDestructionEligibility(unit(db), attachmentId, now); }
 export function cleanupAttachmentDrafts(db: SqlDatabase, files: FileStore) { return service.cleanupAttachmentDrafts(unit(db), byteStore(files)); }

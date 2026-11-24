@@ -73,6 +73,10 @@ describe('Files read-tail r37 parameterized family', () => {
       sr,
       'packages/server-files/src/adapters/app-attachment-sources.ts',
       'packages/server-files/src/adapters/messaging-file-settlements.ts',
+      'packages/server-files/src/adapters/field-file-writer-owner.ts',
+      'packages/server-files/src/adapters/attachments/service.ts',
+      'packages/server-files/src/adapters/legal-destruction-source-facts.ts',
+      'packages/server-files/src/adapters/messaging-upload-rollback.ts',
     ].includes(p))).toBe(true);
   });
 
@@ -91,9 +95,9 @@ describe('Files read-tail r37 parameterized family', () => {
       }
     };
     walk(srcRoot);
-    // r38 left 255; r40 lowers 255->254 (two 1-token attestation heads -> one 1-token helper).
-    expect(literal).toBe(254);
-    expect(total).toBe(255);
+    // r40 left 254; r41 lowers 254->251 (three shared read heads -> three helpers).
+    expect(literal).toBe(251);
+    expect(total).toBe(252);
     expect(literal).toBeLessThan(255);
     expect(total).toBeLessThan(256);
   });

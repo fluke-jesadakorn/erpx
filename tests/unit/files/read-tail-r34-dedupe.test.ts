@@ -3,6 +3,7 @@ import { execFileSync } from 'node:child_process';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { ATTACHMENT_REFERENCE_HEAD_SQL } from '../../../packages/server-files/src/adapters/read-tail-r34-source-sql';
+import { STORAGE_LEDGER_OBJECT_KEY_HEAD_SQL } from '../../../packages/server-files/src/adapters/read-tail-r41-source-sql';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-files/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
@@ -39,7 +40,7 @@ describe('Files read-tail r34 parameterized family', () => {
     const svcTail = svc.match(/ATTACHMENT_REFERENCE_HEAD_SQL \+ "(company_id=\?[^"]*)"/)![1];
     const msgTail = msg.match(/\$\{ATTACHMENT_REFERENCE_HEAD_SQL\}(object_key=\?[^`]*)`/)![1];
     expect(ATTACHMENT_REFERENCE_HEAD_SQL + svcTail).toBe(HEAD.service);
-    expect(ATTACHMENT_REFERENCE_HEAD_SQL + msgTail).toBe(HEAD.messaging);
+    expect((ATTACHMENT_REFERENCE_HEAD_SQL + msgTail).replaceAll('${STORAGE_LEDGER_OBJECT_KEY_HEAD_SQL}', STORAGE_LEDGER_OBJECT_KEY_HEAD_SQL)).toBe(HEAD.messaging);
     expect(svc).not.toContain(HEAD.service);
     expect(msg).not.toContain(HEAD.messaging);
     const helper = src('read-tail-r34-source-sql.ts');
@@ -89,8 +90,8 @@ describe('Files read-tail r34 parameterized family', () => {
       }
     };
     walk(srcRoot);
-    expect(literal).toBe(254); // r38 left 255; r40 lowers 255->254 (two attestation heads -> one helper).
-    expect(total).toBe(255);
+    expect(literal).toBe(251); // r40 left 254; r41 lowers 254->251 (three shared read heads -> three helpers).
+    expect(total).toBe(252);
     expect(literal).toBeLessThan(264);
     expect(total).toBeLessThan(265);
   });
