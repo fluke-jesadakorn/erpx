@@ -8,6 +8,7 @@ import { finalRootOwnerProjectionSources } from '../../../packages/server-financ
 import { platformOwnerProjectionSources } from '../../../packages/server-finance/src/adapters/platform-owner-projection-sources';
 import { inventoryExecutiveOwnerProjections } from '../../../packages/server-finance/src/adapters/inventory-executive-owner-projections';
 import { commercialOwnerProjectionSources } from '../../../packages/server-finance/src/adapters/commercial-owner-projection-sources';
+import { hospitalityOwnerProjectionSources } from '../../../packages/server-finance/src/adapters/hospitality-owner-projection-sources';
 import {
   nativeFinanceReadAll,
   nativeFinanceReadFirst,
@@ -191,10 +192,12 @@ const JOURNALS_CALL_SITES = [
   'packages/server-finance/src/adapters/final-root-owner-projection-sources.ts',
   'packages/server-finance/src/adapters/platform-owner-projection-sources.ts',
   'packages/server-finance/src/adapters/inventory-executive-owner-projections.ts',
+  'packages/server-finance/src/adapters/hospitality-owner-projection-sources.ts',
+  'packages/server-finance/src/adapters/commercial-owner-projection-sources.ts',
 ];
 
 describe('finance finance_journals projection dedupe', () => {
-  it('keeps one byte-identical literal and backs all three owner projections with it', async () => {
+  it('keeps one byte-identical literal and backs all five owner projections with it', async () => {
     const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-journals-projection-dedupe-sql.ts', import.meta.url), 'utf8');
     expect(shared.split('FROM finance_journals').length - 1).toBe(1);
     for (const rel of JOURNALS_CALL_SITES) {
@@ -205,6 +208,8 @@ describe('finance finance_journals projection dedupe', () => {
     expect(finalRootOwnerProjectionSources.finance_journals).toBe(FINANCE_JOURNALS_PROJECTION_SQL);
     expect(platformOwnerProjectionSources.finance_journals).toBe(FINANCE_JOURNALS_PROJECTION_SQL);
     expect(inventoryExecutiveOwnerProjections.finance_journals).toBe(FINANCE_JOURNALS_PROJECTION_SQL);
+    expect(hospitalityOwnerProjectionSources.finance_journals).toBe(FINANCE_JOURNALS_PROJECTION_SQL);
+    expect(commercialOwnerProjectionSources.finance_journals).toBe(FINANCE_JOURNALS_PROJECTION_SQL);
   });
 });
 
