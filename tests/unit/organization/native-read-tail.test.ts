@@ -395,4 +395,27 @@ describe('Organization owner-local read tail', () => {
     expect(p.people_payroll_position_pay_defaults_from).toContain('FROM position_pay_defaults) position_pay_defaults');
   });
 
+  it('renders byte-identical alias/keyword-parameterized final-owner projections', async () => {
+    const {peoplePayrollFinalOwnerProjections} = await import('../../../packages/server-organization/src/adapters/people-payroll-final-owner-projections');
+    const p = peoplePayrollFinalOwnerProjections();
+    const nodeCols = '"id","kind","slug","display_name","parent_id","company_id","branch_id","status","hierarchy_revision"';
+    const posCols = '"id","company_id","branch_id","department_id","title","level_id","reports_to_position_id","is_ceo","active","version","created_by","created_at","updated_at","requirements","roster_required"';
+    const staffCols = '"id","company_id","code","name","rank","active","version","created_at","updated_at","level_number"';
+    const strip = (s: string) => s.replace(/^(FROM|JOIN) /, '');
+    const bJoin = p.executive_report_sources_organization_nodes_b_join;
+    const nFrom = p.operations_staff_settings_facts_organization_nodes_n_from;
+    expect(bJoin).toBe(`JOIN (SELECT ${nodeCols} FROM organization_nodes) b`);
+    expect(nFrom).toBe(`FROM (SELECT ${nodeCols} FROM organization_nodes) n`);
+    expect(strip(bJoin).replace(' b', ' A')).toBe(strip(nFrom).replace(' n', ' A'));
+    const posFrom = p.operations_staff_settings_facts_organization_positions_from;
+    const pFrom = p.organization_authority_people_organization_positions_p_from;
+    expect(posFrom).toBe(`FROM (SELECT ${posCols} FROM organization_positions) organization_positions`);
+    expect(pFrom).toBe(`FROM (SELECT ${posCols} FROM organization_positions) p`);
+    expect(strip(posFrom).replace(') organization_positions', ') A')).toBe(strip(pFrom).replace(') p', ') A'));
+    const staffFrom = p.executive_metric_projections_staff_levels_from;
+    expect(staffFrom).toBe(`FROM (SELECT ${staffCols} FROM staff_levels) staff_levels`);
+    expect(strip(staffFrom).replace(') staff_levels', ') l')).toBe(
+      strip(p.executive_engagement_source_staff_levels_l_join));
+  });
+
 });
