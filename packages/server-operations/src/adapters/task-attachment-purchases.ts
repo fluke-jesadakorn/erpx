@@ -1,5 +1,5 @@
 import 'server-only';
-import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL} from './task-delegation-source';
+import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL} from './task-delegation-source';
 import {randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
@@ -28,8 +28,8 @@ import {nativeOperationsReadFirst,OPERATIONS_RD_TASK_ATTACHMENT_ASSIGNEE} from '
 export type WorkTaskAttachmentPurchase={companyId:string;targetId:string;actor:WorkContext;purpose:CapabilityPurpose;capabilities:string[];witness:string;ownedAction:boolean;writer:'creator'|'assignee'|'delegate'};
 function source(ownedAction:boolean){return `SELECT t.id,t.company_id,t.branch_id,t.department_id,t.project_id,t.state,t.creator_user_id,t.assignee_user_id,t.template_id,social.work_social,
  jsonb_build_object('task',to_jsonb(t)-'version'-'updated_at'${ownedAction?"-'state'-'completion_note'-'blocked_reason'":''},
- 'template',(SELECT to_jsonb(template) FROM routine_templates template WHERE template.id=t.template_id AND template.company_id=t.company_id),
- 'schedule',(SELECT to_jsonb(schedule) FROM routine_schedules schedule WHERE schedule.id=t.schedule_id AND schedule.company_id=t.company_id),
+ 'template',${OPERATIONS_TASK_TEMPLATE_SOURCE_SQL},
+ 'schedule',${OPERATIONS_TASK_SCHEDULE_SOURCE_SQL},
  'delegations',${OPERATIONS_TASK_DELEGATION_SOURCE_SQL},
  'social',social.image)::text witness
  FROM staff_tasks t LEFT JOIN (${workTaskSocialFileSourceRows}) social ON social.id=t.id AND social.company_id=t.company_id WHERE t.id=? AND t.company_id=?`;}

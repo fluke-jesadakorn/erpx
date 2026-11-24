@@ -478,7 +478,7 @@ describe('Operations staff_tasks snapshot sources share one canonical projection
 });
 
 import {readFileSync} from 'node:fs';
-import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL} from '../../../packages/server-operations/src/adapters/task-delegation-source';
+import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL} from '../../../packages/server-operations/src/adapters/task-delegation-source';
 describe('Operations task delegation source dedupe',()=>{
  const fragment='(SELECT jsonb_agg(to_jsonb(delegation) ORDER BY delegation.id) FROM staff_task_delegations delegation WHERE delegation.task_id=t.id AND delegation.company_id=t.company_id)';
  test('the canonical projection owns a single byte-identical delegation read',()=>{
@@ -491,6 +491,27 @@ describe('Operations task delegation source dedupe',()=>{
    const source=readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
    expect(source).toContain('${OPERATIONS_TASK_DELEGATION_SOURCE_SQL}');
    expect(source).not.toContain(fragment);
+  }
+ });
+});
+
+describe('Operations task image template/schedule source dedupe',()=>{
+ const templateFragment='(SELECT to_jsonb(template) FROM routine_templates template WHERE template.id=t.template_id AND template.company_id=t.company_id)';
+ const scheduleFragment='(SELECT to_jsonb(schedule) FROM routine_schedules schedule WHERE schedule.id=t.schedule_id AND schedule.company_id=t.company_id)';
+ test('the canonical projections own one byte-identical template and schedule read each',()=>{
+  expect(OPERATIONS_TASK_TEMPLATE_SOURCE_SQL).toBe(templateFragment);
+  expect(OPERATIONS_TASK_SCHEDULE_SOURCE_SQL).toBe(scheduleFragment);
+  expect(OPERATIONS_TASK_TEMPLATE_SOURCE_SQL.match(/SELECT /g)).toHaveLength(1);
+  expect(OPERATIONS_TASK_SCHEDULE_SOURCE_SQL.match(/SELECT /g)).toHaveLength(1);
+ });
+ test('all four task image SQL builders compose the canonical interpolations',()=>{
+  const names=['work-task-alert-purchases.ts','work-task-purchases.ts','task-attachment-read.ts','task-attachment-purchases.ts'];
+  for(const name of names){
+   const source=readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+   expect(source).toContain('${OPERATIONS_TASK_TEMPLATE_SOURCE_SQL}');
+   expect(source).toContain('${OPERATIONS_TASK_SCHEDULE_SOURCE_SQL}');
+   expect(source).not.toContain(templateFragment);
+   expect(source).not.toContain(scheduleFragment);
   }
  });
 });

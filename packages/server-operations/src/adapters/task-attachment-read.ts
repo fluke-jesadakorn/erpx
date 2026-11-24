@@ -1,5 +1,5 @@
 import 'server-only';
-import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL} from './task-delegation-source';
+import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL} from './task-delegation-source';
 import {randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
@@ -23,8 +23,8 @@ import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/comma
 
 async function taskImage(database:SqlDatabase,actor:WorkContext,id:string){
  return database.prepare(`SELECT jsonb_build_object('task',to_jsonb(t),'project',project.image,
- 'template',(SELECT to_jsonb(template) FROM routine_templates template WHERE template.id=t.template_id AND template.company_id=t.company_id),
- 'schedule',(SELECT to_jsonb(schedule) FROM routine_schedules schedule WHERE schedule.id=t.schedule_id AND schedule.company_id=t.company_id),
+ 'template',${OPERATIONS_TASK_TEMPLATE_SOURCE_SQL},
+ 'schedule',${OPERATIONS_TASK_SCHEDULE_SOURCE_SQL},
  'delegations',${OPERATIONS_TASK_DELEGATION_SOURCE_SQL},
  'social',social.image,'native_social',social.work_social)::text image
  FROM staff_tasks t LEFT JOIN (${projectTaskAttachmentReadSources}) project ON project.task_id=t.id AND project.company_id=t.company_id
