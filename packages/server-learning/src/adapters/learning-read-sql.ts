@@ -84,3 +84,9 @@ export const assignmentCourseJoinHead = (projection: string, separator = ' ') =>
  * keeps its exact pre-dedupe bytes. */
 export const assignmentCourseReadHead = (projection: string, separator = ' ') =>
   `SELECT ${projection}${separator}FROM learning_assignments a JOIN learning_courses c ON c.id=a.course_id WHERE a.id=? AND a.company_id=?`;
+
+/** r12 — the package-obligation scope CTEs share the same parameterized SELECT
+ * head. Only the scope alias and its source vary, so every rendered query keeps
+ * its exact pre-dedupe bytes. */
+export const packageScopeCte = (alias: string, source: string) =>
+  `MATERIALIZED(SELECT ${alias}.* FROM ${source} ${alias},scope WHERE ${alias}.company_id=scope.company_id)`;

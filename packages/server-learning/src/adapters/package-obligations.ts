@@ -3,7 +3,7 @@ import {createHash} from "node:crypto";
 import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgres";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
-import {sourceLiteral} from "./learning-read-sql";
+import {packageScopeCte,sourceLiteral} from "./learning-read-sql";
 
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
@@ -40,9 +40,9 @@ export async function learningPackageObligations(owner:PostgresDatabase,database
  if(input.moduleId!=="learning"||input.packageId!=="learn"||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)
   throw Error("LEARNING_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
  const facts=(await database.prepare(`WITH scope AS(SELECT ?::text company_id),
- assignments AS MATERIALIZED(SELECT a.* FROM (${learningPackageSettlementSources.assignments}) a,scope WHERE a.company_id=scope.company_id),
- handoffs AS MATERIALIZED(SELECT h.* FROM learning_eligibility_handoffs h,scope WHERE h.company_id=scope.company_id),
- certificates AS MATERIALIZED(SELECT c.* FROM learning_certificates c,scope WHERE c.company_id=scope.company_id)
+ assignments AS ${packageScopeCte('a',`(${learningPackageSettlementSources.assignments})`)},
+ handoffs AS ${packageScopeCte('h','learning_eligibility_handoffs')},
+ certificates AS ${packageScopeCte('c','learning_certificates')}
  SELECT 'course' kind,c.id,c.version,c.status state,
  c.status='draft' OR event.id IS NULL OR event.status<>c.status OR event.version>c.version
  OR c.reviewed_by IS NULL OR c.reviewed_by=c.created_by pending
