@@ -56,7 +56,7 @@ describe('marketing actor-scope subquery dedupe', () => {
     expect(purchases).toContain("actorScopeAssignmentSql(assignmentReadSql(alias,permission),alias,' allowed')");
     expect(attachments).toContain("actorScopeAssignmentSql(assignmentReadSql(\"marketing_file_scope\",\"records.write\"),'marketing_file_scope')");
     expect(metric).toContain("'marketing_metric_scope',' allowed'");
-    expect(read).toContain('FROM${marketingActorScopeSql}workforce_actor_scope');
+    expect(read).toContain("marketingPointExistsSql(`${marketingActorScopeSql}workforce_actor_scope`,current.where,'')");
     expect(purchases).toContain('.bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId)');
     expect(attachments).toContain('[actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId]');
     expect(metric).toContain('.bind(actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.companyId,actor.branchId,actor.departmentId)');

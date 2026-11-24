@@ -115,9 +115,11 @@ describe('Marketing owner-local campaign read tail', () => {
     const form = await readFile(new URL('public-form.ts', base), 'utf8');
 
     const witness = 'SELECT 1 FROM marketing_public_receipts receipt JOIN (${crmMarketingCandidateSources}) candidate ON candidate.id=receipt.candidate_id WHERE receipt.key=? AND candidate.company_id=? AND candidate.form_id=? AND candidate.form_version=?';
-    expect(sources.split(witness)).toHaveLength(2);
-    expect(sources.match(/SELECT 1 FROM marketing_public_receipts receipt/g)).toHaveLength(1);
-    expect(sources).toContain('export const publicSubmissionReceiptWitness=`' + witness + '`');
+    // r44: the witness now renders from the shared point-existence head.
+    expect(sources).not.toContain(witness);
+    expect(sources).not.toMatch(/SELECT 1 FROM marketing_public_receipts receipt/);
+    expect(sources).toContain('export const publicSubmissionReceiptWitness=marketingPointExistsSql(');
+    expect(sources).toContain("'marketing_public_receipts receipt JOIN ('+crmMarketingCandidateSources+') candidate ON candidate.id=receipt.candidate_id'");
 
     for (const consumer of [purchases, form]) {
       expect(consumer).toContain('database.prepare(publicSubmissionReceiptWitness)');
@@ -308,9 +310,12 @@ describe('Marketing owner-local campaign read tail', () => {
     const predicate = "EXISTS(SELECT 1 FROM (SELECT ${source}.company_id,COALESCE(${source}.branch_id,?::text) branch_id,COALESCE(${source}.department_id,?::text) department_id) ${authority} WHERE ${assignmentReadSql(authority,'records.read')})";
     // The canonical helper owns both read tokens; its comment must not smuggle
     // another token into the retirement KPI.
-    expect(helper.match(/SELECT/g)).toHaveLength(2);
+    // r44: the outer EXISTS head renders from the shared source-row guard;
+    // only the owner-owned scope tuple keeps a statement token here.
+    expect(helper.match(/SELECT/g)).toHaveLength(1);
     expect(helper).toContain('export const marketingRecordScopeAuthoritySql');
-    expect(helper).toContain(predicate);
+    expect(helper).not.toContain(predicate);
+    expect(helper).toContain('marketingSourceRowGuardSql(');
 
     for (const consumer of [recordPurchases, analytics]) {
       expect(consumer).toContain('marketingRecordScopeAuthoritySql(');

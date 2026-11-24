@@ -1,5 +1,6 @@
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
+import {marketingPointExistsSql} from './marketing-point-exists-sql';
 /** Captured form identity and immutable submission event survive later form
  * retirement; a supplied source label is never a candidate handoff witness. */
 export const crmMarketingCandidateSources=`SELECT candidate.* FROM marketing_lead_candidates candidate
@@ -13,5 +14,5 @@ export const crmMarketingCampaignSources="SELECT id,company_id FROM marketing_ca
  * statement inside the caller's Holding transaction; a single source keeps the
  * consent/receipt check from drifting between them. Callers supply only the
  * key, Company, form id and form version as positional binds. */
-export const publicSubmissionReceiptWitness=`SELECT 1 FROM marketing_public_receipts receipt JOIN (${crmMarketingCandidateSources}) candidate ON candidate.id=receipt.candidate_id WHERE receipt.key=? AND candidate.company_id=? AND candidate.form_id=? AND candidate.form_version=?`;
+export const publicSubmissionReceiptWitness=marketingPointExistsSql('marketing_public_receipts receipt JOIN ('+crmMarketingCandidateSources+') candidate ON candidate.id=receipt.candidate_id','receipt.key=? AND candidate.company_id=? AND candidate.form_id=? AND candidate.form_version=?');
 export function crmMarketingSourceReadLocks(database:SqlDatabase){return [database.prepare("LOCK TABLE marketing_assets,marketing_asset_events,marketing_lead_candidates,marketing_engagement_events,marketing_campaigns,marketing_touches IN SHARE ROW EXCLUSIVE MODE")];}
