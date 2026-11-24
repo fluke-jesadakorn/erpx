@@ -125,16 +125,18 @@ describe('Billing seat-forecast owner-local price read tail', () => {
     expect(query).not.toHaveBeenCalled();
   });
 
-  it('leaves the commercial usage reads on the caller client', async () => {
+  it('reads usage snapshot and retained storage totals by typed owner kinds with no local SQL', async () => {
     ownerQuery.mockReset();
-    const query = vi.fn(async (_sql: string, _values: unknown[]) => ({ rows: [], rowCount: 0 }));
+    const query = vi.fn(async () => ({ rows: [], rowCount: 0 }));
     const repository = nativeSeatForecastRepository({ query } as never);
 
     await repository.usageSnapshot('h001', '2027-01');
+    expect(ownerQuery).toHaveBeenCalledWith(expect.anything(), 'forecast_usage_snapshot', ['h001', '2027-01']);
     await repository.retainedStorageTotals('h001', '2027-01', 'snap-1');
+    expect(ownerQuery).toHaveBeenCalledWith(expect.anything(), 'forecast_retained_storage_totals', ['h001', '2027-01', 'snap-1']);
 
-    expect(ownerQuery).not.toHaveBeenCalled();
-    expect(query).toHaveBeenCalledTimes(2);
+    expect(ownerQuery).toHaveBeenCalledTimes(2);
+    expect(query).not.toHaveBeenCalled();
   });
 });
 

@@ -55,6 +55,16 @@ fn sql(kind: &str) -> Option<&'static str> {
           AND included_seats=0 AND seat_monthly_satang IS NOT NULL
           AND storage_allowance_mode='per_paid_seat_time' AND effective_month>$1
         ORDER BY effective_month ASC,id ASC LIMIT 1"####,
+        // Same owner-authored result set as `forecast_read::usage_snapshot`:
+        // the retired TS path wrapped this projection in a no-op Commercial
+        // subquery, so the owner now authors the read directly.
+        FORECAST_USAGE_SNAPSHOT => r####"SELECT snapshot_id,refreshed_at,source_count,storage_coverage,
+         active_seat_count,active_seat_observed_at FROM billing_usage_snapshots
+         WHERE holding_id=$1 AND month=$2"####,
+        // Same owner-authored result set as `forecast_read::retained_storage_totals`.
+        FORECAST_RETAINED_STORAGE_TOTALS => r####"SELECT COUNT(*)::text row_count,
+         COALESCE(SUM(quantity) FILTER (WHERE meter_kind='storage' AND active_at_period_end),0)::text active_original_bytes
+         FROM billing_usage_meters WHERE holding_id=$1 AND month=$2 AND snapshot_id=$3"####,
         TARGET_ROLLOUT_EFFECTIVE_PRICE => r####"SELECT id,included_original_bytes,seat_terms_status,rating_enabled
       FROM billing_target_prices WHERE effective_month<=$1
       ORDER BY effective_month DESC,id DESC LIMIT 1"####,
@@ -359,6 +369,41 @@ mod tests {
             .is_err());
         }
         assert_ne!(FORECAST_CURRENT_PRICE, FORECAST_FUTURE_PRICE);
+    }
+    #[test]
+    fn forecast_usage_reads_are_owner_authored_and_fully_bound() {
+        let holding = HoldingId::new("h001").unwrap();
+        for (kind, sql, values, wrong) in [
+            (
+                FORECAST_USAGE_SNAPSHOT,
+                "SELECT snapshot_id,refreshed_at,source_count,storage_coverage,\n         active_seat_count,active_seat_observed_at FROM billing_usage_snapshots\n         WHERE holding_id=$1 AND month=$2",
+                vec![serde_json::json!("h001"), serde_json::json!("2027-01")],
+                vec![serde_json::json!("h001")],
+            ),
+            (
+                FORECAST_RETAINED_STORAGE_TOTALS,
+                "SELECT COUNT(*)::text row_count,\n         COALESCE(SUM(quantity) FILTER (WHERE meter_kind='storage' AND active_at_period_end),0)::text active_original_bytes\n         FROM billing_usage_meters WHERE holding_id=$1 AND month=$2 AND snapshot_id=$3",
+                vec![serde_json::json!("h001"), serde_json::json!("2027-01"), serde_json::json!("snap-1")],
+                vec![serde_json::json!("h001"), serde_json::json!("2027-01")],
+            ),
+        ] {
+            let statement = billing_owner_statement(&holding, &BillingOwnerWriteInput {
+                kind: kind.into(),
+                values: values.clone(),
+                now: 1,
+            })
+            .unwrap_or_else(|_| panic!("{kind} is an allow-listed owner read kind"));
+            assert_eq!(statement.sql, sql);
+            assert_eq!(statement.values, values);
+            // A missing holding/month/snapshot bind cannot widen an owner read.
+            assert!(billing_owner_statement(&holding, &BillingOwnerWriteInput {
+                kind: kind.into(),
+                values: wrong,
+                now: 1,
+            })
+            .is_err());
+        }
+        assert_ne!(FORECAST_USAGE_SNAPSHOT, FORECAST_RETAINED_STORAGE_TOTALS);
     }
     #[test]
     fn target_rollout_price_and_shadow_period_reads_are_owner_authored_and_fully_bound() {
