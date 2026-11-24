@@ -19,6 +19,7 @@ import {createLegalOperationsApplication,type LegalOperationUnit,type LegalOpera
 import { legalOperations } from '@erpx/server-collaboration/adapters/native-legal-operations';
 import {nativeLegalAuxiliaryRead} from '../native-legal-auxiliary';
 import {legalEventsByItemSql} from '../legal-read-tail-r18-sources';
+import {legalOrderedHistorySql} from '../legal-read-tail-r30-sources';
 /** Exact projection of the native `views` auxiliary read; no view SQL remains in TypeScript. */
 type LegalSavedViewsView={name:string;query:unknown}[];
 function unit(db:SqlDatabase,a:WorkContext,views?:LegalSavedViewsView):LegalOperationUnit{const nativeOps=legalOperations(db,a.companyId,a.userId);let observation:ReturnType<typeof legalReadScope>|undefined;const purchase=()=>observation??=legalReadScope(db,a);const v=visibility(a),writes=new WeakMap<LegalWrite,SqlStatement>();function stage(statement:SqlStatement):LegalWrite{const write:LegalWrite={owner:"legal"};writes.set(write,statement);return write;}function resolve(write:LegalWrite){const statement=writes.get(write);if(!statement)throw new Error("LEGAL_OPERATIONS_REPOSITORY_MISMATCH");return statement;}
@@ -38,7 +39,7 @@ documents:(facts:{id:string;})=>db.prepare("SELECT id,version,name,checksum,byte
 events:(facts:{id:string;})=>db.prepare(`${legalEventsByItemSql},id`).bind(facts.id).all(),
 accesses:(facts:{id:string;})=>db.prepare("SELECT * FROM legal_access_events WHERE item_id=? ORDER BY created_at,id LIMIT 10001").bind(facts.id).all(),
 async evidenceRead(facts){return (await nativeOps.accessEvent({identifier:facts.identifier,id:facts.id,actorId:facts.actorId,action:facts.fact4,now:facts.now})).run();},
-featureHistory:(facts:{id:string;})=>db.prepare("SELECT * FROM legal_feature_history WHERE item_id=? ORDER BY created_at,id").bind(facts.id).all(),
+featureHistory:(facts:{id:string;})=>db.prepare(legalOrderedHistorySql("legal_feature_history","item_id")).bind(facts.id).all(),
 retention:(facts:{id:string;})=>db.prepare("SELECT id,state,manifest,requested_by,approved_by,approved_at,completed_at FROM legal_destructions WHERE item_id=? ORDER BY created_at").bind(facts.id).all(),
 holdPreview:async(id)=>db
       .prepare(

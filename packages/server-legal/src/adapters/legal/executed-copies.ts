@@ -11,6 +11,7 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {legalLaterApprovalGuardSql} from "../legal-read-tail-r15-sources";
 import {legalDisposedDocumentPrefix} from "../legal-read-tail-r20-sources";
 import {legalApprovedCycleSql} from "../legal-read-tail-r22-sources";
+import {legalOrderedHistorySql} from "../legal-read-tail-r30-sources";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import type {ExecutedCopy} from "@erpx/server-legal/domain/model";
 import {createExecutedCopyApplication,type ExecutedCopySource} from "@erpx/server-legal/application/executed-copies";
@@ -18,7 +19,7 @@ import { legalExecutedCopies } from '@erpx/server-collaboration/adapters/native-
 import {legalMembershipSql,legalMembershipExistsSql} from '../legal-members-read-sources';
 function application(db:SqlDatabase,a:WorkContext){const nativeExec=legalExecutedCopies(db,a.companyId,a.userId);return createExecutedCopyApplication({access:(id,permission)=>access(db,a,id,permission),eligible:item=>eligible(db,a,a.userId,item,"legal.approve"),clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},error:(status,code,message)=>new ApiError(status,code,message),repository:{
 list:async id=>(await db.prepare("SELECT e.*,d.name document_name,d.version document_version FROM legal_executed_copies e JOIN legal_documents d ON d.id=e.document_id WHERE e.item_id=? ORDER BY e.imported_at DESC,e.id LIMIT 100").bind(id).all<ExecutedCopy&{document_name:string;document_version:number}>()).results,
-reviews:async id=>(await db.prepare("SELECT * FROM legal_executed_reviews WHERE executed_copy_id=? ORDER BY created_at,id").bind(id).all()).results,
+reviews:async id=>(await db.prepare(legalOrderedHistorySql("legal_executed_reviews","executed_copy_id")).bind(id).all()).results,
 member:async id=>Boolean(await db.prepare(legalMembershipSql).bind(id,a.userId).first()),
 replay:(key,id,input)=>replayCommand(db,a,key,"legal.executed.review",id,input),
 row:(id,itemId)=>db.prepare("SELECT e.*,d.created_by document_author,p.created_by approved_author FROM legal_executed_copies e JOIN legal_documents d ON d.id=e.document_id JOIN legal_documents p ON p.id=e.approved_document_id WHERE e.id=? AND e.item_id=?").bind(id,itemId).first<ExecutedCopySource>(),
