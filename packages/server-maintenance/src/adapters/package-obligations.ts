@@ -37,7 +37,7 @@ export const scopedSourceCte=(alias:"work"|"plan",source:string,extra:string)=>`
  * relation; callers pass only closed fragments, never request-authored SQL.
  * Each composed row stays byte-identical to its pre-dedupe literal and no
  * LOCK/UPDATE statement is accepted or changed. */
-export const factRow=(kind:string,columns:string,from:string)=>`SELECT ${kind},${columns} FROM ${from}`;
+export const factRow=(kind:string,columns:string,from:string)=>settlementRefSource(`${kind},${columns}`,from);
 const workScopeExtra=`(scope.package_id='assets' OR scope.package_id='assets-preventive' AND ${workSourceExists("maintenance_preventive_occurrences","occurrence","work_order_id")} OR scope.package_id='assets-parts-costs' AND ${workSourceExists(`(${maintenanceSettlementConsumptions})`,"part","source_id")})`;
 export const maintenancePackageSettlementSources={work,plans,consumptions:maintenanceSettlementConsumptions,occurrences:settlementEventRows("maintenance_preventive_occurrences"),workEvents:settlementEventRows("maintenance_work_events")} as const;
 export async function lockMaintenancePackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.prepare("LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE").run();await database.batch(maintenanceSettlementInventoryReadLocks(database));sources.set(database,companyId);}

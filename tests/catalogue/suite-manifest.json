@@ -57942,6 +57942,33 @@
       ]
     },
     {
+      "lane": "unit",
+      "owner": "maintenance",
+      "modules": [
+        "maintenance"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Maintenance fact row must delegate to settlement ref source."
+      },
+      "apps": [
+        "maintenance"
+      ],
+      "packages": [
+        "@erpx/server-maintenance"
+      ],
+      "id": "maintenance.read-tail-r28-dedupe.unit",
+      "files": [
+        "tests/unit/maintenance/read-tail-r28-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "maintenance.rust-issue-part-command-postgres.integration",
       "lane": "integration",
       "owner": "maintenance",
