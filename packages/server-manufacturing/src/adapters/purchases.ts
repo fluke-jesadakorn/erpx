@@ -16,6 +16,7 @@ import {holdingResources} from "../../../../packages/server-runtime/src/public/r
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {planningPurchaseScenarioRows,planningPurchaseRecommendationRows,planningPurchaseResourceRows,planningPurchaseSourceReadLocks} from "@erpx/server-planning/public/purchase-sources";
 import {manufacturingWarehouseSources,manufacturingProductSources,manufacturingCommerceSourceReadLocks} from "@erpx/server-commerce/public/manufacturing-purchase-sources";
+import {manufacturingOperationAggSql} from "./manufacturing-read-sql-fragments";
 export type ManufacturingPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 /** Owner-local fixed read: one command receipt on the caller transaction. This
  * idempotency/replay witness is identical in the purchased-command and
@@ -57,7 +58,7 @@ export async function runOwnerUnitEffects(database:SqlDatabase,companyId:string,
 }
 export type ManufacturingPurchaseTarget={kind:"specification"|"scenario"|"recommendation"|"order"|"resource"|"accounting";id:string};
 export const manufacturingPurchaseSpecificationRows=`SELECT s.id,s.company_id,NULL::text branch_id,false advanced,
- jsonb_build_object('specification',to_jsonb(s)-'status'-'version'-'updated_at'-'reviewed_by','lines',COALESCE((SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM manufacturing_specification_lines line WHERE line.specification_id=s.id),'[]'::jsonb),'products',COALESCE((SELECT jsonb_agg(to_jsonb(product) ORDER BY product.id) FROM (${manufacturingProductSources}) product WHERE product.company_id=s.company_id AND (product.id=s.output_product_id OR product.id IN(SELECT product_id FROM manufacturing_specification_lines WHERE specification_id=s.id))),'[]'::jsonb),'operations',COALESCE((SELECT jsonb_agg(to_jsonb(operation) ORDER BY operation.id) FROM manufacturing_specification_operations operation WHERE operation.specification_id=s.id),'[]'::jsonb)) witness
+ jsonb_build_object('specification',to_jsonb(s)-'status'-'version'-'updated_at'-'reviewed_by','lines',COALESCE((SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM manufacturing_specification_lines line WHERE line.specification_id=s.id),'[]'::jsonb),'products',COALESCE((SELECT jsonb_agg(to_jsonb(product) ORDER BY product.id) FROM (${manufacturingProductSources}) product WHERE product.company_id=s.company_id AND (product.id=s.output_product_id OR product.id IN(SELECT product_id FROM manufacturing_specification_lines WHERE specification_id=s.id))),'[]'::jsonb),'operations',COALESCE(${manufacturingOperationAggSql("manufacturing_specification_operations operation","WHERE operation.specification_id=s.id")},'[]'::jsonb)) witness
  FROM manufacturing_specifications s`;
 export const manufacturingPurchaseOrderRows=`SELECT o.id,o.company_id,o.branch_id,o.warehouse_id,recommendation.advanced,
  jsonb_build_object('order',jsonb_build_array(o.id,o.company_id,o.branch_id,o.warehouse_id,o.recommendation_id,o.specification_id,o.specification_version,o.planned_quantity_milli,o.created_by,o.created_at),'recommendation',recommendation.witness,'specification',specification.witness,'warehouse',jsonb_build_array(warehouse.id,warehouse.company_id,warehouse.branch_id)) witness

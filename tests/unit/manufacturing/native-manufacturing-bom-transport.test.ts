@@ -167,7 +167,7 @@ describe('Manufacturing finance-close read retirement',()=>{
     expect(paths.some(path=>path.includes('finance-close-source'))).toBe(false);
     const count=paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0);
     expect(count).toBeLessThan(148);
-    expect(count).toBe(137);
+    expect(count).toBe(134);
   });
 });
 describe('Manufacturing owner-local report-actor read dedupe',()=>{
@@ -347,5 +347,37 @@ describe('Manufacturing operation-event done guard dedupe',()=>{
     expect(source.split('${operationEventDoneGuardSql}')).toHaveLength(3);
     expect(source.slice(source.indexOf('guardCompleteRouting'),source.indexOf('guardCompleteRouting')+360)).toContain('[value2, id]');
     expect(source.slice(source.indexOf('guardOperationSequence'),source.indexOf('guardOperationSequence')+360)).toContain('[value2, value3, id]');
+  });
+});
+describe('Manufacturing read-tail text-only fragment dedupe', () => {
+  const adapter = (name: string) => nodeFs.readFileSync(new URL(`../../../packages/server-manufacturing/src/adapters/${name}`, import.meta.url), 'utf8');
+  const opSpec = '(SELECT jsonb_agg(to_jsonb(operation) ORDER BY operation.id) FROM manufacturing_specification_operations operation WHERE operation.specification_id=specification.id)';
+  const opEvents = '(SELECT jsonb_agg(to_jsonb(operation) ORDER BY operation.id) FROM manufacturing_operation_events operation WHERE operation.order_id=record.id)';
+  const opProd = '(SELECT jsonb_agg(to_jsonb(operation) ORDER BY operation.id) FROM manufacturing_specification_operations operation WHERE operation.specification_id=s.id)';
+  const asFile = 'EXISTS(SELECT 1 FROM assignments selected WHERE selected.id=? AND (jsonb_array_length(selected.modules_json::jsonb)=0 OR selected.modules_json::jsonb @> jsonb_build_array(production_file_scope.module_id)))';
+  const asSource = 'EXISTS(SELECT 1 FROM assignments selected WHERE selected.id=? AND (jsonb_array_length(selected.modules_json::jsonb)=0 OR selected.modules_json::jsonb @> jsonb_build_array(production_source.module_id)))';
+  it('emits the former inline projection and guard text byte for byte', async () => {
+    const f = await import('../../../packages/server-manufacturing/src/adapters/manufacturing-read-sql-fragments');
+    expect(f.manufacturingOperationAggSql('manufacturing_specification_operations operation', 'WHERE operation.specification_id=specification.id')).toBe(opSpec);
+    expect(f.manufacturingOperationAggSql('manufacturing_operation_events operation', 'WHERE operation.order_id=record.id')).toBe(opEvents);
+    expect(f.manufacturingOperationAggSql('manufacturing_specification_operations operation', 'WHERE operation.specification_id=s.id')).toBe(opProd);
+    expect(f.manufacturingSelectedAssignmentExists('production_file_scope.module_id')).toBe(asFile);
+    expect(f.manufacturingSelectedAssignmentExists('production_source.module_id')).toBe(asSource);
+  });
+  it('keeps one text-only definition and routes every caller through it', () => {
+    const fragment = adapter('manufacturing-read-sql-fragments.ts');
+    expect(fragment.match(/\bSELECT\b/g)).toHaveLength(2);
+    expect(fragment).not.toMatch(/^import /m);
+    expect(fragment).not.toMatch(/compositionRoot|registerRead|readPlanRegistry/);
+    for (const [name, old, helper] of [
+      ['attachment-read-sources.ts', [opSpec, opEvents], 'manufacturingOperationAggSql'],
+      ['purchases.ts', [opProd], 'manufacturingOperationAggSql'],
+      ['attachment-purchases.ts', [asFile], 'manufacturingSelectedAssignmentExists'],
+      ['record-purchases.ts', [asSource], 'manufacturingSelectedAssignmentExists'],
+    ] as const) {
+      const text = adapter(name);
+      for (const literal of old) expect(text).not.toContain(literal);
+      expect(text).toContain(helper);
+    }
   });
 });
