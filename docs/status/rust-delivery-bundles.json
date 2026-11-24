@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12169,
+    "revision": 12171,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -180670,7 +180670,7 @@
         "owner": "collaboration",
         "title": "collaboration revisions aggregate and messaging guards",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -180681,22 +180681,37 @@
         "resources": [
           "owner:collaboration"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n13",
-          "claimedAt": "2026-11-24T13:35:56.339Z",
-          "heartbeatAt": "2026-11-24T13:43:11.337Z",
-          "expiresAt": "2026-11-24T14:13:11.337Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "84083667c",
+            "owner": "collaboration",
+            "before": 370,
+            "after": 364,
+            "note": "Revisions file aggregate, messaging team member guard and PMS source guards shared; locks/notification targets/jsonb_to_recordset untouched."
+          },
+          {
+            "command": "vitest collaboration (104) + scoped tsc + 9/9 byte oracle",
+            "result": "passed",
+            "sourceSha": "84083667c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Revisions aggregate (-1), messaging team-member guard (-2), PMS source guard (-3): 370->364.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n13",
+          "at": "2026-11-24T13:50:38.397Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -181269,17 +181284,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 14,
+        "in_progress": 13,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1384,
+        "blocked": 1385,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:50:02.633Z",
+    "updatedAt": "2026-11-24T13:50:38.404Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
