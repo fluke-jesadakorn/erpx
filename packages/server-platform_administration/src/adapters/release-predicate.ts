@@ -60,20 +60,19 @@ export function latestReleaseIdSql(companyExpression: string, scopeExpression: s
   return `(SELECT latest.id FROM company_release_acceptances latest WHERE latest.company_id=${companyExpression} AND latest.scope_version=${scopeExpression} ORDER BY latest.created_at DESC,latest.id DESC LIMIT 1)`;
 }
 
-/** The single latest-acceptance row read shared by the repository's row and
- * latest lookups. Kept here once so the "latest acceptance per company" rule has
- * one owner-local definition; each caller supplies its columns and id predicate.
- * The rendered SQL is byte-identical to the former inline copies. */
-export function latestReleaseRowSql(columns: string, idPredicate: string) {
-  return `SELECT ${columns} FROM company_release_acceptances WHERE company_id=? ${idPredicate} ORDER BY created_at DESC,id DESC LIMIT 1`;
+/** The single parameterized release-acceptance row-read head shared by the
+ * latest-lookup and the base evidence/finance-attachment reads. The two former
+ * helpers emitted byte-identical output; only the WHERE predicate and optional
+ * ORDER BY suffix differed. Keeping one owner-local definition removes the
+ * duplicate head without changing any rendered SQL. */
+export function releaseAcceptanceRowSql(columns: string, predicate: string, suffix = '') {
+  return `SELECT ${columns} FROM company_release_acceptances WHERE ${predicate}${suffix}`;
 }
 
-/** The single base release-acceptance row read shared by the evidence-row and
- * finance-attachment owner reads. Kept here once so this parameterized family
- * has one owner-local definition; each caller supplies its columns and WHERE
- * predicate. The rendered SQL is byte-identical to the former inline copies. */
-export function releaseAcceptanceRowSql(columns: string, predicate: string) {
-  return `SELECT ${columns} FROM company_release_acceptances WHERE ${predicate}`;
+/** The latest-acceptance row lookup composes the same byte-identical head with
+ * its ORDER BY/LIMIT suffix. */
+export function latestReleaseRowSql(columns: string, idPredicate: string) {
+  return releaseAcceptanceRowSql(columns, `company_id=? ${idPredicate}`, ' ORDER BY created_at DESC,id DESC LIMIT 1');
 }
 
 /** The single THB-currency probe shared by every release-currency source. Kept

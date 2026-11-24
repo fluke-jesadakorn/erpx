@@ -22,12 +22,14 @@ describe('Platform Administration latest-release row parameterized-family dedupe
     expect(latestReleaseRowSql('*', 'AND id=?')).not.toMatch(/FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
   });
 
-  test('the row-read body survives once in the helper and both repository lookups are composed', () => {
+  test('the row-read head survives once and both repository lookups compose it', () => {
     const predicate = source('adapters/release-predicate.ts');
     const acceptance = source('adapters/release-acceptance.ts');
-    const body = 'FROM company_release_acceptances WHERE company_id=? ${idPredicate} ORDER BY created_at DESC,id DESC LIMIT 1';
+    const head = 'FROM company_release_acceptances WHERE ${predicate}${suffix}';
+    expect(predicate.match(/export function releaseAcceptanceRowSql/g)).toHaveLength(1);
     expect(predicate.match(/export function latestReleaseRowSql/g)).toHaveLength(1);
-    expect(`${predicate}\n${acceptance}`.split(body).length - 1).toBe(1);
+    expect(predicate.split(head).length - 1).toBe(1);
+    expect(predicate).toContain("releaseAcceptanceRowSql(columns, `company_id=? ${idPredicate}`, ' ORDER BY created_at DESC,id DESC LIMIT 1')");
     expect(acceptance).toContain("latestReleaseRowSql('*', releaseId?'AND id=?':'AND scope_version=?')");
     expect(acceptance).toContain("latestReleaseRowSql('id','AND scope_version=?')");
     expect(acceptance).not.toContain(preRow('AND id=?'));
