@@ -46,6 +46,11 @@ const checkoutVersionAssertion = "EXISTS(SELECT 1 FROM ecommerce_checkouts WHERE
  *  callers rebuild byte-identically. Text only: binds and locks unchanged. */
 const activeProjectionAssertion = (source: string, alias: string, predicate: string) =>
   `EXISTS(SELECT 1 FROM (${source}) ${alias} WHERE id=? AND company_id=? AND ${predicate})`;
+/** r11: one parameterized source-row read; the channel, cart-line and
+ *  fulfillment-link callers rebuild byte-identically. Text only: binds and
+ *  locks unchanged. */
+const readSource = (table: string, scope: string, order = '') =>
+  `SELECT * FROM ${table} WHERE ${scope}${order ? ` ORDER BY ${order}` : ''}`;
 
 function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction: boolean): EcommerceRepository {
  let money: Awaited<ReturnType<typeof snapshotMoney>> | undefined;
@@ -57,7 +62,7 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
       await Promise.all([
         write
           .prepare(
-            "SELECT * FROM ecommerce_channels WHERE company_id=? ORDER BY updated_at DESC",
+            readSource("ecommerce_channels", "company_id=?", "updated_at DESC"),
           )
           .bind(a.companyId)
           .all<Row>(),
@@ -201,7 +206,7 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
   await nativeWrite('cart.add-line', [lineId, i.cartId, i.listingId, i.listingVersion, listing.product_id, decimalToMinor(i.quantity, 3), listing.price_minor, lineCreatedAt], i.cartId, a.userId, key);
   await nativeWrite('cart.version-bump', [now, i.cartId], i.cartId, a.userId, key);
   },
-  cartLines: async id => (await write.prepare("SELECT * FROM ecommerce_cart_lines WHERE cart_id=? ORDER BY ordinal").bind(id).all<Row>()).results,
+  cartLines: async id => (await write.prepare(readSource("ecommerce_cart_lines", "cart_id=?", "ordinal")).bind(id).all<Row>()).results,
   async abandonCart(command,now){const {key,input,id}=command;
    return nativeWrite('cart.abandon',[now,id,input.expectedVersion],id,a.userId,key);},
   saveSalesOrder: (actor, input, key) => saveOrder(actor, null, orderSchema.parse(input), key, write),
@@ -331,7 +336,7 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
     );
   await nativeWrite('checkout.return',[`ecommerce-return-${key}`,id,i.fulfillmentId,ret.id,i.fulfillmentVersion,ret.status,now,now,id],id,a.userId,key);
   },
-  fulfillmentLinks: async id => (await write.prepare("SELECT * FROM ecommerce_fulfillment_links WHERE checkout_id=?").bind(id).all<Row>()).results,
+  fulfillmentLinks: async id => (await write.prepare(readSource("ecommerce_fulfillment_links", "checkout_id=?")).bind(id).all<Row>()).results,
   returnLinks: async id => (await write.prepare(`SELECT l.*,r.status current_return_status,r.version current_return_version FROM ecommerce_return_links l JOIN (${commerceProjectionSources.commerce_returns}) r ON r.id=l.commerce_return_id WHERE l.checkout_id=?`).bind(id).all<Row>()).results,
  };
 }

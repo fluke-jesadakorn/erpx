@@ -19061,6 +19061,33 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Ecommerce source row reads must stay one helper."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-ecommerce"
+      ],
+      "id": "ecommerce.read-tail-r11-dedupe.unit",
+      "files": [
+        "tests/unit/ecommerce/ecommerce-read-tail-r11-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "ecommerce",
+      "modules": [
+        "ecommerce"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Ecommerce executive metric count templates must stay byte-identical."
       },
       "apps": "apps",
