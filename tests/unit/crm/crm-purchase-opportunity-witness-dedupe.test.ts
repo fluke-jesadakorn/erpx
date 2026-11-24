@@ -9,13 +9,13 @@ const purchasesUrl = new URL('../../../packages/server-crm/src/adapters/purchase
 const adapter = (name: string) => new URL(`../../../packages/server-crm/src/adapters/${name}`, import.meta.url);
 
 describe('crm purchase opportunity witness read family', () => {
-  it('keeps one fixed-SQL witness literal shared by both purchase guards', async () => {
+  it('keeps one rendered witness head shared by both purchase guards', async () => {
     const src = await readFile(purchasesUrl, 'utf8');
-    const literal = '`SELECT witness::text witness FROM (${crmPurchaseOpportunityRows}) opportunity WHERE id=? AND company_id=?`';
-    // One canonical declaration; its comment must not smuggle extra "SELECT "
-    // tokens into the owner retirement KPI.
-    expect(src.split(literal).length - 1).toBe(1);
-    expect(src).toContain('const opportunityWitnessSql=' + literal);
+    const call = "crmOwnedSourceRowSql('witness::text witness',crmPurchaseOpportunityRows,'opportunity')";
+    // One canonical declaration; the r34 renderer owns the single "SELECT "
+    // token so the owner retirement KPI stays byte-identical and deduped.
+    expect(src.split(call).length - 1).toBe(1);
+    expect(src).toContain('const opportunityWitnessSql=' + call);
     expect(src.match(/\.prepare\(opportunityWitnessSql\)/g)).toHaveLength(2);
   });
 

@@ -11,6 +11,7 @@ import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purch
 import {crmPurchaseLeadRows,crmPurchaseActivityRows,crmPurchaseAccountRows,crmPurchaseContactRows,crmPurchaseGuestLinkRows,crmLeadActivityExists,crmOpportunityExistsSql,crmOpportunityLeadSql,crmClockCteSql,crmAssignmentScopeExistsSql,requireCRMPurchasedRead,crmReferenceHistory,type CRMPurchaseTarget} from '@erpx/server-crm/adapters/purchases';
 import {crmWorkLeadOwnerProbeSql} from './read-tail-r29-sql';
 import {crmClockedSourceScopeSql} from './read-tail-r33-sql';
+import {crmOwnedSourceRowSql} from './read-tail-r34-sql';
 const crmNativeIdSql=(table:string)=>`SELECT id FROM ${table}`;
 const nativeIds=[crmNativeIdSql('crm_leads'),crmNativeIdSql('crm_lead_activities'),crmNativeIdSql('crm_opportunities'),crmNativeIdSql('crm_accounts'),crmNativeIdSql('crm_contacts'),crmNativeIdSql('crm_guest_links')].join(' UNION ALL ');
 const validLeads=`SELECT lead.* FROM (${crmPurchaseLeadRows}) lead WHERE NOT EXISTS(${crmOpportunityLeadSql}lead.id) OR EXISTS(${crmOpportunityExistsSql}opportunity.id=lead.id AND opportunity.company_id=lead.company_id)`;
@@ -36,7 +37,7 @@ export async function crmSourceReadScope(database:SqlDatabase,actor:WorkContext,
 }
 export async function requireCRMWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,_moduleId:string,id:string){
  if(await commercePackageEnforcementMode()==='disabled')return;
- const row=await database.prepare(`SELECT kind,target_id FROM (${recordRows}) actual WHERE id=? AND company_id=?`).bind(id,actor.companyId).first<{kind:CRMPurchaseTarget['kind'];target_id:string}>();
+ const row=await database.prepare(crmOwnedSourceRowSql('kind,target_id',recordRows,'actual')).bind(id,actor.companyId).first<{kind:CRMPurchaseTarget['kind'];target_id:string}>();
  if(row){await requireCRMPurchasedRead(database,actor,{kind:row.kind,id:row.target_id});if(row.kind==='guest-link'&&!await crmReferenceHistory(database,actor,'pms.reservations'))throw new ApiError(404,'CRM_SOURCE_NOT_FOUND','The original Hotel identity source is unavailable.');}
  else if(await database.prepare(`SELECT 1 FROM (${nativeIds}) actual WHERE id=?`).bind(id).first())throw new ApiError(404,'CRM_SOURCE_NOT_FOUND','The original CRM source is unavailable in this workspace.');
 }

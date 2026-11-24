@@ -26,6 +26,7 @@ import {crmCreatorLeadScopeSql} from "./read-tail-r24-sql";
 import {crmPurchaseRowProjection} from "./read-tail-r25-sql";
 import {crmCaseEventReadSql,crmOpportunityProbeSql} from "./read-tail-r28-sql";
 import {crmLeadEligibleOwnerSql} from "./read-tail-r29-sql";
+import {crmOwnedSourceRowSql} from "./read-tail-r34-sql";
 
 export type CRMPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type CRMPurchaseTarget={kind:"lead"|"activity"|"account"|"contact"|"guest-link";id:string};
@@ -100,7 +101,7 @@ export const crmPurchaseGuestLinkRows=`${crmPurchaseRowProjection('link','guest.
 /** Canonical owner read for the linked-opportunity source witness. The
  * pre-commit capture and the before-commit recheck execute this same fixed
  * statement on the caller's open unit; one literal, no caller-supplied SQL. */
-const opportunityWitnessSql=`SELECT witness::text witness FROM (${crmPurchaseOpportunityRows}) opportunity WHERE id=? AND company_id=?`;
+const opportunityWitnessSql=crmOwnedSourceRowSql('witness::text witness',crmPurchaseOpportunityRows,'opportunity');
 const sourceRows={lead:crmPurchaseLeadRows,activity:crmPurchaseActivityRows,account:crmPurchaseAccountRows,contact:crmPurchaseContactRows,"guest-link":crmPurchaseGuestLinkRows};
 export async function crmNativeReadFilter(kind:CRMPurchaseTarget['kind'],alias:'l'|'x'|'a'|'c'|'g'){
  if(await commercePackageEnforcementMode()==='disabled')return 'true';
@@ -118,7 +119,7 @@ async function source(database:SqlDatabase,actor:WorkContext,target:CRMPurchaseT
   ?"(?::text IS NULL OR actual.branch_id=?) AND (?::text IS NULL OR actual.department_id=?)"
   :crmCreatorLeadScopeSql('actual','l',`${identity}=${target.kind==="guest-link"?"(SELECT contact_id FROM crm_guest_links WHERE id=actual.id)":"actual.id"}`,'l.company_id=actual.company_id');
  const args=target.kind==="lead"||target.kind==="activity"?[actor.branchId,actor.branchId,actor.departmentId,actor.departmentId]:[actor.branchId,actor.userId,actor.branchId,actor.departmentId,actor.departmentId];
- const row=await database.prepare(`SELECT id,company_id,branch_id,department_id,witness::text witness FROM (${sourceRows[target.kind]}) actual WHERE id=? AND company_id=? AND ${scoped}`).bind(target.id,actor.companyId,...args).first<Source>();
+ const row=await database.prepare(crmOwnedSourceRowSql('id,company_id,branch_id,department_id,witness::text witness',sourceRows[target.kind],'actual',` AND ${scoped}`)).bind(target.id,actor.companyId,...args).first<Source>();
  if(!row||target.kind==="guest-link"&&actor.branchId&&row.branch_id!==actor.branchId)throw new ApiError(404,"CRM_SOURCE_NOT_FOUND","The original CRM source is unavailable in this workspace.");
  if(target.kind==='lead'&&await database.prepare(crmOpportunityProbeSql('1','lead_id=?')).bind(target.id).first()&&!await database.prepare(`${crmOpportunityExistsSql}id=? AND company_id=?`).bind(target.id,actor.companyId).first())throw new ApiError(404,'CRM_SOURCE_NOT_FOUND','The actual original opportunity source is unavailable.');
  return row;
@@ -227,6 +228,6 @@ export async function crmLeadCreateReferences(database:SqlDatabase,actor:WorkCon
 export async function crmOpportunityReference(database:SqlDatabase,actor:WorkContext,kind:"quote"|"sales"|"reservation",id:string){
  if(await commercePackageEnforcementMode()==='disabled')return;
  const rows=kind==="reservation"?crmHotelReservationSources:crmCommerceOrderSources;
- const row=await database.prepare(`SELECT id FROM (${rows}) actual WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?) ${kind==="reservation"?"":"AND kind=? AND (?::text IS NULL OR department_id=?)"}`).bind(id,actor.companyId,actor.branchId,actor.branchId,...(kind==="reservation"?[]:[kind,actor.departmentId,actor.departmentId])).first();
+ const row=await database.prepare(crmOwnedSourceRowSql('id',rows,'actual',` AND (?::text IS NULL OR branch_id=?) ${kind==="reservation"?"":"AND kind=? AND (?::text IS NULL OR department_id=?)"}`)).bind(id,actor.companyId,actor.branchId,actor.branchId,...(kind==="reservation"?[]:[kind,actor.departmentId,actor.departmentId])).first();
  if(!row)throw new ApiError(404,"CRM_SOURCE_NOT_FOUND","The actual linked customer document is unavailable in this workspace.");
 }
