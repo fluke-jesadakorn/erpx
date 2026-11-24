@@ -10,6 +10,7 @@ import {access,eligible,guards,personGuard} from "@erpx/server-legal/adapters/le
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {legalLaterApprovalGuardSql} from "../legal-read-tail-r15-sources";
 import {legalDisposedDocumentPrefix} from "../legal-read-tail-r20-sources";
+import {legalApprovedCycleSql} from "../legal-read-tail-r22-sources";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import type {ExecutedCopy} from "@erpx/server-legal/domain/model";
 import {createExecutedCopyApplication,type ExecutedCopySource} from "@erpx/server-legal/application/executed-copies";
@@ -22,7 +23,7 @@ member:async id=>Boolean(await db.prepare(legalMembershipSql).bind(id,a.userId).
 replay:(key,id,input)=>replayCommand(db,a,key,"legal.executed.review",id,input),
 row:(id,itemId)=>db.prepare("SELECT e.*,d.created_by document_author,p.created_by approved_author FROM legal_executed_copies e JOIN legal_documents d ON d.id=e.document_id JOIN legal_documents p ON p.id=e.approved_document_id WHERE e.id=? AND e.item_id=?").bind(id,itemId).first<ExecutedCopySource>(),
 samePerson:author=>legalEvidenceSamePerson(db,a.companyId,a.userId,author),
-approval:id=>db.prepare("SELECT cycle FROM legal_approvals WHERE item_id=? AND decision='approved' ORDER BY cycle DESC LIMIT 1").bind(id).first<{cycle:number}>(),
+approval:id=>db.prepare(legalApprovedCycleSql('cycle')).bind(id).first<{cycle:number}>(),
 commit:async(x,item,e,authors,state,now,event,key)=>{
   return executeCommand(db,a,key,"legal.executed.review",x,item.id,item.version+1,{id:item.id,version:item.version+1,state,executedCopyId:e.id,executedCopyState:x.decision==="confirm"?"confirmed":"changes_required"},[
     ...guards(db,a,item.id,item.version,key),
