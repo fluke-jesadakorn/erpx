@@ -16,6 +16,14 @@ import { projectionLookup } from './projection-lookup';
  * reflow of its pre-dedupe literal, with every SQL token unchanged. */
 const breakdownProjection = (alias: string, label: string, value: string, from: string, where: string) =>
   `SELECT ${label} label,${value} value FROM ${from} ${alias} WHERE ${where} GROUP BY 1 ORDER BY 1`;
+/** Canonical owner-local windowed interval CTE shared by the asset-downtime
+ * `ordered` and `marked` stages. Both stages partition the same interval stream
+ * by asset and order by the fixed start/end/work key; callers pass only a closed
+ * aggregate expression, a bounded frame end, a fixed output alias and an owner-
+ * fixed source relation, never request-authored SQL. Each composed CTE keeps its
+ * pre-dedupe SQL tokens and no LOCK statement is accepted or changed. */
+export const windowedIntervalCte = (aggregate: string, frameEnd: "1 PRECEDING" | "CURRENT ROW", alias: string, source: string): string =>
+  `SELECT *,${aggregate} OVER(PARTITION BY asset_id ORDER BY start_at,end_at,work_order_id ROWS BETWEEN UNBOUNDED PRECEDING AND ${frameEnd}) ${alias} FROM ${source}`;
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const spec = specs[id], scopedAlias = (alias: string) => `${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?)`, scopeArgs = [a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId];
     const source=await assetMetricSource(sourceDb,a,id);
@@ -45,12 +53,9 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
           AND w.downtime_started_at IS NOT NULL AND w.downtime_ended_at IS NOT NULL
           AND w.downtime_ended_at>w.downtime_started_at AND w.downtime_started_at<? AND w.downtime_ended_at>?
       ), ordered AS (
-        SELECT *,max(end_at) OVER(PARTITION BY asset_id ORDER BY start_at,end_at,work_order_id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prior_end
-        FROM raw_intervals
+        ${windowedIntervalCte("max(end_at)","1 PRECEDING","prior_end","raw_intervals")}
       ), marked AS (
-        SELECT *,sum(CASE WHEN prior_end IS NULL OR start_at>prior_end THEN 1 ELSE 0 END)
-          OVER(PARTITION BY asset_id ORDER BY start_at,end_at,work_order_id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) interval_group
-        FROM ordered
+        ${windowedIntervalCte("sum(CASE WHEN prior_end IS NULL OR start_at>prior_end THEN 1 ELSE 0 END)","CURRENT ROW","interval_group","ordered")}
       ), merged AS (
         SELECT asset_id,min(asset_code) asset_code,min(asset_name) asset_name,min(branch_name) branch_name,min(department_name) department_name,
           interval_group,min(start_at) start_at,max(end_at) end_at

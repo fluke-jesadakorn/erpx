@@ -653,8 +653,9 @@ describe('Maintenance breakdown projection fixed SQL',()=>{
    expect(source.match(/const breakdownProjection = \(alias: string, label: string, value: string, from: string, where: string\) =>/g)).toHaveLength(1);
    expect(source.match(/`SELECT \$\{label\} label,\$\{value\} value FROM \$\{from\} \$\{alias\} WHERE \$\{where\} GROUP BY 1 ORDER BY 1`/g)).toHaveLength(1);
    // r2 left one orgLabel image; r11 shared the two outer breakdown SELECTs
-   // (8 -> 7); r16 moved the orgLabel lookup into projectionLookup (7 -> 6).
-   expect(source.match(/SELECT/g)).toHaveLength(6);
+   // (8 -> 7); r16 moved the orgLabel lookup into projectionLookup (7 -> 6);
+   // r17 shared the two windowed interval CTEs (6 -> 5).
+   expect(source.match(/SELECT/g)).toHaveLength(5);
    expect(source).toContain('breakdownProjection("w", label, "count(*)::text", `(${source.sql})`');
    expect(source).toContain('breakdownProjection("s", label, "sum(segment_end-segment_start)::text", "monthly_segments", "segment_end>segment_start")');
    expect(source).not.toContain('label,count(*)::text value FROM (${source.sql}) w WHERE');
@@ -708,7 +709,7 @@ describe('Maintenance record-image fixed SQL',()=>{
   }
  });
 
- it('retirement:ts-statements stays strictly below the r15 BEFORE=37 baseline',async()=>{
+ it('retirement:ts-statements stays strictly below the r17 BEFORE=35 baseline',async()=>{
   const {readdirSync,readFileSync}=await import('node:fs');
   const {resolve}=await import('node:path');
   let total=0;
@@ -721,8 +722,8 @@ describe('Maintenance record-image fixed SQL',()=>{
    }
   };
   walk(srcRoot);
-  expect(total).toBe(35);
-  expect(total).toBeLessThan(37);
+  expect(total).toBe(34);
+  expect(total).toBeLessThan(35);
  });
 });
 
@@ -842,5 +843,44 @@ describe('Maintenance projection lookup fixed SQL',()=>{
    expect(`occurrence.source_asset_version>${projectionLookup('version',as.assets,'actual','actual.id=plan.asset_id AND actual.company_id=plan.company_id')}`).toBe(
      `occurrence.source_asset_version>(SELECT version FROM (${as.assets}) actual WHERE actual.id=plan.asset_id AND actual.company_id=plan.company_id)`);
    expect(projectionLookup('x','t','a','a.id=?')).toBe('(SELECT x FROM (t) a WHERE a.id=?)');
+  });
+ });
+
+/** Fixed-SQL read-tail oracle for the Maintenance windowed interval CTE family
+ * (r17). The asset-downtime `ordered` and `marked` stages share one owner-local
+ * `OVER(PARTITION BY asset_id ... ROWS BETWEEN UNBOUNDED PRECEDING AND <frame>)`
+ * skeleton. Both composed CTEs keep their pre-dedupe SQL tokens (whitespace-only
+ * reflow), no duplicate TS query literal remains and every owner lock is
+ * untouched. r3-r16 families stay unchanged. */
+describe('Maintenance windowed interval CTE fixed SQL',()=>{
+  const dir='../../../packages/server-maintenance/src/adapters/';
+  it('single-sources the windowed interval CTE and keeps both composed stages byte-equivalent',async()=>{
+   const {readFileSync}=await import('node:fs');
+   const source=readFileSync(new URL(`${dir}executive-metric-projections.ts`,import.meta.url),'utf8');
+   expect(source.match(/export const windowedIntervalCte = \(aggregate: string, frameEnd: "1 PRECEDING" \| "CURRENT ROW", alias: string, source: string\): string =>/g)).toHaveLength(1);
+   expect(source.match(/`SELECT \*,\$\{aggregate\} OVER\(PARTITION BY asset_id ORDER BY start_at,end_at,work_order_id ROWS BETWEEN UNBOUNDED PRECEDING AND \$\{frameEnd\}\) \$\{alias\} FROM \$\{source\}`/g)).toHaveLength(1);
+   // r11 left the breakdown projection, r16 the orgLabel lookup; r17 folds the
+   // two inner windowed CTEs (6 -> 5).
+   expect(source.match(/SELECT/g)).toHaveLength(5);
+   expect(source.match(/windowedIntervalCte\(/g)).toHaveLength(2); // 2 callers
+   expect(source).not.toContain('SELECT *,max(end_at) OVER(');
+   expect(source).not.toContain('SELECT *,sum(CASE WHEN prior_end IS NULL OR start_at>prior_end THEN 1 ELSE 0 END)\n');
+   expect(source).toContain('windowedIntervalCte("max(end_at)","1 PRECEDING","prior_end","raw_intervals")');
+   expect(source).toContain('windowedIntervalCte("sum(CASE WHEN prior_end IS NULL OR start_at>prior_end THEN 1 ELSE 0 END)","CURRENT ROW","interval_group","ordered")');
+   expect(source).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|LOCK\s+TABLE/i);
+   // Locks untouched in every owner that owns one.
+   expect(readFileSync(new URL(`${dir}purchase-sources.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans,maintenance_preventive_occurrences IN SHARE ROW EXCLUSIVE MODE');
+   expect(readFileSync(new URL(`${dir}finance-record-sources.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE operational_inventory_consumptions,maintenance_work_orders,operational_assets IN SHARE MODE');
+   expect(readFileSync(new URL(`${dir}asset-settlement-refs.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans IN SHARE MODE');
+   expect(readFileSync(new URL(`${dir}package-obligations.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
+
+   const {windowedIntervalCte}=await import('../../../packages/server-maintenance/src/adapters/executive-metric-projections');
+   // Pre-r17 literals rebuilt verbatim; composed CTEs differ only in whitespace.
+   const tokens=(s:string)=>s.replace(/\s+/g,' ').trim();
+   expect(tokens(windowedIntervalCte('max(end_at)','1 PRECEDING','prior_end','raw_intervals'))).toBe(
+     tokens('SELECT *,max(end_at) OVER(PARTITION BY asset_id ORDER BY start_at,end_at,work_order_id ROWS BETWEEN UNBOUNDED PRECEDING AND 1 PRECEDING) prior_end FROM raw_intervals'));
+   expect(tokens(windowedIntervalCte('sum(CASE WHEN prior_end IS NULL OR start_at>prior_end THEN 1 ELSE 0 END)','CURRENT ROW','interval_group','ordered'))).toBe(
+     tokens('SELECT *,sum(CASE WHEN prior_end IS NULL OR start_at>prior_end THEN 1 ELSE 0 END) OVER(PARTITION BY asset_id ORDER BY start_at,end_at,work_order_id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) interval_group FROM ordered'));
+   expect(windowedIntervalCte('x','CURRENT ROW','a','t')).toBe('SELECT *,x OVER(PARTITION BY asset_id ORDER BY start_at,end_at,work_order_id ROWS BETWEEN UNBOUNDED PRECEDING AND CURRENT ROW) a FROM t');
   });
  });
