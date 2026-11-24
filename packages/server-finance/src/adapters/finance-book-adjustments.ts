@@ -18,6 +18,7 @@ import type {BookAdjustmentRow as Row,bookAdjustmentSchema,bookAdjustmentReversa
 import {nativeWorkflowWrite} from '@erpx/server-workflow/public/native-workflow-evidence';
 import { financeBookAdjustments } from '@erpx/server-collaboration/adapters/native-finance-book-adjustments';
 export {bookAdjustmentSchema,bookAdjustmentReversalSchema} from '@erpx/server-finance/domain/book-adjustments';
+const bookAdjustmentByIdSql = "SELECT * FROM finance_book_adjustments WHERE id=? AND company_id=?";
 async function nativeBookAdjustmentWorkspace(write:SqlDatabase,actor:WorkContext){  return (
     await write
       .prepare(
@@ -99,9 +100,7 @@ prepareCommit:async(facts)=>{const {actor,input,key,op,id,source,createdAt,updat
       ],
     );},
 row:async(actor,id)=>db
-      .prepare(
-        "SELECT * FROM finance_book_adjustments WHERE id=? AND company_id=?",
-      )
+      .prepare(bookAdjustmentByIdSql)
       .bind(id, actor.companyId)
       .first<Row>(),
 preparePosting:async(actor,content,id,currency,key)=>{const journal=await prepareJournal(
@@ -142,9 +141,7 @@ decisionCommit:async(facts)=>{const {actor,id,input,key,op,status,version,journa
       ],
     );},
 rowForReversal:async(actor,id)=>db
-      .prepare(
-        "SELECT * FROM finance_book_adjustments WHERE id=? AND company_id=?",
-      )
+      .prepare(bookAdjustmentByIdSql)
       .bind(id, actor.companyId)
       .first<Row>(),
 prepareReversal:async(actor,journalId,id,input,key)=>{    const reversal = await prepareOwnedJournalReversal(
