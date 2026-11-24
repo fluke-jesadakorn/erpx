@@ -3,7 +3,7 @@ import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
 import { nativeFlowPlanningPorts } from '../../../packages/server-workflow/src/adapters/flow-planning-ports';
 import { nativeApprovalPlanningPorts } from '../../../packages/server-workflow/src/adapters/approval-planning';
-import { approvalInstancesStarWhereSql } from '../../../packages/server-workflow/src/adapters/approval-projection-sources';
+import { approvalInstancesStarWhereSql, approvalStepsStarSql, approvalStepsByInstanceSql } from '../../../packages/server-workflow/src/adapters/approval-projection-sources';
 import { workApprovalSettlementSources } from '../../../packages/server-workflow/src/adapters/work-package-obligation-sources';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 
@@ -60,5 +60,22 @@ describe('approval-instance star-where prefix dedupe (r32)', () => {
   it('keeps one byte-identical prefix literal in source', async () => {
     const src = await readFile(new URL('../../../packages/server-workflow/src/adapters/approval-projection-sources.ts', import.meta.url), 'utf8');
     expect(src.match(/SELECT \* FROM approval_instances WHERE /g)).toHaveLength(1);
+  });
+});
+
+describe('approval-steps star projection span dedupe (r33)', () => {
+  it('keeps one byte-identical star projection shared by both consumers', () => {
+    expect(approvalStepsStarSql).toBe('SELECT * FROM approval_steps');
+    expect(approvalStepsByInstanceSql).toBe(`${approvalStepsStarSql} WHERE instance_id=? ORDER BY ordinal`);
+    expect(workApprovalSettlementSources.steps).toBe(approvalStepsStarSql);
+  });
+
+  it('keeps a single star-projection literal in source', async () => {
+    const [projectionSrc, settlementSrc] = await Promise.all([
+      readFile(new URL('../../../packages/server-workflow/src/adapters/approval-projection-sources.ts', import.meta.url), 'utf8'),
+      readFile(new URL('../../../packages/server-workflow/src/adapters/work-package-obligation-sources.ts', import.meta.url), 'utf8'),
+    ]);
+    expect(projectionSrc.match(/SELECT \* FROM approval_steps/g)).toHaveLength(1);
+    expect(settlementSrc).not.toContain('SELECT * FROM approval_steps');
   });
 });
