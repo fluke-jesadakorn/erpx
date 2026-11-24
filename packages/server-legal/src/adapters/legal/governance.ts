@@ -18,6 +18,7 @@ import {legalSignerAccessPrefix,legalSignerAccessSuffix} from '../legal-signer-a
 import {legalDocumentsItemPairSql} from '../legal-read-tail-r9-sources';
 import {legalVersionExistsSql} from '../legal-read-tail-r26-sources';
 import {legalByIdAndItemSql} from '../legal-read-tail-r27-sources';
+import {legalExistsPointGuardHeadSql} from '../legal-read-tail-r40-sources';
 import {legalStatePointSql} from '../legal-read-tail-r33-sources';
 import {legalByIdAndCompanySql} from '../legal-read-tail-r28-sources';
 /** Exact projection of the native `governance` auxiliary read; the transport accepts
@@ -40,7 +41,7 @@ async createAuthority(facts){return stage(await nativeGov.createAuthority(facts)
 authority:(facts:{authorityId:string;itemId:string;})=>db.prepare(legalByIdAndItemSql("legal_authorities")).bind(facts.authorityId,facts.itemId).first<{ created_by: string; state: string; version: number }>(),
 async decideAuthority(facts){return stage(await nativeGov.decideAuthority(facts));},
 async advanceRecord(facts){return stage(await nativeGov.advanceRecord(facts));},
-requireFormCurrent:(key,values)=>stage(assertion(db,key,"form-current","EXISTS(SELECT 1 FROM legal_intake_forms WHERE id=? AND version=? AND state='draft')",values)),
+requireFormCurrent:(key,values)=>stage(assertion(db,key,"form-current",`${legalExistsPointGuardHeadSql('legal_intake_forms','id')}version=? AND state='draft')`,values)),
 requireAuthorityCurrent:(key,values)=>stage(assertion(db,key,"authority-current",legalVersionExistsSql("legal_authorities"),values)),
 guardChanges:(id,version,key,edit)=>guards(db,a,id,version,key,edit).map(stage),companyLock:()=>stage(lock(db,a.companyId)),personGuard:(key,id,item,permission)=>stage(personGuard(db,a,key,id,item,permission)),
 async event(id,action,note,version,identifier,now){return stage(await nativeGov.event({id,action,note,version,identifier,now}));},
