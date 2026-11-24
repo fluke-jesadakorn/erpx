@@ -1,6 +1,5 @@
 import { finalRootOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/final-root-owner-projection-sources";
-import { finalRootOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as people_payrollProjectionSources } from "@erpx/server-people_payroll/public/final-root-owner-projection-sources";
 
 import 'server-only';
@@ -13,6 +12,7 @@ import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runt
 import { createGetSupportTicket, createSupportTicketSourceGuards } from "@erpx/server-support/application/support";
 
 import{nativeSupportReadRuntime}from '@erpx/server-support/adapters/read-runtime';
+import { supportAssignmentAccessSql } from './eligibility-projection-sources';
 import{scope,args,eligible,reviewers}from '@erpx/server-support/adapters/support-ticket-read-sources';
 import type{SourceRecordReadServices}from '@erpx/server-records/public/source-record-contract';
 /** Canonical owner-local eligibility projection for Support ticket reads.
@@ -21,10 +21,8 @@ import type{SourceRecordReadServices}from '@erpx/server-records/public/source-re
 export const ticketEligibilitySelect = (ownerEligible: string, reviewerCount: string, extra = '') =>
     `SELECT t.*,${extra}CASE WHEN ${ownerEligible} THEN 1 ELSE 0 END owner_eligible,${reviewerCount} reviewer_count`;
 export function supportTicketReadPredicate(a: WorkContext, alias = 't') {
-    return { sql: `EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=${alias}.company_id
-   AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
-   AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=${alias}.branch_id OR g.scope_kind='department' AND g.scope_node_id=${alias}.department_id)
-   AND (iam_role_allows(g.role,g.company_id,'support.read') OR ${alias}.source_kind<>'sales_order' AND ${alias}.created_by=g.user_id AND iam_role_allows(g.role,g.company_id,'records.read')))`, bindings: [a.assignmentId, a.userId, a.role] };
+    return { sql: supportAssignmentAccessSql(alias, '   ', `   AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=${alias}.branch_id OR g.scope_kind='department' AND g.scope_node_id=${alias}.department_id)
+   AND (iam_role_allows(g.role,g.company_id,'support.read') OR ${alias}.source_kind<>'sales_order' AND ${alias}.created_by=g.user_id AND iam_role_allows(g.role,g.company_id,'records.read'))`), bindings: [a.assignmentId, a.userId, a.role] };
 }
 export function createNativeSupportTicketRead(sources:SourceRecordReadServices<WorkContext,SqlDatabase,SqlStatement>){const{read:readSourceRecord,visible:visibleSourceRecord,guards:sourceRecordGuards}=sources;
 async function sourceVisible(a: WorkContext, row: Row, provided?:SqlDatabase):Promise<boolean> { if (!row.source_record_json)

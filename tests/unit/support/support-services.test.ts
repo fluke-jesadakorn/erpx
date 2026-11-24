@@ -422,3 +422,54 @@ it('keeps one parameterized active-organization-node scope family with byte-iden
         ['department', 'company', 'branch'],
     ]);
 });
+
+it('keeps one parameterized assignment-access witness for the Support ticket and incident read predicates', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const [helperSource, ticketSource, incidentSource] = await Promise.all([
+        readFile(new URL('../../../packages/server-support/src/adapters/eligibility-projection-sources.ts', import.meta.url), 'utf8'),
+        readFile(new URL('../../../packages/server-support/src/adapters/support-ticket-read.ts', import.meta.url), 'utf8'),
+        readFile(new URL('../../../packages/server-support/src/adapters/support-incident-read.ts', import.meta.url), 'utf8'),
+    ]);
+    expect(helperSource).toContain('export const supportAssignmentAccessSql');
+    expect(helperSource.match(/EXISTS\(SELECT 1 FROM \(\$\{identity_accessProjectionSources\.assignments\}\) g WHERE/g)).toHaveLength(1);
+    expect(ticketSource.match(/supportAssignmentAccessSql\(/g)).toHaveLength(1);
+    expect(incidentSource.match(/supportAssignmentAccessSql\(/g)).toHaveLength(1);
+
+    const { supportTicketReadPredicate } = await import('@erpx/server-support/public/support-ticket-read');
+    const { supportIncidentReadPredicate } = await import('@erpx/server-support/public/support-incident-read');
+    const readActor = { ...actor, assignmentId: 'assignment' } as WorkContext;
+    const ticket = supportTicketReadPredicate(readActor);
+    const incident = supportIncidentReadPredicate(readActor);
+    expect(ticket.bindings).toEqual(['assignment', 'owner', 'holding_owner']);
+    expect(incident.bindings).toEqual(ticket.bindings);
+    for (const predicate of [ticket, incident]) {
+        expect(predicate.sql).toContain('iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)');
+        expect(predicate.sql).toContain('iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)');
+        expect(predicate.sql).toContain("g.scope_kind='holding'");
+        expect(predicate.sql).toContain('g.scope_node_id=t.branch_id');
+        expect(predicate.sql).toContain('g.scope_node_id=t.department_id');
+        expect(predicate.sql).toContain("iam_role_allows(g.role,g.company_id,'support.read')");
+        expect((predicate.sql.match(/\(/g) ?? []).length).toBe((predicate.sql.match(/\)/g) ?? []).length);
+    }
+    expect(ticket.sql).toContain("t.source_kind<>'sales_order' AND t.created_by=g.user_id");
+    expect(ticket.sql).toContain("iam_role_allows(g.role,g.company_id,'records.read')");
+    expect(incident.sql).not.toContain('records.read');
+    const sharedPrefix = incident.sql.slice(0, incident.sql.indexOf('  AND (g.scope_kind'));
+    expect(sharedPrefix).toContain('EXISTS(SELECT 1 FROM (');
+    expect(ticket.sql.startsWith(sharedPrefix)).toBe(true);
+
+    // Rendering change is whitespace/AND-order only: the SQL token multiset must
+    // match the pre-dedupe predicate byte-for-byte at the token level.
+    const { finalRootOwnerProjectionSources } = await import('@erpx/server-identity_access/public/final-root-owner-projection-sources');
+    const a = finalRootOwnerProjectionSources.assignments;
+    const originalTicket = `EXISTS(SELECT 1 FROM (${a}) g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=t.company_id
+   AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
+   AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=t.branch_id OR g.scope_kind='department' AND g.scope_node_id=t.department_id)
+   AND (iam_role_allows(g.role,g.company_id,'support.read') OR t.source_kind<>'sales_order' AND t.created_by=g.user_id AND iam_role_allows(g.role,g.company_id,'records.read')))`;
+    const originalIncident = `EXISTS(SELECT 1 FROM (${a}) g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=t.company_id
+  AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
+  AND iam_role_allows(g.role,g.company_id,'support.read') AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=t.branch_id OR g.scope_kind='department' AND g.scope_node_id=t.department_id))`;
+    const tokens = (s: string) => s.replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').sort();
+    expect(tokens(ticket.sql)).toEqual(tokens(originalTicket));
+    expect(tokens(incident.sql)).toEqual(tokens(originalIncident));
+});
