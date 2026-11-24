@@ -167,7 +167,7 @@ describe('Manufacturing finance-close read retirement',()=>{
     expect(paths.some(path=>path.includes('finance-close-source'))).toBe(false);
     const count=paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0);
     expect(count).toBeLessThan(148);
-    expect(count).toBe(134);
+    expect(count).toBe(129);
   });
 });
 describe('Manufacturing owner-local report-actor read dedupe',()=>{
@@ -356,6 +356,14 @@ describe('Manufacturing read-tail text-only fragment dedupe', () => {
   const opProd = '(SELECT jsonb_agg(to_jsonb(operation) ORDER BY operation.id) FROM manufacturing_specification_operations operation WHERE operation.specification_id=s.id)';
   const asFile = 'EXISTS(SELECT 1 FROM assignments selected WHERE selected.id=? AND (jsonb_array_length(selected.modules_json::jsonb)=0 OR selected.modules_json::jsonb @> jsonb_build_array(production_file_scope.module_id)))';
   const asSource = 'EXISTS(SELECT 1 FROM assignments selected WHERE selected.id=? AND (jsonb_array_length(selected.modules_json::jsonb)=0 OR selected.modules_json::jsonb @> jsonb_build_array(production_source.module_id)))';
+  const lineSpec = '(SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM manufacturing_specification_lines line WHERE line.specification_id=specification.id)';
+  const lineS = '(SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM manufacturing_specification_lines line WHERE line.specification_id=s.id)';
+  const src = 'MANUFACTURING_PRODUCT_SOURCES';
+  const prodSpec = `(SELECT jsonb_agg(to_jsonb(product) ORDER BY product.id) FROM (${src}) product WHERE product.company_id=specification.company_id AND (product.id=specification.output_product_id OR product.id IN(SELECT product_id FROM manufacturing_specification_lines WHERE specification_id=specification.id)))`;
+  const prodS = `(SELECT jsonb_agg(to_jsonb(product) ORDER BY product.id) FROM (${src}) product WHERE product.company_id=s.company_id AND (product.id=s.output_product_id OR product.id IN(SELECT product_id FROM manufacturing_specification_lines WHERE specification_id=s.id)))`;
+  const cteOrders = 'orders AS MATERIALIZED(SELECT o.* FROM manufacturing_orders o,scope WHERE o.company_id=scope.company_id)';
+  const ctePostings = 'postings AS MATERIALIZED(SELECT p.* FROM manufacturing_order_postings p,scope WHERE p.company_id=scope.company_id)';
+  const cteMovements = 'movements AS MATERIALIZED(SELECT m.* FROM manufacturing_cost_movements m,scope WHERE m.company_id=scope.company_id)';
   it('emits the former inline projection and guard text byte for byte', async () => {
     const f = await import('../../../packages/server-manufacturing/src/adapters/manufacturing-read-sql-fragments');
     expect(f.manufacturingOperationAggSql('manufacturing_specification_operations operation', 'WHERE operation.specification_id=specification.id')).toBe(opSpec);
@@ -363,21 +371,33 @@ describe('Manufacturing read-tail text-only fragment dedupe', () => {
     expect(f.manufacturingOperationAggSql('manufacturing_specification_operations operation', 'WHERE operation.specification_id=s.id')).toBe(opProd);
     expect(f.manufacturingSelectedAssignmentExists('production_file_scope.module_id')).toBe(asFile);
     expect(f.manufacturingSelectedAssignmentExists('production_source.module_id')).toBe(asSource);
+    expect(f.manufacturingSpecificationLineAggSql('specification')).toBe(lineSpec);
+    expect(f.manufacturingSpecificationLineAggSql('s')).toBe(lineS);
+    expect(f.manufacturingSpecificationProductsAggSql('specification', src)).toBe(prodSpec);
+    expect(f.manufacturingSpecificationProductsAggSql('s', src)).toBe(prodS);
+    expect(f.manufacturingScopedCte('orders', 'manufacturing_orders', 'o')).toBe(cteOrders);
+    expect(f.manufacturingScopedCte('postings', 'manufacturing_order_postings', 'p')).toBe(ctePostings);
+    expect(f.manufacturingScopedCte('movements', 'manufacturing_cost_movements', 'm')).toBe(cteMovements);
   });
   it('keeps one text-only definition and routes every caller through it', () => {
     const fragment = adapter('manufacturing-read-sql-fragments.ts');
-    expect(fragment.match(/\bSELECT\b/g)).toHaveLength(2);
+    expect(fragment.match(/\bSELECT\b/g)).toHaveLength(6);
     expect(fragment).not.toMatch(/^import /m);
     expect(fragment).not.toMatch(/compositionRoot|registerRead|readPlanRegistry/);
     for (const [name, old, helper] of [
-      ['attachment-read-sources.ts', [opSpec, opEvents], 'manufacturingOperationAggSql'],
-      ['purchases.ts', [opProd], 'manufacturingOperationAggSql'],
+      ['attachment-read-sources.ts', [opSpec, opEvents, lineSpec, prodSpec.replaceAll(src, '${manufacturingProductSources}')], 'manufacturingOperationAggSql'],
+      ['purchases.ts', [opProd, lineS, prodS.replaceAll(src, '${manufacturingProductSources}')], 'manufacturingOperationAggSql'],
       ['attachment-purchases.ts', [asFile], 'manufacturingSelectedAssignmentExists'],
       ['record-purchases.ts', [asSource], 'manufacturingSelectedAssignmentExists'],
+      ['posting-setup-sources.ts', [cteOrders, ctePostings, cteMovements], 'manufacturingScopedCte'],
     ] as const) {
       const text = adapter(name);
       for (const literal of old) expect(text).not.toContain(literal);
       expect(text).toContain(helper);
+    }
+    for (const helper of ['manufacturingSpecificationLineAggSql', 'manufacturingSpecificationProductsAggSql']) {
+      expect(adapter('attachment-read-sources.ts')).toContain(helper);
+      expect(adapter('purchases.ts')).toContain(helper);
     }
   });
 });

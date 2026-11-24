@@ -3,14 +3,14 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {planningAttachmentScenarioSourceRows,planningAttachmentRecommendationSourceRows} from '@erpx/server-planning/public/attachment-read-sources';
 import {manufacturingPurchaseSourceReadLocks} from '@erpx/server-manufacturing/adapters/purchases';
 import {manufacturingProductSources,manufacturingWarehouseSources} from '@erpx/server-commerce/public/manufacturing-purchase-sources';
-import {manufacturingOperationAggSql} from './manufacturing-read-sql-fragments';
+import {manufacturingOperationAggSql,manufacturingSpecificationLineAggSql,manufacturingSpecificationProductsAggSql} from './manufacturing-read-sql-fragments';
 
 export function isManufacturingAttachmentReadTarget(target:string){return target==='manufacturing_spec'||target==='production_run'||target==='planning_scenario';}
 const specificationRows=`SELECT specification.id,specification.company_id,
  jsonb_build_object('specification',to_jsonb(specification),'lines',
- (SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM manufacturing_specification_lines line WHERE line.specification_id=specification.id),
+ ${manufacturingSpecificationLineAggSql("specification")},
  'operations',${manufacturingOperationAggSql("manufacturing_specification_operations operation","WHERE operation.specification_id=specification.id")},
- 'products',(SELECT jsonb_agg(to_jsonb(product) ORDER BY product.id) FROM (${manufacturingProductSources}) product WHERE product.company_id=specification.company_id AND (product.id=specification.output_product_id OR product.id IN(SELECT product_id FROM manufacturing_specification_lines WHERE specification_id=specification.id)))) image
+ 'products',${manufacturingSpecificationProductsAggSql("specification",manufacturingProductSources)})) image
  FROM manufacturing_specifications specification`;
 export function manufacturingAttachmentReadSourceLocks(database:SqlDatabase){
  return [...manufacturingPurchaseSourceReadLocks(database,true),database.prepare('LOCK TABLE manufacturing_material_reservations,manufacturing_genealogy,manufacturing_cost_snapshots,manufacturing_operation_events IN SHARE ROW EXCLUSIVE MODE')];
