@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12070,
+    "revision": 12074,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -180021,6 +180021,78 @@
         "nextAction": "Rank1 crmSalesOpportunitySql exists probes (-3), Rank2 crmOwnedSourceRowSql (-2), Rank3 crmAssignmentAllowedSql (-1): 110->104.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.identity_access.read-tail-r31",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "title": "identity_access TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n03",
+          "claimedAt": "2026-11-24T13:22:24.450Z",
+          "heartbeatAt": "2026-11-24T13:22:24.450Z",
+          "expiresAt": "2026-11-24T13:52:24.450Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "workforce actor-scope CTE head (-2) and revoked-session probe (-1): 478->475. BEFORE=478.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pms.read-tail-r41",
+        "goalId": "G4",
+        "owner": "pms",
+        "title": "pms TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pms/src/**",
+          "tests/unit/pms/**",
+          "tests/integration/pms/**"
+        ],
+        "resources": [
+          "owner:pms"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n04",
+          "claimedAt": "2026-11-24T13:22:37.164Z",
+          "heartbeatAt": "2026-11-24T13:22:37.164Z",
+          "expiresAt": "2026-11-24T13:52:37.164Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "guest-id self-join head (-2), property-scope head (-2), rollout correlated probe (-1): 310->305. BEFORE=310.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -180029,11 +180101,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1722,
+      "totalPackets": 1724,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 10,
+        "in_progress": 12,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -180043,7 +180115,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:21:48.251Z",
+    "updatedAt": "2026-11-24T13:22:37.169Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
