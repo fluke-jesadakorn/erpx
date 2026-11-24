@@ -16,7 +16,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     let sql = '', values: unknown[] = [];
     const referenceAtOverride: number | null = null;
     const countBy = (label: string, relation: string, extra: string) =>
-        `SELECT ${label} label,count(*)::text value FROM ${relation} WHERE ${scopedAlias("c")} AND ${extra} GROUP BY 1 ORDER BY 1`;
+        ecommerceScalar(`${label} label,count(*)::text value FROM ${relation} WHERE ${scopedAlias("c")} AND ${extra} GROUP BY 1 ORDER BY 1`);
     if (id === "open-ecommerce-carts") {
         const label = breakdown === "status" ? "c.status"
             : breakdown === "branch" ? branchNameLabel

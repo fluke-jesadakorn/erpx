@@ -10,6 +10,7 @@ import {ecommerceCommerceSettlementSources as commerce} from '@erpx/server-comme
 import {commercialOwnerProjectionSources as finance} from '@erpx/server-finance/public/commercial-owner-projection-sources';
 import {ecommerceExistsGuard} from './read-tail-sql';
 import {ecommerceScopeRow,ecommerceOrderedList,ecommerceSelectOne} from './read-tail-sql';
+import {ecommerceScalar} from './read-tail-sql';
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
 /** r17: one parameterized receipt-audit frame emits every guard byte-identically.
  * Text only: binds, source locks and the emitted SQL are unchanged. */
@@ -21,7 +22,7 @@ const checkoutSyncGuard=receiptAuditGuard('EXISTS','',`receipt.operation='ecomme
 const checkoutReturnGuard=receiptAuditGuard('NOT EXISTS','',`receipt.record_id=checkout.id AND receipt.operation='ecommerce.checkout.request-return' AND receipt.authority_json::jsonb->>'companyId'=checkout.company_id AND receipt.result_json::jsonb->>'commerceReturnId'=link.commerce_return_id`);
 /** r21: one parameterized fact-arm frame emits all seven UNION branches
  *  byte-identically. Text only: binds, source locks and emitted SQL unchanged. */
-const factBranch = (union: string, body: string) => `${union}SELECT ${body}`;
+const factBranch = (union: string, body: string) => `${union}${ecommerceScalar(body)}`;
 export async function lockEcommercePackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.batch([...salesCommerceSettlementSourceReadLocks(database),...ecommerceCommerceSourceReadLocks(database)]);await database.prepare('LOCK TABLE command_receipts,audit_events,money_transaction_snapshots IN SHARE MODE').run();await lockEcommerceFilePackageObligationSources(owner,lock);sources.set(database,companyId);}
 export function assertEcommercePackageObligationSources(owner:PostgresDatabase,database:SqlDatabase,companyId:string){owner.assertActiveTransaction(database);if(sources.get(database)!==companyId)throw Error('ECOMMERCE_PACKAGE_OBLIGATION_SOURCE_REQUIRED');}
 /** Native retained facts are hashed even after closure. No purchased Work

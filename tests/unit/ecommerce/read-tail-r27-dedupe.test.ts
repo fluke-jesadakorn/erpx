@@ -3,6 +3,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
 import { ecommerceSourceIdentity } from '../../../packages/server-ecommerce/src/adapters/read-tail-sql';
+import { ecommerceNativeOrderRoots } from '../../../packages/server-ecommerce/src/adapters/package-sources';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-ecommerce/src');
 const read = (path: string) => readFileSync(resolve(srcRoot, path), 'utf8');
@@ -82,13 +83,14 @@ describe('Ecommerce read-tail r27 source-identity alias fold', () => {
     expect(src).toContain('FOR UPDATE OF x,c,o');
     expect(po).toContain('LOCK TABLE command_receipts,audit_events,money_transaction_snapshots IN SHARE MODE');
     expect(read('adapters/commerce-source-locks.ts')).toContain('LOCK TABLE ecommerce_channels,ecommerce_listings,ecommerce_carts,ecommerce_cart_lines,ecommerce_checkouts,ecommerce_fulfillment_links,ecommerce_return_links IN SHARE ROW EXCLUSIVE MODE');
-    expect(read('adapters/package-sources.ts')).toContain("export const ecommerceNativeOrderRoots=`SELECT cart.company_id,cart.id cart_id,'order-ecommerce-order-'||cart.id order_id FROM ecommerce_carts cart`;");
-    expect(read('adapters/executive-metric-projections.ts')).toContain('`SELECT ${label} label,count(*)::text value FROM ${relation} WHERE ${scopedAlias("c")} AND ${extra} GROUP BY 1 ORDER BY 1`');
+    expect(read('adapters/package-sources.ts')).toContain("export const ecommerceNativeOrderRoots=ecommerceScalar(`cart.company_id,cart.id cart_id,'order-ecommerce-order-'||cart.id order_id FROM ecommerce_carts cart`);");
+    expect(ecommerceNativeOrderRoots).toBe("SELECT cart.company_id,cart.id cart_id,'order-ecommerce-order-'||cart.id order_id FROM ecommerce_carts cart");
+    expect(read('adapters/executive-metric-projections.ts')).toContain('ecommerceScalar(`${label} label,count(*)::text value FROM ${relation} WHERE ${scopedAlias("c")} AND ${extra} GROUP BY 1 ORDER BY 1`)');
   });
 });
 
 describe('Ecommerce read-tail r27 retirement check', () => {
-  test('retirement:ts-statements === 10 (r27 BEFORE=11)', () => {
+  test('retirement:ts-statements === 7 (r28 BEFORE=10)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -98,7 +100,7 @@ describe('Ecommerce read-tail r27 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(10);
-    expect(total).toBeLessThan(11);
+    expect(total).toBe(7);
+    expect(total).toBeLessThan(10);
   });
 });

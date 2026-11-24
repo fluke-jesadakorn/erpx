@@ -127,6 +127,6 @@ describe('Ecommerce read-tail r20 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(10);
+    expect(total).toBe(7);
   });
 });

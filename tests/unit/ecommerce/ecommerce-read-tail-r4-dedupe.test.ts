@@ -21,7 +21,8 @@ async function sqlFor(id: string, breakdown: string): Promise<string> {
 
 describe('Ecommerce read-tail r4 parameterized count family', () => {
   test('one owner literal for the count projection, three call sites', () => {
-    expect(src.split('SELECT ${label} label,count(*)::text value')).toHaveLength(2);
+    expect(src.split('ecommerceScalar(`${label} label,count(*)::text value')).toHaveLength(2);
+    expect(src).not.toContain('SELECT ${label} label,count(*)::text value');
     expect(src.match(/const countBy = /g) ?? []).toHaveLength(1);
     expect(src.match(/countBy\(/g) ?? []).toHaveLength(3);
   });

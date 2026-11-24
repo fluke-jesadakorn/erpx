@@ -145,7 +145,7 @@ describe('Ecommerce read-tail r26 three-rank dedupe', () => {
 });
 
 describe('Ecommerce read-tail r26 retirement check', () => {
-  test('retirement:ts-statements === 11 (r26 BEFORE=19; r25 BEFORE=22)', () => {
+  test('retirement:ts-statements === 7 (r28 BEFORE=10; r26 BEFORE=19; r25 BEFORE=22)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -155,7 +155,7 @@ describe('Ecommerce read-tail r26 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(10);
-    expect(total).toBeLessThan(19);
+    expect(total).toBe(7);
+    expect(total).toBeLessThan(10);
   });
 });
