@@ -1,5 +1,6 @@
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
 import { samePersonQuerySql } from "./iam-probe-sql";
+import { userAttributeByIdExtendedSql } from "./identity-user-projection-family-r21";
 import { grantTransaction } from '@erpx/server-identity_access/adapters/iam-grant-transaction';
 import {preparePeopleLifecycleIamReview} from "@erpx/server-people_payroll/public/iam-purchases";
 import {identitySnapshotSources as organizationSnapshotSources} from '@erpx/server-organization/public/identity-snapshot-sources';
@@ -148,7 +149,7 @@ recordIndependentDecision: async (facts) => {
         }};
 }
 function serviceCommands(db?: PostgresDatabase,prepareOwner?:import("@erpx/server-identity_access/public/iam-transactions").IamOwnerPreparation) {
-    return createIamServiceCommands({ error: (...args) => new ApiError(...args), now: Date.now, id: () => crypto.randomUUID(), companyScope: assertCompanyScope, authorize: requirePermission, fresh: requireFreshMfa, userExists: async (userId) => !!await (await runtimeEnv()).CONTROL_DB.prepare('SELECT id FROM "user" WHERE id=?').bind(userId).first(), command: async (actor, key, operation, payload, permission, run) => iamCommand(iamDb(db!), actor, key, operation, payload, permission, async (c) => {
+    return createIamServiceCommands({ error: (...args) => new ApiError(...args), now: Date.now, id: () => crypto.randomUUID(), companyScope: assertCompanyScope, authorize: requirePermission, fresh: requireFreshMfa, userExists: async (userId) => !!await (await runtimeEnv()).CONTROL_DB.prepare(userAttributeByIdExtendedSql('id')).bind(userId).first(), command: async (actor, key, operation, payload, permission, run) => iamCommand(iamDb(db!), actor, key, operation, payload, permission, async (c) => {
             const tx = serviceTransaction(c, actor);
             extensionClients.set(tx, c);
             try {

@@ -53,7 +53,7 @@ describe('Identity access read-tail r19 revoked-session probe family', () => {
 });
 
 describe('Identity access read-tail r19 retirement check', () => {
-  test('retirement:ts-statements stays strictly below the r19 BEFORE=530 baseline (r20 lowered 528 to 525)', () => {
+  test('retirement:ts-statements stays strictly below the r19 BEFORE=530 baseline (r21 lowered 528 to 522)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -66,6 +66,6 @@ describe('Identity access read-tail r19 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(530);
-    expect(total).toBeLessThanOrEqual(525);
+    expect(total).toBeLessThanOrEqual(522);
   });
 });

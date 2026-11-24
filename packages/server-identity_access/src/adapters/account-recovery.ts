@@ -1,4 +1,5 @@
 import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
+import { userAttributeByIdExtendedSql } from './identity-user-projection-family-r21';
 import "server-only";
 import { createCipheriv, createDecipheriv, createHash, createHmac, randomBytes, } from "node:crypto";
 import type { User } from "better-auth";
@@ -48,7 +49,7 @@ function repository(control: SqlDatabase): AccountRecoveryRepository {
         },
         async recoverInterrupted(now) { await nativePrepare("w_77aad90d676e").bind(now, now, now).run(); },
         claim: (lease, now) => nativePrepare("w_b56d93903546").bind(lease, now + 30000, now, now).first<RecoveryDeliveryJob>(),
-        account: userId => control.prepare('SELECT email FROM "user" WHERE id=?').bind(userId).first<{
+        account: userId => control.prepare(userAttributeByIdExtendedSql('email')).bind(userId).first<{
             email: string;
         }>(),
         async cancel(job, lease, reason, now, eventId) { await Promise.all([nativePrepare("w_af917c230df0").bind(reason, now, job.id, lease), event(eventId, job.user_id, job.id, 'cancelled', { reason }, now)]); },

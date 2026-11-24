@@ -100,7 +100,7 @@ describe('Identity access read-tail r20 shared read helpers', () => {
 });
 
 describe('Identity access read-tail r20 retirement check', () => {
-  test('retirement:ts-statements stays strictly below the r20 BEFORE=528 baseline (expected 525)', () => {
+  test('retirement:ts-statements stays strictly below the r20 BEFORE=528 baseline (r21 lowered 525 to 522)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -113,6 +113,6 @@ describe('Identity access read-tail r20 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(528);
-    expect(total).toBeLessThanOrEqual(525);
+    expect(total).toBeLessThanOrEqual(522);
   });
 });

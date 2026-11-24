@@ -2,7 +2,8 @@ import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {loadIamAuthority} from '@erpx/server-identity_access/adapters/iam-store';
 import {runtimeEnv} from '../../../../packages/server-runtime/src/public/runtime';
-const accountNameSql = 'SELECT id,name,email,"updatedAt" FROM "user" WHERE id=?';
+import {userAttributeByIdExtendedSql} from './identity-user-projection-family-r21';
+const accountNameSql = userAttributeByIdExtendedSql('id,name,email,"updatedAt"');
 /** Explicit already-authorized Company account only. A name/email never
  * chooses a Person, creates an account or grants Company membership. */
 export async function projectWorkerStartupSubject(database:SqlDatabase,companyId:string,accountId:string){
