@@ -291,3 +291,47 @@ describe('crm read-tail r16 parameterized families', () => {
     expect(totalSelects()).toBeLessThan(166);
   });
 });
+
+describe('crm read-tail r18 parameterized families', () => {
+  const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+  const record = readFileSync(resolve(owner, 'adapters/record-purchases.ts'), 'utf8');
+  const totalSelects = () => {
+    let total = 0;
+    for (const rel of readdirSync(owner, { recursive: true })) {
+      if (!String(rel).endsWith('.ts')) continue;
+      total += readFileSync(resolve(owner, String(rel)), 'utf8').match(/SELECT /g)?.length ?? 0;
+    }
+    return total;
+  };
+  const tables = ['crm_leads', 'crm_lead_activities', 'crm_opportunities', 'crm_accounts', 'crm_contacts', 'crm_guest_links'];
+
+  it('renders the six native-id selects byte-identically from one parameterized helper', () => {
+    const line = record.split('\n').find(value => value.includes('const crmNativeIdSql=')) ?? '';
+    const body = line.slice(line.indexOf('`') + 1, line.lastIndexOf('`'));
+    const render = (table: string) => body.replace('${table}', table);
+    for (const table of tables) expect(render(table)).toBe(`SELECT id FROM ${table}`);
+    const rendered = tables.map(render).join(' UNION ALL ');
+    expect(rendered).toBe('SELECT id FROM crm_leads UNION ALL SELECT id FROM crm_lead_activities UNION ALL SELECT id FROM crm_opportunities UNION ALL SELECT id FROM crm_accounts UNION ALL SELECT id FROM crm_contacts UNION ALL SELECT id FROM crm_guest_links');
+    expect(rendered).toBe(tables.map(table => `SELECT id FROM ${table}`).join(' UNION ALL '));
+  });
+
+  it('owns the native-id SELECT token once and composes it at all six sites', () => {
+    expect(record.match(/const crmNativeIdSql=/g)).toHaveLength(1);
+    expect(record.match(/crmNativeIdSql\('/g)).toHaveLength(6);
+    for (const table of tables) expect(record).toContain(`crmNativeIdSql('${table}')`);
+    // Only the helper definition keeps the inline fragment; no call site does.
+    expect(record.match(/SELECT id FROM/g)).toHaveLength(1);
+    expect(record).toContain("const nativeIds=[crmNativeIdSql('crm_leads'),crmNativeIdSql('crm_lead_activities'),crmNativeIdSql('crm_opportunities'),crmNativeIdSql('crm_accounts'),crmNativeIdSql('crm_contacts'),crmNativeIdSql('crm_guest_links')].join(' UNION ALL ');");
+    expect(record).toContain('EXISTS(SELECT 1 FROM (${nativeIds}) native_crm WHERE native_crm.id=${id})');
+    expect(record).toContain('`SELECT 1 FROM (${nativeIds}) actual WHERE id=?`');
+    // r8-r17 helpers stay in place.
+    expect(record).toContain('${crmOpportunityLeadSql}');
+    expect(record).toContain('${crmOpportunityExistsSql}');
+    expect(record).toContain('${crmClockCteSql}');
+  });
+
+  it('keeps the owner SELECT KPI strictly below the r18 BEFORE=163 baseline', () => {
+    expect(totalSelects()).toBe(158);
+    expect(totalSelects()).toBeLessThan(163);
+  });
+});

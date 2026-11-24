@@ -9,7 +9,8 @@ import type {WorkItem} from '@erpx/feature-work_projection/lib/work-item';
 import {commercePackageEnforcementMode,readPurchasedAccesses} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {crmPurchaseLeadRows,crmPurchaseActivityRows,crmPurchaseAccountRows,crmPurchaseContactRows,crmPurchaseGuestLinkRows,crmLeadActivityExists,crmOpportunityExistsSql,crmOpportunityLeadSql,crmClockCteSql,requireCRMPurchasedRead,crmReferenceHistory,type CRMPurchaseTarget} from '@erpx/server-crm/adapters/purchases';
-const nativeIds='SELECT id FROM crm_leads UNION ALL SELECT id FROM crm_lead_activities UNION ALL SELECT id FROM crm_opportunities UNION ALL SELECT id FROM crm_accounts UNION ALL SELECT id FROM crm_contacts UNION ALL SELECT id FROM crm_guest_links';
+const crmNativeIdSql=(table:string)=>`SELECT id FROM ${table}`;
+const nativeIds=[crmNativeIdSql('crm_leads'),crmNativeIdSql('crm_lead_activities'),crmNativeIdSql('crm_opportunities'),crmNativeIdSql('crm_accounts'),crmNativeIdSql('crm_contacts'),crmNativeIdSql('crm_guest_links')].join(' UNION ALL ');
 const validLeads=`SELECT lead.* FROM (${crmPurchaseLeadRows}) lead WHERE NOT EXISTS(${crmOpportunityLeadSql}lead.id) OR EXISTS(${crmOpportunityExistsSql}opportunity.id=lead.id AND opportunity.company_id=lead.company_id)`;
 /** Native record identity is classified independently of generic module labels.
  * Opportunity IDs are mapped to the original lead-ID command/read interface. */
