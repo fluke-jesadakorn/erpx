@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11945,
+    "revision": 11947,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -177919,7 +177919,7 @@
         "owner": "pos",
         "title": "pos TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -177931,22 +177931,37 @@
         "resources": [
           "owner:pos"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4f12",
-          "claimedAt": "2026-11-24T12:23:53.255Z",
-          "heartbeatAt": "2026-11-24T12:37:13.270Z",
-          "expiresAt": "2026-11-24T13:07:13.270Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0279eee49",
+            "owner": "pos",
+            "before": 191,
+            "after": 189,
+            "note": "Hotel day and fulfillment property reads now native kinds (binds 2/2); registry 188->190; locks/other registries untouched."
+          },
+          {
+            "command": "cargo test -p erpx-server-pos --lib (68) + vitest pos (408) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "0279eee49"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "new family or next native kind outside r1-r31. BEFORE=191.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4f12",
+          "at": "2026-11-24T12:43:35.640Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -178476,17 +178491,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 7,
+        "in_progress": 6,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1333,
+        "blocked": 1334,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T12:43:17.003Z",
+    "updatedAt": "2026-11-24T12:43:35.644Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
