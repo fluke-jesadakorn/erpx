@@ -1,4 +1,5 @@
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
+import { samePersonQuerySql } from "./iam-probe-sql";
 import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {linkMigratedPerson,linkMigratedEmployee} from "@erpx/server-people_payroll/public/identity-person-link-effects";
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
@@ -46,7 +47,7 @@ function migrationTx(c: PoolClient, actor: IamActor): MigrationTransaction {
         },
         migrationSamePerson: async (facts) => {
             const { user } = facts;
-            return (await c.query("SELECT iam_same_person($1,$2,$3) same", [
+            return (await c.query(samePersonQuerySql, [
                 user.localUserId,
                 actor.userId,
                 actor.companyId,
@@ -81,7 +82,7 @@ function migrationTx(c: PoolClient, actor: IamActor): MigrationTransaction {
         },
         migrationReviewerSamePerson: async (facts) => {
             const { u } = facts;
-            return (await c.query("SELECT iam_same_person($1,$2,$3) same", [
+            return (await c.query(samePersonQuerySql, [
                 u.localUserId,
                 actor.userId,
                 actor.companyId,
@@ -150,7 +151,7 @@ function migrationTx(c: PoolClient, actor: IamActor): MigrationTransaction {
         },
         emergencySamePerson: async (facts) => {
             const { userId } = facts;
-            return (await c.query("SELECT iam_same_person($1,$2,$3) same", [
+            return (await c.query(samePersonQuerySql, [
                 userId,
                 actor.userId,
                 actor.companyId,

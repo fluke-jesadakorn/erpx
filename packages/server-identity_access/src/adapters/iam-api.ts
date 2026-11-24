@@ -1,4 +1,5 @@
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
+import { samePersonQuerySql } from "./iam-probe-sql";
 import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {canonicalDestinationLinks} from "@erpx/feature-work_projection/lib/destination-links";
 import {identitySnapshotSources as manageerpxSnapshotSources} from '@erpx/server-manage_erpx/public/identity-snapshot-sources';
@@ -550,7 +551,7 @@ export async function iamApi(
             if (
               p.userId === actor.userId ||
               (
-                await c.query("SELECT iam_same_person($1,$2,$3) same", [
+                await c.query(samePersonQuerySql, [
                   p.userId,
                   actor.userId,
                   actor.companyId,

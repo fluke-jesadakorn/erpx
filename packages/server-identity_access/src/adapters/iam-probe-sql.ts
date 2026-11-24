@@ -4,3 +4,5 @@
  * readers own the same authorization shape. */
 export const roleAllowsSql = "SELECT 1 WHERE iam_role_allows(?,?,?)";
 export const samePersonSql = "SELECT 1 WHERE iam_same_person(?,?,?)";
+/** pg positional-parameter probe returning a `same` column, shared by the IAM transaction adapters. */
+export const samePersonQuerySql = "SELECT iam_same_person($1,$2,$3) same";

@@ -1,4 +1,5 @@
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
+import { samePersonQuerySql } from "./iam-probe-sql";
 import { grantTransaction } from '@erpx/server-identity_access/adapters/iam-grant-transaction';
 import {preparePeopleLifecycleIamReview} from "@erpx/server-people_payroll/public/iam-purchases";
 import {identitySnapshotSources as organizationSnapshotSources} from '@erpx/server-organization/public/identity-snapshot-sources';
@@ -49,7 +50,7 @@ lockRevokedAssignment: async (facts) => {
         },
 revokeSamePerson: async (facts) => {
             const { row } = facts;
-            return (await c.query("SELECT iam_same_person($1,$2,$3) same", [
+            return (await c.query(samePersonQuerySql, [
                 row.user_id,
                 actor.userId,
                 actor.companyId,
@@ -88,7 +89,7 @@ lockIndependentReview: async (facts) => {
         },
 independentSamePerson: async (facts) => {
             const { r } = facts;
-            return (await c.query("SELECT iam_same_person($1,$2,$3) same", [
+            return (await c.query(samePersonQuerySql, [
                 r.created_by,
                 actor.userId,
                 actor.companyId,

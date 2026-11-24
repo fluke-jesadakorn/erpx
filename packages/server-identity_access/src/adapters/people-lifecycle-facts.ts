@@ -1,4 +1,5 @@
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
+import { samePersonQuerySql } from "./iam-probe-sql";
 import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
 const peoplepayrollSources=peoplepayrollSnapshotSources();
@@ -106,6 +107,6 @@ export function peopleLifecycleIdentityAccessFacts(database: SqlDatabase, client
         applyApplyLifecycleReviewEffect3(companyId: unknown, id: unknown) { return nativeIdentityWrite("w_569a11c3d974", [companyId, id]); },
         applyApplyLifecycleReviewEffect5(userId: unknown, created_by: unknown, companyId: unknown) { return client!.query<{
             same: boolean;
-        }>("SELECT iam_same_person($1,$2,$3) same", [userId, created_by, companyId]); },
+        }>(samePersonQuerySql, [userId, created_by, companyId]); },
         applyApplyLifecycleReviewEffect7(assignment: unknown, effective_at: unknown) { return nativeIdentityWrite("w_5d80557e76ba", [assignment, effective_at]); } };
 }

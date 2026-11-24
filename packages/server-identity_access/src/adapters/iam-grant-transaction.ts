@@ -1,4 +1,5 @@
 import 'server-only';
+import { samePersonQuerySql } from "./iam-probe-sql";
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
 import type {PoolClient} from 'pg';
 import type {IamActor} from '@erpx/server-identity_access/domain/iam-actor';
@@ -8,7 +9,7 @@ const organizationSources=identitySnapshotSources();
 export function grantTransaction(c: PoolClient, actor: IamActor): IamGrantTransaction {
 return {grantSamePerson: async (facts) => {
             const { input } = facts;
-            return (await c.query("SELECT iam_same_person($1,$2,$3) same", [
+            return (await c.query(samePersonQuerySql, [
                 input.userId,
                 actor.userId,
                 actor.companyId,
