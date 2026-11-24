@@ -70,7 +70,7 @@ describe('talent read-tail r24 EXISTS-row family dedupe', () => {
   it('lowers the talent owner SELECT KPI strictly below BEFORE=47', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(46);
-    expect(count).toBeLessThan(47);
+    expect(count).toBe(45);
+    expect(count).toBeLessThan(46);
   });
 });

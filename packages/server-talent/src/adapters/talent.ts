@@ -38,7 +38,12 @@ function access(a: WorkContext, write = false) {
     );
 }
 const eligibleOwner = `EXISTS(SELECT 1 ${identityaccessSources.talent_adapters_talent_assignments_x_from} WHERE x.company_id=a.company_id AND x.user_id=a.owner_id AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(x.user_id,x.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (x.scope_kind='holding' OR (x.scope_kind='branch' AND x.scope_node_id=r.branch_id) OR (x.scope_kind='department' AND x.scope_node_id=r.department_id)))`;
-const ownedApps=`SELECT a.*,r.job_title,c.legal_name candidate_name,CASE WHEN ${eligibleOwner} THEN 1 ELSE 0 END owner_eligible FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id JOIN talent_candidates c ON c.id=a.candidate_id WHERE a.company_id=? AND `;
+/** Owner-local application-projection head family. The projected columns and
+ * trailing predicate are parameterized; the owner-eligibility witness and the
+ * FROM/JOIN skeleton are shared, so both call sites stay byte-identical to the
+ * former inline copies. */
+const applicationProjection = (columns:string,tail:string) => `SELECT a.*,r.job_title,${columns},CASE WHEN ${eligibleOwner} THEN 1 ELSE 0 END owner_eligible FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id JOIN talent_candidates c ON c.id=a.candidate_id WHERE ${tail}`;
+const ownedApps=applicationProjection('c.legal_name candidate_name','a.company_id=? AND ');
 
 type DatabaseSource=SqlDatabase|(()=>Promise<SqlDatabase>);
 const databaseSource=(source:DatabaseSource)=>typeof source==="function"?source:async()=>source;
@@ -92,7 +97,7 @@ export async function changeTalentRecord(a:WorkContext,kind:TalentKind,id:string
 export function nativeTalentDetail(source:DatabaseSource){const database=databaseSource(source);return createTalentDetail({authorize:access,error:violation=>new ApiError(violation.status,violation.code,violation.message),
 async application(a,id){const write=await database();return await write
       .prepare(
-        `SELECT a.*,r.job_title,r.branch_id,r.department_id,c.legal_name candidate_name,c.email candidate_email,c.retention_until,c.version candidate_version,CASE WHEN ${eligibleOwner} THEN 1 ELSE 0 END owner_eligible FROM talent_applications a JOIN talent_requisitions r ON r.id=a.requisition_id JOIN talent_candidates c ON c.id=a.candidate_id WHERE a.id=? AND a.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)`,
+        applicationProjection('r.branch_id,r.department_id,c.legal_name candidate_name,c.email candidate_email,c.retention_until,c.version candidate_version','a.id=? AND a.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)'),
       )
       .bind(id, a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId)
       .first<Row>();},
