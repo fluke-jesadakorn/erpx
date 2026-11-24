@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9574,
+    "revision": 9580,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -151564,7 +151564,7 @@
         "owner": "pms",
         "title": "pms TS read tail native cutover (round 22)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -151576,28 +151576,36 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261123-k",
-          "agentId": "wGCFpms",
-          "claimedAt": "2026-11-24T05:25:34.487Z",
-          "heartbeatAt": "2026-11-24T05:25:39.041Z",
-          "expiresAt": "2026-11-24T05:55:39.041Z",
-          "generation": 163
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pms/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f2b525a6a",
+            "owner": "pms",
+            "before": 474,
+            "after": 468,
+            "note": "Stripe refund columns, rollout enabled/active and recipient FROM families shared; locks inline; r17-r21 untouched."
+          },
+          {
+            "command": "vitest pms r17-r22 + transports (185) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "f2b525a6a"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: pmsSourcesSql recipient FROM fragment, rollout reads, stripe refund columns (<4 copies). BEFORE=474.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-j",
+          "runId": "run-20261123-k",
           "agentId": "wGCFpms",
-          "at": "2026-11-24T05:25:21.119Z",
+          "at": "2026-11-24T05:35:49.757Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired at 05:16Z; all claims and WIP reviewed in shared checkout; release claims and continue under new generation.",
-          "nextAction": "Next: pmsSourcesSql recipient FROM fragment, rollout reads, stripe refund columns (<4 copies). BEFORE=474."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -152117,7 +152125,7 @@
         "owner": "planning",
         "title": "planning TS read tail native cutover (r5)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -152129,28 +152137,36 @@
         "resources": [
           "owner:planning"
         ],
-        "claim": {
-          "runId": "run-20261123-k",
-          "agentId": "wGCHpla",
-          "claimedAt": "2026-11-24T05:25:37.091Z",
-          "heartbeatAt": "2026-11-24T05:25:39.041Z",
-          "expiresAt": "2026-11-24T05:55:39.041Z",
-          "generation": 163
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-planning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f2b525a6a",
+            "owner": "planning",
+            "before": 43,
+            "after": 39,
+            "note": "Production resources EXISTS and allocated minutes guard families shared; locks untouched."
+          },
+          {
+            "command": "vitest planning r5 (5) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "f2b525a6a"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=43.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-j",
+          "runId": "run-20261123-k",
           "agentId": "wGCHpla",
-          "at": "2026-11-24T05:25:21.119Z",
+          "at": "2026-11-24T05:35:49.312Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired at 05:16Z; all claims and WIP reviewed in shared checkout; release claims and continue under new generation.",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=43."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -152660,7 +152676,7 @@
         "owner": "work_projection",
         "title": "work_projection TS read tail native cutover (round 11)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -152672,22 +152688,37 @@
         "resources": [
           "owner:work_projection"
         ],
-        "claim": {
-          "runId": "run-20261123-k",
-          "agentId": "wGCKwp",
-          "claimedAt": "2026-11-24T05:27:49.615Z",
-          "heartbeatAt": "2026-11-24T05:27:49.615Z",
-          "expiresAt": "2026-11-24T05:57:49.615Z",
-          "generation": 163
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-work_projection/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f2b525a6a",
+            "owner": "work_projection",
+            "before": 85,
+            "after": 79,
+            "note": "Seven inert noop SELECT 1 statements share noopSql; locks untouched; consumers retained."
+          },
+          {
+            "command": "vitest work projection r9-r11 (9) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "f2b525a6a"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=85.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCKwp",
+          "at": "2026-11-24T05:35:50.239Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -153342,17 +153373,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
-        "in_progress": 30,
+        "in_progress": 27,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 813,
+        "blocked": 816,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 163,
-    "updatedAt": "2026-11-24T05:35:27.031Z",
+    "updatedAt": "2026-11-24T05:35:50.251Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
