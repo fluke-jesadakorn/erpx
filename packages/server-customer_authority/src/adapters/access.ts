@@ -1,6 +1,7 @@
 import { finalRootOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/final-root-owner-projection-sources";
+import {assignmentEligibilityExists} from './assignment-eligibility-source';
 import "server-only";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
@@ -24,7 +25,7 @@ const scope="o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text 
 const args=(a:WorkContext)=>[a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId];
 const eligible=salesRecipientEligibility().replaceAll('c.owner_id','m.user_id');
 const reviewers=`m.company_id=o.company_id AND m.user_id<>b.created_by AND iam_assignment_active(m.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(m.role,m.company_id,'commerce.approve') AND (m.scope_kind='holding' OR (m.scope_kind='branch' AND m.scope_node_id=o.branch_id) OR (m.scope_kind='department' AND m.scope_node_id=o.department_id)) AND ${eligible}`;
-const actorEligible=`CASE WHEN EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) m WHERE ${reviewers} AND m.user_id=?) THEN 1 ELSE 0 END actor_eligible`;
+const actorEligible=`CASE WHEN ${assignmentEligibilityExists(`m WHERE ${reviewers} AND m.user_id=?`)} THEN 1 ELSE 0 END actor_eligible`;
 function ports(a:WorkContext) { return {actorId:a.userId,companyScope:!a.branchId&&!a.departmentId,require:(permission:"commerce.read"|"commerce.sales"|"commerce.approve")=>requirePermission(a,permission),canApprove:()=>hasPermission(a,'commerce.approve'),canSales:()=>hasPermission(a,'commerce.sales'),canRead:()=>hasPermission(a,'commerce.read'),clock:{now:()=>Date.now()},error:(status:number,code:string,message:string)=>new ApiError(status,code,message)}; }
 function repository(a:WorkContext,write:SqlDatabase):AccessRepository { return {
  binding:id=>write.prepare(`SELECT b.*,o.number,o.state order_state,o.branch_id,o.department_id,${actorEligible} FROM customer_access_bindings b JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=b.order_id AND o.company_id=b.company_id WHERE b.id=? AND ${scope}`).bind(a.userId,id,...args(a)).first<Row>(),
