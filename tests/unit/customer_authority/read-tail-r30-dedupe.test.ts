@@ -54,7 +54,7 @@ describe('Customer Authority read-tail r30 owner existence-probe family', () => 
     expect(facts).not.toContain(VERSION_ORIGINAL);
 
     const read = src('attachment-read.ts');
-    expect(read).toContain("existenceProbe('FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope',current.where)");
+    expect(read).toContain("existenceProbe(`FROM(${companyScopeSelect(',?::text branch_id,?::text department_id')})workforce_actor_scope`,current.where)");
     expect(read).not.toContain(WORKFORCE_ORIGINAL);
 
     const access = src('portal-access.ts');

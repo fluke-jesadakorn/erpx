@@ -40,9 +40,9 @@ describe('Customer Authority read-tail r28 release-gate read family', () => {
     expect(gate.match(/releaseGateRead\(/g) ?? []).toHaveLength(2);
     expect(gate).toContain(`releaseGateRead(predicate(),gateSource,' allowed')`);
     expect(gate).toContain(`releaseGateRead(predicate(),gateSource,'')`);
-    // Only the scalar gate-source subselect remains inline; no other SELECT.
-    expect(gate.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
-    expect(gate).toContain('`(SELECT ?::text company_id) ${gateAlias}`');
+    // The gate-source company scope now comes from the r33 shared probe; no inline SELECT.
+    expect(gate.match(/\bSELECT\b/g) ?? []).toHaveLength(0);
+    expect(gate).toContain('`(${companyScopeSelect()}) ${gateAlias}`');
     expect(gate).not.toMatch(/FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
   });
 

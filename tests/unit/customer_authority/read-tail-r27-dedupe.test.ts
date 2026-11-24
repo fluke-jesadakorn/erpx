@@ -41,7 +41,7 @@ describe('Customer Authority read-tail r27 customer-access event evidence probe 
     expect(caller).toContain(`accessEventEvidenceProbe('customer_portal_actions','request','request_key',`);
     expect(caller).toContain(`accessEventEvidenceProbe('command_receipts','receipt','command_id',`);
     // The enclosing binding event chain and every bind stay intact.
-    for (const ref of ["event.action='portal-evidence-bind'", "event.action IN ('request','approve','reject','revoke')", 'NOT EXISTS(SELECT 1 FROM customer_access_events event', '.bind(input.companyId)']) {
+    for (const ref of ["event.action='portal-evidence-bind'", "event.action IN ('request','approve','reject','revoke')", "factExistenceWitness(true, 'customer_access_events event'", '.bind(input.companyId)']) {
       expect(caller, ref).toContain(ref);
     }
   });

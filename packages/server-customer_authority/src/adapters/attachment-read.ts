@@ -14,6 +14,7 @@ import {attachmentReadSource,attachmentPrivateReadSourceLocks,assertAttachmentRe
 import {customerPortalSourceReadLocks} from '@erpx/server-customer_authority/adapters/portal-source-locks';
 import {bindingIdentityCurrentSql} from '@erpx/server-customer_authority/adapters/attachment-withdraw-proof';
 import {existenceProbe} from './customer-authority-read-tail-r30-sources';
+import {companyScopeSelect} from './customer-authority-read-tail-r33-sources';
 import {portalPurchaseBindingSource} from './portal-purchase-binding-source';
 
 export async function portalAttachmentSourceWitness(database:SqlDatabase,actor:WorkContext,id:string){
@@ -38,7 +39,7 @@ export async function withPortalAttachmentContentRead<Result extends {object:Sto
   const before=await attachmentReadSource(database,actor.companyId,linkId);assertAttachmentReadRoute(selectedRoute,before);if(!before)throw attachmentReadChanged();
   const image=await portalAttachmentSourceWitness(database,actor,before.targetId);if(!image)throw new ApiError(404,'PORTAL_ATTACHMENT_TARGET_NOT_FOUND','The original Portal evidence owner is unavailable.');
   const external=actor.role==='external_customer'&&actor.assignmentId===`customer-portal:${before.targetId}`,current=currentAssignmentReadScope(actor,'workforce_actor_scope');
-  const initiallyCurrent=external?!!await database.prepare(bindingIdentityCurrentSql).bind(before.targetId,actor.companyId,actor.userId,actor.email.toLowerCase(),actor.email.toLowerCase()).first():!!await database.prepare(existenceProbe('FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope',current.where)).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args).first();
+  const initiallyCurrent=external?!!await database.prepare(bindingIdentityCurrentSql).bind(before.targetId,actor.companyId,actor.userId,actor.email.toLowerCase(),actor.email.toLowerCase()).first():!!await database.prepare(existenceProbe(`FROM(${companyScopeSelect(',?::text branch_id,?::text department_id')})workforce_actor_scope`,current.where)).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args).first();
   const invalidAuthority=initiallyCurrent?null:await privateFileDenialAuthorityWitness(database,actor);
   const check=async(authorizeSource:boolean)=>{
    await assertRequestAuthority?.();
