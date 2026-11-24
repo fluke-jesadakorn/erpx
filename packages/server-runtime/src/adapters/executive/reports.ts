@@ -18,10 +18,11 @@ import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import { type ReportRow, type ShareRow, saveSchema } from '@erpx/server-runtime/domain/executive/reports';
 import { createExecutiveReportApplication, type ExecutiveReportRepository } from '@erpx/server-runtime/application/executive/reports';
 import { BusinessRuleError } from '@erpx/server-shared/index';
+import { executiveReportSharesSql } from '../read-tail-sql';
 const REPORT_LOCK_SQL = "SELECT id FROM executive_reports WHERE id=? FOR UPDATE";
 const REPORT_VERSION_GUARD_SQL = "EXISTS(SELECT 1 FROM executive_reports WHERE id=? AND owner_id=? AND version=?)";
 function application(database: SqlDatabase) {
-    const repository: ExecutiveReportRepository<SqlStatement> = { ...peopleSources(database), ...identitySources(database), readReportAccessR(id: string, companyId: string) { return database.prepare("SELECT * FROM executive_reports WHERE id=? AND company_id=?").bind(id, companyId).first<ReportRow>(); }, readReportAccessShare(id: string, companyId: string, userId: string, now: number) { return database.prepare("SELECT * FROM executive_report_shares WHERE report_id=? AND company_id=? AND recipient_id=? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>?)").bind(id, companyId, userId, now).first<ShareRow>(); }, readReportViewShares(id: string) { return database.prepare("SELECT * FROM executive_report_shares WHERE report_id=? AND revoked_at IS NULL ORDER BY created_at").bind(id).all<ShareRow>(); }, readReportViewRevisions(id: string) {
+    const repository: ExecutiveReportRepository<SqlStatement> = { ...peopleSources(database), ...identitySources(database), readReportAccessR(id: string, companyId: string) { return database.prepare("SELECT * FROM executive_reports WHERE id=? AND company_id=?").bind(id, companyId).first<ReportRow>(); }, readReportAccessShare(id: string, companyId: string, userId: string, now: number) { return database.prepare(executiveReportSharesSql('*', ' WHERE report_id=? AND company_id=? AND recipient_id=? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>?)')).bind(id, companyId, userId, now).first<ShareRow>(); }, readReportViewShares(id: string) { return database.prepare(executiveReportSharesSql('*', ' WHERE report_id=? AND revoked_at IS NULL ORDER BY created_at')).bind(id).all<ShareRow>(); }, readReportViewRevisions(id: string) {
             return database.prepare("SELECT version,created_at FROM executive_report_revisions WHERE report_id=? ORDER BY version DESC LIMIT 30").bind(id).all<{
                 version: number;
                 created_at: number;
@@ -36,7 +37,7 @@ function application(database: SqlDatabase) {
                 filters_json: string;
             }>();
         }, stageSaveShareEffect(id: string) { return database.prepare(REPORT_LOCK_SQL).bind(id); }, guard20(key: string, value: "share-report-version", id: string, userId: string, version: number) { return assertion(database, key, value, REPORT_VERSION_GUARD_SQL, [id, userId, version]); }, stageSaveShareEffect2(shareId: string, id: string, companyId: string, recipientId: string, legal_name: string, role: "viewer" | "editor", mode: "recipient" | "distribution", value: string, value2: string, value3: string, value4: string, expiresAt: number | null, now: number) { return nativeRuntimeStatement('runtime_stmt_6', { companyId: companyId, now: now, actor: undefined }).bind(shareId, id, companyId, recipientId, legal_name, role, mode, value, value2, value3, value4, expiresAt, now); }, readOwnershipCandidatesShares(id: string) {
-            return database.prepare("SELECT id,version FROM executive_report_shares WHERE report_id=? AND revoked_at IS NULL ORDER BY id").bind(id).all<{
+            return database.prepare(executiveReportSharesSql('id,version', ' WHERE report_id=? AND revoked_at IS NULL ORDER BY id')).bind(id).all<{
                 id: string;
                 version: number;
             }>();
