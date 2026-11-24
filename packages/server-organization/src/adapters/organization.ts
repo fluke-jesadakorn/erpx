@@ -32,6 +32,8 @@ import type {ChangeFilters,NodeChangeInput,NodeDecisionInput} from '@erpx/server
 export {positionSchema,organizationNodeChangeSchema,organizationNodeDecisionSchema} from '@erpx/server-organization/domain/organization';
 import {organizationGuard}from '@erpx/server-organization/public/organization-graph-guard';
 import {organizationRoster}from '@erpx/server-organization/public/organization-roster-read';
+const HEAD_SEAT_SNAPSHOT_SOURCE =
+  "SELECT version,position_id,person_id,effective_at FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=?";
 const nodeImpactSql=`SELECT
  (SELECT count(*) FROM organization_nodes WHERE company_id=? AND parent_id=? AND status='active') child_nodes,
  (SELECT count(*) FROM (${people_payrollPlatformSources.hr_engagements}) hr_engagements WHERE company_id=? AND status='active' AND (branch_id=? OR department_id=?)) staff,
@@ -47,7 +49,7 @@ async function relocationSnapshot(db:SqlDatabase,companyId:string,departmentId:s
     db.prepare("SELECT id,version FROM organization_positions WHERE company_id=? AND department_id=? AND active=1 ORDER BY id").bind(companyId,departmentId).all(),
     db.prepare(`SELECT id,version FROM (${identity_accessPlatformSources.assignments}) assignments WHERE company_id=? AND scope_kind='department' AND scope_node_id=? AND revoked_at IS NULL ORDER BY id`).bind(companyId,departmentId).all(),
     db.prepare(`SELECT id,version FROM (${identity_accessPlatformSources.organization_gpo_rules}) organization_gpo_rules WHERE company_id=? AND target_kind='department' AND target_id=? ORDER BY id`).bind(companyId,departmentId).all(),
-    db.prepare("SELECT version,position_id,person_id,effective_at FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=?").bind(companyId,departmentId).first(),
+    db.prepare(HEAD_SEAT_SNAPSHOT_SOURCE).bind(companyId,departmentId).first(),
     db.prepare("SELECT version,person_id FROM department_heads WHERE company_id=? AND department_id=?").bind(companyId,departmentId).first(),
     db.prepare("SELECT id,version,steps_json FROM department_flow_versions WHERE company_id=? AND department_id=? ORDER BY version DESC LIMIT 1").bind(companyId,departmentId).first(),
   ]);
@@ -79,7 +81,7 @@ clock:{now:()=>Date.now()},authorize:actor=>requirePermission(actor,'organizatio
  reviewGuards:(actor,id,version,key,requesterId)=>[assertion(db,key,'change-version',"EXISTS(SELECT 1 FROM organization_node_changes WHERE id=? AND company_id=? AND version=? AND state='submitted')",[id,actor.companyId,version]),assertion(db,key,'independent-review','NOT iam_same_person(?,?,?)',[actor.userId,requesterId,actor.companyId])],
  stageCreateNode:async(actor,change,nodeId)=>[await nativeOrgStatement(db,actor.companyId,'node_create',[nodeId,change.node_kind,change.slug,change.display_name,change.node_kind==='branch'?actor.companyId:change.branch_id,actor.companyId,change.branch_id],`org-node:${change.id}`,Date.now())],
  stageNodeVersion:(actor,change,key)=>[assertion(db,key,'node-version','EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND hierarchy_revision=? AND kind=? AND branch_id IS NOT DISTINCT FROM ?)',[change.target_node_id,actor.companyId,change.expected_node_version!,change.node_kind,change.action==='relocate'?change.source_branch_id:change.branch_id])],
- relocationAuthority:async(companyId,id)=>{const [head,legacyHead,flow]=await Promise.all([db.prepare("SELECT version,position_id,person_id,effective_at FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=?").bind(companyId,id).first<RelocationAuthority['head']&{}>(),db.prepare('SELECT version,person_id FROM department_heads WHERE company_id=? AND department_id=?').bind(companyId,id).first<RelocationAuthority['legacyHead']&{}>(),db.prepare('SELECT id,version,steps_json FROM department_flow_versions WHERE company_id=? AND department_id=? ORDER BY version DESC LIMIT 1').bind(companyId,id).first<RelocationAuthority['flow']&{}>()]);return {head,legacyHead,flow};},
+ relocationAuthority:async(companyId,id)=>{const [head,legacyHead,flow]=await Promise.all([db.prepare(HEAD_SEAT_SNAPSHOT_SOURCE).bind(companyId,id).first<RelocationAuthority['head']&{}>(),db.prepare('SELECT version,person_id FROM department_heads WHERE company_id=? AND department_id=?').bind(companyId,id).first<RelocationAuthority['legacyHead']&{}>(),db.prepare('SELECT id,version,steps_json FROM department_flow_versions WHERE company_id=? AND department_id=? ORDER BY version DESC LIMIT 1').bind(companyId,id).first<RelocationAuthority['flow']&{}>()]);return {head,legacyHead,flow};},
 stageRelocate:async (actor,change,id,appliedNodeId,key,{head,legacyHead,flow},now)=>{
         return [
           assertion(db,key,"relocation-destination-active","EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active')",[change.branch_id,actor.companyId]),
