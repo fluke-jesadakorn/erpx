@@ -11,12 +11,13 @@ import {requirePermission} from "@erpx/server-identity_access/public/iam-permiss
 import {BusinessRuleError} from '@erpx/server-shared/index';
 import {createCustomerNotificationApplication,type CustomerNotificationRepository} from '@erpx/server-sales/application/notifications';
 import {requireSalesNotificationRead} from '@erpx/server-sales/adapters/notification-purchases';
+import {byKey} from './by-key';
 export {customerNotificationSchema,customerNotificationRetrySchema,customerNotificationSettingsSchema} from '@erpx/server-sales/domain/notifications';
 type Row=Record<string,string|number|null>;
 const exec=promisify(execFile);
 function application(actor:WorkContext,provided?:SqlDatabase){let resource:Promise<SqlDatabase>|null=provided?Promise.resolve(provided):null;const database=()=>resource??=holdingResources(actor.holdingId).then(x=>x.write);return createCustomerNotificationApplication({companyId:actor.companyId,authorize:permission=>{requirePermission(actor,permission);},repository:async()=>repository(await database(),actor)});}
 function repository(write:SqlDatabase,actor:WorkContext):CustomerNotificationRepository{return {
- settings:async()=>write.prepare('SELECT * FROM commerce_customer_notification_settings WHERE company_id=?').bind(actor.companyId).first<Row>(),
+ settings:async()=>write.prepare(byKey('commerce_customer_notification_settings','company_id')).bind(actor.companyId).first<Row>(),
  };}
 async function translated<Result>(action:()=>Promise<Result>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 export function customerNotificationSettings(actor:WorkContext){return translated(async()=>{const database=(await holdingResources(actor.holdingId)).write;await requireSalesNotificationRead(database,actor);return application(actor,database).settings();});}

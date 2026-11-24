@@ -1,4 +1,5 @@
 import {salesPricingPurchaseControls} from '@erpx/server-sales/adapters/pricing-purchases';
+import {byKey} from './by-key';
 import {priceListSchema,priceListUpdateSchema,priceListDecisionSchema} from '@erpx/server-sales/domain/price-lists';
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
 import { commercialOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/commercial-owner-projection-sources";
@@ -46,7 +47,7 @@ export async function resolveSalesPricing(db:SqlDatabase,actor:WorkContext,input
  const application=createSalesPricingApplication({
  async list(input){if(input.priceListId)return await db.prepare(`${priceListByIdSql} AND status='active' AND currency=${activeCurrencySql} AND valid_from<=? AND valid_until>=? AND (customer_id IS NULL OR customer_id=?)`).bind(input.priceListId,actor.companyId,actor.companyId,input.orderDate,input.orderDate,input.partyId).first<Row>()??null;
  return await db.prepare(`SELECT * FROM sales_price_lists WHERE company_id=? AND status='active' AND currency=${activeCurrencySql} AND valid_from<=? AND valid_until>=? AND (customer_id=? OR customer_id IS NULL) ORDER BY CASE WHEN customer_id=? THEN 0 ELSE 1 END,valid_from DESC,activated_at DESC LIMIT 1`).bind(actor.companyId,actor.companyId,input.orderDate,input.orderDate,input.partyId,input.partyId).first<Row>()??null;},
- async items(id){return(await db.prepare('SELECT * FROM sales_price_list_items WHERE price_list_id=?').bind(id).all<Row>()).results;}
+ async items(id){return(await db.prepare(byKey('sales_price_list_items','price_list_id')).bind(id).all<Row>()).results;}
  });try{return await application(input);}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}
 }
 
