@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10417,
+    "revision": 10419,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -162152,7 +162152,7 @@
         "owner": "platform_administration",
         "title": "platform_administration TS read tail native cutover (r15)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -162164,22 +162164,22 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "claim": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMpad3",
-          "claimedAt": "2026-11-24T07:28:13.305Z",
-          "heartbeatAt": "2026-11-24T07:28:13.305Z",
-          "expiresAt": "2026-11-24T07:58:13.306Z",
-          "generation": 166
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=33.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with evidence; claim released",
+        "handoff": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMpad3",
+          "at": "2026-11-24T07:46:18.240Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with evidence; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -162880,17 +162880,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 25,
+        "in_progress": 24,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 1010,
+        "blocked": 1011,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 166,
-    "updatedAt": "2026-11-24T07:46:05.666Z",
+    "updatedAt": "2026-11-24T07:46:18.247Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
