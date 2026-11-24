@@ -1,3 +1,4 @@
+import { financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { DIMENSION_VALUES_ACTIVE_SQL } from './finance-read-tail-r38-sql';
 import {materializedClockCteSql} from './finance-read-tail-r19-sql';
 import {withManufacturingInitialStockJournalRead} from '@erpx/server-finance/adapters/manufacturing-initial-stock-journal-read';
@@ -31,7 +32,7 @@ export async function journalDetail(actor: WorkContext, id: string, provided?:Sq
 function ledgerService(actor: WorkContext,provided?:SqlDatabase,documentId?:string) {
     let store: Promise<SqlDatabase> | undefined;
     const db = () => store ??= (provided ? Promise.resolve(provided) : holdingResources(actor.holdingId).then(resources => resources.write)).then(async write => { if(documentId)await requireFinanceDocumentHistory(write,actor,"journal",documentId);else await requireFinancePurchasedRead(write,actor); return write; });
-    return createLedgerService({ error: (...args) => new ApiError(...args), charts: async () => await listCharts(actor,await db()) as LedgerRow[], profiles: () => accountingProfiles(actor), accounts: async (chartId) => (await (await db()).prepare("SELECT * FROM finance_accounts WHERE chart_id=? AND company_id=? ORDER BY code").bind(chartId, actor.companyId).all<LedgerRow>()).results, periods: async () => (await (await db()).prepare("SELECT * FROM finance_periods WHERE company_id=? ORDER BY start_date DESC").bind(actor.companyId).all<LedgerRow>()).results, journals: async (chartId, query, paginated) => {
+    return createLedgerService({ error: (...args) => new ApiError(...args), charts: async () => await listCharts(actor,await db()) as LedgerRow[], profiles: () => accountingProfiles(actor), accounts: async (chartId) => (await (await db()).prepare(financeReferenceListSql('finance_accounts','chart_id=? AND company_id=?','code')).bind(chartId, actor.companyId).all<LedgerRow>()).results, periods: async () => (await (await db()).prepare(financeReferenceListSql('finance_periods','company_id=?','start_date DESC')).bind(actor.companyId).all<LedgerRow>()).results, journals: async (chartId, query, paginated) => {
             const write = await db();
             let initialReader=true;try{await requireQueuedCommandAuthority(write,actor,'finance.read');}catch(error){if(error instanceof ApiError&&(error.status===401||error.status===403))initialReader=false;else throw error;}
             const clock=`${materializedClockCteSql('finance_ledger_clock', packageClockSql)} `;

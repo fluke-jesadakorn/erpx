@@ -1,3 +1,4 @@
+import { chartPointSql } from './finance-read-tail-r42-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { APPROVED_SECONDARY_CHART_RULE_SQL } from './finance-read-tail-r15-sql';
 import { APPROVED_SECONDARY_CHART_CORRELATED_GUARD } from './finance-read-tail-r41-sql';
@@ -35,7 +36,7 @@ function nativeInstrumentRepository(db:SqlDatabase):InstrumentRepository{const j
     .first<Row>(),
 chart:async(actor,chartId)=>db
     .prepare(
-      "SELECT id,base_currency,status FROM finance_charts WHERE id=? AND company_id=? AND status='active'",
+      chartPointSql(" AND status='active'"),
     )
     .bind(chartId, actor.companyId)
     .first<Row>(),

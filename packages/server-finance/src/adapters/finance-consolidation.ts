@@ -1,3 +1,4 @@
+import { consolidationGroupAccountsSql, eliminationPendingSql } from './finance-read-tail-r42-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { CONSOLIDATION_RUN_BY_ID_SQL } from './finance-read-tail-r31-sql';
 import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
@@ -26,10 +27,9 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
     const repository: FinanceConsolidationRepository<SqlStatement> = { readConsolidationRunWorkspaceRunseliminationsaccounts(holdingId: string) { return database.prepare(groupSourceSql("SELECT * FROM finance_consolidation_runs r WHERE holding_id=? ORDER BY as_of_date DESC,created_at DESC LIMIT 50", [consolidationHistorySql("r",historySql)])).bind(holdingId).all<ConsolidationRun>(); },
         readConsolidationRunWorkspaceRunseliminationsaccounts2(holdingId: string) { return database.prepare(groupSourceSql("SELECT * FROM finance_consolidation_eliminations WHERE run_id IN (SELECT id FROM finance_consolidation_runs WHERE holding_id=?) ORDER BY created_at,id", [`EXISTS(SELECT 1 FROM finance_consolidation_runs purchased_run WHERE purchased_run.id=finance_consolidation_eliminations.run_id AND (${consolidationHistorySql("purchased_run",historySql)}))`])).bind(holdingId).all<ConsolidationElimination>(); },
         readConsolidationRunWorkspaceRunseliminationsaccounts3(holdingId: string) {
-            return database.prepare(groupSourceSql(`SELECT a.id,a.company_id,a.chart_id,a.code,a.name,a.currency,c.base_currency
-      FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id
+            return database.prepare(groupSourceSql(consolidationGroupAccountsSql(`      FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id
       JOIN finance_group_entities e ON e.company_id=a.company_id AND e.holding_id=? AND e.status='active'
-      WHERE a.status='active' AND c.status='active' ORDER BY a.company_id,a.code`,[historySql('a.company_id')])).bind(holdingId).all<ConsolidationAccount>();
+      WHERE a.status='active' AND c.status='active' ORDER BY a.company_id,a.code`),[historySql('a.company_id')])).bind(holdingId).all<ConsolidationAccount>();
         },
         readEntityPeriodsEntities(holdingId: string) {
             return database.prepare("SELECT company_id,reporting_name,functional_currency FROM finance_group_entities WHERE holding_id=? AND status='active' ORDER BY reporting_name,company_id").bind(holdingId).all<{
@@ -56,10 +56,9 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
         },
         readSnapshotIntercompany(holdingId: string) { return database.prepare(groupSourceSql("SELECT id,source_company_id,target_company_id,reference,currency,amount_minor,status,version FROM finance_intercompany_transactions WHERE holding_id=? AND status IN ('settled','eliminated') ORDER BY id", [groupRecordHistorySql("intercompany","finance_intercompany_transactions",historySql)])).bind(holdingId).all<Record<string, string | number | null>>(); },
         readConsolidationAccountsRows(holdingId: string, unique: string[]) {
-            return database.prepare(groupSourceSql(`SELECT a.id,a.company_id,a.chart_id,a.code,a.name,a.currency,c.base_currency
-    FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id
+            return database.prepare(groupSourceSql(consolidationGroupAccountsSql(`    FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id
     JOIN finance_group_entities e ON e.company_id=a.company_id AND e.holding_id=? AND e.status='active'
-    WHERE a.id IN (${unique.map(() => "?").join(",")}) AND a.status='active' AND c.status='active'`,[historySql('a.company_id')])).bind(holdingId, ...unique).all<ConsolidationAccount>();
+    WHERE a.id IN (${unique.map(() => "?").join(",")}) AND a.status='active' AND c.status='active'`),[historySql('a.company_id')])).bind(holdingId, ...unique).all<ConsolidationAccount>();
         },
         readConsolidationRunRun(runId: string, holdingId: string) { return database.prepare(groupSourceSql(CONSOLIDATION_RUN_BY_ID_SQL, [consolidationHistorySql("r",historySql)])).bind(runId, holdingId).first<ConsolidationRun>(); },
         readCreateConsolidationEliminationTransaction(sourceTransactionId: string, holdingId: string) {
@@ -114,8 +113,8 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
         async stageCreateConsolidationRunEffect(id: string, holdingId: string, presentationCurrency: string, asOfDate: string, value: string, sourceHash: string, userId: string, now: number, now2: number) { return await nativeFinanceOwnerWriteSystem(database, holdingId, 'run_insert', [id, holdingId, presentationCurrency, asOfDate, value, sourceHash, userId, now, now2]); },
         async stageCreateConsolidationRunEffect2(value: string, id: string, holdingId: string, value2: "prepared", value3: null, value4: "draft", userId: string, value5: 1, value6: "Consolidation snapshot prepared from closed company periods.", value7: string, now: number) { return await nativeFinanceOwnerWriteSystem(database, holdingId, 'run_event_prepare', [value, id, holdingId, value2, value3, value4, userId, value5, value6, value7, now]); },
         readDecideConsolidationRunRun(runId: string, holdingId: string) { return database.prepare(groupSourceSql(CONSOLIDATION_RUN_BY_ID_SQL, [consolidationHistorySql("r",historySql)])).bind(runId, holdingId).first<ConsolidationRun>(); },
-        readDecideConsolidationRunPending(runId: string) { return database.prepare("SELECT 1 FROM finance_consolidation_eliminations WHERE run_id=? AND status='proposed' LIMIT 1").bind(runId).first(); },
-        readDecideConsolidationRunPending2(runId: string) { return database.prepare("SELECT 1 FROM finance_consolidation_eliminations WHERE run_id=? AND status<>'posted' LIMIT 1").bind(runId).first(); },
+        readDecideConsolidationRunPending(runId: string) { return database.prepare(eliminationPendingSql("status='proposed'")).bind(runId).first(); },
+        readDecideConsolidationRunPending2(runId: string) { return database.prepare(eliminationPendingSql("status<>'posted'")).bind(runId).first(); },
         async stageDecideConsolidationRunUpdate(action: keyof typeof transition, userId: string, now: number, runId: string, holdingId: string, expectedVersion: number) {
             const rule = transition[action];
             const kind = action === "review" ? "consolidation_run_update_review" : action === "approve" ? "consolidation_run_update_approve" : "consolidation_run_update_publish";

@@ -1,3 +1,4 @@
+import {childBillingRunExistsSql} from './finance-read-tail-r43-sql';
 import "server-only";
 import {nativeFieldFinanceSourceReadLocks} from "@erpx/server-field_service/public/finance-record-sources";
 import {serviceNoChargeTerminalPredicate} from "@erpx/server-finance/adapters/service-no-charge-sources";
@@ -34,7 +35,7 @@ const core: readonly Source[] = [
   ["finance_accrual_schedule_runs", "r.status NOT IN ('posted','rejected')"],
   ["finance_revenue_contracts", "r.status NOT IN ('completed','cancelled')"],
   ["finance_business_contracts", "r.status NOT IN ('rejected','cancelled','superseded')"],
-  ["finance_business_billing_runs", "r.no_charge_status='draft' AND NOT EXISTS(SELECT 1 FROM finance_business_billing_runs child WHERE child.parent_run_id=r.id)"],
+  ["finance_business_billing_runs", `r.no_charge_status='draft' AND NOT EXISTS(${childBillingRunExistsSql('r.id')})`],
   ["finance_recognition_runs", "r.status='draft'"],
   ["finance_billing_corrections", "r.status='draft'"],
   ["finance_collection_cases", "r.status NOT IN ('test_delivered','cancelled')"],

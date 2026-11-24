@@ -1,3 +1,4 @@
+import { intercompanyPairPointSql } from './finance-read-tail-r42-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { groupCompanyPurchases, groupRecordPurchases, requireGroupCompanyHistory, groupHistoryPredicate, groupSourceSql, groupRecordHistorySql } from "@erpx/server-finance/adapters/group-purchase-sources";
 import "server-only";
@@ -55,7 +56,7 @@ prepareCommit:async(facts)=>{const {actor,key,op,input,id,e,now}=facts;return ex
     );},
 pair:async(actor,id)=>db
       .prepare(
-        groupSourceSql("SELECT * FROM finance_intercompany_document_pairs WHERE id=? AND holding_id=? AND company_id=?",[groupRecordHistorySql("pair","finance_intercompany_document_pairs",historySql)]),
+        groupSourceSql(intercompanyPairPointSql(' AND company_id=?'),[groupRecordHistorySql("pair","finance_intercompany_document_pairs",historySql)]),
       )
       .bind(id, actor.holdingId, actor.companyId)
       .first<Row>(),

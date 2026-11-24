@@ -1,3 +1,4 @@
+import { payrollPostPeriodSql } from './finance-read-tail-r42-sql';
 import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
 import { ACCOUNT_SELECT_PREFIX } from './finance-read-tail-r30-sql';
 import { ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL } from './finance-read-tail-r32-sql';
@@ -13,19 +14,19 @@ export function payrollFinanceFacts(database: SqlDatabase) {
         readPayrollPostingOptionsChartsperiodsmappingsgroups2(companyId: string) { return database.prepare(OPEN_PERIOD_LIST_SQL).bind(companyId).all(); },
         readPayrollPostingOptionsAccounts(companyId: string, chartIds: string[]) { return database.prepare(`SELECT id,chart_id,code,name,category,currency FROM finance_accounts WHERE company_id=? AND status='active' AND chart_id IN (${chartIds.map(() => "?").join(",")}) ORDER BY code`).bind(companyId, ...chartIds).all(); },
         readResolvePayrollPostPeriods(companyId: string, dateHint: string, dateHint2: string) {
-            return database.prepare("SELECT id,start_date FROM finance_periods WHERE company_id=? AND state='open' AND start_date<=? AND end_date>=? ORDER BY start_date").bind(companyId, dateHint, dateHint2).all<{
+            return database.prepare(payrollPostPeriodSql(' AND start_date<=? AND end_date>=? ORDER BY start_date')).bind(companyId, dateHint, dateHint2).all<{
                 id: string;
                 start_date: string;
             }>();
         },
         readResolvePayrollPostNext(companyId: string, period_end: string) {
-            return database.prepare("SELECT id,start_date FROM finance_periods WHERE company_id=? AND state='open' AND start_date>? ORDER BY start_date LIMIT 1").bind(companyId, period_end).all<{
+            return database.prepare(payrollPostPeriodSql(' AND start_date>? ORDER BY start_date LIMIT 1')).bind(companyId, period_end).all<{
                 id: string;
                 start_date: string;
             }>();
         },
         readResolvePayrollPostEffect(companyId: string, entryDate: string, entryDate2: string) {
-            return database.prepare("SELECT id,start_date FROM finance_periods WHERE company_id=? AND state='open' AND start_date<=? AND end_date>=?").bind(companyId, entryDate, entryDate2).all<{
+            return database.prepare(payrollPostPeriodSql(' AND start_date<=? AND end_date>=?')).bind(companyId, entryDate, entryDate2).all<{
                 id: string;
                 start_date: string;
             }>();

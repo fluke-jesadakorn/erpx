@@ -1,3 +1,4 @@
+import { financeReferenceListSql } from './finance-read-tail-r42-sql';
 import { ASSIGNMENT_VERSION_SQL } from './finance-read-tail-r40-sql';
 import { DIMENSION_VALUES_ACTIVE_SQL } from './finance-read-tail-r38-sql';
 import {posInitialStockJournalMarked} from '@erpx/server-finance/adapters/pos-initial-stock-journal-sources';
@@ -29,8 +30,8 @@ async function references(db:SqlDatabase,actor:WorkContext,chartId:string){
  const chart=await db.prepare(CHART_IMAGE_BY_COMPANY_SQL).bind(chartId,actor.companyId).first<LedgerRow>();
  if(!chart)throw new ApiError(404,"CHART_NOT_FOUND","The record's book is unavailable.");
  const [accounts,periods,dimensions,dimensionValues]=await Promise.all([
-  db.prepare("SELECT * FROM finance_accounts WHERE chart_id=? AND company_id=? ORDER BY code,id").bind(chartId,actor.companyId).all<FinanceRow>(),
-  db.prepare("SELECT * FROM finance_periods WHERE company_id=? ORDER BY start_date DESC,id").bind(actor.companyId).all<FinanceRow>(),
+  db.prepare(financeReferenceListSql('finance_accounts','chart_id=? AND company_id=?','code,id')).bind(chartId,actor.companyId).all<FinanceRow>(),
+  db.prepare(financeReferenceListSql('finance_periods','company_id=?','start_date DESC,id')).bind(actor.companyId).all<FinanceRow>(),
   db.prepare(DIMENSION_DEFINITIONS_SQL).bind(actor.companyId).all<LedgerRow>(),
   db.prepare(DIMENSION_VALUES_ACTIVE_SQL).bind(actor.companyId).all<LedgerRow>(),
  ]);

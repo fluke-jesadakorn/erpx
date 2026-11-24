@@ -1,3 +1,4 @@
+import { bankImportMarkerExistsSql } from './finance-read-tail-r42-sql';
 import { commandReceiptReplayProbeSql } from './finance-read-tail-r40-sql';
 import { REFUND_INSTRUCTION_POINT_SQL } from './finance-read-tail-r38-sql';
 import 'server-only';
@@ -126,7 +127,7 @@ export async function withRefundBankEvidenceImport(actor:WorkContext,id:string,i
   let result:Record<string,unknown>;
   if(prior)result=prior;else{
    validateRefundBankEvidenceInput((...args)=>new ApiError(...args),before.facts,input);
-   const duplicate=await database.prepare(`SELECT 1 FROM command_receipts WHERE operation='finance.bank.import' AND authority_json::jsonb->>'companyId'=? AND result_json::jsonb->'${markerName}'->>'instructionId'=?`).bind(actor.companyId,id).first();
+   const duplicate=await database.prepare(bankImportMarkerExistsSql(`result_json::jsonb->'${markerName}'->>'instructionId'`)).bind(actor.companyId,id).first();
    if(duplicate)throw new ApiError(409,'REFUND_BANK_EVIDENCE_ALREADY_IMPORTED','This exact instruction already has retained imported bank evidence. Review its original bank result.');
    result=await run(database,witness,bankInput);
   }
@@ -157,7 +158,7 @@ function readScope(database:SqlDatabase,actor:WorkContext,checks:(()=>Promise<vo
    if(samePerson(actor,owner.created_by)||samePerson(actor,owner.approved_by))return false;
    functionalCurrencies[String(instruction.id)]=String(original.chart.base_currency);
    checks.push(async()=>{const after=await source(database,actor,String(instruction.id));if(digest([after.row,after.owner,after.account,after.chart,after.exportReceipt])!==digest([original.row,original.owner,original.account,original.chart,original.exportReceipt])||initialAuthority!==await authority(database,actor,'import',selected.capability))throw changed();await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability:selected.capability,purpose:'settle-existing'});});
-   if(await database.prepare(`SELECT 1 FROM command_receipts WHERE operation='finance.bank.import' AND authority_json::jsonb->>'companyId'=? AND result_json::jsonb->>'refundInstructionId'=?`).bind(actor.companyId,instruction.id).first())return false;
+   if(await database.prepare(bankImportMarkerExistsSql("result_json::jsonb->>'refundInstructionId'")).bind(actor.companyId,instruction.id).first())return false;
    return true;
   }catch(error){if(error instanceof ApiError&&([403,404].includes(error.status)||error.status===409&&['REFUND_BANK_EVIDENCE_SOURCE_CHANGED','FEATURE_COMING_SOON'].includes(error.code)))return false;throw error;}
  },candidates:async(owner,candidates)=>{

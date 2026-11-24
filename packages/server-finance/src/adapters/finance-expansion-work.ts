@@ -1,3 +1,4 @@
+import {childBillingRunExistsSql} from './finance-read-tail-r43-sql';
 import {materializedClockCteSql} from './finance-read-tail-r19-sql';
 import {financeSourceAccess} from "@erpx/server-finance/adapters/source-purchases";
 import {financePackageEnforcementMode} from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -23,7 +24,7 @@ export async function financeExpansionWork(actor: WorkContext) {
  UNION ALL SELECT id,'Customer collection message','collection',NULL,status,prepared_by,created_at FROM finance_collection_cases WHERE company_id=? AND status IN ('draft','approved') AND ${purchase('finance_collection_cases.company_id','finance.receivables')}
  UNION ALL SELECT id,name,'contract',chart_id,status,prepared_by,created_at FROM finance_business_contracts WHERE company_id=? AND status='draft'
  UNION ALL SELECT id,'Posted billing credit and replacement','billing-correction',NULL,status,prepared_by,updated_at FROM finance_billing_corrections WHERE company_id=? AND status='draft'
- UNION ALL SELECT b.id,'Zero-usage service evidence','zero-usage',c.chart_id,b.no_charge_status,b.created_by,b.created_at FROM finance_business_billing_runs b JOIN finance_business_contracts c ON c.id=b.contract_id WHERE b.company_id=? AND b.no_charge_status='draft' AND NOT EXISTS(SELECT 1 FROM finance_business_billing_runs child WHERE child.parent_run_id=b.id)
+ UNION ALL SELECT b.id,'Zero-usage service evidence','zero-usage',c.chart_id,b.no_charge_status,b.created_by,b.created_at FROM finance_business_billing_runs b JOIN finance_business_contracts c ON c.id=b.contract_id WHERE b.company_id=? AND b.no_charge_status='draft' AND NOT EXISTS(${childBillingRunExistsSql('b.id')})
  UNION ALL SELECT r.id,'Service revenue recognition','recognition',c.chart_id,r.status,r.prepared_by,r.updated_at FROM finance_recognition_runs r JOIN finance_business_billing_runs b ON b.id=r.billing_run_id JOIN finance_business_contracts c ON c.id=b.contract_id WHERE r.company_id=? AND r.status='draft'
  UNION ALL SELECT id,'Secondary book policy adjustment','book-adjustment',chart_id,status,prepared_by,created_at FROM finance_book_adjustments WHERE company_id=? AND status='draft' AND ${purchase('finance_book_adjustments.company_id','finance.advanced')}
  UNION ALL SELECT id,name,'instrument',chart_id,status,prepared_by,created_at FROM finance_instrument_editions WHERE company_id=? AND status='draft' AND ${purchase('finance_instrument_editions.company_id','finance.advanced')}

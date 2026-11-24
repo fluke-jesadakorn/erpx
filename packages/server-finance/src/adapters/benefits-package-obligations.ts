@@ -1,3 +1,4 @@
+import {journalLineCountSql} from './finance-read-tail-r43-sql';
 import "server-only";
 import {createHash} from "node:crypto";
 import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgres";
@@ -13,7 +14,7 @@ export async function benefitFinancePackageObligations(owner:PostgresDatabase,da
  owner.assertActiveTransaction(database);if(sources.get(database)!==input.companyId)throw Error("BENEFIT_FINANCE_PACKAGE_OBLIGATION_SOURCE_REQUIRED");assertBenefitPeoplePackageObligationSources(owner,database,input.companyId);
  if(input.moduleId!=="finance"||input.packageId!=="people-benefits"||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error("BENEFIT_FINANCE_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
  const facts=(await database.prepare(`WITH scope AS(SELECT ?::text company_id),runs AS MATERIALIZED(SELECT DISTINCT r.* FROM (${people.runs}) r JOIN (${people.captures}) capture ON capture.run_id=r.id,scope WHERE r.company_id=scope.company_id),
- journals AS MATERIALIZED(SELECT j.*,COALESCE((SELECT SUM(line.debit_minor-line.credit_minor) FROM finance_journal_lines line WHERE line.journal_id=j.id),0) imbalance,(SELECT count(*) FROM finance_journal_lines line WHERE line.journal_id=j.id) line_count FROM finance_journals j),
+ journals AS MATERIALIZED(SELECT j.*,COALESCE((SELECT SUM(line.debit_minor-line.credit_minor) FROM finance_journal_lines line WHERE line.journal_id=j.id),0) imbalance,(${journalLineCountSql('j.id')}) line_count FROM finance_journals j),
  owned AS MATERIALIZED(SELECT p.* FROM (${people.postings}) p JOIN runs r ON r.id=p.run_id),facts AS(
  SELECT 'posted-payroll' kind,r.id,r.version,r.status state,jsonb_build_object('run',to_jsonb(r),'posting',to_jsonb(p),'journal',to_jsonb(j)) image,
  (r.status='posted' AND (p.id IS NULL OR j.id IS NULL OR j.status<>'posted' OR j.company_id IS DISTINCT FROM r.company_id OR j.currency IS DISTINCT FROM r.currency OR j.source_type<>'payroll' OR j.source_id IS DISTINCT FROM r.id OR j.imbalance<>0 OR j.line_count<2)) OR (p.id IS NOT NULL AND (r.status<>'posted' OR j.id IS NULL OR j.status<>'posted' OR j.company_id IS DISTINCT FROM r.company_id OR j.source_type<>'payroll' OR j.source_id IS DISTINCT FROM r.id OR j.imbalance<>0 OR j.line_count<2)) pending

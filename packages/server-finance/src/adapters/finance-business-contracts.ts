@@ -1,3 +1,5 @@
+import {childBillingRunExistsSql} from './finance-read-tail-r43-sql';
+import { billingCorrectionPointSql, chartPointSql } from './finance-read-tail-r42-sql';
 import { BILLING_RUN_CHILD_EXISTS_SQL, BILLING_RUN_POINT_SQL, BUSINESS_CONTRACT_POINT_SQL, BILLING_RUN_ROOT_WINDOW_SQL } from './finance-read-tail-r38-sql';
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { INVOICE_EXISTS_PREFIX } from './finance-read-tail-r30-sql';
@@ -61,7 +63,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async configurationChart(chartId: string, companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT id,base_currency,status FROM finance_charts WHERE id=? AND company_id=?")
+                .prepare(chartPointSql(''))
                 .bind(chartId, companyId)
                 .first<Row>();
         }, async secondaryBook(companyId: string, chartId: string) {
@@ -127,7 +129,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async decideContract(status: "active" | "rejected" | "cancelled", userId: string, version: number, now: number, id: string) {
             const db = read();
             return await nativeFinanceOwnerWriteSystem(db, 'system', 'decide_contract', [status, userId, version, now, id]);
-        }, async postedOwnerCredit(postedCorrectionId: string, companyId: string, userId: string, id: string) { const db = read(); return db.prepare("SELECT * FROM finance_billing_corrections WHERE id=? AND company_id=? AND status='posted' AND reviewed_by=? AND replacement_bill_id=?").bind(postedCorrectionId, companyId, userId, id).first<Row>(); }, async parentBill(parentId: unknown, companyId: string, contractId: string) {
+        }, async postedOwnerCredit(postedCorrectionId: string, companyId: string, userId: string, id: string) { const db = read(); return db.prepare(billingCorrectionPointSql(" AND status='posted' AND reviewed_by=? AND replacement_bill_id=?")).bind(postedCorrectionId, companyId, userId, id).first<Row>(); }, async parentBill(parentId: unknown, companyId: string, contractId: string) {
             const db = read();
             return db
                 .prepare("SELECT b.*,i.status original_invoice_status,i.version original_invoice_version,i.journal_id original_journal_id,i.posted_at original_posted_at FROM finance_business_billing_runs b LEFT JOIN finance_invoices i ON i.id=b.invoice_id WHERE b.id=? AND b.company_id=? AND b.contract_id=?")
@@ -262,7 +264,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async workspaceBills(companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT b.*,COALESCE(b.contract_content_json,c.content_json) effective_contract_content_json,COALESCE(i.status,b.no_charge_status) invoice_status,i.invoice_number,i.version current_invoice_version,CASE WHEN EXISTS(SELECT 1 FROM finance_business_billing_runs child WHERE child.parent_run_id=b.id) THEN 0 ELSE 1 END is_current FROM finance_business_billing_runs b JOIN finance_business_contracts c ON c.id=b.contract_id AND c.company_id=b.company_id LEFT JOIN finance_invoices i ON i.id=b.invoice_id WHERE b.company_id=? ORDER BY b.created_at DESC LIMIT 500")
+                .prepare(`SELECT b.*,COALESCE(b.contract_content_json,c.content_json) effective_contract_content_json,COALESCE(i.status,b.no_charge_status) invoice_status,i.invoice_number,i.version current_invoice_version,CASE WHEN EXISTS(${childBillingRunExistsSql('b.id')}) THEN 0 ELSE 1 END is_current FROM finance_business_billing_runs b JOIN finance_business_contracts c ON c.id=b.contract_id AND c.company_id=b.company_id LEFT JOIN finance_invoices i ON i.id=b.invoice_id WHERE b.company_id=? ORDER BY b.created_at DESC LIMIT 500`)
                 .bind(companyId)
                 .all<Row>();
         }, async workspaceRecognitions(companyId: string) {

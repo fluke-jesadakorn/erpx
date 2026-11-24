@@ -1,3 +1,4 @@
+import { financeAiProposalPointSql } from './finance-read-tail-r42-sql';
 import { clearWorkflowCommandAssertions } from "@erpx/server-workflow/public/command-assertion-effects";
 import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
 import {financeAiAgentUsageSql} from '@erpx/server-agent/public/finance-ai-quota-sources';
@@ -90,14 +91,14 @@ exhausted:async(now)=>{return db.batch([
   ]);},
 proposals:async(actor)=>(await db.prepare("SELECT * FROM finance_ai_proposals WHERE company_id=? ORDER BY updated_at DESC,id LIMIT 30").bind(actor.companyId).all<FinanceAiProposal>()).results,
 events:async(actor)=>(await db.prepare("SELECT proposal_id,action,evidence_json,created_at FROM finance_ai_events WHERE company_id=? AND proposal_id IS NOT NULL ORDER BY created_at DESC LIMIT 120").bind(actor.companyId).all<{proposal_id:string;action:string;evidence_json:string;created_at:number}>()).results,
-proposal:async(actor,id)=>db.prepare("SELECT * FROM finance_ai_proposals WHERE id=? AND company_id=?").bind(id, actor.companyId).first<FinanceAiProposal>(),
+proposal:async(actor,id)=>db.prepare(financeAiProposalPointSql('')).bind(id, actor.companyId).first<FinanceAiProposal>(),
 dismiss:async(facts)=>{const {actor,key,input,id,row}=facts;return executeCommand(db, actor, key, "finance.ai.dismiss", input, id, input.expectedVersion + 1, { id, state: "dismissed", version: input.expectedVersion + 1 }, [
     assertion(db, key, "finance-ai-proposal", "EXISTS(SELECT 1 FROM finance_ai_proposals WHERE id=? AND company_id=? AND version=? AND state<>'applied')", [id, actor.companyId, input.expectedVersion]),
     await nativeFinanceOwnerWriteSystem(db, actor.companyId, 'ai_stmt_13', [Date.now(), id]),
     await event(db, actor, id, "dismiss", { reason: input.reason, sourceHash: row.source_hash }, key),
   ]);},
-draftProposal:async(actor,id,invoiceId)=>db.prepare("SELECT * FROM finance_ai_proposals WHERE id=? AND company_id=? AND kind='invoice_review' AND source_id=?").bind(id, actor.companyId, invoiceId).first<FinanceAiProposal>(),
-invoiceProposal:async(actor,id)=>db.prepare("SELECT * FROM finance_ai_proposals WHERE id=? AND company_id=? AND kind='invoice_review'").bind(id, actor.companyId).first<FinanceAiProposal>(),
+draftProposal:async(actor,id,invoiceId)=>db.prepare(financeAiProposalPointSql(" AND kind='invoice_review' AND source_id=?")).bind(id, actor.companyId, invoiceId).first<FinanceAiProposal>(),
+invoiceProposal:async(actor,id)=>db.prepare(financeAiProposalPointSql(" AND kind='invoice_review'")).bind(id, actor.companyId).first<FinanceAiProposal>(),
 scanPolicies:async(now)=>(await db.prepare("SELECT * FROM finance_ai_policies WHERE enabled AND next_scan_at<=? ORDER BY next_scan_at,company_id LIMIT 3").bind(now).all<FinanceAiPolicy>()).results,
 claimPolicy:async(policy,now)=>(await nativeFinanceOwnerWriteSystem(db, policy.company_id, 'ai_stmt_14', [now + 60000,policy.company_id,policy.version,now])).first(),
 scanInvoices:async(actor,kinds,day,policy)=>(await db.prepare("SELECT id,version,kind,status,due_date FROM finance_invoices WHERE company_id=? AND ((status='draft' AND ?::boolean) OR (status IN ('posted','partially_paid') AND outstanding_minor>0 AND ((kind='receivable' AND ?::boolean) OR (kind='payable' AND due_date<=? AND ?::boolean)))) AND NOT EXISTS(SELECT 1 FROM finance_ai_proposals p WHERE p.company_id=finance_invoices.company_id AND p.source_id=finance_invoices.id AND p.kind=CASE WHEN finance_invoices.status='draft' THEN 'invoice_review' WHEN finance_invoices.kind='receivable' THEN 'collection_draft' ELSE 'payment_preparation' END AND p.policy_version=? AND p.source_version=finance_invoices.version) ORDER BY due_date,id LIMIT 30").bind(actor.companyId,kinds.includes("invoice_review"),kinds.includes("collection_draft"),day,kinds.includes("payment_preparation"),policy.version).all<{id:string;version:number;kind:string;status:string;due_date:string}>()).results,

@@ -1,3 +1,4 @@
+import {BOOKS_AGGREGATE_IMAGE_SQL} from './finance-read-tail-r43-sql';
 import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
@@ -17,7 +18,7 @@ export async function manufacturingExistingPostingFinancialHistory(database:SqlD
  'journals',(SELECT jsonb_agg(to_jsonb(j) ORDER BY j.id) FROM finance_journals j JOIN journals actual ON actual.id=j.id),
  'lines',(SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id) FROM finance_journal_lines l JOIN journals actual ON actual.id=l.journal_id),
  'captures',(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM finance_financial_events c JOIN journals actual ON actual.id=c.journal_id),
- 'books',(SELECT jsonb_agg(to_jsonb(b) ORDER BY b.primary_journal_id,b.secondary_journal_id) FROM books b),
+ 'books',(${BOOKS_AGGREGATE_IMAGE_SQL}),
  'money',${aggByCompany('m','money_transaction_snapshots','source_type,source_id,amount_kind',' AND (m.source_id IN(SELECT id FROM journals) OR m.source_id IN(SELECT id FROM owner_orders))')}
  )::text image,
  EXISTS(SELECT 1 FROM books b WHERE b.company_id<>? OR NOT EXISTS(SELECT 1 FROM finance_journals j WHERE j.id=b.secondary_journal_id AND j.company_id=b.company_id))

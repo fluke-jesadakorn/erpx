@@ -1,3 +1,4 @@
+import { intercompanyPairPointSql } from './finance-read-tail-r42-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { financeGroupEditions } from '@erpx/server-collaboration/adapters/native-finance-group-editions';
 import { groupCompanyPurchases, groupEditionPurchases, requireGroupCompanyHistory, groupHistoryPredicate, groupSourceSql, groupEditionHistorySql, groupRecordHistorySql } from "@erpx/server-finance/adapters/group-purchase-sources";
@@ -51,7 +52,7 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
                 .all<Row>();
         },
         readSourcePair(id: string, holdingId: string) {
-            return database.prepare("SELECT * FROM finance_intercompany_document_pairs WHERE id=? AND holding_id=? AND status='confirmed'")
+            return database.prepare(intercompanyPairPointSql(" AND status='confirmed'"))
                 .bind(id, holdingId)
                 .first<Row>();
         },

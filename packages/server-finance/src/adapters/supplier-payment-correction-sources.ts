@@ -1,3 +1,4 @@
+import {journalLineCountSql} from './finance-read-tail-r43-sql';
 import "server-only";
 import {journalLineEvidenceSql} from './finance-read-tail-r22-sql';
 /** Only the original Finance reversal receipt and mirror journal establish a
@@ -12,13 +13,13 @@ export const financePaymentReversalSources=`SELECT payment.id,payment.company_id
  WHERE payment.status='voided' AND original.reversed_by=reversal.reversed_by AND original.reversed_at=reversal.reversed_at
  AND original_capture.evidence_json::jsonb->'lines'=${journalLineEvidenceSql('original.id')}
  AND correction_capture.evidence_json::jsonb->'lines'=${journalLineEvidenceSql('correction.id')}
- AND (SELECT count(*) FROM finance_journal_lines line WHERE line.journal_id=original.id)>=2
- AND (SELECT count(*) FROM finance_journal_lines line WHERE line.journal_id=original.id)=(SELECT count(*) FROM finance_journal_lines line WHERE line.journal_id=correction.id)
+ AND (${journalLineCountSql('original.id')})>=2
+ AND (${journalLineCountSql('original.id')})=(${journalLineCountSql('correction.id')})
  AND NOT EXISTS(SELECT 1 FROM finance_journal_lines line LEFT JOIN finance_journal_lines mirror ON mirror.journal_id=correction.id AND mirror.ordinal=line.ordinal WHERE line.journal_id=original.id AND (mirror.id IS NULL OR mirror.account_id<>line.account_id OR (mirror.debit_minor,mirror.credit_minor,mirror.base_debit_minor,mirror.base_credit_minor,mirror.dimension_json) IS DISTINCT FROM (line.credit_minor,line.debit_minor,line.base_credit_minor,line.base_debit_minor,line.dimension_json)))
  AND NOT EXISTS(SELECT 1 FROM finance_book_postings original_book LEFT JOIN finance_book_postings correction_book ON correction_book.primary_journal_id=correction.id AND correction_book.rule_id=original_book.rule_id AND correction_book.company_id=payment.company_id
  LEFT JOIN finance_journals original_secondary ON original_secondary.id=original_book.secondary_journal_id LEFT JOIN finance_journals correction_secondary ON correction_secondary.id=correction_book.secondary_journal_id
  LEFT JOIN finance_book_rules rule ON rule.id=original_book.rule_id WHERE original_book.primary_journal_id=original.id AND (original_book.company_id<>payment.company_id OR correction_book.secondary_journal_id IS NULL OR original_secondary.company_id IS DISTINCT FROM payment.company_id OR original_secondary.chart_id IS DISTINCT FROM correction_secondary.chart_id OR original_secondary.source_type IS DISTINCT FROM 'book_projection' OR original_secondary.source_id IS DISTINCT FROM original.id OR original_secondary.status IS DISTINCT FROM 'reversed' OR original_secondary.reversed_by IS DISTINCT FROM original.reversed_by OR original_secondary.reversed_at IS DISTINCT FROM original.reversed_at OR correction_secondary.source_type IS DISTINCT FROM 'book_projection' OR correction_secondary.source_id IS DISTINCT FROM correction.id OR correction_secondary.status IS DISTINCT FROM 'posted' OR rule.status IS DISTINCT FROM 'approved' OR rule.company_id IS DISTINCT FROM payment.company_id OR rule.primary_chart_id IS DISTINCT FROM original.chart_id OR rule.secondary_chart_id IS DISTINCT FROM original_secondary.chart_id OR rule.prepared_by IS NOT DISTINCT FROM rule.reviewed_by
- OR (SELECT count(*) FROM finance_journal_lines line WHERE line.journal_id=original_secondary.id)<>(SELECT count(*) FROM finance_journal_lines line WHERE line.journal_id=correction_secondary.id)
+ OR (${journalLineCountSql('original_secondary.id')})<>(${journalLineCountSql('correction_secondary.id')})
  OR EXISTS(SELECT 1 FROM finance_journal_lines line LEFT JOIN finance_journal_lines mirror ON mirror.journal_id=correction_secondary.id AND mirror.ordinal=line.ordinal LEFT JOIN finance_book_account_mappings mapping ON mapping.rule_id=rule.id AND mapping.primary_account_id=(SELECT account_id FROM finance_journal_lines primary_line WHERE primary_line.journal_id=original.id AND primary_line.ordinal=line.ordinal)
  WHERE line.journal_id=original_secondary.id AND (mirror.id IS NULL OR mirror.account_id<>line.account_id OR mapping.secondary_account_id IS DISTINCT FROM line.account_id OR (mirror.debit_minor,mirror.credit_minor,mirror.base_debit_minor,mirror.base_credit_minor) IS DISTINCT FROM (line.credit_minor,line.debit_minor,line.base_credit_minor,line.base_debit_minor)))))`;
 
