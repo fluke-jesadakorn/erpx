@@ -4,15 +4,14 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {WorkItem} from "@erpx/feature-work_projection/lib/work-item";
 import {hasModuleAccess} from "@erpx/catalogue/module-access";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
-import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {learningPackageEnforcementMode,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
-import {clockProbe,nativeSourceProbe} from "./learning-read-sql";
+import {actorScopeExistsProbe,clockProbe,nativeSourceProbe} from "./learning-read-sql";
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 function visible(actor:WorkContext,id:string,company:string){
  const permitted=hasModuleAccess(actor.modules,'learning')&&hasPermission(actor,'records.read'),capabilities=['learn.courses','learn.assignments','learn.results','learn.certificates'];
- return {sql:`EXISTS(WITH learning_source_clock AS ${clockProbe} ${nativeSourceProbe('learning_source')} CROSS JOIN learning_source_clock WHERE learning_source.id=${id} AND learning_source.company_id=${company} AND ${permitted?'TRUE':'FALSE'} AND (?::text IS NULL OR learning_source.capability='learn.courses' OR learning_source.branch_id=?) AND (?::text IS NULL OR learning_source.capability='learn.courses' OR learning_source.department_id=?) AND EXISTS(SELECT 1 FROM (SELECT learning_source.company_id,?::text branch_id,?::text department_id) learning_actor_scope WHERE ${assignmentReadSql('learning_actor_scope','records.read')}) AND (${capabilities.map(capability=>`(learning_source.capability='${capability}' AND ${purchasedCapabilityPredicate('learning_source.company_id',capability,'history','learning_source_clock.now_ms')})`).join(' OR ')}) AND ${scheduledFeaturePredicate('learning_source.company_id','learning')})`,args:[actor.branchId,actor.branchId,actor.departmentId,actor.departmentId,actor.branchId,actor.departmentId,actor.assignmentId,actor.userId,actor.role]};
+ return {sql:`EXISTS(WITH learning_source_clock AS ${clockProbe} ${nativeSourceProbe('learning_source')} CROSS JOIN learning_source_clock WHERE learning_source.id=${id} AND learning_source.company_id=${company} AND ${permitted?'TRUE':'FALSE'} AND (?::text IS NULL OR learning_source.capability='learn.courses' OR learning_source.branch_id=?) AND (?::text IS NULL OR learning_source.capability='learn.courses' OR learning_source.department_id=?) AND ${actorScopeExistsProbe('learning_source.company_id,?::text branch_id,?::text department_id',' ')} AND (${capabilities.map(capability=>`(learning_source.capability='${capability}' AND ${purchasedCapabilityPredicate('learning_source.company_id',capability,'history','learning_source_clock.now_ms')})`).join(' OR ')}) AND ${scheduledFeaturePredicate('learning_source.company_id','learning')})`,args:[actor.branchId,actor.branchId,actor.departmentId,actor.departmentId,actor.branchId,actor.departmentId,actor.assignmentId,actor.userId,actor.role]};
 }
 /** Evaluation may cite only an actual currently readable Learning result. */
 

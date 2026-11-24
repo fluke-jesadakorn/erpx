@@ -22659,6 +22659,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "files",
+      "modules": [
+        "manage_erpx"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Files social draft image guard prefix must stay one constant."
+      },
+      "apps": [
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-files"
+      ],
+      "id": "files.read-tail-r25-social-draft-guard.unit",
+      "files": [
+        "tests/unit/files/read-tail-r25-social-draft-guard.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "files.rust-asset-descriptor-binding.unit",
       "lane": "unit",
       "owner": "files",
@@ -49700,6 +49727,33 @@
       "id": "learning.read-tail-r6-dedupe.unit",
       "files": [
         "tests/unit/learning/read-tail-r6-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "learning",
+      "modules": [
+        "learning"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Learning grant, actor scope, assignments image and source literals must stay four helpers."
+      },
+      "apps": [
+        "learn"
+      ],
+      "packages": [
+        "@erpx/server-learning"
+      ],
+      "id": "learning.read-tail-r7-dedupe.unit",
+      "files": [
+        "tests/unit/learning/read-tail-r7-dedupe.test.ts"
       ],
       "framework": "vitest"
     },

@@ -7,7 +7,7 @@ import {hasModuleAccess} from "@erpx/catalogue/module-access";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {learningPackageEnforcementMode,readPurchasedAccesses} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
-import {actorScopeProbe,clockProbe} from "./learning-read-sql";
+import {actorScopeProbe,clockProbe,sourceLiteral} from "./learning-read-sql";
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 const capabilities={'learning-completions':'learn.results','overdue-required-learning':'learn.assignments'} as const;
 export async function learningMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){
@@ -16,6 +16,6 @@ export async function learningMetricHistoryAccess(database:SqlDatabase,actor:Wor
  return {'learning-completions':current&&access['learn.assignments'].history&&access['learn.results'].history,'overdue-required-learning':current&&access['learn.assignments'].history};
 }
 export async function learningMetricSource(database:SqlDatabase,actor:WorkContext,id:string){
- const access=await learningMetricHistoryAccess(database,actor);if(!access[id as keyof typeof capabilities])throw new ApiError(403,'METRIC_SOURCE_UNAVAILABLE','This Learning metric requires its purchased history and current source authority.');if(await learningPackageEnforcementMode()!=='enforced')return {sql:'SELECT * FROM learning_assignments',args:[] as unknown[]};
+ const access=await learningMetricHistoryAccess(database,actor);if(!access[id as keyof typeof capabilities])throw new ApiError(403,'METRIC_SOURCE_UNAVAILABLE','This Learning metric requires its purchased history and current source authority.');if(await learningPackageEnforcementMode()!=='enforced')return {sql:sourceLiteral('learning_assignments'),args:[] as unknown[]};
  const clock='learning_metric_clock.now_ms',capability=capabilities[id as keyof typeof capabilities];return {sql:`WITH learning_metric_clock AS ${clockProbe} SELECT learning_metric_owned.* FROM learning_assignments learning_metric_owned CROSS JOIN learning_metric_clock WHERE ${assignmentReadSql('learning_metric_owned','records.read')} AND ${purchasedCapabilityPredicate('learning_metric_owned.company_id','learn.assignments','history',clock)} AND ${purchasedCapabilityPredicate('learning_metric_owned.company_id',capability,'history',clock)} AND ${scheduledFeaturePredicate('learning_metric_owned.company_id','learning')}`,args:[actor.assignmentId,actor.userId,actor.role]};
 }

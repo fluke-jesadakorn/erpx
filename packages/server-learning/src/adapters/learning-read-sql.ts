@@ -2,6 +2,7 @@
  * text source keeps equivalent actor-scope, clock and course-image fragments
  * from drifting apart. */
 import {packageClockSql} from "@erpx/server-commercial/public/purchased-capability-sql";
+import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 
 export const actorScopeProbe = "(SELECT ?::text company_id,?::text branch_id,?::text department_id";
 export const clockProbe = `MATERIALIZED (SELECT ${packageClockSql} now_ms)`;
@@ -27,3 +28,19 @@ export const overdueEvidenceColumns = 'SELECT a.id,a.version,a.status,a.due_date
 
 /** Module-grant membership probe, parameterized only by the assignment alias. */
 export const learningModuleGrantProbe = (alias: string) => `SELECT 1 FROM erpx_json_each(${alias}.modules_json) module WHERE module.value='learning'`;
+
+/** r7 — current-assignment module-grant existence probe. The company binding and
+ * aliasing stay in the caller's conditions; only the grant alias varies, so each
+ * rendered query keeps the exact pre-dedupe bytes. */
+export const moduleGrantAssignmentProbe = (alias: string, conditions: string) => `EXISTS(SELECT 1 FROM assignments ${alias} WHERE ${conditions} AND EXISTS(${learningModuleGrantProbe(alias)}))`;
+
+/** r7 — actor-scope existence probe. The spacing parameter preserves the two
+ * byte-identical renderings already emitted by the read tail. */
+export const actorScopeExistsProbe = (columns: string, spacing = '') => `EXISTS(SELECT 1 FROM${spacing}(SELECT ${columns})${spacing}learning_actor_scope WHERE ${assignmentReadSql('learning_actor_scope','records.read')})`;
+
+/** r7 — assignments image subquery, parameterized only by the projected JSON
+ * expression so the guarded and unguarded images keep identical source bytes. */
+export const assignmentsImage = (projection: string) => `(SELECT jsonb_agg(${projection} ORDER BY a.id) FROM learning_assignments a WHERE a.company_id=?)`;
+
+/** r7 — literal SELECT * source text, parameterized only by the owner table. */
+export const sourceLiteral = (table: string) => `SELECT * FROM ${table}`;

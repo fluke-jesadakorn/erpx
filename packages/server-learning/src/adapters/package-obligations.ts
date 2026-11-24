@@ -3,6 +3,7 @@ import {createHash} from "node:crypto";
 import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgres";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
+import {sourceLiteral} from "./learning-read-sql";
 
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
@@ -30,8 +31,8 @@ export const learningPackageSettlementSources={
  FROM learning_assignments a LEFT JOIN learning_courses c ON c.id=a.course_id
  LEFT JOIN LATERAL(SELECT e.* FROM learning_assignment_events e WHERE e.assignment_id=a.id ORDER BY e.version DESC LIMIT 1) event ON TRUE
  LEFT JOIN command_receipts command ON event.id='learning-assignment-event-'||command.command_id`,
- handoffs:"SELECT * FROM learning_eligibility_handoffs",
- certificates:"SELECT * FROM learning_certificates",
+ handoffs:sourceLiteral('learning_eligibility_handoffs'),
+ certificates:sourceLiteral('learning_certificates'),
 } as const;
 
 export async function learningPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){

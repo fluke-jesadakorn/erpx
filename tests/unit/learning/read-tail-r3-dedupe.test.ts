@@ -44,8 +44,8 @@ describe('Learning read-tail r3 byte-identical / parameterized family dedupe', (
     const text = src('record-purchases.ts');
     expect(text).not.toContain('SELECT 1 FROM (${nativeSources})');
     expect(text.match(/nativeSourceProbe\(/g) ?? []).toHaveLength(3);
-    // The remaining SELECTs in the file are unrelated actor-scope/record probes.
-    expect(text.match(/SELECT /g) ?? []).toHaveLength(4);
+    // r7 composes the actor-scope probe, so only the record probes remain inline.
+    expect(text.match(/SELECT /g) ?? []).toHaveLength(2);
   });
 
   test('overdue evidence head is byte-identical at its two call sites', () => {
@@ -69,7 +69,8 @@ describe('Learning read-tail r3 byte-identical / parameterized family dedupe', (
     for (const name of ['purchases.ts', 'evaluation-source-policy.ts']) {
       const text = src(name);
       expect(text).not.toContain("SELECT 1 FROM erpx_json_each(");
-      expect(text).toContain('learningModuleGrantProbe(');
+      // r7 composes it through moduleGrantAssignmentProbe; no inline grant survives.
+      expect(text).toContain('moduleGrantAssignmentProbe(');
     }
     const shared = src('learning-read-sql.ts');
     expect(shared.match(/export const learningModuleGrantProbe =/g) ?? []).toHaveLength(1);

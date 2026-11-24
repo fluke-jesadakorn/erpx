@@ -42,7 +42,7 @@ describe('Learning read-tail r6 parameterized org-node label family dedupe', () 
     expect(text).not.toMatch(/LOCK TABLE|FOR UPDATE|FOR SHARE|pg_advisory/i);
   });
 
-  test('retirement:ts-statements stays strictly below the r6 BEFORE=78 baseline', () => {
+  test('retirement:ts-statements stays strictly below the r6 BEFORE=77 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -52,6 +52,6 @@ describe('Learning read-tail r6 parameterized org-node label family dedupe', () 
       }
     };
     walk(srcRoot);
-    expect(total).toBeLessThan(78);
+    expect(total).toBeLessThan(77);
   });
 });
