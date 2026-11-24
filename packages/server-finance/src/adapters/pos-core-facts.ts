@@ -1,3 +1,4 @@
+import { POS_CUSTOMER_PARTY_ACTIVE_SQL, POS_JOURNAL_LINE_NET_SQL } from './finance-read-tail-r38-sql';
 import "server-only";
 import { CHART_BASE_CURRENCY_BY_ID_SQL } from './finance-read-tail-r15-sql';
 import { ACCOUNT_SELECT_PREFIX } from './finance-read-tail-r30-sql';
@@ -24,15 +25,15 @@ writeFinanceAccounts1:async(facts:{accountId:`${string}-${string}-${string}-${st
 readFinanceAccounts5:(facts:{fact0:string;company:string;chartId:string;})=>one(db,ACCOUNT_SELECT_PREFIX + "id=? AND company_id=? AND chart_id=? AND status='active'",facts.fact0,facts.company,facts.chartId),
 readFinanceCharts3:(facts:{chartId:string;company:string;})=>one(db,CHART_BASE_CURRENCY_BY_ID_SQL,facts.chartId,facts.company),
 readCompanyFxRates1:(facts:{company:string;currency:string;})=>one(db,'SELECT id FROM company_fx_rates WHERE company_id=? AND currency=? ORDER BY effective_date DESC,confirmed_at DESC LIMIT 1',facts.company,facts.currency),
-readFinanceParties1:(facts:{partyId:string;company:string;})=>one(db,"SELECT id FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND status='active'",facts.partyId,facts.company),
-readFinanceParties2:(facts:{partyId:string;company:string;})=>one(db,"SELECT id FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND status='active'",facts.partyId,facts.company),
+readFinanceParties1:(facts:{partyId:string;company:string;})=>one(db,POS_CUSTOMER_PARTY_ACTIVE_SQL,facts.partyId,facts.company),
+readFinanceParties2:(facts:{partyId:string;company:string;})=>one(db,POS_CUSTOMER_PARTY_ACTIVE_SQL,facts.partyId,facts.company),
 readFinanceBankTransactions1:(facts:{bankTransactionId:string;company:string;})=>one(db,'SELECT t.*,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=? FOR UPDATE OF t',facts.bankTransactionId,facts.company),
 writeFinanceBankTransactions1:async(facts:{fact0:string | number | boolean | null;id:string | number | boolean | null;})=>(await nativeFinanceOwnerWriteSystem(db, 'system', 'pos_bank_match', [facts.fact0,facts.id])).run(),
 readFinanceJournals1:(facts:{journalId:string;company:string;currency:string | number | boolean | null;stripe:string;})=>one(db,"SELECT j.id,SUM(l.debit_minor-l.credit_minor) net FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id WHERE j.id=? AND j.company_id=? AND j.currency=? AND j.status='posted' AND j.source_type='manual' AND l.account_id=? GROUP BY j.id",facts.journalId,facts.company,facts.currency,facts.stripe),
-readFinanceJournalLines1:(facts:{journalId:string;bank:string;})=>one(db,'SELECT COALESCE(SUM(debit_minor-credit_minor),0) net FROM finance_journal_lines WHERE journal_id=? AND account_id=?',facts.journalId,facts.bank),
+readFinanceJournalLines1:(facts:{journalId:string;bank:string;})=>one(db,POS_JOURNAL_LINE_NET_SQL,facts.journalId,facts.bank),
 readFinanceBankMatchTargets1:(facts:{journal_id:string | number | boolean | null;})=>one(db,'SELECT claim.journal_line_id FROM finance_bank_match_targets claim JOIN finance_journal_lines line ON line.id=claim.journal_line_id WHERE line.journal_id=?',facts.journal_id),
 readFinanceBankTransactions2:(facts:{bankTransactionId:string;company:string;})=>one(db,'SELECT t.*,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=? FOR UPDATE OF t',facts.bankTransactionId,facts.company),
-readFinanceJournalLines2:(facts:{journal_id:string | number | boolean | null;bank_account:string | number | boolean | null;})=>one(db,'SELECT COALESCE(SUM(debit_minor-credit_minor),0) net FROM finance_journal_lines WHERE journal_id=? AND account_id=?',facts.journal_id,facts.bank_account),
+readFinanceJournalLines2:(facts:{journal_id:string | number | boolean | null;bank_account:string | number | boolean | null;})=>one(db,POS_JOURNAL_LINE_NET_SQL,facts.journal_id,facts.bank_account),
 writeFinanceBankTransactions2:async(facts:{id:string | number | boolean | null;id2:string | number | boolean | null;})=>(await nativeFinanceOwnerWriteSystem(db, 'system', 'pos_bank_match_payout', [facts.id,facts.id2])).run(),
 writeFinancePayments3:async(facts:{fact0:`${string}-${string}-${string}-${string}-${string}`;company_id:string | number | boolean | null;party_id:string | number | boolean | null;fact3:string;fact4:string | number | boolean | null;currency:string | number | boolean | null;amount_minor:string | number | boolean | null;account:string;journal:string | null;actorId:string;actorId2:string;fact11:number;fact12:number;})=>(await nativeFinanceOwnerWriteSystem(db, String(facts.company_id ?? 'system'), 'pos_refund_payment_insert', [facts.fact0,facts.company_id,facts.party_id,facts.fact3,facts.fact4,facts.currency,facts.amount_minor,facts.account,facts.journal,facts.actorId,facts.actorId2,facts.fact11,facts.fact12])).run()
 };}

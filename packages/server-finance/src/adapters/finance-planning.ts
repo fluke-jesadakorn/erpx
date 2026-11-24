@@ -1,3 +1,4 @@
+import { PLAN_EDITION_POINT_SQL } from './finance-read-tail-r38-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { FINANCE_ADVISORY_XACT_LOCK_SQL } from "./advisory-lock-dedupe-sql";
 import { ACTIVE_CHART_BASE_CURRENCY_SQL } from "./chart-base-currency-dedupe-sql";
@@ -87,7 +88,7 @@ bankAccount:async(actor,id)=>write
           .bind(id, actor.companyId)
           .first(),
 decisionRow:async(actor,id)=>write
-    .prepare("SELECT * FROM finance_plan_editions WHERE id=? AND company_id=?")
+    .prepare(PLAN_EDITION_POINT_SQL)
     .bind(id, actor.companyId)
     .first<PlanRow>(),
 decisionCommit:async(facts)=>{const {actor,id,input,action,key,op,row,now}=facts;return executeCommand(
@@ -149,7 +150,7 @@ lockChart:async(chartId)=>db
 snapshotCommit:async(facts)=>{const {actor,id,input,key,op,row,snapshotId,result,sourceHash,csv,exportHash,now}=facts;return executeCommand(db, actor, key, op, input, id, row.version, result, [await financePlanning(db, actor.companyId).createSnapshot({ snapshotId, companyId: actor.companyId, definitionId: id, startDate: input.startDate, endDate: input.endDate, resultJson: JSON.stringify(result), sourceHash, userId: actor.userId, now, csv, exportHash }),
     ]);},
 exportRow:async(actor,id)=>write.prepare("SELECT result_json,export_content,export_sha256 FROM finance_report_snapshots WHERE id=? AND company_id=?").bind(id,actor.companyId).first<{result_json:string;export_content:string|null;export_sha256:string|null}>(),
-recordRow:async(actor,id)=>write.prepare('SELECT * FROM finance_plan_editions WHERE id=? AND company_id=?').bind(id,actor.companyId).first<PlanRow>(),
+recordRow:async(actor,id)=>write.prepare(PLAN_EDITION_POINT_SQL).bind(id,actor.companyId).first<PlanRow>(),
 budgetSources:async(actor,chartId,accountId,month,dims,page)=>(await write.prepare(`SELECT jl.*,j.id journal_id,j.journal_number,j.entry_date,j.currency,j.status FROM finance_journal_lines jl JOIN finance_journals j ON j.id=jl.journal_id WHERE j.company_id=? AND j.chart_id=? AND j.status IN ('posted','reversed') AND NOT ${fiscalCloseSourceSql()} AND jl.account_id=? AND left(j.entry_date,7)=? AND jl.dimension_json::jsonb @> ?::jsonb ORDER BY j.entry_date,j.id,jl.ordinal LIMIT 31 OFFSET ?`).bind(actor.companyId,chartId,accountId,month,dims,(page-1)*30).all()).results,
 sourceSnapshot:async(actor,id)=>write.prepare('SELECT s.*,p.content_json,p.chart_id FROM finance_report_snapshots s JOIN finance_plan_editions p ON p.id=s.definition_id WHERE s.id=? AND s.company_id=? AND p.company_id=?').bind(id,actor.companyId,actor.companyId).first<{result_json:string;content_json:string;source_hash:string;chart_id:string;start_date:string;end_date:string}>(),
 sourceJournals:async(actor,selected)=>(await write.prepare(`SELECT id journal_id,journal_number,entry_date,currency,status,(SELECT SUM(l.base_debit_minor) FROM finance_journal_lines l WHERE l.journal_id=finance_journals.id) base_debit_minor,(SELECT SUM(l.base_credit_minor) FROM finance_journal_lines l WHERE l.journal_id=finance_journals.id) base_credit_minor FROM finance_journals WHERE company_id=? AND id IN (${selected.map(()=>'?').join(',')}) ORDER BY entry_date,id`).bind(actor.companyId,...selected).all()).results}}

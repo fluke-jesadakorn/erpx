@@ -1,3 +1,4 @@
+import { CUSTOMER_PARTY_PROFILE_SQL } from './finance-read-tail-r38-sql';
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -21,5 +22,5 @@ export async function documentPostingPreview(actor: WorkContext, kind: "invoice"
 
 export async function editedCustomerParty(actor: WorkContext, id: string, provided?: SqlDatabase) {
   const db = provided ?? (await holdingResources(actor.holdingId)).write;
-  return db.prepare("SELECT * FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND person_id IS NULL").bind(id, actor.companyId).first<PostingPreviewRow>();
+  return db.prepare(CUSTOMER_PARTY_PROFILE_SQL).bind(id, actor.companyId).first<PostingPreviewRow>();
 }

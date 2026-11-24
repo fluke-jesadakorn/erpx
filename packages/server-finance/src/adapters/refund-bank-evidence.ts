@@ -1,3 +1,4 @@
+import { REFUND_INSTRUCTION_POINT_SQL } from './finance-read-tail-r38-sql';
 import 'server-only';
 import { APPROVED_SECONDARY_CHART_RULE_SQL } from './finance-read-tail-r15-sql';
 import { CHART_IMAGE_BY_COMPANY_SQL } from './finance-read-tail-r36-sql';
@@ -41,7 +42,7 @@ const businessInstruction=(i:Row)=>[i.id,i.obligation_id,i.company_id,i.amount_m
 const businessOwner=(o:Row)=>[o.id,o.company_id,o.branch_id,o.department_id,o.return_id,o.billing_correction_id,o.invoice_id,o.source_credit_journal_id,o.party_id,o.currency,o.chart_id,o.balance_account_id,o.amount_minor,o.base_amount_minor,o.created_by,o.created_at,o.approved_by,o.approved_at,o.beneficiary_name,o.beneficiary_account,o.approval_reason,o.direction];
 const csvHeaders=['instruction_id','source_return','direction','date','currency','amount','company_bank_account','counterparty','counterparty_account'];
 async function source(database:SqlDatabase,actor:WorkContext,id:string):Promise<Source>{
- const row=await database.prepare('SELECT * FROM finance_refund_instructions WHERE id=? AND company_id=?').bind(id,actor.companyId).first<Row>();
+ const row=await database.prepare(REFUND_INSTRUCTION_POINT_SQL).bind(id,actor.companyId).first<Row>();
  if(!row)throw new ApiError(404,'REFUND_INSTRUCTION_NOT_FOUND','The actual refund instruction is unavailable in this Company.');
  const owner=await database.prepare(`SELECT o.*,COALESCE(r.number,c.number) return_number FROM finance_refund_obligations o LEFT ${commerceSnapshotSources().refunds_commerce_returns_r_join} ON r.id=o.return_id AND r.company_id=o.company_id LEFT JOIN finance_billing_corrections c ON c.id=o.billing_correction_id AND c.company_id=o.company_id WHERE o.id=? AND o.company_id=?`).bind(row.obligation_id,actor.companyId).first<Row>();
  if(!owner)throw new ApiError(404,'REFUND_NOT_FOUND','The original refund obligation is unavailable.');

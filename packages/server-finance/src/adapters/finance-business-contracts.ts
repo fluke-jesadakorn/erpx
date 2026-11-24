@@ -1,3 +1,4 @@
+import { BILLING_RUN_CHILD_EXISTS_SQL, BILLING_RUN_POINT_SQL, BUSINESS_CONTRACT_POINT_SQL, BILLING_RUN_ROOT_WINDOW_SQL } from './finance-read-tail-r38-sql';
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { INVOICE_EXISTS_PREFIX } from './finance-read-tail-r30-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
@@ -54,7 +55,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
     const repository: BusinessContractRepository<SqlStatement> = { async contract(id: string, companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT * FROM finance_business_contracts WHERE id=? AND company_id=?")
+                .prepare(BUSINESS_CONTRACT_POINT_SQL)
                 .bind(id, companyId)
                 .first<Row>();
         }, async configurationChart(chartId: string, companyId: string) {
@@ -102,7 +103,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async billedWindow(root_id: string | number | null, startDate: string) {
             const db = read();
             return db
-                .prepare("SELECT 1 FROM finance_business_billing_runs WHERE root_id=? AND service_to>=?")
+                .prepare(BILLING_RUN_ROOT_WINDOW_SQL)
                 .bind(root_id, startDate)
                 .first();
         }, guardContractParent(key: string, value: "contract-parent", id: string | number | null, companyId: string, value2: number) {
@@ -114,7 +115,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async retainedBilledWindow(root_id: string | number | null, startDate: string) {
             const db = read();
             return db
-                .prepare("SELECT 1 FROM finance_business_billing_runs WHERE root_id=? AND service_to>=?")
+                .prepare(BILLING_RUN_ROOT_WINDOW_SQL)
                 .bind(root_id, startDate)
                 .first();
         }, guardContractVersion(key: string, value: "contract-version", id: string, companyId: string, status: "draft" | "active", expectedVersion: number) {
@@ -135,7 +136,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async childBill(parentId: unknown) {
             const db = read();
             return db
-                .prepare("SELECT 1 FROM finance_business_billing_runs WHERE parent_run_id=?")
+                .prepare(BILLING_RUN_CHILD_EXISTS_SQL)
                 .bind(parentId)
                 .first();
         }, async recognitionExists(id: string | number | null) {
@@ -237,13 +238,13 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async zeroChildBill(id: string) {
             const db = read();
             return db
-                .prepare("SELECT 1 FROM finance_business_billing_runs WHERE parent_run_id=?")
+                .prepare(BILLING_RUN_CHILD_EXISTS_SQL)
                 .bind(id)
                 .first();
         }, async zeroParentBill(parent_run_id: string | number, companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT * FROM finance_business_billing_runs WHERE id=? AND company_id=?")
+                .prepare(BILLING_RUN_POINT_SQL)
                 .bind(parent_run_id, companyId)
                 .first<Row>();
         }, guardZeroBill(key: string, value: "zero-usage-version", id: string, companyId: string, expectedVersion: number, id2: string) {

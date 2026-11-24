@@ -1,3 +1,4 @@
+import { DIMENSION_VALUES_ACTIVE_SQL } from './finance-read-tail-r38-sql';
 import {posInitialStockJournalMarked} from '@erpx/server-finance/adapters/pos-initial-stock-journal-sources';
 import { DIMENSION_DEFINITIONS_SQL } from './finance-read-tail-r17-sql';
 import { ACCOUNT_CHART_ID_SQL } from './finance-read-tail-r18-sql';
@@ -30,7 +31,7 @@ async function references(db:SqlDatabase,actor:WorkContext,chartId:string){
   db.prepare("SELECT * FROM finance_accounts WHERE chart_id=? AND company_id=? ORDER BY code,id").bind(chartId,actor.companyId).all<FinanceRow>(),
   db.prepare("SELECT * FROM finance_periods WHERE company_id=? ORDER BY start_date DESC,id").bind(actor.companyId).all<FinanceRow>(),
   db.prepare(DIMENSION_DEFINITIONS_SQL).bind(actor.companyId).all<LedgerRow>(),
-  db.prepare("SELECT id,dimension_id,code,name FROM finance_dimension_values WHERE company_id=? AND status='active' ORDER BY code").bind(actor.companyId).all<LedgerRow>(),
+  db.prepare(DIMENSION_VALUES_ACTIVE_SQL).bind(actor.companyId).all<LedgerRow>(),
  ]);
  return {chart,accounts:accounts.results,periods:periods.results,dimensions:dimensions.results,dimensionValues:dimensionValues.results};
 }

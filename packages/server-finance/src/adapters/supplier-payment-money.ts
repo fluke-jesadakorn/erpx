@@ -1,3 +1,4 @@
+import { SUPPLIER_RECEIPT_SOURCE_SQL } from './finance-read-tail-r38-sql';
 import 'server-only';
 import {isDeepStrictEqual} from 'node:util';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
@@ -72,7 +73,7 @@ async function image(database:SqlDatabase,actor:WorkContext,command:Command):Pro
   rows(database,'SELECT to_jsonb(r)::text source FROM finance_payment_reversals r WHERE r.payment_id=? ORDER BY r.id',[paymentId]),
   rows(database,`SELECT (to_jsonb(m)||jsonb_build_object('amount_units',m.amount_units::text,'usd_units',m.usd_units::text,'transaction_date',m.transaction_date::text))::text source FROM money_transaction_snapshots m WHERE m.company_id=? AND ((m.source_type='finance_supplier_instruction' AND m.source_id=?) OR (m.source_type='finance_payment' AND m.source_id=?) OR (m.source_type='finance_payment_reversal' AND m.source_id=?)) ORDER BY m.source_type,m.source_id,m.amount_kind`,[actor.companyId,typeof instruction?.id==='string'?instruction.id:command.kind==='confirm'?command.instructionId:'',paymentId,`payment-reversal-${command.key}`]),
   rows(database,`SELECT to_jsonb(r)::text source FROM command_receipts r WHERE r.command_id<>? AND r.record_id IN (${recordSlots}) AND r.authority_json::jsonb->>'companyId'=? ORDER BY r.command_id`,[command.key,...recordIds,actor.companyId]),
-  one(database,'SELECT to_jsonb(r)::text source FROM command_receipts r WHERE r.command_id=?',[command.key]),
+  one(database,SUPPLIER_RECEIPT_SOURCE_SQL,[command.key]),
   database.prepare(`SELECT EXISTS(SELECT 1 FROM finance_supplier_instructions i WHERE i.batch_id=?) AND NOT EXISTS(SELECT 1 FROM finance_supplier_instructions i WHERE i.batch_id=? AND NOT EXISTS(SELECT 1 FROM (${commerceFinanceRecordSources.purchase.invoice}) p WHERE p.id=i.invoice_id AND p.company_id=?)) owned`).bind(batchId,batchId,actor.companyId).first<boolean>('owned'),
   database.prepare(`SELECT EXISTS(SELECT 1 FROM (${supplierPaymentOriginalSources}) s WHERE s.id=? AND s.company_id=?) native`).bind(paymentId,actor.companyId).first<boolean>('native'),
  ]);
@@ -197,7 +198,7 @@ async function owned<Result>(actor:WorkContext,command:Command,run:(database:Sql
    const result=await run(database),after=await image(database,actor,command);validate(unit,after,false);
    // Validate the original request hash/actor/receipt BEFORE its assertion
    // cleanup can produce deferred work. Final guards below are read-only.
-   const replay=await replayCommand(database,actor,command.key,command.kind==='confirm'?'finance.supplier_batch.confirm':'finance.payment.reverse',command.kind==='confirm'?command.instructionId:command.paymentId,command.input);equal(result,replay);const receipt=await one(database,'SELECT to_jsonb(r)::text source FROM command_receipts r WHERE r.command_id=?',[command.key]);
+   const replay=await replayCommand(database,actor,command.key,command.kind==='confirm'?'finance.supplier_batch.confirm':'finance.payment.reverse',command.kind==='confirm'?command.instructionId:command.paymentId,command.input);equal(result,replay);const receipt=await one(database,SUPPLIER_RECEIPT_SOURCE_SQL,[command.key]);
    await flushFinanceDeferredEffects(database);
    const final=await image(database,actor,command);validate(unit,final,true);equal(receipt,final.receipt);equal(refs,await references(database,actor.companyId));equal(current,await authority(database,actor,command.kind));
    await finalPurchase(database,actor,before,final);equal(unit.actorImage,JSON.stringify(actor));equal(final,await image(database,actor,command));

@@ -59,6 +59,21 @@ import {
   PAYROLL_LINE_IMAGE_SQL,
 } from '../../../packages/server-finance/src/adapters/finance-read-tail-r36-sql';
 import { PERIOD_EXISTS_BY_ID_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r37-sql';
+import {
+  BILLING_RUN_CHILD_EXISTS_SQL,
+  CUSTOMER_PARTY_PROFILE_SQL,
+  BILLING_RUN_POINT_SQL,
+  DIMENSION_VALUES_ACTIVE_SQL,
+  REFUND_INSTRUCTION_POINT_SQL,
+  BUSINESS_CONTRACT_POINT_SQL,
+  ACCRUAL_SCHEDULE_POINT_SQL,
+  CALCULATION_RUN_POINT_SQL,
+  PLAN_EDITION_POINT_SQL,
+  BILLING_RUN_ROOT_WINDOW_SQL,
+  POS_CUSTOMER_PARTY_ACTIVE_SQL,
+  POS_JOURNAL_LINE_NET_SQL,
+  SUPPLIER_RECEIPT_SOURCE_SQL,
+} from '../../../packages/server-finance/src/adapters/finance-read-tail-r38-sql';
 import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/people-payroll-final-owner-projections';
 import { workflowFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/workflow-final-owner-projections';
 import {
@@ -1042,7 +1057,7 @@ describe('finance read-tail r24 byte-identical SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2038);
-    expect(total).toBe(1965);
+    expect(total).toBe(1951);
   });
 });
 
@@ -1213,7 +1228,7 @@ describe('finance read-tail r30 byte-identical guard-prefix families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2027);
-    expect(total).toBe(1965);
+    expect(total).toBe(1951);
   });
 });
 
@@ -1257,7 +1272,7 @@ describe('finance read-tail r31 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1989);
-    expect(total).toBe(1965);
+    expect(total).toBe(1951);
   });
 });
 
@@ -1302,7 +1317,7 @@ describe('finance read-tail r32 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1985);
-    expect(total).toBe(1965);
+    expect(total).toBe(1951);
   });
 });
 
@@ -1347,7 +1362,7 @@ describe('finance read-tail r33 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1983);
-    expect(total).toBe(1965);
+    expect(total).toBe(1951);
   });
 });
 
@@ -1422,7 +1437,7 @@ describe('finance read-tail r34 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1981);
-    expect(total).toBe(1965);
+    expect(total).toBe(1951);
   });
 });
 
@@ -1471,7 +1486,7 @@ describe('finance read-tail r35 parameterized workforce actor scope family', () 
     };
     walk(root);
     expect(total).toBeLessThan(1974);
-    expect(total).toBe(1965);
+    expect(total).toBe(1951);
   });
 });
 
@@ -1546,7 +1561,7 @@ describe('finance read-tail r36 exact duplicate two-site SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1970);
-    expect(total).toBe(1965);
+    expect(total).toBe(1951);
   });
 });
 
@@ -1600,6 +1615,121 @@ describe('finance read-tail r37 exact duplicate period-exists read family', () =
     };
     walk(root);
     expect(total).toBeLessThan(1966);
-    expect(total).toBe(1965);
+    expect(total).toBe(1951);
+  });
+});
+
+describe('finance read-tail r38 byte-identical read families', () => {
+  // 13 byte-identical SQL families, 27 adapter call sites. Each constant is the
+  // exact SQL payload the inline literals carried; callers keep their own binds
+  // and result types. Row locks, tax/assertion SQL and every r15-r37 helper are
+  // untouched. Verified against HEAD by reversing each substitution.
+  const FAMILIES: [string, string][] = [
+    [BILLING_RUN_CHILD_EXISTS_SQL, 'SELECT 1 FROM finance_business_billing_runs WHERE parent_run_id=?'],
+    [CUSTOMER_PARTY_PROFILE_SQL, "SELECT * FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND person_id IS NULL"],
+    [BILLING_RUN_POINT_SQL, 'SELECT * FROM finance_business_billing_runs WHERE id=? AND company_id=?'],
+    [DIMENSION_VALUES_ACTIVE_SQL, "SELECT id,dimension_id,code,name FROM finance_dimension_values WHERE company_id=? AND status='active' ORDER BY code"],
+    [REFUND_INSTRUCTION_POINT_SQL, 'SELECT * FROM finance_refund_instructions WHERE id=? AND company_id=?'],
+    [BUSINESS_CONTRACT_POINT_SQL, 'SELECT * FROM finance_business_contracts WHERE id=? AND company_id=?'],
+    [ACCRUAL_SCHEDULE_POINT_SQL, 'SELECT * FROM finance_accrual_schedules WHERE id=? AND company_id=?'],
+    [CALCULATION_RUN_POINT_SQL, 'SELECT * FROM finance_calculation_runs WHERE id=? AND company_id=?'],
+    [PLAN_EDITION_POINT_SQL, 'SELECT * FROM finance_plan_editions WHERE id=? AND company_id=?'],
+    [BILLING_RUN_ROOT_WINDOW_SQL, 'SELECT 1 FROM finance_business_billing_runs WHERE root_id=? AND service_to>=?'],
+    [POS_CUSTOMER_PARTY_ACTIVE_SQL, "SELECT id FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND status='active'"],
+    [POS_JOURNAL_LINE_NET_SQL, 'SELECT COALESCE(SUM(debit_minor-credit_minor),0) net FROM finance_journal_lines WHERE journal_id=? AND account_id=?'],
+    [SUPPLIER_RECEIPT_SOURCE_SQL, 'SELECT to_jsonb(r)::text source FROM command_receipts r WHERE r.command_id=?'],
+  ];
+
+  it('exposes 13 exact byte-identical SQL payloads with no row-lock text', () => {
+    expect(FAMILIES).toHaveLength(13);
+    for (const [value, sql] of FAMILIES) {
+      expect(value).toBe(sql);
+      expect(value).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+    }
+  });
+
+  const SITE_LITERALS: Record<string, string[]> = {
+    'finance-billing-corrections.ts': [
+      "'SELECT 1 FROM finance_business_billing_runs WHERE parent_run_id=?'",
+      "'SELECT * FROM finance_business_billing_runs WHERE id=? AND company_id=?'",
+      "'SELECT * FROM finance_business_contracts WHERE id=? AND company_id=?'",
+    ],
+    'finance-business-contracts.ts': [
+      '"SELECT 1 FROM finance_business_billing_runs WHERE parent_run_id=?"',
+      '"SELECT * FROM finance_business_billing_runs WHERE id=? AND company_id=?"',
+      '"SELECT * FROM finance_business_contracts WHERE id=? AND company_id=?"',
+      '"SELECT 1 FROM finance_business_billing_runs WHERE root_id=? AND service_to>=?"',
+    ],
+    'sales-customer-sources.ts': ["\"SELECT * FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND person_id IS NULL\""],
+    'document-posting-preview.ts': ["\"SELECT * FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND person_id IS NULL\""],
+    'record-presentation.ts': ["\"SELECT id,dimension_id,code,name FROM finance_dimension_values WHERE company_id=? AND status='active' ORDER BY code\""],
+    'ledger.ts': ["\"SELECT id,dimension_id,code,name FROM finance_dimension_values WHERE company_id=? AND status='active' ORDER BY code\""],
+    'refunds.ts': ["'SELECT * FROM finance_refund_instructions WHERE id=? AND company_id=?'"],
+    'refund-bank-evidence.ts': ["'SELECT * FROM finance_refund_instructions WHERE id=? AND company_id=?'"],
+    'finance-accruals.ts': ['"SELECT * FROM finance_accrual_schedules WHERE id=? AND company_id=?"'],
+    'finance-engines.ts': ['"SELECT * FROM finance_calculation_runs WHERE id=? AND company_id=?"'],
+    'finance-planning.ts': [
+      '"SELECT * FROM finance_plan_editions WHERE id=? AND company_id=?"',
+      "'SELECT * FROM finance_plan_editions WHERE id=? AND company_id=?'",
+    ],
+    'pos-core-facts.ts': [
+      "\"SELECT id FROM finance_parties WHERE id=? AND company_id=? AND kind='customer' AND status='active'\"",
+      "'SELECT COALESCE(SUM(debit_minor-credit_minor),0) net FROM finance_journal_lines WHERE journal_id=? AND account_id=?'",
+    ],
+    'supplier-payment-money.ts': ["'SELECT to_jsonb(r)::text source FROM command_receipts r WHERE r.command_id=?'"],
+  };
+
+  const SITE_OCCURRENCES: Record<string, number> = {
+    'finance-billing-corrections.ts': 3,
+    'finance-business-contracts.ts': 6,
+    'sales-customer-sources.ts': 1,
+    'document-posting-preview.ts': 1,
+    'record-presentation.ts': 1,
+    'ledger.ts': 1,
+    'refunds.ts': 1,
+    'refund-bank-evidence.ts': 1,
+    'finance-accruals.ts': 2,
+    'finance-engines.ts': 2,
+    'finance-planning.ts': 2,
+    'pos-core-facts.ts': 4,
+    'supplier-payment-money.ts': 2,
+  };
+
+  it('removes all 27 inline literals from their 13 sites', async () => {
+    expect(Object.values(SITE_OCCURRENCES).reduce((sum, n) => sum + n, 0)).toBe(27);
+    for (const [file, lits] of Object.entries(SITE_LITERALS)) {
+      const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+      expect(text).toContain('finance-read-tail-r38-sql');
+      for (const lit of lits) expect(text.includes(lit)).toBe(false);
+    }
+  });
+
+  it('leaves locks, tax/assertion SQL and r15-r37 helpers untouched', async () => {
+    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    expect(pos).toContain('FOR SHARE');
+    expect(pos).toContain('FOR UPDATE');
+    const bc = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-business-contracts.ts', import.meta.url), 'utf8');
+    expect(bc).toContain('NOT EXISTS(SELECT 1 FROM finance_business_billing_runs WHERE parent_run_id=?)');
+    const tax = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
+    expect(tax).toContain('TAX_SOURCE_APPROVED_INVOICE_SQL');
+    const r37 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r37-sql.ts', import.meta.url), 'utf8');
+    expect(r37).toContain('PERIOD_EXISTS_BY_ID_SQL');
+    const r16 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r16-sql.ts', import.meta.url), 'utf8');
+    expect(r16).toContain('OPEN_PERIOD_GUARD_SQL');
+  });
+
+  it('retirement:ts-statements stays strictly below the r37 BEFORE=1965 baseline', () => {
+    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(1965);
+    expect(total).toBe(1951);
   });
 });
