@@ -326,4 +326,30 @@ describe('native Customer 360 timeline transport',()=>{
   expect(timeline.match(/const eventSelect=\(/g)).toHaveLength(1);
   expect(timeline.match(/const eventRow=\(/g)).toHaveLength(1);
  });
+
+ it('shares one parameterized company/scope projection across the scoped CTE family (r9)',async()=>{
+ const read=async(path:string)=> (await import('node:fs/promises')).readFile(new URL(path,import.meta.url),'utf8');
+ const timeline=await read('../../../packages/server-customer_360/src/adapters/timeline.ts');
+ expect(timeline.match(/const scopedProjection = \(/g)).toHaveLength(1);
+ expect(timeline.match(/\$\{scopedProjection\(/g)).toHaveLength(6);
+ for(const literal of [
+  'WITH scoped_orders AS (SELECT id,company_id,party_id',
+  'scoped_leads AS (SELECT l.id,l.title',
+  'scoped_service AS (SELECT g.id,g.customer_id',
+  'scoped_invoices AS (SELECT i.id,i.party_id',
+  'scoped_legal AS (SELECT i.id,i.title',
+  'customers AS (SELECT id,name',
+ ]) expect(timeline).not.toContain(literal);
+ // r5-r8 helpers, the visibility predicate and the package-obligation lock stay authoritative.
+ const scoped=await read('../../../packages/server-customer_360/src/adapters/customer-read-sources.ts');
+ expect(scoped.match(/const scopedRow = \(/g)).toHaveLength(1);
+ expect(scoped.match(/companyScopeSource = \(/g)).toHaveLength(1);
+ expect(timeline.match(/const eventSelect=\(/g)).toHaveLength(1);
+ expect(timeline.match(/const eventRow=\(/g)).toHaveLength(1);
+ expect(timeline.match(/SELECT p\.id,p\.name,p\.code/g)).toHaveLength(1);
+ const facts=await read('../../../packages/server-customer_360/src/adapters/package-obligations.ts');
+ expect(facts).toContain('LOCK TABLE customer_portal_actions IN SHARE ROW EXCLUSIVE MODE');
+ const portal=await read('../../../packages/server-customer_360/src/adapters/portal.ts');
+ expect(portal).toContain("companyScopeSource('portal_release')");
+ });
 });
