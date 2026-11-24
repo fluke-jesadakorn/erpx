@@ -12,9 +12,10 @@ import type {PublicMarketingSubmission} from '@erpx/server-marketing/domain/publ
 import {createPublicMarketingSubmissionApplication,type PublicMarketingSubmissionUnit} from '@erpx/server-marketing/application/public-submission';
 import {withMarketingPublicSubmission} from '@erpx/server-marketing/adapters/purchases';
 import {marketingCampaignExistsSql} from './campaign-existence';
+import {formAssetLockSql} from './form-asset-lock-sql';
 function unit(db:SqlDatabase):PublicMarketingSubmissionUnit{return {
  receipt:key=>db.prepare('SELECT request_hash,candidate_id FROM marketing_public_receipts WHERE key=?').bind(key).first<{request_hash:string;candidate_id:string}>(),
- current:row=>db.prepare("SELECT id FROM marketing_assets WHERE id=? AND company_id=? AND version=? AND status='active' FOR SHARE").bind(row.id,row.company_id,row.version).first(),
+ current:row=>db.prepare(formAssetLockSql(true)).bind(row.id,row.company_id,row.version).first(),
  presentation:(key,row)=>db.batch(marketingPresentationAssertions(db,key,row.company_id,row.configuration_json)),
  limit:(rateKey,bucket)=>nativeMarketingStatement('marketing_stmt_1', { companyId: '', now: Date.now(), actor: undefined }).bind(rateKey,bucket).first<{count:number}>(),
  branch:companyId=>publicMarketingReceivingBranch(db,companyId),
