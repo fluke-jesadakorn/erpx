@@ -138,8 +138,9 @@ describe('Sales read-tail r28 retirement check', () => {
       }
     };
     walk(srcRoot);
-    // Three authority-scope literals collapse into one generator (-2).
-    expect(total).toBe(56);
+    // r28 collapsed three authority-scope literals into one generator (-2);
+    // r29 collapsed three scope-tuple literals into one generator (-2).
+    expect(total).toBe(54);
     expect(total).toBeLessThan(58);
   });
 });
