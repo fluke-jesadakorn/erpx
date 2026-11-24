@@ -75,6 +75,13 @@ pub const PMS_RD_ATTACHMENT_RECORD_IMAGE: &str = "pms_rd_attachment_record_image
 /// fixed SQL. Fixed SQL with two positional binds, no ledger/receipt/outbox and
 /// no lock/refund path; the caller runs it on its already-open read unit.
 pub const PMS_RD_DOCUMENT_RELATED_POSTINGS: &str = "pms_rd_document_related_postings";
+/// Native successors of the owner-local `posGuestAccountInterface` hotel and
+/// choice reads. Fixed SQL with three and four positional binds respectively,
+/// no ledger/receipt/outbox and no lock/refund path; the caller runs them on
+/// its already-open read unit. The `assertDay` `FOR SHARE` read stays in the
+/// caller's TypeScript unit and is not one of these kinds.
+pub const PMS_RD_POS_GUEST_HOTELS: &str = "pms_rd_pos_guest_hotels";
+pub const PMS_RD_POS_GUEST_CHOICES: &str = "pms_rd_pos_guest_choices";
 const SQL_INVENTORY_COMMAND: &str = "SELECT id,kind,data_json,version,updated_at FROM pms_records \
 WHERE property_id=? AND kind IN ('room_type','room','rate','block','item','credit') \
 UNION ALL SELECT id,kind,data_json,version,updated_at FROM pms_records \
@@ -223,7 +230,24 @@ const READ_DOCUMENT_RELATED_POSTINGS: NativeReadStatement = NativeReadStatement 
     bind_count: 2,
 };
 
-const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS];
+/// Retired TypeScript literal:
+/// `SELECT id,name,branch_id FROM pms_properties WHERE company_id=? AND (?::text IS NULL OR branch_id=?) ORDER BY name,id LIMIT 100`
+const SQL_POS_GUEST_HOTELS: &str = "SELECT id,name,branch_id FROM pms_properties WHERE company_id=? AND (?::text IS NULL OR branch_id=?) ORDER BY name,id LIMIT 100";
+const READ_POS_GUEST_HOTELS: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_POS_GUEST_HOTELS,
+    sql: SQL_POS_GUEST_HOTELS,
+    bind_count: 3,
+};
+/// Retired TypeScript literal (newline and eight-space indentation preserved):
+/// `SELECT p.id property_id,p.version property_version,s.id stay_id,\n        r.data_json::jsonb->>'number' room_number,g.data_json::jsonb->>'name' guest_name\n        FROM pms_properties p JOIN pms_records s ON s.property_id=p.id AND s.kind='stay'\n        JOIN pms_records a ON a.id=s.data_json::jsonb->>'guestAccountId' AND a.property_id=p.id AND a.kind='guest_account'\n        JOIN pms_records r ON r.id=s.data_json::jsonb->>'roomId' AND r.property_id=p.id AND r.kind='room'\n        JOIN pms_records g ON g.id=s.data_json::jsonb->>'guestId' AND g.property_id=p.id AND g.kind='guest'\n        WHERE p.company_id=? AND p.branch_id=? AND p.id=? AND p.state='open' AND p.config_json::jsonb->>'currency'=?\n        AND s.data_json::jsonb->>'state'='in_house' AND a.data_json::jsonb->>'state'='open'\n        AND COALESCE(a.data_json::jsonb->>'invoiceId','')='' ORDER BY r.data_json::jsonb->>'number',s.id LIMIT 100`
+const SQL_POS_GUEST_CHOICES: &str = "SELECT p.id property_id,p.version property_version,s.id stay_id,\n        r.data_json::jsonb->>'number' room_number,g.data_json::jsonb->>'name' guest_name\n        FROM pms_properties p JOIN pms_records s ON s.property_id=p.id AND s.kind='stay'\n        JOIN pms_records a ON a.id=s.data_json::jsonb->>'guestAccountId' AND a.property_id=p.id AND a.kind='guest_account'\n        JOIN pms_records r ON r.id=s.data_json::jsonb->>'roomId' AND r.property_id=p.id AND r.kind='room'\n        JOIN pms_records g ON g.id=s.data_json::jsonb->>'guestId' AND g.property_id=p.id AND g.kind='guest'\n        WHERE p.company_id=? AND p.branch_id=? AND p.id=? AND p.state='open' AND p.config_json::jsonb->>'currency'=?\n        AND s.data_json::jsonb->>'state'='in_house' AND a.data_json::jsonb->>'state'='open'\n        AND COALESCE(a.data_json::jsonb->>'invoiceId','')='' ORDER BY r.data_json::jsonb->>'number',s.id LIMIT 100";
+const READ_POS_GUEST_CHOICES: NativeReadStatement = NativeReadStatement {
+    kind: PMS_RD_POS_GUEST_CHOICES,
+    sql: SQL_POS_GUEST_CHOICES,
+    bind_count: 4,
+};
+
+const READS: &[NativeReadStatement] = &[READ_INVENTORY_COMMAND, READ_BOOKING_CHANGE, READ_BOOKING_CHANGE_PENDING, READ_BOOKING_PAYMENT, READ_POSTING_CHARGE, READ_POSTING_BY_RECORD, READ_CHARGE_CORRECTION_PENDING, READ_CHARGE_CORRECTION_PENDING_COUNT, READ_GUEST_COMMAND_RECORD, READ_DOCUMENT_BY_ID, READ_DOCUMENT_SNAPSHOT, READ_PROPERTY_CONFIG, READ_PENDING_HOTEL_TRANSFERS, READ_UNPOSTED_BOOKING_RECEIPTS, READ_UNPOSTED_COUNTER_RECEIPTS, READ_HOSPITALITY_SETUP_PROPERTIES, READ_ATTACHMENT_PROPERTY_IMAGE, READ_ATTACHMENT_RECORD_IMAGE, READ_DOCUMENT_RELATED_POSTINGS, READ_POS_GUEST_HOTELS, READ_POS_GUEST_CHOICES];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
 pub fn is_read(kind: &str) -> bool {
@@ -483,5 +507,32 @@ ORDER BY id"
         assert_eq!(read.sql.matches('?').count(), read.bind_count);
         assert_eq!(read.bind_count, 2);
         assert!(is_read(read.kind));
+    }
+
+    #[test]
+    fn pos_guest_account_reads_match_retired_typescript_literals() {
+        let hotels = read_statement(PMS_RD_POS_GUEST_HOTELS).expect("pos guest hotels read");
+        assert_eq!(hotels.sql, "SELECT id,name,branch_id FROM pms_properties WHERE company_id=? AND (?::text IS NULL OR branch_id=?) ORDER BY name,id LIMIT 100");
+        assert_eq!(hotels.bind_count, 3);
+
+        let choices = read_statement(PMS_RD_POS_GUEST_CHOICES).expect("pos guest choices read");
+        assert_eq!(choices.sql, "SELECT p.id property_id,p.version property_version,s.id stay_id,\n        r.data_json::jsonb->>'number' room_number,g.data_json::jsonb->>'name' guest_name\n        FROM pms_properties p JOIN pms_records s ON s.property_id=p.id AND s.kind='stay'\n        JOIN pms_records a ON a.id=s.data_json::jsonb->>'guestAccountId' AND a.property_id=p.id AND a.kind='guest_account'\n        JOIN pms_records r ON r.id=s.data_json::jsonb->>'roomId' AND r.property_id=p.id AND r.kind='room'\n        JOIN pms_records g ON g.id=s.data_json::jsonb->>'guestId' AND g.property_id=p.id AND g.kind='guest'\n        WHERE p.company_id=? AND p.branch_id=? AND p.id=? AND p.state='open' AND p.config_json::jsonb->>'currency'=?\n        AND s.data_json::jsonb->>'state'='in_house' AND a.data_json::jsonb->>'state'='open'\n        AND COALESCE(a.data_json::jsonb->>'invoiceId','')='' ORDER BY r.data_json::jsonb->>'number',s.id LIMIT 100");
+        assert_eq!(choices.bind_count, 4);
+
+        for read in [hotels, choices] {
+            let upper = read.sql.to_ascii_uppercase();
+            assert!(upper.starts_with("SELECT"));
+            assert!(!upper.contains("INSERT INTO"));
+            assert!(!upper.contains("UPDATE "));
+            assert!(!upper.contains("DELETE FROM"));
+            assert!(!upper.contains("FOR UPDATE"));
+            assert!(!upper.contains("FOR SHARE"));
+            assert!(!upper.contains("LOCK TABLE"));
+            assert!(!upper.contains("REFUND"));
+            assert_eq!(read.sql.matches('?').count(), read.bind_count);
+            assert!(is_read(read.kind));
+        }
+        // The hotel day assert stays in the caller's TypeScript unit.
+        assert!(!READS.iter().any(|read| read.sql.contains("FOR SHARE")));
     }
 }

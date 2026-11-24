@@ -36,6 +36,8 @@ export const PMS_RD_HOSPITALITY_SETUP_PROPERTIES = 'pms_rd_hospitality_setup_pro
 export const PMS_RD_ATTACHMENT_PROPERTY_IMAGE = 'pms_rd_attachment_property_image';
 export const PMS_RD_ATTACHMENT_RECORD_IMAGE = 'pms_rd_attachment_record_image';
 export const PMS_RD_DOCUMENT_RELATED_POSTINGS = 'pms_rd_document_related_postings';
+export const PMS_RD_POS_GUEST_HOTELS = 'pms_rd_pos_guest_hotels';
+export const PMS_RD_POS_GUEST_CHOICES = 'pms_rd_pos_guest_choices';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');

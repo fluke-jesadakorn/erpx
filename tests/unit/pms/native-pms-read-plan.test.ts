@@ -23,6 +23,8 @@ import {
   PMS_RD_ATTACHMENT_PROPERTY_IMAGE,
   PMS_RD_ATTACHMENT_RECORD_IMAGE,
   PMS_RD_DOCUMENT_RELATED_POSTINGS,
+  PMS_RD_POS_GUEST_HOTELS,
+  PMS_RD_POS_GUEST_CHOICES,
 } from '../../../packages/server-pms/src/adapters/native-pms-read';
 import { readPmsInventoryCommand } from '../../../packages/server-pms/src/adapters/pms/read-repository';
 import { pmsAttachmentReadSourceImage } from '../../../packages/server-pms/src/adapters/attachment-read-sources';
@@ -631,6 +633,70 @@ describe('native PMS document related-postings read retirement', () => {
     expect(bodies.map(b => b.values)).toEqual([['property-1', 'doc-1']]);
     expect(bound).toEqual([['property-1', 'doc-1']]);
     expect(prepared).toEqual([relatedPostingsSql]);
+    for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
+  });
+});
+
+const posGuestHotelsSql = 'SELECT id,name,branch_id FROM pms_properties WHERE company_id=? AND (?::text IS NULL OR branch_id=?) ORDER BY name,id LIMIT 100';
+const posGuestChoicesSql = "SELECT p.id property_id,p.version property_version,s.id stay_id,\n        r.data_json::jsonb->>'number' room_number,g.data_json::jsonb->>'name' guest_name\n        FROM pms_properties p JOIN pms_records s ON s.property_id=p.id AND s.kind='stay'\n        JOIN pms_records a ON a.id=s.data_json::jsonb->>'guestAccountId' AND a.property_id=p.id AND a.kind='guest_account'\n        JOIN pms_records r ON r.id=s.data_json::jsonb->>'roomId' AND r.property_id=p.id AND r.kind='room'\n        JOIN pms_records g ON g.id=s.data_json::jsonb->>'guestId' AND g.property_id=p.id AND g.kind='guest'\n        WHERE p.company_id=? AND p.branch_id=? AND p.id=? AND p.state='open' AND p.config_json::jsonb->>'currency'=?\n        AND s.data_json::jsonb->>'state'='in_house' AND a.data_json::jsonb->>'state'='open'\n        AND COALESCE(a.data_json::jsonb->>'invoiceId','')='' ORDER BY r.data_json::jsonb->>'number',s.id LIMIT 100";
+
+describe('native PMS pos-guest-account read retirement', () => {
+  it('exposes fixed pos-guest read kinds with no SQL on the wire', () => {
+    expect(PMS_RD_POS_GUEST_HOTELS).toBe('pms_rd_pos_guest_hotels');
+    expect(PMS_RD_POS_GUEST_CHOICES).toBe('pms_rd_pos_guest_choices');
+    for (const kind of [PMS_RD_POS_GUEST_HOTELS, PMS_RD_POS_GUEST_CHOICES])
+      expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE|FOR SHARE/);
+  });
+
+  it('removes the two TypeScript pos-guest SELECT literals but keeps assertDay FOR SHARE', async () => {
+    const adapterUrl = new URL('../../../packages/server-pms/src/adapters/pos-guest-account-interface.ts', import.meta.url);
+    const adapter = await readFile(adapterUrl, 'utf8');
+    expect(adapter).not.toContain(posGuestHotelsSql);
+    expect(adapter).not.toContain(posGuestChoicesSql);
+    expect(adapter).toContain('nativePmsReadAll');
+    expect(adapter).toContain('PMS_RD_POS_GUEST_HOTELS');
+    expect(adapter).toContain('PMS_RD_POS_GUEST_CHOICES');
+    const hotels = adapter.split('\n').find(line => line.includes('PMS_RD_POS_GUEST_HOTELS,')) ?? '';
+    const choices = adapter.split('\n').find(line => line.includes('PMS_RD_POS_GUEST_CHOICES,')) ?? '';
+    for (const call of [hotels, choices]) {
+      expect(call).toContain('nativePmsReadAll');
+      expect(call).not.toContain('db.prepare');
+    }
+    // The hotel day assert keeps its locking read in the caller's TS unit.
+    expect(adapter).toContain('FOR SHARE');
+    expect(adapter).toContain('POS_HOTEL_DAY_CLOSED');
+  });
+
+  it('plans both reads in Rust and runs them on the caller unit with the same binds', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push(body);
+      const sql = body.kind === PMS_RD_POS_GUEST_HOTELS ? posGuestHotelsSql : posGuestChoicesSql;
+      return new Response(JSON.stringify({ data: { statements: [{ sql, values: body.values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+    const prepared: string[] = [], bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) { prepared.push(sql); return { bind(...values: unknown[]) { bound.push(values); return this; } }; },
+      async batch<T>() { return [{ results: [{ id: 'property-1', name: 'Grand', branch_id: 'branch-1', property_id: 'property-1', stay_id: 'stay-1' }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+    const { posGuestAccountInterface } = await import('../../../packages/server-pms/src/adapters/pos-guest-account-interface');
+    const api = posGuestAccountInterface(db as never);
+    const hotels = await api.hotels('company-1', 'branch-1');
+    const choices = await api.choices('company-1', 'branch-1', 'THB', 'property-1');
+
+    expect(hotels).toMatchObject([{ id: 'property-1' }]);
+    expect(choices).toMatchObject([{ property_id: 'property-1', stay_id: 'stay-1' }]);
+    expect(bodies.map(b => b.kind)).toEqual([PMS_RD_POS_GUEST_HOTELS, PMS_RD_POS_GUEST_CHOICES]);
+    expect(bodies.map(b => b.values)).toEqual([
+      ['company-1', 'branch-1', 'branch-1'],
+      ['company-1', 'branch-1', 'property-1', 'THB'],
+    ]);
+    expect(bound).toEqual(bodies.map(b => b.values));
+    expect(prepared).toEqual([posGuestHotelsSql, posGuestChoicesSql]);
     for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
   });
 });
