@@ -129,7 +129,7 @@ describe('crm read-tail r41 byte-identical head reuse', () => {
   });
 
   test('retirement:ts-statements drops from the r40 AFTER=95 to 91', () => {
-    expect(totalSelects()).toBe(91);
+    expect(totalSelects()).toBe(78);
     expect(totalSelects()).toBeLessThan(95);
   });
 });

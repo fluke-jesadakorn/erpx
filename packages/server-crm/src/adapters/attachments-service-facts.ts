@@ -7,6 +7,7 @@ import { salesRecipientEligibility } from "@erpx/server-sales/public/sales-recip
 import { crmAccountCreatedByScopeSql } from "@erpx/server-crm/adapters/purchases";
 import { crmOpportunityOwnerGuardSql } from "./read-tail-r27-sql";
 import { crmAccountVersionGuardSql } from "./read-tail-r29-sql";
+import { crmSelectOneSql } from "./read-tail-r42-sql";
 const allowedTargets = new Set<string>(["crm_account", "crm_opportunity"]);
 const recordVersionTables: Record<string, {
     table: string;
@@ -29,7 +30,7 @@ function ownerVersionGuard(db: SqlDatabase, commandId: string, targetType: strin
     const item = aliases[targetType];
     if (!item)
         throw new ApiError(422, "ATTACHMENT_TARGET_UNSUPPORTED", "This file target has no atomic version guard.");
-    return assertion(db, commandId, `attachment-owner-${index}`, `EXISTS(SELECT 1 FROM ${item.table} WHERE id=? AND company_id=? AND version=?${item.extra ? ` AND ${item.extra}` : ""})`, [targetId, companyId, version]);
+    return assertion(db, commandId, `attachment-owner-${index}`, `EXISTS(${crmSelectOneSql(`${item.table} WHERE id=? AND company_id=? AND version=?${item.extra ? ` AND ${item.extra}` : ""}`)})`, [targetId, companyId, version]);
 }
 function ownerVersionStep(db: SqlDatabase, targetType: string, targetId: string, expectedVersion: number, now: number) {
     if (!allowedTargets.has(targetType))

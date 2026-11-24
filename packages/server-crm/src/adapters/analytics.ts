@@ -24,12 +24,13 @@ import {crmCampaignOptionsSql} from './read-tail-r27-sql';
 import {crmRevenueJournalHeadSql} from './read-tail-r31-sql';
 import {crmClockedReadSql} from './read-tail-r39-sql';
 import {crmDistinctOwnerSql,crmScopedDescListSql} from './read-tail-r40-sql';
+import {crmSelectOneSql} from './read-tail-r42-sql';
 export type {AnalyticsFilters} from '@erpx/server-crm/domain/analytics';
 const clock=`report_clock${crmClockCteSql}`;
 function hotelHistory(actor:WorkContext,access:CRMAnalyticsAccess|undefined,privateHistory:boolean){
  if(!access)return {where:'TRUE',args:[] as unknown[]};if(!access.hotel||!privateHistory&&!access.hotelRevenue)return {where:'FALSE',args:[] as unknown[]};
  const purchase=(capability:string)=>purchasedCapabilityPredicate('l.company_id',capability,'history','report_clock.now_ms');
- return {where:`${assignmentReadSql('l','pms.read')} AND ${purchase('pms.reservations')}${privateHistory?` AND EXISTS(SELECT 1 FROM (${crmSharedHotelAnalyticsSources}) shared WHERE shared.lead_id=l.id AND shared.company_id=l.company_id AND shared.reservation_id=r.id AND shared.property_id=r.property_id AND shared.guest_id=r.guest_id)`:` AND ${purchase('pms.guest-accounts')} AND ${purchase('finance.hotel-posting')}`}`,args:[actor.assignmentId,actor.userId,actor.role]};
+ return {where:`${assignmentReadSql('l','pms.read')} AND ${purchase('pms.reservations')}${privateHistory?` AND EXISTS(${crmSelectOneSql(`(${crmSharedHotelAnalyticsSources}) shared WHERE shared.lead_id=l.id AND shared.company_id=l.company_id AND shared.reservation_id=r.id AND shared.property_id=r.property_id AND shared.guest_id=r.guest_id`)})`:` AND ${purchase('pms.guest-accounts')} AND ${purchase('finance.hotel-posting')}`}`,args:[actor.assignmentId,actor.userId,actor.role]};
 }
 function salesHistory(actor:WorkContext,access:CRMAnalyticsAccess|undefined,revenue=false){
  if(!access)return {where:'TRUE',args:[] as unknown[]};if(!access.crm||revenue&&!access.salesRevenue)return {where:'FALSE',args:[] as unknown[]};
@@ -54,7 +55,7 @@ function application(a:WorkContext,access?:CRMAnalyticsAccess){
     LEFT JOIN (${crmAnalyticsSalesOrders}) orders ON orders.id=v.sales_id AND orders.company_id=l.company_id AND ${sales.where}
     LEFT JOIN (${crmHotelAnalyticsReservations}) r ON r.id=v.reservation_id AND r.company_id=l.company_id AND r.branch_id=l.branch_id AND ${hotel.where}
     WHERE l.company_id=? AND (?::text IS NULL OR l.branch_id=?) AND (?::text IS NULL OR l.department_id=?) AND (?::text IS NULL OR l.branch_id=?) AND (?::text IS NULL OR l.owner_id=?) AND (?::text IS NULL OR r.property_id=?)
-    AND (?::text IS NULL OR EXISTS(SELECT 1 FROM (${touch.sql}) touch WHERE touch.lead_id=l.id AND touch.company_id=l.company_id AND touch.campaign_id=?)) AND ${crm.where} ORDER BY l.created_at,l.id`)).bind(...sales.args,...hotel.args,a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId,f.branchId??null,f.branchId??null,f.ownerId??null,f.ownerId??null,f.propertyId??null,f.propertyId??null,f.campaignId??null,...touch.args,f.campaignId??null,...crm.args).all<Row>()).results;
+    AND (?::text IS NULL OR EXISTS(${crmSelectOneSql(`(${touch.sql}) touch WHERE touch.lead_id=l.id AND touch.company_id=l.company_id AND touch.campaign_id=?`)})) AND ${crm.where} ORDER BY l.created_at,l.id`)).bind(...sales.args,...hotel.args,a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId,f.branchId??null,f.branchId??null,f.ownerId??null,f.ownerId??null,f.propertyId??null,f.propertyId??null,f.campaignId??null,...touch.args,f.campaignId??null,...crm.args).all<Row>()).results;
   },
   async revenue(f){if(access&&!access.crm)return new Map();const write=await database(),crm=await crmLeadProjectionScope(write,a,'l'),sales=salesHistory(a,access,true),hotel=hotelHistory(a,access,false);
    const rows=(await write.prepare(`WITH ${clock},source_journals AS(

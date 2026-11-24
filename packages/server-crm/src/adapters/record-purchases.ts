@@ -14,6 +14,7 @@ import {crmClockedSourceScopeSql} from './read-tail-r33-sql';
 import {crmOwnedSourceRowSql} from './read-tail-r34-sql';
 import {crmLeadRowSourceSql} from './read-tail-r40-sql';
 import {crmSalesOpportunitySql} from './read-tail-r37-sql';
+import {crmSelectOneSql} from './read-tail-r42-sql';
 const crmNativeIdSql=(table:string)=>`SELECT id FROM ${table}`;
 const nativeIds=[crmNativeIdSql('crm_leads'),crmNativeIdSql('crm_lead_activities'),crmNativeIdSql('crm_opportunities'),crmNativeIdSql('crm_accounts'),crmNativeIdSql('crm_contacts'),crmNativeIdSql('crm_guest_links')].join(' UNION ALL ');
 const validLeads=crmLeadRowSourceSql(`FROM (${crmPurchaseLeadRows}) lead WHERE NOT EXISTS(${crmOpportunityLeadSql}lead.id) OR EXISTS(${crmOpportunityExistsSql}opportunity.id=lead.id AND opportunity.company_id=lead.company_id)`);
@@ -28,20 +29,20 @@ const recordRows=`SELECT lead.id,'lead' kind,lead.id target_id,lead.company_id,l
 function scope(actor:WorkContext,id:string,company:string){
  const history=purchasedCapabilityPredicate('crm_source.company_id','sales.crm','history','crm_clock.now_ms'),hotel=purchasedCapabilityPredicate('crm_source.company_id','pms.reservations','history','crm_clock.now_ms');
  return {where:crmClockedSourceScopeSql('crm_clock',crmClockCteSql,recordRows,'crm_source',id,company,`${hasPermission(actor,'commerce.read')?'TRUE':'FALSE'} AND ${history}
- AND CASE WHEN crm_source.kind IN ('lead','activity') THEN (?::text IS NULL OR crm_source.branch_id=?) AND (?::text IS NULL OR crm_source.department_id=?) ELSE (?::text IS NULL OR crm_source.created_by=? OR EXISTS(SELECT 1 FROM (${validLeads}) scoped_lead JOIN crm_leads native ON native.id=scoped_lead.id WHERE scoped_lead.company_id=crm_source.company_id AND (native.account_id=crm_source.account_id OR native.contact_id=crm_source.contact_id) AND scoped_lead.branch_id=? AND (?::text IS NULL OR scoped_lead.department_id=?))) END
+ AND CASE WHEN crm_source.kind IN ('lead','activity') THEN (?::text IS NULL OR crm_source.branch_id=?) AND (?::text IS NULL OR crm_source.department_id=?) ELSE (?::text IS NULL OR crm_source.created_by=? OR EXISTS(${crmSelectOneSql(`(${validLeads}) scoped_lead JOIN crm_leads native ON native.id=scoped_lead.id WHERE scoped_lead.company_id=crm_source.company_id AND (native.account_id=crm_source.account_id OR native.contact_id=crm_source.contact_id) AND scoped_lead.branch_id=? AND (?::text IS NULL OR scoped_lead.department_id=?)`)})) END
  AND ${crmAssignmentScopeExistsSql('crm_source.company_id,COALESCE(crm_source.branch_id,?::text) branch_id,COALESCE(crm_source.department_id,?::text) department_id','crm_authority','commerce.read')}
  AND (crm_source.kind<>'guest-link' OR (${hasPermission(actor,'pms.read')?'TRUE':'FALSE'} AND (?::text IS NULL OR crm_source.branch_id=?) AND ${hotel} AND ${assignmentReadSql('crm_source','pms.read')})))`),args:[actor.branchId,actor.branchId,actor.departmentId,actor.departmentId,actor.branchId,actor.userId,actor.branchId,actor.departmentId,actor.departmentId,actor.branchId,actor.departmentId,actor.assignmentId,actor.userId,actor.role,actor.branchId,actor.branchId,actor.assignmentId,actor.userId,actor.role]};
 }
 export async function crmSourceReadScope(database:SqlDatabase,actor:WorkContext,surface:'records'|'staff'|'inbox'){
  const mode=await commercePackageEnforcementMode();if(mode!=='enforced'){if(mode==='shadow')await readPurchasedAccesses(database,mode,actor.companyId,['sales.crm']);return {where:'TRUE',args:[] as unknown[]};}
- const id=surface==='records'?'workspace_records.id':surface==='staff'?'staff_notifications.record_id':'e.source_id',company=surface==='records'?'workspace_records.company_id':surface==='staff'?'staff_notifications.company_id':'e.company_id',type=surface==='staff'?'staff_notifications.record_type':'e.source_type',actual=`EXISTS(SELECT 1 FROM (${nativeIds}) native_crm WHERE native_crm.id=${id})`,relevant=surface==='records'?actual:`(${type} IN ('crm_lead','crm_activity','crm_account','crm_contact','crm_opportunity','crm_guest_link') OR ${actual})`,source=scope(actor,id,company);
+ const id=surface==='records'?'workspace_records.id':surface==='staff'?'staff_notifications.record_id':'e.source_id',company=surface==='records'?'workspace_records.company_id':surface==='staff'?'staff_notifications.company_id':'e.company_id',type=surface==='staff'?'staff_notifications.record_type':'e.source_type',actual=`EXISTS(${crmSelectOneSql(`(${nativeIds}) native_crm WHERE native_crm.id=${id}`)})`,relevant=surface==='records'?actual:`(${type} IN ('crm_lead','crm_activity','crm_account','crm_contact','crm_opportunity','crm_guest_link') OR ${actual})`,source=scope(actor,id,company);
  return {where:`(NOT ${relevant} OR ${source.where})`,args:source.args};
 }
 export async function requireCRMWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,_moduleId:string,id:string){
  if(await commercePackageEnforcementMode()==='disabled')return;
  const row=await database.prepare(crmOwnedSourceRowSql('kind,target_id',recordRows,'actual')).bind(id,actor.companyId).first<{kind:CRMPurchaseTarget['kind'];target_id:string}>();
  if(row){await requireCRMPurchasedRead(database,actor,{kind:row.kind,id:row.target_id});if(row.kind==='guest-link'&&!await crmReferenceHistory(database,actor,'pms.reservations'))throw new ApiError(404,'CRM_SOURCE_NOT_FOUND','The original Hotel identity source is unavailable.');}
- else if(await database.prepare(`SELECT 1 FROM (${nativeIds}) actual WHERE id=?`).bind(id).first())throw new ApiError(404,'CRM_SOURCE_NOT_FOUND','The original CRM source is unavailable in this workspace.');
+ else if(await database.prepare(`${crmSelectOneSql(`(${nativeIds}) actual WHERE id=?`)}`).bind(id).first())throw new ApiError(404,'CRM_SOURCE_NOT_FOUND','The original CRM source is unavailable in this workspace.');
 }
 /** Calendar and Sales customer readers retain their original scopes and apply
  * current CRM source/authority/purchase before grouping or limiting rows. */

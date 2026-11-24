@@ -30,6 +30,7 @@ import {crmCurrentScopeAllowedSql} from "./read-tail-r30-sql";
 import {crmOwnedSourceRowSql} from "./read-tail-r34-sql";
 import {crmAssignmentModuleExistsSql} from "./read-tail-r35-sql";
 import {crmSalesOpportunitySql,crmSingleKeySourceSql} from "./read-tail-r37-sql";
+import {crmSelectOneSql} from "./read-tail-r42-sql";
 
 export type CRMPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type CRMPurchaseTarget={kind:"lead"|"activity"|"account"|"contact"|"guest-link";id:string};
@@ -108,7 +109,7 @@ const opportunityWitnessSql=crmOwnedSourceRowSql('witness::text witness',crmPurc
 const sourceRows={lead:crmPurchaseLeadRows,activity:crmPurchaseActivityRows,account:crmPurchaseAccountRows,contact:crmPurchaseContactRows,"guest-link":crmPurchaseGuestLinkRows};
 export async function crmNativeReadFilter(kind:CRMPurchaseTarget['kind'],alias:'l'|'x'|'a'|'c'|'g'){
  if(await commercePackageEnforcementMode()==='disabled')return 'true';
- return `EXISTS(SELECT 1 FROM (${sourceRows[kind]}) crm_native WHERE crm_native.id=${alias}.id AND crm_native.company_id=${alias}.company_id)`+(kind==='lead'?` AND (NOT EXISTS(SELECT 1 FROM crm_opportunities native_opportunity WHERE native_opportunity.lead_id=${alias}.id) OR EXISTS(SELECT 1 FROM (${crmPurchaseOpportunityRows}) native_opportunity WHERE native_opportunity.id=${alias}.id AND native_opportunity.company_id=${alias}.company_id))`:'');
+ return `EXISTS(${crmSelectOneSql(`(${sourceRows[kind]}) crm_native WHERE crm_native.id=${alias}.id AND crm_native.company_id=${alias}.company_id`)})`+(kind==='lead'?` AND (NOT EXISTS(${crmSelectOneSql(`crm_opportunities native_opportunity WHERE native_opportunity.lead_id=${alias}.id`)}) OR EXISTS(${crmSelectOneSql(`(${crmPurchaseOpportunityRows}) native_opportunity WHERE native_opportunity.id=${alias}.id AND native_opportunity.company_id=${alias}.company_id`)}))`:'');
 }
 /** Writer source leases avoid SHARE→write upgrades across distinct Companies.
  * Shared customer, quote and Hotel sources remain owned by their own modules. */

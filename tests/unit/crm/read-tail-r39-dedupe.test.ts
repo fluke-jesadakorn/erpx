@@ -103,7 +103,7 @@ describe('crm read-tail r39 byte-identical head composition', () => {
     expect(a).toContain('crmClockedReadSql(clock,`l.id,l.account_id,l.contact_id,l.created_at,l.owner_id,l.status,l.due_date,v.id opportunity_id,');
     expect(a).toContain('crmClockedReadSql(clock,`cost.campaign_id,COALESCE(SUM(line.debit_minor-line.credit_minor),0) amount');
     expect(a).toContain('(SELECT MIN(stay.checked_in_at) FROM (${crmHotelAnalyticsStays}) stay');
-    expect(a).toContain('EXISTS(SELECT 1 FROM (${touch.sql}) touch');
+    expect(a).toContain('EXISTS(${crmSelectOneSql(`(${touch.sql}) touch');
   });
 
   test('keeps every caller bind order unchanged', () => {
@@ -142,7 +142,7 @@ describe('crm read-tail r39 byte-identical head composition', () => {
   });
 
   test('retirement:ts-statements stays strictly below the r38 AFTER=104 baseline', () => {
-    expect(totalSelects()).toBe(91);
+    expect(totalSelects()).toBe(78);
     expect(totalSelects()).toBeLessThan(104);
   });
 });
