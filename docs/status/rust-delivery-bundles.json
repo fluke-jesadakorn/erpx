@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11922,
+    "revision": 11924,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -177670,7 +177670,7 @@
         "owner": "finance",
         "title": "finance TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -177682,22 +177682,37 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4f08",
-          "claimedAt": "2026-11-24T12:23:01.063Z",
-          "heartbeatAt": "2026-11-24T12:30:32.439Z",
-          "expiresAt": "2026-11-24T13:00:32.439Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d13d3ec8c",
+            "owner": "finance",
+            "before": 1884,
+            "after": 1868,
+            "note": "Scope bind/null bind, jsonb array ids, bank txn count and AI usage heads shared; locks/tax/assertions/native untouched."
+          },
+          {
+            "command": "vitest finance r41-r44 (27) + scoped tsc + 17/17 byte oracle",
+            "result": "passed",
+            "sourceSha": "d13d3ec8c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "new families outside r15-r43. BEFORE=1884.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4f08",
+          "at": "2026-11-24T12:36:41.978Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -178311,17 +178326,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 18,
+        "in_progress": 17,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1322,
+        "blocked": 1323,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T12:36:11.789Z",
+    "updatedAt": "2026-11-24T12:36:41.983Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
