@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9052,
+    "revision": 9054,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -141916,7 +141916,7 @@
         "owner": "commercial",
         "title": "commercial native read ports",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -141928,28 +141928,37 @@
         "resources": [
           "owner:commercial"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCNcom",
-          "claimedAt": "2026-11-24T03:57:23.574Z",
-          "heartbeatAt": "2026-11-24T04:26:55.017Z",
-          "expiresAt": "2026-11-24T04:56:55.017Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-commercial --all-targets",
+            "result": "passed",
+            "sourceSha": "2ff5714e6"
+          },
+          {
+            "command": "cargo test commercial native read parity 3/3 + lib 20/21 (pre-existing wave2 failure)",
+            "result": "passed",
+            "sourceSha": "2ff5714e6"
+          },
+          {
+            "command": "tsc server-commercial",
+            "result": "passed",
+            "sourceSha": "2ff5714e6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Build owner-local native read ports for package-grants/purchase-command-boundary/projection reads (40 TS SELECTs), PG parity tests; no composition or TS deletion yet.",
+        "blocker": "handoff",
+        "nextAction": "Port integrated; mount queued.",
         "handoff": {
-          "runId": "run-20261123-i",
+          "runId": "run-20261123-j",
           "agentId": "wGCNcom",
-          "at": "2026-11-24T03:57:20.238Z",
+          "at": "2026-11-24T04:27:08.204Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long cargo queue; WIP reviewed, all owner claims preserved and re-issued.",
-          "nextAction": "Build owner-local native read ports for package-grants/purchase-command-boundary/projection reads (40 TS SELECTs), PG parity tests; no composition or TS deletion yet."
+          "reason": "handoff",
+          "nextAction": "Port integrated; mount queued."
         },
         "scopeRefinementRequired": false
       },
@@ -147338,17 +147347,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 25,
+        "in_progress": 24,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 699,
+        "blocked": 700,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 162,
-    "updatedAt": "2026-11-24T04:26:56.500Z",
+    "updatedAt": "2026-11-24T04:27:08.208Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
