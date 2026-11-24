@@ -15,6 +15,7 @@ import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {legalPackageEnforcementMode,readPurchasedAccesses,checkPurchasedCapability,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {legalActorScopeProjectionSql} from './legal-read-tail-r18-sources';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import type {LegalKind} from '@erpx/server-legal/domain/model';
@@ -27,7 +28,7 @@ const capabilities:LegalPurchaseCapability[]=['legal.contracts','legal.documents
 const kinds:Record<LegalPurchaseCapability,string[]>={'legal.contracts':['contract','template'],'legal.documents':[],'legal.matters':['request','matter','counsel','ip'],'legal.obligations':['obligation','compliance','license','corporate','privacy','rule'],'legal.access':[]};
 export function legalItemPurchasePredicate(alias:string,purpose:CapabilityPurpose='history',clock?:string){const sampled=clock??'legal_purchase_clock.now_ms',predicate=`(${capabilities.filter(code=>kinds[code].length).map(code=>`(${alias}.kind IN (${kinds[code].map(kind=>`'${kind}'`).join(',')}) AND ${purchasedCapabilityPredicate(`${alias}.company_id`,code,purpose,sampled)})`).join(' OR ')})`;return clock?predicate:`EXISTS(WITH legal_purchase_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms) SELECT 1 FROM legal_purchase_clock WHERE ${predicate})`;}
 export async function requireCurrentLegalCommandAuthority(database:SqlDatabase,actor:WorkContext,key:string,permission:string){
- const row=await database.prepare(`SELECT ${assignmentReadSql('legal_current_scope',permission)} allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) legal_current_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first('allowed');
+ const row=await database.prepare(`SELECT ${assignmentReadSql('legal_current_scope',permission)} allowed FROM (${legalActorScopeProjectionSql}) legal_current_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first('allowed');
  if(!row)throw new ApiError(403,'LEGAL_ACCESS_CHANGED','Choose a current Legal assignment.');
  await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await nativeClearCommandAssertions(database, actor.companyId, key)]);
 }

@@ -18,6 +18,7 @@ import type {LegalWrite} from "@erpx/server-legal/application/service";
 import {createLegalOperationsApplication,type LegalOperationUnit,type LegalOperationsRepository} from "@erpx/server-legal/application/operations";
 import { legalOperations } from '@erpx/server-collaboration/adapters/native-legal-operations';
 import {nativeLegalAuxiliaryRead} from '../native-legal-auxiliary';
+import {legalEventsByItemSql} from '../legal-read-tail-r18-sources';
 /** Exact projection of the native `views` auxiliary read; no view SQL remains in TypeScript. */
 type LegalSavedViewsView={name:string;query:unknown}[];
 function unit(db:SqlDatabase,a:WorkContext,views?:LegalSavedViewsView):LegalOperationUnit{const nativeOps=legalOperations(db,a.companyId,a.userId);let observation:ReturnType<typeof legalReadScope>|undefined;const purchase=()=>observation??=legalReadScope(db,a);const v=visibility(a),writes=new WeakMap<LegalWrite,SqlStatement>();function stage(statement:SqlStatement):LegalWrite{const write:LegalWrite={owner:"legal"};writes.set(write,statement);return write;}function resolve(write:LegalWrite){const statement=writes.get(write);if(!statement)throw new Error("LEGAL_OPERATIONS_REPOSITORY_MISMATCH");return statement;}
@@ -34,7 +35,7 @@ async saveView(facts){return stage(await nativeOps.saveView({companyId:facts.com
 async derivedLink(facts){return nativeOps.derivedLink({id:facts.id,id2:facts.id2});},
 envelopes:(facts:{id:string;})=>db.prepare("SELECT e.*,s.user_id,s.ordinal,s.state signer_state,s.signed_at,s.evidence FROM legal_envelopes e JOIN legal_signers s ON s.envelope_id=e.id WHERE e.item_id=? ORDER BY e.created_at,s.ordinal").bind(facts.id).all(),
 documents:(facts:{id:string;})=>db.prepare("SELECT id,version,name,checksum,bytes,media_type,locked,created_at FROM legal_documents WHERE item_id=? ORDER BY version").bind(facts.id).all(),
-events:(facts:{id:string;})=>db.prepare("SELECT * FROM legal_events WHERE item_id=? ORDER BY created_at,id").bind(facts.id).all(),
+events:(facts:{id:string;})=>db.prepare(`${legalEventsByItemSql},id`).bind(facts.id).all(),
 accesses:(facts:{id:string;})=>db.prepare("SELECT * FROM legal_access_events WHERE item_id=? ORDER BY created_at,id LIMIT 10001").bind(facts.id).all(),
 async evidenceRead(facts){return (await nativeOps.accessEvent({identifier:facts.identifier,id:facts.id,actorId:facts.actorId,action:facts.fact4,now:facts.now})).run();},
 featureHistory:(facts:{id:string;})=>db.prepare("SELECT * FROM legal_feature_history WHERE item_id=? ORDER BY created_at,id").bind(facts.id).all(),

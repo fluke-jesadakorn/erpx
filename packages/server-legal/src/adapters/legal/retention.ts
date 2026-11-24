@@ -16,6 +16,7 @@ import type {LegalWrite} from "@erpx/server-legal/application/service";
 import { legalRetention } from '@erpx/server-collaboration/adapters/native-legal-retention';
 import {nativeLegalAuxiliaryRead} from '../native-legal-auxiliary';
 import {legalHoldGuardPrefix,legalHoldGuardSuffix} from '../legal-hold-guard-sources';
+import {legalRetentionPolicySelectSql} from '../legal-read-tail-r18-sources';
 export {drainLegalDestruction} from "@erpx/server-legal/adapters/legal/destruction-worker";
 /** Exact projection of the native `retention` auxiliary read; the transport accepts
  * every authoritative field and no SQL text remains in TypeScript. */
@@ -25,14 +26,14 @@ policies:async()=>({results:view?.policies??[]}),
 assignment:async()=>view?.assignment??null,
 requests:async()=>({results:view?.requests??[]}),
 async createPolicy(facts){return stage(await nativeRet.createPolicy(facts));},
-policy:(facts:{policyId:string | undefined;companyId:string;})=>db.prepare("SELECT * FROM legal_retention_policies WHERE id=? AND company_id=?").bind(facts.policyId,facts.companyId).first<{
+policy:(facts:{policyId:string | undefined;companyId:string;})=>db.prepare(legalRetentionPolicySelectSql).bind(facts.policyId,facts.companyId).first<{
           id: string;
           created_by: string;
           state: string;
           version: number;
         }>(),
 async decidePolicy(facts){return stage(await nativeRet.decidePolicy(facts));},
-approvedPolicy:(facts:{policyId:string | undefined;companyId:string;})=>db.prepare("SELECT * FROM legal_retention_policies WHERE id=? AND company_id=? AND state='approved'").bind(facts.policyId,facts.companyId).first<{ id: string; days: number; version: number }>(),
+approvedPolicy:(facts:{policyId:string | undefined;companyId:string;})=>db.prepare(`${legalRetentionPolicySelectSql} AND state='approved'`).bind(facts.policyId,facts.companyId).first<{ id: string; days: number; version: number }>(),
 async assignRetention(facts){return stage(await nativeRet.assignRetention(facts));},
 eligibleAssignment:(facts:{id:string;now:number;})=>db.prepare("SELECT r.* FROM legal_retention_assignments r JOIN legal_retention_policies p ON p.id=r.policy_id AND p.version=r.policy_version AND p.state='approved' WHERE r.item_id=? AND r.eligible_at<=?").bind(facts.id,facts.now).first<{ policy_id: string; policy_version: number }>(),
 async requestDestruction(facts){return stage(await nativeRet.requestDestruction(facts));},

@@ -6,6 +6,7 @@ import {parseItem} from '@erpx/server-legal/domain/model';
 import { finalRootOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/final-root-owner-projection-sources";
 import { legalManagerAvailableSql, legalSettingsEnabledSql } from "../legal-read-tail-r9-sources";
 import { legalItemSelectSql } from "../legal-read-tail-r16-sources";
+import { legalEventsByItemSql } from "../legal-read-tail-r18-sources";
 import { finalRootOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/final-root-owner-projection-sources";
 import {nativeLegalHoldNotice} from "../native-legal-hold-notice";
 import "server-only";
@@ -70,7 +71,7 @@ documents:(id:string)=>{return db
         .all<DocumentVersion>();},
 events:(id:string)=>{return db
         .prepare(
-          "SELECT * FROM legal_events WHERE item_id=? ORDER BY created_at DESC,id DESC LIMIT 100",
+          `${legalEventsByItemSql} DESC,id DESC LIMIT 100`,
         )
         .bind(id)
         .all<LegalDetail["events"][number]>();},

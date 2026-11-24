@@ -10,6 +10,7 @@ import {isTransactionalSqlDatabase,type SqlDatabase,type StoredFile} from '@erpx
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {requireLegalAttachmentReadPreparation,deferLegalAttachmentReadCheck} from '@erpx/server-legal/public/attachment-read-parent';
 import {inLegalCanonicalDocumentReadUnit,legalSourceWitness} from '@erpx/server-legal/adapters/purchases';
+import {legalActorScopeProjectionSql} from './legal-read-tail-r18-sources';
 
 const identity=(actor:WorkContext)=>JSON.stringify([actor.holdingId,actor.companyId,actor.userId,actor.email,actor.assignmentId,actor.role,actor.branchId,actor.departmentId,actor.scope,actor.assignmentScope,actor.modules,actor.authority??null,actor.iam??null]);
 const parents=new WeakMap<SqlDatabase,string>();
@@ -39,7 +40,7 @@ export async function withLegalCanonicalAttachmentContentRead<Result extends {ob
  const execute=async(database:SqlDatabase,standalone=false):Promise<Outcome>=>{
   if(parents.get(database)!==identity(actor))throw new ApiError(503,'LEGAL_CANONICAL_READ_PARENT_REQUIRED','Canonical Legal bytes require their original complete read parent.');
   const before=await attachmentReadSource(database,actor.companyId,linkId);assertAttachmentReadRoute(selected,before);if(!before)throw attachmentReadChanged();const original=await image(database,actor,before.targetId);if(!original)throw new ApiError(404,'ATTACHMENT_TARGET_NOT_FOUND','The original Legal document is unavailable.');
-  const current=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=standalone&&!!await database.prepare(`SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${current.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args).first();
+  const current=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=standalone&&!!await database.prepare(`SELECT 1 FROM(${legalActorScopeProjectionSql})workforce_actor_scope WHERE ${current.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args).first();
   const invalidAuthority=standalone&&!initiallyCurrent?await privateFileDenialAuthorityWitness(database,actor):null;
   const checkpoint=standalone?new Set((await attachmentDeniedReadAudits(database,actor,linkId)).map(event=>event.id)):null;let result:Result;
   try{result=await read(database);}catch(error){
