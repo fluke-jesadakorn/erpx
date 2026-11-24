@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8378,
+    "revision": 8385,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -138099,7 +138099,7 @@
         "owner": "platform_administration",
         "title": "platform_administration TS read tail native cutover (round r8)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -138111,22 +138111,37 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCgpad",
-          "claimedAt": "2026-11-24T01:58:50.740Z",
-          "heartbeatAt": "2026-11-24T01:58:50.740Z",
-          "expiresAt": "2026-11-24T02:28:50.740Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-platform_administration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "bccdfea25",
+            "owner": "platform_administration",
+            "before": 43,
+            "after": 42,
+            "note": "Owner-write noop and engineering verification share selectOneSql suffix helper; byte-identical."
+          },
+          {
+            "command": "vitest platform dedupe (10) + tsc platform/tests-config",
+            "result": "passed",
+            "sourceSha": "bccdfea25"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe or native read; if none, report blocked. BEFORE=43.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCgpad",
+          "at": "2026-11-24T02:11:16.779Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -139462,7 +139477,7 @@
         "owner": "platform_administration",
         "title": "platform_administration TS read tail native cutover (round 9)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -139474,7 +139489,14 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCepad",
+          "claimedAt": "2026-11-24T02:11:16.998Z",
+          "heartbeatAt": "2026-11-24T02:11:16.998Z",
+          "expiresAt": "2026-11-24T02:41:16.998Z",
+          "generation": 161
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -139482,6 +139504,78 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: non-excluded byte-identical SELECT family; if none, report blocked. BEFORE=42.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.commercial.read-tail-r1",
+        "goalId": "G4",
+        "owner": "commercial",
+        "title": "commercial TS read tail native cutover (r1)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-commercial/src/**",
+          "tests/unit/commercial/**",
+          "tests/integration/commercial/**"
+        ],
+        "resources": [
+          "owner:commercial"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCfcom",
+          "claimedAt": "2026-11-24T02:11:17.368Z",
+          "heartbeatAt": "2026-11-24T02:11:17.368Z",
+          "expiresAt": "2026-11-24T02:41:17.368Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "New read-tail lane; find byte-identical SELECT groups, no composition. BEFORE=42.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.planning.read-tail-r1",
+        "goalId": "G4",
+        "owner": "planning",
+        "title": "planning TS read tail native cutover (r1)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-planning/src/**",
+          "tests/unit/planning/**",
+          "tests/integration/planning/**"
+        ],
+        "resources": [
+          "owner:planning"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCPpln",
+          "claimedAt": "2026-11-24T02:11:17.751Z",
+          "heartbeatAt": "2026-11-24T02:11:17.751Z",
+          "expiresAt": "2026-11-24T02:41:17.751Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "New read-tail lane; find byte-identical SELECT groups, no composition. BEFORE=48.",
         "handoff": null,
         "scopeRefinementRequired": false
       }
@@ -139492,21 +139586,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 921,
+      "totalPackets": 923,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 16,
-        "in_progress": 31,
+        "pending": 15,
+        "in_progress": 33,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 543,
+        "blocked": 544,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:10:49.118Z",
+    "updatedAt": "2026-11-24T02:11:17.763Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
