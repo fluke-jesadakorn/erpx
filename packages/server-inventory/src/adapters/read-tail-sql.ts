@@ -100,3 +100,14 @@ export const sourceRowsExistsSql = (rows: string, alias: string, id: string, com
  *  is shared. Every caller keeps its own binds and independent statement. */
 export const attachmentSourceProofExistsSql = (rows: string, alias: string, modules: string) =>
   `EXISTS(SELECT 1 FROM (${rows}) ${alias} WHERE ${alias}.id=? AND ${alias}.company_id=? AND ${alias}.source_proof::text=? AND ${modules})`;
+/** r22: parameterized source-proof EXISTS guards without capability or module
+ * predicates. The source rows, row alias and count scope vary per consumer;
+ * only the SQL text is shared. Every caller keeps its own binds and statement.
+ * r11-r21 helpers above are left untouched. */
+export const sourceExistsSql = (rows: string, alias: string, id: string, company: string) =>
+  `EXISTS(SELECT 1 FROM (${rows}) ${alias} WHERE ${alias}.id=${id} AND ${alias}.company_id=${company})`;
+/** r22: parameterized journal-line aggregate. The debit/credit column varies
+ * per term; only the literal text is shared. Every caller keeps its own binds
+ * and independent statement. r11-r21 helpers above are left untouched. */
+export const journalLineSumSql = (column: string) =>
+  `(SELECT sum(${column}) FROM finance_journal_lines WHERE journal_id=j.id)`;
