@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12115,
+    "revision": 12117,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -180062,7 +180062,7 @@
         "owner": "finance",
         "title": "finance version/status and period guard families",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -180074,22 +180074,37 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n01",
-          "claimedAt": "2026-11-24T13:21:23.233Z",
-          "heartbeatAt": "2026-11-24T13:26:46.050Z",
-          "expiresAt": "2026-11-24T13:56:46.050Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "71dec029e",
+            "owner": "finance",
+            "before": 1868,
+            "after": 1860,
+            "note": "Version/status guards, period guards with r16 reuse, and accounting profile guards shared; locks/advisory/native/tax untouched."
+          },
+          {
+            "command": "vitest finance (145) + scoped tsc + 7/7 byte verify",
+            "result": "passed",
+            "sourceSha": "71dec029e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Rank1 version/status guards (-3), Rank2 period guards+reuse (-3), Rank3 accounting profiles (-2): 1868->1860.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n01",
+          "at": "2026-11-24T13:37:19.645Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -180575,17 +180590,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 10,
+        "in_progress": 9,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1373,
+        "blocked": 1374,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:35:56.342Z",
+    "updatedAt": "2026-11-24T13:37:19.649Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
