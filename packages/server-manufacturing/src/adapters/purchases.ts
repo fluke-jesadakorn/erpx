@@ -20,6 +20,7 @@ import {manufacturingOperationAggSql,manufacturingSpecificationLineAggSql,manufa
 import {manufacturingPurchaseRecordSelect} from "./manufacturing-read-tail-r16-sql";
 import {manufacturingPurchaseRecordBranchSelect} from "./manufacturing-read-tail-r18-sql";
 import {manufacturingAccountingProfileSelect} from "./manufacturing-read-tail-r19-sql";
+import {manufacturingAllowedSelect} from "./manufacturing-read-tail-r31-sql";
 export type ManufacturingPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 /** Owner-local fixed read: one command receipt on the caller transaction. This
  * idempotency/replay witness is identical in the purchased-command and
@@ -87,9 +88,9 @@ async function current(database:SqlDatabase,actor:WorkContext,key:string,permiss
  if(module&&!actor.modules.includes(module))throw new ApiError(403,"MANUFACTURING_ACCESS_CHANGED","Choose a current original production assignment.");
  for(const required of new Set([permission,...(module&&permission==="records.review"?["records.write"]:[])])){
  if(!hasPermission(actor,required))throw new ApiError(403,"MANUFACTURING_ACCESS_CHANGED","Choose a current original production assignment.");
- const row=await database.prepare(`SELECT ${assignmentReadSql("production_scope",required)} allowed FROM ${manufacturingActorScopeRows()} production_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();
+ const row=await database.prepare(manufacturingAllowedSelect(assignmentReadSql("production_scope",required),`FROM ${manufacturingActorScopeRows()} production_scope`)).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();
  if(!row?.allowed)throw new ApiError(403,"MANUFACTURING_ACCESS_CHANGED","The original production assignment is no longer current.");}
- if(module){const selection=await database.prepare("SELECT (jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array(?::text)) allowed FROM assignments WHERE id=?").bind(module,actor.assignmentId).first<{allowed:boolean}>();if(!selection?.allowed)throw new ApiError(403,"MANUFACTURING_ACCESS_CHANGED","The current assignment no longer selects the original production module.");}
+ if(module){const selection=await database.prepare(manufacturingAllowedSelect("(jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array(?::text))","FROM assignments WHERE id=?")).bind(module,actor.assignmentId).first<{allowed:boolean}>();if(!selection?.allowed)throw new ApiError(403,"MANUFACTURING_ACCESS_CHANGED","The current assignment no longer selects the original production module.");}
  await runOwnerUnitEffects(database,actor.companyId,key,[...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearCommandAssertions(database,key)]);
 }
 async function source(database:SqlDatabase,actor:WorkContext,target:ManufacturingPurchaseTarget){const row=await database.prepare(`SELECT id,advanced,${target.kind==="scenario"||target.kind==="recommendation"?"source_witness":"witness"}::text witness FROM (${rows(target.kind)}) actual_production WHERE id=? AND company_id=? AND (branch_id IS NULL OR ?::text IS NULL OR branch_id=?)`).bind(target.id,actor.companyId,actor.branchId,actor.branchId).first<{id:string;advanced:boolean;witness:string}>();if(!row)throw new ApiError(404,"PRODUCTION_SOURCE_NOT_FOUND","The original production source is unavailable in this workspace.");return row;}

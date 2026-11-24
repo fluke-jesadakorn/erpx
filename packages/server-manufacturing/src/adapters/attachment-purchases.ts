@@ -15,6 +15,7 @@ import {manufacturingPurchaseRecordRows,manufacturingPurchaseSourceReadLocks,cle
 import {manufacturingSelectedAssignmentExists} from "./manufacturing-read-sql-fragments";
 import {manufacturingPurchaseScopedSelect} from "./manufacturing-read-tail-r24-sql";
 import {manufacturingPurchaseRecordSelect} from "./manufacturing-read-tail-r16-sql";
+import {manufacturingAllowedSelect} from "./manufacturing-read-tail-r31-sql";
 export type ManufacturingAttachmentPurchase={companyId:string;capability:string;purpose:CapabilityPurpose;actor:WorkContext;targetId:string;kind:ManufacturingPurchaseTarget["kind"];advanced:boolean;witness:string};
 function kind(type:string){return type==="manufacturing_spec"?"specification":type==="production_run"?"order":type==="planning_scenario"?"scenario":null;}
 export async function manufacturingAttachmentPurchaseScope(database:SqlDatabase,actor:WorkContext,type:string,id:string,purpose:CapabilityPurpose="settle-existing"):Promise<ManufacturingAttachmentPurchase|null>{
@@ -26,7 +27,7 @@ function sourceArgs(scope:ManufacturingAttachmentPurchase){const actor=scope.act
 function capabilities(scope:ManufacturingAttachmentPurchase){return [scope.capability,...(scope.advanced?["planning.advanced-mrp"]:[])];}
 export async function authorizeManufacturingAttachmentPurchase(database:SqlDatabase,actor:WorkContext,type:string,id:string,operation:AttachmentOperation){
  const scope=await manufacturingAttachmentPurchaseScope(database,actor,type,id,operation==="read"?"history":"settle-existing");if(!scope)return;
- const current=await database.prepare(`SELECT ${sourcePredicate(operation==="read"?"records.read":"records.write")} allowed`).bind(...sourceArgs(scope)).first<{allowed:boolean}>();if(!current?.allowed)throw new ApiError(403,"MANUFACTURING_ATTACHMENT_CHANGED","The original production file assignment is unavailable.");
+ const current=await database.prepare(manufacturingAllowedSelect(sourcePredicate(operation==="read"?"records.read":"records.write"))).bind(...sourceArgs(scope)).first<{allowed:boolean}>();if(!current?.allowed)throw new ApiError(403,"MANUFACTURING_ATTACHMENT_CHANGED","The original production file assignment is unavailable.");
  for(const capability of capabilities(scope))await checkPurchasedCapability(database,await manufacturingPackageEnforcementMode(),{companyId:actor.companyId,capability,purpose:scope.purpose});
 }
 export async function manufacturingAttachmentSourceReadLocks(database:SqlDatabase,scopes:readonly ManufacturingAttachmentPurchase[]){if(!scopes.length||await manufacturingPackageEnforcementMode()==="disabled")return [];const locks=[...new Set(scopes.map(scope=>scope.companyId))].sort().map(id=>companyPurchaseReadLocks(database,id));return [...locks.map(items=>items[0]),...manufacturingPurchaseSourceReadLocks(database,true),...locks.flatMap(items=>items.slice(1))];}
