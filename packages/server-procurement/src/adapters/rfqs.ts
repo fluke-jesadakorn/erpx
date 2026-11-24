@@ -23,10 +23,12 @@ import {createRfqApplication,type RfqPorts,type RfqMutation} from "@erpx/server-
 import type {RfqRow as Row,RfqOrderInput} from "@erpx/server-procurement/domain/rfqs";
 import {rfqActionSchema} from "@erpx/server-procurement/domain/rfqs";
 import {procurementPurchaseAccess,requireProcurementPurchasedRead,withProcurementPurchasedCommand,prepareRfqPurchaseHandoff} from "@erpx/server-procurement/adapters/purchases";
+import {branchDepartmentScope,pointRead,orderedRead} from './read-tail-sql';
 export {rfqCreateSchema,rfqActionSchema} from "@erpx/server-procurement/domain/rfqs";
 type Evidence=Awaited<ReturnType<typeof prepareAttachmentBinding>>;
 type Authority=SqlStatement[];
-const scope="r.company_id=? AND (?::text IS NULL OR r.branch_id=?) AND (?::text IS NULL OR r.department_id=?)";
+const scope=branchDepartmentScope("r");
+const currencyRead=`SELECT currency FROM (${commercePlatformSources.commerce_settings}) commerce_settings WHERE company_id=?`;
 const args=(a:WorkContext)=>[a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId];
 function guard(db:SqlDatabase,a:WorkContext,r:Row,key:string,version:number){return assertion(db,key,'rfq-version',`EXISTS(SELECT 1 FROM procurement_rfqs r WHERE r.id=? AND r.version=? AND r.status=? AND ${scope})`,[r.id,version,r.status,...args(a)]);}
 function event(db:SqlDatabase,a:WorkContext,id:string,key:string,version:number,action:string,evidence:string,offer:string|null,now:number){return nativeProcurementStatement('procurement_stmt_11', { now: Date.now() }).bind(`rfq-event-${key}`,id,version,action,a.userId,evidence,offer,now);}
@@ -37,22 +39,22 @@ function application(a:WorkContext,provided?:SqlDatabase){
  replay:async(key,operation,id,input)=>replayCommand(await database(),a,key,operation,id,input),
  rfq:async(id)=>(await database()).prepare(`SELECT r.* FROM procurement_rfqs r WHERE r.id=? AND ${scope}`).bind(id,...args(a)).first<Row>(),
  detail:async(id)=>{const write=await database();const [lines,offers,offerLines,events]=await Promise.all([
- write.prepare('SELECT * FROM procurement_rfq_lines WHERE rfq_id=? ORDER BY ordinal').bind(id).all<Row>(),
- write.prepare(`SELECT o.*,p.name supplier_name FROM procurement_rfq_offers o JOIN (${financePlatformSources.finance_parties}) p ON p.id=o.supplier_id WHERE o.rfq_id=? ORDER BY o.rfq_version DESC`).bind(id).all<Row>(),
+ write.prepare(orderedRead('*','procurement_rfq_lines','rfq_id=?','ordinal')).bind(id).all<Row>(),
+ write.prepare(orderedRead('o.*,p.name supplier_name',`procurement_rfq_offers o JOIN (${financePlatformSources.finance_parties}) p ON p.id=o.supplier_id`,'o.rfq_id=?','o.rfq_version DESC')).bind(id).all<Row>(),
  write.prepare('SELECT l.* FROM procurement_rfq_offer_lines l JOIN procurement_rfq_offers o ON o.id=l.offer_id WHERE o.rfq_id=?').bind(id).all<Row>(),
- write.prepare('SELECT * FROM procurement_rfq_events WHERE rfq_id=? ORDER BY version DESC').bind(id).all<Row>()]);return {lines:lines.results,offers:offers.results,offerLines:offerLines.results,events:events.results};},
+ write.prepare(orderedRead('*','procurement_rfq_events','rfq_id=?','version DESC')).bind(id).all<Row>()]);return {lines:lines.results,offers:offers.results,offerLines:offerLines.results,events:events.results};},
  workspace:async()=>{const write=await database();const [rfqs,products,warehouses,suppliers,config]=await Promise.all([
  write.prepare(`SELECT r.* FROM procurement_rfqs r WHERE ${scope} ORDER BY r.updated_at DESC LIMIT 100`).bind(...args(a)).all<Row>(),
  write.prepare(`SELECT id,sku,name,unit FROM (${commercePlatformSources.commerce_products}) commerce_products WHERE company_id=? AND status='active' ORDER BY sku`).bind(a.companyId).all<Row>(),
  write.prepare(`SELECT id,name,branch_id FROM (${commercePlatformSources.commerce_warehouses}) commerce_warehouses WHERE company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?) ORDER BY name`).bind(a.companyId,a.branchId,a.branchId).all<Row>(),
  write.prepare(`SELECT id,name FROM (${financePlatformSources.finance_parties}) finance_parties WHERE company_id=? AND kind='supplier' AND status='active' ORDER BY name`).bind(a.companyId).all<Row>(),
- write.prepare(`SELECT currency FROM (${commercePlatformSources.commerce_settings}) commerce_settings WHERE company_id=?`).bind(a.companyId).first<Row>()]);return {rfqs:rfqs.results,products:products.results,warehouses:warehouses.results,suppliers:suppliers.results,currency:String(config?.currency??'')};},
- sourceState:async(id)=>(await database()).prepare(`SELECT state,evidence_version,items_json,approval_json FROM (${recordsPlatformSources.employee_requests}) employee_requests WHERE id=? AND company_id=?`).bind(id,a.companyId).first<Row>(),
+ write.prepare(currencyRead).bind(a.companyId).first<Row>()]);return {rfqs:rfqs.results,products:products.results,warehouses:warehouses.results,suppliers:suppliers.results,currency:String(config?.currency??'')};},
+ sourceState:async(id)=>(await database()).prepare(pointRead('state,evidence_version,items_json,approval_json',`(${recordsPlatformSources.employee_requests}) employee_requests`)).bind(id,a.companyId).first<Row>(),
  quotationSource:async(id)=>requestQuotationSource(await database(),a,id),currentQuotationSource:async(id)=>{try{return await requestQuotationSource(await database(),a,id);}catch(error){if(error instanceof ApiError&&[403,404,409].includes(error.status))return null;throw error;}},
- configuration:async()=>(await database()).prepare(`SELECT currency FROM (${commercePlatformSources.commerce_settings}) commerce_settings WHERE company_id=?`).bind(a.companyId).first<Row>(),
- warehouse:async(id)=>(await database()).prepare(`SELECT * FROM (${commercePlatformSources.commerce_warehouses}) commerce_warehouses WHERE id=? AND company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?)`).bind(id,a.companyId,a.branchId,a.branchId).first<Row>(),
- product:async(id)=>(await database()).prepare(`SELECT * FROM (${commercePlatformSources.commerce_products}) commerce_products WHERE id=? AND company_id=? AND status='active'`).bind(id,a.companyId).first<Row>(),
- supplier:async(id,currency)=>(await database()).prepare(`SELECT * FROM (${financePlatformSources.finance_parties}) finance_parties WHERE id=? AND company_id=? AND kind='supplier' AND status='active' AND currency=?`).bind(id,a.companyId,currency).first<Row>(),
+ configuration:async()=>(await database()).prepare(currencyRead).bind(a.companyId).first<Row>(),
+ warehouse:async(id)=>(await database()).prepare(pointRead('*',`(${commercePlatformSources.commerce_warehouses}) commerce_warehouses`,` AND status='active' AND (?::text IS NULL OR branch_id=?)`)).bind(id,a.companyId,a.branchId,a.branchId).first<Row>(),
+ product:async(id)=>(await database()).prepare(pointRead('*',`(${commercePlatformSources.commerce_products}) commerce_products`,` AND status='active'`)).bind(id,a.companyId).first<Row>(),
+ supplier:async(id,currency)=>(await database()).prepare(pointRead('*',`(${financePlatformSources.finance_parties}) finance_parties`,` AND kind='supplier' AND status='active' AND currency=?`)).bind(id,a.companyId,currency).first<Row>(),
  prepareSource:async(source,key)=>{const write=await database(),snapshot=await serviceAuthoritySnapshot(write,a.companyId);return [...snapshot(key),requestVersionGuard(write,key,source.request)];},
  prepareEvidence:async(id,offer,input,key)=>prepareAttachmentBinding(await database(),a,{attachmentSetIds:input.attachmentSetIds,bindingContract:{targetType:'procurement_rfq',bindingType:'procurement_rfq_offer',contexts:[{purposeKey:'supplier_quotation',componentKind:'action',componentRef:'supplier-offer'}]},targetId:id,expectedTargetVersion:input.expectedVersion,commandId:key,bindingId:offer}),
  commit:async(m,result)=>commit(await database(),a,m,result),

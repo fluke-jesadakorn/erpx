@@ -20,9 +20,10 @@ import {BusinessRuleError} from "@erpx/server-shared/index";
 import {createSupplierPromiseApplication,type SupplierPromisePorts,type PromiseMutation} from "@erpx/server-procurement/application/supplier-promises";
 import type {PromiseRow as Row} from "@erpx/server-procurement/domain/supplier-promises";
 import {procurementPurchaseAccess,requireProcurementPurchasedRead,withProcurementPurchasedCommand} from "@erpx/server-procurement/adapters/purchases";
+import {branchDepartmentScope} from './read-tail-sql';
 export {supplierPromiseSchema} from "@erpx/server-procurement/domain/supplier-promises";
 type Evidence=Awaited<ReturnType<typeof prepareAttachmentBinding>>;
-const scope="o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)";
+const scope=branchDepartmentScope("o");
 function scopeArgs(a:WorkContext){return [a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId];}
 function application(a:WorkContext,provided?:SqlDatabase){
  let resource:Promise<SqlDatabase>|null=null;const database=()=>provided?Promise.resolve(provided):resource??=holdingResources(a.holdingId).then(x=>x.write);

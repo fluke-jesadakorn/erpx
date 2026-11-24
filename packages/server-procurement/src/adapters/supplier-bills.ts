@@ -28,8 +28,9 @@ import {authorityGuard,companyAuthority} from "@erpx/server-operations/public/st
 import {BusinessRuleError} from "@erpx/server-shared/index";
 import {createSupplierBillApplication,type BillPorts,type BillMutation} from "@erpx/server-procurement/application/supplier-bills";
 import type {BillRow as Row} from "@erpx/server-procurement/domain/supplier-bills";
+import {branchDepartmentScope,orderedRead} from './read-tail-sql';
 export {supplierBillSchema,supplierBillDecisionSchema,supplierInvoicePolicySchema,matchedBillLines} from "@erpx/server-procurement/domain/supplier-bills";
-const scope="m.company_id=? AND (?::text IS NULL OR m.branch_id=?) AND (?::text IS NULL OR m.department_id=?)";
+const scope=branchDepartmentScope("m");
 const args=(actor:WorkContext)=>[actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId];
 function event(db:SqlDatabase,actor:WorkContext,id:string,key:string,nextVersion:number,action:string,note:string,now:number){return nativeProcurementStatement('procurement_stmt_1', { now: Date.now() }).bind(`bill-event-${key}`,id,nextVersion,action,actor.userId,note,now);}
 function application(actor:WorkContext,provided?:SqlDatabase){
@@ -119,7 +120,7 @@ function application(actor:WorkContext,provided?:SqlDatabase){
 return {lines:lines.results,receipts:receipts.results,events:events.results,accounts:accounts.results,invoicingUserId:flow?.steps.find(step=>step.key==='invoicing')?.primary?.userId??null};
 },companyAuthority:async()=>companyAuthority(await database(),actor,'finance.approve'),
  policy:async()=>(await database()).prepare(`SELECT p.*,COALESCE(person.legal_name,p.updated_by) updated_by_name FROM procurement_invoice_policies p LEFT JOIN (${people_payrollPlatformSources.hr_people}) person ON person.company_id=p.company_id AND person.user_id=p.updated_by AND person.merged_into_id IS NULL WHERE p.company_id=?`).bind(actor.companyId).first<Row>(),
- policyEvents:async()=>(await (await database()).prepare(`SELECT e.*,COALESCE(person.legal_name,e.actor_id) actor_name FROM procurement_invoice_policy_events e LEFT JOIN (${people_payrollPlatformSources.hr_people}) person ON person.company_id=e.company_id AND person.user_id=e.actor_id AND person.merged_into_id IS NULL WHERE e.company_id=? ORDER BY e.version DESC`).bind(actor.companyId).all<Row>()).results,
+ policyEvents:async()=>(await (await database()).prepare(orderedRead('e.*,COALESCE(person.legal_name,e.actor_id) actor_name',`procurement_invoice_policy_events e LEFT JOIN (${people_payrollPlatformSources.hr_people}) person ON person.company_id=e.company_id AND person.user_id=e.actor_id AND person.merged_into_id IS NULL`,'e.company_id=?','e.version DESC')).bind(actor.companyId).all<Row>()).results,
  receipt:async(id)=>(await database()).prepare(`SELECT f.*,j.status journal_status,j.currency journal_currency,j.chart_id journal_chart_id FROM (${commercePlatformSources.commerce_fulfillments}) f LEFT JOIN (${financePlatformSources.finance_journals}) j ON j.id=f.journal_id WHERE f.id=?`).bind(id).first<Row>(),
  order:async(id)=>(await getOrder(actor,id,provided)).order,
  configuration:async()=>(await database()).prepare(`SELECT * FROM (${commercePlatformSources.commerce_settings}) commerce_settings WHERE company_id=?`).bind(actor.companyId).first<Row>(),
