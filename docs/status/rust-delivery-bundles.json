@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9609,
+    "revision": 9613,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -138907,7 +138907,7 @@
         "owner": "support",
         "title": "support TS read tail native cutover (round 17)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -138919,14 +138919,7 @@
         "resources": [
           "owner:support"
         ],
-        "claim": {
-          "runId": "run-20261123-k",
-          "agentId": "wGCKsup",
-          "claimedAt": "2026-11-24T05:26:41.865Z",
-          "heartbeatAt": "2026-11-24T05:26:41.865Z",
-          "expiresAt": "2026-11-24T05:56:41.865Z",
-          "generation": 163
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -139042,15 +139035,29 @@
             "command": "vitest support services (51) + tsc support",
             "result": "passed",
             "sourceSha": "6f2d0f6"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "7c085ad39",
+            "owner": "support",
+            "before": 64,
+            "after": 61,
+            "note": "Assignment access witness shared by ticket and incident read predicates; locks/purchase/native kinds untouched; actual tree 62->61."
+          },
+          {
+            "command": "vitest support services (52)",
+            "result": "passed",
+            "sourceSha": "7c085ad39"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "handoff",
         "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261123-k",
-          "agentId": "wGC14sup",
-          "at": "2026-11-24T05:25:58.643Z",
+          "agentId": "wGCKsup",
+          "at": "2026-11-24T05:37:56.063Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
           "nextAction": "Integrated; claim released"
@@ -153732,6 +153739,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=158.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.support.read-tail-r18",
+        "goalId": "G4",
+        "owner": "support",
+        "title": "support TS read tail native cutover (round 18)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "claim": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCMsup",
+          "claimedAt": "2026-11-24T05:37:56.481Z",
+          "heartbeatAt": "2026-11-24T05:37:56.481Z",
+          "expiresAt": "2026-11-24T06:07:56.481Z",
+          "generation": 163
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=61.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -153740,7 +153783,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1198,
+      "totalPackets": 1199,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -153748,13 +153791,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 822,
+        "blocked": 823,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 163,
-    "updatedAt": "2026-11-24T05:37:38.370Z",
+    "updatedAt": "2026-11-24T05:37:56.490Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
