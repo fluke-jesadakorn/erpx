@@ -14,6 +14,9 @@ const orderDeliveryExistsSql=`SELECT 1 FROM deliveries f WHERE f.order_id=o.id`;
 const commandAuditPrefixSql=`SELECT 1 FROM command_receipts receipt JOIN audit_events audit ON audit.command_id=receipt.command_id AND audit.record_id=`;
 const allRows=(table:string)=>`SELECT * FROM ${table}`;
 const factKind=(kind:string)=>`SELECT '${kind}',`;
+/** Owner-local generator for the two scoped settlement-source CTEs. The only
+ * varying token is a closed native projection; rendered SQL stays byte-identical. */
+const scopedSource=(source:string)=>`MATERIALIZED(SELECT native.* FROM (${source}) native,scope WHERE native.company_id=scope.company_id)`;
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
 export async function lockSalesPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.batch([...salesCommerceSettlementSourceReadLocks(database),...crmFinanceSourceReadLocks(database)]);await database.prepare('LOCK TABLE sales_price_lists,sales_price_list_items,customer_followups,customer_followup_events,customer_contact_notes,customer_contact_note_history,commerce_customer_notifications,commerce_customer_notification_settings,sales_notification_execution_authorizations,sales_notification_execution_attempts,sales_notification_reconciliations,command_receipts,audit_events IN SHARE MODE').run();sources.set(database,companyId);}
 export function assertSalesPackageObligationSources(owner:PostgresDatabase,database:SqlDatabase,companyId:string){owner.assertActiveTransaction(database);if(sources.get(database)!==companyId)throw Error('SALES_PACKAGE_OBLIGATION_SOURCE_REQUIRED');}
@@ -23,7 +26,7 @@ export const salesPackageSettlementSources={...baseCommerce,followups:allRows('c
  * rather than an invented perpetual clearing obligation. */
 export async function readSalesPackageSettlementFacts(database:SqlDatabase,companyId:string,selection:'sales'|'ecommerce'){
  const commerce=selection==='ecommerce'?ecommerceCommerceSettlementSources:baseCommerce;
- return (await database.prepare(`WITH scope AS(SELECT ?::text company_id),orders AS MATERIALIZED(SELECT native.* FROM (${commerce.orders}) native,scope WHERE native.company_id=scope.company_id),deliveries AS MATERIALIZED(SELECT native.* FROM (${commerce.deliveries}) native,scope WHERE native.company_id=scope.company_id)
+ return (await database.prepare(`WITH scope AS(SELECT ?::text company_id),orders AS ${scopedSource(commerce.orders)},deliveries AS ${scopedSource(commerce.deliveries)}
  SELECT 'order' kind,o.id,to_jsonb(o) fact,
  NOT COALESCE((o.state='cancelled' AND NOT EXISTS(${orderDeliveryExistsSql}) AND EXISTS(${commandAuditPrefixSql}o.id AND audit.record_version=o.version AND audit.action=receipt.operation WHERE receipt.operation='commerce.order.cancel' AND receipt.record_id=o.id AND receipt.authority_json::jsonb->>'companyId'=o.company_id AND receipt.result_json::jsonb->>'state'='cancelled' AND receipt.result_json::jsonb->>'version'=o.version::text))
  OR(o.kind='quote' AND o.state='converted' AND EXISTS(SELECT 1 FROM command_receipts receipt JOIN orders child ON child.id=receipt.result_json::jsonb->>'salesId' AND child.kind='sales' AND child.source_id=o.id AND child.party_id=o.party_id AND child.branch_id=o.branch_id AND child.department_id IS NOT DISTINCT FROM o.department_id WHERE receipt.record_id=o.id AND receipt.operation='commerce.order.convert' AND receipt.authority_json::jsonb->>'companyId'=o.company_id AND receipt.result_json::jsonb->>'state'='converted' AND receipt.result_json::jsonb->>'version'=o.version::text))
