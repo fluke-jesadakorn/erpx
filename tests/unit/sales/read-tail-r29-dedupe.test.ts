@@ -171,7 +171,7 @@ describe('Sales read-tail r29 retirement check', () => {
     walk(srcRoot);
     // Three scope-tuple literals collapse into one generator (-2); r30 shares
     // tableRead (-3) and priceListSelect (-1).
-    expect(total).toBe(50);
+    expect(total).toBe(47);
     expect(total).toBeLessThan(54);
   });
 });

@@ -6,6 +6,8 @@ import ts from 'typescript';
 
 vi.mock('server-only', () => ({}));
 
+import { pointRead } from '../../../packages/server-sales/src/adapters/point-read';
+
 const srcRoot = resolve(__dirname, '../../../packages/server-sales/src');
 const helper = readFileSync(resolve(srcRoot, 'adapters/by-key.ts'), 'utf8');
 const notifications = readFileSync(resolve(srcRoot, 'adapters/notifications.ts'), 'utf8');
@@ -28,7 +30,7 @@ function loadGenerator(): (table: string, column: string) => string {
   const code = ts.transpileModule(`const ${decls[0].getText(file)};`, {
     compilerOptions: { target: ts.ScriptTarget.ES2022, module: ts.ModuleKind.CommonJS },
   }).outputText;
-  return new Function(`${code}\nreturn byKey;`)() as (table: string, column: string) => string;
+  return new Function('pointRead', `${code}\nreturn byKey;`)(pointRead) as (table: string, column: string) => string;
 }
 
 describe('Sales read-tail r19 byKey single-key read family', () => {

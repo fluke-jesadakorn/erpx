@@ -1,6 +1,7 @@
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {followupProjectionScope} from "@erpx/server-sales/adapters/followup-purchases";
 import {ownerNameProjection} from "./followup-source-sql";
+import {followupCustomerOrderTailRead} from './followup-customer-order-tail-read';
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
 import { commercialOwnerProjectionSources as people_payrollProjectionSources } from "@erpx/server-people_payroll/public/commercial-owner-projection-sources";
 import "server-only";
@@ -18,7 +19,7 @@ export function calendarCustomerFollowupsSalesFacts(db: SqlDatabase,actor:WorkCo
         value9: string | null;
         value10: string;
         value11: number;
-    }) => { const purchase=await followupProjectionScope(db,actor,"c");return db.prepare(`SELECT c.*,o.branch_id,o.department_id,${ownerNameProjection} FROM customer_followups c JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=c.order_id AND o.company_id=c.company_id WHERE c.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?) AND ${inList('coalesce(o.department_id,o.branch_id,o.company_id)')} AND c.status='open' AND c.due_date>=? AND c.due_date<? AND (?='team' OR c.owner_id=? OR c.created_by=?) AND (?::text IS NULL OR c.owner_id IN(SELECT user_id FROM (${people_payrollProjectionSources.hr_people}) hr_people WHERE id=? AND company_id=c.company_id)) AND (?='' OR c.next_action ILIKE '%'||?||'%') AND ${purchase.where} ORDER BY c.due_date,c.id LIMIT ?`).bind(facts.value1, facts.value2, facts.value2, facts.value3, facts.value3, facts.value4, facts.value5, facts.value6, facts.value7, facts.value8, facts.value8, facts.value9, facts.value9, facts.value10, facts.value10,...purchase.args, facts.value11).all<{
+    }) => { const purchase=await followupProjectionScope(db,actor,"c");return db.prepare(followupCustomerOrderTailRead(commerceProjectionSources.commerce_orders,`c.*,o.branch_id,o.department_id,${ownerNameProjection}`,`c.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)`,`${inList('coalesce(o.department_id,o.branch_id,o.company_id)')} AND c.status='open' AND c.due_date>=? AND c.due_date<? AND (?='team' OR c.owner_id=? OR c.created_by=?) AND (?::text IS NULL OR c.owner_id IN(SELECT user_id FROM (${people_payrollProjectionSources.hr_people}) hr_people WHERE id=? AND company_id=c.company_id)) AND (?='' OR c.next_action ILIKE '%'||?||'%')`,purchase.where,'ORDER BY c.due_date,c.id LIMIT ?')).bind(facts.value1, facts.value2, facts.value2, facts.value3, facts.value3, facts.value4, facts.value5, facts.value6, facts.value7, facts.value8, facts.value8, facts.value9, facts.value9, facts.value10, facts.value10,...purchase.args, facts.value11).all<{
         id: string;
         next_action: string;
         due_date: string;

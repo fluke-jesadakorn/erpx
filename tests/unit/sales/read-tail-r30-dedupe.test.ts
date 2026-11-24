@@ -186,7 +186,7 @@ describe('Sales read-tail r30 retirement check', () => {
     };
     walk(srcRoot);
     // r30 shares tableRead (-3) and priceListSelect (-1).
-    expect(total).toBe(50);
+    expect(total).toBe(47);
     expect(total).toBeLessThan(54);
   });
 });
