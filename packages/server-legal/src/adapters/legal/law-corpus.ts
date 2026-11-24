@@ -18,6 +18,7 @@ import { legalActiveDestructionGuardHead } from '../legal-read-tail-r46-sources'
 import { legalAttachmentAvailableSql } from '../legal-read-tail-r47-sources';
 import { legalDisposedGuardSql } from '../legal-read-tail-r39-sources';
 import { legalCorpusSourceCleanHead } from '../legal-read-tail-r48-sources';
+import { legalLawStateGuardSql } from '../legal-read-tail-r51-sources';
 export {legalChunkSchema} from "@erpx/server-legal/domain/law-corpus";
 export {fetchOfficialLawSource} from "@erpx/server-legal/adapters/legal/law-source-provider";
 export {drainLegalSourceChecks} from "@erpx/server-legal/adapters/legal/law-source-worker";
@@ -35,12 +36,12 @@ cleanSourceLink:facts=>fileFacts.cleanSourceLink(facts),
 inspection:(facts:{inspectionId:string;documentId:string;})=>db.prepare("SELECT result_json FROM legal_document_inspections WHERE id=? AND document_id=? AND kind='ocr'").bind(facts.inspectionId,facts.documentId).first<{ result_json: string }>(),
 async insertChunk(facts){return stage(await nativeCorpus.insertChunk(facts));},
 async registerSource(facts){return stage(await nativeCorpus.registerSource(facts));},
-registeredSource:(facts:{sourceId:string;id:string;companyId:string;})=>db.prepare("SELECT 1 FROM legal_law_sources WHERE id=? AND rule_id=? AND company_id=? AND state='active'").bind(facts.sourceId,facts.id,facts.companyId).first(),
+registeredSource:(facts:{sourceId:string;id:string;companyId:string;})=>db.prepare(legalLawStateGuardSql('legal_law_sources','active')).bind(facts.sourceId,facts.id,facts.companyId).first(),
 pendingCheck:(facts:{sourceCheckId:string;sourceId:string;companyId:string;checksum:string;})=>db.prepare("SELECT 1 FROM legal_law_source_checks WHERE id=? AND source_id=? AND company_id=? AND state='pending_review' AND checksum=? AND candidate_revision_id IS NULL").bind(facts.sourceCheckId,facts.sourceId,facts.companyId,facts.checksum).first(),
 async importRevision(facts){return stage(await nativeCorpus.importRevision(facts));},
 async bindSourceCheck(facts){return stage(await nativeCorpus.bindSourceCheck(facts));},
 async importDocumentText(facts){return stage(await nativeCorpus.importDocumentText(facts));},
-approvedRevision:(facts:{revisionId:string;id:string;companyId:string;})=>db.prepare("SELECT 1 FROM legal_law_revisions WHERE id=? AND rule_id=? AND company_id=? AND state='approved'").bind(facts.revisionId,facts.id,facts.companyId).first(),
+approvedRevision:(facts:{revisionId:string;id:string;companyId:string;})=>db.prepare(legalLawStateGuardSql('legal_law_revisions','approved')).bind(facts.revisionId,facts.id,facts.companyId).first(),
 async proposeApplicability(facts){return stage(await nativeCorpus.proposeApplicability(facts));},
 applicability:(facts:{applicabilityId:string;id:string;companyId:string;})=>db.prepare("SELECT id,version,state,created_by FROM legal_law_applicability WHERE id=? AND rule_id=? AND company_id=?").bind(facts.applicabilityId,facts.id,facts.companyId).first<ReviewRow>(),
 async approveApplicability(facts){return stage(await nativeCorpus.approveApplicability(facts));},

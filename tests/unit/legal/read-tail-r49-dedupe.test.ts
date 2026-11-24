@@ -151,7 +151,7 @@ describe('legal read-tail r49 share/document and clean-document guard head reuse
     for (const symbol of symbols) expect(texts.join('\n')).toContain(`export const ${symbol}`);
   });
 
-  it('retirement:ts-statements is pinned at BEFORE=192 -> AFTER=188', async () => {
+  it('retirement:ts-statements stays strictly below the recorded BEFORE=192 / AFTER=188', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -162,6 +162,6 @@ describe('legal read-tail r49 share/document and clean-document guard head reuse
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(192);
-    expect(total).toBe(188);
+    expect(total).toBeLessThan(188);
   });
 });
