@@ -117,6 +117,7 @@ describe('Learning read-tail r17 invariants', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(45);
-    expect(total).toBe(39);
+    // r18 lowers this further; r17 only pins that its own baseline decreased.
+    expect(total).toBeLessThanOrEqual(38);
   });
 });
