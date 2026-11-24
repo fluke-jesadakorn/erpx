@@ -18571,6 +18571,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "ecommerce",
+      "modules": [
+        "ecommerce"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Ecommerce receipt guard and cart checkout families must stay byte-identical."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-ecommerce"
+      ],
+      "id": "ecommerce.read-tail-r6-dedupe.unit",
+      "files": [
+        "tests/unit/ecommerce/ecommerce-read-tail-r6-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "ecommerce.rust-ecommerce-commands.unit",
       "lane": "unit",
       "owner": "ecommerce",
@@ -54105,6 +54130,31 @@
       "id": "manufacturing.read-tail-r16-dedupe.unit",
       "files": [
         "tests/unit/manufacturing/read-tail-r16-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "manufacturing",
+      "modules": [
+        "manufacturing"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Manufacturing settlement fact union branches must stay byte-identical."
+      },
+      "apps": "manufacturing",
+      "packages": [
+        "@erpx/server-manufacturing"
+      ],
+      "id": "manufacturing.read-tail-r17-dedupe.unit",
+      "files": [
+        "tests/unit/manufacturing/read-tail-r17-dedupe.test.ts"
       ],
       "framework": "vitest"
     },

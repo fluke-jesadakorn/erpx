@@ -62,11 +62,11 @@ describe('manufacturing read-tail r16 parameterized family dedupe', () => {
     expect(command).toContain('WHERE id=? FOR UPDATE');
   });
 
-  it('lowers the manufacturing owner SELECT KPI strictly below the recorded BEFORE=96 baseline', async () => {
+  it('keeps the manufacturing owner SELECT KPI strictly below the recorded BEFORE=94 baseline', async () => {
     const files = await tsFiles(new URL('../../../packages/server-manufacturing/src/', import.meta.url));
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
-    expect(count).toBeLessThan(96);
-    expect(count).toBe(94);
+    expect(count).toBeLessThan(94);
+    expect(count).toBe(89); // r17 lowered 94->89; r16 originally lowered 96->94.
   });
 });
