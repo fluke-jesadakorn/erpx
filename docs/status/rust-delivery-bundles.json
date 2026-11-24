@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12437,
+    "revision": 12439,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183932,7 +183932,7 @@
         "owner": "platform_administration",
         "title": "platform_administration next read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183943,22 +183943,37 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n83",
-          "claimedAt": "2026-11-24T16:04:23.160Z",
-          "heartbeatAt": "2026-11-24T16:11:53.559Z",
-          "expiresAt": "2026-11-24T16:41:53.559Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-platform_administration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "42d48e354",
+            "owner": "platform_administration",
+            "before": 31,
+            "after": 28,
+            "note": "releaseAcceptanceExistsSql delegates to releaseTableExistsSql (-1); projectionSourceHeadSql absorbs three projection heads (-2). Binds unchanged; locks/native untouched."
+          },
+          {
+            "command": "vitest platform_administration (13 targeted; 71 worker) + scoped tsc + byte oracles",
+            "result": "passed",
+            "sourceSha": "42d48e354"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "releaseAcceptanceExistsSql reuse (-1) and projection-source head union (-2): 31->28/29. BEFORE=31.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n83",
+          "at": "2026-11-24T16:14:02.595Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -184007,17 +184022,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 17,
+        "in_progress": 16,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1436,
+        "blocked": 1437,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:11:53.562Z",
+    "updatedAt": "2026-11-24T16:14:02.598Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
