@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8941,
+    "revision": 8943,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -136893,7 +136893,7 @@
         "owner": "customer_360",
         "title": "customer 360 timeline activity native port",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -136905,22 +136905,38 @@
         "resources": [
           "owner:customer_360"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGBScus",
-          "claimedAt": "2026-11-24T01:49:57.303Z",
-          "heartbeatAt": "2026-11-24T03:23:58.596Z",
-          "expiresAt": "2026-11-24T03:53:58.596Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-customer-360 --tests --offline (isolated target)",
+            "result": "passed",
+            "sourceSha": "85c9f38ae"
+          },
+          {
+            "command": "cargo test customer timeline activity unit 4/4 + http 3/3 + PG parity 1/1",
+            "result": "passed",
+            "sourceSha": "85c9f38ae"
+          },
+          {
+            "command": "tsc server-customer_360",
+            "result": "passed",
+            "sourceSha": "85c9f38ae"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Build native customer timeline activity read port + router in owner crate with parity test; no composition edits. Unblocks retire.customer_360.read-tail-r4.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Port integrated; mount/cutover queued.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGBScus",
+          "at": "2026-11-24T03:48:44.576Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Port integrated; mount/cutover queued."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -146428,17 +146444,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 32,
+        "in_progress": 31,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 679,
+        "blocked": 680,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T03:47:56.789Z",
+    "updatedAt": "2026-11-24T03:48:44.592Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
