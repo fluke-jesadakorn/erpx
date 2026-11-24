@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12467,
+    "revision": 12469,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -184224,6 +184224,41 @@
         "nextAction": "Add native-calendar-read wrappers for READ_67/61/63/64 and retire reminder authorization, occurrence response and byAppointmentIds literals (-3): 50->47. BEFORE=50.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.ecommerce.read-tail-r28",
+        "goalId": "G4",
+        "owner": "ecommerce",
+        "title": "ecommerce scalar head folds",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-ecommerce/src/**",
+          "tests/unit/ecommerce/**"
+        ],
+        "resources": [
+          "owner:ecommerce"
+        ],
+        "claim": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n100",
+          "claimedAt": "2026-11-24T16:27:31.157Z",
+          "heartbeatAt": "2026-11-24T16:27:31.157Z",
+          "expiresAt": "2026-11-24T16:57:31.157Z",
+          "generation": 170
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Fold factBranch, countBy and ecommerceNativeOrderRoots into ecommerceScalar (-3): 10->7. BEFORE=10.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -184232,11 +184267,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1806,
+      "totalPackets": 1807,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 8,
+        "in_progress": 9,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -184246,7 +184281,7 @@
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:26:39.693Z",
+    "updatedAt": "2026-11-24T16:27:31.160Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
