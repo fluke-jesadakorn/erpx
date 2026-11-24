@@ -1,5 +1,5 @@
 import 'server-only';
-import {ORG_NODES_SPACED_N_FROM,ORG_NODES_PROJECTION} from './organization-nodes-spaced-projections';
+import {ORG_NODES_SPACED_N_FROM,ORG_NODES_PROJECTION,ORG_NODES_SPACED_CLAUSE} from './organization-nodes-spaced-projections';
 /** Closed, named source clauses for the supplied notification statement snapshot.
  * No table, SQL, predicate or alias is accepted from a caller. */
 export function collaborationNotificationSnapshotSources(){return {
@@ -8,5 +8,5 @@ export function collaborationNotificationSnapshotSources(){return {
   "organization_channels_organization_nodes_n_from": ORG_NODES_SPACED_N_FROM,
   "organization_node_channels_organization_nodes_from": ORG_NODES_PROJECTION,
   "people_roster_facts_organization_nodes_from": ORG_NODES_PROJECTION,
-  "people_roster_facts_organization_nodes_parent_from": "FROM (SELECT \"id\", \"kind\", \"slug\", \"display_name\", \"parent_id\", \"company_id\", \"branch_id\", \"status\", \"hierarchy_revision\" FROM organization_nodes) parent"
+  "people_roster_facts_organization_nodes_parent_from": ORG_NODES_SPACED_CLAUSE('FROM','parent')
 } as const;}
