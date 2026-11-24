@@ -22,6 +22,7 @@ import type {PromiseRow as Row} from "@erpx/server-procurement/domain/supplier-p
 import {procurementPurchaseAccess,requireProcurementPurchasedRead,withProcurementPurchasedCommand} from "@erpx/server-procurement/adapters/purchases";
 import {branchDepartmentScope} from './read-tail-sql';
 import {eligiblePurchaseCount} from './read-tail-r24';
+import {openPromiseByOrder} from './read-tail-r41';
 export {supplierPromiseSchema} from "@erpx/server-procurement/domain/supplier-promises";
 type Evidence=Awaited<ReturnType<typeof prepareAttachmentBinding>>;
 const scope=branchDepartmentScope("o");
@@ -40,9 +41,9 @@ return {lines:lines.results,history:history.results,schedule:schedule.results,op
  evidenceSets:async(ids)=>attachmentPurposeFacts(await database(),a.companyId,ids),
  prepareEvidence:async(id,promiseId,input,key)=>prepareAttachmentBinding(await database(),a,{attachmentSetIds:input.attachmentSetIds,bindingContract:{targetType:'purchase_order',bindingType:'supplier_promise',contexts:[{purposeKey:'supplier_promise',componentKind:'action',componentRef:'supplier-promise'}]},targetId:id,expectedTargetVersion:input.expectedVersion,commandId:key,bindingId:promiseId}),
  replay:async(key,operation,id,input)=>replayCommand(await database(),a,key,operation,id,input),commit:async(m,result)=>commit(await database(),a,m,result),
- workRows:async()=>{const write=await database();return (await write.prepare(`SELECT o.*,COALESCE((SELECT min(p.promised_date) FROM procurement_open_promise_lines p JOIN procurement_delivery_promises h ON h.id=p.promise_id WHERE h.order_id=o.id AND p.remaining_milli>0),o.due_date) followup_date,
+ workRows:async()=>{const write=await database();return (await write.prepare(`SELECT o.*,COALESCE(${openPromiseByOrder("min(p.promised_date)"," AND p.remaining_milli>0")},o.due_date) followup_date,
  (SELECT COALESCE(SUM(l.quantity_milli-l.fulfilled_milli),0) FROM (${commercePlatformSources.commerce_order_lines}) l WHERE l.order_id=o.id) outstanding,
- (SELECT COALESCE(SUM(p.remaining_milli),0) FROM procurement_open_promise_lines p JOIN procurement_delivery_promises h ON h.id=p.promise_id WHERE h.order_id=o.id) promised,
+ ${openPromiseByOrder("COALESCE(SUM(p.remaining_milli),0)")} promised,
  ${eligiblePurchaseCount(identity_accessPlatformSources.assignments,"a","o.company_id","o.branch_id","o.department_id")} candidates
  FROM (${commercePlatformSources.commerce_orders}) o WHERE o.kind='purchase' AND o.state IN ('confirmed','partially_fulfilled') AND ${scope} ORDER BY o.due_date,o.id`).bind(...scopeArgs(a)).all<Row>()).results;
 },};return createSupplierPromiseApplication(ports);
