@@ -1,5 +1,5 @@
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
-import { samePersonQuerySql, memberForShareSql } from "./iam-probe-sql";
+import { samePersonQuerySql, memberForShareSql, protectedMigrationIdentitySql } from "./iam-probe-sql";
 import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {linkMigratedPerson,linkMigratedEmployee} from "@erpx/server-people_payroll/public/identity-person-link-effects";
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
@@ -55,7 +55,7 @@ function migrationTx(c: PoolClient, actor: IamActor): MigrationTransaction {
         },
         protectedMigrationIdentity: async (facts) => {
             const { user } = facts;
-            return (await c.query("SELECT 1 FROM iam_members WHERE company_id=$1 AND user_id=$2 AND (login_policy IN ('emergency','directory') OR status!='active')", [actor.companyId, user.localUserId])).rowCount;
+            return (await c.query(protectedMigrationIdentitySql, [actor.companyId, user.localUserId])).rowCount;
         },
         insertMigrationBatch: async (facts) => {
             const { id, input, observedNow } = facts;
@@ -98,7 +98,7 @@ function migrationTx(c: PoolClient, actor: IamActor): MigrationTransaction {
         },
         protectReviewedMigrationIdentity: async (facts) => {
             const { u } = facts;
-            return (await c.query("SELECT 1 FROM iam_members WHERE company_id=$1 AND user_id=$2 AND (login_policy IN ('emergency','directory') OR status!='active')", [actor.companyId, u.localUserId])).rowCount;
+            return (await c.query(protectedMigrationIdentitySql, [actor.companyId, u.localUserId])).rowCount;
         },
         supersedeLocalIdentity: async (facts) => {
             const { u } = facts;

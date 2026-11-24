@@ -10,3 +10,5 @@ export const samePersonQuerySql = "SELECT iam_same_person($1,$2,$3) same";
 export const assignmentActiveQuerySql = "SELECT iam_assignment_active($1,$2) ok";
 /** pg positional-parameter probe returning the locked iam_members row, shared by the migration and transaction adapters. */
 export const memberForShareSql = "SELECT * FROM iam_members WHERE company_id=$1 AND user_id=$2 FOR SHARE";
+/** pg positional-parameter probe for a protected emergency/directory migration identity, shared by the prepare and review migration adapters. */
+export const protectedMigrationIdentitySql = "SELECT 1 FROM iam_members WHERE company_id=$1 AND user_id=$2 AND (login_policy IN ('emergency','directory') OR status!='active')";
