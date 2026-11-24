@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7746,
+    "revision": 7750,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -130539,7 +130539,7 @@
         "owner": "customer_360",
         "title": "customer_360 TS read tail native cutover (r2)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -130551,22 +130551,42 @@
         "resources": [
           "owner:customer_360"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG30c360",
-          "claimedAt": "2026-11-24T00:47:26.750Z",
-          "heartbeatAt": "2026-11-24T01:03:59.988Z",
-          "expiresAt": "2026-11-24T01:33:59.988Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-customer_360/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d789144b0",
+            "owner": "customer_360",
+            "before": 37,
+            "after": 36,
+            "note": "Directory and visible customer share customerPartySelect; visibility predicate untouched."
+          },
+          {
+            "command": "cargo check -p erpx-server-customer-360",
+            "result": "passed",
+            "sourceSha": "d789144b0"
+          },
+          {
+            "command": "vitest customer timeline transport (13) + tsc customer_360",
+            "result": "passed",
+            "sourceSha": "d789144b0"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or use an existing native read; record a strictly lower spaced count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG30c360",
+          "at": "2026-11-24T01:04:20.333Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -131244,6 +131264,42 @@
         "nextAction": "Only owner-local dedupe inside server-talent; residual reads need cross-owner IAM/server-files ports. BEFORE=82.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.customer_360.read-tail-r3",
+        "goalId": "G4",
+        "owner": "customer_360",
+        "title": "customer_360 TS read tail native cutover (round 3)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-customer_360/src/**",
+          "tests/unit/customer_360/**",
+          "tests/integration/customer_360/**"
+        ],
+        "resources": [
+          "owner:customer_360"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG52c360",
+          "claimedAt": "2026-11-24T01:04:20.541Z",
+          "heartbeatAt": "2026-11-24T01:04:20.541Z",
+          "expiresAt": "2026-11-24T01:34:20.541Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: timeline (20) owner-local dedupe or package-obligations (6) byte-identical pair; avoid portal (blocked) and the visibility predicate. BEFORE=36.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -131252,7 +131308,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 770,
+      "totalPackets": 771,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -131260,13 +131316,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 392,
+        "blocked": 393,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:04:08.918Z",
+    "updatedAt": "2026-11-24T01:04:20.545Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
