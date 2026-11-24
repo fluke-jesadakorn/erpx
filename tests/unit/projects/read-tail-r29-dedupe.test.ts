@@ -84,7 +84,7 @@ describe('Projects read-tail r29 ordered image aggregate head dedupe', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(115);
-    expect(total).toBe(113); // r28 left 115; r29 ordered-image select-head family 115->113.
+    expect(total).toBe(112); // r28 left 115; r29 ordered-image select-head family 115->113; r30 visible-project-rows head 113->112.
   });
 });
 
