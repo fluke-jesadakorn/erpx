@@ -1,12 +1,13 @@
 import "server-only";
 import { CHART_BASE_CURRENCY_BY_ID_SQL } from './finance-read-tail-r15-sql';
 import { ACCOUNT_SELECT_PREFIX } from './finance-read-tail-r30-sql';
+import { CHART_ID_BY_COMPANY_SQL } from './finance-read-tail-r36-sql';
 import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
 import {one,all,run} from '@erpx/server-runtime/public/runtime/sql';
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 export function posCoreFinanceFacts(db:SqlDatabase){return {
 readFinancePeriods1:(facts:{companyId:string;date:string;date2:string;})=>all(db,"SELECT id FROM finance_periods WHERE company_id=? AND start_date<=? AND end_date>=? AND state='open' FOR SHARE",facts.companyId,facts.date,facts.date2),
-readFinanceCharts1:(facts:{chartId:string;companyId:string;})=>one(db,"SELECT id FROM finance_charts WHERE id=? AND company_id=?",facts.chartId,facts.companyId),
+readFinanceCharts1:(facts:{chartId:string;companyId:string;})=>one(db,CHART_ID_BY_COMPANY_SQL,facts.chartId,facts.companyId),
 readFinanceAccounts1:(facts:{account:string;companyId:string;chartId:string;})=>one(db,ACCOUNT_SELECT_PREFIX + "id=? AND company_id=? AND chart_id=? AND status='active'",facts.account,facts.companyId,facts.chartId),
 writeFinanceJournals1:async(facts:{journal:`${string}-${string}-${string}-${string}-${string}`;companyId:string;chartId:string;period:string;fact4:string;date:string;currency:string;sourceId:string;sourceKey:string;actorId:string;actorId2:string;now:number;now2:number;now3:number;})=>(await nativeFinanceOwnerWriteSystem(db, facts.companyId, 'pos_journal_insert', [facts.journal,facts.companyId,facts.chartId,facts.period,facts.fact4,facts.date,facts.currency,facts.sourceId,facts.sourceKey,facts.actorId,facts.actorId2,facts.now,facts.now2,facts.now3])).run(),
 writeFinanceJournalLines1:async(facts:{fact0:`${string}-${string}-${string}-${string}-${string}`;journal:`${string}-${string}-${string}-${string}-${string}`;account:string;debit:number;credit:number;debit2:number;credit2:number;fact7:string;i:number;})=>(await nativeFinanceOwnerWriteSystem(db, 'system', 'pos_journal_lines_insert', [facts.fact0,facts.journal,facts.account,facts.debit,facts.credit,facts.debit2,facts.credit2,facts.fact7,facts.i])).run(),

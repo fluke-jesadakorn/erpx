@@ -52,6 +52,12 @@ import {
   ACTIVE_ACCOUNT_CHART_ID_SQL,
 } from '../../../packages/server-finance/src/adapters/finance-read-tail-r34-sql';
 import { WORKFORCE_ACTOR_SCOPE_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r35-sql';
+import {
+  CHART_ID_BY_COMPANY_SQL,
+  CHART_EXISTS_BY_COMPANY_SQL,
+  CHART_IMAGE_BY_COMPANY_SQL,
+  PAYROLL_LINE_IMAGE_SQL,
+} from '../../../packages/server-finance/src/adapters/finance-read-tail-r36-sql';
 import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/people-payroll-final-owner-projections';
 import { workflowFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/workflow-final-owner-projections';
 import {
@@ -1035,7 +1041,7 @@ describe('finance read-tail r24 byte-identical SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2038);
-    expect(total).toBe(1970);
+    expect(total).toBe(1966);
   });
 });
 
@@ -1206,7 +1212,7 @@ describe('finance read-tail r30 byte-identical guard-prefix families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2027);
-    expect(total).toBe(1970);
+    expect(total).toBe(1966);
   });
 });
 
@@ -1250,7 +1256,7 @@ describe('finance read-tail r31 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1989);
-    expect(total).toBe(1970);
+    expect(total).toBe(1966);
   });
 });
 
@@ -1295,7 +1301,7 @@ describe('finance read-tail r32 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1985);
-    expect(total).toBe(1970);
+    expect(total).toBe(1966);
   });
 });
 
@@ -1340,7 +1346,7 @@ describe('finance read-tail r33 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1983);
-    expect(total).toBe(1970);
+    expect(total).toBe(1966);
   });
 });
 
@@ -1415,7 +1421,7 @@ describe('finance read-tail r34 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1981);
-    expect(total).toBe(1970);
+    expect(total).toBe(1966);
   });
 });
 
@@ -1464,6 +1470,81 @@ describe('finance read-tail r35 parameterized workforce actor scope family', () 
     };
     walk(root);
     expect(total).toBeLessThan(1974);
-    expect(total).toBe(1970);
+    expect(total).toBe(1966);
+  });
+});
+
+describe('finance read-tail r36 exact duplicate two-site SQL families', () => {
+  // Four byte-identical literals, each shared by exactly two adapter sites.
+  // Callers keep their own binds; row-lock variants and every r15-r35 helper
+  // stay untouched.
+  const FAMILIES = [
+    {
+      sql: 'SELECT id FROM finance_charts WHERE id=? AND company_id=?',
+      constant: CHART_ID_BY_COMPANY_SQL,
+      sites: ['finance-reporting.ts', 'pos-core-facts.ts'],
+    },
+    {
+      sql: 'SELECT 1 FROM finance_charts WHERE id=? AND company_id=?',
+      constant: CHART_EXISTS_BY_COMPANY_SQL,
+      sites: ['accounting-profiles.ts', 'finance-invoice-read.ts'],
+    },
+    {
+      sql: 'SELECT * FROM finance_charts WHERE id=? AND company_id=?',
+      constant: CHART_IMAGE_BY_COMPANY_SQL,
+      sites: ['record-presentation.ts', 'refund-bank-evidence.ts'],
+    },
+    {
+      sql: 'SELECT to_jsonb(l)::text image FROM finance_journal_lines l WHERE l.journal_id=? ORDER BY l.ordinal,l.id',
+      constant: PAYROLL_LINE_IMAGE_SQL,
+      sites: ['payroll-other-remittance-facts.ts'],
+    },
+  ];
+
+  it('exposes each exact literal with no row-lock text', () => {
+    for (const family of FAMILIES) {
+      expect(family.constant).toBe(family.sql);
+      expect(family.constant).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+    }
+  });
+
+  it('removes every inline literal from its two sites', async () => {
+    for (const family of FAMILIES) {
+      for (const file of family.sites) {
+        const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+        expect(text.includes('"' + family.sql + '"')).toBe(false);
+        expect(text.includes("'" + family.sql + "'")).toBe(false);
+        expect(text).toContain('finance-read-tail-r36-sql');
+      }
+    }
+  });
+
+  it('leaves lock variants, tax assertion guards and r15-r35 helpers untouched', async () => {
+    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    expect(pos).toContain('FOR SHARE');
+    expect(pos).toContain('FOR UPDATE');
+    const acct = await readFile(new URL('../../../packages/server-finance/src/adapters/accounting-profiles.ts', import.meta.url), 'utf8');
+    expect(acct).toContain("EXISTS(SELECT 1 FROM finance_charts WHERE id=? AND company_id=? AND status='active' AND base_currency='THB')");
+    const r35 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r35-sql.ts', import.meta.url), 'utf8');
+    expect(r35).toContain('WORKFORCE_ACTOR_SCOPE_SQL');
+    const r34 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r34-sql.ts', import.meta.url), 'utf8');
+    expect(r34).toContain('OPEN_PERIOD_COVERED_SQL');
+    const r24 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
+    expect(r24).toContain('TAX_SOURCE_APPROVED_INVOICE_SQL');
+  });
+
+  it('retirement:ts-statements stays strictly below the r35 BEFORE=1970 baseline', () => {
+    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(1970);
+    expect(total).toBe(1966);
   });
 });

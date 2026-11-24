@@ -1,6 +1,7 @@
 import { financeAccountingProfiles } from '@erpx/server-collaboration/adapters/native-finance-accounting-profiles';
 import { withFinancePurchasedRead, withFinanceConfigurationCommand } from "@erpx/server-finance/adapters/purchase-boundary";
 import { ACTIVE_CHART_BASE_CURRENCY_SQL } from "./chart-base-currency-dedupe-sql";
+import { CHART_EXISTS_BY_COMPANY_SQL } from './finance-read-tail-r36-sql';
 import { financeOwnerDecisionEffects } from "@erpx/server-workflow/public/finance-owner-decision-effects";
 import { createAccountingProfiles } from '@erpx/server-finance/application/accounting-profiles';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
@@ -51,7 +52,7 @@ function profileService(provided?: SqlDatabase) {
                 await financeAccountingProfiles(write, actor.companyId).decide({ status, userId: actor.userId, reason: input.reason, now, id, companyId: actor.companyId }),
                 financeOwnerDecisionEffects(write).appendRetainedLayoutDecision({id:crypto.randomUUID(),commandId:key,recordId:id,action:operation,actorId:actor.userId,assignmentId:actor.assignmentId,reviewedVersion:input.expectedVersion,inputDigest:createHash("sha256").update(JSON.stringify(input)).digest("hex"),createdAt:now}),
             ]);
-        }, chartExists: async (facts) => { const { query, actor } = facts; const write = await db(actor); return !!await write.prepare("SELECT 1 FROM finance_charts WHERE id=? AND company_id=?").bind(query.chartId, actor.companyId).first(); }, events: async (facts) => {
+        }, chartExists: async (facts) => { const { query, actor } = facts; const write = await db(actor); return !!await write.prepare(CHART_EXISTS_BY_COMPANY_SQL).bind(query.chartId, actor.companyId).first(); }, events: async (facts) => {
             const { actor, query } = facts;
             const write = await db(actor);
             return (await write.prepare("SELECT * FROM finance_financial_events WHERE company_id=? AND chart_id=? AND (?::text IS NULL OR effective_date>=?) AND (?::text IS NULL OR effective_date<=?) ORDER BY effective_date,id LIMIT 1000")

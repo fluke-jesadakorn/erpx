@@ -1,5 +1,6 @@
 import 'server-only';
 import { APPROVED_SECONDARY_CHART_RULE_SQL } from './finance-read-tail-r15-sql';
+import { CHART_IMAGE_BY_COMPANY_SQL } from './finance-read-tail-r36-sql';
 import {createHash} from 'node:crypto';
 import {samePerson} from '@erpx/feature-identity_access/lib/iam';
 import {financeCsvRows} from '@erpx/feature-finance/lib/finance-csv';
@@ -46,7 +47,7 @@ async function source(database:SqlDatabase,actor:WorkContext,id:string):Promise<
  if(!owner)throw new ApiError(404,'REFUND_NOT_FOUND','The original refund obligation is unavailable.');
  const [account,chart,receipt]=await Promise.all([
   database.prepare('SELECT * FROM finance_accounts WHERE id=? AND company_id=?').bind(row.cash_account_id,actor.companyId).first<Row>(),
-  database.prepare('SELECT * FROM finance_charts WHERE id=? AND company_id=?').bind(owner.chart_id,actor.companyId).first<Row>(),
+  database.prepare(CHART_IMAGE_BY_COMPANY_SQL).bind(owner.chart_id,actor.companyId).first<Row>(),
   database.prepare("SELECT command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at FROM command_receipts WHERE command_id=? AND operation='finance.refund.export' AND authority_json::jsonb->>'companyId'=?").bind(row.export_command_id,actor.companyId).first<ExportReceipt>(),
  ]);
  if(!account||!chart||!receipt||receipt.record_id!==row.export_command_id||row.bank_account!==row.cash_account_id||account.chart_id!==owner.chart_id||account.currency!==owner.currency)throw changed();

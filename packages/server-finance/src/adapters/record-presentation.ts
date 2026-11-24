@@ -1,6 +1,7 @@
 import {posInitialStockJournalMarked} from '@erpx/server-finance/adapters/pos-initial-stock-journal-sources';
 import { DIMENSION_DEFINITIONS_SQL } from './finance-read-tail-r17-sql';
 import { ACCOUNT_CHART_ID_SQL } from './finance-read-tail-r18-sql';
+import { CHART_IMAGE_BY_COMPANY_SQL } from './finance-read-tail-r36-sql';
 import {resolveFlow} from '@erpx/server-workflow/public/flow-routing';
 import {withManufacturingInitialStockJournalRead} from '@erpx/server-finance/adapters/manufacturing-initial-stock-journal-read';
 import {manufacturingInitialStockJournalMarked} from '@erpx/server-finance/adapters/manufacturing-initial-stock-journal-sources';
@@ -23,7 +24,7 @@ import type {FinanceRow} from "@erpx/server-finance/domain/finance";
 /** A record page needs references for that book, not every financial record and
  * company-wide statements from the full register workspace. */
 async function references(db:SqlDatabase,actor:WorkContext,chartId:string){
- const chart=await db.prepare("SELECT * FROM finance_charts WHERE id=? AND company_id=?").bind(chartId,actor.companyId).first<LedgerRow>();
+ const chart=await db.prepare(CHART_IMAGE_BY_COMPANY_SQL).bind(chartId,actor.companyId).first<LedgerRow>();
  if(!chart)throw new ApiError(404,"CHART_NOT_FOUND","The record's book is unavailable.");
  const [accounts,periods,dimensions,dimensionValues]=await Promise.all([
   db.prepare("SELECT * FROM finance_accounts WHERE chart_id=? AND company_id=? ORDER BY code,id").bind(chartId,actor.companyId).all<FinanceRow>(),
