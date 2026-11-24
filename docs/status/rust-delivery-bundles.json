@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12542,
+    "revision": 12544,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -184415,7 +184415,7 @@
         "owner": "people_payroll",
         "title": "people_payroll read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -184426,22 +184426,37 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n102",
-          "claimedAt": "2026-11-24T17:09:25.224Z",
-          "heartbeatAt": "2026-11-24T17:15:31.032Z",
-          "expiresAt": "2026-11-24T17:45:31.032Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1eb0a4324",
+            "owner": "people_payroll",
+            "before": 1224,
+            "after": 1221,
+            "note": "Four cancellation image/validity sites -> two closed builders; authority tails and spread binds stay at callers; locks/advisory/native untouched."
+          },
+          {
+            "command": "vitest payroll (160 read-tail) + scoped tsc + HEAD byte proof",
+            "result": "passed",
+            "sourceSha": "1eb0a4324"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Payment-cancellation image/validity pairs (-2) or payroll run guards (-1): 1224->1222/1223. BEFORE=1224.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n102",
+          "at": "2026-11-24T17:22:43.079Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185145,17 +185160,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 17,
+        "in_progress": 16,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1460,
+        "blocked": 1461,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 171,
-    "updatedAt": "2026-11-24T17:22:12.492Z",
+    "updatedAt": "2026-11-24T17:22:43.121Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
