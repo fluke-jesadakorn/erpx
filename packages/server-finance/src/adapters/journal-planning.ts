@@ -1,5 +1,6 @@
 import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
 import { ACCOUNT_SELECT_PREFIX } from './finance-read-tail-r30-sql';
+import { ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL } from './finance-read-tail-r32-sql';
 
 
 import type { JournalPlan } from '@erpx/server-finance/application/journal';
@@ -28,7 +29,7 @@ export async function confirmedFunctionalFx(write: SqlDatabase, actor: WorkConte
 export async function ensurePeriod(write: SqlDatabase, actor: WorkContext, periodId: string, entryDate: string, allowClosing = false) { return createEnsurePeriod({ error: (...args) => new ApiError(...args), period: (companyId, periodId) => write.prepare('SELECT * FROM finance_periods WHERE id=? AND company_id=?').bind(periodId, companyId).first<FinanceRow>(), coveredDate: async (companyId, date) => !!await write.prepare("SELECT 1 FROM finance_periods WHERE company_id=? AND state IN ('closed','closing') AND ? BETWEEN start_date AND end_date LIMIT 1").bind(companyId, date).first() })(actor, periodId, entryDate, allowClosing); }
 export async function prepareJournal(write: SqlDatabase, actor: WorkContext, input: z.infer<typeof createJournalSchema>, key: string, status: "draft" | "posted" = "draft") { const plan = await journalPreparation(write)(actor, input, key, status); return journalStatements(write, actor, input, key, status, plan); }
 export function journalPreparation(write: SqlDatabase) {
-    return createJournalPreparation({ error: (...args) => new ApiError(...args), now: Date.now, chart: (companyId, chartId) => write.prepare("SELECT id,base_currency FROM finance_charts WHERE id=? AND company_id=? AND status='active'").bind(chartId, companyId).first<{
+    return createJournalPreparation({ error: (...args) => new ApiError(...args), now: Date.now, chart: (companyId, chartId) => write.prepare(ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL).bind(chartId, companyId).first<{
             id: string;
             base_currency: string;
         }>(), period: (actor, periodId, date) => ensurePeriod(write, actor, periodId, date), moneyScale: (companyId, currency) => requireFinanceMoneyScale(write, companyId, currency), functionalFx: (actor, currency, baseCurrency, date) => confirmedFunctionalFx(write, actor, currency, baseCurrency, date), accounts: async (companyId, chartId, accountIds) => (await write.prepare(`${ACCOUNT_SELECT_PREFIX}company_id=? AND chart_id=? AND status='active' AND id IN (${accountIds.map(() => "?").join(",")})`).bind(companyId, chartId, ...accountIds).all<{

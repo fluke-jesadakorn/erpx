@@ -42,6 +42,7 @@ import { bookRootUnionSql, peopleRunsCteSql, peoplePostingsCteSql, journalAggreg
 import { packageObligationFactsSql, ASSET_DEPRECIATION_COUNT_SQL, ASSET_POLICY_EDITION_PENDING_SQL, ASSET_POLICY_RUN_PENDING_SQL, TAX_SOURCE_APPROVED_INVOICE_SQL, TAX_SOURCE_APPROVED_COMMERCE_RETURN_SQL, TAX_SOURCE_APPROVED_BILLING_CREDIT_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r24-sql';
 import { ACCOUNT_SELECT_PREFIX, INVOICE_EXISTS_PREFIX, JOURNAL_SELECT_PREFIX } from '../../../packages/server-finance/src/adapters/finance-read-tail-r30-sql';
 import { CONSOLIDATION_RUN_BY_ID_SQL, ISSUED_THAI_DOCUMENT_BY_ID_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r31-sql';
+import { ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r32-sql';
 import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/people-payroll-final-owner-projections';
 import { workflowFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/workflow-final-owner-projections';
 import {
@@ -1025,7 +1026,7 @@ describe('finance read-tail r24 byte-identical SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2038);
-    expect(total).toBe(1985);
+    expect(total).toBe(1983);
   });
 });
 
@@ -1196,7 +1197,7 @@ describe('finance read-tail r30 byte-identical guard-prefix families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2027);
-    expect(total).toBe(1985);
+    expect(total).toBe(1983);
   });
 });
 
@@ -1240,6 +1241,51 @@ describe('finance read-tail r31 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1989);
-    expect(total).toBe(1985);
+    expect(total).toBe(1983);
+  });
+});
+
+describe('finance read-tail r32 byte-identical read families', () => {
+  // Distinct from the earlier base_currency-only dedupe: this family returns
+  // both id and base_currency from the active chart at three call sites.
+  const LITERALS = {
+    ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL: "SELECT id,base_currency FROM finance_charts WHERE id=? AND company_id=? AND status='active'",
+  };
+
+  it('exposes the exact literal with no row-lock text', () => {
+    expect(ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL).toBe(LITERALS.ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL);
+    for (const value of Object.values(LITERALS)) expect(value).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+  });
+
+  it('is not the already-deduped base_currency-only literal', () => {
+    expect(ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL).not.toBe(ACTIVE_CHART_BASE_CURRENCY_SQL);
+  });
+
+  it('removes every inline family literal from its call sites', async () => {
+    for (const file of ['journal-planning.ts', 'payroll-owner-facts.ts', 'finance.ts']) {
+      const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+      expect(text.split(LITERALS.ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL).length - 1).toBe(0);
+      expect(text).toContain('ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL');
+    }
+  });
+
+  it('leaves row-lock variants inline at their adapters', async () => {
+    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    expect(pos).toContain("SELECT id,base_currency FROM finance_charts WHERE id=? AND company_id=? AND status='active' FOR SHARE");
+  });
+
+  it('retirement:ts-statements stays strictly below the r31 BEFORE=1985 baseline', () => {
+    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(1985);
+    expect(total).toBe(1983);
   });
 });

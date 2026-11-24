@@ -1,5 +1,6 @@
 import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
 import { ACCOUNT_SELECT_PREFIX } from './finance-read-tail-r30-sql';
+import { ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL } from './finance-read-tail-r32-sql';
 import { BANK_STATEMENT_VERSION_GUARD_SQL } from './finance-read-tail-r18-sql';
 import {financeSnapshotSources} from "@erpx/server-people_payroll/public/finance-snapshot-sources";
 import { OPEN_PERIOD_LIST_SQL } from './finance-read-tail-r15-sql';
@@ -29,7 +30,7 @@ export function payrollFinanceFacts(database: SqlDatabase) {
             }>();
         },
         readSavePayrollAccountMappingChart(chartId: string, companyId: string) {
-            return database.prepare("SELECT id,base_currency FROM finance_charts WHERE id=? AND company_id=? AND status='active'").bind(chartId, companyId).first<{
+            return database.prepare(ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL).bind(chartId, companyId).first<{
                 id: string;
                 base_currency: string;
             }>();

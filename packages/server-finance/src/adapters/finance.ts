@@ -4,6 +4,7 @@ import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-
 import { SUPPLIER_RESERVATION_GUARD_SQL, BANK_TRANSACTION_BY_ID_SQL } from './finance-read-tail-r17-sql';
 import {requireLegacyFinanceJournal} from './document-purchases';
 import { CHART_BASE_CURRENCY_BY_ID_SQL } from './finance-read-tail-r15-sql';
+import { ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL } from './finance-read-tail-r32-sql';
 import { nativeFinanceOwnerWrite } from './native-finance-owner-write';
 import{confirmedFunctionalFx,prepareJournal,journalPreparation,journalStatements}from '@erpx/server-finance/adapters/journal-planning';
 import{decimalToMinor}from '@erpx/server-finance/public/money-primitives';
@@ -595,7 +596,7 @@ function fxService(provided?: SqlDatabase) {
     let pending: Promise<SqlDatabase> | undefined = provided ? Promise.resolve(provided) : undefined;
     const db = (actor: WorkContext, readOnly = false) => pending ??= resources(actor, readOnly).then(r => r.write);
     const journals = new Map<string, Awaited<ReturnType<typeof prepareJournal>>>();
-    return createFxRevaluation({ error: (...args) => new ApiError(...args), authorize: requirePermission, now: Date.now, id: () => crypto.randomUUID(), digest: hash, ready: async (actor, readOnly) => { await db(actor, readOnly); }, prior: async (actor, key, operation, input) => priorCommand(await db(actor), actor, key, operation, input), replay: async (actor, key, operation, id, input) => replayCommand(await db(actor), actor, key, operation, id, input), prepareJournal: async (actor, input, key, status) => { const write = await db(actor), plan = await journalPreparation(write)(actor, input, key, status); journals.set(plan.result.id, await journalStatements(write, actor, input, key, status, plan)); return plan; }, exposureChart: async (facts) => { const { chartId, actor } = facts; const write = await db(actor); return write.prepare("SELECT id,base_currency FROM finance_charts WHERE id=? AND company_id=? AND status='active'").bind(chartId, actor.companyId).first<FinanceRow>(); },
+    return createFxRevaluation({ error: (...args) => new ApiError(...args), authorize: requirePermission, now: Date.now, id: () => crypto.randomUUID(), digest: hash, ready: async (actor, readOnly) => { await db(actor, readOnly); }, prior: async (actor, key, operation, input) => priorCommand(await db(actor), actor, key, operation, input), replay: async (actor, key, operation, id, input) => replayCommand(await db(actor), actor, key, operation, id, input), prepareJournal: async (actor, input, key, status) => { const write = await db(actor), plan = await journalPreparation(write)(actor, input, key, status); journals.set(plan.result.id, await journalStatements(write, actor, input, key, status, plan)); return plan; }, exposureChart: async (facts) => { const { chartId, actor } = facts; const write = await db(actor); return write.prepare(ACTIVE_CHART_BASE_CURRENCY_BY_ID_SQL).bind(chartId, actor.companyId).first<FinanceRow>(); },
         exposureRows: async (facts) => {
             const { period, actor, chartId, chart } = facts;
             const write = await db(actor);
