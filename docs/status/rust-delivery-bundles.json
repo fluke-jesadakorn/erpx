@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12384,
+    "revision": 12390,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183570,6 +183570,111 @@
         "nextAction": "Ordered-list company variants via r42 reuse (-17) and active account projection (-5): 1805->1783.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.sales.read-tail-r33",
+        "goalId": "G4",
+        "owner": "sales",
+        "title": "sales TS read tail next round",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-sales/src/**",
+          "tests/unit/sales/**"
+        ],
+        "resources": [
+          "owner:sales"
+        ],
+        "claim": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n76",
+          "claimedAt": "2026-11-24T15:44:48.328Z",
+          "heartbeatAt": "2026-11-24T15:44:48.328Z",
+          "expiresAt": "2026-11-24T16:14:48.328Z",
+          "generation": 170
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Followup customer-order head pair: fold tail generator into read generator (-1): 47->46. Refresh r31 pins. BEFORE=47.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.ecommerce.read-tail-r27",
+        "goalId": "G4",
+        "owner": "ecommerce",
+        "title": "ecommerce TS read tail next round",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-ecommerce/src/**",
+          "tests/unit/ecommerce/**"
+        ],
+        "resources": [
+          "owner:ecommerce"
+        ],
+        "claim": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n77",
+          "claimedAt": "2026-11-24T15:45:00.870Z",
+          "heartbeatAt": "2026-11-24T15:45:00.870Z",
+          "expiresAt": "2026-11-24T16:15:00.870Z",
+          "generation": 170
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Purchase-boundary cart/checkout source identity through ecommerceSourceIdentity alias param (-1): 11->10. Keep 409 identity bytes. BEFORE=11.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.projects.read-tail-r39",
+        "goalId": "G4",
+        "owner": "projects",
+        "title": "projects TS read tail next round",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-projects/src/**",
+          "tests/unit/projects/**"
+        ],
+        "resources": [
+          "owner:projects"
+        ],
+        "claim": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n78",
+          "claimedAt": "2026-11-24T15:45:13.412Z",
+          "heartbeatAt": "2026-11-24T15:45:13.412Z",
+          "expiresAt": "2026-11-24T16:15:13.412Z",
+          "generation": 170
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Claimed families: scope bind head (-3), aliased point-read (-2), assignment-viewer tail (-2): 81->74. Verify byte identity or record floor with AST evidence. BEFORE=81.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -183578,11 +183683,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1794,
+      "totalPackets": 1797,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 12,
+        "in_progress": 15,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -183592,7 +183697,7 @@
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T15:39:56.465Z",
+    "updatedAt": "2026-11-24T15:45:13.417Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
