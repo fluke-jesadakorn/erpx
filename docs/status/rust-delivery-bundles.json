@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10403,
+    "revision": 10409,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -161861,7 +161861,7 @@
         "owner": "identity_access",
         "title": "identity_access TS read tail native cutover (r17)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -161873,22 +161873,37 @@
         "resources": [
           "owner:identity_access"
         ],
-        "claim": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMida2",
-          "claimedAt": "2026-11-24T07:25:06.089Z",
-          "heartbeatAt": "2026-11-24T07:25:06.089Z",
-          "expiresAt": "2026-11-24T07:55:06.089Z",
-          "generation": 166
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d9a80194a",
+            "owner": "identity_access",
+            "before": 533,
+            "after": 532,
+            "note": "Payroll cancellation and recovery active grant probe wrappers share grantProbeSql; locks and control-plane reads untouched."
+          },
+          {
+            "command": "vitest identity r17 (4) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "d9a80194a"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=533.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMida2",
+          "at": "2026-11-24T07:44:37.602Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -162086,7 +162101,7 @@
         "owner": "support",
         "title": "support TS read tail native cutover (r27)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -162098,22 +162113,22 @@
         "resources": [
           "owner:support"
         ],
-        "claim": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMsup6",
-          "claimedAt": "2026-11-24T07:28:12.915Z",
-          "heartbeatAt": "2026-11-24T07:28:12.915Z",
-          "expiresAt": "2026-11-24T07:58:12.915Z",
-          "generation": 166
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=52.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with evidence; claim released",
+        "handoff": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMsup6",
+          "at": "2026-11-24T07:44:38.246Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with evidence; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -162751,6 +162766,42 @@
         "nextAction": "Four id+key point reads share legalPointByIdAndKeySql. BEFORE=236.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.identity_access.read-tail-r18",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "title": "identity_access TS read tail native cutover (round 18)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "claim": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMida3",
+          "claimedAt": "2026-11-24T07:44:39.369Z",
+          "heartbeatAt": "2026-11-24T07:44:39.369Z",
+          "expiresAt": "2026-11-24T08:14:39.369Z",
+          "generation": 166
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=532.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -162759,21 +162810,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1383,
+      "totalPackets": 1384,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 28,
+        "in_progress": 27,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 1005,
+        "blocked": 1007,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 166,
-    "updatedAt": "2026-11-24T07:44:15.383Z",
+    "updatedAt": "2026-11-24T07:44:39.379Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
