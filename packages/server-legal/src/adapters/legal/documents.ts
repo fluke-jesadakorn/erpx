@@ -9,6 +9,7 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {legalLaterApprovalGuardSql} from "../legal-read-tail-r15-sources";
 import {legalExistsPointGuardHeadSql} from "../legal-read-tail-r40-sources";
+import {legalExternalUploadShareJoinHead} from "../legal-read-tail-r44-sources";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import {attachmentsV2ReadOnly} from "@erpx/server-files/public/attachments/feature";
 import {attachmentContent,completeAttachmentUpload,createAttachmentSet,prepareAttachmentBinding,reserveAttachmentFile,scanAttachmentNow} from "@erpx/server-files/public/attachments/service";
@@ -44,7 +45,7 @@ async recordExport(facts){await (await nativeDocs.accessEvent({identifier:facts.
 preservationLock:()=>stage(db.prepare(legalFilesAdvisoryLockSql)),
 async insertInspection(facts){const write=stage(await nativeDocs.inspection({inspectionId:facts.inspectionId,id:facts.id,kind:facts.kind,resultJson:facts.resultJson,actorId:facts.actorId,now:facts.now,itemId:facts.item_id}));inspections.set(write,facts);return write;},
 async recordInspectionRead(facts){await (await nativeDocs.accessEvent({identifier:facts.identifier,itemId:facts.item_id,id:facts.id,actorId:facts.actorId,action:facts.fact4,now:facts.now})).run();},
-submission:(facts:{id:string;})=>db.prepare("SELECT u.*,s.item_id FROM legal_external_uploads u JOIN legal_shares s ON s.id=u.share_id WHERE u.id=?").bind(facts.id).first<{
+submission:(facts:{id:string;})=>db.prepare(legalExternalUploadShareJoinHead('u.*,s.item_id','u','s')+'WHERE u.id=?').bind(facts.id).first<{
       id: string;
       item_id: string;
       object_key: string;

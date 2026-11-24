@@ -11,6 +11,7 @@ import { legalHoldTargetGuardPrefix } from "../legal-read-tail-r24-sources";
 import { legalRecentItemListSql } from "../legal-read-tail-r31-sources";
 import { legalItemOrderedSql } from "../legal-read-tail-r35-sources";
 import { legalHoldOwnTargetSql } from "../legal-read-tail-r39-sources";
+import { legalExternalUploadShareJoinHead } from "../legal-read-tail-r44-sources";
 import { finalRootOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/final-root-owner-projection-sources";
 import {nativeLegalHoldNotice} from "../native-legal-hold-notice";
 import "server-only";
@@ -122,7 +123,7 @@ shares:(id:string)=>{return db
           .all<LegalDetail["shares"][number]>();},
 submissions:(id:string)=>{return db
       .prepare(
-        "SELECT u.id,u.name,u.checksum,u.created_by,u.created_at FROM legal_external_uploads u JOIN legal_shares s ON s.id=u.share_id WHERE s.item_id=? ORDER BY u.created_at DESC LIMIT 100",
+        legalExternalUploadShareJoinHead('u.id,u.name,u.checksum,u.created_by,u.created_at','u','s')+'WHERE s.item_id=? ORDER BY u.created_at DESC LIMIT 100',
       )
       .bind(id)
       .all<LegalDetail["submissions"][number]>();},
