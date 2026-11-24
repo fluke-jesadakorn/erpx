@@ -91,7 +91,7 @@ describe('Collaboration read-tail r32 lock/notification isolation', () => {
 });
 
 describe('Collaboration read-tail r32 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 371 after r34, below the r32 BEFORE=389 baseline', () => {
+  test('retirement:ts-statements is pinned at 364 after r37, below the r32 BEFORE=389 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -107,8 +107,9 @@ describe('Collaboration read-tail r32 KPI pins', () => {
     // command-receipt id) for -6 more: 381 -> 375. r34 dedupes five task-origin
     // existence guards into one head for -4 more: 375 -> 371.
     // No lock statement or notification helper was modified.
-    // r35 refreshed this pin after the 371 -> 370 notification CTE dedupe.
-    expect(total).toBeLessThanOrEqual(371);
+    // r35 refreshed this pin after the 371 -> 370 notification CTE dedupe;
+    // r37 refreshed it again after the 370 -> 364 revisions/messaging/PMS dedupe.
+    expect(total).toBeLessThanOrEqual(364);
     expect(total).toBeLessThan(375);
   });
 });

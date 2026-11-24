@@ -23,7 +23,7 @@ import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-fea
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
-import {requestedSourcesJsonb,workSocialPostsAgg,workSocialCommentsAgg,workSocialSourcesAgg,socialPurchaseActorFeature,socialPostByIdPredicate,socialAgentReplyLeaseIdentity,socialPostPublishReceipt,socialPostByIdGuard,socialAiPhaseImageSql,socialPostRevisionsAgg,socialPostDraftById,commandReceiptById} from './read-tail-sql';
+import {requestedSourcesJsonb,workSocialPostsAgg,workSocialCommentsAgg,workSocialSourcesAgg,socialPurchaseActorFeature,socialPostByIdPredicate,socialAgentReplyLeaseIdentity,socialPostPublishReceipt,socialPostByIdGuard,socialAiPhaseImageSql,socialPostRevisionsAgg,socialPostRevisionsFileAgg,socialPostDraftById,commandReceiptById} from './read-tail-sql';
 
 import {executeCommand,replayCommand} from '@erpx/server-workflow/public/commands';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
@@ -201,7 +201,7 @@ export async function workSocialAttachmentSourceImage(database:SqlDatabase,compa
  'sources',${workSocialSourcesAgg},
  'participants',(SELECT jsonb_agg(to_jsonb(member) ORDER BY member.post_id,member.user_id) FROM social_post_participants member JOIN posts p ON p.id=member.post_id),
  'teams',(SELECT jsonb_agg(jsonb_build_object('team',to_jsonb(team),'members',(SELECT jsonb_agg(to_jsonb(member) ORDER BY member.user_id) FROM messaging_team_members member WHERE member.team_id=team.id)) ORDER BY team.id) FROM messaging_teams team WHERE team.company_id=? AND EXISTS(SELECT 1 FROM posts p WHERE p.audience_kind='team' AND p.audience_id=team.id)),
- 'revisions',(SELECT jsonb_agg(to_jsonb(revision) ORDER BY revision.id) FROM social_post_revisions revision JOIN posts p ON p.id=revision.post_id))::text image,
+ 'revisions',${socialPostRevisionsFileAgg('JOIN posts p ON p.id=revision.post_id')})::text image,
  COALESCE((SELECT jsonb_agg(jsonb_build_object('kind',kind,'id',id) ORDER BY kind,id) FROM native_sources),'[]'::jsonb)::text sources`).bind(id,companyId,id,companyId,type,id,type,companyId,companyId).first<{image:string;sources:string}>();
  if(!row)return null;return JSON.stringify([row.image,await sourceFacts(database,companyId,JSON.parse(row.sources) as Source[])]);
 }

@@ -2,7 +2,7 @@ import 'server-only';
 import {workOperationsSettlementSources} from '@erpx/server-operations/public/work-package-obligation-sources';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {workSocialNativePostPredicate} from '@erpx/server-collaboration/adapters/work-social-source';
-import {socialTaskOriginPostExists,socialTaskOriginGuard,workSocialPostsAgg,workSocialCommentsAgg,workSocialSourcesAgg,socialPostRevisionsAgg} from './read-tail-sql';
+import {socialTaskOriginPostExists,socialTaskOriginGuard,workSocialPostsAgg,workSocialCommentsAgg,workSocialSourcesAgg,socialPostRevisionsAgg,socialPostRevisionsFileAgg} from './read-tail-sql';
 export function workTaskSocialSourceLocks(database:SqlDatabase){return database.prepare('LOCK TABLE social_posts,social_comments,social_post_sources,social_post_revisions,social_task_origins IN SHARE ROW EXCLUSIVE MODE');}
 /** Original team audience membership is a source of private conversation
  * authority. Its lease must precede a consumer's first Holding snapshot. */
@@ -31,5 +31,5 @@ export const workTaskSocialFileSourceRows=`SELECT t.id,t.company_id,${workTaskSo
  'posts',(SELECT jsonb_agg(to_jsonb(post) ORDER BY post.id) FROM social_posts post WHERE post.company_id=t.company_id AND ${socialTaskOriginPostExists}),
  'comments',(SELECT jsonb_agg(to_jsonb(comment) ORDER BY comment.id) FROM social_comments comment JOIN social_posts post ON post.id=comment.post_id WHERE post.company_id=t.company_id AND ${socialTaskOriginPostExists}),
  'sources',(SELECT jsonb_agg(to_jsonb(source) ORDER BY source.post_id,source.ordinal) FROM social_post_sources source JOIN social_posts post ON post.id=source.post_id WHERE post.company_id=t.company_id AND ${socialTaskOriginPostExists}),
- 'revisions',(SELECT jsonb_agg(to_jsonb(revision) ORDER BY revision.id) FROM social_post_revisions revision JOIN social_posts post ON post.id=revision.post_id WHERE post.company_id=t.company_id AND ${socialTaskOriginPostExists})) image
+ 'revisions',${socialPostRevisionsFileAgg(`JOIN social_posts post ON post.id=revision.post_id WHERE post.company_id=t.company_id AND ${socialTaskOriginPostExists}`)}) image
  FROM (${workOperationsSettlementSources.tasks}) t`;

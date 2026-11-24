@@ -11,6 +11,11 @@ export const socialTaskOriginGuard=(quantifier:string,alias:string,tail:string)=
 export const messagingRoomMembersAgg=`(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM messaging_room_members m WHERE m.room_id=r.id)`;
 export const socialFollowPostExists=(targetType:string,targetId:string)=>`EXISTS(SELECT 1 FROM social_follows f WHERE f.principal_id=? AND f.target_type=${targetType} AND f.target_id=${targetId})`;
 export const messagingTeamMemberExists=`EXISTS(SELECT 1 FROM messaging_team_members m WHERE m.team_id=t.id AND m.user_id=?)`;
+/** Byte-identical team-member existence guard shared by the team owner projection,
+ * the room access policy and the command member assertion. Only the alias, team
+ * reference and user reference vary; the empty-alias branch renders the original
+ * unqualified guard, and bind order and lock semantics stay unchanged. */
+export const messagingTeamMemberGuard=(alias:string,teamRef:string,userRef:string)=>`EXISTS(SELECT 1 FROM messaging_team_members${alias?` ${alias}`:''} WHERE ${alias?`${alias}.`:''}team_id=${teamRef} AND ${alias?`${alias}.`:''}user_id=${userRef})`;
 /** Byte-identical managed/team-member access guard shared by the single-team and
  * team-list readers in messaging.ts. Only the leading id predicate, the managed
  * team SQL and the trailing ORDER BY vary; the fixed company scope, bind order
@@ -92,12 +97,22 @@ export const socialAiPhaseImageSql=(draft:string,usage:string,reply:string)=>`SE
  * the trailing WHERE/JOIN expression varies; the aggregate head, bind order and
  * lock semantics stay unchanged. */
 export const socialPostRevisionsAgg=(tail:string)=>`(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM social_post_revisions r ${tail})`;
+/** Byte-identical revisions aggregate head shared by the work social attachment
+ * witness and the task purchase-source file rows. Only the trailing JOIN/predicate
+ * varies; the fixed `revision` alias, aggregate head, binds and lock semantics
+ * stay unchanged. */
+export const socialPostRevisionsFileAgg=(tail:string)=>`(SELECT jsonb_agg(to_jsonb(revision) ORDER BY revision.id) FROM social_post_revisions revision ${tail})`;
 /** Byte-identical PMS post-source absence guard shared by the collaboration
  * source-authorization predicate (pms-source-authorization.ts) and the Social
  * source-access policy (social-source-policy.ts). Only the post alias and the
  * trailing condition vary; the fixed `ps.post_id=<post>.id AND
  * ps.source_kind='pms_record'` head, bind order and lock semantics stay. */
 export const socialPostSourcePmsGuard=(post:string,tail:string)=>`NOT EXISTS(SELECT 1 FROM social_post_sources ps WHERE ps.post_id=${post}.id AND ps.source_kind='pms_record'${tail})`;
+/** Byte-identical PMS source-record existence guard shared by the work social
+ * source predicates, the product source entry and the draft capabilities reader.
+ * Only the fact rows, alias and source/company references vary; the fixed `id`
+ * fact column, bind order and lock semantics stay unchanged. */
+export const socialPmsSourceFactExists=(rows:string,alias:string,sourceRef:string,companyRef:string)=>`EXISTS(SELECT 1 FROM (${rows}) ${alias} WHERE ${alias}.id=${sourceRef} AND ${alias}.company_id=${companyRef})`;
 /** Byte-identical messaging room-by-id read shared by the room assertion in
  * messaging.ts and the room reader in messaging-read.ts. Only the projected
  * column list varies; the fixed `id=? AND company_id=? AND <access>` predicate,

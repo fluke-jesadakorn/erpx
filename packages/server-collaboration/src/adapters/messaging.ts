@@ -21,7 +21,7 @@ import { ApiError } from '@erpx/server-runtime/public/http';
 import { createMessagingApplication, type MessagingRepository } from '@erpx/server-collaboration/application/messaging';
 import { nativeOwnerWrite } from '@erpx/server-collaboration/adapters/native-owner-write';
 import {messagingPurchaseControls,requireMessagingCurrentAccount,requireMessagingPurchase,withMessagingPurchasedCommand} from '@erpx/server-collaboration/adapters/messaging-purchases';
-import {messagingMemberIds,messagingOwnerGuard,messagingTeamAccessSql,messagingRoomByIdSql} from './read-tail-sql';
+import {messagingMemberIds,messagingOwnerGuard,messagingTeamAccessSql,messagingRoomByIdSql,messagingTeamMemberGuard} from './read-tail-sql';
 async function inward<T>(action: () => Promise<T>) {
     try {
         return await action();
@@ -55,7 +55,7 @@ function application(db: SqlDatabase, actor: WorkContext, allowProvision=true) {
                 .bind(id, companyId, userId, userId2)
                 .first<MessagingTeam>();
         }, async activePeople(companyId: string, now: number, now2: number, value: string[], teamId: string | undefined) { return activeMessagingPeople(db, companyId, now, now2, value, teamId); }, guardMember(key: string, value: string, companyId: string, id: string, value2: string[], teamId: string | undefined) {
-            return assertion(db, key, value, `${messagingCurrentAccountSql}${teamId ? " AND EXISTS(SELECT 1 FROM messaging_team_members WHERE team_id=? AND user_id=?)" : ""}`, [companyId, id, ...value2]);
+            return assertion(db, key, value, `${messagingCurrentAccountSql}${teamId ? ` AND ${messagingTeamMemberGuard('','?','?')}` : ''}`, [companyId, id, ...value2]);
         }, prepareRoom(id: string, companyId: string, kind: "direct" | "group", name: string, userId: string, directKey: string | null, now: number) {
             return write('msg_room_insert', [id, companyId, kind, name, userId, directKey, now], `msg-room:${id}`);
         }, prepareTeam(id: string, companyId: string, name: string, userId: string, now: number) {
