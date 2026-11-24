@@ -5,8 +5,9 @@ import {assignmentReadSql} from "@erpx/server-identity_access/public/record-sour
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
 import {commercePackageEnforcementMode,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
-import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
+import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {qualityPurchaseSourceRows} from "@erpx/server-quality/adapters/purchase-sources";
+import {qualityClockCte} from "@erpx/server-quality/adapters/quality-scope-sql";
 import {qualityAlertHoldId,requireQualityPurchasedRead} from "@erpx/server-quality/adapters/purchases";
 /** Fixed owner capability intersection; callers supply only server-owned aliases. */
 export function qualitySourcePurchasePredicate(alias:string,purpose:CapabilityPurpose,clock:string){
@@ -20,7 +21,7 @@ export async function qualitySourceReadScope(database:SqlDatabase,actor:WorkCont
  const relevant=surface==="records"?`EXISTS(SELECT 1 FROM inventory_quality_holds actual_hold WHERE actual_hold.id=${id}) OR EXISTS(SELECT 1 FROM inventory_quality_alerts actual_alert WHERE actual_alert.id=${id}) OR EXISTS(SELECT 1 FROM inventory_quality_specs actual_spec WHERE actual_spec.id=${id})`:`${type} IN ('quality_hold','inventory_quality_hold','quality_alert','inventory_quality_alert','inventory_quality_spec')`;
  if(actor.departmentId||!hasPermission(actor,"quality.read"))return {where:`NOT (${relevant})`,args:[]};
  const native=`SELECT s.id,s.company_id,s.branch_id,NULL::text department_id,s.kind FROM (${qualityPurchaseSourceRows}) s UNION ALL SELECT a.id,s.company_id,s.branch_id,NULL::text,s.kind FROM inventory_quality_alerts a JOIN (${qualityPurchaseSourceRows}) s ON s.id=a.hold_id UNION ALL SELECT id,company_id,NULL::text,NULL::text,'advanced' FROM inventory_quality_specs`;
- const visible=`EXISTS(WITH quality_source_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms) SELECT 1 FROM (${native}) quality_source CROSS JOIN quality_source_clock WHERE quality_source.id=${id} AND quality_source.company_id=${company} AND (?::text IS NULL OR quality_source.branch_id IS NULL OR quality_source.branch_id=?) AND ${assignmentReadSql("quality_source","quality.read")} AND ${qualitySourcePurchasePredicate("quality_source","history","quality_source_clock.now_ms")})`;
+ const visible=`EXISTS(${qualityClockCte("quality_source_clock")} SELECT 1 FROM (${native}) quality_source CROSS JOIN quality_source_clock WHERE quality_source.id=${id} AND quality_source.company_id=${company} AND (?::text IS NULL OR quality_source.branch_id IS NULL OR quality_source.branch_id=?) AND ${assignmentReadSql("quality_source","quality.read")} AND ${qualitySourcePurchasePredicate("quality_source","history","quality_source_clock.now_ms")})`;
  return {where:`(NOT (${relevant}) OR ${visible})`,args:[actor.branchId,actor.branchId,actor.assignmentId,actor.userId,actor.role]};
 }
 export async function requireQualityWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,_moduleId:string,id:string){

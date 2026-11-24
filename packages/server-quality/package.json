@@ -6,6 +6,7 @@
   "exports": {
     "./adapters/attachment-read-sources": "./src/adapters/attachment-read-sources.ts",
     "./adapters/purchase-sources": "./src/adapters/purchase-sources.ts",
+    "./adapters/quality-scope-sql": "./src/adapters/quality-scope-sql.ts",
     "./adapters/attachment-migration-owner": "./src/adapters/attachment-migration-owner.ts",
     "./adapters/product-entry": "./src/adapters/product-entry.ts",
     "./adapters/manufacturing-package-obligations": "./src/adapters/manufacturing-package-obligations.ts",

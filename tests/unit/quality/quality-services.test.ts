@@ -82,8 +82,8 @@ describe('existing Quality/Count product source destinations',()=>{
  });
 });
 
-import {existsSync,readFileSync} from 'node:fs';
-import {resolve} from 'node:path';
+import {existsSync,readFileSync,readdirSync,statSync} from 'node:fs';
+import {resolve,join} from 'node:path';
 describe('retired Quality stock new-work read branch',()=>{
  const source=(path:string)=>resolve(process.cwd(),path);
  test('the quality-stock adapter, barrel and Commerce package exports are absent',()=>{
@@ -185,5 +185,26 @@ describe('quality attachment target-scope read dedupe',()=>{
   expect(policyText).toContain('readQualityHold');
   expect(policyText.match(/qualityAttachmentScopeReadSql/g)).toHaveLength(3);
   expect(readFileSync(source(operational),'utf8')).toContain('qualityAttachmentVersionGuardSql');
+ });
+});
+describe('quality package-obligation scope and clock CTE dedupe',()=>{
+ const source=(path:string)=>resolve(process.cwd(),path);
+ const files=(dir:string):string[]=>readdirSync(dir).flatMap(name=>{const path=join(dir,name);return statSync(path).isDirectory()?files(path):path.endsWith('.ts')?[path]:[];});
+ test('one fixed scope CTE and one fixed clock CTE back the obligation and purchase reads',async()=>{
+  const {qualityPackageScopeCte,qualityClockCte}=await import('../../../packages/server-quality/src/adapters/quality-scope-sql');
+  const {packageClockSql}=await import('@erpx/server-commercial/public/purchased-capability-sql');
+  expect(qualityPackageScopeCte).toBe('(SELECT ?::text company_id,?::boolean full)');
+  expect(qualityPackageScopeCte.match(/SELECT /g)).toHaveLength(1);
+  for(const name of ['quality_source_clock','quality_entry_clock','quality_calendar_clock'])expect(qualityClockCte(name)).toBe(`WITH ${name} AS MATERIALIZED (SELECT ${packageClockSql} now_ms)`);
+  const supply='packages/server-quality/src/adapters/supply-package-obligations.ts';
+  const manuf='packages/server-quality/src/adapters/manufacturing-package-obligations.ts';
+  for(const path of [supply,manuf]){const text=readFileSync(source(path),'utf8');expect(text).toContain('WITH scope AS${qualityPackageScopeCte}');expect(text).not.toContain('WITH scope AS(SELECT');}
+  const clockSites=[['packages/server-quality/src/adapters/record-purchases.ts','quality_source_clock'],['packages/server-quality/src/adapters/product-entry.ts','quality_entry_clock'],['packages/server-quality/src/adapters/calendar-quality-facts.ts','quality_calendar_clock']] as const;
+  for(const [path,name] of clockSites){const text=readFileSync(source(path),'utf8');expect(text).toContain(`qualityClockCte("${name}")`);expect(text).not.toContain(`WITH ${name} AS MATERIALIZED (SELECT`);}
+ });
+ test('the owner TS statement KPI stays strictly below 108',()=>{
+  const count=files(source('packages/server-quality/src')).reduce((total,path)=>total+(readFileSync(path,'utf8').match(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)?.length??0),0);
+  expect(count).toBeLessThan(108);
+  expect(count).toBe(105);
  });
 });

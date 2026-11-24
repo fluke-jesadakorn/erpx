@@ -5,6 +5,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {assertSupplyInventoryPackageObligationSources,supplyInventorySettlementSources as inventory} from "@erpx/server-inventory/public/supply-package-obligations";
 import {qualityPurchaseSourceRows,qualityPurchaseSourceReadLocks} from "@erpx/server-quality/adapters/purchase-sources";
+import {qualityPackageScopeCte} from "@erpx/server-quality/adapters/quality-scope-sql";
 
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
@@ -22,7 +23,7 @@ export async function supplyQualityPackageObligations(owner:PostgresDatabase,dat
  if(sources.get(database)!==input.companyId)throw Error("SUPPLY_QUALITY_PACKAGE_OBLIGATION_SOURCE_REQUIRED");
  assertSupplyInventoryPackageObligationSources(owner,database,input.companyId);
  if(input.moduleId!=="quality"||!["supply","supply-quality"].includes(input.packageId)||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error("SUPPLY_QUALITY_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
- const facts=(await database.prepare(`WITH scope AS(SELECT ?::text company_id,?::boolean full),holds AS MATERIALIZED(
+ const facts=(await database.prepare(`WITH scope AS${qualityPackageScopeCte},holds AS MATERIALIZED(
  SELECT hold.*,source.kind source_kind,source.witness FROM inventory_quality_holds hold CROSS JOIN scope
  LEFT JOIN (${qualityPurchaseSourceRows}) source ON source.id=hold.id AND source.company_id=hold.company_id
  WHERE hold.company_id=scope.company_id AND source.kind IS DISTINCT FROM 'customer-return' AND (scope.full OR source.kind IS DISTINCT FROM 'receipt'))

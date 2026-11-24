@@ -7,7 +7,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {QualitySourceEntry,QualityProductEntryScope,QualityProductPresentationOptions} from "@erpx/server-quality/domain/product-entry";
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {readPurchasedAccesses} from "@erpx/server-commercial/public/purchase-command-boundary";
-import {packageClockSql} from "@erpx/server-commercial/public/purchased-capability-sql";
+import {qualityClockCte} from "@erpx/server-quality/adapters/quality-scope-sql";
 import {salesQualityCountProductEntry} from "@erpx/server-inventory/public/quality-product-entry";
 import {qualityPurchaseSourceRows} from "@erpx/server-quality/adapters/purchase-sources";
 import {qualitySourcePurchasePredicate} from "@erpx/server-quality/adapters/record-purchases";
@@ -22,7 +22,7 @@ import {nativeQualityHoldDetail} from '../../../feature-quality/src/public/serve
 export async function qualityProductSourceEntry(database:SqlDatabase,scope:QualityProductEntryScope,target:QualitySourceEntry){
  if(scope.departmentId||!Number.isSafeInteger(scope.assignmentVersion)||scope.assignmentVersion<1)return null;
  if(target.kind==="count")return salesQualityCountProductEntry(database,scope,target.id);
- const row=await database.prepare(`WITH quality_entry_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms)
+ const row=await database.prepare(`${qualityClockCte("quality_entry_clock")}
  SELECT quality_entry.kind FROM (SELECT s.*,NULL::text department_id FROM (${qualityPurchaseSourceRows}) s) quality_entry CROSS JOIN quality_entry_clock
  WHERE quality_entry.id=? AND quality_entry.company_id=? AND (?::text IS NULL OR quality_entry.branch_id=?)
  AND ${assignmentReadSql("quality_entry","quality.read")} AND EXISTS(SELECT 1 FROM assignments WHERE id=? AND version=?)
