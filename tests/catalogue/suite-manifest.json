@@ -76400,6 +76400,33 @@
       }
     },
     {
+      "lane": "unit",
+      "owner": "quality",
+      "modules": [
+        "quality"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Quality source id exists family must stay one helper."
+      },
+      "apps": [
+        "quality"
+      ],
+      "packages": [
+        "@erpx/server-quality"
+      ],
+      "id": "quality.read-tail-r13-dedupe.unit",
+      "files": [
+        "tests/unit/quality/read-tail-r13-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "lane": "integration",
       "owner": "quality",
       "modules": [
