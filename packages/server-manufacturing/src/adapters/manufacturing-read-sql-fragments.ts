@@ -3,6 +3,16 @@
  * binds and transaction; nothing here caches a result or touches the RD_*
  * read registry. Each helper emits the previously inline text byte for byte. */
 
+/** Text-only inner probe shared by the six Manufacturing EXISTS-guard
+ * definitions. `source` is the literal FROM clause (table, alias or join) and
+ * `predicate` is the trailing WHERE predicate; an empty predicate omits the
+ * clause so the postings/movements guards keep their original text. Each caller
+ * supplies its own EXISTS/NOT EXISTS polarity and prepares its own statement
+ * with its own binds; nothing is prepared or executed here and it stays outside
+ * the RD_* read registry. */
+export const manufacturingExistsSelect = (source: string, predicate: string) =>
+  `SELECT 1 FROM ${source}${predicate ? ` WHERE ${predicate}` : ""}`;
+
 /** Text-only jsonb_agg subquery emitter shared by the six Manufacturing
  * read-tail aggregate definitions. `where` is the literal trailing clause after
  * the FROM source, including its leading space or comma, so each caller emits
@@ -14,7 +24,7 @@ export const manufacturingOperationAggSql = (table: string, predicate: string) =
   manufacturingJsonbAggSql("to_jsonb(operation)", "operation.id", table, ` ${predicate}`);
 
 export const manufacturingSelectedAssignmentExists = (moduleColumn: string) =>
-  `EXISTS(SELECT 1 FROM assignments selected WHERE selected.id=? AND (jsonb_array_length(selected.modules_json::jsonb)=0 OR selected.modules_json::jsonb @> jsonb_build_array(${moduleColumn})))`;
+  `EXISTS(${manufacturingExistsSelect("assignments selected", `selected.id=? AND (jsonb_array_length(selected.modules_json::jsonb)=0 OR selected.modules_json::jsonb @> jsonb_build_array(${moduleColumn}))`)})`;
 
 export const manufacturingSpecificationLineAggSql = (alias: string) =>
   manufacturingJsonbAggSql("to_jsonb(line)", "line.id", "manufacturing_specification_lines line", ` WHERE line.specification_id=${alias}.id`);
@@ -47,7 +57,7 @@ export const manufacturingNativeProductionProbe = (ids: string, where: string) =
  * byte. It stays a live statement inside each caller's assertion on the same
  * transaction and is outside the RD_* read registry. */
 export const manufacturingAttachmentVersionGuard = (table: string, extra = "") =>
-  `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=?${extra ? ` AND ${extra}` : ""})`;
+  `EXISTS(${manufacturingExistsSelect(table, `id=? AND company_id=? AND version=?${extra ? ` AND ${extra}` : ""}`)})`;
 
 /** Text-only attachment target descriptor projection shared by the operational
  * and policy fact adapters. The three callers projected the same

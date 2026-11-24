@@ -3,7 +3,7 @@ import {productionReadProjection as productionfinanceProjection} from '@erpx/ser
 import {productionReadProjection as productionplanningProjection} from '@erpx/server-planning/public/production-read-projections';
 import {productionReadProjection as productioninventoryProjection} from '@erpx/server-inventory/public/production-read-projections';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {ownerWrite} from '@erpx/server-manufacturing/adapters/native-owner-write';
-import {manufacturingRowsSelect,manufacturingIdSelect} from './manufacturing-read-sql-fragments';
+import {manufacturingExistsSelect,manufacturingRowsSelect,manufacturingIdSelect} from './manufacturing-read-sql-fragments';
 import {manufacturingOrderJoinSelect} from './manufacturing-read-tail-r15-sql';
 import {manufacturingAccountingProfileSelect} from './manufacturing-read-tail-r19-sql';
 import {manufacturingExistsGuard} from './manufacturing-read-tail-r20-sql';
@@ -53,7 +53,7 @@ const operationEventDoneGuardSql =
  * predicate keeps the two guards' text byte for byte while keeping one fixed
  * definition on this caller unit. It is an atomic witness, not a projection,
  * and stays outside the RD_* read-plan registry. */
-const specificationOperationsGuardSql=(extra=" ")=>`NOT EXISTS(SELECT 1 FROM manufacturing_specification_operations op WHERE op.specification_id=?${extra}`;
+const specificationOperationsGuardSql=(extra=" ")=>`NOT EXISTS(${manufacturingExistsSelect("manufacturing_specification_operations op",`op.specification_id=?${extra}`)}`;
 
 export function productionCommandSources(db:SqlDatabase){return {async specification(value:(string | number)[],v:number|undefined){return db
     .prepare(

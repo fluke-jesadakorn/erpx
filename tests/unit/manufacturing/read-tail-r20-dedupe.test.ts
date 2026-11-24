@@ -2,6 +2,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import { manufacturingExistsGuard } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-tail-r20-sql';
+import { manufacturingExistsSelect } from '../../../packages/server-manufacturing/src/adapters/manufacturing-read-sql-fragments';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-manufacturing/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
@@ -57,6 +58,25 @@ describe('manufacturing read-tail r20 EXISTS-guard family', () => {
       expect(text.split('manufacturingExistsGuard(').length - 1).toBe(calls);
       for (const { original } of FAMILY) expect(text).not.toContain(original);
     }
+  });
+
+  it('routes the six EXISTS guards through one text-only probe', () => {
+    expect(manufacturingExistsSelect('manufacturing_orders', 'id=?')).toBe('SELECT 1 FROM manufacturing_orders WHERE id=?');
+    expect(manufacturingExistsSelect('postings', '')).toBe('SELECT 1 FROM postings');
+    const probe = src('manufacturing-read-sql-fragments.ts');
+    expect(probe.match(/export const manufacturingExistsSelect/g) ?? []).toHaveLength(1);
+    expect(probe).not.toMatch(/prepare\(|\.run\(|\.all\(|\.first\(/);
+    for (const [file, needle] of [
+      ['manufacturing-read-tail-r20-sql.ts', 'EXISTS(${manufacturingExistsSelect('],
+      ['manufacturing-read-sql-fragments.ts', 'EXISTS(${manufacturingExistsSelect('],
+      ['posting-setup-sources.ts', 'EXISTS(${manufacturingExistsSelect(table,predicate)})'],
+      ['initial-physical-stock-sources.ts', 'EXISTS(${manufacturingExistsSelect('],
+      ['production-command-sources.ts', 'NOT EXISTS(${manufacturingExistsSelect('],
+    ] as const) expect(src(file)).toContain(needle);
+    // The r26 exclusions stay inline and untouched.
+    expect(src('purchases.ts')).toContain('export const commandReceiptSelect');
+    expect(probe).toContain('export const manufacturingNativeProductionProbe');
+    expect(src('attachment-purchases.ts')).toContain('function sourcePredicate(');
   });
 
   it('leaves r11/r4/r15-r19 helpers and every Manufacturing source lock untouched', () => {

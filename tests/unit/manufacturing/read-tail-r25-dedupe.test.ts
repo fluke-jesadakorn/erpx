@@ -100,7 +100,7 @@ describe('manufacturing read-tail r25 jsonb_agg helper unification', () => {
     const fragments = src('manufacturing-read-sql-fragments.ts');
     expect(fragments.match(/export const manufacturingJsonbAggSql/g) ?? []).toHaveLength(1);
     expect(fragments.split('manufacturingJsonbAggSql(').length - 1).toBe(3);
-    expect(fragments.match(/\bSELECT\b/g)).toHaveLength(10);
+    expect(fragments.match(/\bSELECT\b/g)).toHaveLength(9); // r26 adds the shared EXISTS probe and folds two local guards into it.
     expect(fragments).not.toMatch(/prepare\(|\.run\(|\.all\(|\.first\(/);
     const attachment = src('attachment-read-sources.ts');
     expect(attachment).toContain('manufacturingJsonbAggSql,');
@@ -146,7 +146,7 @@ describe('manufacturing read-tail r25 jsonb_agg helper unification', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(65); // r24 left 70; r25 unifies six jsonb_agg definitions -> 65.
-    expect(total).toBeLessThan(70);
+    expect(total).toBe(60); // r24 left 70; r25 70->65; r26 unifies six EXISTS guards -> 60.
+    expect(total).toBeLessThan(65);
   });
 });

@@ -1,3 +1,5 @@
+import {manufacturingExistsSelect} from './manufacturing-read-sql-fragments';
+
 /** Byte-identical Manufacturing read-tail r20 SQL text shared across the
  * cross-module EXISTS guard witnesses. Text only: every caller still prepares
  * and executes its own assertion statement with its own table, predicate and
@@ -5,4 +7,4 @@
  * registry. Each argument pair re-emits the previously inline SQL byte for byte. */
 
 export const manufacturingExistsGuard = (table: string, predicate: string) =>
-  `EXISTS(SELECT 1 FROM ${table} WHERE ${predicate})`;
+  `EXISTS(${manufacturingExistsSelect(table, predicate)})`;

@@ -1,7 +1,7 @@
 import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
-import {manufacturingJsonbAggSql,manufacturingScopedCte} from './manufacturing-read-sql-fragments';
+import {manufacturingExistsSelect,manufacturingJsonbAggSql,manufacturingScopedCte} from './manufacturing-read-sql-fragments';
 export {manufacturingPurchaseSourceReadLocks as manufacturingPostingSourceReadLocks} from '@erpx/server-manufacturing/adapters/purchases';
 const productionAgg=(table:string,alias:string,scope="")=>manufacturingJsonbAggSql(`to_jsonb(${alias})`,`${alias}.id`,`${table} ${alias}`,scope);
 const profileImage=productionAgg('manufacturing_accounting_profiles','p',',scope WHERE p.company_id=scope.company_id');
@@ -10,7 +10,7 @@ const profileImage=productionAgg('manufacturing_accounting_profiles','p',',scope
  * cost/quantity predicate; the helper emits each one verbatim on the caller's
  * prepared statement with unchanged bind order and stays outside the RD_*
  * read registry. */
-const economicsGuard=(table:string,predicate="")=>`EXISTS(SELECT 1 FROM ${table}${predicate?` WHERE ${predicate}`:""})`;
+const economicsGuard=(table:string,predicate="")=>`EXISTS(${manufacturingExistsSelect(table,predicate)})`;
 /** A specification or an unexecuted planned order is intent, not a production
  * economic fact. Original postings/cost movements and actual issued/reported
  * quantities remain conservative blockers when their mapping is absent. */

@@ -87,7 +87,7 @@ describe('manufacturing read-tail r23 stock-footprint select family', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(65); // r23 left 72; r24 72->70; r25 unifies six jsonb_agg definitions -> 65.
-    expect(total).toBeLessThan(70);
+    expect(total).toBe(60); // r23 left 72; r24 72->70; r25 70->65; r26 unifies six EXISTS guards -> 60.
+    expect(total).toBeLessThan(65);
   });
 });

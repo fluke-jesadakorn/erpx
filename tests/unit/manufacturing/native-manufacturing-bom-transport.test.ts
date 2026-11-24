@@ -359,7 +359,7 @@ describe('Manufacturing specification-operation guard prefix dedupe',()=>{
   const tail='AND NOT EXISTS(SELECT 1 FROM manufacturing_operation_events e WHERE e.order_id=? AND e.operation_id=op.id))';
   it('keeps one fixed-SQL prefix and emits both routing guards byte for byte',()=>{
     expect(source).toContain('const specificationOperationsGuardSql=(extra=" ")=>');
-    expect(source.split('`'+prefix)).toHaveLength(2);
+    expect(source.split('`'+prefix)).toHaveLength(1); // r26 routes the prefix through the shared probe.
     expect(`${prefix} ${tail}`).toBe('NOT EXISTS(SELECT 1 FROM manufacturing_specification_operations op WHERE op.specification_id=? AND NOT EXISTS(SELECT 1 FROM manufacturing_operation_events e WHERE e.order_id=? AND e.operation_id=op.id))');
     expect(`${prefix} AND op.ordinal<? ${tail}`).toBe('NOT EXISTS(SELECT 1 FROM manufacturing_specification_operations op WHERE op.specification_id=? AND op.ordinal<? AND NOT EXISTS(SELECT 1 FROM manufacturing_operation_events e WHERE e.order_id=? AND e.operation_id=op.id))');
     for(const method of ['guardCompleteRouting','guardOperationSequence']){
@@ -410,7 +410,7 @@ describe('Manufacturing posting-source economics guard dedupe',()=>{
     expect(source).toContain('${economicsGuard("postings")}');
     expect(source).toContain('${economicsGuard("movements")}');
     expect(source).toContain(`\${economicsGuard("orders","${predicate}")}`);
-    expect(source.split('EXISTS(SELECT 1 FROM ')).toHaveLength(2);
+    expect(source.split('EXISTS(SELECT 1 FROM ')).toHaveLength(1); // r26 leaves no inline probe here.
   });
   it('emits all three former guards byte for byte and stays outside the RD_* registry',()=>{
     expect(guard('postings')).toBe(postings);
@@ -433,7 +433,7 @@ describe('Manufacturing initial-physical-stock history guard dedupe',()=>{
     expect(source).not.toContain(movement);
     expect(source).toContain('initialStockHistoryGuard("manufacturing_material_reservations","r")');
     expect(source).toContain('initialStockHistoryGuard("manufacturing_inventory_moves","m")');
-    expect(source.split('EXISTS(SELECT 1 FROM ')).toHaveLength(2);
+    expect(source.split('EXISTS(SELECT 1 FROM ')).toHaveLength(1); // r26 leaves no inline probe here.
   });
   it('emits both former guards byte for byte and stays outside the RD_* registry',()=>{
     expect(guard('manufacturing_material_reservations','r')).toBe(reservation);
@@ -486,7 +486,7 @@ describe('Manufacturing read-tail text-only fragment dedupe', () => {
   });
   it('keeps one text-only definition and routes every caller through it', () => {
     const fragment = adapter('manufacturing-read-sql-fragments.ts');
-    expect(fragment.match(/\bSELECT\b/g)).toHaveLength(10); // r25 unifies the three local jsonb_agg wrappers into one helper.
+    expect(fragment.match(/\bSELECT\b/g)).toHaveLength(9); // r26 adds the shared probe and folds two local guards into it.
     expect(fragment).toContain('export const manufacturingJsonbAggSql');
     expect(fragment).not.toMatch(/^import /m);
     expect(fragment).not.toMatch(/compositionRoot|registerRead|readPlanRegistry/);
