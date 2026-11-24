@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9503,
+    "revision": 9507,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -151395,7 +151395,7 @@
         "owner": "work_projection",
         "title": "work_projection TS read tail native cutover (r10)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -151407,28 +151407,36 @@
         "resources": [
           "owner:work_projection"
         ],
-        "claim": {
-          "runId": "run-20261123-k",
-          "agentId": "wGCFwp",
-          "claimedAt": "2026-11-24T05:25:33.872Z",
-          "heartbeatAt": "2026-11-24T05:25:39.041Z",
-          "expiresAt": "2026-11-24T05:55:39.041Z",
-          "generation": 163
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-work_projection/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "8d64eefd3",
+            "owner": "work_projection",
+            "before": 89,
+            "after": 85,
+            "note": "versionById, actorScopeSql and roleAllowsSql builders shared; r9/settlement helpers and locks untouched."
+          },
+          {
+            "command": "vitest work projection r10/r9/settlement (8) + tsc",
+            "result": "passed",
+            "sourceSha": "8d64eefd3"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=89.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-j",
+          "runId": "run-20261123-k",
           "agentId": "wGCFwp",
-          "at": "2026-11-24T05:25:21.119Z",
+          "at": "2026-11-24T05:27:49.131Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired at 05:16Z; all claims and WIP reviewed in shared checkout; release claims and continue under new generation.",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=89."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -152510,6 +152518,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=142.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.work_projection.read-tail-r11",
+        "goalId": "G4",
+        "owner": "work_projection",
+        "title": "work_projection TS read tail native cutover (round 11)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-work_projection/src/**",
+          "tests/unit/work_projection/**",
+          "tests/integration/work_projection/**"
+        ],
+        "resources": [
+          "owner:work_projection"
+        ],
+        "claim": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCKwp",
+          "claimedAt": "2026-11-24T05:27:49.615Z",
+          "heartbeatAt": "2026-11-24T05:27:49.615Z",
+          "expiresAt": "2026-11-24T05:57:49.615Z",
+          "generation": 163
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=85.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -152518,7 +152562,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1171,
+      "totalPackets": 1172,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -152526,13 +152570,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 796,
+        "blocked": 797,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 163,
-    "updatedAt": "2026-11-24T05:27:32.784Z",
+    "updatedAt": "2026-11-24T05:27:49.627Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
