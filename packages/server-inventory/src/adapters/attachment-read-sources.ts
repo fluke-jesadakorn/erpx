@@ -1,6 +1,6 @@
 import {manufacturingInitialPhysicalStockSourceImages} from '@erpx/server-inventory/adapters/manufacturing-initial-physical-stock-count-source-sql';
 import 'server-only';
-import {jsonbImageSql,childLineOwnerExistsSql,attachmentLotIdsSql} from './read-tail-sql';
+import {jsonbImageSql,childLineOwnerExistsSql,attachmentLotIdsSql,inList} from './read-tail-sql';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {inventoryAttachmentCommerceSourceLocks,inventoryAttachmentCommerceSourceImage} from '@erpx/server-commerce/public/inventory-attachment-sources';
 import {inventoryAttachmentFinanceSourceLocks,inventoryAttachmentFinanceSourceImage} from '@erpx/server-finance/public/inventory-attachment-sources';
@@ -26,7 +26,7 @@ function statement(target:InventoryAttachmentReadTarget){
  * Missing optional legacy relations are absence witnesses, never new grants. */
 export async function inventoryAttachmentReadSourceImage(database:SqlDatabase,companyId:string,target:InventoryAttachmentReadTarget,id:string){
  const native=await database.prepare(statement(target)).bind(id,companyId).first<Native>();if(!native)return null;
- const lotImage=await database.prepare(`SELECT jsonb_agg(to_jsonb(lot) ORDER BY lot.id)::text image FROM inventory_lots lot WHERE lot.company_id=? AND lot.id IN(SELECT jsonb_array_elements_text(?::jsonb))`).bind(companyId,JSON.stringify(native.lot_ids)).first<string>('image');
+ const lotImage=await database.prepare(`SELECT jsonb_agg(to_jsonb(lot) ORDER BY lot.id)::text image FROM inventory_lots lot WHERE lot.company_id=? AND ${inList('lot.id')}`).bind(companyId,JSON.stringify(native.lot_ids)).first<string>('image');
  const commerce=await inventoryAttachmentCommerceSourceImage(database,{companyId,warehouseIds:native.warehouse_ids,productIds:native.product_ids,receiptId:native.receipt_id});
  const journals=[...new Set([...native.journal_ids,commerce.journalId].filter((value):value is string=>!!value))].sort();
  const finance=await inventoryAttachmentFinanceSourceImage(database,companyId,journals);

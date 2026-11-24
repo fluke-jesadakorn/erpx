@@ -25,8 +25,12 @@ export const reservedWarehouseProductQtySql='SELECT warehouse_id,product_id,sum(
 export const singleCountLineMarkerSql='(SELECT count(*) FROM inventory_count_lines actual WHERE actual.count_id=c.id)=1';
 /** r12: byte-identical schema-readiness checks, each repeated within one command.
  * Only the literal text is shared; every caller prepares its own statement. */
-export const posInitialPhysicalSchemaReadySql="SELECT to_regclass('inventory_pos_initial_physical_sources') IS NOT NULL ready";
-export const mfgInitialPhysicalSchemaReadySql="SELECT to_regclass('inventory_mfg_initial_physical_sources') IS NOT NULL ready";
+/** r46: the three reviewed to_regclass schema probes share one whitelisted
+ * builder. Only the table varies; every caller keeps its own prepare/bind. */
+const schemaReadyTables=new Set(['inventory_initial_physical_stock_sources','inventory_pos_initial_physical_sources','inventory_mfg_initial_physical_sources']);
+export const schemaReadySql=(table:string)=>{if(!schemaReadyTables.has(table))throw new Error(`INVENTORY_SCHEMA_READY_TABLE_NOT_ALLOWED:${table}`);return `SELECT to_regclass('${table}') IS NOT NULL ready`;};
+export const posInitialPhysicalSchemaReadySql=schemaReadySql('inventory_pos_initial_physical_sources');
+export const mfgInitialPhysicalSchemaReadySql=schemaReadySql('inventory_mfg_initial_physical_sources');
 /** r13: byte-identical read-tail fragments. Only the literal text is shared;
  * every consumer issues its own statement with its own rows, binds and scope. */
 export const countMarkedExistsSql=(rows:string)=>`SELECT 1 FROM (${rows}) marker WHERE id=?`;
@@ -334,3 +338,9 @@ export const countAuthorityScopeSql = (alias: string) =>
  *  sources/adapters, native transport and r11-r44 helpers stay untouched. */
 export const transitEventQuantitySumSql = (kind: string) =>
   `SELECT sum(event.quantity_milli) FROM inventory_transit_events event WHERE event.line_id=line.id AND event.kind='${kind}'`;
+
+/** r46: the jsonb_array_elements_text membership fragment is shared by the
+ *  attachment lot-image read and the calendar transit read. Only the expression
+ *  varies; every caller keeps its own statement, binds and independent rows.
+ *  The native command SQL mirror is deliberately left untouched. */
+export const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;

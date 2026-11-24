@@ -2,11 +2,10 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {commercePackageEnforcementMode,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
-import {clockCteSql} from './read-tail-sql';
+import {clockCteSql,inList} from './read-tail-sql';
 import { inventoryExecutiveOwnerProjections as people_payrollProjectionSources } from "@erpx/server-people_payroll/public/inventory-executive-owner-projections";
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
 export function calendarTransitInventoryFacts(db: SqlDatabase,actor?:WorkContext) { return { read1: async (facts: {
         value1: string;
         value2: string | null;

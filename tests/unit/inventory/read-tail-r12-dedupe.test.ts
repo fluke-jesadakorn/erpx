@@ -31,9 +31,12 @@ describe('Inventory read-tail r12 byte-identical dedupe', () => {
 
   test('shared owner literals are defined exactly once', () => {
     const shared = src('read-tail-sql.ts');
-    for (const sql of [noLaterLedgerMovementSql, noLotBalanceSql, jsonbImageSql, posInitialPhysicalSchemaReadySql, mfgInitialPhysicalSchemaReadySql]) {
+    for (const sql of [noLaterLedgerMovementSql, noLotBalanceSql, jsonbImageSql]) {
       expect(shared.split(sql), sql).toHaveLength(2);
     }
+    // r46 folds the two to_regclass literals into one whitelisted builder.
+    expect(shared.split("SELECT to_regclass('${table}') IS NOT NULL ready")).toHaveLength(2);
+    expect(shared.split('export const schemaReadySql').length - 1).toBe(1);
   });
 
   test('guard literals are composed, never inlined, in the named adapters', () => {

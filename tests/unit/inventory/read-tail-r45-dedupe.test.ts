@@ -84,7 +84,7 @@ describe('Inventory read-tail r45 parameterized transit-event sum dedupe', () =>
     expect(shared).not.toMatch(lockRe);
   });
 
-  test('retirement:ts-statements KPI is 320 (strictly below r44 321)', () => {
+  test('retirement:ts-statements KPI is 316 after r46 (strictly below 320)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -94,10 +94,11 @@ describe('Inventory read-tail r45 parameterized transit-event sum dedupe', () =>
       }
     };
     walk(srcRoot);
-    // r44 ended at 321. transitEventQuantitySumSql folds two inline transit
-    // event quantity sums into one helper (321 -> 320). Locks, native
-    // transport, count adapters and r11-r44 helpers stay untouched.
-    expect(total).toBe(320);
-    expect(total).toBeLessThan(321);
+    // r45 ended at 320. r46 folds the sales count journal into the r14 helper
+    // (-1), the three to_regclass probes into one whitelisted builder (-2) and
+    // the jsonb inList fragment into one helper (-1): 320 -> 316. Locks,
+    // native transport, count adapters and r11-r45 helpers stay untouched.
+    expect(total).toBe(316);
+    expect(total).toBeLessThan(320);
   });
 });

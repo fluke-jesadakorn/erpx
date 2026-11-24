@@ -5,7 +5,7 @@ import {minorToDecimal} from '@erpx/feature-finance/lib/finance-money';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {loadIamAuthority} from '@erpx/server-identity_access/public/iam-store';
 import {assignmentReadSql} from '@erpx/server-identity_access/public/record-source-authority';
-import {initialEntryClockAssignmentsSql,stockHistoryExistsSql} from './read-tail-sql';
+import {initialEntryClockAssignmentsSql,stockHistoryExistsSql,schemaReadySql} from './read-tail-sql';
 import {readPurchasedAccesses} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {initialPhysicalStockCommerceSource,initialPhysicalStockMasterChoices,initialPhysicalStockMasterSource} from '@erpx/server-commerce/public/initial-physical-stock-count-sources';
@@ -26,7 +26,7 @@ const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).d
 const authorityImage=(actor:WorkContext)=>[actor.holdingId,actor.companyId,actor.branchId,actor.departmentId,actor.userId,actor.assignmentId,actor.role,actor.authority??null,actor.iam?.queuedAssignmentVersion,actor.iam?.identityVersion,actor.iam?.roleRevision,actor.iam?.hrAppointmentVersion];
 function empty(actor:WorkContext,reason:InitialPhysicalStockCountView['unavailableReason']):InitialPhysicalStockCountView{return {companyId:actor.companyId,available:false,currency:null,documentCurrency:null,contextKey:null,unavailableReason:reason,canPrepare:false,canCreateWarehouse:false,canCreateProduct:false,selection:{warehouseId:null,productId:null,countDate:null},readiness:{goodsConfigured:false,varianceAccountAvailable:false,postingPeriodAvailable:false},warehouses:[],branches:[],products:[],record:null};}
 async function owner(actor:WorkContext){return (await holdingResources(actor.holdingId)).write;}
-async function schema(database:SqlDatabase){if(!await database.prepare("SELECT to_regclass('inventory_initial_physical_stock_sources') IS NOT NULL ready").first<boolean>('ready'))throw new ApiError(503,'INITIAL_PHYSICAL_STOCK_SCHEMA_REQUIRED','Install the reviewed Initial Physical Stock Count schema before using this command.');}
+async function schema(database:SqlDatabase){if(!await database.prepare(schemaReadySql('inventory_initial_physical_stock_sources')).first<boolean>('ready'))throw new ApiError(503,'INITIAL_PHYSICAL_STOCK_SCHEMA_REQUIRED','Install the reviewed Initial Physical Stock Count schema before using this command.');}
 async function history(database:SqlDatabase,warehouseId:string,productId:string,except:string|null=null){
  return !!await database.prepare(stockHistoryExistsSql).bind(warehouseId,productId,warehouseId,productId,warehouseId,productId,warehouseId,productId,warehouseId,productId,warehouseId,productId,except,except).first<boolean>('history');
 }

@@ -39,7 +39,7 @@ describe('Inventory read-tail r14 byte-identical dedupe', () => {
 
   test('initial-count journals and finance images keep their shared tails and rows', () => {
     const text = src('finance-record-sources.ts');
-    expect(text.match(/initialPhysicalCountJournalSql/g) ?? []).toHaveLength(4); // import + 3 callers
+    expect(text.match(/initialPhysicalCountJournalSql/g) ?? []).toHaveLength(5); // import + 4 callers (r46 adds sales)
     expect(text.match(/initialPhysicalCountFinanceImagesSql/g) ?? []).toHaveLength(4); // import + 3 callers
     expect(text.match(/initialPhysicalCountJournalTail/g) ?? []).toHaveLength(4); // definition + 3 args
     expect(text).not.toContain('`SELECT source.company_id,c.journal_id id FROM (${manufacturingInitialPhysicalStockCountSourceRows})');
