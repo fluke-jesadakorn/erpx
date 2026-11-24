@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7523,
+    "revision": 7527,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -114592,7 +114592,7 @@
         "owner": "finance",
         "title": "Native finance journal list read (1 SELECT -> 0)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -114609,22 +114609,42 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wF08fin",
-          "claimedAt": "2026-11-24T00:09:19.915Z",
-          "heartbeatAt": "2026-11-24T00:24:45.880Z",
-          "expiresAt": "2026-11-24T00:54:45.880Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "402e98d86",
+            "owner": "finance",
+            "before": 2271,
+            "after": 2270,
+            "note": "listJournals TS SELECT removed; GET journals route and aggregate use nativeJournalList; batch-post clone fix preserved."
+          },
+          {
+            "command": "cargo check -p erpx-server-finance",
+            "result": "passed",
+            "sourceSha": "402e98d86"
+          },
+          {
+            "command": "vitest finance targeted (108) + scoped tsc server-finance",
+            "result": "passed",
+            "sourceSha": "402e98d86"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Switch finance journal list to mounted native read_journal_list / nativeJournalList; delete finance_journals TS SELECT and route fallback; keep overviewCounts classified",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wF08fin",
+          "at": "2026-11-24T00:25:19.795Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -127136,7 +127156,7 @@
         "owner": "pms",
         "title": "pms TS read tail native cutover (round 12)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -127148,22 +127168,42 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wE41pms",
-          "claimedAt": "2026-11-24T00:06:13.509Z",
-          "heartbeatAt": "2026-11-24T00:24:45.880Z",
-          "expiresAt": "2026-11-24T00:54:45.880Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pms/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "402e98d86",
+            "owner": "pms",
+            "before": 519,
+            "after": 517,
+            "note": "Attachment read-source property/record image point reads via pms command-plan; source lease unchanged."
+          },
+          {
+            "command": "cargo check -p erpx-server-pms + lib native (12)",
+            "result": "passed",
+            "sourceSha": "402e98d86"
+          },
+          {
+            "command": "vitest native-pms-read-plan (34) + tsc pms",
+            "result": "passed",
+            "sourceSha": "402e98d86"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL read family served by the pms command-plan; avoid refund/FOR UPDATE; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wE41pms",
+          "at": "2026-11-24T00:25:20.090Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -128169,17 +128209,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
-        "in_progress": 20,
+        "in_progress": 18,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 345,
+        "blocked": 347,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T00:24:45.883Z",
+    "updatedAt": "2026-11-24T00:25:20.093Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
