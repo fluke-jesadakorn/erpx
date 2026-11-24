@@ -480,6 +480,7 @@ describe('Operations staff_tasks snapshot sources share one canonical projection
 import {readFileSync} from 'node:fs';
 import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL} from '../../../packages/server-operations/src/adapters/task-delegation-source';
 import {workforceActorScopeSql} from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
+import {OPERATIONS_TASK_START_APPROVER_SQL,OPERATIONS_TASK_COMPLETION_APPROVER_SQL} from '../../../packages/server-operations/src/adapters/task-approver-access-source';
 describe('Operations task delegation source dedupe',()=>{
  const fragment='(SELECT jsonb_agg(to_jsonb(delegation) ORDER BY delegation.id) FROM staff_task_delegations delegation WHERE delegation.task_id=t.id AND delegation.company_id=t.company_id)';
  test('the canonical projection owns a single byte-identical delegation read',()=>{
@@ -528,6 +529,26 @@ describe('Operations workforce actor scope dedupe',()=>{
    const source=readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
    expect(source).toContain('workforceActorScopeSql(');
    expect(source).not.toContain(fragment);
+  }
+ });
+});
+
+describe('Operations task approver access dedupe',()=>{
+ const startFragment='EXISTS(SELECT 1 FROM erpx_json_each(t.start_approvers_json) WHERE value=?)';
+ const completionFragment='EXISTS(SELECT 1 FROM erpx_json_each(t.completion_approvers_json) WHERE value=?)';
+ test('the canonical clauses own one byte-identical approver read each',()=>{
+  expect(OPERATIONS_TASK_START_APPROVER_SQL).toBe(startFragment);
+  expect(OPERATIONS_TASK_COMPLETION_APPROVER_SQL).toBe(completionFragment);
+  expect(OPERATIONS_TASK_START_APPROVER_SQL.match(/SELECT /g)).toHaveLength(1);
+  expect(OPERATIONS_TASK_COMPLETION_APPROVER_SQL.match(/SELECT /g)).toHaveLength(1);
+ });
+ test('both owner readers compose the canonical clauses and keep no local literal',()=>{
+  for(const name of ['staff-task-read.ts','executive-task-cohort.ts']){
+   const source=readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+   expect(source).toContain('${OPERATIONS_TASK_START_APPROVER_SQL}');
+   expect(source).toContain('${OPERATIONS_TASK_COMPLETION_APPROVER_SQL}');
+   expect(source).not.toContain(startFragment);
+   expect(source).not.toContain(completionFragment);
   }
  });
 });

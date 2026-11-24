@@ -4,6 +4,7 @@ import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {participantSql} from '@erpx/server-workflow/public/approval-participant-projection';
 import {socialPostScope} from '@erpx/server-collaboration/public/social-source-policy';
+import {OPERATIONS_TASK_START_APPROVER_SQL,OPERATIONS_TASK_COMPLETION_APPROVER_SQL} from './task-approver-access-source';
 
 export const operationsMetrics = [
   "open-operations-exceptions",
@@ -29,8 +30,8 @@ export function operationsTaskVisibility(actor: WorkContext, referenceAt = Date.
     OR EXISTS(SELECT 1 FROM (${projectsProjectionSources.staff_projects}) sp WHERE sp.id=t.project_id AND sp.company_id=t.company_id
       AND iam_same_person(sp.owner_user_id,?,t.company_id))
     OR EXISTS(SELECT 1 FROM (${projectsProjectionSources.staff_project_members}) pm WHERE pm.project_id=t.project_id AND pm.user_id=?)
-    OR EXISTS(SELECT 1 FROM erpx_json_each(t.start_approvers_json) WHERE value=?)
-    OR EXISTS(SELECT 1 FROM erpx_json_each(t.completion_approvers_json) WHERE value=?)
+    OR ${OPERATIONS_TASK_START_APPROVER_SQL}
+    OR ${OPERATIONS_TASK_COMPLETION_APPROVER_SQL}
     OR ${participantSql("task", "t")}
   )`;
   return {
