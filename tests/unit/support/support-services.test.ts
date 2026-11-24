@@ -454,12 +454,10 @@ it('keeps one parameterized assignment-access witness for the Support ticket and
     expect(ticket.sql).toContain("t.source_kind<>'sales_order' AND t.created_by=g.user_id");
     expect(ticket.sql).toContain("iam_role_allows(g.role,g.company_id,'records.read')");
     expect(incident.sql).not.toContain('records.read');
-    const sharedPrefix = incident.sql.slice(0, incident.sql.indexOf('  AND (g.scope_kind'));
-    expect(sharedPrefix).toContain('EXISTS(SELECT 1 FROM (');
-    expect(ticket.sql.startsWith(sharedPrefix)).toBe(true);
 
-    // Rendering change is whitespace/AND-order only: the SQL token multiset must
-    // match the pre-dedupe predicate byte-for-byte at the token level.
+    // Each caller keeps its original indentation and scope/role order, so the
+    // shared helper renders both predicates byte-identically to the pre-dedupe
+    // literals rather than merely an equivalent token multiset.
     const { finalRootOwnerProjectionSources } = await import('@erpx/server-identity_access/public/final-root-owner-projection-sources');
     const a = finalRootOwnerProjectionSources.assignments;
     const originalTicket = `EXISTS(SELECT 1 FROM (${a}) g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=t.company_id
@@ -469,7 +467,6 @@ it('keeps one parameterized assignment-access witness for the Support ticket and
     const originalIncident = `EXISTS(SELECT 1 FROM (${a}) g WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=t.company_id
   AND iam_assignment_active(g.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(g.user_id,g.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
   AND iam_role_allows(g.role,g.company_id,'support.read') AND (g.scope_kind='holding' OR g.scope_kind='branch' AND g.scope_node_id=t.branch_id OR g.scope_kind='department' AND g.scope_node_id=t.department_id))`;
-    const tokens = (s: string) => s.replace(/[()]/g, ' ').replace(/\s+/g, ' ').trim().split(' ').sort();
-    expect(tokens(ticket.sql)).toEqual(tokens(originalTicket));
-    expect(tokens(incident.sql)).toEqual(tokens(originalIncident));
+    expect(ticket.sql).toBe(originalTicket);
+    expect(incident.sql).toBe(originalIncident);
 });
