@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9378,
+    "revision": 9380,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -144997,7 +144997,7 @@
         "owner": "field_service",
         "title": "field_service TS read tail native cutover (round 6)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -145009,14 +145009,7 @@
         "resources": [
           "owner:field_service"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCNfse",
-          "claimedAt": "2026-11-24T05:11:26.496Z",
-          "heartbeatAt": "2026-11-24T05:11:26.496Z",
-          "expiresAt": "2026-11-24T05:41:26.496Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -145034,15 +145027,15 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Blocked with evidence.",
+        "blocker": "released with work preserved",
+        "nextAction": "BLOCKED: all 5 reads are protected oracles - 2 final-root pinned by cargo include_str (tests/unit/field_service/rust-final-root-projection.test.rs, rust-final-root-consumer.test.rs) and 3 cross-owner records probes bound to retire.records.registry-fallback. Re-scan after final-root cutover and registry fallback retirement.",
         "handoff": {
-          "runId": "run-20261123-i",
-          "agentId": "wGC4fse",
-          "at": "2026-11-24T03:17:09.275Z",
+          "runId": "run-20261123-j",
+          "agentId": "wGCNfse",
+          "at": "2026-11-24T05:18:51.731Z",
           "previousStatus": "blocked",
-          "reason": "handoff",
-          "nextAction": "Blocked with evidence."
+          "reason": "released with work preserved",
+          "nextAction": "BLOCKED: all 5 reads are protected oracles - 2 final-root pinned by cargo include_str (tests/unit/field_service/rust-final-root-projection.test.rs, rust-final-root-consumer.test.rs) and 3 cross-owner records probes bound to retire.records.registry-fallback. Re-scan after final-root cutover and registry fallback retirement."
         },
         "scopeRefinementRequired": false
       },
@@ -151361,17 +151354,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 36,
+        "in_progress": 35,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 771,
+        "blocked": 772,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 162,
-    "updatedAt": "2026-11-24T05:18:15.734Z",
+    "updatedAt": "2026-11-24T05:18:51.746Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
