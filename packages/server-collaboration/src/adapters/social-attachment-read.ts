@@ -1,6 +1,6 @@
 import 'server-only';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
-import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
+import {isInitiallyCurrent} from './attachment-current';
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {privateFileDenialAuthoritySourceLocks,privateFileDenialAuthorityWitness} from '@erpx/server-identity_access/public/private-file-denial-authority';
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
@@ -34,7 +34,7 @@ export async function withSocialAttachmentContentRead<Result extends {object:Sto
  const outcome=await owner.transaction<Outcome>(async database=>{
   await leases(database,actor.companyId);const source=await attachmentReadSource(database,actor.companyId,linkId);assertAttachmentReadRoute(selected,source);if(!source)throw changed();
   const before=await workSocialAttachmentSourceImage(database,actor.companyId,targetType,source.targetId);
-  const current=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!!await database.prepare(`SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${current.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args).first();
+  const initiallyCurrent=await isInitiallyCurrent(database,actor);
   const deniedAuthority=initiallyCurrent?null:await privateFileDenialAuthorityWitness(database,actor),checkpoint=new Set((await attachmentDeniedReadAudits(database,actor,linkId)).map(event=>event.id));
   const check=async(success:boolean)=>{
    if(identity(actor)!==context)throw changed();
