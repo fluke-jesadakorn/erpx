@@ -2348,6 +2348,31 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Benefits election related attachment selectors must stay byte-identical."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-benefits"
+      ],
+      "id": "benefits.read-tail-r15-dedupe.unit",
+      "files": [
+        "tests/unit/benefits/read-tail-r15-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "benefits",
+      "modules": [
+        "benefits"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Benefits scope CTE prefix must exist once and stay byte-identical."
       },
       "apps": [
@@ -2922,6 +2947,31 @@
       "id": "billing.native-evidence-read-tail.unit",
       "files": [
         "tests/unit/billing/native-evidence-read-tail.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "billing",
+      "modules": [
+        "billing"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Billing provider cost and usage snapshot reads must stay byte-identical."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-billing"
+      ],
+      "id": "billing.read-tail-r19-dedupe.unit",
+      "files": [
+        "tests/unit/billing/billing-read-tail-r19-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
