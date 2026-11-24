@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9973,
+    "revision": 10029,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261123-l",
+      "runId": "run-20261123-m",
       "agentId": "lead-opencode",
-      "startedAt": "2026-11-24T05:56:18.485Z",
-      "heartbeatAt": "2026-11-24T05:56:24.357Z",
-      "expiresAt": "2026-11-24T06:26:24.357Z",
-      "generation": 164,
-      "tokenHash": "01e739aa1ff22d6637d6da267cd5f191da27b5702424b21af12c4e7f89cfb500"
+      "startedAt": "2026-11-24T06:38:39.590Z",
+      "heartbeatAt": "2026-11-24T06:38:39.590Z",
+      "expiresAt": "2026-11-24T07:08:39.591Z",
+      "generation": 165,
+      "tokenHash": "8ece597026b8b385bc2c58dc87a32377e4cbd1091e9d5feacf1a99f1dca4d61d"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -145487,12 +145487,12 @@
           "owner:commerce"
         ],
         "claim": {
-          "runId": "run-20261123-l",
+          "runId": "run-20261123-m",
           "agentId": "wGC5com",
-          "claimedAt": "2026-11-24T05:56:18.852Z",
-          "heartbeatAt": "2026-11-24T05:56:24.357Z",
-          "expiresAt": "2026-11-24T06:26:24.357Z",
-          "generation": 164
+          "claimedAt": "2026-11-24T06:38:39.733Z",
+          "heartbeatAt": "2026-11-24T06:38:39.733Z",
+          "expiresAt": "2026-11-24T07:08:39.733Z",
+          "generation": 165
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -145502,11 +145502,11 @@
         "blocker": null,
         "nextAction": "Build owner-local native read ports for a residual single-site commerce read family with PG parity; no TS deletion yet. BEFORE=457.",
         "handoff": {
-          "runId": "run-20261123-k",
+          "runId": "run-20261123-l",
           "agentId": "wGC5com",
-          "at": "2026-11-24T05:56:18.484Z",
+          "at": "2026-11-24T06:38:39.589Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired at 05:55Z; WIP reviewed in shared checkout; release claims and continue under new generation.",
+          "reason": "Recovery: Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
           "nextAction": "Build owner-local native read ports for a residual single-site commerce read family with PG parity; no TS deletion yet. BEFORE=457."
         },
         "scopeRefinementRequired": false
@@ -148026,12 +148026,12 @@
           "owner:operations"
         ],
         "claim": {
-          "runId": "run-20261123-l",
+          "runId": "run-20261123-m",
           "agentId": "wGCEope2",
-          "claimedAt": "2026-11-24T05:56:19.149Z",
-          "heartbeatAt": "2026-11-24T05:56:24.357Z",
-          "expiresAt": "2026-11-24T06:26:24.357Z",
-          "generation": 164
+          "claimedAt": "2026-11-24T06:38:39.896Z",
+          "heartbeatAt": "2026-11-24T06:38:39.896Z",
+          "expiresAt": "2026-11-24T07:08:39.896Z",
+          "generation": 165
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -148041,11 +148041,11 @@
         "blocker": null,
         "nextAction": "Next: remaining parameterized families; r29-r37 helpers fixed. BEFORE=125.",
         "handoff": {
-          "runId": "run-20261123-k",
+          "runId": "run-20261123-l",
           "agentId": "wGCEope2",
-          "at": "2026-11-24T05:56:18.484Z",
+          "at": "2026-11-24T06:38:39.589Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired at 05:55Z; WIP reviewed in shared checkout; release claims and continue under new generation.",
+          "reason": "Recovery: Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
           "nextAction": "Next: remaining parameterized families; r29-r37 helpers fixed. BEFORE=125."
         },
         "scopeRefinementRequired": false
@@ -153013,12 +153013,12 @@
           "owner:files"
         ],
         "claim": {
-          "runId": "run-20261123-l",
+          "runId": "run-20261123-m",
           "agentId": "wGCKfil",
-          "claimedAt": "2026-11-24T05:56:19.695Z",
-          "heartbeatAt": "2026-11-24T05:56:24.357Z",
-          "expiresAt": "2026-11-24T06:26:24.357Z",
-          "generation": 164
+          "claimedAt": "2026-11-24T06:38:40.042Z",
+          "heartbeatAt": "2026-11-24T06:38:40.042Z",
+          "expiresAt": "2026-11-24T07:08:40.042Z",
+          "generation": 165
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -153028,11 +153028,11 @@
         "blocker": null,
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=304.",
         "handoff": {
-          "runId": "run-20261123-k",
+          "runId": "run-20261123-l",
           "agentId": "wGCKfil",
-          "at": "2026-11-24T05:56:18.484Z",
+          "at": "2026-11-24T06:38:39.589Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired at 05:55Z; WIP reviewed in shared checkout; release claims and continue under new generation.",
+          "reason": "Recovery: Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
           "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=304."
         },
         "scopeRefinementRequired": false
@@ -157010,12 +157010,12 @@
           "owner:procurement"
         ],
         "claim": {
-          "runId": "run-20261123-l",
+          "runId": "run-20261123-m",
           "agentId": "wGCUpro",
-          "claimedAt": "2026-11-24T06:07:49.757Z",
-          "heartbeatAt": "2026-11-24T06:07:49.757Z",
-          "expiresAt": "2026-11-24T06:37:49.757Z",
-          "generation": 164
+          "claimedAt": "2026-11-24T06:38:40.187Z",
+          "heartbeatAt": "2026-11-24T06:38:40.187Z",
+          "expiresAt": "2026-11-24T07:08:40.187Z",
+          "generation": 165
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -157024,7 +157024,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=135.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCUpro",
+          "at": "2026-11-24T06:38:39.589Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
+          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=135."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -157046,12 +157053,12 @@
           "owner:quality"
         ],
         "claim": {
-          "runId": "run-20261123-l",
+          "runId": "run-20261123-m",
           "agentId": "wGCUqua",
-          "claimedAt": "2026-11-24T06:07:50.463Z",
-          "heartbeatAt": "2026-11-24T06:07:50.463Z",
-          "expiresAt": "2026-11-24T06:37:50.463Z",
-          "generation": 164
+          "claimedAt": "2026-11-24T06:38:40.344Z",
+          "heartbeatAt": "2026-11-24T06:38:40.344Z",
+          "expiresAt": "2026-11-24T07:08:40.344Z",
+          "generation": 165
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -157060,7 +157067,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=84.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCUqua",
+          "at": "2026-11-24T06:38:39.589Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
+          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=84."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -157082,12 +157096,12 @@
           "owner:collaboration"
         ],
         "claim": {
-          "runId": "run-20261123-l",
+          "runId": "run-20261123-m",
           "agentId": "wGCUcol",
-          "claimedAt": "2026-11-24T06:07:51.599Z",
-          "heartbeatAt": "2026-11-24T06:07:51.599Z",
-          "expiresAt": "2026-11-24T06:37:51.599Z",
-          "generation": 164
+          "claimedAt": "2026-11-24T06:38:40.707Z",
+          "heartbeatAt": "2026-11-24T06:38:40.707Z",
+          "expiresAt": "2026-11-24T07:08:40.707Z",
+          "generation": 165
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -157096,7 +157110,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=410.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCUcol",
+          "at": "2026-11-24T06:38:39.589Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
+          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=410."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -157118,12 +157139,12 @@
           "owner:finance"
         ],
         "claim": {
-          "runId": "run-20261123-l",
+          "runId": "run-20261123-m",
           "agentId": "wGCUfin",
-          "claimedAt": "2026-11-24T06:08:25.476Z",
-          "heartbeatAt": "2026-11-24T06:08:25.476Z",
-          "expiresAt": "2026-11-24T06:38:25.476Z",
-          "generation": 164
+          "claimedAt": "2026-11-24T06:38:40.938Z",
+          "heartbeatAt": "2026-11-24T06:38:40.938Z",
+          "expiresAt": "2026-11-24T07:08:40.938Z",
+          "generation": 165
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -157132,7 +157153,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Add RD_TAX_* kinds to native_finance_read_sql.rs for the VAT/tax-register point and count reads, unit + PG parity, then switch callers; keep assertion EXISTS guards and locks in TS.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCUfin",
+          "at": "2026-11-24T06:38:39.589Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
+          "nextAction": "Add RD_TAX_* kinds to native_finance_read_sql.rs for the VAT/tax-register point and count reads, unit + PG parity, then switch callers; keep assertion EXISTS guards and locks in TS."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -157409,12 +157437,12 @@
           "owner:manufacturing"
         ],
         "claim": {
-          "runId": "run-20261123-l",
+          "runId": "run-20261123-m",
           "agentId": "wGCVman",
-          "claimedAt": "2026-11-24T06:12:50.544Z",
-          "heartbeatAt": "2026-11-24T06:12:50.544Z",
-          "expiresAt": "2026-11-24T06:42:50.544Z",
-          "generation": 164
+          "claimedAt": "2026-11-24T06:38:41.187Z",
+          "heartbeatAt": "2026-11-24T06:38:41.187Z",
+          "expiresAt": "2026-11-24T07:08:41.187Z",
+          "generation": 165
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -157423,7 +157451,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=79.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCVman",
+          "at": "2026-11-24T06:38:39.589Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
+          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=79."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -157445,12 +157480,12 @@
           "owner:pms"
         ],
         "claim": {
-          "runId": "run-20261123-l",
+          "runId": "run-20261123-m",
           "agentId": "wGCWpms",
-          "claimedAt": "2026-11-24T06:15:23.958Z",
-          "heartbeatAt": "2026-11-24T06:15:23.958Z",
-          "expiresAt": "2026-11-24T06:45:23.958Z",
-          "generation": 164
+          "claimedAt": "2026-11-24T06:38:41.389Z",
+          "heartbeatAt": "2026-11-24T06:38:41.389Z",
+          "expiresAt": "2026-11-24T07:08:41.389Z",
+          "generation": 165
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -157459,7 +157494,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=414.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCWpms",
+          "at": "2026-11-24T06:38:39.589Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
+          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=414."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -157481,12 +157523,12 @@
           "owner:talent"
         ],
         "claim": {
-          "runId": "run-20261123-l",
+          "runId": "run-20261123-m",
           "agentId": "wGCWtal",
-          "claimedAt": "2026-11-24T06:15:24.651Z",
-          "heartbeatAt": "2026-11-24T06:15:24.651Z",
-          "expiresAt": "2026-11-24T06:45:24.651Z",
-          "generation": 164
+          "claimedAt": "2026-11-24T06:38:41.614Z",
+          "heartbeatAt": "2026-11-24T06:38:41.614Z",
+          "expiresAt": "2026-11-24T07:08:41.614Z",
+          "generation": 165
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -157495,7 +157537,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=52.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCWtal",
+          "at": "2026-11-24T06:38:39.589Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
+          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=52."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -157517,12 +157566,12 @@
           "owner:ecommerce"
         ],
         "claim": {
-          "runId": "run-20261123-l",
+          "runId": "run-20261123-m",
           "agentId": "wGCWeco",
-          "claimedAt": "2026-11-24T06:15:25.212Z",
-          "heartbeatAt": "2026-11-24T06:15:25.212Z",
-          "expiresAt": "2026-11-24T06:45:25.212Z",
-          "generation": 164
+          "claimedAt": "2026-11-24T06:38:41.801Z",
+          "heartbeatAt": "2026-11-24T06:38:41.801Z",
+          "expiresAt": "2026-11-24T07:08:41.801Z",
+          "generation": 165
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -157531,7 +157580,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=62.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCWeco",
+          "at": "2026-11-24T06:38:39.589Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
+          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=62."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -157553,12 +157609,12 @@
           "owner:records"
         ],
         "claim": {
-          "runId": "run-20261123-l",
+          "runId": "run-20261123-m",
           "agentId": "wGCWrec",
-          "claimedAt": "2026-11-24T06:15:25.778Z",
-          "heartbeatAt": "2026-11-24T06:15:25.778Z",
-          "expiresAt": "2026-11-24T06:45:25.778Z",
-          "generation": 164
+          "claimedAt": "2026-11-24T06:38:41.952Z",
+          "heartbeatAt": "2026-11-24T06:38:41.952Z",
+          "expiresAt": "2026-11-24T07:08:41.952Z",
+          "generation": 165
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -157567,7 +157623,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=33.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCWrec",
+          "at": "2026-11-24T06:38:39.589Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
+          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=33."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -157589,12 +157652,12 @@
           "owner:organization"
         ],
         "claim": {
-          "runId": "run-20261123-l",
+          "runId": "run-20261123-m",
           "agentId": "wGCWorg",
-          "claimedAt": "2026-11-24T06:15:26.350Z",
-          "heartbeatAt": "2026-11-24T06:15:26.350Z",
-          "expiresAt": "2026-11-24T06:45:26.350Z",
-          "generation": 164
+          "claimedAt": "2026-11-24T06:38:42.117Z",
+          "heartbeatAt": "2026-11-24T06:38:42.117Z",
+          "expiresAt": "2026-11-24T07:08:42.117Z",
+          "generation": 165
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -157603,7 +157666,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=292.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCWorg",
+          "at": "2026-11-24T06:38:39.589Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
+          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=292."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -157654,12 +157724,12 @@
           "owner:legal"
         ],
         "claim": {
-          "runId": "run-20261123-l",
+          "runId": "run-20261123-m",
           "agentId": "wGCWleg",
-          "claimedAt": "2026-11-24T06:15:46.221Z",
-          "heartbeatAt": "2026-11-24T06:15:46.221Z",
-          "expiresAt": "2026-11-24T06:45:46.221Z",
-          "generation": 164
+          "claimedAt": "2026-11-24T06:38:42.274Z",
+          "heartbeatAt": "2026-11-24T06:38:42.274Z",
+          "expiresAt": "2026-11-24T07:08:42.274Z",
+          "generation": 165
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -157668,7 +157738,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=249.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCWleg",
+          "at": "2026-11-24T06:38:39.589Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
+          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=249."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -157690,12 +157767,12 @@
           "owner:planning"
         ],
         "claim": {
-          "runId": "run-20261123-l",
+          "runId": "run-20261123-m",
           "agentId": "wGCWpln",
-          "claimedAt": "2026-11-24T06:15:27.609Z",
-          "heartbeatAt": "2026-11-24T06:15:27.609Z",
-          "expiresAt": "2026-11-24T06:45:27.609Z",
-          "generation": 164
+          "claimedAt": "2026-11-24T06:38:42.424Z",
+          "heartbeatAt": "2026-11-24T06:38:42.424Z",
+          "expiresAt": "2026-11-24T07:08:42.424Z",
+          "generation": 165
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -157704,7 +157781,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=32.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCWpln",
+          "at": "2026-11-24T06:38:39.589Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
+          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=32."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -157713,7 +157797,7 @@
         "owner": "work_projection",
         "title": "work_projection TS read tail native cutover (r17)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -157725,22 +157809,37 @@
         "resources": [
           "owner:work_projection"
         ],
-        "claim": {
-          "runId": "run-20261123-l",
-          "agentId": "wGCXwp",
-          "claimedAt": "2026-11-24T06:24:54.633Z",
-          "heartbeatAt": "2026-11-24T06:24:54.633Z",
-          "expiresAt": "2026-11-24T06:54:54.634Z",
-          "generation": 164
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-work_projection/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "2004ec60a",
+            "owner": "work_projection",
+            "before": 70,
+            "after": 69,
+            "note": "Page layout and quick access receipt point reads share receiptByIdSql; r9-r16, locks and consumers untouched."
+          },
+          {
+            "command": "vitest work projection r9-r17 (29) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "2004ec60a"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=70.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCXwp",
+          "at": "2026-11-24T06:39:00.263Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -157749,7 +157848,7 @@
         "owner": "runtime",
         "title": "runtime TS read tail native cutover (r13)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -157761,22 +157860,22 @@
         "resources": [
           "owner:runtime"
         ],
-        "claim": {
-          "runId": "run-20261123-l",
-          "agentId": "wGCXrun",
-          "claimedAt": "2026-11-24T06:24:55.056Z",
-          "heartbeatAt": "2026-11-24T06:24:55.056Z",
-          "expiresAt": "2026-11-24T06:54:55.056Z",
-          "generation": 164
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=41.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with evidence; claim released",
+        "handoff": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCXrun",
+          "at": "2026-11-24T06:39:00.617Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with evidence; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -157798,12 +157897,12 @@
           "owner:agent"
         ],
         "claim": {
-          "runId": "run-20261123-l",
+          "runId": "run-20261123-m",
           "agentId": "wGCXage",
-          "claimedAt": "2026-11-24T06:24:55.655Z",
-          "heartbeatAt": "2026-11-24T06:24:55.655Z",
-          "expiresAt": "2026-11-24T06:54:55.655Z",
-          "generation": 164
+          "claimedAt": "2026-11-24T06:38:42.911Z",
+          "heartbeatAt": "2026-11-24T06:38:42.911Z",
+          "expiresAt": "2026-11-24T07:08:42.911Z",
+          "generation": 165
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -157812,7 +157911,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=57.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCXage",
+          "at": "2026-11-24T06:38:39.589Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
+          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=57."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -157821,7 +157927,7 @@
         "owner": "support",
         "title": "support TS read tail native cutover (r22)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -157833,22 +157939,37 @@
         "resources": [
           "owner:support"
         ],
-        "claim": {
-          "runId": "run-20261123-l",
-          "agentId": "wGCXsup",
-          "claimedAt": "2026-11-24T06:24:56.143Z",
-          "heartbeatAt": "2026-11-24T06:24:56.143Z",
-          "expiresAt": "2026-11-24T06:54:56.143Z",
-          "generation": 164
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d2ffab7e1",
+            "owner": "support",
+            "before": 57,
+            "after": 56,
+            "note": "Ticket source version and evidence stage guards share ticket guard helper; locks and native kinds untouched."
+          },
+          {
+            "command": "vitest support unit (161) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "d2ffab7e1"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=57.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCXsup",
+          "at": "2026-11-24T06:39:46.332Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -157857,7 +157978,7 @@
         "owner": "maintenance",
         "title": "maintenance TS read tail native cutover (r14)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -157869,22 +157990,37 @@
         "resources": [
           "owner:maintenance"
         ],
-        "claim": {
-          "runId": "run-20261123-l",
-          "agentId": "wGCXmai",
-          "claimedAt": "2026-11-24T06:24:56.598Z",
-          "heartbeatAt": "2026-11-24T06:24:56.598Z",
-          "expiresAt": "2026-11-24T06:54:56.598Z",
-          "generation": 164
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-maintenance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d2ffab7e1",
+            "owner": "maintenance",
+            "before": 39,
+            "after": 38,
+            "note": "Preventive plan and work order calendar branches share scheduledSourceSql; r3-r13 and locks untouched."
+          },
+          {
+            "command": "vitest maintenance transport (36) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "d2ffab7e1"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=39.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCXmai",
+          "at": "2026-11-24T06:39:46.010Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -157906,12 +158042,12 @@
           "owner:crm"
         ],
         "claim": {
-          "runId": "run-20261123-l",
+          "runId": "run-20261123-m",
           "agentId": "wGCXcrm",
-          "claimedAt": "2026-11-24T06:24:57.095Z",
-          "heartbeatAt": "2026-11-24T06:24:57.095Z",
-          "expiresAt": "2026-11-24T06:54:57.095Z",
-          "generation": 164
+          "claimedAt": "2026-11-24T06:38:43.437Z",
+          "heartbeatAt": "2026-11-24T06:38:43.437Z",
+          "expiresAt": "2026-11-24T07:08:43.437Z",
+          "generation": 165
         },
         "baseSha": null,
         "implementedCommit": null,
@@ -157920,6 +158056,481 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=144.",
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCXcrm",
+          "at": "2026-11-24T06:38:39.589Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
+          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=144."
+        },
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.inventory.read-tail-r26",
+        "goalId": "G4",
+        "owner": "inventory",
+        "title": "inventory TS read tail native cutover (r26)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "tests/unit/inventory/**",
+          "tests/integration/inventory/**"
+        ],
+        "resources": [
+          "owner:inventory"
+        ],
+        "claim": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCMinv",
+          "claimedAt": "2026-11-24T06:39:46.792Z",
+          "heartbeatAt": "2026-11-24T06:39:46.792Z",
+          "expiresAt": "2026-11-24T07:09:46.792Z",
+          "generation": 165
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked with evidence. BEFORE=369.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.benefits.read-tail-r21",
+        "goalId": "G4",
+        "owner": "benefits",
+        "title": "benefits TS read tail native cutover (r21)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-benefits/src/**",
+          "tests/unit/benefits/**",
+          "tests/integration/benefits/**"
+        ],
+        "resources": [
+          "owner:benefits"
+        ],
+        "claim": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCMben",
+          "claimedAt": "2026-11-24T06:39:47.113Z",
+          "heartbeatAt": "2026-11-24T06:39:47.113Z",
+          "expiresAt": "2026-11-24T07:09:47.113Z",
+          "generation": 165
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked with evidence. BEFORE=43.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.work_projection.read-tail-r18",
+        "goalId": "G4",
+        "owner": "work_projection",
+        "title": "work_projection TS read tail native cutover (r18)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-work_projection/src/**",
+          "tests/unit/work_projection/**",
+          "tests/integration/work_projection/**"
+        ],
+        "resources": [
+          "owner:work_projection"
+        ],
+        "claim": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCMwp",
+          "claimedAt": "2026-11-24T06:39:47.440Z",
+          "heartbeatAt": "2026-11-24T06:39:47.440Z",
+          "expiresAt": "2026-11-24T07:09:47.440Z",
+          "generation": 165
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked with evidence. BEFORE=69.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.customer_authority.read-tail-r24",
+        "goalId": "G4",
+        "owner": "customer_authority",
+        "title": "customer_authority TS read tail native cutover (r24)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-customer_authority/src/**",
+          "tests/unit/customer_authority/**",
+          "tests/integration/customer_authority/**"
+        ],
+        "resources": [
+          "owner:customer_authority"
+        ],
+        "claim": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCMca",
+          "claimedAt": "2026-11-24T06:39:47.776Z",
+          "heartbeatAt": "2026-11-24T06:39:47.776Z",
+          "expiresAt": "2026-11-24T07:09:47.776Z",
+          "generation": 165
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked with evidence. BEFORE=64.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.marketing.read-tail-r28",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing TS read tail native cutover (r28)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**",
+          "tests/integration/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCMmkt",
+          "claimedAt": "2026-11-24T06:39:48.134Z",
+          "heartbeatAt": "2026-11-24T06:39:48.134Z",
+          "expiresAt": "2026-11-24T07:09:48.134Z",
+          "generation": 165
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked with evidence. BEFORE=83.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.sales.read-tail-r19",
+        "goalId": "G4",
+        "owner": "sales",
+        "title": "sales TS read tail native cutover (r19)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-sales/src/**",
+          "tests/unit/sales/**",
+          "tests/integration/sales/**"
+        ],
+        "resources": [
+          "owner:sales"
+        ],
+        "claim": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCMsal",
+          "claimedAt": "2026-11-24T06:39:48.472Z",
+          "heartbeatAt": "2026-11-24T06:39:48.472Z",
+          "expiresAt": "2026-11-24T07:09:48.472Z",
+          "generation": 165
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked with evidence. BEFORE=68.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.projects.read-tail-r20",
+        "goalId": "G4",
+        "owner": "projects",
+        "title": "projects TS read tail native cutover (r20)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-projects/src/**",
+          "tests/unit/projects/**",
+          "tests/integration/projects/**"
+        ],
+        "resources": [
+          "owner:projects"
+        ],
+        "claim": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCMprj",
+          "claimedAt": "2026-11-24T06:39:48.861Z",
+          "heartbeatAt": "2026-11-24T06:39:48.861Z",
+          "expiresAt": "2026-11-24T07:09:48.861Z",
+          "generation": 165
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked with evidence. BEFORE=130.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.billing.read-tail-r22",
+        "goalId": "G4",
+        "owner": "billing",
+        "title": "billing TS read tail native cutover (r22)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-billing/src/**",
+          "tests/unit/billing/**",
+          "tests/integration/billing/**"
+        ],
+        "resources": [
+          "owner:billing"
+        ],
+        "claim": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCMbil",
+          "claimedAt": "2026-11-24T06:39:49.233Z",
+          "heartbeatAt": "2026-11-24T06:39:49.233Z",
+          "expiresAt": "2026-11-24T07:09:49.233Z",
+          "generation": 165
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked with evidence. BEFORE=69.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.field_service.read-tail-r7",
+        "goalId": "G4",
+        "owner": "field_service",
+        "title": "field_service TS read tail native cutover (r7)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-field_service/src/**",
+          "tests/unit/field_service/**",
+          "tests/integration/field_service/**"
+        ],
+        "resources": [
+          "owner:field_service"
+        ],
+        "claim": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCMfld",
+          "claimedAt": "2026-11-24T06:39:49.608Z",
+          "heartbeatAt": "2026-11-24T06:39:49.608Z",
+          "expiresAt": "2026-11-24T07:09:49.608Z",
+          "generation": 165
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked with evidence. BEFORE=5.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.customer_360.read-tail-r12",
+        "goalId": "G4",
+        "owner": "customer_360",
+        "title": "customer_360 TS read tail native cutover (r12)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-customer_360/src/**",
+          "tests/unit/customer_360/**",
+          "tests/integration/customer_360/**"
+        ],
+        "resources": [
+          "owner:customer_360"
+        ],
+        "claim": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCMc360",
+          "claimedAt": "2026-11-24T06:39:49.953Z",
+          "heartbeatAt": "2026-11-24T06:39:49.953Z",
+          "expiresAt": "2026-11-24T07:09:49.953Z",
+          "generation": 165
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked with evidence. BEFORE=15.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.workflow.read-tail-r40",
+        "goalId": "G4",
+        "owner": "workflow",
+        "title": "workflow TS read tail native cutover (r40)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/**",
+          "tests/unit/workflow/**",
+          "tests/integration/workflow/**"
+        ],
+        "resources": [
+          "owner:workflow"
+        ],
+        "claim": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCMwfl",
+          "claimedAt": "2026-11-24T06:39:50.325Z",
+          "heartbeatAt": "2026-11-24T06:39:50.325Z",
+          "expiresAt": "2026-11-24T07:09:50.325Z",
+          "generation": 165
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked with evidence. BEFORE=54.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.brand.read-tail-r1",
+        "goalId": "G4",
+        "owner": "brand",
+        "title": "brand TS read tail native cutover (r1)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-brand/src/**",
+          "tests/unit/brand/**",
+          "tests/integration/brand/**"
+        ],
+        "resources": [
+          "owner:brand"
+        ],
+        "claim": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCMbrn",
+          "claimedAt": "2026-11-24T06:39:50.707Z",
+          "heartbeatAt": "2026-11-24T06:39:50.707Z",
+          "expiresAt": "2026-11-24T07:09:50.708Z",
+          "generation": 165
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked with evidence. BEFORE=6.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.assets.read-tail-r19",
+        "goalId": "G4",
+        "owner": "assets",
+        "title": "assets TS read tail native cutover (r19)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-assets/src/**",
+          "tests/unit/assets/**",
+          "tests/integration/assets/**"
+        ],
+        "resources": [
+          "owner:assets"
+        ],
+        "claim": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCMast",
+          "claimedAt": "2026-11-24T06:39:51.063Z",
+          "heartbeatAt": "2026-11-24T06:39:51.063Z",
+          "expiresAt": "2026-11-24T07:09:51.063Z",
+          "generation": 165
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked with evidence. BEFORE=27.",
         "handoff": null,
         "scopeRefinementRequired": false
       }
@@ -157930,21 +158541,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1280,
+      "totalPackets": 1293,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
-        "in_progress": 21,
+        "in_progress": 30,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 912,
+        "blocked": 916,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 164,
-    "updatedAt": "2026-11-24T06:24:57.102Z",
+    "lastCoordinatorGeneration": 165,
+    "updatedAt": "2026-11-24T06:39:51.073Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -157979,10 +158590,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261123-k",
-      "runId": "run-20261123-l",
-      "at": "2026-11-24T05:56:18.486Z",
-      "reason": "Lease expired at 05:55Z; WIP reviewed in shared checkout; release claims and continue under new generation.",
+      "previousRunId": "run-20261123-l",
+      "runId": "run-20261123-m",
+      "at": "2026-11-24T06:38:39.591Z",
+      "reason": "Coordinator lease expired after cargo/disk remediation; WIP reviewed, no claims lost, re-claiming same agents under gen 165",
       "wipReviewed": true,
       "previousRunStopped": true
     },
