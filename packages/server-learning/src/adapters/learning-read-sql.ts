@@ -90,3 +90,33 @@ export const assignmentCourseReadHead = (projection: string, separator = ' ') =>
  * its exact pre-dedupe bytes. */
 export const packageScopeCte = (alias: string, source: string) =>
   `MATERIALIZED(SELECT ${alias}.* FROM ${source} ${alias},scope WHERE ${alias}.company_id=scope.company_id)`;
+
+/** r13 — benefit consumption source head. The private witness and the
+ * settlement source read the same receipt/certificate/handoff/assignment frame.
+ * Only the projection and the two separator bytes vary, so each rendered query
+ * keeps its exact pre-dedupe text. */
+export const benefitConsumptionHead = (projection: string, separator = '\n ', joinSeparator = ' ') =>
+  `SELECT ${projection}${separator}FROM learning_benefit_consumption_receipts r LEFT JOIN learning_certificates c ON c.id=r.certificate_id${joinSeparator}LEFT JOIN learning_eligibility_handoffs h ON h.id=r.handoff_id LEFT JOIN learning_assignments a ON a.id=c.assignment_id`;
+
+/** r13 — latest-event LATERAL head. The assignment and course source reads
+ * select their newest event with the same frame; only the projection, event
+ * table, join key, parent alias and LATERAL separator vary. */
+export const latestEventLateral = (projection: string, table: string, key: string, parent: string, separator = '') =>
+  `LEFT JOIN LATERAL${separator}(SELECT ${projection} FROM ${table} e WHERE e.${key}=${parent}.id ORDER BY e.version DESC LIMIT 1) event ON TRUE`;
+
+/** r13 — source identity read keyed by id and company. The command witness,
+ * learner reference and sensitive assignment fact share the same head; only
+ * the projection, source text, FROM separator and WHERE alias vary. */
+export const identitySourceRead = (projection: string, source: string, separator = ' ', key = '') =>
+  `SELECT ${projection}${separator}FROM ${source} WHERE ${key}id=? AND ${key}company_id=?`;
+
+/** r13 — workspace image JSON frame. The purchase witness and the evaluation
+ * image share the same jsonb_build_object(...)::text image frame; only the
+ * object body varies. */
+export const workspaceImageFrame = (body: string) => `SELECT jsonb_build_object(${body})::text image`;
+
+/** r13 — clocked source CTE head. The three clocked read sites share the same
+ * WITH frame; only the clock alias and the MATERIALIZED spacing vary. clockProbe
+ * remains the single byte source for the clock body. */
+export const clockedSourceCte = (alias: string, separator = ' ') =>
+  `WITH ${alias} AS ${clockProbe.replace('MATERIALIZED (', `MATERIALIZED${separator}(`)}`;

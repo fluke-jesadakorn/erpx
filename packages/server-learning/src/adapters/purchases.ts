@@ -15,7 +15,7 @@ import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packa
 
 import type {LearningCapability,LearningPurchaseControls} from "@erpx/server-learning/domain/purchase-controls";
 export type {LearningCapability,LearningPurchaseControls} from "@erpx/server-learning/domain/purchase-controls";
-import {assignmentsImage,coursesImage,currentAssignmentScopeHead,moduleGrantAssignmentProbe} from "./learning-read-sql";
+import {assignmentsImage,coursesImage,currentAssignmentScopeHead,identitySourceRead,moduleGrantAssignmentProbe,workspaceImageFrame} from "./learning-read-sql";
 type Target={kind:"course"|"assignment"|"certificate";id:string};
 const commands=new WeakMap<SqlDatabase,{actorId:string;assignmentId:string;target:Target;operation:string}>();
 /** Private owner marker, never a public transaction registration port. */
@@ -41,7 +41,7 @@ export async function requireLearningPurchasedRead(database:SqlDatabase,actor:Wo
 }
 async function image(database:SqlDatabase,actor:WorkContext,target:Target){
  const table=target.kind==="course"?"learning_courses":target.kind==="assignment"?"learning_assignments":"learning_certificates";
- const row=await database.prepare(`SELECT to_jsonb(source)-'updated_at' image FROM ${table} source WHERE id=? AND company_id=?`)
+ const row=await database.prepare(identitySourceRead("to_jsonb(source)-'updated_at' image", `${table} source`))
   .bind(target.id,actor.companyId).first<{image:Record<string,unknown>}>();
  return row?.image??null;
 }
@@ -67,9 +67,9 @@ export async function withLearningPurchasedRead<Result>(owner:SqlDatabase,actor:
  return owner.transaction(async database=>{
   await sourceLeases(database,actor);const key=`learning-reference-read:${randomUUID()}`;
   await current(database,actor,key,'records.read');
-  const witness=async()=>JSON.stringify({people:await learningWorkerReferenceWitness(database,actor.companyId),learning:await database.prepare(`SELECT jsonb_build_object(
+  const witness=async()=>JSON.stringify({people:await learningWorkerReferenceWitness(database,actor.companyId),learning:await database.prepare(workspaceImageFrame(`
   'courses',${coursesImage},
-  'assignments',${assignmentsImage('to_jsonb(a)')}))::text image`).bind(actor.companyId,actor.companyId).first<string>('image')});
+  'assignments',${assignmentsImage('to_jsonb(a)')})`)).bind(actor.companyId,actor.companyId).first<string>('image')});
   const before=await witness(),result=await run(database);await flushFinanceDeferredEffects(database);
   if(JSON.stringify(actor)!==context||await witness()!==before)throw new ApiError(409,'LEARNING_SOURCE_CHANGED','The original learner references changed during the read.');
   await current(database,actor,key,'records.read');return result;

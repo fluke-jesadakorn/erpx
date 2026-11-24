@@ -1,7 +1,7 @@
 import "server-only";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {learningAssignmentsExistsProbe,learningCourseProjection} from "./learning-read-sql";
+import {identitySourceRead,learningAssignmentsExistsProbe,learningCourseProjection} from "./learning-read-sql";
 const sensitiveTables:Record<string,string>={learning_course:"learning_courses",learning_assignment:"learning_assignments"};
 const sensitiveRecordTables = new Set([
   "hr_evaluation_assessment",
@@ -61,9 +61,8 @@ readLearningAssignments1:(facts:{userId:string;targetId:string;companyId:string;
       status: string;
       is_learner: number;
     }>(),
-readLearningAssignments2:(facts:{userId:string;targetId:string;companyId:string;})=>db.prepare(`SELECT a.company_id,a.version,a.branch_id,a.department_id,a.status,a.learner_id,
-        CASE WHEN iam_same_person(a.learner_id,?,a.company_id) THEN 1 ELSE 0 END is_learner
-      FROM learning_assignments a WHERE a.id=? AND a.company_id=?`).bind(facts.userId,facts.targetId,facts.companyId).first<{
+readLearningAssignments2:(facts:{userId:string;targetId:string;companyId:string;})=>db.prepare(identitySourceRead(`a.company_id,a.version,a.branch_id,a.department_id,a.status,a.learner_id,
+        CASE WHEN iam_same_person(a.learner_id,?,a.company_id) THEN 1 ELSE 0 END is_learner`,'learning_assignments a','\n      ','a.')).bind(facts.userId,facts.targetId,facts.companyId).first<{
       company_id: string;
       version: number;
       branch_id: string | null;

@@ -3,7 +3,7 @@ import {createHash} from "node:crypto";
 import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgres";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
-import {packageScopeCte,sourceLiteral} from "./learning-read-sql";
+import {latestEventLateral,packageScopeCte,sourceLiteral} from "./learning-read-sql";
 
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
@@ -29,7 +29,7 @@ export const learningPackageSettlementSources={
  AND command.result_json::jsonb->>'id'=a.id AND command.result_json::jsonb->>'version'=event.version::text
  AND command.result_json::jsonb->>'status'=a.status,false) terminal_proven
  FROM learning_assignments a LEFT JOIN learning_courses c ON c.id=a.course_id
- LEFT JOIN LATERAL(SELECT e.* FROM learning_assignment_events e WHERE e.assignment_id=a.id ORDER BY e.version DESC LIMIT 1) event ON TRUE
+ ${latestEventLateral('e.*','learning_assignment_events','assignment_id','a')}
  LEFT JOIN command_receipts command ON event.id='learning-assignment-event-'||command.command_id`,
  handoffs:sourceLiteral('learning_eligibility_handoffs'),
  certificates:sourceLiteral('learning_certificates'),
@@ -46,8 +46,7 @@ export async function learningPackageObligations(owner:PostgresDatabase,database
  SELECT 'course' kind,c.id,c.version,c.status state,
  c.status='draft' OR event.id IS NULL OR event.status<>c.status OR event.version>c.version
  OR c.reviewed_by IS NULL OR c.reviewed_by=c.created_by pending
- FROM learning_courses c CROSS JOIN scope LEFT JOIN LATERAL
- (SELECT e.id,e.version,e.status FROM learning_course_events e WHERE e.course_id=c.id ORDER BY e.version DESC LIMIT 1) event ON TRUE
+ FROM learning_courses c CROSS JOIN scope ${latestEventLateral('e.id,e.version,e.status','learning_course_events','course_id','c','\n ')}
  WHERE c.company_id=scope.company_id
  UNION ALL SELECT 'assignment',a.id,a.version,a.status,
  NOT a.source_valid OR a.status NOT IN ('completed','waived','cancelled') OR NOT a.terminal_proven

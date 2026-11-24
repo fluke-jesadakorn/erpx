@@ -20,7 +20,7 @@ import { createChangeLearningCourse, createChangeLearningAssignment, createLearn
 import type { LearningAssignment as Assignment } from "@erpx/server-learning/domain/learning";
 import {courseActionSchema,learningActionSchema} from "@erpx/server-learning/domain/learning";
 import {withLearningPurchasedCommand,withLearningPurchasedRead,requireLearningPurchasedRead,type LearningCapability} from "@erpx/server-learning/adapters/purchases";
-import {assignmentCourseReadHead,learningCourseProjection,overdueEvidenceColumns} from "./learning-read-sql";
+import {assignmentCourseReadHead,identitySourceRead,learningCourseProjection,overdueEvidenceColumns} from "./learning-read-sql";
 import {completionEvidenceColumns} from "./learning-completion-evidence";
 export type { LearningExecutiveEvidenceMetric } from "@erpx/server-learning/application/learning";
 const learnerEligible = `EXISTS(SELECT 1 ${identityaccessSources.learning_adapters_learning_assignments_x_from} ${peoplepayrollSources.learning_adapters_learning_hr_people_p_join} ON p.user_id=x.user_id AND p.company_id=x.company_id ${peoplepayrollSources.learning_adapters_learning_hr_engagements_e_join} ON e.person_id=p.id AND e.company_id=p.company_id WHERE x.company_id=a.company_id AND x.user_id=a.learner_id AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(x.user_id,x.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (x.scope_kind='holding' OR (x.scope_kind='branch' AND x.scope_node_id=a.branch_id) OR (x.scope_kind='department' AND x.scope_node_id=a.department_id)) AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active')`;
@@ -65,7 +65,7 @@ function learnerReferenceWitness(actor:WorkContext,learnerId:string,courseId:str
  assignments:await write.prepare(`SELECT jsonb_agg(to_jsonb(x) ORDER BY x.id) image ${identityaccessSources.learning_adapters_learning_assignments_x_from} WHERE x.company_id=? AND x.user_id=?`).bind(actor.companyId,learnerId).first('image'),
  });}
 function assignmentReferenceWitness(actor:WorkContext,id:string){return async(write:SqlDatabase)=>{
- const source=await write.prepare('SELECT learner_id,course_id FROM learning_assignments WHERE id=? AND company_id=?').bind(id,actor.companyId).first<{learner_id:string;course_id:string}>();
+ const source=await write.prepare(identitySourceRead('learner_id,course_id','learning_assignments')).bind(id,actor.companyId).first<{learner_id:string;course_id:string}>();
  return source?learnerReferenceWitness(actor,source.learner_id,source.course_id)(write):'null';
 };}
 // Wave 3: assignment writes execute only in the native axum Learning route
