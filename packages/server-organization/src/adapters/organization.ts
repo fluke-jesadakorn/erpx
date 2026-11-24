@@ -34,6 +34,7 @@ import {organizationGuard}from '@erpx/server-organization/public/organization-gr
 import {organizationRoster}from '@erpx/server-organization/public/organization-roster-read';
 import {NODE_BRANCH_ACTIVE,NODE_BRANCH_ACTIVE_EXISTS,departmentSnapshotMissing} from './organization-read-tail-sources';
 import {snapshotProjection,staffLevelNumberSource} from './organization-column-alias-families';
+import {impactCount} from './organization-column-alias-families-r29';
 const HEAD_SEAT_SNAPSHOT_SOURCE =
   "SELECT version,position_id,person_id,effective_at FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=?";
 const DEPARTMENT_HEAD_SNAPSHOT_SOURCE =
@@ -41,11 +42,11 @@ const DEPARTMENT_HEAD_SNAPSHOT_SOURCE =
 const DEPARTMENT_FLOW_SNAPSHOT_SOURCE =
   "SELECT id,version,steps_json FROM department_flow_versions WHERE company_id=? AND department_id=? ORDER BY version DESC LIMIT 1";
 const nodeImpactSql=`SELECT
- (SELECT count(*) FROM organization_nodes WHERE company_id=? AND parent_id=? AND status='active') child_nodes,
- (SELECT count(*) FROM (${people_payrollPlatformSources.hr_engagements}) hr_engagements WHERE company_id=? AND status='active' AND (branch_id=? OR department_id=?)) staff,
- (SELECT count(*) FROM organization_positions WHERE company_id=? AND active=1 AND (branch_id=? OR department_id=?)) positions,
- (SELECT count(*) FROM (${identity_accessPlatformSources.assignments}) assignments WHERE company_id=? AND revoked_at IS NULL AND scope_node_id=?) assignments,
- (SELECT count(*) FROM (${commercePlatformSources.commerce_warehouses}) commerce_warehouses WHERE company_id=? AND branch_id=?) warehouses`;
+ ${impactCount('organization_nodes',"parent_id=? AND status='active'")} child_nodes,
+ ${impactCount(`(${people_payrollPlatformSources.hr_engagements}) hr_engagements`,"status='active' AND (branch_id=? OR department_id=?)")} staff,
+ ${impactCount('organization_positions','active=1 AND (branch_id=? OR department_id=?)')} positions,
+ ${impactCount(`(${identity_accessPlatformSources.assignments}) assignments`,'revoked_at IS NULL AND scope_node_id=?')} assignments,
+ ${impactCount(`(${commercePlatformSources.commerce_warehouses}) commerce_warehouses`,'branch_id=?')} warehouses`;
 async function organizationNodeImpact(db:SqlDatabase,companyId:string,nodeId:string){
   return (await db.prepare(nodeImpactSql).bind(companyId,nodeId,companyId,nodeId,nodeId,companyId,nodeId,nodeId,companyId,nodeId,companyId,nodeId).first<{child_nodes:number;staff:number;positions:number;assignments:number;warehouses:number}>())!;
 }

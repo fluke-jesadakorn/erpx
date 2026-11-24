@@ -12,6 +12,7 @@ import {BusinessRuleError} from "@erpx/server-shared/index";
 import {createStaffDefaultApplication} from "@erpx/server-organization/application/staff-defaults";
 import { nativeOrgStatement } from './native-organization-owner-write';
 import {maxVersionSource,staffLevelNumberSource} from './organization-column-alias-families';
+import {maxVersionSubquery} from './organization-column-alias-families-r29';
 import type {PositionPayDefault,LevelLeaveDefault,DefaultRecommendation,PayDefaultFact,LeaveDefaultFact,ExistingLeaveFact} from "@erpx/server-organization/domain/staff-defaults";
 export {positionPayInput,levelLeaveInput} from "@erpx/server-organization/domain/staff-defaults";
 export const canSeeDefaultPay=(actor:WorkContext)=>hasPermission(actor,'people.compensation.read');
@@ -21,14 +22,14 @@ async function catalog(db:SqlDatabase,actor:WorkContext){
       max(CASE WHEN t.code='sick' THEN r.grant_units END) sick_days
     FROM level_leave_defaults d JOIN (${people_payrollPlatformSources.leave_policy_versions}) p ON p.id=d.policy_version_id
     JOIN (${people_payrollPlatformSources.leave_policy_rules}) r ON r.policy_version_id=p.id JOIN (${people_payrollPlatformSources.leave_types}) t ON t.id=r.leave_type_id
-    WHERE d.company_id=? AND d.version=(SELECT max(x.version) FROM level_leave_defaults x WHERE x.company_id=d.company_id AND x.level_id=d.level_id)
+    WHERE d.company_id=? AND d.version=${maxVersionSubquery('level_leave_defaults','level_id')}
     GROUP BY d.level_id,d.version,d.policy_version_id,p.name,p.effective_from`).bind(actor.companyId).all<{
       level_id:string;version:number;policy_version_id:string;name:string;effective_from:string;annual_days:number;sick_days:number
     }>()).results;
   const pay = canSeeDefaultPay(actor) ? (await db.prepare(`SELECT d.position_id,d.version,d.pay_group_id,d.currency,d.monthly_amount_minor,g.name pay_group_name
     FROM position_pay_defaults d JOIN (${people_payrollPlatformSources.hr_pay_groups}) g ON g.id=d.pay_group_id JOIN organization_positions p ON p.id=d.position_id
     WHERE d.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.department_id=?)
-      AND d.version=(SELECT max(x.version) FROM position_pay_defaults x WHERE x.company_id=d.company_id AND x.position_id=d.position_id)`)
+      AND d.version=${maxVersionSubquery('position_pay_defaults','position_id')}`)
     .bind(actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).all<{position_id:string;version:number;pay_group_id:string;currency:string;monthly_amount_minor:number;pay_group_name:string}>()).results : [];
   return { pay, leave };
 }

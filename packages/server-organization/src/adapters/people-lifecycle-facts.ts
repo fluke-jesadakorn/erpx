@@ -5,6 +5,7 @@ import { type PeopleLifecycleData } from "@erpx/feature-people_payroll/lib/peopl
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { type LifecyclePositionFact } from '@erpx/server-people_payroll/public/people-lifecycle-contract';
 import { nativeOrgExecute } from './native-organization-owner-write';
+import { maxVersionSubquery } from './organization-column-alias-families-r29';
 export function peopleLifecycleOrganizationFacts(database: SqlDatabase, client?: PoolClient) {
     return { readPeopleLifecycleDataPositions(companyId: string) {
             return database.prepare(`SELECT p.id,p.title,p.version,p.requirements,p.branch_id,p.department_id,p.level_id,p.active,b.package_id,b.revision package_revision FROM organization_positions p LEFT JOIN (${people_payrollPlatformSources.people_position_packages}) b ON b.company_id=p.company_id AND b.position_id=p.id WHERE p.company_id=? ORDER BY p.title,p.id`)
@@ -48,7 +49,7 @@ export function peopleLifecycleOrganizationFacts(database: SqlDatabase, client?:
         readPreviewLifecycleRecommendedLeave(companyId: string, level_id: string) {
             return database.prepare(`SELECT l.name level_name,max(CASE WHEN t.code='annual' THEN r.grant_units END) annual_days,max(CASE WHEN t.code='sick' THEN r.grant_units END) sick_days
     FROM level_leave_defaults d JOIN staff_levels l ON l.id=d.level_id JOIN (${people_payrollPlatformSources.leave_policy_rules}) r ON r.policy_version_id=d.policy_version_id JOIN (${people_payrollPlatformSources.leave_types}) t ON t.id=r.leave_type_id
-    WHERE d.company_id=? AND d.level_id=? AND d.version=(SELECT max(x.version) FROM level_leave_defaults x WHERE x.company_id=d.company_id AND x.level_id=d.level_id) GROUP BY l.name`)
+    WHERE d.company_id=? AND d.level_id=? AND d.version=${maxVersionSubquery('level_leave_defaults','level_id')} GROUP BY l.name`)
                 .bind(companyId, level_id).first<{
                 level_name: string;
                 annual_days: number;
