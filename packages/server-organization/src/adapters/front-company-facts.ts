@@ -1,6 +1,7 @@
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {storefrontBrandColumns,storefrontBrandJoin} from "@erpx/server-brand/public/front-brand-projection";
 import {activeNodeByIdCompanyKind} from "./organization-column-alias-families-r36";
+import {nodeSlugByKind} from "./organization-read-tail-sources-r44";
 export function frontCompanyFacts(db:SqlDatabase){return {
 async companyBrand(companySlug:string){return db.prepare(
     "SELECT c.id,c.slug,c.display_name," + storefrontBrandColumns + " " +
@@ -16,10 +17,10 @@ async companyBrand(companySlug:string){return db.prepare(
     logo_publication_id:string|null;
   }>();},
 async branch(companyId:string,value:string){return db.prepare(
-      "SELECT slug FROM organization_nodes WHERE company_id=? AND kind='branch' AND slug=? AND status='active'",
+      nodeSlugByKind('branch', ''),
     ).bind(companyId, value).first<{ slug: string }>();},
 async department(companyId:string,value:string){return db.prepare(
-      "SELECT slug FROM organization_nodes WHERE company_id=? AND kind='department' AND slug=? AND branch_id IS NULL AND status='active'",
+      nodeSlugByKind('department', ' AND branch_id IS NULL'),
     ).bind(companyId, value).first<{ slug: string }>();},
 async branchDepartment(companyId:string,value:string,value2:string){return db.prepare(
       "SELECT d.slug,b.slug AS branch_slug FROM organization_nodes d " +
