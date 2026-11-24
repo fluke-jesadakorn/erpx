@@ -25,6 +25,8 @@ import {
   PMS_RD_DOCUMENT_RELATED_POSTINGS,
   PMS_RD_POS_GUEST_HOTELS,
   PMS_RD_POS_GUEST_CHOICES,
+  PMS_RD_POS_STRIPE_PAYMENT,
+  PMS_RD_POS_BOOKING_PAYMENT,
 } from '../../../packages/server-pms/src/adapters/native-pms-read';
 import { readPmsInventoryCommand } from '../../../packages/server-pms/src/adapters/pms/read-repository';
 import { pmsAttachmentReadSourceImage } from '../../../packages/server-pms/src/adapters/attachment-read-sources';
@@ -697,6 +699,78 @@ describe('native PMS pos-guest-account read retirement', () => {
     ]);
     expect(bound).toEqual(bodies.map(b => b.values));
     expect(prepared).toEqual([posGuestHotelsSql, posGuestChoicesSql]);
+    for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
+  });
+});
+
+const posStripePaymentSql = 'SELECT id FROM pms_stripe_payments WHERE id=? AND company_id=? AND account_id=? AND livemode=?';
+const posBookingPaymentSql = 'SELECT id FROM pms_booking_payments WHERE id=? AND company_id=? AND account_id=? AND livemode=?';
+
+describe('native PMS pos-stripe byte-identical read retirement', () => {
+  it('exposes fixed pos-stripe fact read kinds with no SQL on the wire', () => {
+    expect(PMS_RD_POS_STRIPE_PAYMENT).toBe('pms_rd_pos_stripe_payment');
+    expect(PMS_RD_POS_BOOKING_PAYMENT).toBe('pms_rd_pos_booking_payment');
+    for (const kind of [PMS_RD_POS_STRIPE_PAYMENT, PMS_RD_POS_BOOKING_PAYMENT])
+      expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE|FOR UPDATE|FOR SHARE/);
+  });
+
+  it('removes the four byte-identical TypeScript SELECT literals but keeps refund reads', async () => {
+    const adapter = await readFile(new URL('../../../packages/server-pms/src/adapters/pos-stripe-facts.ts', import.meta.url), 'utf8');
+    expect(adapter).not.toContain("one(db,'" + posStripePaymentSql + "'");
+    expect(adapter).not.toContain("one(db,'" + posBookingPaymentSql + "'");
+    expect(adapter).toContain('nativePmsReadFirst');
+    expect(adapter).toContain('PMS_RD_POS_STRIPE_PAYMENT');
+    expect(adapter).toContain('PMS_RD_POS_BOOKING_PAYMENT');
+    for (const method of ['readPmsStripePayments1', 'readPmsStripePayments2'])
+      expect(adapter).toMatch(new RegExp(method + '[^\\n]*PMS_RD_POS_STRIPE_PAYMENT'));
+    for (const method of ['readPmsBookingPayments1', 'readPmsBookingPayments2'])
+      expect(adapter).toMatch(new RegExp(method + '[^\\n]*PMS_RD_POS_BOOKING_PAYMENT'));
+    // Dedicated refund-state reads and lock clauses stay in the caller's TS unit.
+    expect(adapter).toContain('readPmsBookingRefundRequests1');
+    expect(adapter).toContain("refund_id=?");
+    expect(adapter).not.toContain('FOR UPDATE');
+    expect(adapter).not.toContain('FOR SHARE');
+  });
+
+  it('plans both byte-identical reads in Rust and runs them on the caller unit with the same binds', async () => {
+    const bodies: { kind: string; values: unknown[] }[] = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as { kind: string; values: unknown[] };
+      bodies.push(body);
+      const sql = body.kind === PMS_RD_POS_STRIPE_PAYMENT ? posStripePaymentSql : posBookingPaymentSql;
+      return new Response(JSON.stringify({ data: { statements: [{ sql, values: body.values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+    const prepared: string[] = [], bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) { prepared.push(sql); return { bind(...values: unknown[]) { bound.push(values); return this; } }; },
+      async batch<T>() { return [{ results: [{ id: 'payment-1' }], success: true, meta: { changes: 0, duration: 0 } }] as unknown as { results: T[]; success: boolean; meta: { changes: number; duration: number } }[]; },
+      async exec() { return { count: 0, duration: 0 }; },
+    };
+    const { posStripePmsFacts } = await import('../../../packages/server-pms/src/adapters/pos-stripe-facts');
+    const api = posStripePmsFacts(db as never);
+    const facts = { company_id: 'company-1', account_id: 'acct_1', livemode: false };
+    const stripe1 = await api.readPmsStripePayments1({ counterId: 'counter-1', ...facts });
+    const booking1 = await api.readPmsBookingPayments1({ bookingId: 'booking-1', ...facts });
+    const stripe2 = await api.readPmsStripePayments2({ counterId: 'counter-1', ...facts });
+    const booking2 = await api.readPmsBookingPayments2({ bookingId: 'booking-1', ...facts });
+
+    for (const row of [stripe1, booking1, stripe2, booking2]) expect(row).toMatchObject({ id: 'payment-1' });
+    expect(bodies.map(b => b.kind)).toEqual([
+      PMS_RD_POS_STRIPE_PAYMENT, PMS_RD_POS_BOOKING_PAYMENT,
+      PMS_RD_POS_STRIPE_PAYMENT, PMS_RD_POS_BOOKING_PAYMENT,
+    ]);
+    expect(bodies.map(b => b.values)).toEqual([
+      ['counter-1', 'company-1', 'acct_1', false],
+      ['booking-1', 'company-1', 'acct_1', false],
+      ['counter-1', 'company-1', 'acct_1', false],
+      ['booking-1', 'company-1', 'acct_1', false],
+    ]);
+    expect(bound).toEqual(bodies.map(b => b.values));
+    expect(prepared).toEqual([
+      posStripePaymentSql, posBookingPaymentSql, posStripePaymentSql, posBookingPaymentSql,
+    ]);
     for (const body of bodies) expect(JSON.stringify(body)).not.toContain('SELECT');
   });
 });

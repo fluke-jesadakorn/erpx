@@ -38,6 +38,13 @@ export const PMS_RD_ATTACHMENT_RECORD_IMAGE = 'pms_rd_attachment_record_image';
 export const PMS_RD_DOCUMENT_RELATED_POSTINGS = 'pms_rd_document_related_postings';
 export const PMS_RD_POS_GUEST_HOTELS = 'pms_rd_pos_guest_hotels';
 export const PMS_RD_POS_GUEST_CHOICES = 'pms_rd_pos_guest_choices';
+/** Native successors of the owner-local `posStripePmsFacts` byte-identical
+ * point reads: counter/booking payment existence checks. Fixed SQL with four
+ * positional binds, no ledger/receipt/outbox and no lock/refund path; the
+ * caller runs them on its already-open read unit. Dedicated refund-state and
+ * FOR UPDATE reads stay in the caller's TypeScript unit. */
+export const PMS_RD_POS_STRIPE_PAYMENT = 'pms_rd_pos_stripe_payment';
+export const PMS_RD_POS_BOOKING_PAYMENT = 'pms_rd_pos_booking_payment';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PMS_NATIVE_READ_UNAVAILABLE', 'The native PMS read service is unavailable.');
