@@ -13,11 +13,13 @@ import {
   nativePosConnectionsStatement,
   nativePosPaymentByIdStatement,
   nativePosBookingConnectionStatement,
+  nativePosStripeEntrypointJobsStatement,
 } from '../../../packages/server-pos/src/adapters/native-pos-core-statement';
 import { pmsHospitalitySetupPosFacts } from '../../../packages/server-pos/src/adapters/pms-hospitality-setup-facts';
 import { pmsBookingChangeFacts } from '../../../packages/server-pos/src/adapters/pms-booking-change-facts';
 import { pmsBookingPosFacts } from '../../../packages/server-pos/src/adapters/pms-booking-facts';
 import { pmsCounterPaymentFacts } from '../../../packages/server-pos/src/adapters/pms-counter-payment-facts';
+import { stripeEntrypointFacts } from '../../../packages/server-pos/src/adapters/stripe-entrypoint-facts';
 
 const config = () => JSON.stringify({ privateBaseUrl: 'http://127.0.0.1:44994', timeoutMs: 1000 });
 const previous = process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
@@ -592,5 +594,93 @@ describe('native POS core workspace read bridge (shifts family)', () => {
       expect(source).not.toContain(literal);
       expect(source).toContain('nativePosBookingConnectionStatement');
     }
+  });
+
+  it('requests the Stripe entrypoint jobs rows from the native owner registry only', async () => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const sql = "SELECT id,kind,state,last_error,payload_json FROM pos_jobs WHERE company_id=? AND kind IN ('connect','connect_refresh') ORDER BY created_at DESC LIMIT 10";
+    const values = ['company'];
+    const rows = [{ id: 'job', kind: 'connect', state: 'completed', last_error: null, payload_json: '{}' }];
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { sql, values } }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const seen: { sql?: string; values?: unknown[] } = {};
+    const db = {
+      prepare: (text: string) => ({
+        bind: (...bound: unknown[]) => {
+          seen.sql = text;
+          seen.values = bound;
+          return { all: async () => ({ results: rows, success: true, meta: { changes: 0, duration: 0 } }) };
+        },
+      }),
+    };
+    const prepare = vi.spyOn(db, 'prepare');
+    const result = await nativePosStripeEntrypointJobsStatement(db as never, 'company');
+    expect(result.results).toEqual(rows);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe('http://127.0.0.1:44994/api/v1/companies/company/pos/owner-write');
+    expect(JSON.parse(init.body)).toEqual({ company: 'company', kind: 'stripe_readposjobsentrypoint_529', values });
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(seen.sql).toBe(sql);
+    expect(seen.values).toEqual(values);
+  });
+
+  it('fails closed for the Stripe entrypoint jobs read when the native owner service is unconfigured', async () => {
+    delete process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    await expect(nativePosStripeEntrypointJobsStatement({} as never, 'company')).rejects.toMatchObject({
+      code: 'NATIVE_POS_OWNER_UNAVAILABLE',
+      status: 503,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('serves both Stripe entrypoint reads from the native registry with no local SQL', async () => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const connectionSql = 'SELECT * FROM pos_connections WHERE company_id=?';
+    const jobsSql = "SELECT id,kind,state,last_error,payload_json FROM pos_jobs WHERE company_id=? AND kind IN ('connect','connect_refresh') ORDER BY created_at DESC LIMIT 10";
+    const connectionRow = { company_id: 'company', account_id: 'acct_1', state: 'ready' };
+    const jobRows = [{ id: 'job', kind: 'connect', state: 'completed', last_error: null, payload_json: '{}' }];
+    const fetch = vi.fn().mockImplementation((...args: unknown[]) => {
+      const kind = String(JSON.parse(String((args[1] as { body: string }).body)).kind);
+      const data = kind === 'stripe_readposjobsentrypoint_529'
+        ? { sql: jobsSql, values: ['company'] }
+        : { sql: connectionSql, values: ['company'] };
+      return Promise.resolve(new Response(JSON.stringify({ data }), { status: 200, headers: { 'content-type': 'application/json' } }));
+    });
+    vi.stubGlobal('fetch', fetch);
+    const seen: { sql?: string; values?: unknown[] }[] = [];
+    const db = {
+      prepare: (text: string) => ({
+        bind: (...bound: unknown[]) => {
+          seen.push({ sql: text, values: bound });
+          return {
+            first: async () => connectionRow,
+            all: async () => ({ results: jobRows, success: true, meta: { changes: 0, duration: 0 } }),
+          };
+        },
+      }),
+    };
+    const facts = stripeEntrypointFacts(db as never);
+    await expect(facts.connection('company')).resolves.toEqual(connectionRow);
+    const jobs = await facts.jobs('company');
+    expect(jobs.results).toEqual(jobRows);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    const kinds = fetch.mock.calls.map((call: unknown[]) => String(JSON.parse(String((call[1] as { body: string }).body)).kind));
+    expect(kinds).toEqual(['stripe_readposconnections_526', 'stripe_readposjobsentrypoint_529']);
+    expect(seen.map(entry => entry.sql)).toEqual([connectionSql, jobsSql]);
+    expect(seen.map(entry => entry.values)).toEqual([['company'], ['company']]);
+  });
+
+  it('keeps no byte-identical Stripe entrypoint SQL literal in the TS adapter', async () => {
+    const { readFileSync } = await import('node:fs');
+    const source = readFileSync(new URL('../../../packages/server-pos/src/adapters/stripe-entrypoint-facts.ts', import.meta.url), 'utf8');
+    expect(source).not.toContain('SELECT * FROM pos_connections WHERE company_id=?');
+    expect(source).not.toContain('SELECT id,kind,state,last_error,payload_json FROM pos_jobs');
+    expect(source).toContain('nativePosConnectionsStatement');
+    expect(source).toContain('nativePosStripeEntrypointJobsStatement');
   });
 });

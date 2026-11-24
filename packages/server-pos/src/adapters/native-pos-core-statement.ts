@@ -1,7 +1,7 @@
 import 'server-only';
-import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import type { SqlDatabase, SqlResult } from '@erpx/server-runtime/public/runtime/types';
 import type { SqlValueRow } from '@erpx/server-runtime/public/runtime/sql';
-import { nativePosAll, nativePosOne } from './native-owner-write';
+import { nativePosAll, nativePosOne, nativePosStatement } from './native-owner-write';
 
 /**
  * Owner-issued POS core workspace reads (shifts family) for caller-owned
@@ -188,4 +188,22 @@ export async function nativePosBookingConnectionStatement<T = SqlValueRow>(
   companyId: unknown,
 ): Promise<T | null> {
   return nativePosOne<T>(db, String(companyId ?? ''), 'stripe_readposbookingconnection_528', [companyId]);
+}
+
+/**
+ * Owner-issued Stripe entrypoint connection-readiness jobs read. The SQL lives
+ * in the native POS owner registry (`erpx-server-pos::adapters::owner_writes`,
+ * kind `stripe_readposjobsentrypoint_529`) and is byte-identical to the deleted
+ * literal in `stripe-entrypoint-facts.ts`. This bridge sends only the kind and
+ * Company value; the caller executes the registry statement on its own unit,
+ * so no TypeScript SQL, mirror or fallback reader remains. The companion
+ * connection read reuses the byte-identical `nativePosConnectionsStatement`
+ * (`stripe_readposconnections_526`). The full `SqlResult` is returned so the
+ * presentation consumer keeps its existing `.results` contract unchanged.
+ */
+export async function nativePosStripeEntrypointJobsStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  companyId: unknown,
+): Promise<SqlResult<T>> {
+  return (await nativePosStatement(db, String(companyId ?? ''), 'stripe_readposjobsentrypoint_529', [companyId])).all<T>();
 }
