@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11738,
+    "revision": 11741,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -175375,7 +175375,7 @@
         "owner": "billing",
         "title": "billing TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -175387,22 +175387,37 @@
         "resources": [
           "owner:billing"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4b11",
-          "claimedAt": "2026-11-24T11:48:03.316Z",
-          "heartbeatAt": "2026-11-24T11:53:11.142Z",
-          "expiresAt": "2026-11-24T12:23:11.142Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-billing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "6c5d7f74d",
+            "owner": "billing",
+            "before": 59,
+            "after": 57,
+            "note": "Source ledger, stored totals and duplicate-object subquery share one ledger projection; FOR UPDATE enrollment guard untouched."
+          },
+          {
+            "command": "vitest billing r23-r28 (16) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "6c5d7f74d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=59.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4b11",
+          "at": "2026-11-24T12:01:25.235Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -176089,6 +176104,35 @@
         "nextAction": "flow_routes closed projection (-1) and command_receipts projection (-2): 46->43.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.read-tail-r43",
+        "goalId": "G4",
+        "owner": "finance",
+        "title": "finance journal fact and scope families",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "F1 journal-line facts + F4 books image + F5 child billing-run guard (~-18) then remainder; re-mine after r42.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -176097,21 +176141,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1649,
+      "totalPackets": 1650,
       "migratedPackets": 330,
       "statusCounts": {
-        "pending": 20,
-        "in_progress": 23,
+        "pending": 21,
+        "in_progress": 22,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1274,
+        "blocked": 1275,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T12:01:01.085Z",
+    "updatedAt": "2026-11-24T12:01:25.534Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
