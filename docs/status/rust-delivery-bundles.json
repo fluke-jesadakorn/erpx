@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9633,
+    "revision": 9637,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -153217,7 +153217,7 @@
         "owner": "legal",
         "title": "legal TS read tail native cutover (r24)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -153229,22 +153229,37 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261123-k",
-          "agentId": "wGCLleg",
-          "claimedAt": "2026-11-24T05:34:19.781Z",
-          "heartbeatAt": "2026-11-24T05:34:19.781Z",
-          "expiresAt": "2026-11-24T06:04:19.781Z",
-          "generation": 163
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "4e9085525",
+            "owner": "legal",
+            "before": 261,
+            "after": 259,
+            "note": "Hold target guard prefix shared across three callers; corpus/citation, locks and r9/r16-r23 untouched."
+          },
+          {
+            "command": "vitest legal r24 (4) + tsc legal",
+            "result": "passed",
+            "sourceSha": "4e9085525"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=261.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCLleg",
+          "at": "2026-11-24T05:42:10.625Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -154002,6 +154017,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=16.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.legal.read-tail-r25",
+        "goalId": "G4",
+        "owner": "legal",
+        "title": "legal TS read tail native cutover (r25)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-legal/src/**",
+          "tests/unit/legal/**",
+          "tests/integration/legal/**"
+        ],
+        "resources": [
+          "owner:legal"
+        ],
+        "claim": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCMleg2",
+          "claimedAt": "2026-11-24T05:42:11.075Z",
+          "heartbeatAt": "2026-11-24T05:42:11.075Z",
+          "expiresAt": "2026-11-24T06:12:11.075Z",
+          "generation": 163
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=259.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -154010,7 +154061,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1203,
+      "totalPackets": 1204,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -154018,13 +154069,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 829,
+        "blocked": 830,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 163,
-    "updatedAt": "2026-11-24T05:41:52.563Z",
+    "updatedAt": "2026-11-24T05:42:11.083Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
