@@ -15,3 +15,4 @@ pub mod scheduled_release_sources;
 pub mod native_roster_snapshot;
 
 pub mod native_engineering_database_identity;
+pub mod native_engineering_verification_read;

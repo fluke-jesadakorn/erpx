@@ -41,6 +41,10 @@ name = "platform_administration_postgres"
 path = "../../tests/integration/platform_administration/rust-platform-administration-postgres.test.rs"
 
 [[test]]
+name = "engineering_verification_read_parity"
+path = "../../tests/integration/platform_administration/rust-engineering-verification-read-parity-postgres.test.rs"
+
+[[test]]
 name = "platform_executive"
 path = "../../tests/unit/platform_administration/rust-platform-executive.test.rs"
 
