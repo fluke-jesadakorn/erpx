@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8142,
+    "revision": 8144,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -136583,6 +136583,42 @@
         "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=109.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.work_projection.read-tail-r5",
+        "goalId": "G4",
+        "owner": "work_projection",
+        "title": "work_projection TS read tail native cutover (round 5)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-work_projection/src/**",
+          "tests/unit/work_projection/**",
+          "tests/integration/work_projection/**"
+        ],
+        "resources": [
+          "owner:work_projection"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGBFwp",
+          "claimedAt": "2026-11-24T01:46:34.451Z",
+          "heartbeatAt": "2026-11-24T01:46:34.451Z",
+          "expiresAt": "2026-11-24T02:16:34.451Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Scout: byte-identical groups - reminder-authority:35 + reminder-purchases:33 version read; reminder-purchases:26/33 occurrence exception read; availability-facts:13 + reminder-purchases:26/33 response read; calendar/purchases:67/73 iam_role_allows core. Avoid SELECT 1 markers and generated predicates. BEFORE=106.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -136591,11 +136627,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 866,
+      "totalPackets": 867,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
-        "in_progress": 31,
+        "in_progress": 32,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -136605,7 +136641,7 @@
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:46:20.841Z",
+    "updatedAt": "2026-11-24T01:46:34.458Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
