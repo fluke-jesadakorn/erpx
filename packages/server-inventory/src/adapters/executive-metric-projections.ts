@@ -6,6 +6,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
+import { reservedWarehouseProductQtySql } from './read-tail-sql';
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const spec = specs[id];
     let sql = '', values: unknown[] = [];
@@ -20,7 +21,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
                 : "p.sku||' · '||p.name||' · '||w.name";
         const groupId = breakdown === "product" ? "p.id" : breakdown === "warehouse" ? "w.id" : "p.id||':'||w.id";
         sql = `WITH reservations AS (
-        SELECT warehouse_id,product_id,sum(quantity_milli::numeric) quantity_milli
+        ${reservedWarehouseProductQtySql}
         FROM inventory_active_reservations GROUP BY warehouse_id,product_id
       ), positions AS (
         SELECT w.id warehouse_id,w.name warehouse_name,w.branch_id,p.id product_id,p.sku,p.name product_name,p.unit,
@@ -41,7 +42,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         const label = breakdown === "warehouse" ? "w.name" : breakdown === "product" ? "p.sku||' · '||p.name" : "'Inventory shortages'";
         const groupId = breakdown === "warehouse" ? "w.id" : breakdown === "product" ? "p.id" : "'all'";
         sql = `WITH reservations AS (
-        SELECT warehouse_id,product_id,sum(quantity_milli::numeric) quantity_milli
+        ${reservedWarehouseProductQtySql}
         FROM inventory_active_reservations GROUP BY warehouse_id,product_id
       ), positions AS (
         SELECT r.id,r.version,w.id warehouse_id,w.name warehouse_name,p.id product_id,p.sku,p.name product_name,p.unit,

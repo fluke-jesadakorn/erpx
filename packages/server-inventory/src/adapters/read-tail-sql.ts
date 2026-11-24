@@ -13,3 +13,7 @@ export const noLaterLedgerMovementSql="NOT EXISTS(SELECT 1 FROM inventory_ledger
 export const noLotBalanceSql="NOT EXISTS(SELECT 1 FROM inventory_lot_balances WHERE lot_id=? AND warehouse_id=?)";
 export const serviceInitialPhysicalNativeRowSql='SELECT 1 FROM inventory_service_initial_physical_sources WHERE count_id=? AND company_id=?';
 export const jsonbImageSql='SELECT jsonb_build_object(';
+/** r11: the reservations rollup and the single-count-line marker are each
+ * byte-identical across their consumers; only the literal text is shared. */
+export const reservedWarehouseProductQtySql='SELECT warehouse_id,product_id,sum(quantity_milli::numeric) quantity_milli';
+export const singleCountLineMarkerSql='(SELECT count(*) FROM inventory_count_lines actual WHERE actual.count_id=c.id)=1';

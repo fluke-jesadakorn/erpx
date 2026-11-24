@@ -1,4 +1,5 @@
 import 'server-only';
+import {singleCountLineMarkerSql} from './read-tail-sql';
 import {manufacturingPostingSetupReceiptRows,manufacturingExistingPostingMarker} from '@erpx/server-commerce/public/manufacturing-existing-posting-proof';
 export const manufacturingInitialPhysicalStockCapabilities=['manufacturing.materials','manufacturing.costs','inventory.stock-core','finance.production-costing'] as const;
 export const manufacturingInitialPhysicalStockMarker='_manufacturingInitialPhysicalStockCount';
@@ -16,7 +17,7 @@ export const manufacturingInitialPhysicalStockCountSourceRows=`SELECT c.id,c.com
  AND receipt.result_json::jsonb->'${manufacturingInitialPhysicalStockMarker}'->>'branchId'=c.branch_id AND receipt.result_json::jsonb->'${manufacturingInitialPhysicalStockMarker}'->>'warehouseId'=c.warehouse_id AND receipt.result_json::jsonb->'${manufacturingInitialPhysicalStockMarker}'->>'productId'=line.product_id AND receipt.result_json::jsonb->'${manufacturingInitialPhysicalStockMarker}'->>'countCommandId'=receipt.command_id
  AND receipt.result_json::jsonb->>'id'=c.id AND receipt.result_json::jsonb->>'status'='draft' AND receipt.result_json::jsonb->>'version'='1'
  AND line.snapshot_quantity_milli=0 AND line.snapshot_value_minor=0 AND line.snapshot_version=0 AND c.quality_hold_id IS NULL
- AND (SELECT count(*) FROM inventory_count_lines actual WHERE actual.count_id=c.id)=1`;
+ AND ${singleCountLineMarkerSql}`;
 
 export const manufacturingInitialPhysicalStockMarkedRows=`SELECT record_id id,authority_json::jsonb->>'companyId' company_id FROM command_receipts WHERE operation='inventory.count.create' AND jsonb_exists(result_json::jsonb,'${manufacturingInitialPhysicalStockMarker}')`;
 

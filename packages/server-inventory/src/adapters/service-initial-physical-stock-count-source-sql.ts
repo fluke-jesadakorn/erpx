@@ -1,4 +1,5 @@
 import 'server-only';
+import {singleCountLineMarkerSql} from './read-tail-sql';
 import {servicePartsPostingSourceRows} from '@erpx/server-commerce/public/service-parts-posting-proof';
 export const serviceInitialPhysicalStockCapabilities=['service.orders','service.parts-assets','finance.service-invoice'] as const;
 export const serviceInitialPhysicalStockMarker='_serviceInitialPhysicalStockCount';
@@ -16,7 +17,7 @@ export const serviceInitialPhysicalStockCountSourceRows=`SELECT c.id,c.company_i
  AND receipt.result_json::jsonb->'${serviceInitialPhysicalStockMarker}'->>'branchId'=c.branch_id AND receipt.result_json::jsonb->'${serviceInitialPhysicalStockMarker}'->>'warehouseId'=c.warehouse_id AND receipt.result_json::jsonb->'${serviceInitialPhysicalStockMarker}'->>'productId'=line.product_id AND receipt.result_json::jsonb->'${serviceInitialPhysicalStockMarker}'->>'countCommandId'=receipt.command_id
  AND receipt.result_json::jsonb->>'id'=c.id AND receipt.result_json::jsonb->>'status'='draft' AND receipt.result_json::jsonb->>'version'='1'
  AND line.snapshot_quantity_milli=0 AND line.snapshot_value_minor=0 AND line.snapshot_version=0 AND c.quality_hold_id IS NULL
- AND (SELECT count(*) FROM inventory_count_lines actual WHERE actual.count_id=c.id)=1`;
+ AND ${singleCountLineMarkerSql}`;
 
 export const serviceInitialPhysicalStockMarkedRows=`SELECT record_id id,authority_json::jsonb->>'companyId' company_id FROM command_receipts WHERE operation='inventory.count.create' AND jsonb_exists(result_json::jsonb,'${serviceInitialPhysicalStockMarker}')`;
 /** Full private receipt/native lineage, with absence witnesses. No1062 relation is queried. */

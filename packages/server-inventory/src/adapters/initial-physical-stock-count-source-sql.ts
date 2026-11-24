@@ -1,4 +1,5 @@
 import 'server-only';
+import {singleCountLineMarkerSql} from './read-tail-sql';
 export const initialPhysicalStockCapabilities=['sales.orders','inventory.stock-core','finance.sales-posting'] as const;
 export const initialPhysicalStockMarker='_initialPhysicalStockCount';
 export type InitialPhysicalStockProof={kind:'initial-physical-stock-count';countId:string;companyId:string;warehouseId:string;branchId:string;productId:string;countCommandId:string;goodsSetupCommandId:string;goodsSetupRequestHash:string;chartId:string;inventoryAccountId:string;varianceAccountId:string;currency:string};
@@ -14,6 +15,6 @@ export const initialPhysicalStockCountSourceRows=`SELECT c.id,c.company_id,c.bra
  AND receipt.result_json::jsonb->'${initialPhysicalStockMarker}'->>'branchId'=c.branch_id AND receipt.result_json::jsonb->'${initialPhysicalStockMarker}'->>'warehouseId'=c.warehouse_id AND receipt.result_json::jsonb->'${initialPhysicalStockMarker}'->>'productId'=line.product_id AND receipt.result_json::jsonb->'${initialPhysicalStockMarker}'->>'countCommandId'=receipt.command_id
  AND receipt.result_json::jsonb->>'id'=c.id AND receipt.result_json::jsonb->>'status'='draft' AND receipt.result_json::jsonb->>'version'='1'
  AND line.snapshot_quantity_milli=0 AND line.snapshot_value_minor=0 AND line.snapshot_version=0 AND c.quality_hold_id IS NULL
- AND (SELECT count(*) FROM inventory_count_lines actual WHERE actual.count_id=c.id)=1`;
+ AND ${singleCountLineMarkerSql}`;
 
 export const initialPhysicalStockMarkedRows=`SELECT record_id id,authority_json::jsonb->>'companyId' company_id FROM command_receipts WHERE operation='inventory.count.create' AND jsonb_exists(result_json::jsonb,'${initialPhysicalStockMarker}')`;

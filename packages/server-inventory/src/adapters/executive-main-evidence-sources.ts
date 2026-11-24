@@ -3,8 +3,9 @@ import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { AvailableStockEvidenceRow, InventoryShortageEvidenceRow, InventoryMovementEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
+import { reservedWarehouseProductQtySql } from './read-tail-sql';
 const availableStockPositions = `WITH reservations AS (
-    SELECT warehouse_id,product_id,sum(quantity_milli::numeric) quantity_milli
+    ${reservedWarehouseProductQtySql}
     FROM inventory_active_reservations GROUP BY warehouse_id,product_id
   )
   SELECT w.id warehouse_id,p.id product_id,p.sku,p.name product_name,p.unit,w.name warehouse_name,
@@ -17,7 +18,7 @@ const availableStockPositions = `WITH reservations AS (
   LEFT JOIN reservations r ON r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id
   WHERE (?::text IS NULL OR w.branch_id=?)`;
 const inventoryShortagePositions = `WITH reservations AS (
-    SELECT warehouse_id,product_id,sum(quantity_milli::numeric) quantity_milli
+    ${reservedWarehouseProductQtySql}
     FROM inventory_active_reservations GROUP BY warehouse_id,product_id
   )
   SELECT w.id warehouse_id,p.id product_id,p.sku,p.name product_name,p.unit,w.name warehouse_name,
@@ -33,7 +34,7 @@ const inventoryShortagePositions = `WITH reservations AS (
   WHERE policy.company_id=? AND policy.current_reorder_point_milli IS NOT NULL AND policy.retired_at IS NULL
     AND (?::text IS NULL OR w.branch_id=?)`;
 const stockedLocationPositions = `WITH reservations AS (
-    SELECT warehouse_id,product_id,sum(quantity_milli::numeric) quantity_milli
+    ${reservedWarehouseProductQtySql}
     FROM inventory_active_reservations GROUP BY warehouse_id,product_id
   )
   SELECT w.id warehouse_id,p.id product_id,p.sku,p.name product_name,p.unit,w.name warehouse_name,
