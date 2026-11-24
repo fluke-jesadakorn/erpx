@@ -20,6 +20,7 @@ import { legalOperations } from '@erpx/server-collaboration/adapters/native-lega
 import {nativeLegalAuxiliaryRead} from '../native-legal-auxiliary';
 import {legalEventsByItemSql} from '../legal-read-tail-r18-sources';
 import {legalOrderedHistorySql} from '../legal-read-tail-r30-sources';
+import {legalItemOrderedSql} from '../legal-read-tail-r35-sources';
 /** Exact projection of the native `views` auxiliary read; no view SQL remains in TypeScript. */
 type LegalSavedViewsView={name:string;query:unknown}[];
 function unit(db:SqlDatabase,a:WorkContext,views?:LegalSavedViewsView):LegalOperationUnit{const nativeOps=legalOperations(db,a.companyId,a.userId);let observation:ReturnType<typeof legalReadScope>|undefined;const purchase=()=>observation??=legalReadScope(db,a);const v=visibility(a),writes=new WeakMap<LegalWrite,SqlStatement>();function stage(statement:SqlStatement):LegalWrite{const write:LegalWrite={owner:"legal"};writes.set(write,statement);return write;}function resolve(write:LegalWrite){const statement=writes.get(write);if(!statement)throw new Error("LEGAL_OPERATIONS_REPOSITORY_MISMATCH");return statement;}
@@ -35,12 +36,12 @@ savedViews:async()=>({results:views??[]}),
 async saveView(facts){return stage(await nativeOps.saveView({companyId:facts.companyId,actorId:facts.actorId,name:facts.name,queryJson:facts.fact3}));},
 async derivedLink(facts){return nativeOps.derivedLink({id:facts.id,id2:facts.id2});},
 envelopes:(facts:{id:string;})=>db.prepare("SELECT e.*,s.user_id,s.ordinal,s.state signer_state,s.signed_at,s.evidence FROM legal_envelopes e JOIN legal_signers s ON s.envelope_id=e.id WHERE e.item_id=? ORDER BY e.created_at,s.ordinal").bind(facts.id).all(),
-documents:(facts:{id:string;})=>db.prepare("SELECT id,version,name,checksum,bytes,media_type,locked,created_at FROM legal_documents WHERE item_id=? ORDER BY version").bind(facts.id).all(),
+documents:(facts:{id:string;})=>db.prepare(legalItemOrderedSql("id,version,name,checksum,bytes,media_type,locked,created_at","legal_documents","version")).bind(facts.id).all(),
 events:(facts:{id:string;})=>db.prepare(`${legalEventsByItemSql},id`).bind(facts.id).all(),
 accesses:(facts:{id:string;})=>db.prepare("SELECT * FROM legal_access_events WHERE item_id=? ORDER BY created_at,id LIMIT 10001").bind(facts.id).all(),
 async evidenceRead(facts){return (await nativeOps.accessEvent({identifier:facts.identifier,id:facts.id,actorId:facts.actorId,action:facts.fact4,now:facts.now})).run();},
 featureHistory:(facts:{id:string;})=>db.prepare(legalOrderedHistorySql("legal_feature_history","item_id")).bind(facts.id).all(),
-retention:(facts:{id:string;})=>db.prepare("SELECT id,state,manifest,requested_by,approved_by,approved_at,completed_at FROM legal_destructions WHERE item_id=? ORDER BY created_at").bind(facts.id).all(),
+retention:(facts:{id:string;})=>db.prepare(legalItemOrderedSql("id,state,manifest,requested_by,approved_by,approved_at,completed_at","legal_destructions","created_at")).bind(facts.id).all(),
 holdPreview:async(id)=>db
       .prepare(
         `WITH RECURSIVE linked(id) AS (SELECT ?::text UNION SELECT l.target_id FROM linked t JOIN legal_links l ON l.source_id=t.id WHERE l.relation IN ('evidence','derived','amends','obligation')) SELECT i.id,i.title FROM linked t JOIN legal_items i ON i.id=t.id WHERE ${v.sql} AND ${(await purchase()).where}`,

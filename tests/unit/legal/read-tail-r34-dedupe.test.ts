@@ -123,6 +123,6 @@ describe('legal read-tail r34 id+key point-read family', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(236);
-    expect(total).toBeLessThanOrEqual(235);
+    expect(total).toBeLessThanOrEqual(231);
   });
 });

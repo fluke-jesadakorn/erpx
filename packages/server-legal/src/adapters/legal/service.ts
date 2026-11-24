@@ -9,6 +9,7 @@ import { legalItemSelectSql } from "../legal-read-tail-r16-sources";
 import { legalEventsByItemSql } from "../legal-read-tail-r18-sources";
 import { legalHoldTargetGuardPrefix } from "../legal-read-tail-r24-sources";
 import { legalRecentItemListSql } from "../legal-read-tail-r31-sources";
+import { legalItemOrderedSql } from "../legal-read-tail-r35-sources";
 import { finalRootOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/final-root-owner-projection-sources";
 import {nativeLegalHoldNotice} from "../native-legal-hold-notice";
 import "server-only";
@@ -67,7 +68,7 @@ counts:async()=>{const purchase=await purchasedRead();return db
       .all<{ state: string; count: number }>();},
 documents:(id:string)=>{return db
         .prepare(
-          "SELECT * FROM legal_documents WHERE item_id=? ORDER BY version DESC LIMIT 100",
+          legalItemOrderedSql("*","legal_documents","version DESC",100),
         )
         .bind(id)
         .all<DocumentVersion>();},
