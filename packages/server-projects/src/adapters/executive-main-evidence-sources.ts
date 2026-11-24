@@ -1,6 +1,5 @@
 import {projectMetricSource} from "@erpx/server-projects/adapters/metric-purchases";
-import { inventoryExecutiveOwnerProjections as financeProjectionSources } from "@erpx/server-finance/public/inventory-executive-owner-projections";
-import { inventoryExecutiveOwnerProjections as people_payrollProjectionSources } from "@erpx/server-people_payroll/public/inventory-executive-owner-projections";
+import {projectActualHoursFrom,projectMilestoneOwnerJoin,projectMilestoneProjectJoin,projectPostedCostFrom} from "./executive-evidence-chains";
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -24,7 +23,7 @@ const dependencyEvidenceSelect =
 /** Byte-identical work-log evidence source shared by the paged search and by-id readers. */
 const projectActualHoursEvidenceFrom = (sourceSql: string) => `SELECT l.id,l.project_id,p.title project_title,l.work_date::text work_date,l.work_date::text sort_date,
         l.minutes,l.user_id,l.state,l.version
-      FROM staff_project_work_logs l JOIN (${sourceSql}) p ON p.id=l.project_id AND p.company_id=l.company_id`;
+      ${projectActualHoursFrom(sourceSql)}`;
 /** Byte-identical posted-cost projection head shared by the paged search and by-id readers. */
 const projectPostedCostEvidenceHead = `SELECT a.id,a.project_id,p.title project_title,j.entry_date::text entry_date,j.entry_date::text sort_date,
         j.id journal_id,j.journal_number,j.currency,`;
@@ -67,8 +66,8 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 values.push(cursor.dueAt, cursor.id);
             }
             const rows = (await db.prepare(`${milestoneEvidenceSelect}
-    FROM staff_project_milestones m JOIN (${projectSource.sql}) p ON p.id=m.project_id AND p.company_id=m.company_id
-    LEFT JOIN (${people_payrollProjectionSources.hr_people}) h ON h.company_id=m.company_id AND h.user_id=m.owner_user_id AND h.merged_into_id IS NULL
+    FROM staff_project_milestones m ${projectMilestoneProjectJoin(projectSource.sql)}
+    ${projectMilestoneOwnerJoin()}
     WHERE ${conditions.join(" AND ")} ORDER BY m.due_at,m.id LIMIT ?`)
                 .bind(...projectSource.args,...values, input.limit + 1).all<ProjectMilestoneEvidenceRow>()).results;
             return { rows };
@@ -82,8 +81,8 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
             const projectSource=await projectMetricSource(db,actor,"overdue-project-milestones");
             const cohort = projectMilestoneOverdueCohort(actor, filters, referenceAt);
             const row = await db.prepare(`${milestoneEvidenceSelect}
-    FROM staff_project_milestones m JOIN (${projectSource.sql}) p ON p.id=m.project_id AND p.company_id=m.company_id
-    LEFT JOIN (${people_payrollProjectionSources.hr_people}) h ON h.company_id=m.company_id AND h.user_id=m.owner_user_id AND h.merged_into_id IS NULL
+    FROM staff_project_milestones m ${projectMilestoneProjectJoin(projectSource.sql)}
+    ${projectMilestoneOwnerJoin()}
     WHERE ${cohort.sql} AND m.id=? LIMIT 1`).bind(...projectSource.args,...cohort.values, id).first<ProjectMilestoneEvidenceRow>();
             return { row };
         }, async factsSearchProjectDependencyEvidence(actor: WorkContext, input: {
@@ -182,9 +181,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 idColumn = "a.id";
                 sql = `${projectPostedCostEvidenceHead}ac.code account_code,ac.name account_name,
         a.amount_minor::text amount_minor,a.state,a.version
-      FROM staff_project_cost_allocations a JOIN (${projectSource.sql}) p ON p.id=a.project_id AND p.company_id=a.company_id
-      JOIN (${financeProjectionSources.finance_journal_lines}) l ON l.id=a.journal_line_id JOIN (${financeProjectionSources.finance_journals}) j ON j.id=l.journal_id
-      JOIN (${financeProjectionSources.finance_accounts}) ac ON ac.id=l.account_id`;
+      ${projectPostedCostFrom(projectSource.sql)}`;
             }
             if (cursor) {
                 conditions.push(`(${dateColumn},${idColumn})>(?,?)`);
@@ -212,9 +209,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
             else {
                 row = await db.prepare(`${projectPostedCostEvidenceHead}l.id journal_line_id,ac.code account_code,ac.name account_name,
         a.amount_minor::text amount_minor,a.state,a.version
-      FROM staff_project_cost_allocations a JOIN (${projectSource.sql}) p ON p.id=a.project_id AND p.company_id=a.company_id
-      JOIN (${financeProjectionSources.finance_journal_lines}) l ON l.id=a.journal_line_id JOIN (${financeProjectionSources.finance_journals}) j ON j.id=l.journal_id
-      JOIN (${financeProjectionSources.finance_accounts}) ac ON ac.id=l.account_id
+      ${projectPostedCostFrom(projectSource.sql)}
       WHERE ${scope} AND a.id=? AND a.state='approved' AND j.status='posted' AND ac.category IN ('expense','other_expense')
         AND j.currency=? AND j.entry_date BETWEEN ? AND ? LIMIT 1`)
                     .bind(...projectSource.args,actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId, actor.userId, actor.userId, id, filters.currency, filters.from, filters.to).first<ProjectActualEvidenceRow>();

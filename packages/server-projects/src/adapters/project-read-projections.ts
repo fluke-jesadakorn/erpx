@@ -25,10 +25,15 @@ export const projectMemberScopeSql = "(p.owner_user_id=? OR EXISTS(SELECT 1 FROM
  * only variable; the source relation and bind order stay exactly as in both
  * former inline copies. */
 export const projectMemberScopeGuard = (scope: string) => `EXISTS(SELECT 1 FROM staff_projects p WHERE p.id=? AND p.company_id=? AND ${scope})`;
+/** Byte-identical owner-or-member scope with column-ref viewer aliases shared by
+ * the Projects social audience, social purchase, evaluation source and audience
+ * statement reads. Only the aliases, id column and EXISTS gap vary; the source
+ * relation and bind order stay exactly as in the former inline copies. */
+export const projectOwnerOrMemberColumnSql = (project: string, user: string, member: string, id = 'id', gap = '') =>
+    `(${project}.owner_user_id=${user} OR EXISTS(${gap}SELECT 1 FROM staff_project_members ${member} WHERE ${member}.project_id=${project}.${id} AND ${member}.user_id=${user}))`;
 export function projectHandoverSourceSql(post:string,user:string){return `SELECT 1 FROM staff_projects hp WHERE hp.id=hs.source_id AND hp.company_id=${post}.company_id
           AND (iam_same_person(hp.owner_user_id,${user},hp.company_id)
             OR EXISTS(SELECT 1 FROM staff_project_members hm WHERE hm.project_id=hp.id AND hm.user_id=${user}))`;}
 
 export function socialProjectAudienceSql(alias:string){return `SELECT 1 FROM staff_projects pr WHERE pr.id=${alias}.audience_id AND pr.company_id=${alias}.company_id
-      AND (pr.owner_user_id=a.user_id OR EXISTS(
-        SELECT 1 FROM staff_project_members pm WHERE pm.project_id=pr.id AND pm.user_id=a.user_id))`;}
+      AND ${projectOwnerOrMemberColumnSql('pr','a.user_id','pm','id','\n        ')}`;}

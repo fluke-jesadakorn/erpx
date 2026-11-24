@@ -9,6 +9,7 @@ import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-avail
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {projectMemberScopeGuard,projectMemberScopeSql} from '@erpx/server-projects/adapters/project-read-projections';
+import {projectOwnerOrMemberColumnSql} from '@erpx/server-projects/adapters/project-read-projections';
 import {projectAssignmentScopeSql} from '@erpx/server-projects/adapters/package-obligations';
 import {membersJsonSql} from '@erpx/server-projects/adapters/social-purchase-sources';
 
@@ -67,7 +68,7 @@ export async function socialProjectAudienceSource(db:SqlDatabase,actor:StaffActo
 export function socialProjectAudienceReadPredicate(){
     return `(p.audience_kind IS DISTINCT FROM 'project' OR EXISTS(SELECT 1 FROM staff_projects audience_project
       WHERE audience_project.id=p.audience_id AND audience_project.company_id=p.company_id
-      AND (audience_project.owner_user_id=social_purchase_actor.user_id OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=audience_project.id AND m.user_id=social_purchase_actor.user_id))
+      AND ${projectOwnerOrMemberColumnSql('audience_project','social_purchase_actor.user_id','m')}
       AND iam_role_allows(social_purchase_actor.role,p.company_id,'records.read')
       AND ${purchasedCapabilityPredicate('p.company_id','projects.wbs','history','social_purchase_actor.now_ms')}
       AND ${scheduledFeaturePredicate('p.company_id','projects')}))`;

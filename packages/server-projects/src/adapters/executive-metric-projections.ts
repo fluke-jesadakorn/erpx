@@ -1,7 +1,6 @@
 import {projectMetricSource} from "@erpx/server-projects/adapters/metric-purchases";
 import {projectMemberScopeSql} from "@erpx/server-projects/adapters/project-read-projections";
-import { inventoryExecutiveOwnerProjections as financeProjectionSources } from "@erpx/server-finance/public/inventory-executive-owner-projections";
-import { inventoryExecutiveOwnerProjections as people_payrollProjectionSources } from "@erpx/server-people_payroll/public/inventory-executive-owner-projections";
+import {projectActualHoursFrom,projectMilestoneOwnerJoin,projectMilestoneProjectJoin,projectPostedCostFrom} from "./executive-evidence-chains";
 import { readMetricSources } from '@erpx/server-runtime/public/executive/metric-sources';
 import "server-only";
 import { type Breakdown, type Filters, type MetricId } from "@erpx/feature-shared/lib/executive/canvas";
@@ -34,8 +33,8 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         const cohort = projectMilestoneOverdueCohort(a, f, referenceAtOverride);
         const grouped = breakdown === "default" ? "" : `GROUP BY ${group}`;
         sql = `SELECT min(${label}) label,count(*)::text value FROM staff_project_milestones m
-      JOIN (${projectSource.sql}) p ON p.id=m.project_id AND p.company_id=m.company_id
-      LEFT JOIN (${people_payrollProjectionSources.hr_people}) h ON h.company_id=m.company_id AND h.user_id=m.owner_user_id AND h.merged_into_id IS NULL
+      ${projectMilestoneProjectJoin(projectSource.sql)}
+      ${projectMilestoneOwnerJoin()}
       WHERE ${cohort.sql} ${grouped} ORDER BY 1 LIMIT 101`;
         values = cohort.values;
     }
@@ -55,7 +54,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
             : breakdown === "project" ? "p.id" : null;
         const grouping = group ? `GROUP BY ${group}` : "";
         sql = `${groupedMetricSelect(label,'(sum(l.minutes::numeric)*60000)::text')}
-      FROM staff_project_work_logs l JOIN (${projectSource.sql}) p ON p.id=l.project_id AND p.company_id=l.company_id
+      ${projectActualHoursFrom(projectSource.sql)}
       WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.department_id=?)
         AND ${projectMemberScopeSql}
         AND l.state='approved' AND l.work_date BETWEEN ? AND ?
@@ -69,9 +68,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
             : breakdown === "project" ? "p.id" : null;
         const grouping = group ? `GROUP BY ${group}` : "";
         sql = `${groupedMetricSelect(label,'sum(a.amount_minor::numeric)::text')}
-      FROM staff_project_cost_allocations a JOIN (${projectSource.sql}) p ON p.id=a.project_id AND p.company_id=a.company_id
-      JOIN (${financeProjectionSources.finance_journal_lines}) l ON l.id=a.journal_line_id JOIN (${financeProjectionSources.finance_journals}) j ON j.id=l.journal_id
-      JOIN (${financeProjectionSources.finance_accounts}) ac ON ac.id=l.account_id
+      ${projectPostedCostFrom(projectSource.sql)}
       WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.department_id=?)
         AND ${projectMemberScopeSql}
         AND a.state='approved' AND j.status='posted' AND ac.category IN ('expense','other_expense')
