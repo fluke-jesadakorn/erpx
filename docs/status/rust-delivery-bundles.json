@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11958,
+    "revision": 11978,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -178554,6 +178554,366 @@
         "nextAction": "existsRowProbe / keyedRowRead families (-4). BEFORE=45.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.legal.read-tail-r50",
+        "goalId": "G4",
+        "owner": "legal",
+        "title": "legal TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-legal/src/**",
+          "tests/unit/legal/**",
+          "tests/integration/legal/**"
+        ],
+        "resources": [
+          "owner:legal"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4i01",
+          "claimedAt": "2026-11-24T12:54:30.531Z",
+          "heartbeatAt": "2026-11-24T12:54:30.531Z",
+          "expiresAt": "2026-11-24T13:24:30.531Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next safe family; report blocked with AST evidence if none. BEFORE=188.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.projects.read-tail-r35",
+        "goalId": "G4",
+        "owner": "projects",
+        "title": "projects TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-projects/src/**",
+          "tests/unit/projects/**",
+          "tests/integration/projects/**"
+        ],
+        "resources": [
+          "owner:projects"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4i02",
+          "claimedAt": "2026-11-24T12:54:43.115Z",
+          "heartbeatAt": "2026-11-24T12:54:43.115Z",
+          "expiresAt": "2026-11-24T13:24:43.115Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next safe family; report blocked with AST evidence if none. BEFORE=96.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.collaboration.read-tail-r35",
+        "goalId": "G4",
+        "owner": "collaboration",
+        "title": "collaboration TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "tests/unit/collaboration/**",
+          "tests/integration/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4i03",
+          "claimedAt": "2026-11-24T12:54:55.688Z",
+          "heartbeatAt": "2026-11-24T12:54:55.688Z",
+          "expiresAt": "2026-11-24T13:24:55.688Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next safe family; report blocked with AST evidence if none. BEFORE=371.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.crm.read-tail-r37",
+        "goalId": "G4",
+        "owner": "crm",
+        "title": "crm TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-crm/src/**",
+          "tests/unit/crm/**",
+          "tests/integration/crm/**"
+        ],
+        "resources": [
+          "owner:crm"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4i04",
+          "claimedAt": "2026-11-24T12:55:08.266Z",
+          "heartbeatAt": "2026-11-24T12:55:08.266Z",
+          "expiresAt": "2026-11-24T13:25:08.266Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next safe family; report blocked with AST evidence if none. BEFORE=113.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.files.read-tail-r40",
+        "goalId": "G4",
+        "owner": "files",
+        "title": "files TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "tests/unit/files/**",
+          "tests/integration/files/**"
+        ],
+        "resources": [
+          "owner:files"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4i05",
+          "claimedAt": "2026-11-24T12:55:20.857Z",
+          "heartbeatAt": "2026-11-24T12:55:20.857Z",
+          "expiresAt": "2026-11-24T13:25:20.857Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next safe family; report blocked with AST evidence if none. BEFORE=255.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.inventory.read-tail-r45",
+        "goalId": "G4",
+        "owner": "inventory",
+        "title": "inventory TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "tests/unit/inventory/**",
+          "tests/integration/inventory/**"
+        ],
+        "resources": [
+          "owner:inventory"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4i06",
+          "claimedAt": "2026-11-24T12:55:33.466Z",
+          "heartbeatAt": "2026-11-24T12:55:33.466Z",
+          "expiresAt": "2026-11-24T13:25:33.466Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next safe family; report blocked with AST evidence if none. BEFORE=321.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.ecommerce.read-tail-r23",
+        "goalId": "G4",
+        "owner": "ecommerce",
+        "title": "ecommerce TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-ecommerce/src/**",
+          "tests/unit/ecommerce/**",
+          "tests/integration/ecommerce/**"
+        ],
+        "resources": [
+          "owner:ecommerce"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4i07",
+          "claimedAt": "2026-11-24T12:55:46.058Z",
+          "heartbeatAt": "2026-11-24T12:55:46.058Z",
+          "expiresAt": "2026-11-24T13:25:46.058Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next safe family; report blocked with AST evidence if none. BEFORE=26.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pos.read-tail-r33",
+        "goalId": "G4",
+        "owner": "pos",
+        "title": "pos TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pos/src/**",
+          "tests/unit/pos/**",
+          "tests/integration/pos/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4i08",
+          "claimedAt": "2026-11-24T12:55:58.651Z",
+          "heartbeatAt": "2026-11-24T12:55:58.651Z",
+          "expiresAt": "2026-11-24T13:25:58.651Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next safe family; report blocked with AST evidence if none. BEFORE=189.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pms.read-tail-r40",
+        "goalId": "G4",
+        "owner": "pms",
+        "title": "pms TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pms/src/**",
+          "tests/unit/pms/**",
+          "tests/integration/pms/**"
+        ],
+        "resources": [
+          "owner:pms"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4i09",
+          "claimedAt": "2026-11-24T12:56:11.270Z",
+          "heartbeatAt": "2026-11-24T12:56:11.270Z",
+          "expiresAt": "2026-11-24T13:26:11.270Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next safe family; report blocked with AST evidence if none. BEFORE=313.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.people_payroll.read-tail-r45",
+        "goalId": "G4",
+        "owner": "people_payroll",
+        "title": "people_payroll TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/**",
+          "tests/unit/people_payroll/**",
+          "tests/integration/people_payroll/**"
+        ],
+        "resources": [
+          "owner:people_payroll"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4i10",
+          "claimedAt": "2026-11-24T12:56:23.854Z",
+          "heartbeatAt": "2026-11-24T12:56:23.854Z",
+          "expiresAt": "2026-11-24T13:26:23.854Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next safe family; report blocked with AST evidence if none. BEFORE=1272.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -178562,11 +178922,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1690,
+      "totalPackets": 1700,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 1,
+        "in_progress": 11,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -178576,7 +178936,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T12:53:56.777Z",
+    "updatedAt": "2026-11-24T12:56:23.857Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
