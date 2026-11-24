@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10818,
+    "revision": 10821,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -167200,6 +167200,93 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=114.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pos.read-tail-r29",
+        "goalId": "G4",
+        "owner": "pos",
+        "title": "POS core keyed lookups native port (round 29)",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pos/src/**",
+          "tests/unit/pos/**",
+          "tests/integration/pos/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Port settings, receipt, prepared day close and room charge reversal reads into core_keyed_reads; locks excluded. BEFORE=207.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pos.read-tail-r30",
+        "goalId": "G4",
+        "owner": "pos",
+        "title": "POS child refund tails native port (round 30)",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pos/src/**",
+          "tests/unit/pos/**",
+          "tests/integration/pos/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Port line sum, created_by, completed line and refund payment tails into child_tail_reads; locks excluded. BEFORE=203.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pos.read-tail-r31",
+        "goalId": "G4",
+        "owner": "pos",
+        "title": "POS list reads native port (round 31)",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pos/src/**",
+          "tests/unit/pos/**",
+          "tests/integration/pos/**"
+        ],
+        "resources": [
+          "owner:pos"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Port sales, refunds, sale documents and settlements list reads into pos_list_reads; locks excluded. BEFORE=199.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -167208,10 +167295,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1472,
+      "totalPackets": 1475,
       "migratedPackets": 330,
       "statusCounts": {
-        "pending": 20,
+        "pending": 23,
         "in_progress": 18,
         "ready_for_integration": 0,
         "integrating": 0,
@@ -167222,7 +167309,7 @@
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:03:36.941Z",
+    "updatedAt": "2026-11-24T09:04:28.844Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
