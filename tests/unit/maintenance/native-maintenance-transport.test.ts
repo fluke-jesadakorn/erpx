@@ -519,8 +519,9 @@ describe('Maintenance package settlement source fixed SQL',()=>{
   expect(source.match(/const ownerSourceSql = \(table:string,alias:string\) =>/g)).toHaveLength(1);
   // r3 removed one raw statement literal (13 -> 12); r9 shared the occurrence
   // and work-event full-row literals through settlementEventRows (12 -> 11);
-  // r10 shared the two upstream-source EXISTS witnesses (11 -> 10).
-  expect(source.match(/SELECT/g)).toHaveLength(10);
+  // r10 shared the two upstream-source EXISTS witnesses (11 -> 10); r15 shared
+  // the two MATERIALIZED scoped CTEs through scopedSourceCte (10 -> 9).
+  expect(source.match(/SELECT/g)).toHaveLength(9);
   expect(count(source,'SELECT work.*,COALESCE')).toBe(0);
   expect(count(source,'SELECT plan.*,COALESCE')).toBe(0);
   expect(source).toContain('ownerSourceSql("maintenance_work_orders","work")');
@@ -568,8 +569,9 @@ describe('Maintenance settlement event row fixed SQL',()=>{
   const source=await readFile(new URL(file,import.meta.url),'utf8');
   expect(source.match(/const settlementEventRows=\(table:"maintenance_preventive_occurrences"\|"maintenance_work_events"\)=>`SELECT \* FROM \$\{table\}`/g)).toHaveLength(1);
   expect(source.match(/SELECT \* FROM/g)).toHaveLength(1);
-  // r10 shared the two upstream-source EXISTS witnesses (11 -> 10).
-  expect(source.match(/SELECT/g)).toHaveLength(10);
+  // r10 shared the two upstream-source EXISTS witnesses (11 -> 10); r15 shared
+  // the two MATERIALIZED scoped CTEs through scopedSourceCte (10 -> 9).
+  expect(source.match(/SELECT/g)).toHaveLength(9);
   expect(source).not.toContain('occurrences:"SELECT * FROM maintenance_preventive_occurrences"');
   expect(source).not.toContain('workEvents:"SELECT * FROM maintenance_work_events"');
   expect(source).toContain('settlementEventRows("maintenance_preventive_occurrences")');
@@ -593,13 +595,46 @@ describe('Maintenance upstream source witness fixed SQL',()=>{
    const source=await readFile(new URL(file,import.meta.url),'utf8');
    expect(source.match(/const workSourceExists=\(source:string,alias:string,column:string\)=>`EXISTS\(SELECT 1 FROM \$\{source\} \$\{alias\} WHERE \$\{alias\}\.\$\{column\}=work\.id\)`/g)).toHaveLength(1);
    expect(source.match(/EXISTS\(SELECT 1 FROM/g)).toHaveLength(1);
-   expect(source.match(/SELECT/g)).toHaveLength(10);
+   expect(source.match(/SELECT/g)).toHaveLength(9);
    expect(source).toContain('`EXISTS(SELECT 1 FROM ${source} ${alias} WHERE ${alias}.${column}=work.id)`');
    expect(source).not.toContain('EXISTS(SELECT 1 FROM maintenance_preventive_occurrences occurrence');
    expect(source).not.toContain('EXISTS(SELECT 1 FROM (${maintenanceSettlementConsumptions}) part');
    expect(source).toContain('scope.package_id=\'assets-preventive\' AND ${workSourceExists("maintenance_preventive_occurrences","occurrence","work_order_id")}');
    expect(source).toContain('scope.package_id=\'assets-parts-costs\' AND ${workSourceExists(`(${maintenanceSettlementConsumptions})`,"part","source_id")}');
    expect(source).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
+  });
+});
+
+/** Fixed-SQL read-tail oracle for the Maintenance scoped-source CTE family
+ * (r15). The Work and Plan MATERIALIZED branches of the package-obligations
+ * facts read share one owner-local CTE skeleton. Both callers pass only an
+ * owner-fixed alias, a closed source relation and a fixed scope predicate; each
+ * composed CTE stays byte-identical to its pre-dedupe literal, no duplicate TS
+ * query literal remains and every owner lock is untouched. r3-r14 families stay
+ * unchanged. */
+describe('Maintenance scoped source CTE fixed SQL',()=>{
+  const file='../../../packages/server-maintenance/src/adapters/package-obligations.ts';
+  it('single-sources the MATERIALIZED CTEs and keeps both composed CTEs byte-identical',async()=>{
+   const {readFile}=await import('node:fs/promises');
+   const source=await readFile(new URL(file,import.meta.url),'utf8');
+   expect(source.match(/export const scopedSourceCte=/g)).toHaveLength(1);
+   expect(source).toContain('export const scopedSourceCte=(alias:"work"|"plan",source:string,extra:string)=>`SELECT ${alias}.* FROM (${source}) ${alias},scope WHERE ${alias}.company_id=scope.company_id AND ${extra}`;');
+   expect(source.match(/MATERIALIZED\(\$\{scopedSourceCte\(/g)).toHaveLength(2);
+   expect(source).not.toContain('MATERIALIZED(SELECT work.* FROM (${work}) work,scope');
+   expect(source).not.toContain('MATERIALIZED(SELECT plan.* FROM (${plans}) plan,scope');
+   expect(source).toContain('work AS MATERIALIZED(${scopedSourceCte("work",work,workScopeExtra)})');
+   // Owner-fixed extra predicates, unchanged from the pre-dedupe literal.
+   expect(source).toContain('const workScopeExtra=');
+   expect(source).toContain("scope.package_id='assets' OR scope.package_id='assets-preventive' AND ${workSourceExists(");
+   expect(source).toContain("scope.package_id='assets-parts-costs' AND ${workSourceExists(");
+   expect(source).toContain("plans AS MATERIALIZED(${scopedSourceCte(\"plan\",plans,\"scope.package_id<>'assets-parts-costs'\")})");
+   // Locks untouched.
+   expect(source).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
+   const {scopedSourceCte}=await import('../../../packages/server-maintenance/src/adapters/package-obligations');
+   expect(scopedSourceCte("plan","<PLANS>","scope.package_id<>'assets-parts-costs'")).toBe(
+     "SELECT plan.* FROM (<PLANS>) plan,scope WHERE plan.company_id=scope.company_id AND scope.package_id<>'assets-parts-costs'");
+   expect(scopedSourceCte("work","<WORK>","<EXTRA>")).toBe(
+     "SELECT work.* FROM (<WORK>) work,scope WHERE work.company_id=scope.company_id AND <EXTRA>");
   });
 });
 
@@ -670,7 +705,7 @@ describe('Maintenance record-image fixed SQL',()=>{
   }
  });
 
- it('retirement:ts-statements stays strictly below the r13 BEFORE=39 baseline',async()=>{
+ it('retirement:ts-statements stays strictly below the r14 BEFORE=38 baseline',async()=>{
   const {readdirSync,readFileSync}=await import('node:fs');
   const {resolve}=await import('node:path');
   let total=0;
@@ -683,8 +718,8 @@ describe('Maintenance record-image fixed SQL',()=>{
    }
   };
   walk(srcRoot);
-  expect(total).toBe(38);
-  expect(total).toBeLessThan(39);
+  expect(total).toBe(37);
+  expect(total).toBeLessThan(38);
  });
 });
 
