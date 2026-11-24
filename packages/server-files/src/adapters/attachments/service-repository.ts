@@ -13,6 +13,7 @@ const advisoryLockSql = "SELECT pg_advisory_xact_lock(hashtextextended(?,0))";
 const attachmentChecksumSql = "SELECT checksum_sha256,source_state FROM attachments WHERE id=? AND company_id=?";
 const setLockSql = "SELECT state FROM attachment_sets WHERE id=? AND company_id=? FOR UPDATE";
 const publicationByIdSql = "SELECT * FROM attachment_publications WHERE id=? AND company_id=?";
+const attachmentLinkSql = "SELECT l.*,s.target_type,s.target_id,s.component_kind,s.purpose_key,s.expected_target_version,s.state set_state,s.company_id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=? AND s.company_id=?";
 const sanitizationAttestedSql = `SELECT 1 FROM attachment_events attested WHERE attested.set_id=? AND attested.company_id=? AND attested.action='sanitization.attested'
         AND attested.created_at>=COALESCE((SELECT max(changed.created_at) FROM attachment_events changed WHERE changed.set_id=attested.set_id AND changed.action IN ('file.reserved','link.reused','link.withdrawn')),0)
         ORDER BY attested.created_at DESC LIMIT 1`;
@@ -392,11 +393,11 @@ export function repository(db: SqlDatabase) {
         readAttachmentLinks45: (facts: {
             linkId: string;
             companyId: string;
-        }) => { return db.prepare("SELECT l.*,s.target_type,s.target_id,s.component_kind,s.purpose_key,s.expected_target_version,s.state set_state,s.company_id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=? AND s.company_id=?").bind(facts.linkId, facts.companyId).first<Record<string, unknown>>(); },
+        }) => { return db.prepare(attachmentLinkSql).bind(facts.linkId, facts.companyId).first<Record<string, unknown>>(); },
         readAttachmentLinks46: (facts: {
             linkId: string;
             companyId: string;
-        }) => { return db.prepare("SELECT l.*,s.target_type,s.target_id,s.component_kind,s.purpose_key,s.expected_target_version,s.state set_state,s.company_id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=? AND s.company_id=? FOR UPDATE").bind(facts.linkId, facts.companyId).first<Record<string, unknown>>(); },
+        }) => { return db.prepare(`${attachmentLinkSql} FOR UPDATE`).bind(facts.linkId, facts.companyId).first<Record<string, unknown>>(); },
         lock49: (facts: {
             arg1: string;
         }) => { return db.prepare(advisoryLockSql).bind(facts.arg1).run(); },
