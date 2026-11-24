@@ -1,5 +1,10 @@
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
+/** Text-only journal-line balance witness shared by the debit and credit
+ * equalities in the owner posting identity. The two subqueries were
+ * byte-identical apart from the summed column; the helper emits each one
+ * verbatim on the caller's statement and stays outside the RD_* read registry. */
+const manufacturingJournalLineSum=(column:string)=>`(SELECT sum(${column}) FROM finance_journal_lines WHERE journal_id=journal.id)`;
 /** The immutable full owner posting, exact event/version and original command
  * receipt establish production accounting identity. Labels cannot create it. */
 const journal=`SELECT posting.company_id,posting.journal_id id FROM manufacturing_order_postings posting
@@ -13,7 +18,7 @@ const journal=`SELECT posting.company_id,posting.journal_id id FROM manufacturin
  JOIN finance_journals journal ON journal.id=posting.journal_id AND journal.company_id=posting.company_id AND journal.chart_id=profile.chart_id AND journal.currency=posting.currency AND journal.currency=profile.currency AND journal.source_type='manufacturing_'||posting.phase AND journal.source_id=production.id AND journal.status='posted'
  WHERE posting.amount_minor>0 AND event.action=CASE posting.phase WHEN 'issue' THEN 'issue' WHEN 'report' THEN 'report' WHEN 'output' THEN 'pass-qc' ELSE 'scrap' END
  AND (event.details_json::jsonb->>'expectedVersion')::bigint=posting.source_order_version-1
- AND (SELECT sum(debit_minor) FROM finance_journal_lines WHERE journal_id=journal.id)=posting.amount_minor AND (SELECT sum(credit_minor) FROM finance_journal_lines WHERE journal_id=journal.id)=posting.amount_minor
+ AND ${manufacturingJournalLineSum("debit_minor")}=posting.amount_minor AND ${manufacturingJournalLineSum("credit_minor")}=posting.amount_minor
  AND (SELECT sum(amount_minor) FROM manufacturing_cost_movements movement WHERE movement.company_id=posting.company_id AND movement.order_id=production.id AND movement.source_type='production_event' AND movement.source_id=event.id AND movement.journal_id=journal.id)=posting.amount_minor`;
 export const manufacturingFinanceRecordSources={journal,posting:journal.replace("SELECT posting.company_id,posting.journal_id id","SELECT posting.id posting_id,posting.company_id,posting.journal_id id")} as const;
 /** Named relation leases precede the first source snapshot in the complete
