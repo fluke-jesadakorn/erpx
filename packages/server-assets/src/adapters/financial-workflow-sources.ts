@@ -3,6 +3,7 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
 import {hasModuleAccess} from '@erpx/catalogue/module-access';
+import {assetSourceProbeSql} from "./record-purchases";
 /** Exact native physical links and original retirement/Maintenance sources.
  * No physical record is created or relabelled by the Finance continuation. */
 /** Canonical owner-local fixed JSON aggregate for the physical lineage sources.
@@ -15,8 +16,8 @@ export function assetsFinancialPhysicalSourceLocks(database:SqlDatabase){return 
 export async function assetsFinancialPhysicalSource(database:SqlDatabase,companyId:string,financeAssetId:string){
  const value=await database.prepare(`WITH physical AS MATERIALIZED(SELECT a.* FROM operational_assets a WHERE a.company_id=? AND a.finance_asset_id=?)
  SELECT jsonb_build_object('assets',${assetPhysicalAggSql("a","physical a")},'events',${assetPhysicalAggSql("e","operational_asset_events e JOIN physical a ON a.id=e.asset_id")},'links',${assetPhysicalAggSql("l","operational_asset_finance_links l WHERE l.finance_asset_id=?")},'work',${assetPhysicalAggSql("w","maintenance_work_orders w JOIN physical a ON a.id=w.asset_id")})::text image,
- EXISTS(SELECT 1 FROM operational_asset_finance_links l LEFT JOIN physical a ON a.id=l.asset_id WHERE l.finance_asset_id=? AND a.id IS NULL)
- OR EXISTS(SELECT 1 FROM maintenance_work_orders w JOIN physical a ON a.id=w.asset_id WHERE w.company_id<>a.company_id) invalid`).bind(companyId,financeAssetId,financeAssetId,financeAssetId).first<{image:string;invalid:boolean}>();
+ EXISTS(${assetSourceProbeSql("operational_asset_finance_links l LEFT JOIN physical a ON a.id=l.asset_id", "l.finance_asset_id=? AND a.id IS NULL")})
+ OR EXISTS(${assetSourceProbeSql("maintenance_work_orders w JOIN physical a ON a.id=w.asset_id", "w.company_id<>a.company_id")}) invalid`).bind(companyId,financeAssetId,financeAssetId,financeAssetId).first<{image:string;invalid:boolean}>();
  if(!value)throw Error('Original physical Asset source unavailable');return value;
 }
 export async function assetsFinancialPhysicalLinks(database:SqlDatabase,actor:WorkContext,financeAssetId:string){

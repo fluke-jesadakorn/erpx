@@ -288,7 +288,7 @@ it('shares one canonical permission-probe SQL with the purchase and metric calle
  const purchases=await readFile(new URL('../../../packages/server-assets/src/adapters/purchases.ts',import.meta.url),'utf8');
  const metrics=await readFile(new URL('../../../packages/server-assets/src/adapters/metric-purchases.ts',import.meta.url),'utf8');
  const count=(text:string,needle:string)=>text.split(needle).length-1;
- const probe="allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id)";
+ const probe="allowed FROM ${assetScopeTupleSql(alias)}";
  expect(helper).toContain('export const assetPermissionProbeSql = (alias: string, permission: string) =>');
  expect(count(helper,probe)).toBe(1);
  for(const caller of [purchases,metrics]){
@@ -354,12 +354,12 @@ it('shares one fixed owner predicate for attachment owner version guards (46->45
   const guard=await readFile(new URL('attachment-owner-version-guard.ts',base),'utf8');
   const service=await readFile(new URL('attachments-service-facts.ts',base),'utf8');
   const operational=await readFile(new URL('attachments-operational-facts.ts',base),'utf8');
-  const predicate='EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=?';
-  // The canonical helper owns the single guard predicate; its comment must
-  // not smuggle a second "SELECT" token into the retirement KPI.
-  expect(guard.match(/SELECT/g)).toHaveLength(1);
+  const predicate='EXISTS(${assetSourceProbeSql(table, `id=? AND company_id=? AND version=?${extra ? ` AND ${extra}` : ""}`)})';
+  // The r17 row-probe family owns the single statement; the guard composes it.
+  expect(guard.match(/SELECT/g)??[]).toHaveLength(0);
   expect(guard).toContain('export const attachmentOwnerVersionGuardSql');
   expect(guard).toContain(predicate);
+  expect(guard).toContain('import {assetSourceProbeSql} from "./record-purchases"');
   for(const consumer of [service,operational]){
    expect(consumer).toContain('import {attachmentOwnerVersionGuardSql} from "./attachment-owner-version-guard"');
    expect(consumer).not.toContain('EXISTS(SELECT 1 FROM ${');
@@ -398,7 +398,7 @@ it('shares one canonical lineage aggregate projection across the Assets financia
    const count=(text:string,needle:string)=>text.split(needle).length-1;
    // The canonical helper owns the single JSON aggregate literal; its comment must
    // not smuggle another "SELECT" token into the retirement KPI.
-   expect(adapter.match(/SELECT/g)).toHaveLength(6);
+   expect(adapter.match(/SELECT/g)).toHaveLength(4);
    expect(adapter).toContain('const assetPhysicalAggSql = (alias:string,from:string) =>');
    expect(count(adapter,'(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${from})')).toBe(1);
    // All four lineage call sites use the helper with their owner-owned FROM fragment.
@@ -414,7 +414,7 @@ it('shares one canonical lineage aggregate projection across the Assets financia
    expect(count(adapter,'(SELECT jsonb_agg(to_jsonb(w) ORDER BY w.id)')).toBe(0);
    // The byte-identical composed image and its source guards remain intact.
    expect(adapter).toContain("jsonb_build_object('assets',${assetPhysicalAggSql(\"a\",\"physical a\")},'events',");
-   expect(adapter).toContain('EXISTS(SELECT 1 FROM operational_asset_finance_links l LEFT JOIN physical a ON a.id=l.asset_id WHERE l.finance_asset_id=? AND a.id IS NULL)');
+   expect(adapter).toContain('EXISTS(${assetSourceProbeSql("operational_asset_finance_links l LEFT JOIN physical a ON a.id=l.asset_id", "l.finance_asset_id=? AND a.id IS NULL")})');
    expect(adapter).toContain('export function assetsFinancialPhysicalSourceLocks');
 });
 it('shares one canonical current-assignment scope probe across the Assets private attachment authority and current-scope checks (35->33)',async()=>{
@@ -444,8 +444,9 @@ it('shares one canonical current-assignment scope probe across the Assets privat
  expect(read).toContain('assetScopeTupleSql("workforce_actor_scope")');
  // The r3 permission-probe and r12 record-purchase probes stay untouched.
  const probe=await readFile(new URL('asset-scope-probe.ts',base),'utf8');
- expect(count(probe,tuple)).toBe(1);
- expect(probe).toContain('allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id)');
+ expect(count(probe,tuple)).toBe(0);
+ expect(probe).toContain('allowed FROM ${assetScopeTupleSql(alias)}');
+ expect(probe).toContain('import {assetScopeTupleSql} from "./asset-scope-tuple"');
  const purchaseProbe=await readFile(new URL('record-purchases.ts',base),'utf8');
  expect(purchaseProbe).toContain('const assetSourceProbeSql=(from:string,where:string)=>`SELECT 1 FROM ${from} WHERE ${where}`');
 });
@@ -458,7 +459,7 @@ it('shares the canonical lineage aggregate with the Assets purchase owner source
  // The r10 helper owns the single aggregate token; exporting it lets the
  // separate purchase owner source reuse the same literal without a second one.
  expect(aggregate).toContain('export const assetPhysicalAggSql = (alias:string,from:string) =>');
- expect(purchases.match(/SELECT/g)).toHaveLength(2);
+ expect(purchases.match(/SELECT/g)).toHaveLength(1);
  expect(purchases).toContain('import {assetPhysicalAggSql} from "./financial-workflow-sources"');
  expect(count(purchases,'${assetPhysicalAggSql("link","operational_asset_finance_links link WHERE link.asset_id=r.id")}')).toBe(1);
  // No duplicate raw finance-link aggregate remains at the purchase call site.
@@ -468,4 +469,66 @@ it('shares the canonical lineage aggregate with the Assets purchase owner source
  expect(`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${from})`).toBe('(SELECT jsonb_agg(to_jsonb(link) ORDER BY link.id) FROM operational_asset_finance_links link WHERE link.asset_id=r.id)');
  // The distinct r10 consumer and the closed r12 scope tuple stay untouched.
  expect(count(aggregate,'assetPhysicalAggSql(')).toBe(4);
+});
+describe('Assets read-tail r17 byte-identical family dedupe',()=>{
+ const adapters=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+ it('keeps the scope tuple byte-identical while removing the duplicated literal',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const {assetScopeTupleSql}=await import('../../../packages/server-assets/src/adapters/asset-scope-tuple');
+  const tuple='(SELECT ?::text company_id,?::text branch_id,?::text department_id)';
+  expect(assetScopeTupleSql('asset_scope')).toBe(`${tuple} asset_scope`);
+  const probe=await readFile(new URL('asset-scope-probe.ts',adapters),'utf8');
+  expect(probe.match(/SELECT/g)).toHaveLength(1);
+  expect(probe).toContain('allowed FROM ${assetScopeTupleSql(alias)}');
+  expect(probe).toContain('import {assetScopeTupleSql} from "./asset-scope-tuple"');
+  expect(probe).not.toContain(tuple+' ${alias}');
+ });
+ it('keeps every r17 row-existence probe byte-identical to its pre-dedupe literal',async()=>{
+  const {readFile}=await import('node:fs/promises');
+  const {assetSourceProbeSql}=await import('../../../packages/server-assets/src/adapters/record-purchases');
+  const {attachmentOwnerVersionGuardSql}=await import('../../../packages/server-assets/src/adapters/attachment-owner-version-guard');
+  const probe=(from:string,where:string)=>`SELECT 1 FROM ${from} WHERE ${where}`;
+  const cases:[string,string,string][]=[
+   ['operational_assets','id=? AND company_id=? AND version=?','SELECT 1 FROM operational_assets WHERE id=? AND company_id=? AND version=?'],
+   ['operational_asset_finance_links l LEFT JOIN physical a ON a.id=l.asset_id','l.finance_asset_id=? AND a.id IS NULL','SELECT 1 FROM operational_asset_finance_links l LEFT JOIN physical a ON a.id=l.asset_id WHERE l.finance_asset_id=? AND a.id IS NULL'],
+   ['maintenance_work_orders w JOIN physical a ON a.id=w.asset_id','w.company_id<>a.company_id','SELECT 1 FROM maintenance_work_orders w JOIN physical a ON a.id=w.asset_id WHERE w.company_id<>a.company_id'],
+   ['command_receipts',"command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?","SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?"],
+  ];
+  for(const [from,where,expected] of cases)expect(assetSourceProbeSql(from,where)).toBe(expected);
+  expect(attachmentOwnerVersionGuardSql('operational_assets')).toBe(`EXISTS(${probe('operational_assets','id=? AND company_id=? AND version=?')})`);
+  expect(attachmentOwnerVersionGuardSql('operational_assets','extra_predicate')).toBe(`EXISTS(${probe('operational_assets','id=? AND company_id=? AND version=? AND extra_predicate')})`);
+  const guard=await readFile(new URL('attachment-owner-version-guard.ts',adapters),'utf8');
+  expect(guard.match(/SELECT/g)??[]).toHaveLength(0);
+  expect(guard).toContain('import {assetSourceProbeSql} from "./record-purchases"');
+  const financial=await readFile(new URL('financial-workflow-sources.ts',adapters),'utf8');
+  expect(financial).toContain('EXISTS(${assetSourceProbeSql("operational_asset_finance_links l LEFT JOIN physical a ON a.id=l.asset_id", "l.finance_asset_id=? AND a.id IS NULL")})');
+  expect(financial).toContain('OR EXISTS(${assetSourceProbeSql("maintenance_work_orders w JOIN physical a ON a.id=w.asset_id", "w.company_id<>a.company_id")})');
+  const purchases=await readFile(new URL('purchases.ts',adapters),'utf8');
+  expect(purchases).toContain("assetSourceProbeSql(\"command_receipts\", \"command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?\")");
+  expect(purchases.match(/SELECT/g)).toHaveLength(1);
+ });
+ it('leaves locks untouched and retires five SELECT literals (32->27)',async()=>{
+  const {readdirSync,readFileSync}=await import('node:fs');
+  const {resolve}=await import('node:path');
+  const srcRoot=resolve(adapters.pathname,'..');
+  let selects=0;
+  const walk=(dir:string)=>{
+   for(const entry of readdirSync(dir,{withFileTypes:true})){
+    const path=resolve(dir,entry.name);
+    if(entry.isDirectory())walk(path);
+    else if(entry.name.endsWith('.ts'))selects+=(readFileSync(path,'utf8').match(/SELECT/g)??[]).length;
+   }
+  };
+  walk(srcRoot);
+  expect(selects).toBeLessThan(32);
+  expect(selects).toBe(27);
+  const financial=readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8');
+  expect(financial).toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
+  const purchases=readFileSync(resolve(srcRoot,'adapters/purchases.ts'),'utf8');
+  expect(purchases).toContain('LOCK TABLE operational_assets,operational_asset_finance_links IN SHARE ROW EXCLUSIVE MODE');
+  for(const file of ['asset-scope-probe.ts','attachment-owner-version-guard.ts','financial-workflow-sources.ts','purchases.ts']){
+   const text=readFileSync(resolve(srcRoot,'adapters',file),'utf8');
+   expect(text).not.toMatch(/INSERT\s+INTO|DELETE\s+FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE/i);
+  }
+ });
 });

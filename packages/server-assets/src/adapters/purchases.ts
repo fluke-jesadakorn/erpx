@@ -4,6 +4,7 @@ import {randomUUID} from "node:crypto";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {assetPermissionProbeSql} from "./asset-scope-probe";
 import {assetPhysicalAggSql} from "./financial-workflow-sources";
+import {assetSourceProbeSql} from "./record-purchases";
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/public/command-guards';
@@ -51,7 +52,7 @@ export async function withAssetPurchasedCommand<Result>(actor:WorkContext,comman
  const mode=await assetsPackageEnforcementMode(),owner=(await holdingResources(actor.holdingId)).write;if(mode==="disabled")return run(provided);
  const execute=async(database:SqlDatabase)=>{
   const composition=compositions.get(database);if(!composition||composition.companyId!==actor.companyId||composition.assignmentId!==actor.assignmentId)throw new ApiError(503,"ASSETS_TRANSACTION_OWNERSHIP_REQUIRED","Use the original owned Assets transaction.");
-  const receipt=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(command.key,command.operation,actor.userId,actor.companyId).first(),purchase={companyId:actor.companyId,capability:command.capability,purpose:receipt?"history" as const:command.purpose},key=`asset-purchase:${randomUUID()}`;
+  const receipt=await database.prepare(assetSourceProbeSql("command_receipts", "command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?")).bind(command.key,command.operation,actor.userId,actor.companyId).first(),purchase={companyId:actor.companyId,capability:command.capability,purpose:receipt?"history" as const:command.purpose},key=`asset-purchase:${randomUUID()}`;
   await checkPurchasedCapability(database,mode,purchase);await authority(database,actor,command.permissions,key);
   if(!command.creating&&!await source(database,actor,command.target))throw new ApiError(404,"ASSETS_SOURCE_NOT_FOUND","The actual Assets or Maintenance source was not found in this workspace.");
   const boundary=purchaseCommandBoundary(database,mode,key,purchase)!;await database.batch(boundary.before);const result=await run(database),witness=await source(database,actor,command.target);if(!witness)throw new ApiError(409,"ASSETS_SOURCE_CHANGED","The actual owner source changed.");
