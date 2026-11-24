@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10562,
+    "revision": 10566,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -163146,7 +163146,7 @@
         "owner": "finance",
         "title": "finance open period and chart projection family (round 34)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -163158,28 +163158,36 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMfin6",
-          "claimedAt": "2026-11-24T08:02:03.247Z",
-          "heartbeatAt": "2026-11-24T08:15:48.647Z",
-          "expiresAt": "2026-11-24T08:45:48.647Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "5a14023a9",
+            "owner": "finance",
+            "before": 1981,
+            "after": 1974,
+            "note": "Open period covered/list asc, bank statement, active chart nav and active account chart id reads share five constants; lock variants and r15-r33 untouched."
+          },
+          {
+            "command": "vitest finance native read plan (84) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "5a14023a9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Five exact families: open period covered, open period list asc, bank journal lines, active chart nav, chart id. BEFORE=1981.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261124-a",
           "agentId": "wGCMfin6",
-          "at": "2026-11-24T08:02:02.578Z",
+          "at": "2026-11-24T08:17:00.639Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Five exact families: open period covered, open period list asc, bank journal lines, active chart nav, chart id. BEFORE=1981."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -164208,6 +164216,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=58.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.read-tail-r35",
+        "goalId": "G4",
+        "owner": "finance",
+        "title": "finance TS read tail native cutover (round 35)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMfin7",
+          "claimedAt": "2026-11-24T08:17:01.032Z",
+          "heartbeatAt": "2026-11-24T08:17:01.032Z",
+          "expiresAt": "2026-11-24T08:47:01.032Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=1974.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -164216,7 +164260,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1413,
+      "totalPackets": 1414,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 21,
@@ -164224,13 +164268,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1035,
+        "blocked": 1036,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:16:43.428Z",
+    "updatedAt": "2026-11-24T08:17:01.037Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
