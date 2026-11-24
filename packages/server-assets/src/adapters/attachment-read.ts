@@ -15,6 +15,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {attachmentDeniedReadAudits} from '@erpx/server-files/public/attachment-denied-read-audits';
 import {attachmentReadSource,attachmentPrivateReadSourceLocks,assertAttachmentReadRoute,requirePrivateAttachmentReaderCurrent,bufferedAttachmentRead,type AttachmentReadRoute,type AttachmentReadSource} from '@erpx/server-files/public/private-attachment-reads';
 import {assetOwnerSourceImage} from '@erpx/server-assets/adapters/purchases';
+import {assetScopeTupleSql} from './asset-scope-tuple';
 
 export function isAssetAttachmentReadTarget(target:string){return target==='asset'||target==='maintenance_work';}
 const identity=(actor:WorkContext)=>JSON.stringify(actor);
@@ -34,7 +35,7 @@ export async function withAssetAttachmentContentRead<Result extends {object:Stor
   await database.batch([database.prepare('LOCK TABLE operational_assets,operational_asset_finance_links IN SHARE ROW EXCLUSIVE MODE'),...maintenancePurchaseSourceReadLocks(database),...(selected.targetType==='asset'?assetsSettlementFinancialAssetReadLocks(database):[]),attachmentPrivateReadSourceLocks(database),...privateFileDenialAuthoritySourceLocks(database)]);
   await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);await database.batch(purchase.slice(1));
   const source=await attachmentReadSource(database,actor.companyId,linkId);assertAttachmentReadRoute(selected,source);if(!source)throw changed();
-  const before=await image(database,actor,source),currentScope=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!!await database.prepare(`SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${currentScope.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...currentScope.args).first();
+  const before=await image(database,actor,source),currentScope=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!!await database.prepare(`SELECT 1 FROM${assetScopeTupleSql("workforce_actor_scope")} WHERE ${currentScope.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...currentScope.args).first();
   const deniedAuthority=initiallyCurrent?null:await privateFileDenialAuthorityWitness(database,actor),checkpoint=new Set((await attachmentDeniedReadAudits(database,actor,linkId)).map(event=>event.id));
   const check=async(authorizeSource:boolean,denial=false)=>{
    if(identity(actor)!==context)throw changed();

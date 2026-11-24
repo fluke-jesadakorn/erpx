@@ -409,3 +409,26 @@ it('shares one canonical lineage aggregate projection across the Assets financia
    expect(adapter).toContain('EXISTS(SELECT 1 FROM operational_asset_finance_links l LEFT JOIN physical a ON a.id=l.asset_id WHERE l.finance_asset_id=? AND a.id IS NULL)');
    expect(adapter).toContain('export function assetsFinancialPhysicalSourceLocks');
 });
+it('shares one canonical scope tuple across the Assets private attachment authority and current-scope checks (39->38)',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
+ const helper=await readFile(new URL('asset-scope-tuple.ts',base),'utf8');
+ const authority=await readFile(new URL('attachment-purchases.ts',base),'utf8');
+ const read=await readFile(new URL('attachment-read.ts',base),'utf8');
+ const count=(text:string,needle:string)=>text.split(needle).length-1;
+ const tuple='(SELECT ?::text company_id,?::text branch_id,?::text department_id)';
+ // The canonical helper owns the single tuple literal; its comment adds no KPI token.
+ expect(helper.match(/SELECT/g)).toHaveLength(1);
+ expect(helper).toContain('export const assetScopeTupleSql = (alias: string) =>');
+ expect(count(helper,tuple)).toBe(1);
+ for(const caller of [authority,read]){
+  expect(caller).toMatch(/import \{assetScopeTupleSql\} from ['"]\.\/asset-scope-tuple['"]/);
+  expect(count(caller,tuple)).toBe(0);
+ }
+ expect(authority).toContain('${assetScopeTupleSql("asset_file_scope")}');
+ expect(read).toContain('${assetScopeTupleSql("workforce_actor_scope")}');
+ // The r3 permission-probe helper is a distinct family and stays untouched.
+ const probe=await readFile(new URL('asset-scope-probe.ts',base),'utf8');
+ expect(count(probe,tuple)).toBe(1);
+ expect(probe).toContain('allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id)');
+});
