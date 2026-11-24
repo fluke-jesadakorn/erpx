@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12281,
+    "revision": 12284,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261124-c",
       "agentId": "lead-opencode",
       "startedAt": "2026-11-24T11:32:49.939Z",
-      "heartbeatAt": "2026-11-24T14:10:58.174Z",
-      "expiresAt": "2026-11-24T14:40:58.174Z",
+      "heartbeatAt": "2026-11-24T14:30:19.045Z",
+      "expiresAt": "2026-11-24T15:00:19.045Z",
       "generation": 169,
       "tokenHash": "eac3f45906eed752625f2bb4dc251a340a6a580a6b89a15f666d16287f0d616e"
     },
@@ -182128,8 +182128,8 @@
           "runId": "run-20261124-c",
           "agentId": "wH4n42",
           "claimedAt": "2026-11-24T14:18:46.842Z",
-          "heartbeatAt": "2026-11-24T14:18:46.842Z",
-          "expiresAt": "2026-11-24T14:48:46.842Z",
+          "heartbeatAt": "2026-11-24T14:30:19.045Z",
+          "expiresAt": "2026-11-24T15:00:19.045Z",
           "generation": 169
         },
         "baseSha": null,
@@ -182164,8 +182164,8 @@
           "runId": "run-20261124-c",
           "agentId": "wH4n43",
           "claimedAt": "2026-11-24T14:19:29.177Z",
-          "heartbeatAt": "2026-11-24T14:19:29.177Z",
-          "expiresAt": "2026-11-24T14:49:29.177Z",
+          "heartbeatAt": "2026-11-24T14:30:19.045Z",
+          "expiresAt": "2026-11-24T15:00:19.045Z",
           "generation": 169
         },
         "baseSha": null,
@@ -182269,7 +182269,7 @@
         "owner": "billing",
         "title": "billing TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -182280,22 +182280,37 @@
         "resources": [
           "owner:billing"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n46",
-          "claimedAt": "2026-11-24T14:20:46.457Z",
-          "heartbeatAt": "2026-11-24T14:20:46.457Z",
-          "expiresAt": "2026-11-24T14:50:46.457Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-billing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d87990877",
+            "owner": "billing",
+            "before": 42,
+            "after": 36,
+            "note": "Plan, period, invoice id, provider cost, operating costs and reconciliation reads delegate to r29 billingPointReadSql; FOR UPDATE/advisory/native untouched."
+          },
+          {
+            "command": "vitest billing (184) + scoped tsc + 10 SHA oracles",
+            "result": "passed",
+            "sourceSha": "d87990877"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "r17 plan/period readers (-2), invoice id helper (-1), provider cost head (-1), operating costs (-1), reconciliation (-1): 42->36. BEFORE=42.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n46",
+          "at": "2026-11-24T14:32:01.470Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -182319,8 +182334,8 @@
           "runId": "run-20261124-c",
           "agentId": "wH4n48",
           "claimedAt": "2026-11-24T14:24:30.844Z",
-          "heartbeatAt": "2026-11-24T14:24:30.844Z",
-          "expiresAt": "2026-11-24T14:54:30.844Z",
+          "heartbeatAt": "2026-11-24T14:30:19.045Z",
+          "expiresAt": "2026-11-24T15:00:19.045Z",
           "generation": 169
         },
         "baseSha": null,
@@ -182354,8 +182369,8 @@
           "runId": "run-20261124-c",
           "agentId": "wH4n49",
           "claimedAt": "2026-11-24T14:24:43.485Z",
-          "heartbeatAt": "2026-11-24T14:24:43.485Z",
-          "expiresAt": "2026-11-24T14:54:43.485Z",
+          "heartbeatAt": "2026-11-24T14:30:19.045Z",
+          "expiresAt": "2026-11-24T15:00:19.045Z",
           "generation": 169
         },
         "baseSha": null,
@@ -182389,8 +182404,8 @@
           "runId": "run-20261124-c",
           "agentId": "wH4n50",
           "claimedAt": "2026-11-24T14:24:56.128Z",
-          "heartbeatAt": "2026-11-24T14:24:56.128Z",
-          "expiresAt": "2026-11-24T14:54:56.128Z",
+          "heartbeatAt": "2026-11-24T14:30:19.045Z",
+          "expiresAt": "2026-11-24T15:00:19.045Z",
           "generation": 169
         },
         "baseSha": null,
@@ -182484,17 +182499,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 6,
+        "in_progress": 5,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1415,
+        "blocked": 1416,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:29:48.382Z",
+    "updatedAt": "2026-11-24T14:32:01.473Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
