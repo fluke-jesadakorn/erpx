@@ -4,7 +4,7 @@ import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postg
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { packageSettlementSource, type PackageSettlementSourceLock } from "@erpx/server-commercial/public/package-settlement-sources";
 import { assertPmsPackageObligationSources, pmsPackageSettlementSources as pms } from "@erpx/server-pms/public/package-obligations";
-import { packageObligationDocumentRowsSql } from './read-tail-sql';
+import { packageObligationDocumentRowsSql, packageObligationCountHeadSql } from './read-tail-sql';
 type Input = { companyId: string; packageId: string; packageVersion: number; moduleId: string; now: number };
 const sources = new WeakMap<SqlDatabase, string>();
 export async function lockPmsInventoryPackageObligationSources(owner: PostgresDatabase, lock: PackageSettlementSourceLock) {
@@ -20,8 +20,7 @@ export async function pmsInventoryPackageObligations(owner: PostgresDatabase, da
     throw new Error("PMS_INVENTORY_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
   // Keep Company stock foundation work reachable, including work from another
   // owner using the same foundation. Shared attribution is conservative here.
-  const facts = (await database.prepare(`WITH scope AS (SELECT ?::text company_id)
-    SELECT 'count' kind,c.id,c.version,c.status,c.net_value_minor amount FROM inventory_counts c,scope WHERE c.company_id=scope.company_id AND c.status NOT IN ('posted','cancelled','rejected')
+  const facts = (await database.prepare(`${packageObligationCountHeadSql} FROM inventory_counts c,scope WHERE c.company_id=scope.company_id AND c.status NOT IN ('posted','cancelled','rejected')
 ${packageObligationDocumentRowsSql('')}
     UNION ALL SELECT 'stock',concat(s.warehouse_id,':',s.product_id),s.version,'invalid',s.quantity_milli FROM commerce_stock s,scope
       WHERE (s.quantity_milli<0 OR s.value_minor<0) AND EXISTS(SELECT 1 FROM (${pms.stockMoves}) m WHERE m.company_id=scope.company_id AND m.warehouse_id=s.warehouse_id AND m.product_id=s.product_id)

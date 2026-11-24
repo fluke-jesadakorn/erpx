@@ -1,7 +1,7 @@
 import {serviceInitialPhysicalStockMarkedRows} from '@erpx/server-inventory/adapters/service-initial-physical-stock-count-source-sql';
 import {posInitialPhysicalStockCountSourceRows,posInitialPhysicalStockMarkedRows} from '@erpx/server-inventory/adapters/pos-initial-physical-stock-count-source-sql';
 import {supplyInventoryTerminalReceipts} from '@erpx/server-inventory/adapters/supply-terminal-receipts';
-import {postedInitialPhysicalStockSourceSql,terminalReceiptMatchSql,sourceExistsSql,packageObligationDocumentRowsSql} from './read-tail-sql';
+import {postedInitialPhysicalStockSourceSql,terminalReceiptMatchSql,sourceExistsSql,packageObligationDocumentRowsSql,packageObligationCountHeadSql,countScopeRowsSql} from './read-tail-sql';
 import {recordAttachmentVersionSourceReadLocks} from '@erpx/server-files/public/record-version-receipts';
 import "server-only";
 import { createHash } from "node:crypto";
@@ -30,8 +30,7 @@ export async function posInventoryPackageObligations(owner: PostgresDatabase, da
   // A foundation can be the Company's remaining Stock capability. Pending
   // count/transfer/valuation documents must not be orphaned by its withdrawal.
   // Ordinary documents retain their original conservative attribution; the new private source is exact.
-  const facts = (await database.prepare(`WITH scope AS (SELECT ?::text company_id)
-    SELECT 'count' kind,c.id,c.version,c.status,c.net_value_minor amount,true pending FROM inventory_counts c,scope WHERE c.company_id=scope.company_id AND c.status NOT IN ('posted','cancelled','rejected') AND NOT EXISTS(SELECT 1 FROM (${posInitialPhysicalStockMarkedRows} UNION ALL ${serviceInitialPhysicalStockMarkedRows}) marker WHERE marker.id=c.id)
+  const facts = (await database.prepare(`${packageObligationCountHeadSql},true pending FROM inventory_counts c,scope WHERE${countScopeRowsSql(`${posInitialPhysicalStockMarkedRows} UNION ALL ${serviceInitialPhysicalStockMarkedRows}`)}
 ${packageObligationDocumentRowsSql(',true')}
 
     UNION ALL SELECT 'pos-initial-count',c.id,c.version,c.status,c.net_value_minor,

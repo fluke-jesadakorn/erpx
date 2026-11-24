@@ -296,3 +296,14 @@ export const decisionActorRowsSql = (table: string, fk: string, actor: string) =
  *  count sources/adapters, native transport and r11-r40 helpers stay untouched. */
 export const clockCteSql = (alias: string) =>
   `${alias} AS MATERIALIZED (SELECT ${packageClockSql} now_ms)`;
+/** r42: the POS and PMS package-obligation count-projection heads are
+ *  byte-identical; only the trailing projection and scope tail vary. Every
+ *  caller keeps its own statement, binds and independent tail. Locks, count
+ *  sources/adapters, native transport and r11-r41 helpers stay untouched. */
+export const packageObligationCountHeadSql = `WITH scope AS (SELECT ?::text company_id)\n    SELECT 'count' kind,c.id,c.version,c.status,c.net_value_minor amount`;
+/** r42: the manufacturing and POS package-obligation explicit count-scope
+ *  rows share one byte-identical guard and marker projection; only the marked
+ *  row source varies. Every caller supplies its own rows and binds. Locks,
+ *  count sources/adapters, native transport and r11-r41 helpers stay untouched. */
+export const countScopeRowsSql = (rows: string) =>
+  ` c.company_id=scope.company_id AND c.status NOT IN ('posted','cancelled','rejected') AND NOT EXISTS(SELECT 1 FROM (${rows}) marker WHERE marker.id=c.id)`;
