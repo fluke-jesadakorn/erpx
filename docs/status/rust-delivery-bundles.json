@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11108,
+    "revision": 11121,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261124-a",
+      "runId": "run-20261124-b",
       "agentId": "lead-opencode",
-      "startedAt": "2026-11-24T07:53:21.211Z",
-      "heartbeatAt": "2026-11-24T09:38:27.860Z",
-      "expiresAt": "2026-11-24T10:08:27.860Z",
-      "generation": 167,
-      "tokenHash": "fefeca1075ec8f5222b3a855ed34a0ccb81cfaccfd22f8b02a6e3f4a6d637c7f"
+      "startedAt": "2026-11-24T10:09:57.716Z",
+      "heartbeatAt": "2026-11-24T10:09:57.716Z",
+      "expiresAt": "2026-11-24T10:39:57.717Z",
+      "generation": 168,
+      "tokenHash": "6affae4cfd21e7a40f8122a896d2b19fd2cfab4ae34cf9f82c1d035009eda6cc"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -166486,7 +166486,7 @@
         "owner": "finance",
         "title": "finance TS read tail native cutover (round 38)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -166498,22 +166498,22 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMfina",
-          "claimedAt": "2026-11-24T08:47:15.460Z",
-          "heartbeatAt": "2026-11-24T09:38:27.860Z",
-          "expiresAt": "2026-11-24T10:08:27.860Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=1965.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMfina",
+          "at": "2026-11-24T10:09:57.716Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
+          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=1965."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -166522,7 +166522,7 @@
         "owner": "support",
         "title": "support portal image native read port (round 29)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -166534,22 +166534,22 @@
         "resources": [
           "owner:support"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMsup8",
-          "claimedAt": "2026-11-24T08:47:15.657Z",
-          "heartbeatAt": "2026-11-24T09:38:27.860Z",
-          "expiresAt": "2026-11-24T10:08:27.860Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
         "nextAction": "Portal valid binding and image family; keep locks and purchase gates inline. BEFORE=51.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMsup8",
+          "at": "2026-11-24T10:09:57.716Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
+          "nextAction": "Portal valid binding and image family; keep locks and purchase gates inline. BEFORE=51."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -167542,7 +167542,7 @@
         "owner": "pos",
         "title": "POS core keyed lookups native port (round 29)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -167554,22 +167554,22 @@
         "resources": [
           "owner:pos"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMpos7",
-          "claimedAt": "2026-11-24T09:25:59.782Z",
-          "heartbeatAt": "2026-11-24T09:38:27.860Z",
-          "expiresAt": "2026-11-24T10:08:27.860Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
         "nextAction": "Port settings, receipt, prepared day close and room charge reversal reads into core_keyed_reads; locks excluded. BEFORE=207.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMpos7",
+          "at": "2026-11-24T10:09:57.716Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
+          "nextAction": "Port settings, receipt, prepared day close and room charge reversal reads into core_keyed_reads; locks excluded. BEFORE=207."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -167738,7 +167738,7 @@
         "owner": "agent",
         "title": "agent policy candidates native read port (round 20)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -167750,22 +167750,37 @@
         "resources": [
           "owner:agent"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMagt2",
-          "claimedAt": "2026-11-24T09:06:21.125Z",
-          "heartbeatAt": "2026-11-24T09:38:27.860Z",
-          "expiresAt": "2026-11-24T10:08:27.860Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-agent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1de81140d",
+            "owner": "agent",
+            "before": 57,
+            "after": 56,
+            "note": "Catalog-joined company list readers share agentCatalogListSql; agentPoolMemberAccessSql, guards and FOR SHARE locks untouched."
+          },
+          {
+            "command": "vitest agent (33) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "1de81140d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Switch agent-governance policyCandidates to the native governance port and delete the TS literal; keep guards/locks. BEFORE=57.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T10:11:09.143Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -167825,7 +167840,7 @@
         "owner": "assets",
         "title": "assets package obligations native cutover (round 26)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -167837,22 +167852,22 @@
         "resources": [
           "owner:assets"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMast8",
-          "claimedAt": "2026-11-24T09:06:43.688Z",
-          "heartbeatAt": "2026-11-24T09:38:27.860Z",
-          "expiresAt": "2026-11-24T10:08:27.860Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
         "nextAction": "Remove TS fallback for assetPackageObligations; native plan already registered. BEFORE=20.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMast8",
+          "at": "2026-11-24T10:09:57.716Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
+          "nextAction": "Remove TS fallback for assetPackageObligations; native plan already registered. BEFORE=20."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -167861,7 +167876,7 @@
         "owner": "marketing",
         "title": "marketing package obligations native port (round 34)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -167873,22 +167888,22 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMmkt7",
-          "claimedAt": "2026-11-24T09:06:43.925Z",
-          "heartbeatAt": "2026-11-24T09:38:27.860Z",
-          "expiresAt": "2026-11-24T10:08:27.860Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
         "nextAction": "Add marketing-package-obligations plan and cut over the 11-token statement. BEFORE=77.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMmkt7",
+          "at": "2026-11-24T10:09:57.716Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
+          "nextAction": "Add marketing-package-obligations plan and cut over the 11-token statement. BEFORE=77."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -167897,7 +167912,7 @@
         "owner": "field_service",
         "title": "field service final root projection retirement (round 8)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -167910,22 +167925,45 @@
         "resources": [
           "owner:field_service"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMfld2",
-          "claimedAt": "2026-11-24T09:06:58.682Z",
-          "heartbeatAt": "2026-11-24T09:38:27.860Z",
-          "expiresAt": "2026-11-24T10:08:27.860Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
-        "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Delete final-root TS projection sources and repoint parity oracles to native; residual 3 bind retire.records.registry-fallback. BEFORE=5.",
-        "handoff": null,
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-field_service/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "2deaaadf6",
+            "owner": "field_service",
+            "before": 5,
+            "after": 3,
+            "note": "Deleted final-root TS projection sources/exports; native final_root_projection.rs is sole authority. Residual 3 record-purchases guards bound to retire.records.registry-fallback."
+          },
+          {
+            "command": "cargo test -p erpx-server-field-service final_root (5/5) + vitest field (195) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "2deaaadf6",
+            "note": "Repointed PG parity case not executed; requires PostgreSQL + erpx-service finance-field-write build."
+          }
+        ],
+        "retainedLegacy": [
+          {
+            "path": "packages/server-field_service/src/adapters/record-purchases.ts",
+            "writes": 3,
+            "removalTaskId": "retire.records.registry-fallback",
+            "removalCondition": "Records generic engine must stop routing Field service preview rows through workspace_records before these 3 guards can be removed."
+          }
+        ],
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T10:11:11.548Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -168772,7 +168810,7 @@
         "owner": "quality",
         "title": "quality TS read tail native cutover (round 19)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -168784,22 +168822,22 @@
         "resources": [
           "owner:quality"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCUque",
-          "claimedAt": "2026-11-24T09:19:52.445Z",
-          "heartbeatAt": "2026-11-24T09:38:27.860Z",
-          "expiresAt": "2026-11-24T10:08:27.860Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
         "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=73.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCUque",
+          "at": "2026-11-24T10:09:57.716Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
+          "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=73."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -168808,7 +168846,7 @@
         "owner": "pms",
         "title": "pms TS read tail native cutover (round 33)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -168820,22 +168858,22 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMpms8",
-          "claimedAt": "2026-11-24T09:20:06.768Z",
-          "heartbeatAt": "2026-11-24T09:38:27.860Z",
-          "expiresAt": "2026-11-24T10:08:27.860Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
         "nextAction": "Next: safe byte-identical or parameterized SELECT-head family outside locks; if none, report blocked. BEFORE=345.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMpms8",
+          "at": "2026-11-24T10:09:57.716Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
+          "nextAction": "Next: safe byte-identical or parameterized SELECT-head family outside locks; if none, report blocked. BEFORE=345."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -168844,7 +168882,7 @@
         "owner": "organization",
         "title": "organization TS read tail native cutover (round 41)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -168856,22 +168894,37 @@
         "resources": [
           "owner:organization"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMorgd",
-          "claimedAt": "2026-11-24T09:20:23.198Z",
-          "heartbeatAt": "2026-11-24T09:38:27.860Z",
-          "expiresAt": "2026-11-24T10:08:27.860Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-organization/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "9a342e505",
+            "owner": "organization",
+            "before": 251,
+            "after": 249,
+            "note": "Position, assignment and GPO relocation reads share relocationVersionSnapshot; locks and spaced JOIN constants untouched."
+          },
+          {
+            "command": "vitest organization r41 (4) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "9a342e505"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=251.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T10:11:09.958Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -168880,7 +168933,7 @@
         "owner": "talent",
         "title": "talent EXISTS prefix unification (round 34)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -168892,22 +168945,37 @@
         "resources": [
           "owner:talent"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMtal7",
-          "claimedAt": "2026-11-24T09:20:57.687Z",
-          "heartbeatAt": "2026-11-24T09:38:27.860Z",
-          "expiresAt": "2026-11-24T10:08:27.860Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-talent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e42580dd5",
+            "owner": "talent",
+            "before": 47,
+            "after": 46,
+            "note": "r24/r27 EXISTS prefixes share existsGuardPrefix; locks and owner-local boundary untouched. All talent count pins updated."
+          },
+          {
+            "command": "vitest talent (8 + pins) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "e42580dd5"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Allowed exception: unify r24 existsRow and r27 existsVersionRow prefixes into one existsGuardPrefix(source) helper with byte-identical output; update r24/r27 pins. BEFORE=47.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T10:11:10.718Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -168945,7 +169013,7 @@
         "owner": "workflow",
         "title": "workflow TS read tail native cutover (round 42)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -168957,22 +169025,22 @@
         "resources": [
           "owner:workflow"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMwf3",
-          "claimedAt": "2026-11-24T09:48:38.015Z",
-          "heartbeatAt": "2026-11-24T09:48:38.015Z",
-          "expiresAt": "2026-11-24T10:18:38.015Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
         "nextAction": "Next: safe byte-identical/parameterized family or next native flow-routes cutover; if none report blocked. BEFORE=52.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMwf3",
+          "at": "2026-11-24T10:09:57.716Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
+          "nextAction": "Next: safe byte-identical/parameterized family or next native flow-routes cutover; if none report blocked. BEFORE=52."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -169710,7 +169778,7 @@
         "owner": "collaboration",
         "title": "collaboration TS read tail native cutover (round 28)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -169722,22 +169790,22 @@
         "resources": [
           "owner:collaboration"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMcol8",
-          "claimedAt": "2026-11-24T09:33:07.954Z",
-          "heartbeatAt": "2026-11-24T09:38:27.860Z",
-          "expiresAt": "2026-11-24T10:08:27.860Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
         "nextAction": "Next: safe byte-identical/parameterized head or fragment family; if none, report blocked. BEFORE=399.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMcol8",
+          "at": "2026-11-24T10:09:57.716Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
+          "nextAction": "Next: safe byte-identical/parameterized head or fragment family; if none, report blocked. BEFORE=399."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -170243,7 +170311,7 @@
         "owner": "learning",
         "title": "learning TS read tail native cutover (round 12)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -170255,22 +170323,22 @@
         "resources": [
           "owner:learning"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMlrn7",
-          "claimedAt": "2026-11-24T09:40:31.789Z",
-          "heartbeatAt": "2026-11-24T09:40:31.789Z",
-          "expiresAt": "2026-11-24T10:10:31.789Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
         "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=65.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMlrn7",
+          "at": "2026-11-24T10:09:57.716Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
+          "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=65."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -170432,7 +170500,7 @@
         "owner": "identity_access",
         "title": "identity access TS read tail (round 26)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -170444,22 +170512,22 @@
         "resources": [
           "owner:identity_access"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMidn6",
-          "claimedAt": "2026-11-24T09:47:34.000Z",
-          "heartbeatAt": "2026-11-24T09:47:34.000Z",
-          "expiresAt": "2026-11-24T10:17:34.000Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
         "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=517.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMidn6",
+          "at": "2026-11-24T10:09:57.716Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
+          "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=517."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -170468,7 +170536,7 @@
         "owner": "people_payroll",
         "title": "people_payroll TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -170480,22 +170548,22 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMpplb",
-          "claimedAt": "2026-11-24T09:49:22.937Z",
-          "heartbeatAt": "2026-11-24T09:49:22.937Z",
-          "expiresAt": "2026-11-24T10:19:22.937Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
         "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=1342.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMpplb",
+          "at": "2026-11-24T10:09:57.716Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
+          "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=1342."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -170504,7 +170572,7 @@
         "owner": "work_projection",
         "title": "work_projection TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -170516,22 +170584,22 @@
         "resources": [
           "owner:work_projection"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMwpr5",
-          "claimedAt": "2026-11-24T09:49:23.115Z",
-          "heartbeatAt": "2026-11-24T09:49:23.115Z",
-          "expiresAt": "2026-11-24T10:19:23.115Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
         "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=55.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMwpr5",
+          "at": "2026-11-24T10:09:57.716Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
+          "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=55."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -170540,7 +170608,7 @@
         "owner": "manufacturing",
         "title": "manufacturing TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -170552,22 +170620,22 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMmfga",
-          "claimedAt": "2026-11-24T09:49:23.282Z",
-          "heartbeatAt": "2026-11-24T09:49:23.282Z",
-          "expiresAt": "2026-11-24T10:19:23.282Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
         "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=56.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMmfga",
+          "at": "2026-11-24T10:09:57.716Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
+          "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=56."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -170576,7 +170644,7 @@
         "owner": "manage_erpx",
         "title": "manage_erpx TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -170588,22 +170656,22 @@
         "resources": [
           "owner:manage_erpx"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMman5",
-          "claimedAt": "2026-11-24T09:49:23.445Z",
-          "heartbeatAt": "2026-11-24T09:49:23.445Z",
-          "expiresAt": "2026-11-24T10:19:23.445Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
         "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=24.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMman5",
+          "at": "2026-11-24T10:09:57.716Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
+          "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=24."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -170612,7 +170680,7 @@
         "owner": "customer_authority",
         "title": "customer_authority TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -170624,22 +170692,22 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMcaf",
-          "claimedAt": "2026-11-24T09:57:11.964Z",
-          "heartbeatAt": "2026-11-24T09:57:11.964Z",
-          "expiresAt": "2026-11-24T10:27:11.964Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
         "nextAction": "Next: safe byte-identical/parameterized head or fragment family; if none, report blocked. BEFORE=40.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMcaf",
+          "at": "2026-11-24T10:09:57.716Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
+          "nextAction": "Next: safe byte-identical/parameterized head or fragment family; if none, report blocked. BEFORE=40."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -170648,7 +170716,7 @@
         "owner": "legal",
         "title": "legal TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -170660,22 +170728,22 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMlegg",
-          "claimedAt": "2026-11-24T09:57:12.115Z",
-          "heartbeatAt": "2026-11-24T09:57:12.115Z",
-          "expiresAt": "2026-11-24T10:27:12.115Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
         "nextAction": "Next: safe byte-identical/parameterized head or fragment family; if none, report blocked. BEFORE=216.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMlegg",
+          "at": "2026-11-24T10:09:57.716Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
+          "nextAction": "Next: safe byte-identical/parameterized head or fragment family; if none, report blocked. BEFORE=216."
+        },
         "scopeRefinementRequired": false
       }
     ],
@@ -170689,17 +170757,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 23,
-        "in_progress": 21,
+        "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1166,
+        "blocked": 1187,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T10:07:58.564Z",
+    "lastCoordinatorGeneration": 168,
+    "updatedAt": "2026-11-24T10:11:11.551Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -170734,10 +170802,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261123-n",
-      "runId": "run-20261124-a",
-      "at": "2026-11-24T07:53:21.213Z",
-      "reason": "Coordinator lease expired during long worker integration; WIP reviewed by lead; all live claims re-claimed with the same agents under a new generation",
+      "previousRunId": "run-20261124-a",
+      "runId": "run-20261124-b",
+      "at": "2026-11-24T10:09:57.717Z",
+      "reason": "Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
       "wipReviewed": true,
       "previousRunStopped": true
     },
