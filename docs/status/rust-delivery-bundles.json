@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9208,
+    "revision": 9212,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -148593,7 +148593,7 @@
         "owner": "workflow",
         "title": "workflow TS read tail native cutover (r34)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -148605,22 +148605,37 @@
         "resources": [
           "owner:workflow"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCIwor",
-          "claimedAt": "2026-11-24T04:58:53.066Z",
-          "heartbeatAt": "2026-11-24T04:58:53.066Z",
-          "expiresAt": "2026-11-24T05:28:53.066Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-workflow/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1b79f7854",
+            "owner": "workflow",
+            "before": 59,
+            "after": 58,
+            "note": "Approval instance guard prefix shared with pending generator; guard31 unchanged."
+          },
+          {
+            "command": "vitest workflow r32/r34 (11) + tsc workflow/tests",
+            "result": "passed",
+            "sourceSha": "1b79f7854"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=59.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-j",
+          "agentId": "wGCIwor",
+          "at": "2026-11-24T05:06:18.827Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -148997,7 +149012,7 @@
         "owner": "projects",
         "title": "projects TS read tail native cutover (r13)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -149009,22 +149024,37 @@
         "resources": [
           "owner:projects"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCBpro",
-          "claimedAt": "2026-11-24T04:59:47.384Z",
-          "heartbeatAt": "2026-11-24T04:59:47.384Z",
-          "expiresAt": "2026-11-24T05:29:47.384Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-projects/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1b79f7854",
+            "owner": "projects",
+            "before": 144,
+            "after": 140,
+            "note": "projectMemberScopeSql shared across five sites; r3 local guard and r12 unchanged."
+          },
+          {
+            "command": "vitest projects semantic services (114) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "1b79f7854"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=144.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-j",
+          "agentId": "wGCBpro",
+          "at": "2026-11-24T05:06:19.232Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -149109,17 +149139,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
-        "in_progress": 23,
+        "in_progress": 21,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 735,
+        "blocked": 737,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 162,
-    "updatedAt": "2026-11-24T05:05:46.366Z",
+    "updatedAt": "2026-11-24T05:06:19.239Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
