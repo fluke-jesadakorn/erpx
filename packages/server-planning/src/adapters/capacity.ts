@@ -5,6 +5,7 @@ import { ApiError } from "@erpx/server-runtime/public/http";
 import { createCapacityPlanner, type CapacityInput } from "@erpx/server-planning/application/capacity";
 import type { CapacityOperation } from "@erpx/server-planning/domain/capacity";
 import { resourceCalendarByKey } from "./planning-calendar-source-sql";
+import { planningResourceAllocationRows } from "./planning-resource-allocation-sql";
 
 /** Bound to the caller's connection, including an existing native transaction. */
 export async function calculateProductionCapacity(db: SqlDatabase, actor: WorkContext, input: CapacityInput) {
@@ -14,7 +15,7 @@ export async function calculateProductionCapacity(db: SqlDatabase, actor: WorkCo
         ${productionmanufacturingProjection.routingOperations} JOIN production_resources r ON r.id=o.resource_id
         WHERE o.specification_id=? AND r.company_id=? ORDER BY o.ordinal`).bind(specificationId, companyId).all<CapacityOperation>()).results,
       calendar: (resourceId, date) => db.prepare(resourceCalendarByKey('available_minutes,version')).bind(resourceId, date).first<{ available_minutes: number; version: number }>(),
-      allocatedMinutes: async (resourceId, date) => Number((await db.prepare("SELECT COALESCE(sum(minutes),0) minutes FROM planning_resource_allocations WHERE resource_id=? AND work_date=? AND released_at IS NULL").bind(resourceId, date).first<{ minutes: number }>())?.minutes ?? 0),
+      allocatedMinutes: async (resourceId, date) => Number((await db.prepare(planningResourceAllocationRows('COALESCE(sum(minutes),0) minutes', 'resource_id=? AND work_date=? AND released_at IS NULL')).bind(resourceId, date).first<{ minutes: number }>())?.minutes ?? 0),
     }, error: (status, code, message) => new ApiError(status, code, message),
   })(actor.companyId, input);
 }

@@ -6,7 +6,7 @@ import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {requirePermission} from "@erpx/server-identity_access/public/iam-permissions";
 
-import {assertion} from "@erpx/server-workflow/public/command-assertions";import {productionResourcesExists,planningAllocatedMinutes} from "./planning-guard-sql";import {resourceCalendarByKey} from "./planning-calendar-source-sql";
+import {assertion} from "@erpx/server-workflow/public/command-assertions";import {productionResourcesExists,planningAllocatedMinutes} from "./planning-guard-sql";import {resourceCalendarByKey} from "./planning-calendar-source-sql";import {planningResourceAllocationRows} from "./planning-resource-allocation-sql";
 import {executeCommand,replayCommand} from "@erpx/server-workflow/public/commands";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import type {PlanningContext} from "@erpx/server-planning/public/capacity";
@@ -15,7 +15,7 @@ import {planningResourceSources as owner1} from '@erpx/server-commerce/public/pl
 async function exposed<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 const calendarVersionGuard = `COALESCE((${resourceCalendarByKey('version')}),0)=?`;
 function application(db:SqlDatabase){const repository:PlanningResourceRepository<SqlStatement>={guardResourceVersion(key:string,value:"resource",id:string,companyId:string,branchId:string,expectedVersion:number){return assertion(db, key, value, productionResourcesExists('branch_id=? AND version=?'), [id, companyId, branchId, expectedVersion]);},
-guardNoActiveAllocation(key:string,value:"active-resource-allocation",id:string){return assertion(db, key, value, "NOT EXISTS(SELECT 1 FROM planning_resource_allocations WHERE resource_id=? AND released_at IS NULL)", [id]);},
+guardNoActiveAllocation(key:string,value:"active-resource-allocation",id:string){return assertion(db, key, value, `NOT EXISTS(${planningResourceAllocationRows('1', 'resource_id=? AND released_at IS NULL')})`, [id]);},
 prepareResourceRevision(code:string,name:string,dailyMinutes:number,value:string,status:"active" | "archived",now:number,id:string){throw new Error("NATIVE_PLANNING_REQUIRED");},
 prepareResource(resourceId:string,companyId:string,branchId:string,code:string,name:string,dailyMinutes:number,value:string,status:"active" | "archived",userId:string,now:number,now2:number){throw new Error("NATIVE_PLANNING_REQUIRED");},
 lockResource(id:string){throw new Error("NATIVE_PLANNING_REQUIRED");},
