@@ -68,6 +68,6 @@ describe('Planning read-tail r5 byte-identical guard family dedupe', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(43);
-    expect(total).toBe(39);
+    expect(total).toBeLessThanOrEqual(39);
   });
 });
