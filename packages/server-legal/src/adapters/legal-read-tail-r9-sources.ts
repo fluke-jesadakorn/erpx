@@ -7,5 +7,6 @@ export const legalManagerAvailableSql = `SELECT 1 FROM (${identityAccessSources.
 export const legalDestructionActiveSql = "SELECT 1 FROM legal_destructions WHERE item_id=? AND state IN ('executing','completed')";
 export const legalDocumentsItemPairSql = "SELECT 1 FROM legal_documents WHERE id=? AND item_id=?";
 export const legalDocumentByIdSql = "SELECT * FROM legal_documents WHERE id=?";
+export const legalMembersAggSql = "(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM legal_members m WHERE m.item_id=i.id)";
 export const legalFilesAdvisoryLockSql = "SELECT pg_advisory_xact_lock(hashtextextended('legal-files',0))";
 export const legalCompanyAdvisoryLockSql = "SELECT pg_advisory_xact_lock(hashtextextended(?,0))";

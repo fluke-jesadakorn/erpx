@@ -15,8 +15,9 @@ import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packa
 import {legalKindCapability,type LegalPurchaseCapability} from '@erpx/server-legal/domain/purchases';
 import type {LegalKind} from '@erpx/server-legal/domain/model';
 import {legalOwnedAttachmentPurpose} from '@erpx/server-legal/adapters/purchases';
+import {legalMembersAggSql} from './legal-read-tail-r9-sources';
 export type LegalAttachmentPurchase={companyId:string;targetId:string;actor:WorkContext;purpose:CapabilityPurpose;capabilities:LegalPurchaseCapability[];witness:string};
-const source=`SELECT i.*,jsonb_build_object('item',to_jsonb(i)-'version'-'updated_at','members',(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM legal_members m WHERE m.item_id=i.id))::text image FROM legal_items i WHERE id=? AND company_id=?`;
+const source=`SELECT i.*,jsonb_build_object('item',to_jsonb(i)-'version'-'updated_at','members',${legalMembersAggSql})::text image FROM legal_items i WHERE id=? AND company_id=?`;
 export async function legalAttachmentPurchaseScope(database:SqlDatabase,actor:WorkContext,type:string,id:string):Promise<LegalAttachmentPurchase|null>{
  if(type!=='legal_item'||await legalPackageEnforcementMode()==='disabled')return null;
  const row=await database.prepare(source).bind(id,actor.companyId).first<{kind:LegalKind;image:string}>();if(!row)throw new ApiError(404,'ATTACHMENT_TARGET_NOT_FOUND','The original Legal file source is unavailable.');
