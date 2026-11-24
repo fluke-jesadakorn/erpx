@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8321,
+    "revision": 8325,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -137916,7 +137916,7 @@
         "owner": "marketing",
         "title": "marketing TS read tail native cutover (round r23)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -137928,22 +137928,37 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCdmar",
-          "claimedAt": "2026-11-24T01:58:49.721Z",
-          "heartbeatAt": "2026-11-24T01:58:49.721Z",
-          "expiresAt": "2026-11-24T02:28:49.721Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-marketing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "5409faea3",
+            "owner": "marketing",
+            "before": 91,
+            "after": 88,
+            "note": "Four purchase witness projections share one closed-variant helper; byte-identical output."
+          },
+          {
+            "command": "vitest marketing (3 + 76) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "5409faea3"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe or native read; if none, report blocked. BEFORE=91.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCdmar",
+          "at": "2026-11-24T02:05:59.845Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -138740,6 +138755,42 @@
         "nextAction": "Verified full-SQL literals: initial_entry_clock assignments CTE 4x (-9), commerce_stock OR inventory_ledger EXISTS 3x (-14), inventory_ledger NOT EXISTS 5x (-4), jsonb_build_object 4x (-3), lot_balances NOT EXISTS 2x, service_initial_physical_sources 2x. Text-only constants; BEFORE=541 (measure HEAD).",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.marketing.read-tail-r24",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing TS read tail native cutover (round 24)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**",
+          "tests/integration/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC0mar",
+          "claimedAt": "2026-11-24T02:06:00.204Z",
+          "heartbeatAt": "2026-11-24T02:06:00.204Z",
+          "expiresAt": "2026-11-24T02:36:00.204Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: to_jsonb(...)::text image point reads in public-form-read.ts, or SELECT id ... UNION ALL source-id reads in record-purchases.ts. BEFORE=88.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -138748,7 +138799,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 906,
+      "totalPackets": 907,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -138756,13 +138807,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 529,
+        "blocked": 530,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:05:40.230Z",
+    "updatedAt": "2026-11-24T02:06:00.210Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
