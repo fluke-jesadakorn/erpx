@@ -11,6 +11,9 @@ const advisoryLockSql = "SELECT pg_advisory_xact_lock(hashtextextended(?,0))";
 const attachmentChecksumSql = "SELECT checksum_sha256,source_state FROM attachments WHERE id=? AND company_id=?";
 const setLockSql = "SELECT state FROM attachment_sets WHERE id=? AND company_id=? FOR UPDATE";
 const publicationByIdSql = "SELECT * FROM attachment_publications WHERE id=? AND company_id=?";
+const sanitizationAttestedSql = `SELECT 1 FROM attachment_events attested WHERE attested.set_id=? AND attested.company_id=? AND attested.action='sanitization.attested'
+        AND attested.created_at>=COALESCE((SELECT max(changed.created_at) FROM attachment_events changed WHERE changed.set_id=attested.set_id AND changed.action IN ('file.reserved','link.reused','link.withdrawn')),0)
+        ORDER BY attested.created_at DESC LIMIT 1`;
 export function repository(db: SqlDatabase) {
     return {
         readAttachmentSetAlias: (facts:{id:string;companyId:string;userId:string}) => db.prepare(`SELECT source.* FROM attachment_events receipt JOIN attachment_sets source ON source.id=receipt.set_id AND source.company_id=receipt.company_id AND source.created_by=receipt.actor_id
@@ -42,9 +45,7 @@ export function repository(db: SqlDatabase) {
             id: string;
             company_id: string;
         }) => {
-            return db.prepare(`SELECT 1 FROM attachment_events attested WHERE attested.set_id=? AND attested.company_id=? AND attested.action='sanitization.attested'
-        AND attested.created_at>=COALESCE((SELECT max(changed.created_at) FROM attachment_events changed WHERE changed.set_id=attested.set_id AND changed.action IN ('file.reserved','link.reused','link.withdrawn')),0)
-        ORDER BY attested.created_at DESC LIMIT 1`).bind(facts.id, facts.company_id).first();
+            return db.prepare(sanitizationAttestedSql).bind(facts.id, facts.company_id).first();
         },
         readAttachmentSets7: (facts: {
             actor: WorkContext;
@@ -523,9 +524,7 @@ export function repository(db: SqlDatabase) {
             id: string;
             companyId: string;
         }) => {
-            return db.prepare(`SELECT 1 FROM attachment_events attested WHERE attested.set_id=? AND attested.company_id=? AND attested.action='sanitization.attested'
-        AND attested.created_at>=COALESCE((SELECT max(changed.created_at) FROM attachment_events changed WHERE changed.set_id=attested.set_id AND changed.action IN ('file.reserved','link.reused','link.withdrawn')),0)
-        ORDER BY attested.created_at DESC LIMIT 1`).bind(facts.id, facts.companyId).first();
+            return db.prepare(sanitizationAttestedSql).bind(facts.id, facts.companyId).first();
         },
         stepAttachmentLinks66: (facts: {
             now: number;
