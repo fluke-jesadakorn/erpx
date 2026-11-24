@@ -75948,6 +75948,46 @@
       ]
     },
     {
+      "id": "records.rust-record-context-parity-postgres.integration",
+      "lane": "integration",
+      "owner": "records",
+      "modules": [
+        "agent"
+      ],
+      "files": [
+        "tests/integration/records/rust-record-context-parity-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native record_context rows must match the retained TS context projection on one transaction."
+      },
+      "apps": [
+        "apps"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-records",
+        "targets": [
+          "record_context_parity_postgres"
+        ],
+        "features": []
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-records/Cargo.toml"
+      ],
+      "packages": [
+        "@erpx/server-records"
+      ]
+    },
+    {
       "id": "records.rust-record-context-postgres.integration",
       "lane": "integration",
       "owner": "shared.records",

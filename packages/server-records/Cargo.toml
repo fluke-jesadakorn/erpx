@@ -80,3 +80,7 @@ path = "../../tests/integration/shared.records/rust-rfq-request-source-postgres.
 [[test]]
 name = "request_ai_drain_postgres"
 path = "../../tests/integration/records/rust-request-ai-drain-postgres.test.rs"
+
+[[test]]
+name = "record_context_parity_postgres"
+path = "../../tests/integration/records/rust-record-context-parity-postgres.test.rs"
