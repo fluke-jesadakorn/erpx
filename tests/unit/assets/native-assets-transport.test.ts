@@ -367,22 +367,25 @@ it('shares one fixed owner predicate for attachment owner version guards (46->45
   expect(service).toContain('attachmentOwnerVersionGuardSql(item.table, item.extra)');
   expect(operational).toContain('attachmentOwnerVersionGuardSql(table)');
 });
-it('shares one canonical source-existence probe across the Assets package-settlement read (11->9)',async()=>{
+it('shares one canonical existence probe across the Assets package-settlement read (11->8)',async()=>{
   const {readFile}=await import('node:fs/promises');
   const adapter=await readFile(new URL('../../../packages/server-assets/src/adapters/package-obligations.ts',import.meta.url),'utf8');
   const count=(text:string,needle:string)=>text.split(needle).length-1;
-  // The canonical helper owns the single existence-probe statement; its comment
-  // must not smuggle another "SELECT" token into the retirement KPI.
-  expect(adapter.match(/SELECT/g)).toHaveLength(9);
+  // The canonical helper owns the single existence statement; no comment may
+  // smuggle another "SELECT" token into the retirement KPI.
+  expect(adapter.match(/SELECT/g)).toHaveLength(8);
+  expect(adapter).toContain('const assetExistsSql = (from:string,where:string) =>');
+  expect(count(adapter,'EXISTS(SELECT 1 FROM ${from} WHERE ${where})')).toBe(1);
   expect(adapter).toContain('const assetSourceExistsSql = (source:string,alias:string,where:string) =>');
-  expect(count(adapter,'EXISTS(SELECT 1 FROM (${source}) ${alias} WHERE ${where})')).toBe(1);
-  // No duplicate raw probe literal remains at any of the three owner call sites.
-  expect(count(adapter,'SELECT 1 FROM (${placements})')).toBe(0);
-  expect(count(adapter,'SELECT 1 FROM (${refs})')).toBe(0);
+  // No duplicate raw probe literal remains at the owner or finance-source call sites.
+  expect(count(adapter,'EXISTS(SELECT 1 FROM (${source}) ${alias} WHERE ${where})')).toBe(0);
+  expect(count(adapter,'NOT EXISTS(SELECT 1 FROM (${assetsSettlementFinancialAssets}) financial')).toBe(0);
   expect(count(adapter,'assetSourceExistsSql(')).toBe(3);
+  expect(count(adapter,'assetExistsSql(')).toBe(2);
   expect(adapter).toContain('assetSourceExistsSql(placements,"branch"');
   expect(adapter).toContain('assetSourceExistsSql(placements,"department"');
   expect(adapter).toContain('assetSourceExistsSql(refs,"source"');
+  expect(adapter).toContain('NOT ${assetExistsSql(`(${assetsSettlementFinancialAssets}) financial JOIN');
   // The exported source object used by the Maintenance consumer is unchanged in shape.
   expect(adapter).toContain('export const assetPackageSettlementSources={assets:');
   expect(adapter).toContain('links:"SELECT * FROM operational_asset_finance_links"} as const;');
@@ -412,7 +415,7 @@ it('shares one canonical lineage aggregate projection across the Assets financia
    expect(adapter).toContain('EXISTS(SELECT 1 FROM operational_asset_finance_links l LEFT JOIN physical a ON a.id=l.asset_id WHERE l.finance_asset_id=? AND a.id IS NULL)');
    expect(adapter).toContain('export function assetsFinancialPhysicalSourceLocks');
 });
-it('shares one canonical scope tuple across the Assets private attachment authority and current-scope checks (39->38)',async()=>{
+it('shares one canonical current-assignment scope probe across the Assets private attachment authority and current-scope checks (35->33)',async()=>{
  const {readFile}=await import('node:fs/promises');
  const base=new URL('../../../packages/server-assets/src/adapters/',import.meta.url);
  const helper=await readFile(new URL('asset-scope-tuple.ts',base),'utf8');
@@ -420,20 +423,29 @@ it('shares one canonical scope tuple across the Assets private attachment author
  const read=await readFile(new URL('attachment-read.ts',base),'utf8');
  const count=(text:string,needle:string)=>text.split(needle).length-1;
  const tuple='(SELECT ?::text company_id,?::text branch_id,?::text department_id)';
- // The canonical helper owns the single tuple literal; its comment adds no KPI token.
- expect(helper.match(/SELECT/g)).toHaveLength(1);
+ // The canonical helpers own the single tuple and probe statements; no comment adds a KPI token.
+ expect(helper.match(/SELECT/g)).toHaveLength(2);
  expect(helper).toContain('export const assetScopeTupleSql = (alias: string) =>');
+ expect(helper).toContain('export const assetCurrentScopeProbeSql = (projection:string,from:string,tail="") =>');
  expect(count(helper,tuple)).toBe(1);
+ expect(count(helper,'SELECT ${projection} FROM${from}${tail}')).toBe(1);
  for(const caller of [authority,read]){
-  expect(caller).toMatch(/import \{assetScopeTupleSql\} from ['"]\.\/asset-scope-tuple['"]/);
+  expect(caller).toMatch(/import \{assetCurrentScopeProbeSql,assetScopeTupleSql\} from ['"]\.\/asset-scope-tuple['"]/);
   expect(count(caller,tuple)).toBe(0);
  }
+ // No raw current-scope statement remains at either call site; both use the canonical probe.
+ expect(count(read,'SELECT 1 FROM${assetScopeTupleSql("workforce_actor_scope")}')).toBe(0);
+ expect(count(authority,'(SELECT ${assignmentReadSql("asset_file_scope","records.write")} FROM ${assetScopeTupleSql("asset_file_scope")})')).toBe(0);
+ expect(read).toContain('assetCurrentScopeProbeSql("1",assetScopeTupleSql("workforce_actor_scope"),` WHERE ${currentScope.where}`)');
+ expect(authority).toContain('assetCurrentScopeProbeSql(assignmentReadSql("asset_file_scope","records.write"),` ${assetScopeTupleSql("asset_file_scope")}`)');
  expect(authority).toContain('${assetScopeTupleSql("asset_file_scope")}');
- expect(read).toContain('${assetScopeTupleSql("workforce_actor_scope")}');
- // The r3 permission-probe helper is a distinct family and stays untouched.
+ expect(read).toContain('assetScopeTupleSql("workforce_actor_scope")');
+ // The r3 permission-probe and r12 record-purchase probes stay untouched.
  const probe=await readFile(new URL('asset-scope-probe.ts',base),'utf8');
  expect(count(probe,tuple)).toBe(1);
  expect(probe).toContain('allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id)');
+ const purchaseProbe=await readFile(new URL('record-purchases.ts',base),'utf8');
+ expect(purchaseProbe).toContain('const assetSourceProbeSql=(from:string,where:string)=>`SELECT 1 FROM ${from} WHERE ${where}`');
 });
 it('shares the canonical lineage aggregate with the Assets purchase owner source (36->35)',async()=>{
  const {readFile}=await import('node:fs/promises');
