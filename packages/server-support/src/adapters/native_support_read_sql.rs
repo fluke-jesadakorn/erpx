@@ -104,6 +104,19 @@ const READ_TICKET_PORTAL_ACKNOWLEDGED_AT: NativeSupportReadStatement = NativeSup
     bind_count: 2,
 };
 
+/// Native successor of the TypeScript `supportTicketPortalTicketImage` read.
+/// The caller binds `[ticket_id]` and receives the owner's ticket row snapshot
+/// used by the portal change-witness. The retired literal is carried verbatim:
+/// no Company scope, lock, advisory or assertion is added to this read.
+pub const RD_TICKET_PORTAL_TICKET_IMAGE: &str = "support_rd_ticket_portal_ticket_image";
+const SQL_TICKET_PORTAL_TICKET_IMAGE: &str =
+    "SELECT to_jsonb(ticket)::text image FROM support_tickets ticket WHERE ticket.id=?";
+const READ_TICKET_PORTAL_TICKET_IMAGE: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_TICKET_PORTAL_TICKET_IMAGE,
+    sql: SQL_TICKET_PORTAL_TICKET_IMAGE,
+    bind_count: 1,
+};
+
 /// Native successor of the TypeScript `support_ticket_events` history read used
 /// by the support detail. The caller binds `[ticket_id]` and receives the event
 /// rows in descending version order.
@@ -492,6 +505,7 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SERVICE_TEAM_NAME,
     READ_TICKET_PORTAL_RESPONSE,
     READ_TICKET_PORTAL_ACKNOWLEDGED_AT,
+    READ_TICKET_PORTAL_TICKET_IMAGE,
     READ_TICKET_EVENT_HISTORY,
     READ_INCIDENT_EVENT_HISTORY,
     READ_TICKET_INCIDENT_LINKS,
@@ -560,6 +574,11 @@ mod tests {
                 RD_TICKET_PORTAL_ACKNOWLEDGED_AT,
                 SQL_TICKET_PORTAL_ACKNOWLEDGED_AT,
                 2usize,
+            ),
+            (
+                RD_TICKET_PORTAL_TICKET_IMAGE,
+                SQL_TICKET_PORTAL_TICKET_IMAGE,
+                1usize,
             ),
             (
                 RD_TICKET_EVENT_HISTORY,
@@ -695,7 +714,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 35);
+        assert_eq!(STATEMENTS.len(), 36);
     }
 
     #[test]
@@ -712,6 +731,8 @@ mod tests {
         assert_eq!(response.bind_count, 1);
         let ack = read_statement(RD_TICKET_PORTAL_ACKNOWLEDGED_AT).expect("portal ack read");
         assert_eq!(ack.bind_count, 2);
+        let portal_ticket = read_statement(RD_TICKET_PORTAL_TICKET_IMAGE).expect("portal ticket image read");
+        assert_eq!(portal_ticket.bind_count, 1);
         let ticket_events = read_statement(RD_TICKET_EVENT_HISTORY).expect("ticket event history");
         assert_eq!(ticket_events.bind_count, 1);
         let incident_events = read_statement(RD_INCIDENT_EVENT_HISTORY).expect("incident event history");
@@ -836,5 +857,19 @@ mod tests {
         );
         assert_eq!(approved.bind_count, 1);
         assert!(read_statement("support_policy_select").is_none());
+    }
+
+    #[test]
+    fn ticket_portal_ticket_image_read_renders_the_retired_owner_literal_byte_for_byte() {
+        let image = read_statement(RD_TICKET_PORTAL_TICKET_IMAGE).expect("portal ticket image read");
+        assert_eq!(
+            image.sql,
+            "SELECT to_jsonb(ticket)::text image FROM support_tickets ticket WHERE ticket.id=?"
+        );
+        assert_eq!(image.bind_count, 1);
+        assert_eq!(image.sql.matches('?').count(), 1);
+        assert!(image.sql.starts_with("SELECT "));
+        assert!(!image.sql.contains(';'));
+        assert!(read_statement("support_rd_ticket_portal_ticket_image_select").is_none());
     }
 }

@@ -1,5 +1,6 @@
 import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import {nativeSupportReadAll,SUPPORT_RD_TICKET_PORTAL_TICKET_IMAGE} from './native-support-read';
 import {portalImageSelectedCte,portalBindingImageSql,portalBoundImageSql,portalImageAggregateSql} from './ticket-portal-image-sql';
 export async function supportTicketPortalInstalled(database:SqlDatabase){return Boolean(await database.prepare("SELECT to_regclass('support_ticket_portal_bindings') IS NOT NULL AND to_regclass('support_ticket_portal_acknowledgements') IS NOT NULL installed").first<boolean>('installed'));}
 export function supportTicketPortalSourceLocks(database:SqlDatabase){return [database.prepare('LOCK TABLE support_tickets,support_ticket_events,support_ticket_portal_bindings,support_ticket_portal_events,support_ticket_portal_identities,support_ticket_portal_reads,support_ticket_portal_responses,support_ticket_portal_acknowledgements IN SHARE ROW EXCLUSIVE MODE')];}
@@ -25,7 +26,7 @@ export const portalValidBindingRead=(columns:string)=>`SELECT ${columns} FROM ($
  * and its own independent statement; the native ticket-portal reader remains
  * the authority. */
 export const portalValidBindingSelect=portalValidBindingRead('binding.*');
-export async function supportTicketPortalTicketImage(database:SqlDatabase,ticketId:string){return database.prepare('SELECT to_jsonb(ticket)::text image FROM support_tickets ticket WHERE ticket.id=?').bind(ticketId).first<string>('image');}
+export async function supportTicketPortalTicketImage(database:SqlDatabase,ticketId:string){return nativeSupportReadAll<{image:string}>(SUPPORT_RD_TICKET_PORTAL_TICKET_IMAGE,[ticketId],database).then(result => result.results[0]?.image ?? null);}
 export async function supportTicketPortalImage(database:SqlDatabase,bindingIds:string[]){if(!bindingIds.length)return '[]';return database.prepare(`${portalImageSelectedCte(bindingIds)} ${portalImageAggregateSql([portalBindingImageSql(),portalBoundImageSql('ticket','support_tickets','id','binding.ticket_id=ticket.id'),portalBoundImageSql('event','support_ticket_portal_events','id','binding.id=event.binding_id'),portalBoundImageSql('identity','support_ticket_portal_identities','binding_id','binding.id=identity.binding_id'),portalBoundImageSql('read','support_ticket_portal_reads','id','binding.id=read.binding_id'),portalBoundImageSql('response','support_ticket_portal_responses','id','binding.id=response.binding_id'),portalBoundImageSql('ack','support_ticket_portal_acknowledgements','id','binding.id=ack.binding_id')])}`).bind(...bindingIds).first<string>('image');}
 /** Public reads may only add their exact identity/read event; acknowledgements
  * may add their exact immutable acknowledgement. Neither changes this core. */

@@ -22,6 +22,7 @@ export const SUPPORT_RD_SERVICE_TEAM_COVERAGE = 'support_rd_service_team_coverag
 export const SUPPORT_RD_SERVICE_TEAM_NAME = 'support_rd_service_team_name';
 export const SUPPORT_RD_TICKET_PORTAL_RESPONSE = 'support_rd_ticket_portal_response';
 export const SUPPORT_RD_TICKET_PORTAL_ACKNOWLEDGED_AT = 'support_rd_ticket_portal_acknowledged_at';
+export const SUPPORT_RD_TICKET_PORTAL_TICKET_IMAGE = 'support_rd_ticket_portal_ticket_image';
 export const SUPPORT_RD_TICKET_EVENT_HISTORY = 'support_rd_ticket_event_history';
 export const SUPPORT_RD_INCIDENT_EVENT_HISTORY = 'support_rd_incident_event_history';
 export const SUPPORT_RD_TICKET_INCIDENT_LINKS = 'support_rd_ticket_incident_links';
@@ -62,6 +63,7 @@ const BIND_COUNTS: Readonly<Record<string, number>> = {
   [SUPPORT_RD_SERVICE_TEAM_NAME]: 2,
   [SUPPORT_RD_TICKET_PORTAL_RESPONSE]: 1,
   [SUPPORT_RD_TICKET_PORTAL_ACKNOWLEDGED_AT]: 2,
+  [SUPPORT_RD_TICKET_PORTAL_TICKET_IMAGE]: 1,
   [SUPPORT_RD_TICKET_EVENT_HISTORY]: 1,
   [SUPPORT_RD_INCIDENT_EVENT_HISTORY]: 1,
   [SUPPORT_RD_TICKET_INCIDENT_LINKS]: 1,
