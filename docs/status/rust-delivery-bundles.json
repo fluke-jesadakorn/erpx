@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12328,
+    "revision": 12333,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261124-c",
+      "runId": "run-20261124-d",
       "agentId": "lead-opencode",
-      "startedAt": "2026-11-24T11:32:49.939Z",
-      "heartbeatAt": "2026-11-24T14:30:19.045Z",
-      "expiresAt": "2026-11-24T15:00:19.045Z",
-      "generation": 169,
-      "tokenHash": "eac3f45906eed752625f2bb4dc251a340a6a580a6b89a15f666d16287f0d616e"
+      "startedAt": "2026-11-24T15:07:42.843Z",
+      "heartbeatAt": "2026-11-24T15:07:43.062Z",
+      "expiresAt": "2026-11-24T15:37:43.062Z",
+      "generation": 170,
+      "tokenHash": "d86592cf1e9e0370a3a84de40c2d9276be4f7361a78149ffdd8e138eaef2dc28"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -182569,7 +182569,7 @@
         "owner": "billing",
         "title": "billing point-read head consolidation",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -182580,22 +182580,22 @@
         "resources": [
           "owner:billing"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n51",
-          "claimedAt": "2026-11-24T14:52:08.943Z",
-          "heartbeatAt": "2026-11-24T14:52:08.943Z",
-          "expiresAt": "2026-11-24T15:22:08.943Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: lease expired; same operator resumes with reviewed WIP",
         "nextAction": "Nine single-SELECT heads absorb into r29 head (-9), two SELECT-1 guards (-2), projection heads (-1): 36->24.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n51",
+          "at": "2026-11-24T15:07:42.843Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "nextAction": "Nine single-SELECT heads absorb into r29 head (-9), two SELECT-1 guards (-2), projection heads (-1): 36->24."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -182604,7 +182604,7 @@
         "owner": "ecommerce",
         "title": "ecommerce keyed rows, CTE frame and scalar head",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -182615,22 +182615,22 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n52",
-          "claimedAt": "2026-11-24T14:52:52.646Z",
-          "heartbeatAt": "2026-11-24T14:52:52.646Z",
-          "expiresAt": "2026-11-24T15:22:52.646Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: lease expired; same operator resumes with reviewed WIP",
         "nextAction": "Keyed row reads via ordered list (-3), CTE source frame (-2), scalar body head (-3): 19->14 (or 11 with residual folds).",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n52",
+          "at": "2026-11-24T15:07:42.843Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "nextAction": "Keyed row reads via ordered list (-3), CTE source frame (-2), scalar body head (-3): 19->14 (or 11 with residual folds)."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -182639,7 +182639,7 @@
         "owner": "marketing",
         "title": "marketing evidence row tail merge",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -182650,22 +182650,22 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n53",
-          "claimedAt": "2026-11-24T14:53:24.435Z",
-          "heartbeatAt": "2026-11-24T14:53:24.435Z",
-          "expiresAt": "2026-11-24T15:23:24.435Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: lease expired; same operator resumes with reviewed WIP",
         "nextAction": "Evidence row tail merge in executive-evidence-rows.ts (-1): 49->48; verify floor after.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n53",
+          "at": "2026-11-24T15:07:42.843Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "nextAction": "Evidence row tail merge in executive-evidence-rows.ts (-1): 49->48; verify floor after."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -182674,7 +182674,7 @@
         "owner": "projects",
         "title": "projects TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -182685,22 +182685,22 @@
         "resources": [
           "owner:projects"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n54",
-          "claimedAt": "2026-11-24T14:54:03.561Z",
-          "heartbeatAt": "2026-11-24T14:54:03.561Z",
-          "expiresAt": "2026-11-24T15:24:03.561Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: lease expired; same operator resumes with reviewed WIP",
         "nextAction": "Member EXISTS fold (-4), projection super-head (-3): 88->81. BEFORE=88.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n54",
+          "at": "2026-11-24T15:07:42.843Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "nextAction": "Member EXISTS fold (-4), projection super-head (-3): 88->81. BEFORE=88."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -182709,7 +182709,7 @@
         "owner": "maintenance",
         "title": "maintenance TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -182720,22 +182720,37 @@
         "resources": [
           "owner:maintenance"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n55",
-          "claimedAt": "2026-11-24T14:54:16.485Z",
-          "heartbeatAt": "2026-11-24T14:54:16.485Z",
-          "expiresAt": "2026-11-24T15:24:16.485Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-maintenance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "2a34e8b3c",
+            "owner": "maintenance",
+            "before": 21,
+            "after": 20,
+            "note": "factRow delegates to settlementRefSource; locks/native/r3-r27 untouched."
+          },
+          {
+            "command": "vitest maintenance (51) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "2a34e8b3c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "factRow delegate to settlementRefSource (-1): 21->20. BEFORE=21.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-d",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T15:07:43.543Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -182744,7 +182759,7 @@
         "owner": "people_payroll",
         "title": "people_payroll TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -182755,22 +182770,22 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n56",
-          "claimedAt": "2026-11-24T14:55:03.401Z",
-          "heartbeatAt": "2026-11-24T14:55:03.401Z",
-          "expiresAt": "2026-11-24T15:25:03.401Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: lease expired; same operator resumes with reviewed WIP",
         "nextAction": "COALESCE display_name family (-4), slip owner guards (-1): 1233->1228. BEFORE=1233.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n56",
+          "at": "2026-11-24T15:07:42.843Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "nextAction": "COALESCE display_name family (-4), slip owner guards (-1): 1233->1228. BEFORE=1233."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -182779,7 +182794,7 @@
         "owner": "finance",
         "title": "finance TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -182791,22 +182806,22 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n57",
-          "claimedAt": "2026-11-24T14:55:16.319Z",
-          "heartbeatAt": "2026-11-24T14:55:16.319Z",
-          "expiresAt": "2026-11-24T15:25:16.319Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: lease expired; same operator resumes with reviewed WIP",
         "nextAction": "Clock scalar probe (-3), payment slip checksum (-1), thai active guard (-1), reporting table-by-id (-2): 1812->1805. BEFORE=1812.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n57",
+          "at": "2026-11-24T15:07:42.843Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "nextAction": "Clock scalar probe (-3), payment slip checksum (-1), thai active guard (-1), reporting table-by-id (-2): 1812->1805. BEFORE=1812."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -182815,7 +182830,7 @@
         "owner": "files",
         "title": "files TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -182826,22 +182841,22 @@
         "resources": [
           "owner:files"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n58",
-          "claimedAt": "2026-11-24T14:55:29.196Z",
-          "heartbeatAt": "2026-11-24T14:55:29.196Z",
-          "expiresAt": "2026-11-24T15:25:29.196Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: lease expired; same operator resumes with reviewed WIP",
         "nextAction": "upload_intents EXISTS head (-2), attachments star head (-1), attachment_events head (-1): 246->242. BEFORE=246.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n58",
+          "at": "2026-11-24T15:07:42.843Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "nextAction": "upload_intents EXISTS head (-2), attachments star head (-1), attachment_events head (-1): 246->242. BEFORE=246."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -182850,7 +182865,7 @@
         "owner": "collaboration",
         "title": "collaboration TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -182861,22 +182876,22 @@
         "resources": [
           "owner:collaboration"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n59",
-          "claimedAt": "2026-11-24T14:55:42.154Z",
-          "heartbeatAt": "2026-11-24T14:55:42.154Z",
-          "expiresAt": "2026-11-24T15:25:42.154Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: lease expired; same operator resumes with reviewed WIP",
         "nextAction": "NOT EXISTS source rows pair (-1): 356->355. BEFORE=356.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n59",
+          "at": "2026-11-24T15:07:42.843Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "nextAction": "NOT EXISTS source rows pair (-1): 356->355. BEFORE=356."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -182885,7 +182900,7 @@
         "owner": "assets",
         "title": "assets TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -182896,22 +182911,22 @@
         "resources": [
           "owner:assets"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n60",
-          "claimedAt": "2026-11-24T14:55:55.056Z",
-          "heartbeatAt": "2026-11-24T14:55:55.056Z",
-          "expiresAt": "2026-11-24T15:25:55.056Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: lease expired; same operator resumes with reviewed WIP",
         "nextAction": "Finance link head (-1), metric breakdown head (-1), node label inner head (-1): 10->7. BEFORE=10.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n60",
+          "at": "2026-11-24T15:07:42.843Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "nextAction": "Finance link head (-1), metric breakdown head (-1), node label inner head (-1): 10->7. BEFORE=10."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -182920,7 +182935,7 @@
         "owner": "pms",
         "title": "pms TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -182931,22 +182946,22 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n61",
-          "claimedAt": "2026-11-24T14:57:53.805Z",
-          "heartbeatAt": "2026-11-24T14:57:53.805Z",
-          "expiresAt": "2026-11-24T15:27:53.805Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: lease expired; same operator resumes with reviewed WIP",
         "nextAction": "Reservation relation arm union (-3), chosen kind point heads (-2), record+property join anchor (-1): 292->286. BEFORE=292.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n61",
+          "at": "2026-11-24T15:07:42.843Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "nextAction": "Reservation relation arm union (-3), chosen kind point heads (-2), record+property join anchor (-1): 292->286. BEFORE=292."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -182955,7 +182970,7 @@
         "owner": "crm",
         "title": "crm TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -182966,22 +182981,22 @@
         "resources": [
           "owner:crm"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n62",
-          "claimedAt": "2026-11-24T14:58:06.691Z",
-          "heartbeatAt": "2026-11-24T14:58:06.691Z",
-          "expiresAt": "2026-11-24T15:28:06.691Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: lease expired; same operator resumes with reviewed WIP",
         "nextAction": "Ordered-list tail reuse (-3), opportunity-lead join anchor (-1): 95->91. BEFORE=95.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n62",
+          "at": "2026-11-24T15:07:42.843Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "nextAction": "Ordered-list tail reuse (-3), opportunity-lead join anchor (-1): 95->91. BEFORE=95."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -182990,7 +183005,7 @@
         "owner": "identity_access",
         "title": "identity_access TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183001,22 +183016,22 @@
         "resources": [
           "owner:identity_access"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n63",
-          "claimedAt": "2026-11-24T14:58:19.597Z",
-          "heartbeatAt": "2026-11-24T14:58:19.597Z",
-          "expiresAt": "2026-11-24T15:28:19.597Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: lease expired; same operator resumes with reviewed WIP",
         "nextAction": "Workflow role node probes (-3), iam service node subquery (-2), iam member version probe (-4): 468->459. BEFORE=468.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n63",
+          "at": "2026-11-24T15:07:42.843Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "nextAction": "Workflow role node probes (-3), iam service node subquery (-2), iam member version probe (-4): 468->459. BEFORE=468."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -183025,7 +183040,7 @@
         "owner": "organization",
         "title": "organization TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183036,22 +183051,22 @@
         "resources": [
           "owner:organization"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n64",
-          "claimedAt": "2026-11-24T14:58:32.534Z",
-          "heartbeatAt": "2026-11-24T14:58:32.534Z",
-          "expiresAt": "2026-11-24T15:28:32.534Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: lease expired; same operator resumes with reviewed WIP",
         "nextAction": "Node existence branch guard (-2), active position lookup (-2): 234->230. BEFORE=234.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n64",
+          "at": "2026-11-24T15:07:42.843Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "nextAction": "Node existence branch guard (-2), active position lookup (-2): 234->230. BEFORE=234."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -183060,7 +183075,7 @@
         "owner": "legal",
         "title": "legal TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183072,22 +183087,22 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n65",
-          "claimedAt": "2026-11-24T14:58:45.452Z",
-          "heartbeatAt": "2026-11-24T14:58:45.452Z",
-          "expiresAt": "2026-11-24T15:28:45.452Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: lease expired; same operator resumes with reviewed WIP",
         "nextAction": "Law point guard family (-6), hold spine (-2 safe), counsel entry reads (-2): 163->153. BEFORE=163.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n65",
+          "at": "2026-11-24T15:07:42.843Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "nextAction": "Law point guard family (-6), hold spine (-2 safe), counsel entry reads (-2): 163->153. BEFORE=163."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -183096,7 +183111,7 @@
         "owner": "support",
         "title": "support TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183108,22 +183123,22 @@
         "resources": [
           "owner:support"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n66",
-          "claimedAt": "2026-11-24T14:58:58.406Z",
-          "heartbeatAt": "2026-11-24T14:58:58.406Z",
-          "expiresAt": "2026-11-24T15:28:58.406Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: lease expired; same operator resumes with reviewed WIP",
         "nextAction": "Service-team members named native kind, registry 38->39: 42->41. BEFORE=42.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n66",
+          "at": "2026-11-24T15:07:42.843Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "nextAction": "Service-team members named native kind, registry 38->39: 42->41. BEFORE=42."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -183132,7 +183147,7 @@
         "owner": "operations",
         "title": "operations TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183143,22 +183158,22 @@
         "resources": [
           "owner:operations"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n67",
-          "claimedAt": "2026-11-24T14:59:11.312Z",
-          "heartbeatAt": "2026-11-24T14:59:11.312Z",
-          "expiresAt": "2026-11-24T15:29:11.313Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: lease expired; same operator resumes with reviewed WIP",
         "nextAction": "Table exists extras (-3): 89->86. BEFORE=89.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n67",
+          "at": "2026-11-24T15:07:42.843Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
+          "nextAction": "Table exists extras (-3): 89->86. BEFORE=89."
+        },
         "scopeRefinementRequired": false
       }
     ],
@@ -183172,17 +183187,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 17,
+        "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1421,
+        "blocked": 1438,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:59:11.317Z",
+    "lastCoordinatorGeneration": 170,
+    "updatedAt": "2026-11-24T15:07:43.546Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -183217,10 +183232,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261124-b",
-      "runId": "run-20261124-c",
-      "at": "2026-11-24T11:32:49.940Z",
-      "reason": "Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
+      "previousRunId": "run-20261124-c",
+      "runId": "run-20261124-d",
+      "at": "2026-11-24T15:07:42.844Z",
+      "reason": "lease expired; same operator resumes with reviewed WIP",
       "wipReviewed": true,
       "previousRunStopped": true
     },
