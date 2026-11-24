@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7788,
+    "revision": 7796,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -130415,7 +130415,7 @@
         "owner": "organization",
         "title": "organization TS read tail native cutover (r8)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -130427,22 +130427,42 @@
         "resources": [
           "owner:organization"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG26org",
-          "claimedAt": "2026-11-24T00:47:25.674Z",
-          "heartbeatAt": "2026-11-24T01:07:51.653Z",
-          "expiresAt": "2026-11-24T01:37:51.653Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-organization/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "8d64a2aea",
+            "owner": "organization",
+            "before": 396,
+            "after": 395,
+            "note": "Collaboration home and beta management share ORG_ACTIVE_BRANCHES_SOURCE; EXISTS predicates untouched."
+          },
+          {
+            "command": "cargo check -p erpx-server-organization",
+            "result": "passed",
+            "sourceSha": "8d64a2aea"
+          },
+          {
+            "command": "vitest organization native tail (12) + tsc organization",
+            "result": "passed",
+            "sourceSha": "8d64a2aea"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or use an existing native read; record a strictly lower spaced count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG26org",
+          "at": "2026-11-24T01:10:40.534Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -130563,7 +130583,7 @@
         "owner": "identity_access",
         "title": "identity_access TS read tail native cutover (r5)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -130575,22 +130595,42 @@
         "resources": [
           "owner:identity_access"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG29ida",
-          "claimedAt": "2026-11-24T00:47:26.520Z",
-          "heartbeatAt": "2026-11-24T01:07:51.653Z",
-          "expiresAt": "2026-11-24T01:37:51.653Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "8d64a2aea",
+            "owner": "identity_access",
+            "before": 588,
+            "after": 586,
+            "note": "roleAllowsSql and samePersonSql shared by calendar/collaboration/legal probes; shape-tested files untouched."
+          },
+          {
+            "command": "cargo check -p erpx-server-identity-access",
+            "result": "passed",
+            "sourceSha": "8d64a2aea"
+          },
+          {
+            "command": "vitest identity services (26) + tsc identity_access",
+            "result": "passed",
+            "sourceSha": "8d64a2aea"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or use an existing native read; record a strictly lower spaced count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG29ida",
+          "at": "2026-11-24T01:10:40.867Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -131829,6 +131869,78 @@
         "nextAction": "TS-only dedupe if available; if none safe, report blocked with evidence. BEFORE=2266.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.organization.read-tail-r9",
+        "goalId": "G4",
+        "owner": "organization",
+        "title": "organization TS read tail native cutover (r9)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-organization/src/**",
+          "tests/unit/organization/**",
+          "tests/integration/organization/**"
+        ],
+        "resources": [
+          "owner:organization"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG62org",
+          "claimedAt": "2026-11-24T01:10:41.052Z",
+          "heartbeatAt": "2026-11-24T01:10:41.052Z",
+          "expiresAt": "2026-11-24T01:40:41.052Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "TS-only dedupe if available; if none safe, report blocked with evidence. BEFORE=395.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.identity_access.read-tail-r6",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "title": "identity_access TS read tail native cutover (r6)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG63ida",
+          "claimedAt": "2026-11-24T01:10:41.261Z",
+          "heartbeatAt": "2026-11-24T01:10:41.261Z",
+          "expiresAt": "2026-11-24T01:40:41.261Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "TS-only dedupe if available; if none safe, report blocked with evidence. BEFORE=586.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -131837,7 +131949,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 780,
+      "totalPackets": 782,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -131845,13 +131957,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 402,
+        "blocked": 404,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:10:25.897Z",
+    "updatedAt": "2026-11-24T01:10:41.265Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
