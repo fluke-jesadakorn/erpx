@@ -27,6 +27,7 @@ export const SUPPORT_RD_INCIDENT_EVENT_HISTORY = 'support_rd_incident_event_hist
 export const SUPPORT_RD_TICKET_INCIDENT_LINKS = 'support_rd_ticket_incident_links';
 export const SUPPORT_RD_INCIDENT_TICKET_LINKS = 'support_rd_incident_ticket_links';
 export const SUPPORT_RD_INCIDENT_TICKET_CANDIDATES = 'support_rd_incident_ticket_candidates';
+export const SUPPORT_RD_SLA_WORKSPACE_TICKETS = 'support_rd_sla_workspace_tickets';
 export const SUPPORT_RD_TICKET_SOURCE_IMAGE = 'support_rd_ticket_source_image';
 export const SUPPORT_RD_TICKET_ATTACHMENT_SOURCE_IMAGE = 'support_rd_ticket_attachment_source_image';
 export const SUPPORT_RD_ATTACHMENT_MIGRATION_SCOPE = 'support_rd_attachment_migration_scope';

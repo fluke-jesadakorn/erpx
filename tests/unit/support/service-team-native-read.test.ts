@@ -353,6 +353,37 @@ describe('support service-team coverage native read', () => {
     expect(adapter).toContain('SUPPORT_RD_INCIDENT_TICKET_CANDIDATES');
   });
 
+  it('carries no retired SLA workspace ticket SQL in the switched adapter', async () => {
+    const adapter = await source('packages/server-support/src/adapters/support-sla.ts');
+    expect(adapter).not.toContain('sla_policy_version,sla_clock_json FROM support_tickets');
+    expect(adapter).toContain('SUPPORT_RD_SLA_WORKSPACE_TICKETS');
+  });
+
+  it('plans the SLA workspace ticket read in Rust with owner-scoped binds', async () => {
+    const values = ['company', 'branch-1', 'branch-1', null, null];
+    const batch = vi.fn(async () => [{ results: [{ id: 'ticket-1', status: 'open', sla_clock_json: '{}' }], success: true, meta: { changes: 0, duration: 0 } }]);
+    const db = { prepare: vi.fn(() => ({ bind: vi.fn() })), batch } as unknown as SqlDatabase;
+    process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockImplementation(async () =>
+      ok('SELECT id,title,status,owner_id,sla_policy_id,sla_policy_version,sla_clock_json FROM support_tickets WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?) AND sla_clock_json IS NOT NULL AND status NOT IN (\'closed\',\'cancelled\') ORDER BY updated_at DESC,id', values),
+    );
+    try {
+      const { nativeSupportReadAll, SUPPORT_RD_SLA_WORKSPACE_TICKETS } =
+        await import('@erpx/server-support/adapters/native-support-read');
+      await expect(nativeSupportReadAll<{ id: string }>(SUPPORT_RD_SLA_WORKSPACE_TICKETS, values, db)
+        .then((result: { results: unknown[] }) => result.results)).resolves.toEqual([{ id: 'ticket-1', status: 'open', sla_clock_json: '{}' }]);
+      const call = fetchMock.mock.calls[0]!;
+      expect(String(call[0])).toContain('/support/command-plan');
+      expect(JSON.parse(String(call[1]!.body))).toMatchObject({
+        kind: 'support_rd_sla_workspace_tickets',
+        values,
+      });
+    } finally {
+      fetchMock.mockRestore();
+      delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
+    }
+  });
+
   it('plans the incident ticket candidate read in Rust with owner-scoped binds', async () => {
     const values = ['company', 'branch-1', null, 'incident-1'];
     const batch = vi.fn(async () => [{ results: [{ id: 'ticket-1', title: 'Ticket', version: 3 }], success: true, meta: { changes: 0, duration: 0 } }]);

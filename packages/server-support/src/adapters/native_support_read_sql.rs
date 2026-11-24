@@ -16,7 +16,8 @@
 //! the service-team option reads on `service_teams`, `service_team_revisions`,
 //! `service_team_members` and `service_team_coverage`. It also plans the
 //! incident-detail ticket candidate read on `support_tickets` and
-//! `support_incident_tickets`.
+//! `support_incident_tickets`, and the SLA workspace active-ticket read on
+//! `support_tickets`.
 //! Reads carry no receipt/audit/outbox ledger: the caller executes them on the
 //! same unit as the surrounding command. No SQL is ever accepted from the wire
 //! and no TypeScript SQL remains for these kinds.
@@ -147,6 +148,18 @@ const READ_INCIDENT_TICKET_CANDIDATES: NativeSupportReadStatement = NativeSuppor
     bind_count: 4,
 };
 
+/// Native successor of the TypeScript `supportSlaWorkspace` active-ticket read.
+/// The caller binds `[company_id, branch_id, branch_id, department_id, department_id]`
+/// and receives the scoped tickets carrying a live SLA clock.
+pub const RD_SLA_WORKSPACE_TICKETS: &str = "support_rd_sla_workspace_tickets";
+const SQL_SLA_WORKSPACE_TICKETS: &str =
+    "SELECT id,title,status,owner_id,sla_policy_id,sla_policy_version,sla_clock_json FROM support_tickets WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?) AND sla_clock_json IS NOT NULL AND status NOT IN ('closed','cancelled') ORDER BY updated_at DESC,id";
+const READ_SLA_WORKSPACE_TICKETS: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_SLA_WORKSPACE_TICKETS,
+    sql: SQL_SLA_WORKSPACE_TICKETS,
+    bind_count: 5,
+};
+
 /// Native successor of the TypeScript portal-preview ticket source image read.
 /// The caller binds `[ticket_id, company_id]` and receives the owned snapshot
 /// used as the before/after consistency witness.
@@ -234,6 +247,7 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_TICKET_INCIDENT_LINKS,
     READ_INCIDENT_TICKET_LINKS,
     READ_INCIDENT_TICKET_CANDIDATES,
+    READ_SLA_WORKSPACE_TICKETS,
     READ_TICKET_SOURCE_IMAGE,
     READ_TICKET_ATTACHMENT_SOURCE_IMAGE,
     READ_ATTACHMENT_MIGRATION_SCOPE,
@@ -305,6 +319,11 @@ mod tests {
                 SQL_INCIDENT_TICKET_CANDIDATES,
                 4usize,
             ),
+            (
+                RD_SLA_WORKSPACE_TICKETS,
+                SQL_SLA_WORKSPACE_TICKETS,
+                5usize,
+            ),
             (RD_TICKET_SOURCE_IMAGE, SQL_TICKET_SOURCE_IMAGE, 2usize),
             (
                 RD_TICKET_ATTACHMENT_SOURCE_IMAGE,
@@ -354,7 +373,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 17);
+        assert_eq!(STATEMENTS.len(), 18);
     }
 
     #[test]
@@ -381,6 +400,8 @@ mod tests {
         assert_eq!(incident_links.bind_count, 1);
         let candidates = read_statement(RD_INCIDENT_TICKET_CANDIDATES).expect("incident ticket candidates");
         assert_eq!(candidates.bind_count, 4);
+        let sla_tickets = read_statement(RD_SLA_WORKSPACE_TICKETS).expect("SLA workspace tickets");
+        assert_eq!(sla_tickets.bind_count, 5);
         let source_image = read_statement(RD_TICKET_SOURCE_IMAGE).expect("ticket source image");
         assert_eq!(source_image.bind_count, 2);
         let attachment_image = read_statement(RD_TICKET_ATTACHMENT_SOURCE_IMAGE).expect("ticket attachment source image");
