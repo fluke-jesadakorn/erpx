@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8543,
+    "revision": 8548,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-i",
       "agentId": "lead",
       "startedAt": "2026-11-23T23:30:50.417Z",
-      "heartbeatAt": "2026-11-24T02:21:45.586Z",
-      "expiresAt": "2026-11-24T02:51:45.586Z",
+      "heartbeatAt": "2026-11-24T02:27:42.633Z",
+      "expiresAt": "2026-11-24T02:57:42.633Z",
       "generation": 161,
       "tokenHash": "4c60dbc998ba46df6b718204f233e00955f8d69b4718231f3de8aa14087ea5df"
     },
@@ -114324,8 +114324,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGC9sup",
           "claimedAt": "2026-11-24T02:22:56.338Z",
-          "heartbeatAt": "2026-11-24T02:22:56.338Z",
-          "expiresAt": "2026-11-24T02:52:56.338Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -116309,8 +116309,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGB2eco",
           "claimedAt": "2026-11-24T01:41:21.142Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -135170,8 +135170,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGABcrm",
           "claimedAt": "2026-11-24T01:33:34.222Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -136535,8 +136535,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGB6pro",
           "claimedAt": "2026-11-24T01:42:43.576Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -136836,8 +136836,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGBRrec",
           "claimedAt": "2026-11-24T01:49:57.123Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -136872,8 +136872,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGBScus",
           "claimedAt": "2026-11-24T01:49:57.303Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -138563,8 +138563,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGCobra",
           "claimedAt": "2026-11-24T01:58:53.617Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -140081,8 +140081,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGCilea",
           "claimedAt": "2026-11-24T02:11:51.223Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -140475,8 +140475,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGCrwp",
           "claimedAt": "2026-11-24T02:15:55.989Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -140511,8 +140511,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGCspad",
           "claimedAt": "2026-11-24T02:15:56.347Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -140547,8 +140547,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGCtqua",
           "claimedAt": "2026-11-24T02:15:56.867Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -140583,8 +140583,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGCurun",
           "claimedAt": "2026-11-24T02:16:17.564Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -140619,8 +140619,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGCvtal",
           "claimedAt": "2026-11-24T02:16:18.014Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -140655,8 +140655,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGCwas",
           "claimedAt": "2026-11-24T02:16:18.579Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -140743,8 +140743,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGCybil",
           "claimedAt": "2026-11-24T02:21:12.155Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -140779,8 +140779,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGCzinv",
           "claimedAt": "2026-11-24T02:21:13.368Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -140815,8 +140815,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGC0pos",
           "claimedAt": "2026-11-24T02:21:13.911Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -140835,7 +140835,7 @@
         "owner": "commercial",
         "title": "commercial TS read tail native cutover (round 2)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -140847,22 +140847,34 @@
         "resources": [
           "owner:commercial"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGC1com",
-          "claimedAt": "2026-11-24T02:21:30.967Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "commercial byte-identical scan (AST)",
+            "result": "passed",
+            "sourceSha": "d4b569684",
+            "note": "only advisory-lock pair and a UI string; no safe text-only dedupe remains."
+          },
+          {
+            "command": "vitest commercial dedupe (3) + tsc commercial",
+            "result": "passed",
+            "sourceSha": "d4b569684"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: package-grants/purchase-command-boundary/projection byte-identical SELECT groups; advisory lock stays independent. BEFORE=40.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with evidence.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC1com",
+          "at": "2026-11-24T02:28:24.891Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with evidence."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -140938,8 +140950,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGC3man",
           "claimedAt": "2026-11-24T02:22:02.492Z",
-          "heartbeatAt": "2026-11-24T02:22:02.492Z",
-          "expiresAt": "2026-11-24T02:52:02.492Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -140974,8 +140986,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGC4leg",
           "claimedAt": "2026-11-24T02:22:28.242Z",
-          "heartbeatAt": "2026-11-24T02:22:28.242Z",
-          "expiresAt": "2026-11-24T02:52:28.242Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -141010,8 +141022,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGC5pln",
           "claimedAt": "2026-11-24T02:22:28.708Z",
-          "heartbeatAt": "2026-11-24T02:22:28.708Z",
-          "expiresAt": "2026-11-24T02:52:28.708Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -141046,8 +141058,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGC8mar",
           "claimedAt": "2026-11-24T02:22:55.743Z",
-          "heartbeatAt": "2026-11-24T02:22:55.743Z",
-          "expiresAt": "2026-11-24T02:52:55.743Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -141082,8 +141094,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGCCsal",
           "claimedAt": "2026-11-24T02:23:17.696Z",
-          "heartbeatAt": "2026-11-24T02:23:17.696Z",
-          "expiresAt": "2026-11-24T02:53:17.696Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -141118,8 +141130,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGCDwor",
           "claimedAt": "2026-11-24T02:23:18.296Z",
-          "heartbeatAt": "2026-11-24T02:23:18.296Z",
-          "expiresAt": "2026-11-24T02:53:18.296Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -141154,8 +141166,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGCEage",
           "claimedAt": "2026-11-24T02:23:39.286Z",
-          "heartbeatAt": "2026-11-24T02:23:39.286Z",
-          "expiresAt": "2026-11-24T02:53:39.286Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -141190,8 +141202,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGCFcua",
           "claimedAt": "2026-11-24T02:23:39.828Z",
-          "heartbeatAt": "2026-11-24T02:23:39.828Z",
-          "expiresAt": "2026-11-24T02:53:39.828Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -141226,8 +141238,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGCGida",
           "claimedAt": "2026-11-24T02:24:58.588Z",
-          "heartbeatAt": "2026-11-24T02:24:58.588Z",
-          "expiresAt": "2026-11-24T02:54:58.588Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -141262,8 +141274,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGCHpms",
           "claimedAt": "2026-11-24T02:24:59.093Z",
-          "heartbeatAt": "2026-11-24T02:24:59.093Z",
-          "expiresAt": "2026-11-24T02:54:59.093Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -141298,8 +141310,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGCI_fil",
           "claimedAt": "2026-11-24T02:25:35.863Z",
-          "heartbeatAt": "2026-11-24T02:25:35.863Z",
-          "expiresAt": "2026-11-24T02:55:35.864Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -141334,8 +141346,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGCJcom",
           "claimedAt": "2026-11-24T02:27:06.140Z",
-          "heartbeatAt": "2026-11-24T02:27:06.140Z",
-          "expiresAt": "2026-11-24T02:57:06.140Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -141370,8 +141382,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGCKope",
           "claimedAt": "2026-11-24T02:27:06.467Z",
-          "heartbeatAt": "2026-11-24T02:27:06.467Z",
-          "expiresAt": "2026-11-24T02:57:06.467Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -141406,8 +141418,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGCLben",
           "claimedAt": "2026-11-24T02:27:06.762Z",
-          "heartbeatAt": "2026-11-24T02:27:06.762Z",
-          "expiresAt": "2026-11-24T02:57:06.762Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -141442,8 +141454,8 @@
           "runId": "run-20261123-i",
           "agentId": "wGCMfin",
           "claimedAt": "2026-11-24T02:27:34.553Z",
-          "heartbeatAt": "2026-11-24T02:27:34.553Z",
-          "expiresAt": "2026-11-24T02:57:34.553Z",
+          "heartbeatAt": "2026-11-24T02:27:42.633Z",
+          "expiresAt": "2026-11-24T02:57:42.633Z",
           "generation": 161
         },
         "baseSha": null,
@@ -141455,6 +141467,42 @@
         "nextAction": "Next: remaining repeated groups in finance.ts/document-purchases/tax-register; byte-identical text only. BEFORE=2190.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.commercial.read-ports",
+        "goalId": "G4",
+        "owner": "commercial",
+        "title": "commercial native read ports",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-commercial/src/**",
+          "tests/unit/commercial/**",
+          "tests/integration/commercial/**"
+        ],
+        "resources": [
+          "owner:commercial"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCNcom",
+          "claimedAt": "2026-11-24T02:28:25.254Z",
+          "heartbeatAt": "2026-11-24T02:28:25.254Z",
+          "expiresAt": "2026-11-24T02:58:25.254Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Build owner-local native read ports for package-grants/purchase-command-boundary/projection reads (40 TS SELECTs), PG parity tests; no composition or TS deletion yet.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -141463,7 +141511,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 960,
+      "totalPackets": 961,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -141471,13 +141519,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 582,
+        "blocked": 583,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:27:34.561Z",
+    "updatedAt": "2026-11-24T02:28:25.264Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
