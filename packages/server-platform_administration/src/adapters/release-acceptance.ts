@@ -5,7 +5,7 @@ import "server-only";
 import {createHash} from "node:crypto";
 import artifact from "@erpx/catalogue/release-artifact.json";
 import {productionScope,legalProductionScope,type ReleaseScopeVersion} from "@erpx/catalogue/production-scope";
-import { nativeOwnerWrite } from "./native-owner-write";
+import { nativeOwnerWrite, NATIVE_OWNER_WRITE_NOOP_SQL } from "./native-owner-write";
 import {samePerson} from "@erpx/feature-identity_access/lib/iam";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
@@ -25,7 +25,7 @@ import { nativeReleaseEvents } from '@erpx/server-collaboration/adapters/native-
 
 async function inputsGuard(db: SqlDatabase, actor: WorkContext, key: string, revision: number, setupVersion: number, scope: ReleaseScopeVersion) {
   return [
-    await nativeOwnerWrite(scope===legalProductionScope.version?'pl_legal_release_revision_init':'pl_release_revision_init',[actor.companyId],`pl-revision:${key}:${scope}`,{companyId:actor.companyId},()=>db.prepare("SELECT 1")),
+    await nativeOwnerWrite(scope===legalProductionScope.version?'pl_legal_release_revision_init':'pl_release_revision_init',[actor.companyId],`pl-revision:${key}:${scope}`,{companyId:actor.companyId},()=>db.prepare(NATIVE_OWNER_WRITE_NOOP_SQL)),
     db.prepare(`SELECT revision FROM ${releaseRevisionTable(scope)} WHERE company_id=? FOR SHARE`).bind(actor.companyId),
     assertion(db, key, 'release-configuration', `EXISTS(SELECT 1 FROM ${releaseRevisionTable(scope)} WHERE company_id=? AND revision=?)`, [actor.companyId, revision]),
     assertion(db, key, 'release-setup', `EXISTS(SELECT 1 FROM (${organizationPlatformSources.company_business_acceptance}) company_business_acceptance WHERE company_id=? AND status='accepted' AND version=?)`, [actor.companyId, setupVersion]),
@@ -59,7 +59,7 @@ function repository(db:SqlDatabase,companyId:string,work?:WorkContext):ReleaseRe
     await nativeOwnerWrite('pl_release_acceptance_insert',[
       id,actor.companyId,input.scopeVersion,input.softwareVersion,current.configurationRevision,
       current.setupVersion,digest,evidence,actor.userId,input.reason,now,now,
-    ],key,{companyId:actor.companyId,now},()=>db.prepare("SELECT 1")),
+    ],key,{companyId:actor.companyId,now},()=>db.prepare(NATIVE_OWNER_WRITE_NOOP_SQL)),
     await nativeReleaseEvents(db).submitted({ key, companyId: actor.companyId, releaseId: id, version: 1, userId: actor.userId, detail: JSON.stringify({ reason: input.reason, evidenceSha256: digest }), now }),
   ]);},
  review:async(command,row,facts)=>{const {key,operation,id,input}=command,{inputs,scope,version,now}=facts,a=workActor(),actor=a,criterion={permission:facts.permission};return executeCommand(db, actor, key, operation, input, id, version, { id, version, criterionId: input.criterionId, state: input.state }, [
@@ -71,15 +71,15 @@ function repository(db:SqlDatabase,companyId:string,work?:WorkContext):ReleaseRe
     assertion(db, key, 'release-independent', 'NOT iam_same_person(?,?,?)', [actor.userId, row.requested_by, actor.companyId]),
     await nativeOwnerWrite('pl_release_gate_review_upsert',[
       actor.companyId,id,input.criterionId,input.state,actor.userId,actor.assignmentId,criterion.permission,input.reason,now,
-    ],key,{companyId:actor.companyId,now},()=>db.prepare("SELECT 1")),
-    await nativeOwnerWrite('pl_release_version_step',[version,now,actor.companyId,id],`pl-version:${key}`,{companyId:actor.companyId,now},()=>db.prepare("SELECT 1")),
+    ],key,{companyId:actor.companyId,now},()=>db.prepare(NATIVE_OWNER_WRITE_NOOP_SQL)),
+    await nativeOwnerWrite('pl_release_version_step',[version,now,actor.companyId,id],`pl-version:${key}`,{companyId:actor.companyId,now},()=>db.prepare(NATIVE_OWNER_WRITE_NOOP_SQL)),
     await nativeReleaseEvents(db).reviewed({ key, companyId: actor.companyId, releaseId: id, version, userId: actor.userId, detail: JSON.stringify(input), now }),
   ]);},
  revoke:async(command,facts)=>{const {key,operation,id,input}=command,{version,now}=facts,a=workActor(),actor=a;return executeCommand(db, actor, key, operation, input, id, version, { id, version, state: 'pending' as const }, [
     authorityGuard(db, key, actor, 'organization.manage'),
     db.prepare('SELECT id FROM company_release_acceptances WHERE company_id=? AND id=? FOR UPDATE').bind(actor.companyId, id),
     assertion(db, key, 'release-version', 'EXISTS(SELECT 1 FROM company_release_acceptances WHERE company_id=? AND id=? AND version=? AND revoked_at IS NULL)', [actor.companyId, id, input.expectedVersion]),
-    await nativeOwnerWrite('pl_release_revoke',[now,version,now,actor.companyId,id],`pl-revoke:${key}`,{companyId:actor.companyId,now},()=>db.prepare("SELECT 1")),
+    await nativeOwnerWrite('pl_release_revoke',[now,version,now,actor.companyId,id],`pl-revoke:${key}`,{companyId:actor.companyId,now},()=>db.prepare(NATIVE_OWNER_WRITE_NOOP_SQL)),
     await nativeReleaseEvents(db).revoked({ key, companyId: actor.companyId, releaseId: id, version, userId: actor.userId, detail: JSON.stringify(input), now }),
   ]);},
  evidenceRow:id=>db.prepare('SELECT version,revoked_at FROM company_release_acceptances WHERE company_id=? AND id=?').bind(companyId,id).first<{version:number;revoked_at:number|null}>(),
@@ -91,7 +91,7 @@ function repository(db:SqlDatabase,companyId:string,work?:WorkContext):ReleaseRe
   authorityGuard(db,key,actor,'organization.manage'),
   assertion(db,key,'release-evidence-current','EXISTS(SELECT 1 FROM company_release_acceptances WHERE company_id=? AND id=? AND version=? AND revoked_at IS NULL)',[actor.companyId,id,input.expectedVersion]),
   ...prepared.guards,
-  await nativeOwnerWrite('pl_release_version_step',[version,now,actor.companyId,id],`pl-version:${key}`,{companyId:actor.companyId,now},()=>db.prepare("SELECT 1")),
+  await nativeOwnerWrite('pl_release_version_step',[version,now,actor.companyId,id],`pl-version:${key}`,{companyId:actor.companyId,now},()=>db.prepare(NATIVE_OWNER_WRITE_NOOP_SQL)),
   ...prepared.steps,
  ]) };},
  };}

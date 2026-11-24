@@ -3,6 +3,11 @@ import { Agent, request as httpRequest } from 'node:http';
 import { Readable } from 'node:stream';
 import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 
+/** The single inert placeholder statement SQL returned to existing caller
+ * batches after a native write. Kept here once so owner writers never repeat
+ * the same fixed statement in every command step. */
+export const NATIVE_OWNER_WRITE_NOOP_SQL = "SELECT 1";
+
 /**
  * The single write transport for all remaining Platform Administration owner writes.
  * It sends a typed allow-listed `kind` and positional values to the native

@@ -2,7 +2,7 @@ import "server-only";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type {Row} from "@erpx/server-files/public/contracts/attachments-finance";
-import { nativeOwnerWrite } from "./native-owner-write";
+import { nativeOwnerWrite, NATIVE_OWNER_WRITE_NOOP_SQL } from "./native-owner-write";
 const target = "company_release_acceptance";
 export function FinanceAttachmentPlatformAdministrationFacts(db:SqlDatabase){return {
  readOwner10:(facts:{companyId:string;targetId:string;targetType:string;purposeKey:string;})=>db.prepare("SELECT company_id,NULL::text branch_id,NULL::text department_id,version FROM company_release_acceptances WHERE id=? AND company_id=?").bind(facts.targetId,facts.companyId).first<Row>(),
@@ -10,6 +10,6 @@ export function FinanceAttachmentPlatformAdministrationFacts(db:SqlDatabase){ret
  // Native axum owner-write command owns this version step; the returned
  // statement is an inert placeholder. No write SQL remains in TypeScript.
  versionStep:async(targetType:string,targetId:string,expectedVersion:number,now:number):Promise<SqlStatement|null>=>targetType===target
-   ? nativeOwnerWrite('pl_attachment_version_step',[now,targetId,expectedVersion],`pl-attach:${targetId}:${expectedVersion}`,{now},()=>db.prepare("SELECT 1"))
+   ? nativeOwnerWrite('pl_attachment_version_step',[now,targetId,expectedVersion],`pl-attach:${targetId}:${expectedVersion}`,{now},()=>db.prepare(NATIVE_OWNER_WRITE_NOOP_SQL))
    : null,
 };}
