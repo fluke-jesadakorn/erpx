@@ -18,7 +18,7 @@ import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-fea
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {captureCalendarReminderAuthority} from '@erpx/server-work_projection/adapters/calendar/reminder-authority';
-import {versionById} from '../read-tail-sql';
+import {appointmentProbe,invitedAttendeeSql,versionById} from '../read-tail-sql';
 const actorScopeSql=(where:string)=>`SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope WHERE ${where}`;
 const roleAllowsSql=(permission:string)=>`SELECT iam_role_allows(?,?,'${permission}') allowed`;
 
@@ -71,7 +71,7 @@ async function recordAuthority(database:SqlDatabase,actor:WorkContext,input:Pick
   if(!hasPermission(actor,'calendar.announcements.publish')||!await database.prepare(roleAllowsSql('calendar.announcements.publish')).bind(actor.role,actor.companyId).first<boolean>('allowed'))throw new ApiError(403,'PERMISSION_REQUIRED','The current role cannot publish or manage Calendar announcements.');return;
  }
  if(input.action==='appointment.respond'||input.action==='appointment.reminder.set'){
-  if(!await database.prepare('SELECT 1 FROM calendar_attendees WHERE appointment_id=? AND company_id=? AND user_id=?').bind(id,actor.companyId,actor.userId).first())throw new ApiError(403,'INVITATION_UNAVAILABLE','The original Calendar invitation is unavailable.');return;
+  if(!await database.prepare(invitedAttendeeSql).bind(id,actor.companyId,actor.userId).first())throw new ApiError(403,'INVITATION_UNAVAILABLE','The original Calendar invitation is unavailable.');return;
  }
  const own=row.created_by===actor.userId||!!await database.prepare(`SELECT 1 FROM (${calendarPeopleProjectionSources.people}) person WHERE person.id=? AND person.company_id=? AND iam_same_person(person.user_id,?,person.company_id)`).bind(row.organizer_person_id??null,actor.companyId,actor.userId).first();
  if(!own&&(!hasPermission(actor,'calendar.appointments.manage')||!await database.prepare(roleAllowsSql('calendar.appointments.manage')).bind(actor.role,actor.companyId).first<boolean>('allowed')))throw new ApiError(403,'PERMISSION_REQUIRED','The current role cannot manage this original Calendar appointment.');
@@ -99,7 +99,7 @@ export async function withCalendarPurchasedTransaction<Result>(owner:SqlDatabase
   const resultId=result.id,ids=[...new Set([id,resultId])];
   // The original future split acknowledges the parent, while its actual child
   // keeps the normal calendar-command key identity and an independent version.
-  if(input.action==='appointment.reschedule'&&input.scope==='future'&&input.occurrenceId){const child=`calendar-${key}`;if(!ids.includes(child)&&await database.prepare('SELECT 1 FROM calendar_appointments WHERE id=? AND company_id=?').bind(child,actor.companyId).first())ids.push(child);}
+  if(input.action==='appointment.reschedule'&&input.scope==='future'&&input.occurrenceId){const child=`calendar-${key}`;if(!ids.includes(child)&&await database.prepare(appointmentProbe('1')).bind(child,actor.companyId).first())ids.push(child);}
   const completed=await Promise.all(ids.map(recordId=>image(database,actor.companyId,kind(input),recordId)));
   const queued=receipt?undefined:await captureCalendarReminderAuthority(database,actor,input,key,ids);
   if(await database.prepare(versionById(kind(input)==='appointment'?'calendar_appointments':'calendar_announcements')).bind(resultId,actor.companyId).first<number>('version')!==result.version&&!receipt)throw new ApiError(409,'CALENDAR_SOURCE_CHANGED','The original Calendar acknowledgement no longer matches its source.');
