@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12249,
+    "revision": 12251,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -182075,6 +182075,42 @@
         "nextAction": "Field upload ancestor EXISTS (-1), upload_intents OR EXISTS head (-1), attachments id-AND head (-1): 248->245.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.support.read-tail-r36",
+        "goalId": "G4",
+        "owner": "support",
+        "title": "support portal installed native kind",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n42",
+          "claimedAt": "2026-11-24T14:18:46.842Z",
+          "heartbeatAt": "2026-11-24T14:18:46.842Z",
+          "expiresAt": "2026-11-24T14:48:46.842Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Portal both-tables installed probe native zero-bind kind, registry 37->38: 43->42.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -182083,11 +182119,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1761,
+      "totalPackets": 1762,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 2,
+        "in_progress": 3,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -182097,7 +182133,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:14:46.812Z",
+    "updatedAt": "2026-11-24T14:18:46.847Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
