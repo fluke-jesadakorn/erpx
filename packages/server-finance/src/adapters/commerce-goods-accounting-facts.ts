@@ -1,3 +1,4 @@
+import { ACTIVE_ACCOUNT_CATEGORY_PROBE_SQL } from './finance-read-tail-r40-sql';
 import {financeOwnedSnapshotSources as commerceSnapshotSources} from "@erpx/server-commerce/public/finance-owned-snapshot-sources";
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
@@ -5,7 +6,7 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type {Row} from "@erpx/server-commerce/public/commerce-contracts";
 import { ACTIVE_ACCOUNT_CHART_ID_SQL } from './finance-read-tail-r34-sql';
 export function CommerceGoodsFinanceFacts(db:SqlDatabase){return {
-readFinanceAccounts1:(facts:{id:string;companyId:string;chartId:string;currency:string;category:"other_income" | "other_expense";})=>db.prepare("SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category=? AND status='active'").bind(facts.id,facts.companyId,facts.chartId,facts.currency,facts.category).first(),
+readFinanceAccounts1:(facts:{id:string;companyId:string;chartId:string;currency:string;category:"other_income" | "other_expense";})=>db.prepare(ACTIVE_ACCOUNT_CATEGORY_PROBE_SQL).bind(facts.id,facts.companyId,facts.chartId,facts.currency,facts.category).first(),
 readFinanceAccounts2:(facts:{debit_account_id:string | number | null;companyId:string;})=>db.prepare(ACTIVE_ACCOUNT_CHART_ID_SQL).bind(facts.debit_account_id,facts.companyId).first<{chart_id:string}>(),
 readFinanceJournalLines1:(facts:{debit_account_id:string | number | null;debit_account_id2:string | number | null;id:string | number | null;companyId:string;chartId:string;branchId:string | null;branchId2:string | null;departmentId:string | null;departmentId2:string | null;})=>db.prepare(`SELECT f.id,f.version,j.id journal_id,j.version journal_version,j.currency,j.fx_rate_micros,
       c.base_currency,o.currency document_currency,fl.id line_id,fl.quantity_milli,fl.value_minor,fl.subtotal_minor,fl.tax_minor,fl.stock_currency,

@@ -1,3 +1,4 @@
+import { ASSIGNMENT_VERSION_SQL } from './finance-read-tail-r40-sql';
 import "server-only";
 import {materializedClockCteSql} from './finance-read-tail-r19-sql';
 import { readPurchasedAccesses } from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -34,7 +35,7 @@ export async function financeProductLegalSetupEntry(scope: LegalSetupScope) {
 
 async function strictLegalSetupScope(actor:WorkContext,captured?:LegalSetupScope):Promise<LegalSetupScope>{
  const database=(await holdingResources(actor.holdingId)).write;await requireFinanceCurrentAuthority(database,actor,`finance-legal-product:${crypto.randomUUID()}`);
- const version=captured?.assignmentVersion??actor.authority?.assignmentVersion??actor.iam?.queuedAssignmentVersion??await database.prepare("SELECT version FROM assignments WHERE id=? AND user_id=? AND company_id=? AND role=?").bind(actor.assignmentId,actor.userId,actor.companyId,actor.role).first<number>("version");
+ const version=captured?.assignmentVersion??actor.authority?.assignmentVersion??actor.iam?.queuedAssignmentVersion??await database.prepare(ASSIGNMENT_VERSION_SQL).bind(actor.assignmentId,actor.userId,actor.companyId,actor.role).first<number>("version");
  const scope=captured??{...actor,assignmentVersion:version??0};if(!await financeProductLegalSetupEntry(scope))throw new ApiError(403,"PACKAGE_REQUIRED","An authorized accounting product or included foundation is required for Company legal setup.");return scope;
 }
 

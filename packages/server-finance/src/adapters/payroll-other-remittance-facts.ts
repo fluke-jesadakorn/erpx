@@ -1,3 +1,4 @@
+import { bookAccountMappingImageSql } from './finance-read-tail-r40-sql';
 import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
@@ -19,7 +20,7 @@ export async function payrollOtherFinanceState(database:SqlDatabase,companyId:st
   rows(database,'SELECT to_jsonb(m)::text image FROM company_currency_scales m WHERE m.company_id=? ORDER BY m.currency',[companyId]),
   rows(database,'SELECT to_jsonb(r)::text image FROM company_fx_rates r WHERE r.company_id=? ORDER BY r.id',[companyId]),
   rows(database,'SELECT to_jsonb(r)::text image FROM finance_book_rules r WHERE r.company_id=? ORDER BY r.id',[companyId]),
-  rows(database,'SELECT to_jsonb(m)::text image FROM finance_book_account_mappings m JOIN finance_book_rules r ON r.id=m.rule_id WHERE r.company_id=? ORDER BY m.rule_id,m.primary_account_id',[companyId]),
+  rows(database,bookAccountMappingImageSql('image'),[companyId]),
   rows(database,`SELECT to_jsonb(r)::text image FROM (${payrollOtherRemittanceTables.remittances}) r WHERE r.company_id=? AND r.run_id=? ORDER BY r.id`,[companyId,source.run.id]),
   database.prepare(`SELECT c.command_id,c.actor_id,c.request_hash,c.result_json,c.authority_json,to_jsonb(s)::text statement,to_jsonb(t)::text movement,(SELECT jsonb_agg(to_jsonb(ignored) ORDER BY ignored.command_id)::text FROM command_receipts ignored WHERE ignored.operation='payroll.liability.bank-evidence.ignore' AND ignored.record_id=t.id AND ignored.authority_json::jsonb->>'companyId'=s.company_id) ignored_receipts FROM command_receipts c JOIN finance_bank_statements s ON s.id=c.record_id AND s.company_id=? JOIN finance_bank_transactions t ON t.statement_id=s.id AND t.company_id=s.company_id WHERE c.operation='finance.bank.import' AND c.authority_json::jsonb->>'companyId'=s.company_id AND c.result_json::jsonb->'${payrollOtherBankMarker}'->>'runId'=? ORDER BY c.command_id,t.id`).bind(companyId,source.run.id).all<{command_id:string;actor_id:string;request_hash:string;result_json:string;authority_json:string;statement:string;movement:string;ignored_receipts:string|null}>(),
  ]);

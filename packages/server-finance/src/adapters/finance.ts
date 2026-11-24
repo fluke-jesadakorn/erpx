@@ -1,3 +1,4 @@
+import { PAYMENT_FULL_ROW_SQL } from './finance-read-tail-r40-sql';
 import { moneySnapshotExistsSql } from './finance-read-tail-r39-sql';
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { ACCOUNT_SELECT_PREFIX, INVOICE_EXISTS_PREFIX, JOURNAL_SELECT_PREFIX } from './finance-read-tail-r30-sql';
@@ -538,7 +539,7 @@ function paymentService(provided?: SqlDatabase) {
                 await nativeFinanceOwnerWrite(write, actor, 'finance_stmt_39', [amount, amount, now, paymentId]),
                 await nativeFinanceOwnerWrite(write, actor, 'finance_stmt_40', [amount, amount, amount, now, input.invoiceId]),
             ]);
-        }, commitExport: async ({ actor, id, input, output }) => saveCommand(await db(actor), actor, id, 'finance.payment.export', input, output, []), reviewPayment: async (facts) => { const { paymentId, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_payments WHERE id=? AND company_id=?").bind(paymentId, actor.companyId).first<FinanceRow>(); },
+        }, commitExport: async ({ actor, id, input, output }) => saveCommand(await db(actor), actor, id, 'finance.payment.export', input, output, []), reviewPayment: async (facts) => { const { paymentId, actor } = facts; const write = await db(actor); return write.prepare(PAYMENT_FULL_ROW_SQL).bind(paymentId, actor.companyId).first<FinanceRow>(); },
         releasedApprovedPayment: async (facts) => { const { paymentId, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_payments WHERE id=? AND company_id=? AND status='approved'").bind(paymentId, actor.companyId).first<FinanceRow>(); },
         confirmationPayment: async (facts) => { const { paymentId, actor } = facts; const write = await db(actor); return write.prepare("SELECT p.*,(SELECT r.result_json::jsonb->>'settlementInvoiceId' FROM command_receipts r WHERE r.record_id=p.id AND r.operation='finance.payment.create' AND r.authority_json::jsonb->>'companyId'=p.company_id ORDER BY r.created_at LIMIT 1) settlement_invoice_id FROM finance_payments p WHERE p.id=? AND p.company_id=?").bind(paymentId, actor.companyId).first<FinanceRow>(); },
         allocationInvoices: async (facts) => { const { ids, actor } = facts; const write = await db(actor); return (await write.prepare(`SELECT * FROM finance_invoices WHERE company_id=? AND id IN (${ids.map(() => "?").join(",")})`).bind(actor.companyId, ...ids).all<FinanceRow>()).results; },

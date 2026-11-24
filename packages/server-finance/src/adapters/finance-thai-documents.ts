@@ -1,3 +1,4 @@
+import { sourcePartyIdSql, sourcePartyStatusSql, thaiDocumentRowsSql } from './finance-read-tail-r40-sql';
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { INVOICE_EXISTS_PREFIX } from './finance-read-tail-r30-sql';
 import { ISSUED_THAI_DOCUMENT_BY_ID_SQL } from './finance-read-tail-r31-sql';
@@ -63,7 +64,7 @@ function documentService(provided?: SqlDatabase) {
                 assertion(write, commandId, "invoice-source", "EXISTS(SELECT 1 FROM finance_invoices i JOIN finance_journals j ON j.id=i.journal_id WHERE i.id=? AND i.company_id=? AND i.version=? AND i.status IN ('posted','partially_paid','paid') AND j.status='posted')", [invoiceId, actor.companyId, input.expectedVersion]),
                 assertion(write, commandId, "single-document", "NOT EXISTS(SELECT 1 FROM finance_issued_thai_documents WHERE invoice_id=? AND document_kind='tax_invoice')", [invoiceId]), ...nativeIssue!.steps,
             ]);
-        }, document: async (facts) => { const { id, actor } = facts; const write = await db(actor); return write.prepare(ISSUED_THAI_DOCUMENT_BY_ID_SQL).bind(id, actor.companyId).first<IssuedDocument>(); }, events: async (facts) => { const { id, actor } = facts; const write = await db(actor); return (await write.prepare("SELECT * FROM finance_thai_document_events WHERE document_id=? AND company_id=? ORDER BY created_at,id").bind(id, actor.companyId).all<FinanceRow>()).results; }, changes: async (facts) => { const { id, actor } = facts; const write = await db(actor); return (await write.prepare("SELECT * FROM finance_thai_document_changes WHERE document_id=? AND company_id=? ORDER BY created_at,id").bind(id, actor.companyId).all<FinanceRow>()).results; }, identities: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT id,party_id,legal_name,tax_id,version FROM finance_tax_identities WHERE company_id=? AND status='approved' ORDER BY legal_name").bind(actor.companyId).all<FinanceRow>()).results; }, sourcePartyId: async (facts) => { const { document, actor } = facts; const write = await db(actor); return write.prepare(document.payment_id ? "SELECT party_id FROM finance_payments WHERE id=? AND company_id=?" : "SELECT party_id FROM finance_invoices WHERE id=? AND company_id=?").bind(document.payment_id ?? document.invoice_id, actor.companyId).first<string>("party_id"); }, exportDocument: async (facts) => {
+        }, document: async (facts) => { const { id, actor } = facts; const write = await db(actor); return write.prepare(ISSUED_THAI_DOCUMENT_BY_ID_SQL).bind(id, actor.companyId).first<IssuedDocument>(); }, events: async (facts) => { const { id, actor } = facts; const write = await db(actor); return (await write.prepare(thaiDocumentRowsSql('finance_thai_document_events')).bind(id, actor.companyId).all<FinanceRow>()).results; }, changes: async (facts) => { const { id, actor } = facts; const write = await db(actor); return (await write.prepare(thaiDocumentRowsSql('finance_thai_document_changes')).bind(id, actor.companyId).all<FinanceRow>()).results; }, identities: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT id,party_id,legal_name,tax_id,version FROM finance_tax_identities WHERE company_id=? AND status='approved' ORDER BY legal_name").bind(actor.companyId).all<FinanceRow>()).results; }, sourcePartyId: async (facts) => { const { document, actor } = facts; const write = await db(actor); return write.prepare(document.payment_id ? sourcePartyIdSql('finance_payments') : sourcePartyIdSql('finance_invoices')).bind(document.payment_id ?? document.invoice_id, actor.companyId).first<string>("party_id"); }, exportDocument: async (facts) => {
             const { id, actor } = facts;
             const write = await db(actor);
             return write.prepare("SELECT export_html,export_sha256,document_number FROM finance_issued_thai_documents WHERE id=? AND company_id=?").bind(id, actor.companyId).first<{
@@ -74,7 +75,7 @@ function documentService(provided?: SqlDatabase) {
         }, originalForChange: async (facts) => { const { documentId, actor } = facts; const write = await db(actor); return write.prepare(ISSUED_THAI_DOCUMENT_BY_ID_SQL).bind(documentId, actor.companyId).first<IssuedDocument>(); }, sourcePartyForChange: async (facts) => {
             const { original, actor } = facts;
             const write = await db(actor);
-            return write.prepare(original.payment_id ? "SELECT party_id FROM finance_payments WHERE id=? AND company_id=?" : "SELECT party_id FROM finance_invoices WHERE id=? AND company_id=?").bind(original.payment_id ?? original.invoice_id, actor.companyId).first<{
+            return write.prepare(original.payment_id ? sourcePartyIdSql('finance_payments') : sourcePartyIdSql('finance_invoices')).bind(original.payment_id ?? original.invoice_id, actor.companyId).first<{
                 party_id: string;
             }>();
         }, commitDocumentChange: async (facts) => {
@@ -88,7 +89,7 @@ function documentService(provided?: SqlDatabase) {
         }, pendingChange: async (facts) => { const { id, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_thai_document_changes WHERE id=? AND company_id=?").bind(id, actor.companyId).first<Record<string, string | number | null>>(); }, originalForDecision: async (facts) => { const { change, actor } = facts; const write = await db(actor); return write.prepare(ISSUED_THAI_DOCUMENT_BY_ID_SQL).bind(change.document_id, actor.companyId).first<IssuedDocument>(); }, financialSourceForDecision: async (facts) => {
             const { original, actor } = facts;
             const write = await db(actor);
-            return write.prepare(original.payment_id ? "SELECT party_id,status FROM finance_payments WHERE id=? AND company_id=?" : "SELECT party_id,status FROM finance_invoices WHERE id=? AND company_id=?").bind(original.payment_id ?? original.invoice_id, actor.companyId).first<{
+            return write.prepare(original.payment_id ? sourcePartyStatusSql('finance_payments') : sourcePartyStatusSql('finance_invoices')).bind(original.payment_id ?? original.invoice_id, actor.companyId).first<{
                 party_id: string;
                 status: string;
             }>();

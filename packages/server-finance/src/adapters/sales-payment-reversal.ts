@@ -1,3 +1,4 @@
+import { commandReceiptReplayProbeSql } from './finance-read-tail-r40-sql';
 import 'server-only';
 import {createHash} from 'node:crypto';
 import {samePerson} from '@erpx/feature-identity_access/lib/iam';
@@ -44,7 +45,7 @@ export async function withSalesReceiptReversal<Result>(actor:WorkContext,payment
  const resolved=await owner.transaction(async database=>{
   await database.batch([...financeSourceDocumentReadLeases(database,actor.companyId,true,'supplier-correction'),database.prepare('LOCK TABLE finance_customer_receipts,finance_periods IN SHARE MODE')]);
   await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);await database.batch(companyPurchaseReadLocks(database,actor.companyId).slice(1));
-  const receipt=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation='finance.payment.reverse' AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(key,actor.userId,actor.companyId).first(),purpose=receipt?'history' as const:'settle-existing' as const;
+  const receipt=await database.prepare(commandReceiptReplayProbeSql('finance.payment.reverse')).bind(key,actor.userId,actor.companyId).first(),purpose=receipt?'history' as const:'settle-existing' as const;
   const access=await readPurchasedAccesses(database,mode,actor.companyId,['finance.banking','finance.sales-posting']);
   if(access['finance.banking'].codes[purpose]==='GRANTED')return {handled:false as const};
   const before=await source(database,actor,paymentId);if(!before)return {handled:false as const};

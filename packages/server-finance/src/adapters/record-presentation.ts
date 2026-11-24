@@ -1,3 +1,4 @@
+import { ASSIGNMENT_VERSION_SQL } from './finance-read-tail-r40-sql';
 import { DIMENSION_VALUES_ACTIVE_SQL } from './finance-read-tail-r38-sql';
 import {posInitialStockJournalMarked} from '@erpx/server-finance/adapters/pos-initial-stock-journal-sources';
 import { DIMENSION_DEFINITIONS_SQL } from './finance-read-tail-r17-sql';
@@ -51,7 +52,7 @@ export async function invoiceRecordWorkspace(actor:WorkContext,id:string){
 export type FinanceProductPresentationOptions={strictProduct?:true};
 async function strictProductRecord(db:SqlDatabase,actor:WorkContext,kind:FinanceDocumentKind,id:string){
  await requireFinanceCurrentAuthority(db,actor,`finance-product-presentation:${crypto.randomUUID()}`);
- const version=actor.authority?.assignmentVersion??actor.iam?.queuedAssignmentVersion??await db.prepare("SELECT version FROM assignments WHERE id=? AND user_id=? AND company_id=? AND role=?").bind(actor.assignmentId,actor.userId,actor.companyId,actor.role).first<number>("version");
+ const version=actor.authority?.assignmentVersion??actor.iam?.queuedAssignmentVersion??await db.prepare(ASSIGNMENT_VERSION_SQL).bind(actor.assignmentId,actor.userId,actor.companyId,actor.role).first<number>("version");
  const record=typeof version==="number"?await financeProductDocumentRecord(db,{companyId:actor.companyId,branchId:actor.branchId,departmentId:actor.departmentId,userId:actor.userId,assignmentId:actor.assignmentId,assignmentVersion:version,role:actor.role},{kind,id}):null;
  if(!record)throw new ApiError(404,"FINANCE_RECORD_NOT_FOUND","The financial source record is unavailable.");
  return record;

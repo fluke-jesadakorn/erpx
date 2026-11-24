@@ -1,3 +1,4 @@
+import { ownedDocumentExistsSql } from './finance-read-tail-r40-sql';
 import {rootOwnerExistsSql, materializedClockCteSql} from './finance-read-tail-r19-sql';
 import { JOURNAL_SELECT_PREFIX } from './finance-read-tail-r30-sql';
 import { COMMAND_RECEIPT_EXISTS_SQL } from './finance-read-tail-r15-sql';
@@ -114,7 +115,7 @@ export async function requireFinanceDocumentHistory(database:SqlDatabase,actor:W
   if(access[capability].codes[purpose]!=="GRANTED"){
     foundationsLoop:for(const foundation of foundations){
       if(access[foundation].codes[purpose]!=="GRANTED")continue;
-      for(const proof of commerceProofs(kind,foundation))if(await database.prepare(`SELECT 1 FROM ${tables[kind]} d WHERE d.id=? AND d.company_id=? AND ${ownerPredicate(kind,foundation,proof)}`).bind(id,actor.companyId).first()){capability=foundation;commerceProof=proof;break foundationsLoop;}
+      for(const proof of commerceProofs(kind,foundation))if(await database.prepare(ownedDocumentExistsSql(tables[kind], ownerPredicate(kind,foundation,proof))).bind(id,actor.companyId).first()){capability=foundation;commerceProof=proof;break foundationsLoop;}
     }
   }
   await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability,purpose});
@@ -145,7 +146,7 @@ export function financeSourceDocumentReadLocks(database:SqlDatabase,companyId:st
  return [...financeSourceDocumentReadLeases(database,companyId,paymentWriter,source),...companyPurchaseReadLocks(database,companyId).slice(1)];
 }
 async function commercePostSource(database:SqlDatabase,actor:WorkContext,kind:FinanceDocumentKind,id:string,capability:string,commerceProof?:CommerceProof){
- return (commercePostCapability(capability)||capability==="assets.parts-costs"&&kind==="journal"||capability==="finance.service-invoice"&&(kind==="journal"||kind==="invoice"))&&!!await database.prepare(`SELECT 1 FROM ${tables[kind]} d WHERE d.id=? AND d.company_id=? AND ${capability==="assets.parts-costs"||capability==="finance.service-invoice"?ownerPredicate(kind,capability):commerceOwnerPredicate(kind,capability,commerceProof)}`).bind(id,actor.companyId).first();
+ return (commercePostCapability(capability)||capability==="assets.parts-costs"&&kind==="journal"||capability==="finance.service-invoice"&&(kind==="journal"||kind==="invoice"))&&!!await database.prepare(ownedDocumentExistsSql(tables[kind], capability==="assets.parts-costs"||capability==="finance.service-invoice"?ownerPredicate(kind,capability):commerceOwnerPredicate(kind,capability,commerceProof))).bind(id,actor.companyId).first();
 }
 /** Only original independent posting commands use these included foundations.
  * Generic document creation/edit/reversal retains its full Finance purchase. */

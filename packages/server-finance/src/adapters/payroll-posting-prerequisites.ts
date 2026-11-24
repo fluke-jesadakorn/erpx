@@ -1,3 +1,4 @@
+import { POSTING_RECEIPT_IMAGE_SQL } from './finance-read-tail-r40-sql';
 import {materializedClockCteSql} from './finance-read-tail-r19-sql';
 import { FINANCE_RECEIPT_IMAGE_SQL } from "./finance-tail-dedupe-sql";
 import { COMMAND_RECEIPT_RECORD_IMAGE_SQL } from './finance-read-tail-r15-sql';
@@ -121,7 +122,7 @@ function createdReferenceMatches(rows:References,kind:Kind,id:string,actor:WorkC
 export async function withPayrollPostingPrerequisiteCommand<Result extends {id:string}>(actor:WorkContext,kind:Kind,request:Request,key:string,run:(database:SqlDatabase)=>Promise<Result>):Promise<Result>{
  const operation=operations[kind],permission=kind==='rate'?'finance.approve':'finance.write';
  try{return await (await owner(actor)).transaction(async database=>{
-  await leases(database,actor.companyId,kind);const current=await authority(database,actor,permission),receipt=await database.prepare("SELECT to_jsonb(r)::text image,r.record_id FROM command_receipts r WHERE r.command_id=? AND r.operation=? AND r.actor_id=? AND r.authority_json::jsonb->>'companyId'=?").bind(key,operation,actor.userId,actor.companyId).first<{image:string;record_id:string}>(),purpose=receipt?'history' as const:'new-work' as const,guard=`payroll-posting-prerequisite:${randomUUID()}`;
+  await leases(database,actor.companyId,kind);const current=await authority(database,actor,permission),receipt=await database.prepare(POSTING_RECEIPT_IMAGE_SQL).bind(key,operation,actor.userId,actor.companyId).first<{image:string;record_id:string}>(),purpose=receipt?'history' as const:'new-work' as const,guard=`payroll-posting-prerequisite:${randomUUID()}`;
   for(const capability of capabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability,purpose});
   const before=await references(database,actor);
   const boundaries=capabilities.map((capability,index)=>({key:`${guard}:${index}`,boundary:purchaseCommandBoundary(database,'enforced',`${guard}:${index}`,{companyId:actor.companyId,capability,purpose})!}));await database.batch(boundaries.flatMap(item=>item.boundary.before));

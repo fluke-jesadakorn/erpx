@@ -84,6 +84,18 @@ import {
   moneySnapshotExistsSql,
   posDailyAccountNetSql,
 } from '../../../packages/server-finance/src/adapters/finance-read-tail-r39-sql';
+import {
+  sourcePartyIdSql,
+  commandReceiptReplayProbeSql,
+  ASSIGNMENT_VERSION_SQL,
+  POSTING_RECEIPT_IMAGE_SQL,
+  ACTIVE_ACCOUNT_CATEGORY_PROBE_SQL,
+  ownedDocumentExistsSql,
+  sourcePartyStatusSql,
+  bookAccountMappingImageSql,
+  thaiDocumentRowsSql,
+  PAYMENT_FULL_ROW_SQL,
+} from '../../../packages/server-finance/src/adapters/finance-read-tail-r40-sql';
 import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/people-payroll-final-owner-projections';
 import { workflowFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/workflow-final-owner-projections';
 import {
@@ -1067,7 +1079,7 @@ describe('finance read-tail r24 byte-identical SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2038);
-    expect(total).toBe(1942);
+    expect(total).toBe(1929);
   });
 });
 
@@ -1238,7 +1250,7 @@ describe('finance read-tail r30 byte-identical guard-prefix families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2027);
-    expect(total).toBe(1942);
+    expect(total).toBe(1929);
   });
 });
 
@@ -1282,7 +1294,7 @@ describe('finance read-tail r31 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1989);
-    expect(total).toBe(1942);
+    expect(total).toBe(1929);
   });
 });
 
@@ -1327,7 +1339,7 @@ describe('finance read-tail r32 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1985);
-    expect(total).toBe(1942);
+    expect(total).toBe(1929);
   });
 });
 
@@ -1372,7 +1384,7 @@ describe('finance read-tail r33 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1983);
-    expect(total).toBe(1942);
+    expect(total).toBe(1929);
   });
 });
 
@@ -1447,7 +1459,7 @@ describe('finance read-tail r34 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1981);
-    expect(total).toBe(1942);
+    expect(total).toBe(1929);
   });
 });
 
@@ -1496,7 +1508,7 @@ describe('finance read-tail r35 parameterized workforce actor scope family', () 
     };
     walk(root);
     expect(total).toBeLessThan(1974);
-    expect(total).toBe(1942);
+    expect(total).toBe(1929);
   });
 });
 
@@ -1571,7 +1583,7 @@ describe('finance read-tail r36 exact duplicate two-site SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1970);
-    expect(total).toBe(1942);
+    expect(total).toBe(1929);
   });
 });
 
@@ -1625,7 +1637,7 @@ describe('finance read-tail r37 exact duplicate period-exists read family', () =
     };
     walk(root);
     expect(total).toBeLessThan(1966);
-    expect(total).toBe(1942);
+    expect(total).toBe(1929);
   });
 });
 
@@ -1740,7 +1752,7 @@ describe('finance read-tail r38 byte-identical read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1965);
-    expect(total).toBe(1942);
+    expect(total).toBe(1929);
   });
 });
 
@@ -1857,6 +1869,128 @@ describe('finance read-tail r39 read families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(1951);
-    expect(total).toBe(1942);
+    expect(total).toBe(1929);
+  });
+});
+
+describe('finance read-tail r40 read families', () => {
+  // 10 families / 23 adapter call sites. Exact families share one payload;
+  // parameterized families render byte-identically for every variant. Callers
+  // keep their own binds and result types. Row locks, tax/assertion SQL and
+  // every r15-r39 helper are untouched. Verified against HEAD by reversal.
+  const EXACT: [string, string][] = [
+    [ASSIGNMENT_VERSION_SQL, 'SELECT version FROM assignments WHERE id=? AND user_id=? AND company_id=? AND role=?'],
+    [POSTING_RECEIPT_IMAGE_SQL, "SELECT to_jsonb(r)::text image,r.record_id FROM command_receipts r WHERE r.command_id=? AND r.operation=? AND r.actor_id=? AND r.authority_json::jsonb->>'companyId'=?"],
+    [ACTIVE_ACCOUNT_CATEGORY_PROBE_SQL, "SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category=? AND status='active'"],
+    [PAYMENT_FULL_ROW_SQL, 'SELECT * FROM finance_payments WHERE id=? AND company_id=?'],
+  ];
+
+  it('exposes four exact byte-identical SQL payloads with no row-lock text', () => {
+    expect(EXACT).toHaveLength(4);
+    for (const [value, sql] of EXACT) {
+      expect(value).toBe(sql);
+      expect(value).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE|pg_advisory/);
+    }
+  });
+
+  it('renders every parameterized family byte-identically for each variant', () => {
+    expect(sourcePartyIdSql('finance_payments')).toBe('SELECT party_id FROM finance_payments WHERE id=? AND company_id=?');
+    expect(sourcePartyIdSql('finance_invoices')).toBe('SELECT party_id FROM finance_invoices WHERE id=? AND company_id=?');
+    expect(commandReceiptReplayProbeSql('finance.payment.reverse')).toBe("SELECT 1 FROM command_receipts WHERE command_id=? AND operation='finance.payment.reverse' AND actor_id=? AND authority_json::jsonb->>'companyId'=?");
+    expect(commandReceiptReplayProbeSql('finance.bank.import')).toBe("SELECT 1 FROM command_receipts WHERE command_id=? AND operation='finance.bank.import' AND actor_id=? AND authority_json::jsonb->>'companyId'=?");
+    expect(commandReceiptReplayProbeSql('finance.refund.confirm')).toBe("SELECT 1 FROM command_receipts WHERE command_id=? AND operation='finance.refund.confirm' AND actor_id=? AND authority_json::jsonb->>'companyId'=?");
+    expect(ownedDocumentExistsSql('finance_invoices', 'ownerPredicate(kind,foundation,proof)')).toBe('SELECT 1 FROM finance_invoices d WHERE d.id=? AND d.company_id=? AND ownerPredicate(kind,foundation,proof)');
+    expect(sourcePartyStatusSql('finance_payments')).toBe('SELECT party_id,status FROM finance_payments WHERE id=? AND company_id=?');
+    expect(sourcePartyStatusSql('finance_invoices')).toBe('SELECT party_id,status FROM finance_invoices WHERE id=? AND company_id=?');
+    expect(bookAccountMappingImageSql('source')).toBe('SELECT to_jsonb(m)::text source FROM finance_book_account_mappings m JOIN finance_book_rules r ON r.id=m.rule_id WHERE r.company_id=? ORDER BY m.rule_id,m.primary_account_id');
+    expect(bookAccountMappingImageSql('image')).toBe('SELECT to_jsonb(m)::text image FROM finance_book_account_mappings m JOIN finance_book_rules r ON r.id=m.rule_id WHERE r.company_id=? ORDER BY m.rule_id,m.primary_account_id');
+    expect(thaiDocumentRowsSql('finance_thai_document_events')).toBe('SELECT * FROM finance_thai_document_events WHERE document_id=? AND company_id=? ORDER BY created_at,id');
+    expect(thaiDocumentRowsSql('finance_thai_document_changes')).toBe('SELECT * FROM finance_thai_document_changes WHERE document_id=? AND company_id=? ORDER BY created_at,id');
+  });
+
+  const SITE_LITERALS: Record<string, string[]> = {
+    'finance-thai-documents.ts': [
+      '"SELECT party_id FROM finance_payments WHERE id=? AND company_id=?"',
+      '"SELECT party_id FROM finance_invoices WHERE id=? AND company_id=?"',
+      '"SELECT party_id,status FROM finance_payments WHERE id=? AND company_id=?"',
+      '"SELECT party_id,status FROM finance_invoices WHERE id=? AND company_id=?"',
+      '"SELECT * FROM finance_thai_document_events WHERE document_id=? AND company_id=? ORDER BY created_at,id"',
+      '"SELECT * FROM finance_thai_document_changes WHERE document_id=? AND company_id=? ORDER BY created_at,id"',
+    ],
+    'sales-payment-reversal.ts': ["\"SELECT 1 FROM command_receipts WHERE command_id=? AND operation='finance.payment.reverse' AND actor_id=? AND authority_json::jsonb->>'companyId'=?\""],
+    'refund-bank-evidence.ts': [
+      "\"SELECT 1 FROM command_receipts WHERE command_id=? AND operation='finance.bank.import' AND actor_id=? AND authority_json::jsonb->>'companyId'=?\"",
+      "\"SELECT 1 FROM command_receipts WHERE command_id=? AND operation='finance.refund.confirm' AND actor_id=? AND authority_json::jsonb->>'companyId'=?\"",
+    ],
+    'record-presentation.ts': ['"SELECT version FROM assignments WHERE id=? AND user_id=? AND company_id=? AND role=?"'],
+    'legal-setup.ts': ['"SELECT version FROM assignments WHERE id=? AND user_id=? AND company_id=? AND role=?"'],
+    'expense-posting-prerequisites.ts': ["\"SELECT to_jsonb(r)::text image,r.record_id FROM command_receipts r WHERE r.command_id=? AND r.operation=? AND r.actor_id=? AND r.authority_json::jsonb->>'companyId'=?\""],
+    'payroll-posting-prerequisites.ts': ["\"SELECT to_jsonb(r)::text image,r.record_id FROM command_receipts r WHERE r.command_id=? AND r.operation=? AND r.actor_id=? AND r.authority_json::jsonb->>'companyId'=?\""],
+    'commerce-goods-accounting-facts.ts': ["\"SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category=? AND status='active'\""],
+    'commerce-facts.ts': ["'SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category=? AND status=\\'active\\''"],
+    'document-purchases.ts': [
+      '`SELECT 1 FROM ${tables[kind]} d WHERE d.id=? AND d.company_id=? AND ${ownerPredicate(kind,foundation,proof)}`',
+      '`SELECT 1 FROM ${tables[kind]} d WHERE d.id=? AND d.company_id=? AND ${capability==="assets.parts-costs"||capability==="finance.service-invoice"?ownerPredicate(kind,capability):commerceOwnerPredicate(kind,capability,commerceProof)}`',
+    ],
+    'supplier-payment-money.ts': ["'SELECT to_jsonb(m)::text source FROM finance_book_account_mappings m JOIN finance_book_rules r ON r.id=m.rule_id WHERE r.company_id=? ORDER BY m.rule_id,m.primary_account_id'"],
+    'payroll-other-remittance-facts.ts': ["'SELECT to_jsonb(m)::text image FROM finance_book_account_mappings m JOIN finance_book_rules r ON r.id=m.rule_id WHERE r.company_id=? ORDER BY m.rule_id,m.primary_account_id'"],
+    'finance.ts': ['"SELECT * FROM finance_payments WHERE id=? AND company_id=?"'],
+    'finance-withholding.ts': ["'SELECT * FROM finance_payments WHERE id=? AND company_id=?'"],
+  };
+
+  const SITE_OCCURRENCES: Record<string, number> = {
+    'finance-thai-documents.ts': 8,
+    'sales-payment-reversal.ts': 1,
+    'refund-bank-evidence.ts': 2,
+    'record-presentation.ts': 1,
+    'legal-setup.ts': 1,
+    'expense-posting-prerequisites.ts': 1,
+    'payroll-posting-prerequisites.ts': 1,
+    'commerce-goods-accounting-facts.ts': 1,
+    'commerce-facts.ts': 1,
+    'document-purchases.ts': 2,
+    'supplier-payment-money.ts': 1,
+    'payroll-other-remittance-facts.ts': 1,
+    'finance.ts': 1,
+    'finance-withholding.ts': 1,
+  };
+
+  it('removes all 23 inline literals from their 14 files', async () => {
+    expect(Object.values(SITE_OCCURRENCES).reduce((sum, n) => sum + n, 0)).toBe(23);
+    for (const [file, lits] of Object.entries(SITE_LITERALS)) {
+      const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+      expect(text).toContain('finance-read-tail-r40-sql');
+      for (const lit of lits) expect(text.includes(lit)).toBe(false);
+    }
+  });
+
+  it('leaves locks, tax/assertion SQL and r15-r39 helpers untouched', async () => {
+    const thai = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-thai-documents.ts', import.meta.url), 'utf8');
+    expect(thai).toContain("NOT EXISTS(SELECT 1 FROM finance_thai_document_events WHERE document_id=? AND action IN ('cancelled','superseded'))");
+    expect(thai).toContain("EXISTS(SELECT 1 FROM finance_thai_document_sequences WHERE company_id=? AND document_kind=? AND fiscal_year=? AND last_number=?)");
+    const docs = await readFile(new URL('../../../packages/server-finance/src/adapters/document-purchases.ts', import.meta.url), 'utf8');
+    expect(docs).toContain('FOR SHARE');
+    expect(docs).toContain('finance-document-owner');
+    const pay = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-withholding.ts', import.meta.url), 'utf8');
+    expect(pay).toContain("EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND version=? AND status='active' AND category='liability'");
+    const r39 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r39-sql.ts', import.meta.url), 'utf8');
+    expect(r39).toContain('bankCashLinesSql');
+    const r15 = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r15-sql.ts', import.meta.url), 'utf8');
+    expect(r15).toContain('COMMAND_RECEIPT_EXISTS_SQL');
+  });
+
+  it('retirement:ts-statements stays strictly below the r39 BEFORE=1942 baseline', () => {
+    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(1942);
+    expect(total).toBe(1929);
   });
 });

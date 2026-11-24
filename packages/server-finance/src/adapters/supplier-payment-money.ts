@@ -1,3 +1,4 @@
+import { bookAccountMappingImageSql } from './finance-read-tail-r40-sql';
 import { SUPPLIER_RECEIPT_SOURCE_SQL } from './finance-read-tail-r38-sql';
 import 'server-only';
 import {isDeepStrictEqual} from 'node:util';
@@ -48,7 +49,7 @@ async function authority(database:SqlDatabase,actor:WorkContext,kind:Command['ki
 async function references(database:SqlDatabase,companyId:string){
  // Keep exact NUMERIC text: parsing a 38-digit quote into a JS number would
  // lose low-order decimal changes in the final source comparison.
- const definitions=[...['company_money_settings','company_currency_scales','company_fx_rates','finance_charts','finance_accounts','finance_periods','finance_book_rules'].map(table=>`SELECT to_jsonb(r)::text source FROM ${table} r WHERE r.company_id=? ORDER BY to_jsonb(r)::text`),'SELECT to_jsonb(m)::text source FROM finance_book_account_mappings m JOIN finance_book_rules r ON r.id=m.rule_id WHERE r.company_id=? ORDER BY m.rule_id,m.primary_account_id'];
+ const definitions=[...['company_money_settings','company_currency_scales','company_fx_rates','finance_charts','finance_accounts','finance_periods','finance_book_rules'].map(table=>`SELECT to_jsonb(r)::text source FROM ${table} r WHERE r.company_id=? ORDER BY to_jsonb(r)::text`),bookAccountMappingImageSql('source')];
  return Promise.all(definitions.map(async sql=>(await database.prepare(sql).bind(companyId).all<{source:string}>()).results.map(row=>row.source)));
 }
 async function image(database:SqlDatabase,actor:WorkContext,command:Command):Promise<Image>{
