@@ -37,6 +37,7 @@ import {changeVersionGuardSource} from './organization-read-tail-sources-r39';
 import {nodeChangeByIdCompany} from './organization-read-tail-sources-r40';
 import {relocationVersionSnapshot} from './organization-read-tail-sources-r41';
 import {latestDepartmentFlow,organizationChangeRows} from './organization-read-tail-sources-r42';
+import {nodeChildExists} from './organization-read-tail-sources-r45';
 import {snapshotProjection,staffLevelNumberSource} from './organization-column-alias-families';
 import {impactCount} from './organization-column-alias-families-r29';
 const HEAD_SEAT_SNAPSHOT_SOURCE =
@@ -82,8 +83,8 @@ clock:{now:()=>Date.now()},authorize:actor=>requirePermission(actor,'organizatio
  departmentActive:async(companyId,id,branchId)=>!!await db.prepare("SELECT 1 FROM organization_nodes WHERE company_id=? AND id=? AND kind='department' AND status='active' AND branch_id IS NOT DISTINCT FROM ?").bind(companyId,id,branchId).first(),
  node:(companyId,id)=>db.prepare("SELECT id,kind,slug,display_name,branch_id,status,hierarchy_revision FROM organization_nodes WHERE id=? AND company_id=? AND kind IN ('branch','department')").bind(id,companyId).first<OrganizationNode>(),
  reservedDepartment:async(companyId,id)=>!!await db.prepare(`SELECT 1 FROM organization_draft_reservations r WHERE r.company_id=? AND ((r.kind='position' AND EXISTS(SELECT 1 FROM organization_positions p WHERE p.id=r.entity_id AND p.company_id=r.company_id AND p.department_id=?)) OR (r.kind='person' AND EXISTS(SELECT 1 FROM (${people_payrollPlatformSources.hr_engagements}) e WHERE e.id=r.entity_id AND e.company_id=r.company_id AND e.department_id=?))) LIMIT 1`).bind(companyId,id,id).first(),
- hasChildren:async(companyId,id)=>!!await db.prepare("SELECT 1 FROM organization_nodes WHERE company_id=? AND parent_id=? AND status<>'archived' LIMIT 1").bind(companyId,id).first(),
- slugConflict:async(companyId,branchId,slug)=>!!await db.prepare('SELECT 1 FROM organization_nodes WHERE company_id=? AND parent_id=? AND slug=? LIMIT 1').bind(companyId,branchId,slug).first(),
+ hasChildren:async(companyId,id)=>!!await db.prepare(nodeChildExists("status<>'archived'")).bind(companyId,id).first(),
+ slugConflict:async(companyId,branchId,slug)=>!!await db.prepare(nodeChildExists('slug=?')).bind(companyId,branchId,slug).first(),
  change:(companyId,id)=>db.prepare(nodeChangeByIdCompany('*')).bind(id,companyId).first<OrganizationNodeChange>(),
  target:(companyId,id)=>db.prepare(snapshotProjection('branch_id,slug','organization_nodes','id','company_id')).bind(id,companyId).first<{branch_id:string|null;slug:string}>(),
  relocationSnapshot:(companyId,id)=>relocationSnapshot(db,companyId,id),impact:(companyId,id)=>organizationNodeImpact(db,companyId,id),submittedSnapshot:async(id)=>(await db.prepare("SELECT snapshot_json FROM organization_node_change_events WHERE change_id=? AND action='submitted' ORDER BY created_at DESC,id DESC LIMIT 1").bind(id).first<{snapshot_json:string}>())?.snapshot_json??null,
