@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12397,
+    "revision": 12399,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183642,7 +183642,7 @@
         "owner": "ecommerce",
         "title": "ecommerce TS read tail next round",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183653,22 +183653,37 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n77",
-          "claimedAt": "2026-11-24T15:45:00.870Z",
-          "heartbeatAt": "2026-11-24T15:55:31.303Z",
-          "expiresAt": "2026-11-24T16:25:31.303Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-ecommerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ac38073fa",
+            "owner": "ecommerce",
+            "before": 11,
+            "after": 10,
+            "note": "ecommerceSourceIdentity closed alias parameter; cart/checkout variant byte-identical, 1 bind each; locks/native/executive port untouched."
+          },
+          {
+            "command": "vitest ecommerce (11) + scoped tsc + byte proof both variants",
+            "result": "passed",
+            "sourceSha": "ac38073fa"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Purchase-boundary cart/checkout source identity through ecommerceSourceIdentity alias param (-1): 11->10. Keep 409 identity bytes. BEFORE=11.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n77",
+          "at": "2026-11-24T16:00:04.577Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -183752,17 +183767,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 14,
+        "in_progress": 13,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1434,
+        "blocked": 1435,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T15:57:43.269Z",
+    "updatedAt": "2026-11-24T16:00:04.580Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
