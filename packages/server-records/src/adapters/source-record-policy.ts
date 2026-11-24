@@ -8,6 +8,7 @@ import { ApiError } from '@erpx/server-runtime/public/http';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { requirePermission } from '@erpx/server-identity_access/public/iam-permissions';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import { projectionSourceGuardSql } from './read-tail-projection-source-guard';
 import { pmsSourceReadableSql, pmsSourcesSql } from '@erpx/server-pms/public/pms/source-policy';
 import { readablePmsSource, pmsSourceLink } from '@erpx/server-pms/public/pms/source';
 import {getTask,taskSourceReadGuard} from '@erpx/server-operations/public/staff-task-read';
@@ -246,7 +247,7 @@ export async function nativeAssetSourceRecord(actor: WorkContext, id: string, ve
 }
 function application(provided?: SqlDatabase, requestedVersion?: number): ReturnType<typeof createSourceRecordApplication<SqlStatement>> {
     let database = provided!;
-    return createSourceRecordApplication<SqlStatement>({ clock: { now: Date.now }, prepare: async (holding) => { database = provided ?? (await holdingResources(holding)).write; }, authorize: (a, permission) => fromNativeSync(() => requirePermission(a, permission)), taskGrant: async (a, now) => !!await database.prepare(`SELECT 1 FROM (${identity_accessProjectionSources.assignments}) assignments WHERE id=? AND company_id=? AND user_id=? AND role=? AND iam_assignment_active(id,?) AND iam_principal_active(user_id,company_id,?) AND iam_role_allows(role,company_id,'records.read')`).bind(a.assignmentId, a.companyId, a.userId, a.role, now, now).first(), task: (a, id) => fromNative(() => getTask(database, a, id)), pms: (a, id) => fromNative(() => readablePmsSource(database, a, id)), pmsLink: pmsSourceLink, support: (a, id) => fromNative(() => getSupportTicket(a, id, database)), source: (a, kind, id) => {
+    return createSourceRecordApplication<SqlStatement>({ clock: { now: Date.now }, prepare: async (holding) => { database = provided ?? (await holdingResources(holding)).write; }, authorize: (a, permission) => fromNativeSync(() => requirePermission(a, permission)), taskGrant: async (a, now) => !!await database.prepare(projectionSourceGuardSql(identity_accessProjectionSources.assignments, 'assignments', `id=? AND company_id=? AND user_id=? AND role=? AND iam_assignment_active(id,?) AND iam_principal_active(user_id,company_id,?) AND iam_role_allows(role,company_id,'records.read')`)).bind(a.assignmentId, a.companyId, a.userId, a.role, now, now).first(), task: (a, id) => fromNative(() => getTask(database, a, id)), pms: (a, id) => fromNative(() => readablePmsSource(database, a, id)), pmsLink: pmsSourceLink, support: (a, id) => fromNative(() => getSupportTicket(a, id, database)), source: (a, kind, id) => {
             switch (kind) {
                 case 'commerce_order': return commerceSource(database).read(a, kind, id);
                 case 'field_service_order': return fromNative(async () => {
@@ -270,7 +271,7 @@ function application(provided?: SqlDatabase, requestedVersion?: number): ReturnT
                     return record;
                 });
             }
-        }, taskGuard: (a, id, version, key, step) => taskSourceReadGuard(database, a, id, version, key, step), postGuard: async (a, id, key, step) => sourceGuard(database, key, await fromNative(() => readablePost(database, a, id)), a.userId, step), pmsGuard: (a, key, source, step) => assertion(database, key, step, `EXISTS(SELECT 1 FROM (${pmsSourcesSql}) s WHERE s.id=? AND s.company_id=? AND s.version=? AND ${pmsSourceReadableSql("s", "?::text", "?::text")})`, [source.id, a.companyId, source.version, a.userId, a.assignmentId]), supportGuards: (a, key, source, step) => fromNative(() => supportTicketSourceGuards(database, a, key, source.id, source.version, step)), sourceGuards: (a, key, source, step) => {
+        }, taskGuard: (a, id, version, key, step) => taskSourceReadGuard(database, a, id, version, key, step), postGuard: async (a, id, key, step) => sourceGuard(database, key, await fromNative(() => readablePost(database, a, id)), a.userId, step), pmsGuard: (a, key, source, step) => assertion(database, key, step, `EXISTS(${projectionSourceGuardSql(pmsSourcesSql, 's', `s.id=? AND s.company_id=? AND s.version=? AND ${pmsSourceReadableSql("s", "?::text", "?::text")}`)})`, [source.id, a.companyId, source.version, a.userId, a.assignmentId]), supportGuards: (a, key, source, step) => fromNative(() => supportTicketSourceGuards(database, a, key, source.id, source.version, step)), sourceGuards: (a, key, source, step) => {
             switch (source.kind) {
                 case 'commerce_order': return commerceSource(database).guards(a, key, { ...source, kind: source.kind }, step);
                 case 'field_service_order': throw new BusinessRuleError(503, 'FIELD_RECORD_SOURCE_NATIVE_UNIT_REQUIRED', 'This Field-linked operation requires the native Records transaction.');
