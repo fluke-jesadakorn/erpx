@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10398,
+    "revision": 10403,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -160288,7 +160288,7 @@
         "owner": "pms",
         "title": "pms TS read tail native cutover (round 27)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -160300,28 +160300,36 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMpms2",
-          "claimedAt": "2026-11-24T07:17:41.445Z",
-          "heartbeatAt": "2026-11-24T07:17:41.445Z",
-          "expiresAt": "2026-11-24T07:47:41.445Z",
-          "generation": 166
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pms/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "991a23c45",
+            "owner": "pms",
+            "before": 405,
+            "after": 404,
+            "note": "Purchase clock CTE shared by booking and source adapters; r17-r26 and locks untouched. Recorded late after lease recovery."
+          },
+          {
+            "command": "vitest pms r17-r27 (46) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "991a23c45"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=405.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-m",
+          "runId": "run-20261123-n",
           "agentId": "wGCMpms2",
-          "at": "2026-11-24T07:17:38.838Z",
+          "at": "2026-11-24T07:44:13.715Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long cargo/mount integration; WIP reviewed, same agents re-claimed under gen 166",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=405."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -162678,6 +162686,71 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=29.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pms.read-tail-r28",
+        "goalId": "G4",
+        "owner": "pms",
+        "title": "pms scoped records native read port",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pms/src/**",
+          "tests/unit/pms/**",
+          "tests/integration/pms/**"
+        ],
+        "resources": [
+          "owner:pms"
+        ],
+        "claim": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMpms3",
+          "claimedAt": "2026-11-24T07:44:14.242Z",
+          "heartbeatAt": "2026-11-24T07:44:14.242Z",
+          "expiresAt": "2026-11-24T08:14:14.242Z",
+          "generation": 166
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Implement four scoped-records RD kinds and switch pms.ts readers; keep locks inline. BEFORE=404.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.legal.read-tail-r34",
+        "goalId": "G4",
+        "owner": "legal",
+        "title": "legal id and key point read family (round 34)",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-legal/src/**",
+          "tests/unit/legal/**",
+          "tests/integration/legal/**"
+        ],
+        "resources": [
+          "owner:legal"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Four id+key point reads share legalPointByIdAndKeySql. BEFORE=236.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -162686,21 +162759,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1381,
+      "totalPackets": 1383,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 18,
+        "pending": 19,
         "in_progress": 28,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 1004,
+        "blocked": 1005,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 166,
-    "updatedAt": "2026-11-24T07:43:29.937Z",
+    "updatedAt": "2026-11-24T07:44:15.383Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
