@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12167,
+    "revision": 12169,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -180861,7 +180861,7 @@
         "owner": "people_payroll",
         "title": "payroll projection and named join stragglers",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -180872,22 +180872,37 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n18",
-          "claimedAt": "2026-11-24T13:43:38.533Z",
-          "heartbeatAt": "2026-11-24T13:43:38.533Z",
-          "expiresAt": "2026-11-24T14:13:38.533Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "5fc16450d",
+            "owner": "people_payroll",
+            "before": 1261,
+            "after": 1245,
+            "note": "13 projection sources via ppRd42, 2 named joins via ppRd46, graph snapshots via ppRd47; locks/native/cross-owner untouched."
+          },
+          {
+            "command": "vitest payroll read-tail (140) + scoped tsc + 17/17 byte oracle",
+            "result": "passed",
+            "sourceSha": "5fc16450d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "13 projection-source stragglers via ppRd42 (-13), 2 named joins via ppRd46 (-2), graph snapshots (-1): 1261->1245.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n18",
+          "at": "2026-11-24T13:50:02.624Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -181254,17 +181269,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 15,
+        "in_progress": 14,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1383,
+        "blocked": 1384,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:49:34.423Z",
+    "updatedAt": "2026-11-24T13:50:02.633Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
