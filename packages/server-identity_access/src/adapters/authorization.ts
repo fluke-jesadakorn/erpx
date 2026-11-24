@@ -10,6 +10,7 @@ import {identitySnapshotSources as organizationSnapshotSources} from '@erpx/serv
 const organizationSources=organizationSnapshotSources();
 import { measureReadPhase } from "@erpx/server-runtime/public/runtime/read-metrics";
 import { loadIamAuthority, iamRoles } from "@erpx/server-identity_access/public/iam-store";
+import { revokedSessionProbeSql } from "./iam-probe-sql";
 import { readWorkspacePreference } from "@erpx/server-work_projection/public/workspace-preferences";
 import { cache } from "react";
 import { ApiError } from "@erpx/server-runtime/public/http";
@@ -88,6 +89,8 @@ const cachedWorkContext = cache(async (key: string): Promise<WorkContext> => {
 });
 export async function requirePlatformContext(): Promise<PlatformContext> {
     let env: Awaited<ReturnType<typeof runtimeEnv>>;
+    // The revoked probe's company argument is the quoted literal "'platform'", not a bind:
+    // company_id='platform' was literal in the original statement, preserved byte-for-byte.
     return createPlatformContext({ session: currentSession, ready: async () => { env = await runtimeEnv(); }, now: Date.now, error: identityError, assignments: async (userId, now) => (await env.CONTROL_DB.prepare(`SELECT id,role,modules_json FROM platform_assignments
      WHERE user_id=? AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(user_id,'platform',floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND revoked_at IS NULL AND valid_from<=? AND valid_until>?
      ORDER BY valid_until ASC,id ASC`)
@@ -96,7 +99,7 @@ export async function requirePlatformContext(): Promise<PlatformContext> {
             id: string;
             role: string;
             modules_json: string;
-        }>()).results, revoked: async (sessionId, userId) => Boolean(await env.CONTROL_DB.prepare("SELECT 1 FROM iam_revoked_sessions WHERE session_id=? AND company_id='platform' AND user_id=?").bind(sessionId, userId).first()), preference: userId => readWorkspacePreference(env.CONTROL_DB, userId), selection: (userId,sessionId,requestHeaders) => productHostForHost(requestHeaders.get('host'))==='admin'?providerContextSelectedAssignment(env.CONTROL_DB,userId,sessionId):Promise.resolve(null), authority: (userId, role, sessionId) => loadIamAuthority(env.CONTROL_DB, 'platform', userId, role, sessionId) })();
+        }>()).results, revoked: async (sessionId, userId) => Boolean(await env.CONTROL_DB.prepare(revokedSessionProbeSql('?', "'platform'", '?')).bind(sessionId, userId).first()), preference: userId => readWorkspacePreference(env.CONTROL_DB, userId), selection: (userId,sessionId,requestHeaders) => productHostForHost(requestHeaders.get('host'))==='admin'?providerContextSelectedAssignment(env.CONTROL_DB,userId,sessionId):Promise.resolve(null), authority: (userId, role, sessionId) => loadIamAuthority(env.CONTROL_DB, 'platform', userId, role, sessionId) })();
 }
 export async function canEnterManageErpx() {
     let write: SqlDatabase;

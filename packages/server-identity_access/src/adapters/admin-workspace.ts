@@ -18,6 +18,7 @@ import {accountWorkModuleAccess} from '@erpx/server-identity_access/adapters/wor
 import {betaAccess} from '@erpx/server-identity_access/adapters/beta-access';
 import {loadIamAuthority} from '@erpx/server-identity_access/adapters/iam-store';
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/adapters/record-source-authority';
+import {workforceActorScopeSql} from './read-tail-family-r31';
 import {effectiveWorkModules} from '@erpx/server-identity_access/domain/work-modules';
 import {assignmentApplies} from '@erpx/server-identity_access/domain/workspace-access';
 import type {AccountAccessContext,WorkAssignment,WorkContext} from '@erpx/server-identity_access/domain/authorization';
@@ -38,7 +39,7 @@ async function roleActor(access:AccountAccessContext,assignment:WorkAssignment,r
  const {write}=await holdingResources(access.scope.holdingId),source=await readRole(access,assignment);if(!source)return null;
  const {iam,beta}=source,scope=access.scope;
  const actor:WorkContext={userId:access.userId,name:access.name,email:access.email,assignmentId:assignment.id,role:assignment.role,companyId:scope.companyId,branchId:'branchId'in scope?scope.branchId:null,departmentId:scope.kind==='department'?scope.departmentId:null,holdingId:scope.holdingId,holdingSlug:scope.holdingSlug,holdingName:scope.holdingName,scope,assignmentScope:assignment.scopeKind,inherited:assignment.scopeKind!==scope.kind,modules:effectiveWorkModules(assignment.role,assignment.modules,iam.permissions,beta),assignments:access.assignments,workspaces:[],iam,beta};
- const current=currentAssignmentReadScope(actor,'workforce_actor_scope');return await write.prepare(`SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${current.where} AND EXISTS(SELECT 1 FROM assignments WHERE id=? AND company_id=? AND version=?)`).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args,assignment.id,actor.companyId,assignment.version!).first()?actor:null;
+ const current=currentAssignmentReadScope(actor,'workforce_actor_scope');return await write.prepare(`${workforceActorScopeSql(current.where)} AND EXISTS(SELECT 1 FROM assignments WHERE id=? AND company_id=? AND version=?)`).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args,assignment.id,actor.companyId,assignment.version!).first()?actor:null;
 }
 function ownerModule(source:string,section:string|undefined,iam:boolean){return source==='technology'?iam?'identity_access':'organization':source==='agents'?'agent':section==='brand'?'brand':section==='approvals'?'operations':section==='usage'||section==='ai'?'identity_access':source==='settings/notifications'?'collaboration':'identity_access';}
 /** Read-only prospective discovery repeats the same current assignment and

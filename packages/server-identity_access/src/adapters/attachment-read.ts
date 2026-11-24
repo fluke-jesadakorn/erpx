@@ -13,6 +13,7 @@ import {attachmentDeniedReadAudits} from '@erpx/server-files/public/attachment-d
 import {attachmentReadSource,attachmentPrivateReadSourceLocks,assertAttachmentReadRoute,requirePrivateAttachmentReaderCurrent,bufferedAttachmentRead,type AttachmentReadRoute,type AttachmentReadSource} from '@erpx/server-files/public/private-attachment-reads';
 
 import {isIamAttachmentReadTarget,iamAttachmentReadSourceImage,iamAttachmentReadSourceLocks} from '@erpx/server-identity_access/adapters/attachment-read-sources';
+import {workforceActorScopeSql} from './read-tail-family-r31';
 const identity=(actor:WorkContext)=>JSON.stringify(actor);
 function changed(){return new ApiError(409,'IAM_FILE_READ_CHANGED','The original Iam evidence, native source or current account changed during its private read.');}
 /** Foundation evidence keeps its original Company policy. Package leases only
@@ -27,7 +28,7 @@ export async function withIamAttachmentContentRead<Result extends {object:Stored
   await database.batch([...iamAttachmentReadSourceLocks(database),attachmentPrivateReadSourceLocks(database),...privateFileDenialAuthoritySourceLocks(database)]);
   await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);await database.batch(purchase.slice(1));
   const source=await attachmentReadSource(database,actor.companyId,linkId);assertAttachmentReadRoute(selected,source);if(!source)throw changed();
-  const before=await iamAttachmentReadSourceImage(database,actor,source.targetType,source.targetId),currentScope=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!!await database.prepare(`SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${currentScope.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...currentScope.args).first();
+  const before=await iamAttachmentReadSourceImage(database,actor,source.targetType,source.targetId),currentScope=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!!await database.prepare(workforceActorScopeSql(currentScope.where)).bind(actor.companyId,actor.branchId,actor.departmentId,...currentScope.args).first();
   const deniedAuthority=initiallyCurrent?null:await privateFileDenialAuthorityWitness(database,actor),checkpoint=new Set((await attachmentDeniedReadAudits(database,actor,linkId)).map(event=>event.id));
   const check=async(authorizeSource:boolean,denial=false)=>{
    if(identity(actor)!==context)throw changed();

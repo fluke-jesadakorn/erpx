@@ -109,7 +109,7 @@ describe('Identity access read-tail r30 probe families', () => {
 });
 
 describe('Identity access read-tail r30 retirement check', () => {
-  test('retirement:ts-statements is strictly below BEFORE=485 (expected 478)', () => {
+  test('retirement:ts-statements is strictly below BEFORE=478 (r31 lowered 478 to 475)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -119,7 +119,7 @@ describe('Identity access read-tail r30 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBeLessThan(485);
-    expect(total).toBe(478);
+    expect(total).toBeLessThan(478);
+    expect(total).toBe(475);
   });
 });
