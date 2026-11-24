@@ -9,6 +9,7 @@ import { PMS_CHOSEN_RECORDS_SQL } from "../pms-read-tail-r26-sql";
 import { PMS_RECORD_POINT_PREFIX_SQL, pmsSetupExistsSql } from "../pms-read-tail-r31-sql";
 import { PMS_RECORD_ID_PROPERTY_HEAD_SQL } from "../pms-read-tail-r35-sql";
 import { PMS_STAY_SOURCE_PROJECTION_SQL } from "../pms-read-tail-r38-sql";
+import { pmsGuestIdJoinSql } from "../pms-read-tail-r41-sql";
 import { nativePmsReadAll, PMS_RD_INVENTORY_COMMAND } from "../native-pms-read";
 import * as application from "@erpx/server-pms/application/read-repository";
 const stayPredicate = `(data_json::jsonb->>'state' IN ('reserved','in_house') OR
@@ -57,8 +58,7 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
             q: string;
             q2: string;
             offset: number;
-        }) => db.prepare(`SELECT r.id FROM pms_records r
-   LEFT JOIN pms_records g ON g.id=r.data_json::jsonb->>'guestId' AND g.property_id=r.property_id AND g.kind='guest'
+        }) => db.prepare(`${pmsGuestIdJoinSql('operations')}
    WHERE r.property_id=? AND r.kind=?
    AND (r.data_json::jsonb->>'state'=? OR ?='' OR (?='arrivals' AND r.data_json::jsonb->>'state'='reserved' AND r.data_json::jsonb->>'arrival'=?) OR (?='departures' AND r.data_json::jsonb->>'state'='in_house' AND r.data_json::jsonb->>'departure'<=?))
    AND (?<>'' OR r.kind='reservation' OR r.data_json::jsonb->>'state' IN ('reserved','in_house'))

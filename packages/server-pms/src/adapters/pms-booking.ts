@@ -5,6 +5,7 @@ import { PMS_PURCHASE_CLOCK_CTE_SQL } from "./pms-read-tail-r27-sql";
 import { pmsRefundPaymentJoinHeadSql } from "./pms-read-tail-r34-sql";
 import { PMS_PROPERTY_POINT_HEAD_SQL } from "./pms-read-tail-r36-sql";
 import { PMS_BOOKING_PAYMENT_ID_HEAD_SQL } from "./pms-read-tail-r37-sql";
+import { pmsGuestIdJoinSql } from "./pms-read-tail-r41-sql";
 import {holdingRoutingEnabled,holdingHosts} from '@erpx/contracts/holding-hosts';
 import {bookingEmailDeliveryPayload} from "@erpx/server-pms/adapters/booking-email-delivery";
 import "server-only";
@@ -169,7 +170,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
         readPmsRecords1: (facts: {
             reservation_id: string;
             property_id: string;
-        }) => db.prepare("SELECT g.data_json::jsonb->>'email' email FROM pms_records r JOIN pms_records g ON g.id=r.data_json::jsonb->>'guestId' WHERE r.id=? AND r.property_id=?").bind(facts.reservation_id, facts.property_id).first<{
+        }) => db.prepare(`${pmsGuestIdJoinSql('email')} WHERE r.id=? AND r.property_id=?`).bind(facts.reservation_id, facts.property_id).first<{
             email: string;
         }>(),
         writePmsBookingPayments2: (facts: {
@@ -360,7 +361,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
         }) => rows<{
             id: string;
             property_id: string;
-        }>(db, "SELECT r.id,r.property_id FROM pms_records r JOIN pms_records g ON g.id=r.data_json::jsonb->>'guestId' AND g.property_id=r.property_id AND g.kind='guest' WHERE r.kind='reservation' AND r.data_json::jsonb->>'number'=? AND lower(g.data_json::jsonb->>'email')=lower(?) LIMIT 1", facts.number, facts.email),
+        }>(db, `${pmsGuestIdJoinSql('reservationEmail')} WHERE r.kind='reservation' AND r.data_json::jsonb->>'number'=? AND lower(g.data_json::jsonb->>'email')=lower(?) LIMIT 1`, facts.number, facts.email),
         persistPmsRecords: (arg0: Snapshot, arg1: Map<string, string>) => persistPmsRecords(db, arg0, arg1),
         snapshotMoney: (arg0: {
             companyId: string;

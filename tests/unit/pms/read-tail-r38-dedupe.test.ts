@@ -121,11 +121,14 @@ describe('pms read-tail r38 count/projection head dedupe', () => {
 
   it('routes all nine call sites through the shared heads and removes inline heads', async () => {
     for (const oracle of ORIGINALS) {
-      expect(await src(oracle.file), oracle.routed).toContain(oracle.routed);
+      // r41 folds the six home metric interpolations into its property-scope union.
+      const file = oracle.file === 'adapters/pms/home.ts' ? 'adapters/pms-read-tail-r41-sql.ts' : oracle.file;
+      expect(await src(file), oracle.routed).toContain(oracle.routed);
     }
+    const r41 = await src('adapters/pms-read-tail-r41-sql.ts');
+    expect(r41.split('${PMS_HOME_ACTIVE_ROOM_COUNT_SQL}').length - 1).toBe(3); // three home metric columns
+    expect(r41.split('${PMS_HOME_STAY_STATE_COUNT_SQL}').length - 1).toBe(3); // three home metric columns
     const home = await src('adapters/pms/home.ts');
-    expect(home.split('${PMS_HOME_ACTIVE_ROOM_COUNT_SQL}').length - 1).toBe(3); // three home metric columns
-    expect(home.split('${PMS_HOME_STAY_STATE_COUNT_SQL}').length - 1).toBe(3); // three home metric columns
     expect(home.split(ACTIVE).length - 1).toBe(0);
     expect(home.split(STAY).length - 1).toBe(0);
     const rr = await src('adapters/pms/read-repository.ts');
@@ -152,8 +155,8 @@ describe('pms read-tail r38 count/projection head dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(310);
-    expect(bare).toBe(312);
+    expect(spaced).toBe(305);
+    expect(bare).toBe(307);
     expect(spaced).toBeLessThan(323);
   });
 });

@@ -11,8 +11,7 @@ import { readablePmsHomePosts } from "@erpx/server-collaboration/public/pms-home
 import { pmsSourceRecipients } from "@erpx/server-pms/adapters/pms/source";
 import { pmsSourcesSql, pmsSourceReadableSql } from "@erpx/server-pms/adapters/pms/source-policy";
 import { PMS_RECIPIENT_CROSS_JOIN_SQL } from '../pms-read-tail-r21-sql';
-import { PMS_HOME_ACTIVE_ROOM_COUNT_SQL, PMS_HOME_STAY_STATE_COUNT_SQL } from '../pms-read-tail-r38-sql';
-import { pmsHomeGuestAccountSumSql } from '../pms-read-tail-r39-sql';
+import { pmsPropertyScopeSql } from '../pms-read-tail-r41-sql';
 import type { TaskRow } from "@erpx/server-pms/domain/home";
 import { createPmsHomeApplication, type PmsHomeRepository, type PmsTaskPageOptions } from "@erpx/server-pms/application/home";
 import { pmsCompanyHistoryAllowed, requirePmsCompanyHistory } from "@erpx/server-pms/adapters/read-purchase-boundary";
@@ -75,18 +74,7 @@ function repository(db: SqlDatabase): PmsHomeRepository {
             branchId2: string | null;
             propertyId: string | null;
             propertyId2: string | null;
-        }) => db.prepare(`SELECT p.id,p.name,p.branch_id,p.business_date,p.state,p.config_json::jsonb->>'currency' currency,
-    (${PMS_HOME_ACTIVE_ROOM_COUNT_SQL}) room_count,
-    (${PMS_HOME_ACTIVE_ROOM_COUNT_SQL}
-      AND r.data_json::jsonb->>'cleanliness'='inspected') inspected,
-    (${PMS_HOME_ACTIVE_ROOM_COUNT_SQL}
-      AND NOT EXISTS(SELECT 1 FROM pms_records b WHERE b.property_id=p.id AND b.kind='block' AND b.data_json::jsonb->>'state'='active'
-        AND b.data_json::jsonb->>'kind'='maintenance' AND b.data_json::jsonb->>'from'<=p.business_date AND b.data_json::jsonb->>'roomId'=r.id)) capacity,
-    (${PMS_HOME_STAY_STATE_COUNT_SQL} IN ('in_house','checked_out')
-      AND s.data_json::jsonb->>'arrival'<=p.business_date AND s.data_json::jsonb->>'departure'>p.business_date) sold,
-    (${PMS_HOME_STAY_STATE_COUNT_SQL}='reserved' AND s.data_json::jsonb->>'arrival'<=p.business_date) arrivals,
-    (${PMS_HOME_STAY_STATE_COUNT_SQL}='in_house' AND s.data_json::jsonb->>'departure'<=p.business_date) departures
-    FROM pms_properties p WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.id=?)
+        }) => db.prepare(`${pmsPropertyScopeSql('hotelMetrics')}
     ORDER BY p.name,p.id`).bind(facts.companyId, facts.branchId, facts.branchId2, facts.propertyId, facts.propertyId2).all<{
             id: string;
             name: string;
@@ -110,18 +98,7 @@ function repository(db: SqlDatabase): PmsHomeRepository {
             branchId4: string | null;
             propertyId: string | null;
             propertyId2: string | null;
-        }) => db.prepare(`WITH RECURSIVE entry_roots AS (
-      SELECT r.id,r.property_id,r.id root_id FROM pms_records r JOIN pms_properties p ON p.id=r.property_id
-      WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND r.kind='entry' AND r.data_json::jsonb->>'sourceKey' LIKE 'night:%'
-      UNION ALL SELECT r.id,r.property_id,e.root_id FROM pms_records r JOIN entry_roots e ON r.property_id=e.property_id AND r.data_json::jsonb->>'originalId'=e.id
-        WHERE r.kind='entry' AND r.id<>e.id
-    ) SELECT p.id,
-      COALESCE((SELECT sum((r.data_json::jsonb->>'net')::bigint) FROM pms_records r JOIN entry_roots e ON e.id=r.id AND e.property_id=r.property_id
-        WHERE r.property_id=p.id AND r.data_json::jsonb->>'date'=p.business_date AND r.data_json::jsonb->>'kind' IN ('charge','adjustment')),0) room_revenue,
-      COALESCE((${pmsHomeGuestAccountSumSql('receivable')}),0) receivable,
-      COALESCE((${pmsHomeGuestAccountSumSql('advance')}),0) advance,
-      COALESCE((${pmsHomeGuestAccountSumSql('deposit')}),0) deposit
-    FROM pms_properties p WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.id=?)`).bind(facts.companyId, facts.branchId, facts.branchId2, facts.companyId2, facts.branchId3, facts.branchId4, facts.propertyId, facts.propertyId2).all<{
+        }) => db.prepare(pmsPropertyScopeSql('hotelMoney')).bind(facts.companyId, facts.branchId, facts.branchId2, facts.companyId2, facts.branchId3, facts.branchId4, facts.propertyId, facts.propertyId2).all<{
             id: string;
             room_revenue: number;
             receivable: number;

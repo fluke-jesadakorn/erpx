@@ -63,8 +63,10 @@ describe('pms read-tail r39 home-sum and journal-union dedupe', () => {
   });
 
   it('routes all five call sites through the shared unions and removes inline heads', async () => {
+    // r41 folds the three home guest-account sums into its property-scope union.
+    const r41 = await src('adapters/pms-read-tail-r41-sql.ts');
+    expect(r41.split('${pmsHomeGuestAccountSumSql(').length - 1).toBe(3); // three guest-account money columns
     const home = await src('adapters/pms/home.ts');
-    expect(home.split('${pmsHomeGuestAccountSumSql(').length - 1).toBe(3); // three guest-account money columns
     for (const sum of Object.values(SUMS)) expect(home.split(sum).length - 1).toBe(0);
 
     const fin = await src('adapters/finance-record-sources.ts');
@@ -92,8 +94,8 @@ describe('pms read-tail r39 home-sum and journal-union dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(310);
-    expect(bare).toBe(312);
+    expect(spaced).toBe(305);
+    expect(bare).toBe(307);
     expect(spaced).toBeLessThan(317);
   });
 });

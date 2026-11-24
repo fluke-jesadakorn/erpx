@@ -1,5 +1,6 @@
 import {activeRolloutPredicate} from "@erpx/server-pms/adapters/feature-availability";
 import { PMS_ROLLOUT_ENABLED_SQL, PMS_ROLLOUT_ACTIVE_SQL } from './pms-read-tail-r22-sql';
+import { pmsRolloutReadyExistsSql } from './pms-read-tail-r41-sql';
 import 'server-only';
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -21,8 +22,8 @@ async function setupReadiness(db: SqlDatabase, companyId: string): Promise<Readi
         db.prepare(`SELECT 1 FROM pms_properties p WHERE p.company_id=? AND p.state='open'
       AND p.config_json::jsonb->>'currency'='THB'
       AND COALESCE(p.config_json::jsonb->>'approvedBy','')<>''
-      AND EXISTS(SELECT 1 FROM pms_records r WHERE r.property_id=p.id AND r.kind='room')
-      AND EXISTS(SELECT 1 FROM pms_records r WHERE r.property_id=p.id AND r.kind='rate') LIMIT 1`).bind(companyId).first(),
+      AND ${pmsRolloutReadyExistsSql('room')}
+      AND ${pmsRolloutReadyExistsSql('rate')} LIMIT 1`).bind(companyId).first(),
         financeFacts.finance(companyId),
         commerceFacts.inventory(companyId),
         organizationFacts.organization(companyId),
