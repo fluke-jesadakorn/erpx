@@ -384,6 +384,13 @@ pub const KINDS: &[&str] = &[
     crate::adapters::sale_child_reads::PAYMENT_FIRST_ID,
     crate::adapters::sale_child_reads::LINES_TOTAL,
     crate::adapters::sale_child_reads::PAYMENT_OPEN_ID,
+    // POS child-tail read kinds (round 30): closed, SELECT-only, lock-free
+    // owner statements ported from the inline pos-core.ts literals. Row locks,
+    // PMS fragments and the day-report/Stripe registries stay inline.
+    crate::adapters::child_tail_reads::LINES_SUM,
+    crate::adapters::child_tail_reads::CREATED_BY,
+    crate::adapters::child_tail_reads::COMPLETED_LINE,
+    crate::adapters::child_tail_reads::REFUND_PAYMENT,
     // POS Stripe settlement/provider read kinds: closed, SELECT-only owner
     // statements scoped by caller-supplied company/account/livemode + ids.
     // Row locks, advisory/LOCK, PMS reads and the day-report registry stay
@@ -581,6 +588,10 @@ fn sql(kind: &str) -> Option<&'static str> {
         // lives in the dedicated module and is shared with the parity oracle.
         kind if crate::adapters::sale_child_reads::supported(kind) =>
             return crate::adapters::sale_child_reads::sql(kind),
+        // Child-tail reads (round 30): authoritative owner SQL lives in the
+        // dedicated module and is shared with the transport parity oracle.
+        kind if crate::adapters::child_tail_reads::supported(kind) =>
+            return crate::adapters::child_tail_reads::sql(kind),
         // Stripe settlement/provider reads: authoritative owner SQL lives in
         // the dedicated module and is shared with the transport parity oracle.
         kind if crate::adapters::stripe_reads::supported(kind) =>
@@ -653,7 +664,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 180);
+        assert_eq!(KINDS.len(), 184);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -1186,6 +1197,30 @@ mod tests {
             }
         }
         assert_eq!(crate::adapters::sale_child_reads::KINDS.len(), 11);
+    }
+
+    /// The retired child-tail reads are SELECT-only, lock-free owner statements
+    /// scoped by caller-supplied values. No caller SQL is accepted; transport
+    /// only selects the statement text. Row locks, PMS fragments and the
+    /// day-report/Stripe registries stay inline in their callers and modules.
+    #[test]
+    fn child_tail_read_kinds_are_select_only_and_lock_free() {
+        for kind in crate::adapters::child_tail_reads::KINDS {
+            assert!(supported(kind), "child-tail read kind must be mounted: {kind}");
+            let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
+            assert!(stmt.starts_with("SELECT "), "child-tail kind must be SELECT-only: {kind}");
+            for forbidden in [
+                "INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE", "FOR SHARE",
+                "FOR NO KEY UPDATE", "LOCK TABLE", "pg_advisory", "pms_sources", "pms_properties",
+                "pos_day_closes", "pos_stripe_routes",
+            ] {
+                assert!(
+                    !stmt.contains(forbidden),
+                    "child-tail kind must not mutate, lock or cross owners: {kind} contains {forbidden}",
+                );
+            }
+        }
+        assert_eq!(crate::adapters::child_tail_reads::KINDS.len(), 4);
     }
 
     /// The retired Stripe settlement/provider reads are SELECT-only, lock-free

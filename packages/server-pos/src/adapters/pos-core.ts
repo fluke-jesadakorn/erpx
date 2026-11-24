@@ -2,6 +2,7 @@ import { nativePosOne, nativePosRun } from './native-owner-write';
 import { nativePosAuditChargeToRoomStatement, nativePosAuditKitchenStartStatement } from './native-pos-audit-reads';
 import { nativePosKeyedPendingReversalStatement, nativePosKeyedPreparedDayCloseStatement, nativePosKeyedReceiptByIdStatement, nativePosKeyedReversalBySaleStatement, nativePosKeyedSettingsStatement, nativePosOpenShiftByIdStatement, nativePosOpenShiftByRegisterStatement, nativePosPaymentByIdPlainStatement, nativePosPostingJournalStatement, nativePosRegisterByIdStatement, nativePosRegisterByNameStatement, nativePosRegisterCatalogStatement, nativePosRegistersByKindStatement, nativePosRestaurantRegisterPropertyStatement, nativePosSaleByIdStatement, nativePosTableByNameStatement } from './native-pos-core-statement';
 import { nativePosFulfilledLinesStatement, nativePosFirstPaymentIdStatement, nativePosLinesBySaleStatement, nativePosLinesTotalStatement, nativePosOpenPaymentIdStatement, nativePosPaymentIdBySaleStatement, nativePosPendingPaymentIdStatement, nativePosRefundablePaymentsStatement, nativePosSucceededPaymentTotalStatement } from './native-pos-sale-child';
+import { nativePosChildTailCompletedLineStatement, nativePosChildTailCreatedByStatement, nativePosChildTailLinesSumStatement, nativePosChildTailRefundPaymentStatement } from './native-pos-child-tail';
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
 import { hospitalityOwnerProjectionSources as pmsProjectionSources } from "@erpx/server-pms/public/hospitality-owner-projection-sources";
 import 'server-only';
@@ -337,7 +338,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         readPosLines3: (facts: {
             fulfillment_id: string | number | boolean | null;
             id: string | number | boolean | null;
-        }) => one(db, 'SELECT COALESCE(SUM(quantity_milli),0) n FROM pos_lines WHERE fulfillment_id=? AND id<?', facts.fulfillment_id, facts.id),
+        }) => nativePosChildTailLinesSumStatement(db, facts),
         readCommerceStock3: facts => posCoreCommerceFacts(db).readCommerceStock3(facts),
         writeCommerceStock2: facts => posCoreCommerceFacts(db).writeCommerceStock2(facts),
         writePosStockMoves2: (facts: {
@@ -400,13 +401,13 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         readPosLines11: (facts: {
             id: string | number | boolean | null;
             user: string;
-        }) => one(db, 'SELECT s.created_by FROM pos_lines l JOIN pos_sales s ON s.id=l.sale_id WHERE l.fulfillment_id=? AND s.created_by=? LIMIT 1', facts.id, facts.user),
+        }) => nativePosChildTailCreatedByStatement(db, facts),
         readPosAudit2: (facts: {
             id: string | number | boolean | null;
         }) => nativePosAuditKitchenStartStatement(db, facts),
         readPosLines12: (facts: {
             id: string | number | boolean | null;
-        }) => one(db, "SELECT l.id FROM pos_lines l JOIN pos_sales s ON s.id=l.sale_id WHERE l.fulfillment_id=? AND s.state='completed' AND l.returned_milli<l.quantity_milli", facts.id),
+        }) => nativePosChildTailCompletedLineStatement(db, facts.id),
         writePosFulfillments10: (facts: {
             state: string;
             id: string | number | boolean | null;
@@ -510,7 +511,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => nativePosOpenPaymentIdStatement(db, facts.saleId),
         readPosRefundPayments6: (facts: {
             saleId: string;
-        }) => one(db, "SELECT rp.id FROM pos_refund_payments rp JOIN pos_payments p ON p.id=rp.payment_id WHERE p.sale_id=? AND rp.state<>'succeeded'", facts.saleId),
+        }) => nativePosChildTailRefundPaymentStatement(db, facts.saleId),
         writePosReservations6: (facts: {
             saleId: string;
         }) => nativePosRun(db, '', 'core_writeposreservations6_512', [facts.saleId]),

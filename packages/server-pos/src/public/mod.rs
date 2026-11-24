@@ -12,6 +12,7 @@ pub mod day_control_reads;
 pub mod day_report_reads;
 pub mod audit_reads;
 pub mod sale_child_reads;
+pub mod child_tail_reads;
 pub mod stripe_reads;
 pub mod attachment_read_sources;
 pub mod boundary_reads;
