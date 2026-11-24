@@ -16,6 +16,12 @@ export async function legalPortalPurchasePredicate(alias='i',strictHistory=false
  if(!strictHistory&&await legalPackageEnforcementMode()!=='enforced')return 'TRUE';
  const clock='legal_portal_purchase_clock.now_ms';return `EXISTS(WITH legal_portal_purchase_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms) SELECT 1 FROM legal_portal_purchase_clock WHERE ${legalItemPurchasePredicate(alias,'history',clock)} AND ${purchasedCapabilityPredicate(`${alias}.company_id`,'legal.documents','history',clock)} AND ${purchasedCapabilityPredicate(`${alias}.company_id`,'legal.access','history',clock)} AND ${scheduledFeaturePredicate(`${alias}.company_id`,'legal')})`;
 }
+/** One verified Legal active-destruction guard. Both portal enrollment source
+ * reads interpolate the same fixed predicate; keep it in one place so the two
+ * holders cannot drift apart. */
+export function legalActiveDestructionGuard(alias='i'){
+  return `AND NOT EXISTS(SELECT 1 FROM legal_destructions destruction WHERE destruction.item_id=${alias}.id AND destruction.state IN ('executing','completed'))`;
+}
 /** One verified Legal portal source image. The snapshot read and the original
  * read interpolate the same fixed projection; keep its authorization-bearing
  * subqueries in one place so the two holders cannot drift apart. */
