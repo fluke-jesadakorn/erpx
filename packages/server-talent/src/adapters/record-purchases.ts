@@ -1,6 +1,7 @@
 import "server-only";
 import {talentActorScopeCte,talentClockCte} from './talent-scope-sql';
 import {talentSourceRows} from './talent-read-tail-r32-sources';
+import {talentExistsSelect} from './talent-read-tail-r36-sources';
 import {hasModuleAccess} from "@erpx/catalogue/module-access";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -31,6 +32,6 @@ export async function talentSourceReadScope(database:SqlDatabase,actor:WorkConte
 export async function requireTalentWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,moduleId:string,id:string){
  const mode=await talentPackageEnforcementMode();if(mode==="disabled"||moduleId!=="talent")return;
  const native=await nativeTalentReadFirst<{capability:string;company_id:string}>('talent_rd_workspace_record_source',[id],database);if(!native)return;const scope=currentSource(actor,"workspace_records.id","workspace_records.company_id",undefined,false);
- if(!await database.prepare(`SELECT 1 FROM workspace_records WHERE module_id='talent' AND id=? AND ${scope.where}`).bind(id,...scope.args).first())throw new ApiError(404,"TALENT_SOURCE_NOT_FOUND","The actual Recruitment source is unavailable in this workspace.");
+ if(!await database.prepare(talentExistsSelect('workspace_records', `module_id='talent' AND id=? AND ${scope.where}`)).bind(id,...scope.args).first())throw new ApiError(404,"TALENT_SOURCE_NOT_FOUND","The actual Recruitment source is unavailable in this workspace.");
  await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability:native.capability,purpose:"history"});
 }

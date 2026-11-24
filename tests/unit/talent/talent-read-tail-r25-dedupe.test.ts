@@ -91,7 +91,7 @@ describe('talent read-tail r25 source-image projection family dedupe', () => {
   it('lowers the talent owner SELECT KPI strictly below the recorded 55 r24 baseline', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(45);
-    expect(count).toBeLessThan(46);
+    expect(count).toBe(44);
+    expect(count).toBeLessThan(45);
   });
 });

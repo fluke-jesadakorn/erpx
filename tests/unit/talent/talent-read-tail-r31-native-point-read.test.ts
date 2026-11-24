@@ -36,7 +36,7 @@ describe('talent read-tail r31 owner-local point read native port', () => {
     expect(text).toContain('import {talentSourceRows}');
     expect(text).toContain('${talentSourceRows(');
     expect(text).toContain('const sources=');
-    expect(text).toContain("SELECT 1 FROM workspace_records WHERE module_id='talent'");
+    expect(text).toContain("talentExistsSelect('workspace_records', `module_id='talent'");
     expect(text).toContain('assignmentReadSql("talent_viewer","records.read")');
   });
 
@@ -44,8 +44,8 @@ describe('talent read-tail r31 owner-local point read native port', () => {
     let count = 0;
     const srcDir = new URL('../../../packages/server-talent/src/', import.meta.url);
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(45);
-    expect(count).toBeLessThan(46);
+    expect(count).toBe(44);
+    expect(count).toBeLessThan(45);
   });
 
   it('sends only the kind and positional values to the mounted command-plan route', async () => {
