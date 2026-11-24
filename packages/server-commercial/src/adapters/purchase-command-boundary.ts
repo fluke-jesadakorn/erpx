@@ -10,6 +10,7 @@ import { readCompanyPurchaseFacts } from "@erpx/server-commercial/adapters/packa
 import { packageWriterFence } from "@erpx/server-commercial/adapters/package-locks";
 import { packageClockSql, purchasedCapabilityPredicate } from "@erpx/server-commercial/adapters/purchased-capability-sql";
 import { purchaseObservationAgg } from "./commercial-read-tail-r6-sources";
+import { purchaseScopeRead } from "./commercial-read-tail-r12-sources";
 import type { PackageEnforcementMode } from "@erpx/server-commercial/adapters/development-package-enforcement";
 
 type Scope = { companyId: string; capability: string; purpose: CapabilityPurpose };
@@ -71,7 +72,7 @@ export function purchaseCommandBoundary(database: SqlDatabase, mode: PackageEnfo
     const statement: SqlStatement = {
       bind() { return statement; },
       async run<T>(): Promise<SqlResult<T>> {
-        const row = await database.prepare(clock + `SELECT CASE WHEN ${predicate} THEN 1 ELSE 0 END ok FROM purchase_scope`)
+        const row = await database.prepare(clock + purchaseScopeRead(`CASE WHEN ${predicate} THEN 1 ELSE 0 END ok`))
           .bind(input.companyId).first<{ ok: number }>();
         // Before/after are distinct native writes sharing one boundary key: the
         // idempotency key carries the phase so the after-guard never replays or
@@ -88,9 +89,9 @@ export function purchaseCommandBoundary(database: SqlDatabase, mode: PackageEnfo
   };
   const before = [...companyPurchaseReadLocks(database, input.companyId),
     ...(mode === "enforced" ? [guard("before")] : [])];
-  const after = mode === "enforced" ? [guard("after")] : [database.prepare(clock + `SELECT true commercial_purchase_observation,purchase_scope.company_id,?::text capability,?::text purpose,${predicate} allowed,purchase_scope.now observed_at,
+  const after = mode === "enforced" ? [guard("after")] : [database.prepare(clock + purchaseScopeRead(`true commercial_purchase_observation,purchase_scope.company_id,?::text capability,?::text purpose,${predicate} allowed,purchase_scope.now observed_at,
     ${purchaseObservationAgg("purchase_scope.company_id", "company_package_grants", "g", "'companyId',g.company_id,'packageId',g.package_id,'packageVersion',g.package_version,'state',g.state,'startsAt',g.starts_at,'endsAt',g.ends_at,'version',g.version")} grants,
-    ${historyObservationSql("purchase_scope.company_id")} history FROM purchase_scope`)
+    ${historyObservationSql("purchase_scope.company_id")} history`))
     .bind(input.companyId, input.capability, input.purpose)];
   return { before, after, observe: mode === "shadow" ? observePurchaseResults : undefined };
 }
