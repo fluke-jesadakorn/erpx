@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11253,
+    "revision": 11257,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -171579,7 +171579,7 @@
         "owner": "manufacturing",
         "title": "manufacturing TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -171591,22 +171591,37 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMmfgb",
-          "claimedAt": "2026-11-24T10:18:10.067Z",
-          "heartbeatAt": "2026-11-24T10:20:25.536Z",
-          "expiresAt": "2026-11-24T10:50:25.536Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-manufacturing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "8dc6fd670",
+            "owner": "manufacturing",
+            "before": 55,
+            "after": 53,
+            "note": "File scope, assignment and module guards share manufacturingAllowedSelect; locks, FOR UPDATE witnesses and r4/r11/r15-r30 untouched."
+          },
+          {
+            "command": "vitest manufacturing r23-r31 (69) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "8dc6fd670"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Find a NEW byte-identical/parameterized SELECT-head family outside r4/r11/r15-r30; locks and helpers untouched. BEFORE=55.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMmfgb",
+          "at": "2026-11-24T10:27:54.894Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -171948,7 +171963,7 @@
         "owner": "talent",
         "title": "talent TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -171960,22 +171975,37 @@
         "resources": [
           "owner:talent"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMtal8",
-          "claimedAt": "2026-11-24T10:19:52.635Z",
-          "heartbeatAt": "2026-11-24T10:20:25.536Z",
-          "expiresAt": "2026-11-24T10:50:25.536Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-talent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "c33630cb0",
+            "owner": "talent",
+            "before": 46,
+            "after": 45,
+            "note": "Workspace list and detail application reads share applicationProjection; locks, native reads, binds and owner-local boundary untouched."
+          },
+          {
+            "command": "vitest talent dedupe (44) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "c33630cb0"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=46.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMtal8",
+          "at": "2026-11-24T10:27:55.552Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -172256,17 +172286,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 23,
+        "in_progress": 21,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1198,
+        "blocked": 1200,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T10:27:22.121Z",
+    "updatedAt": "2026-11-24T10:27:55.557Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
