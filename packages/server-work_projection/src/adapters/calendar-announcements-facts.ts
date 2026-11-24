@@ -2,7 +2,7 @@ import {calendarPeopleProjectionSources} from "@erpx/server-people_payroll/publi
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { AnnouncementRow } from "@erpx/server-work_projection/domain/calendar/announcements";
-const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
+import { inList } from './read-tail-sql';
 export function calendarAnnouncementsWorkProjectionFacts(db: SqlDatabase) {
     return { read1: (facts: {
             value1: string;

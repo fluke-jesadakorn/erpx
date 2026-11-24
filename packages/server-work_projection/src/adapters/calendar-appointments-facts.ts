@@ -3,7 +3,9 @@ import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { type RecurrenceRule } from "@erpx/feature-work_projection/lib/calendar-recurrence";
 import type { AppointmentRow } from "@erpx/server-work_projection/domain/calendar/appointments";
-const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
+import { inList } from './read-tail-sql';
+export const byAppointmentIds = (table: 'calendar_series' | 'calendar_occurrence_exceptions') =>
+    `SELECT * FROM ${table} WHERE company_id=? AND ${inList("appointment_id")}`;
 export function calendarAppointmentsWorkProjectionFacts(db: SqlDatabase) {
     return { read1: (facts: {
             value1: boolean;
@@ -52,7 +54,7 @@ export function calendarAppointmentsWorkProjectionFacts(db: SqlDatabase) {
         read3: (facts: {
             value1: string;
             value2: string;
-        }) => { return db.prepare(`SELECT * FROM calendar_series WHERE company_id=? AND ${inList("appointment_id")}`).bind(facts.value1, facts.value2).all<{
+        }) => { return db.prepare(byAppointmentIds('calendar_series')).bind(facts.value1, facts.value2).all<{
             appointment_id: string;
             frequency: RecurrenceRule["frequency"];
             interval_count: number;
@@ -64,7 +66,7 @@ export function calendarAppointmentsWorkProjectionFacts(db: SqlDatabase) {
         read4: (facts: {
             value1: string;
             value2: string;
-        }) => { return db.prepare(`SELECT * FROM calendar_occurrence_exceptions WHERE company_id=? AND ${inList("appointment_id")}`).bind(facts.value1, facts.value2).all<{
+        }) => { return db.prepare(byAppointmentIds('calendar_occurrence_exceptions')).bind(facts.value1, facts.value2).all<{
             appointment_id: string;
             occurrence_key: string;
             start_local: string | null;

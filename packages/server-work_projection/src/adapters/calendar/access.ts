@@ -28,7 +28,7 @@ import { calendarAccessIdentityAccessFacts } from "@erpx/server-identity_access/
 import { calendarAccessPeoplePayrollFacts } from "@erpx/server-people_payroll/public/calendar-access-facts";
 import {calendarPurchaseControls,requireCalendarCurrentActor} from '@erpx/server-work_projection/adapters/calendar/purchases';
 export const idList = (ids: string[]) => JSON.stringify(ids);
-export const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
+export { inList } from '../read-tail-sql';
 export function calendarAccessUnit(db: SqlDatabase): CalendarAccessUnit { return { activeStaff: actor => activeStaff(db, actor.companyId, actor.userId), organizationNodes: companyId => calendarAccessOrganizationFacts(db).organizationNodes(companyId), permission: (actor, permission) => calendarAccessIdentityAccessFacts(db).permission(actor, permission), people: input => calendarAccessPeoplePayrollFacts(db).people(input) }; }
 const service = createCalendarAccess({ errorCode: error => error instanceof ApiError ? error.code : undefined, fail });
 export async function calendarAccess(db: SqlDatabase, actor: WorkContext) { await requireCalendarCurrentActor(db,actor);const access=await service.calendarAccess(calendarAccessUnit(db), actor),manualPurchase=await calendarPurchaseControls(db,actor);return {...access,...(manualPurchase?{manualPurchase}:{})}; }
