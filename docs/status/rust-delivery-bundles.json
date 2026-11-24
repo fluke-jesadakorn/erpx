@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12191,
+    "revision": 12195,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -180720,7 +180720,7 @@
         "owner": "support",
         "title": "support customer contact notes native kind",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -180732,22 +180732,37 @@
         "resources": [
           "owner:support"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n14",
-          "claimedAt": "2026-11-24T13:40:12.185Z",
-          "heartbeatAt": "2026-11-24T13:56:34.987Z",
-          "expiresAt": "2026-11-24T14:26:34.987Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f15df92e8",
+            "owner": "support",
+            "before": 44,
+            "after": 43,
+            "note": "Customer contact notes read native support_rd_customer_contact_notes (2 binds), registry 36->37; locks/advisory/other kinds untouched."
+          },
+          {
+            "command": "cargo test support (95) + vitest support (207) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "f15df92e8"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "customer_contact_notes detail read native kind (2 binds), registry 36->37: 44->43.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n14",
+          "at": "2026-11-24T13:58:29.775Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -180841,7 +180856,7 @@
         "owner": "billing",
         "title": "billing point read residuals and enrollment head",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -180852,22 +180867,37 @@
         "resources": [
           "owner:billing"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n17",
-          "claimedAt": "2026-11-24T13:42:31.531Z",
-          "heartbeatAt": "2026-11-24T13:56:34.987Z",
-          "expiresAt": "2026-11-24T14:26:34.987Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-billing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f15df92e8",
+            "owner": "billing",
+            "before": 48,
+            "after": 42,
+            "note": "Point-read residuals via billingPointReadSql and enrollment subscription head shared; FOR UPDATE/advisory/native untouched."
+          },
+          {
+            "command": "vitest billing (179) + scoped tsc + 8 SHA oracles",
+            "result": "passed",
+            "sourceSha": "f15df92e8"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Point-read residuals via billingPointReadSql (-5/4) and enrollment subscription head (-1): 48->42.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n17",
+          "at": "2026-11-24T13:58:29.338Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -181524,17 +181554,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 16,
+        "in_progress": 14,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1388,
+        "blocked": 1390,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:58:02.391Z",
+    "updatedAt": "2026-11-24T13:58:29.780Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
