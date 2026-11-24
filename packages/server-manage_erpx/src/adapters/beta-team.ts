@@ -25,6 +25,7 @@ import { sha256 } from "@erpx/server-runtime/public/crypto";
 import { nativeOwnerWrite, NATIVE_OWNER_WRITE_NOOP_SQL } from "./native-owner-write";
 import { betaPolicyPointSql } from "./beta-policy-point-sql";
 import { betaInvitationPointSql } from "./beta-invitation-point-sql";
+import { betaMemberCountSql } from "./beta-member-count-sql";
 import { nativeWorkflowWrite } from "@erpx/server-workflow/public/native-workflow-evidence";
 
 import type {SqlStatement} from '@erpx/server-runtime/public/runtime/types';
@@ -40,7 +41,7 @@ import {betaInvitationSources as owner3} from '@erpx/server-workflow/public/beta
 async function inward<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof ApiError)throw new BusinessRuleError(error.status,error.code,error.message);throw error;}}
 async function exposed<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 function invitation(db:SqlDatabase,c:PoolClient):BetaInvitationRepository{const people=betaManagementPeopleSources(db),organization=betaManagementOrganizationSources(db);return {async capacity(companyId:string,now:number){return (await c.query(
-          `SELECT (SELECT count(*) FROM beta_members m ${people.memberCompanyPoolSource})+(SELECT count(*) FROM beta_team_invitations i ${organization.invitationCompanyPoolSource} AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at>$2)<member_limit ok FROM beta_policy WHERE company_id=$1`,
+          `SELECT (${betaMemberCountSql(people,'positional')})+(SELECT count(*) FROM beta_team_invitations i ${organization.invitationCompanyPoolSource} AND i.accepted_at IS NULL AND i.revoked_at IS NULL AND i.expires_at>$2)<member_limit ok FROM beta_policy WHERE company_id=$1`,
           [companyId, now],
         )).rows[0]??null;},
 // Native axum owner write executes the invitation insert in Rust.
@@ -72,7 +73,7 @@ guardCapacity(key:string,value:"capacity",company_id:string,company_id2:string){
         db,
         key,
         value,
-        `(SELECT count(*) FROM beta_members m ${people.memberCompanySource})<(${betaPolicyPointSql('member_limit')})`,
+        `(${betaMemberCountSql(people,'bound')})<(${betaPolicyPointSql('member_limit')})`,
         [company_id, company_id2],
       );},
 async prepareAcceptedInvitation(id:string,now:number,id2:string){return nativeOwnerWrite('me_beta_invitation_accept',[id,now,id2],`me-invite-accept:${id}`,{now},()=>db.prepare(NATIVE_OWNER_WRITE_NOOP_SQL));},

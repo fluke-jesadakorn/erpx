@@ -72,7 +72,57 @@ describe('manage_erpx beta_slots point-read parameterized family', () => {
 
   it('lowers the owner TS SELECT count from the recorded BEFORE=26 baseline', async () => {
     const total = (await tsSources(srcDir)).join('\n').match(/SELECT /g)?.length ?? 0;
-    expect(total).toBe(25);
+    expect(total).toBe(24);
     expect(total).toBeLessThan(26);
+  });
+});
+
+const OLD_BOUND_COUNT =
+  'SELECT count(*) FROM beta_members m JOIN hr_people p ON p.user_id=m.user_id WHERE p.company_id=?';
+const OLD_POSITIONAL_COUNT =
+  'SELECT count(*) FROM beta_members m JOIN hr_people p ON p.user_id=m.user_id WHERE p.company_id=$1';
+
+describe('manage_erpx beta_members count SELECT-head family (r12)', () => {
+  it('emits byte-identical SQL for both admitted dialect call shapes', async () => {
+    const { betaMemberCountSql } = await import(
+      '../../../packages/server-manage_erpx/src/adapters/beta-member-count-sql'
+    );
+    const { betaManagementPeopleSources } = await import(
+      '@erpx/server-people_payroll/public/beta-management-sources'
+    );
+    const sources = betaManagementPeopleSources({} as never);
+    expect(betaMemberCountSql(sources, 'bound')).toBe(OLD_BOUND_COUNT);
+    expect(betaMemberCountSql(sources, 'positional')).toBe(OLD_POSITIONAL_COUNT);
+  });
+
+  it('keeps one SELECT-head declaration and reuses it at both owner call sites', async () => {
+    const helper = await readFile(adapter('beta-member-count-sql.ts'), 'utf8');
+    expect(helper.match(/SELECT count\(\*\) FROM beta_members m /g)).toHaveLength(1);
+    const team = await readFile(adapter('beta-team.ts'), 'utf8');
+    expect(team.split('betaMemberCountSql(').length - 1).toBe(2);
+    expect(team).not.toMatch(/SELECT count\(\*\) FROM beta_members m/);
+  });
+
+  it('leaves locks, native authority and beta-policy sources untouched', async () => {
+    const untouched = [
+      'company-provisioning-attachment-read-sources.ts',
+      'native-owner-write.ts',
+      'beta-policy-point-sql.ts',
+      'records-ai-limit-projection.ts',
+      'identity-snapshot-sources.ts',
+      'attachments-service-facts.ts',
+    ];
+    for (const file of untouched) {
+      const text = await readFile(adapter(file), 'utf8');
+      expect(text).not.toContain('betaMemberCountSql');
+    }
+    const team = await readFile(adapter('beta-team.ts'), 'utf8');
+    expect(team).toContain("${betaPolicyPointSql('member_limit')}");
+  });
+
+  it('lowers the owner TS SELECT count from the recorded BEFORE=25 baseline', async () => {
+    const total = (await tsSources(srcDir)).join('\n').match(/SELECT /g)?.length ?? 0;
+    expect(total).toBe(24);
+    expect(total).toBeLessThan(25);
   });
 });
