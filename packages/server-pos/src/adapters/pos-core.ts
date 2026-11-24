@@ -1,5 +1,5 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
-import { nativePosPostingJournalStatement, nativePosRegisterByIdStatement, nativePosRegisterCatalogStatement, nativePosSaleByIdStatement } from './native-pos-core-statement';
+import { nativePosPaymentByIdPlainStatement, nativePosPostingJournalStatement, nativePosRegisterByIdStatement, nativePosRegisterCatalogStatement, nativePosSaleByIdStatement } from './native-pos-core-statement';
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
 import { hospitalityOwnerProjectionSources as pmsProjectionSources } from "@erpx/server-pms/public/hospitality-owner-projection-sources";
 import 'server-only';
@@ -491,7 +491,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => one(db, 'SELECT * FROM pos_refunds WHERE id=? FOR UPDATE', facts.refund_id),
         readPosPayments16: (facts: {
             payment_id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_payments WHERE id=?', facts.payment_id),
+        }) => nativePosPaymentByIdPlainStatement(db, facts.payment_id),
         readPosSales5: (facts: {
             sale_id: string | number | boolean | null;
         }) => nativePosSaleByIdStatement(db, facts.sale_id),

@@ -384,3 +384,21 @@ export async function nativePosPaymentByIdCompanyStatement<T = SqlValueRow>(
 ): Promise<T | null> {
   return nativePosOne<T>(db, String(companyId), 'stripe_readpospaymentbyidcompany_540', [paymentId, companyId]);
 }
+
+/**
+ * Owner-issued plain by-id payment row read. The SQL lives in the native POS
+ * owner registry (`erpx-server-pos::adapters::owner_writes`, kind
+ * `core_readpospaymentbyid_541`) and is byte-identical to the three retired
+ * by-id `pos_payments` row literals in `pos-stripe.ts`
+ * (`readPosPayments6`/`readPosPayments11`) and `pos-core.ts`
+ * (`readPosPayments16`). This bridge sends only the typed kind and the payment
+ * id; the caller executes the registry statement on its own unit, so no local
+ * SQL, mirror or fallback reader remains. The `FOR UPDATE` by-id payment reads
+ * and refund reads stay in TypeScript and are unchanged.
+ */
+export async function nativePosPaymentByIdPlainStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  paymentId: unknown,
+): Promise<T | null> {
+  return nativePosOne<T>(db, '', 'core_readpospaymentbyid_541', [paymentId]);
+}

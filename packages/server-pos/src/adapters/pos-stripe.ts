@@ -1,5 +1,5 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
-import { nativePosConnectionsStatement, nativePosPaymentByIdCompanyStatement, nativePosPaymentByIdStatement, nativePosPostingJournalStatement, nativePosSaleByIdStatement, nativePosStripeRoutesStatement } from './native-pos-core-statement';
+import { nativePosConnectionsStatement, nativePosPaymentByIdCompanyStatement, nativePosPaymentByIdPlainStatement, nativePosPaymentByIdStatement, nativePosPostingJournalStatement, nativePosSaleByIdStatement, nativePosStripeRoutesStatement } from './native-pos-core-statement';
 import{secret,stripeRequest}from '@erpx/server-pos/adapters/stripe-provider';
 import {posStripeBindingFacts} from "@erpx/server-runtime/public/pos-stripe-binding-facts";
 import 'server-only';
@@ -146,7 +146,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
         }) => one(db, 'SELECT rp.* FROM pos_refund_payments rp JOIN pos_payments p ON p.id=rp.payment_id WHERE rp.id=? AND p.company_id=? AND p.stripe_account=? AND p.livemode=?', facts.rpid, facts.company_id, facts.account_id, facts.livemode),
         readPosPayments6: (facts: {
             payment_id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_payments WHERE id=?', facts.payment_id),
+        }) => nativePosPaymentByIdPlainStatement(db, facts.payment_id),
         writePosStripeEvents5: (facts: {
             fact0: number;
             id: string | number | boolean | null;
@@ -294,7 +294,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
         }) => one(db, 'SELECT rp.* FROM pos_refund_payments rp JOIN pos_refunds r ON r.id=rp.refund_id WHERE rp.id=? AND r.company_id=?', facts.record_id, facts.company_id),
         readPosPayments11: (facts: {
             payment_id: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_payments WHERE id=?', facts.payment_id),
+        }) => nativePosPaymentByIdPlainStatement(db, facts.payment_id),
         writePosRefundPayments2: (facts: {
             id: string;
             id2: string | number | boolean | null;

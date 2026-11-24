@@ -185,6 +185,13 @@ pub const CORE_READPOSREGISTERBYID_539: &str = "core_readposregisterbyid_539";
 /// Read-only caller-transaction `SELECT`. The `FOR UPDATE` by-id payment reads
 /// and refund reads are unchanged and stay in TypeScript.
 pub const STRIPE_READPOSPAYMENTBYIDCOMPANY_540: &str = "stripe_readpospaymentbyidcompany_540";
+/// Plain by-id payment row read retired from the three byte-identical
+/// `SELECT * FROM pos_payments WHERE id=?` literals in `pos-stripe.ts`
+/// (`readPosPayments6`/`readPosPayments11`) and `pos-core.ts`
+/// (`readPosPayments16`). Read-only caller-transaction `SELECT` scoped by
+/// payment id only. The `FOR UPDATE` by-id reads and refund reads are
+/// unchanged and stay in TypeScript.
+pub const CORE_READPOSPAYMENTBYID_541: &str = "core_readpospaymentbyid_541";
 pub const STRIPE_WRITEPOSSTRIPEEVENTS1_49: &str = "stripe_writeposstripeevents1_49";
 pub const STRIPE_WRITEPOSSTRIPEEVENTS2_53: &str = "stripe_writeposstripeevents2_53";
 pub const STRIPE_WRITEPOSCONNECTIONHISTORY1_58: &str = "stripe_writeposconnectionhistory1_58";
@@ -302,6 +309,7 @@ pub const KINDS: &[&str] = &[
     CORE_READPOSRESTAURANTREGISTERS_538,
     CORE_READPOSREGISTERBYID_539,
     STRIPE_READPOSPAYMENTBYIDCOMPANY_540,
+    CORE_READPOSPAYMENTBYID_541,
     STRIPE_WRITEPOSSTRIPEEVENTS1_49,
     STRIPE_WRITEPOSSTRIPEEVENTS2_53,
     STRIPE_WRITEPOSCONNECTIONHISTORY1_58,
@@ -462,6 +470,7 @@ fn sql(kind: &str) -> Option<&'static str> {
         CORE_READPOSRESTAURANTREGISTERS_538 => r#"SELECT id,name,warehouse_id,mode FROM pos_registers WHERE company_id=? AND branch_id=? AND active=true AND mode='restaurant'"#,
         CORE_READPOSREGISTERBYID_539 => r#"SELECT * FROM pos_registers WHERE id=?"#,
         STRIPE_READPOSPAYMENTBYIDCOMPANY_540 => r#"SELECT * FROM pos_payments WHERE id=? AND company_id=?"#,
+        CORE_READPOSPAYMENTBYID_541 => r#"SELECT * FROM pos_payments WHERE id=?"#,
         STRIPE_WRITEPOSSTRIPEEVENTS1_49 => r#"INSERT INTO pos_stripe_events(id,account_id,livemode,company_id,event_type,payload_json,received_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING"#,
         STRIPE_WRITEPOSSTRIPEEVENTS2_53 => r#"UPDATE pos_stripe_events SET provider_created_at=COALESCE(provider_created_at,?) WHERE id=?"#,
         STRIPE_WRITEPOSCONNECTIONHISTORY1_58 => r#"INSERT INTO pos_connection_history VALUES(?,?,?) ON CONFLICT DO NOTHING"#,
@@ -562,7 +571,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 134);
+        assert_eq!(KINDS.len(), 135);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -975,6 +984,25 @@ mod tests {
         }
         assert_eq!(stmt.matches('?').count(), 2);
         assert_eq!(stmt, "SELECT * FROM pos_payments WHERE id=? AND company_id=?");
+    }
+
+    /// The retired plain by-id payment read is a SELECT-only owner statement.
+    /// Its SQL is byte-identical to the three deleted `readPosPayments6`/
+    /// `readPosPayments11`/`readPosPayments16` literals in `pos-stripe.ts` and
+    /// `pos-core.ts`; this kind is the sole authority and no TypeScript copy
+    /// or fallback remains. It carries no row lock: the `FOR UPDATE` by-id
+    /// payment reads and refund reads stay in TypeScript and are untouched.
+    #[test]
+    fn payment_by_id_plain_read_kind_is_select_only() {
+        let kind = CORE_READPOSPAYMENTBYID_541;
+        assert!(supported(kind), "plain by-id payment read kind must be allow listed: {kind}");
+        let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
+        assert!(stmt.starts_with("SELECT "), "payment read kind must be SELECT-only: {kind}");
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE", "FOR SHARE"] {
+            assert!(!stmt.contains(forbidden), "payment read kind must not mutate or lock: {kind} contains {forbidden}");
+        }
+        assert_eq!(stmt.matches('?').count(), 1);
+        assert_eq!(stmt, "SELECT * FROM pos_payments WHERE id=?");
     }
 
     /// The retired purchase-boundary reads are SELECT-only owner statements.

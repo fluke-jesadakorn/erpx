@@ -13,6 +13,7 @@ import {
   nativePosSettingsAccountsStatement,
   nativePosConnectionsStatement,
   nativePosPaymentByIdStatement,
+  nativePosPaymentByIdPlainStatement,
   nativePosBookingConnectionStatement,
   nativePosStripeEntrypointJobsStatement,
   nativePosMovementSaleStatement,
@@ -585,6 +586,52 @@ describe('native POS core workspace read bridge (shifts family)', () => {
     const source = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-stripe.ts', import.meta.url), 'utf8');
     expect(source.match(/nativePosPaymentByIdStatement<PosRow>\(db, facts\.id\)/g)).toHaveLength(4);
     expect(source).not.toContain('SELECT * FROM pos_payments WHERE id=? FOR UPDATE');
+  });
+
+  it('requests the plain by-id payment row from the native owner registry only', async () => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const sql = 'SELECT * FROM pos_payments WHERE id=?';
+    const values = ['payment-1'];
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { sql, values } }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const seen: { sql?: string; values?: unknown[] } = {};
+    const row = { id: 'payment-1', state: 'succeeded' };
+    const db = {
+      prepare: (text: string) => ({
+        bind: (...bound: unknown[]) => {
+          seen.sql = text;
+          seen.values = bound;
+          return { first: async () => row };
+        },
+      }),
+    };
+    const prepare = vi.spyOn(db, 'prepare');
+    const result = await nativePosPaymentByIdPlainStatement(db as never, 'payment-1');
+    expect(result).toEqual(row);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    expect(JSON.parse(fetch.mock.calls[0][1].body)).toEqual({
+      company: '',
+      kind: 'core_readpospaymentbyid_541',
+      values,
+    });
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(seen.sql).toBe(sql);
+    expect(seen.sql).not.toContain('FOR UPDATE');
+    expect(seen.values).toEqual(values);
+  });
+
+  it('keeps the three plain by-id payment reads on the native registry with no local SQL', async () => {
+    const { readFileSync } = await import('node:fs');
+    for (const file of ['pos-stripe.ts', 'pos-core.ts']) {
+      const source = readFileSync(new URL(`../../../packages/server-pos/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(source).not.toContain("one(db, 'SELECT * FROM pos_payments WHERE id=?', facts.payment_id)");
+    }
+    const stripe = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-stripe.ts', import.meta.url), 'utf8');
+    const core = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-core.ts', import.meta.url), 'utf8');
+    expect(stripe.match(/nativePosPaymentByIdPlainStatement\(db, facts\.payment_id\)/g)).toHaveLength(2);
+    expect(core.match(/nativePosPaymentByIdPlainStatement\(db, facts\.payment_id\)/g)).toHaveLength(1);
   });
 
   it('requests the PMS booking connection row from the native owner registry only', async () => {
