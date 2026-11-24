@@ -46,7 +46,7 @@ describe('quality alert recipient family dedupe (r17)', () => {
 });
 
 describe('quality read-tail r17 retirement check', () => {
-  test('retirement:ts-statements is strictly lower than the BEFORE=76 baseline', () => {
+  test('retirement:ts-statements is strictly lower than the BEFORE=75 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -56,7 +56,7 @@ describe('quality read-tail r17 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBeLessThan(76);
-    expect(total).toBe(75);
+    expect(total).toBeLessThan(75);
+    expect(total).toBe(73);
   });
 });
