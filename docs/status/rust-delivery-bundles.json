@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8154,
+    "revision": 8156,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -135410,7 +135410,7 @@
         "owner": "manage_erpx",
         "title": "manage_erpx TS read tail native cutover (round 7)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -135422,22 +135422,34 @@
         "resources": [
           "owner:manage_erpx"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGAKmne",
-          "claimedAt": "2026-11-24T01:35:58.824Z",
-          "heartbeatAt": "2026-11-24T01:42:53.920Z",
-          "expiresAt": "2026-11-24T02:12:53.920Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "manage_erpx byte-identical scan (13 files, 30 literals)",
+            "result": "passed",
+            "sourceSha": "f77525193",
+            "note": "zero repeated SQL segments across call sites; no safe owner-local dedupe remains."
+          },
+          {
+            "command": "vitest manage erpx targeted (145; sandbox-email pre-existing env failure)",
+            "result": "passed",
+            "sourceSha": "f77525193"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: scan for a safe dedupe; if none, report blocked. BEFORE=30.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with evidence; dedupe floor reached.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGAKmne",
+          "at": "2026-11-24T01:47:28.013Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with evidence; dedupe floor reached."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -136707,17 +136719,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
-        "in_progress": 32,
+        "in_progress": 31,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 488,
+        "blocked": 489,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:47:11.651Z",
+    "updatedAt": "2026-11-24T01:47:28.022Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
