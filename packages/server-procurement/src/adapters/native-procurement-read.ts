@@ -31,6 +31,8 @@ export const PROCUREMENT_RD_INVOICE_POLICY_MATCHING_REQUIRED = 'procurement_rd_i
 export const PROCUREMENT_RD_RECORD_BILL_MATCH_EXISTS = 'procurement_rd_record_bill_match_exists';
 export const PROCUREMENT_RD_RECORD_RFQ_EXISTS = 'procurement_rd_record_rfq_exists';
 export const PROCUREMENT_RD_BILL_MATCH_EVENTS = 'procurement_rd_bill_match_events';
+export const PROCUREMENT_RD_BILL_MATCH_LINES_FOR_INVOICE = 'procurement_rd_bill_match_lines_for_invoice';
+export const PROCUREMENT_RD_POSTED_BILL_MATCH_FOR_INVOICE = 'procurement_rd_posted_bill_match_for_invoice';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PROCUREMENT_NATIVE_READ_UNAVAILABLE', 'The native Procurement read service is unavailable.');

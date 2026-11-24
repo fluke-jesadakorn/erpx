@@ -209,6 +209,33 @@ const READ_BILL_MATCH_EVENTS: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `commerce-facts`
+/// `readProcurementBillMatchLines1` read. The owner plans this literal; the
+/// caller executes it on its open unit with the same `[invoiceId, lineId]`
+/// binds.
+pub const RD_BILL_MATCH_LINES_FOR_INVOICE: &str = "procurement_rd_bill_match_lines_for_invoice";
+const SQL_BILL_MATCH_LINES_FOR_INVOICE: &str =
+    "SELECT l.subtotal_minor,l.tax_minor FROM procurement_bill_match_lines l JOIN procurement_bill_matches m ON m.id=l.match_id WHERE m.invoice_id=? AND m.status='posted' AND l.fulfillment_line_id=?";
+const READ_BILL_MATCH_LINES_FOR_INVOICE: NativeReadStatement = NativeReadStatement {
+    kind: RD_BILL_MATCH_LINES_FOR_INVOICE,
+    sql: SQL_BILL_MATCH_LINES_FOR_INVOICE,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript `commerce-facts`
+/// `readProcurementBillMatches1` read. The owner plans this literal; the caller
+/// executes it on its open unit with the same `[invoiceId, companyId]` binds.
+pub const RD_POSTED_BILL_MATCH_FOR_INVOICE: &str = "procurement_rd_posted_bill_match_for_invoice";
+const SQL_POSTED_BILL_MATCH_FOR_INVOICE: &str =
+    "SELECT * FROM procurement_bill_matches WHERE invoice_id=? AND company_id=? AND status='posted'";
+const READ_POSTED_BILL_MATCH_FOR_INVOICE: NativeReadStatement = NativeReadStatement {
+    kind: RD_POSTED_BILL_MATCH_FOR_INVOICE,
+    sql: SQL_POSTED_BILL_MATCH_FOR_INVOICE,
+    bind_count: 2,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_INVOICE_MATCH_FOR_FINANCE,
     READ_REQUEST_QUOTATION,
@@ -224,6 +251,8 @@ const READS: &[NativeReadStatement] = &[
     READ_RECORD_BILL_MATCH_EXISTS,
     READ_RECORD_RFQ_EXISTS,
     READ_BILL_MATCH_EVENTS,
+    READ_BILL_MATCH_LINES_FOR_INVOICE,
+    READ_POSTED_BILL_MATCH_FOR_INVOICE,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -256,6 +285,8 @@ mod tests {
         assert!(is_read(RD_RECORD_BILL_MATCH_EXISTS));
         assert!(is_read(RD_RECORD_RFQ_EXISTS));
         assert!(is_read(RD_BILL_MATCH_EVENTS));
+        assert!(is_read(RD_BILL_MATCH_LINES_FOR_INVOICE));
+        assert!(is_read(RD_POSTED_BILL_MATCH_FOR_INVOICE));
         assert!(!is_read("procurement_stmt_1"));
         assert!(read_statement("not_a_native_read").is_none());
     }
@@ -324,6 +355,16 @@ mod tests {
                 RD_BILL_MATCH_EVENTS,
                 1usize,
                 "procurement_bill_match_events",
+            ),
+            (
+                RD_BILL_MATCH_LINES_FOR_INVOICE,
+                2usize,
+                "procurement_bill_match_lines",
+            ),
+            (
+                RD_POSTED_BILL_MATCH_FOR_INVOICE,
+                2usize,
+                "procurement_bill_matches",
             ),
         ] {
             let read = read_statement(kind).expect("read kind");
@@ -497,6 +538,34 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 1);
         assert_eq!(read.scope, "holding");
         assert!(is_read(RD_BILL_MATCH_EVENTS));
+        assert!(!is_read("procurement_stmt_1"));
+    }
+
+    #[test]
+    fn bill_match_lines_for_invoice_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_BILL_MATCH_LINES_FOR_INVOICE).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT l.subtotal_minor,l.tax_minor FROM procurement_bill_match_lines l JOIN procurement_bill_matches m ON m.id=l.match_id WHERE m.invoice_id=? AND m.status='posted' AND l.fulfillment_line_id=?"
+        );
+        assert_eq!(read.bind_count, 2);
+        assert_eq!(read.sql.matches('?').count(), 2);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_BILL_MATCH_LINES_FOR_INVOICE));
+        assert!(!is_read("procurement_stmt_1"));
+    }
+
+    #[test]
+    fn posted_bill_match_for_invoice_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_POSTED_BILL_MATCH_FOR_INVOICE).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT * FROM procurement_bill_matches WHERE invoice_id=? AND company_id=? AND status='posted'"
+        );
+        assert_eq!(read.bind_count, 2);
+        assert_eq!(read.sql.matches('?').count(), 2);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_POSTED_BILL_MATCH_FOR_INVOICE));
         assert!(!is_read("procurement_stmt_1"));
     }
 }

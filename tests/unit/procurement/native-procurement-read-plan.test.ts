@@ -18,12 +18,15 @@ import {
   PROCUREMENT_RD_RECORD_BILL_MATCH_EXISTS,
   PROCUREMENT_RD_RECORD_RFQ_EXISTS,
   PROCUREMENT_RD_BILL_MATCH_EVENTS,
+  PROCUREMENT_RD_BILL_MATCH_LINES_FOR_INVOICE,
+  PROCUREMENT_RD_POSTED_BILL_MATCH_FOR_INVOICE,
 } from '../../../packages/server-procurement/src/adapters/native-procurement-read';
 import { procurementInvoiceMatchForFinance } from '../../../packages/server-procurement/src/adapters/finance-entrypoint-queries';
 import { requestQuotation } from '../../../packages/server-procurement/src/adapters/people-app-entrypoint-facts';
 import { OperationalAttachmentProcurementFacts } from '../../../packages/server-procurement/src/adapters/attachments-operational-facts';
 import { documentPostingPreviewFacts } from '../../../packages/server-procurement/src/adapters/document-posting-preview-facts';
 import { EmployeeRequestsProcurementOwnedFacts } from '../../../packages/server-procurement/src/adapters/records-employee-requests-owned-facts';
+import { CommerceProcurementFacts } from '../../../packages/server-procurement/src/adapters/commerce-facts';
 
 const envKey = 'ERPX_NATIVE_PROCUREMENT_CONFIG';
 const original = process.env[envKey];
@@ -42,6 +45,8 @@ const planned = {
   [PROCUREMENT_RD_RECORD_BILL_MATCH_EXISTS]: 'SELECT 1 FROM procurement_bill_matches WHERE id=?',
   [PROCUREMENT_RD_RECORD_RFQ_EXISTS]: 'SELECT 1 FROM procurement_rfqs WHERE id=?',
   [PROCUREMENT_RD_BILL_MATCH_EVENTS]: 'SELECT * FROM procurement_bill_match_events WHERE match_id=? ORDER BY version DESC',
+  [PROCUREMENT_RD_BILL_MATCH_LINES_FOR_INVOICE]: "SELECT l.subtotal_minor,l.tax_minor FROM procurement_bill_match_lines l JOIN procurement_bill_matches m ON m.id=l.match_id WHERE m.invoice_id=? AND m.status='posted' AND l.fulfillment_line_id=?",
+  [PROCUREMENT_RD_POSTED_BILL_MATCH_FOR_INVOICE]: "SELECT * FROM procurement_bill_matches WHERE invoice_id=? AND company_id=? AND status='posted'",
 };
 const stubFetch = (payload: unknown, status = 200) => {
   const fetchMock = vi.fn(async () => ({
@@ -102,7 +107,9 @@ describe('native Procurement caller-unit read plan', () => {
     expect(PROCUREMENT_RD_RECORD_BILL_MATCH_EXISTS).toBe('procurement_rd_record_bill_match_exists');
     expect(PROCUREMENT_RD_RECORD_RFQ_EXISTS).toBe('procurement_rd_record_rfq_exists');
     expect(PROCUREMENT_RD_BILL_MATCH_EVENTS).toBe('procurement_rd_bill_match_events');
-    for (const kind of [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE, PROCUREMENT_RD_REQUEST_QUOTATION, PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH, PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL, PROCUREMENT_RD_BILL_MATCH_RECEIPTS, PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT, PROCUREMENT_RD_REQUEST_ALLOCATIONS, PROCUREMENT_RD_REQUEST_ORDER_LINK, PROCUREMENT_RD_BILL_MATCH_VARIANCE, PROCUREMENT_RD_BILL_MATCH_RECEIPT_HISTORY, PROCUREMENT_RD_INVOICE_POLICY_MATCHING_REQUIRED, PROCUREMENT_RD_RECORD_BILL_MATCH_EXISTS, PROCUREMENT_RD_RECORD_RFQ_EXISTS, PROCUREMENT_RD_BILL_MATCH_EVENTS]) {
+    expect(PROCUREMENT_RD_BILL_MATCH_LINES_FOR_INVOICE).toBe('procurement_rd_bill_match_lines_for_invoice');
+    expect(PROCUREMENT_RD_POSTED_BILL_MATCH_FOR_INVOICE).toBe('procurement_rd_posted_bill_match_for_invoice');
+    for (const kind of [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE, PROCUREMENT_RD_REQUEST_QUOTATION, PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH, PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL, PROCUREMENT_RD_BILL_MATCH_RECEIPTS, PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT, PROCUREMENT_RD_REQUEST_ALLOCATIONS, PROCUREMENT_RD_REQUEST_ORDER_LINK, PROCUREMENT_RD_BILL_MATCH_VARIANCE, PROCUREMENT_RD_BILL_MATCH_RECEIPT_HISTORY, PROCUREMENT_RD_INVOICE_POLICY_MATCHING_REQUIRED, PROCUREMENT_RD_RECORD_BILL_MATCH_EXISTS, PROCUREMENT_RD_RECORD_RFQ_EXISTS, PROCUREMENT_RD_BILL_MATCH_EVENTS, PROCUREMENT_RD_BILL_MATCH_LINES_FOR_INVOICE, PROCUREMENT_RD_POSTED_BILL_MATCH_FOR_INVOICE]) {
       expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
     }
   });
@@ -397,6 +404,37 @@ describe('native Procurement caller-unit read plan', () => {
     );
     expect(source).not.toContain('SELECT * FROM procurement_bill_match_events WHERE match_id=? ORDER BY version DESC');
     expect(source).toContain('PROCUREMENT_RD_BILL_MATCH_EVENTS');
+  });
+
+  it('plans both commerce-facts bill-match reads and retires the TypeScript literals', async () => {
+    const source = readFileSync(
+      new URL('../../../packages/server-procurement/src/adapters/commerce-facts.ts', import.meta.url),
+      'utf8',
+    );
+    expect(source).not.toContain('SELECT l.subtotal_minor,l.tax_minor FROM procurement_bill_match_lines');
+    expect(source).not.toContain("SELECT * FROM procurement_bill_matches WHERE invoice_id=? AND company_id=? AND status='posted'");
+    expect(source).toContain('PROCUREMENT_RD_BILL_MATCH_LINES_FOR_INVOICE');
+    expect(source).toContain('PROCUREMENT_RD_POSTED_BILL_MATCH_FOR_INVOICE');
+
+    for (const [kind, values, rows] of [
+      [PROCUREMENT_RD_BILL_MATCH_LINES_FOR_INVOICE, ['inv-1', 'line-1'], [{ subtotal_minor: 1000, tax_minor: 70 }]],
+      [PROCUREMENT_RD_POSTED_BILL_MATCH_FOR_INVOICE, ['inv-1', 'company'], [{ id: 'bill-1' }]],
+    ] as const) {
+      const fetchMock = stubFetch({ data: { statements: [{ sql: planned[kind], values }] } });
+      const { db, prepared, bound } = fakeDb([...rows]);
+      const facts = CommerceProcurementFacts(db as never);
+      const row = kind === PROCUREMENT_RD_BILL_MATCH_LINES_FOR_INVOICE
+        ? await facts.readProcurementBillMatchLines1({ invoice_id: 'inv-1', id: 'line-1' })
+        : await facts.readProcurementBillMatches1({ invoice_id: 'inv-1', companyId: 'company' });
+      expect(row).toEqual(rows[0]);
+      expect(prepared).toEqual([planned[kind]]);
+      expect(bound).toEqual([[...values]]);
+      const [, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+      const body = JSON.parse(init.body as string) as { kind: string; values: unknown[] };
+      expect(body.kind).toBe(kind);
+      expect(body.values).toEqual([...values]);
+      expect(JSON.stringify(body)).not.toContain('SELECT');
+    }
   });
 
   it('fails closed when the native transport is not configured', async () => {
