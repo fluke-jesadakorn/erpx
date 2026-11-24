@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10733,
+    "revision": 10743,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -165262,7 +165262,7 @@
         "owner": "crm",
         "title": "crm TS read tail native cutover (round 28)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -165274,22 +165274,37 @@
         "resources": [
           "owner:crm"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMcrm5",
-          "claimedAt": "2026-11-24T08:30:53.679Z",
-          "heartbeatAt": "2026-11-24T08:41:42.266Z",
-          "expiresAt": "2026-11-24T09:11:42.266Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-crm/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "3fba24a3e",
+            "owner": "crm",
+            "before": 132,
+            "after": 130,
+            "note": "Case event history/create snapshot and opportunity source probes share two renderers; native transport not mounted, locks and r8-r27 untouched."
+          },
+          {
+            "command": "vitest crm r25-r28 (69) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "3fba24a3e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Remaining native-read candidates: opportunity source probes, case event history/snapshot, receipt and membership authority reads. BEFORE=132.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; native port gated on route restart + config; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMcrm5",
+          "at": "2026-11-24T08:47:13.988Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; native port gated on route restart + config; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -165334,7 +165349,7 @@
         "owner": "finance",
         "title": "finance TS read tail native cutover (round 37)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -165346,22 +165361,37 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMfin9",
-          "claimedAt": "2026-11-24T08:32:19.658Z",
-          "heartbeatAt": "2026-11-24T08:41:42.266Z",
-          "expiresAt": "2026-11-24T09:11:42.266Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "3fba24a3e",
+            "owner": "finance",
+            "before": 1966,
+            "after": 1965,
+            "note": "Finance period existence by id literal shared; guarded and lock variants and r15-r36 untouched."
+          },
+          {
+            "command": "vitest finance native read plan (96) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "3fba24a3e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=1966.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMfin9",
+          "at": "2026-11-24T08:47:14.376Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -166101,6 +166131,114 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=349.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.crm.read-tail-r29",
+        "goalId": "G4",
+        "owner": "crm",
+        "title": "crm TS read tail native cutover (round 29)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-crm/src/**",
+          "tests/unit/crm/**",
+          "tests/integration/crm/**"
+        ],
+        "resources": [
+          "owner:crm"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMcrm6",
+          "claimedAt": "2026-11-24T08:47:15.237Z",
+          "heartbeatAt": "2026-11-24T08:47:15.237Z",
+          "expiresAt": "2026-11-24T09:17:15.237Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=130.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.read-tail-r38",
+        "goalId": "G4",
+        "owner": "finance",
+        "title": "finance TS read tail native cutover (round 38)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMfina",
+          "claimedAt": "2026-11-24T08:47:15.460Z",
+          "heartbeatAt": "2026-11-24T08:47:15.460Z",
+          "expiresAt": "2026-11-24T09:17:15.460Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=1965.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.support.read-tail-r29",
+        "goalId": "G4",
+        "owner": "support",
+        "title": "support portal image native read port (round 29)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMsup8",
+          "claimedAt": "2026-11-24T08:47:15.657Z",
+          "heartbeatAt": "2026-11-24T08:47:15.657Z",
+          "expiresAt": "2026-11-24T09:17:15.657Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Portal valid binding and image family; keep locks and purchase gates inline. BEFORE=51.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -166109,21 +166247,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1449,
+      "totalPackets": 1452,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 17,
+        "in_progress": 18,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1082,
+        "blocked": 1084,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:46:11.333Z",
+    "updatedAt": "2026-11-24T08:47:15.663Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
