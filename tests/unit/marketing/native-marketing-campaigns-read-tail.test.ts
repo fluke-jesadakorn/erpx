@@ -69,12 +69,16 @@ describe('Marketing owner-local campaign read tail', () => {
     const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
     const hospitality = await readFile(new URL('hospitality-owner-projection-sources.ts', base), 'utf8');
     const lastAudit = await readFile(new URL('last-audit-owner-projection-sources.ts', base), 'utf8');
+    const head = await readFile(new URL('owner-projection-source.ts', base), 'utf8');
     const commercial = await readFile(new URL('commercial-owner-projection-sources.ts', base), 'utf8');
 
-    expect(hospitality.match(/SELECT \\"id\\",\\"company_id\\",\\"code\\",\\"name\\",\\"created_by\\",\\"created_at\\",\\"version\\" FROM marketing_campaigns/g)).toHaveLength(1);
-    expect(lastAudit.match(/SELECT \\"id\\",\\"company_id\\",\\"campaign_id\\",\\"journal_line_id\\",\\"evidence\\",\\"reviewed_by\\",\\"created_at\\" FROM marketing_campaign_costs/g)).toHaveLength(1);
-    expect(commercial).not.toContain('SELECT \\"id\\",\\"company_id\\",\\"code\\"');
-    expect(commercial).not.toContain('SELECT \\"id\\",\\"company_id\\",\\"campaign_id\\"');
+    // r40 renders all four quoted projections from one closed column-list/table
+    // head; the byte oracles are frozen in read-tail-r40-dedupe.test.ts.
+    expect(head.match(/SELECT /g)).toHaveLength(1);
+    for (const source of [hospitality, lastAudit, commercial]) expect(source).not.toMatch(/SELECT /);
+    expect(hospitality).toContain('marketingProjectionSourceSql(');
+    expect(lastAudit).toContain('marketingProjectionSourceSql(');
+    expect(commercial).toContain('marketingProjectionSourceSql(');
     expect(commercial).toContain('marketingCampaignProjection');
     expect(commercial).toContain('marketingCampaignCostProjection');
   });
@@ -131,11 +135,17 @@ describe('Marketing owner-local campaign read tail', () => {
     const read = await readFile(new URL('attachment-read.ts', base), 'utf8');
 
     const predicate = 'SELECT ${projection} FROM ${table} source WHERE source.id=? AND source.company_id=?';
-    // The canonical helper owns the single source-witness SELECT; its comment
-    // must not smuggle a second "SELECT" token into the retirement KPI.
-    expect(witness.match(/SELECT/g)).toHaveLength(1);
+    // r40 moved the single source-witness SELECT into the shared point-read
+    // head; this wrapper only delegates with the qualifier flag.
+    const head = await readFile(new URL('owner-point-read-sql.ts', base), 'utf8');
+    const { marketingOwnerPointReadSql } = await import(
+      '../../../packages/server-marketing/src/adapters/owner-point-read-sql'
+    );
+    expect(marketingOwnerPointReadSql('${projection}', '${table} source', true)).toBe(predicate);
+    expect(head.match(/SELECT /g)).toHaveLength(1);
+    expect(witness).not.toMatch(/SELECT/);
     expect(witness).toContain('export const attachmentSourceWitnessSql');
-    expect(witness).toContain(predicate);
+    expect(witness).toContain('marketingOwnerPointReadSql(projection, `${table} source`, true)');
 
     for (const consumer of [purchases, read]) {
       expect(consumer).toContain('attachmentSourceWitnessSql(');
@@ -176,11 +186,11 @@ describe('Marketing owner-local campaign read tail', () => {
     const campaigns = await readFile(new URL('campaigns.ts', base), 'utf8');
 
     const predicate = 'SELECT 1 FROM marketing_campaigns WHERE id=? AND company_id=?';
-    // The canonical helper owns the single existence SQL; its comment must not
-    // smuggle a second "SELECT" token into the retirement KPI.
-    expect(helper.match(/SELECT/g)).toHaveLength(1);
+    // r40 moved the single existence SQL into the shared point-read head; this
+    // wrapper only delegates. The byte oracle is frozen in the r40 test.
+    expect(helper).not.toMatch(/SELECT/);
     expect(helper).toContain('export const marketingCampaignExistsSql');
-    expect(helper).toContain(predicate);
+    expect(helper).toContain('marketingOwnerPointReadSql("1", "marketing_campaigns")');
 
     for (const consumer of [submission, campaigns]) {
       expect(consumer).toContain("import {marketingCampaignExistsSql} from './campaign-existence'");

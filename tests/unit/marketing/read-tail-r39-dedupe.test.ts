@@ -86,7 +86,9 @@ describe('marketing NULL-scope analytics row-frame dedupe (r39)', () => {
     expect(await src('marketing.ts')).toContain('from "./native-marketing-read"');
   });
 
-  it('retirement:ts-statements KPI is 61 (strictly below BEFORE=62)', async () => {
-    expect(await selectTokens()).toBe(61);
+  it('retirement:ts-statements KPI is 55 (strictly below BEFORE=61)', async () => {
+    // r40 dedupes the projection-source and point-read heads; this round only
+    // pins the drop below the r39 AFTER=61 baseline.
+    expect(await selectTokens()).toBe(55);
   });
 });

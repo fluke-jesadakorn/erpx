@@ -12,6 +12,7 @@ import {marketingPurchaseAssetRows,marketingPurchaseCandidateRows,requireMarketi
 import {marketingModuleMemberSql} from './module-membership';
 import {marketingRecordScopeAuthoritySql} from './record-scope-authority';
 import {marketingSourceIdsSql} from './marketing-source-id-sql';
+import {marketingOwnerPointReadSql} from './owner-point-read-sql';
 const nativeIds=marketingSourceIdsSql();
 const rows=`SELECT asset.id,'asset' kind,asset.company_id,asset.branch_id,asset.department_id FROM (${marketingPurchaseAssetRows}) asset UNION ALL SELECT candidate.id,'candidate',candidate.company_id,candidate.branch_id,candidate.department_id FROM (${marketingPurchaseCandidateRows}) candidate UNION ALL SELECT id,'campaign',company_id,NULL,NULL FROM marketing_campaigns UNION ALL SELECT cost.id,'campaign-cost',cost.company_id,NULL,NULL FROM marketing_campaign_costs cost JOIN marketing_campaigns campaign ON campaign.id=cost.campaign_id AND campaign.company_id=cost.company_id`;
 function scope(actor:WorkContext,id:string,company:string){
@@ -25,7 +26,7 @@ export async function marketingSourceReadScope(database:SqlDatabase,actor:WorkCo
  return {where:`(NOT ${relevant} OR ${source.where})`,args:source.args};
 }
 export async function requireMarketingWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,_moduleId:string,id:string){
- if(await commercePackageEnforcementMode()==='disabled')return;const row=await database.prepare(`SELECT kind FROM (${rows}) actual WHERE id=? AND company_id=?`).bind(id,actor.companyId).first<{kind:MarketingPurchaseTarget['kind']}>();
+ if(await commercePackageEnforcementMode()==='disabled')return;const row=await database.prepare(marketingOwnerPointReadSql('kind',`(${rows}) actual`)).bind(id,actor.companyId).first<{kind:MarketingPurchaseTarget['kind']}>();
  if(row)await requireMarketingPurchasedRead(database,actor,{kind:row.kind,id});else if(await database.prepare(`SELECT 1 FROM (${nativeIds}) actual WHERE id=?`).bind(id).first())throw new ApiError(404,'MARKETING_SOURCE_NOT_FOUND','The original Marketing source is unavailable in this workspace.');
 }
 export async function filterMarketingPurchasedWork(database:SqlDatabase,actor:WorkContext,items:WorkItem[]){

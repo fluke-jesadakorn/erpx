@@ -42,10 +42,11 @@ describe('marketing owner-local point read dedupe', () => {
     const operational = await readFile(adapter('attachments-operational-facts.ts'), 'utf8');
     const policy = await readFile(adapter('attachments-policy-facts.ts'), 'utf8');
 
-    // Each canonical helper owns exactly one query token; the comments must not
-    // smuggle another token into the owner retirement KPI.
+    // The local helper owns one query token; r40 moved the owner-fact token
+    // into the shared point-read head, so this wrapper only delegates.
     expect(local.match(/SELECT/g)).toHaveLength(1);
-    expect(ownerFact.match(/SELECT/g)).toHaveLength(1);
+    expect(ownerFact.match(/SELECT/g)).toBeNull();
+    expect(ownerFact).toContain('marketingOwnerPointReadSql(columns, table)');
 
     expect(repo).not.toContain('FROM marketing_assets WHERE id=? AND company_id=?"');
     expect(repo).not.toContain('`SELECT * FROM marketing_lead_candidates WHERE id=?');
