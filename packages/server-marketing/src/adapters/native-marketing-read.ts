@@ -25,6 +25,7 @@ export const MARKETING_RD_FORM_CONTENT_ROW = 'form-content-row';
 export const MARKETING_RD_CAMPAIGN_EXISTS = 'campaign-exists';
 export const MARKETING_RD_CAMPAIGN_WITNESS = 'campaign-witness';
 export const MARKETING_RD_CAMPAIGN_COST_WITNESS = 'campaign-cost-witness';
+export const MARKETING_RD_PACKAGE_OBLIGATIONS = 'marketing-package-obligations';
 
 /** Wire order mirrors the owner `BindField` registry. */
 export type NativeMarketingReadScope = Readonly<{
@@ -51,6 +52,7 @@ const KINDS = new Set<string>([
   MARKETING_RD_CAMPAIGN_EXISTS,
   MARKETING_RD_CAMPAIGN_WITNESS,
   MARKETING_RD_CAMPAIGN_COST_WITNESS,
+  MARKETING_RD_PACKAGE_OBLIGATIONS,
 ]);
 
 const unavailable = (): never => {

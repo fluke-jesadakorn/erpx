@@ -6,6 +6,7 @@ import {
   MARKETING_RD_ASSET_POINT,
   MARKETING_RD_FORM_CONTENT_ROW,
   MARKETING_RD_CAMPAIGN_EXISTS,
+  MARKETING_RD_PACKAGE_OBLIGATIONS,
 } from '../../../packages/server-marketing/src/adapters/native-marketing-read';
 
 const CONFIG_KEY = 'ERPX_NATIVE_MARKETING_READ_CONFIG';
@@ -54,6 +55,20 @@ describe('native Marketing read-plan transport', () => {
     expect(JSON.parse(String(init?.body))).toEqual({
       kind: MARKETING_RD_ASSET_POINT,
       scope: { assetId: 'asset-1', companyId: 'company-1' },
+    });
+  });
+
+  it('accepts the registered package-obligations kind and binds only the company', async () => {
+    let body: unknown;
+    vi.stubGlobal('fetch', vi.fn(async (u: URL, i: RequestInit) => {
+      body = JSON.parse(String(i.body));
+      return ok({ data: { kind: MARKETING_RD_PACKAGE_OBLIGATIONS, caller: 'marketing.package-obligations', statement } });
+    }));
+    const planned = await nativeMarketingPlan(MARKETING_RD_PACKAGE_OBLIGATIONS, { companyId: 'company-1' });
+    expect(planned.kind).toBe('marketing-package-obligations');
+    expect(body).toEqual({
+      kind: MARKETING_RD_PACKAGE_OBLIGATIONS,
+      scope: { companyId: 'company-1' },
     });
   });
 

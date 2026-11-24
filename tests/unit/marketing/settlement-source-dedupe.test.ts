@@ -31,6 +31,23 @@ describe('marketing settlement source dedupe', () => {
     }
   });
 
+  it('keeps the four reads for the cross-owner CRM and Finance consumers', async () => {
+    const source = await readFile(adapter('package-obligations.ts'), 'utf8');
+    expect(source).not.toContain('WITH scope AS(SELECT ?::text company_id)');
+    expect(source).not.toContain("database.prepare(`WITH scope AS");
+    expect(source).toContain('nativeMarketingReadAll<{kind:string;id:string;fact:unknown;pending:boolean}>(MARKETING_RD_PACKAGE_OBLIGATIONS');
+    expect(source).toContain('assertMarketingPackageObligationSources(owner,database,input.companyId)');
+    expect(source).toContain('LOCK TABLE marketing_assets,marketing_asset_events,marketing_lead_candidates,marketing_engagement_events,marketing_campaigns,marketing_campaign_costs,marketing_touches,marketing_public_receipts,marketing_public_limits,command_receipts IN SHARE MODE');
+    for (const owner of ['crm', 'finance']) {
+      const consumer = await readFile(
+        new URL(`../../../packages/server-${owner}/src/adapters/marketing-package-obligations.ts`, import.meta.url),
+        'utf8',
+      );
+      expect(consumer).toContain('marketingPackageSettlementSources as marketing');
+      expect(consumer).toContain('marketing.');
+    }
+  });
+
   it('shares the one projection frame with the legacy candidate reader', async () => {
     const { marketingPlainSourceSql } = await import(
       '../../../packages/server-marketing/src/adapters/marketing-plain-source-sql.ts'

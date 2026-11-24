@@ -29,6 +29,10 @@ const TS_PURCHASE: &str =
     include_str!("../../../packages/server-marketing/src/adapters/marketing-purchase-rows-sql.ts");
 const TS_PUBLIC_FORM: &str =
     include_str!("../../../packages/server-marketing/src/adapters/public-form.ts");
+const TS_CRM_SOURCES: &str =
+    include_str!("../../../packages/server-marketing/src/adapters/crm-purchase-sources.ts");
+const TS_PACKAGE: &str =
+    include_str!("../../../packages/server-marketing/src/adapters/package-obligations.ts");
 
 // Live statement literals emitted by the retained TypeScript helpers.
 const LIVE_ASSET_POINT: &str = "SELECT * FROM marketing_assets WHERE id=? AND company_id=?";
@@ -41,6 +45,35 @@ const LIVE_FORM_CONTENT_ROW: &str = "SELECT id,version,preview_json FROM marketi
 const LIVE_CAMPAIGN_EXISTS: &str = "SELECT 1 FROM marketing_campaigns WHERE id=? AND company_id=?";
 const LIVE_CAMPAIGN_WITNESS: &str = "SELECT campaign.id,campaign.company_id,NULL::text branch_id,NULL::text department_id,to_jsonb(campaign) witness FROM marketing_campaigns campaign";
 const LIVE_CAMPAIGN_COST_WITNESS: &str = "SELECT cost.id,cost.company_id,NULL::text branch_id,NULL::text department_id,to_jsonb(cost) witness FROM marketing_campaign_costs cost JOIN marketing_campaigns campaign ON campaign.id=cost.campaign_id AND campaign.company_id=cost.company_id";
+
+macro_rules! package_obligations {
+    () => {
+        concat!(
+            "WITH scope AS(SELECT ?::text company_id)\n SELECT 'asset' kind,a.id,to_jsonb(a) fact,a.status IN ('draft','active') OR NOT EXISTS(SELECT 1 FROM marketing_asset_events event WHERE event.asset_id=a.id AND event.version<=a.version AND event.status=a.status AND event.action=CASE a.status WHEN 'retired' THEN 'retire' WHEN 'rejected' THEN 'reject' END AND event.actor_id=a.reviewed_by AND (a.status<>'rejected' OR event.actor_id<>a.created_by) AND EXISTS(SELECT 1 FROM command_receipts command WHERE event.id='marketing-asset-event-'||command.command_id AND command.record_id=a.id AND command.operation='marketing.asset.'||event.action AND command.actor_id=event.actor_id AND command.authority_json::jsonb->>'companyId'=a.company_id AND command.result_json::jsonb->>'status'=a.status AND command.result_json::jsonb->>'version'=event.version::text)) pending FROM marketing_assets a,scope WHERE a.company_id=scope.company_id\n UNION ALL SELECT 'provider-callback-unresolved',a.id,to_jsonb(a),true FROM marketing_assets a,scope WHERE a.company_id=scope.company_id AND a.kind IN ('provider','domain') AND EXISTS(SELECT 1 FROM marketing_asset_events event WHERE event.asset_id=a.id AND event.action='activate')\n UNION ALL SELECT 'candidate',c.id,to_jsonb(c),NOT c.source_valid OR c.status<>'handed_off' FROM (",
+            package_candidates!(),
+            ") c,scope WHERE c.company_id=scope.company_id\n UNION ALL SELECT 'campaign',c.id,to_jsonb(c),false FROM marketing_campaigns c,scope WHERE c.company_id=scope.company_id\n UNION ALL SELECT 'campaign-cost-source',c.id,to_jsonb(c),NOT EXISTS(SELECT 1 FROM marketing_campaigns campaign WHERE campaign.id=c.campaign_id AND campaign.company_id=c.company_id) FROM marketing_campaign_costs c,scope WHERE c.company_id=scope.company_id\n UNION ALL SELECT 'public-receipt',receipt.key,to_jsonb(receipt),NOT c.source_valid OR receipt.request_hash!~'^[a-f0-9]{64}$' OR receipt.created_at<>c.created_at FROM marketing_public_receipts receipt JOIN (",
+            package_candidates!(),
+            ") c ON c.id=receipt.candidate_id CROSS JOIN scope WHERE c.company_id=scope.company_id ORDER BY kind,id"
+        )
+    };
+}
+macro_rules! package_candidates {
+    () => {
+        concat!(
+            "SELECT c.*,valid.id IS NOT NULL AND EXISTS(SELECT 1 FROM marketing_assets form JOIN marketing_asset_events activated ON activated.asset_id=form.id AND activated.version=c.form_version AND activated.action='activate' AND activated.actor_id<>form.created_by JOIN command_receipts command ON activated.id='marketing-asset-event-'||command.command_id AND command.operation='marketing.asset.activate' AND command.record_id=form.id AND command.actor_id=activated.actor_id AND command.authority_json::jsonb->>'companyId'=c.company_id WHERE form.id=c.form_id AND form.company_id=c.company_id) source_valid FROM marketing_lead_candidates c LEFT JOIN (",
+            crm_candidates!(),
+            ") valid ON valid.id=c.id AND valid.company_id=c.company_id"
+        )
+    };
+}
+macro_rules! crm_candidates {
+    () => {
+        concat!(
+            "SELECT candidate.* FROM marketing_lead_candidates candidate\n JOIN marketing_assets form ON form.id=candidate.form_id AND form.company_id=candidate.company_id AND form.kind='form' AND form.version>=candidate.form_version\n JOIN marketing_asset_events captured ON captured.asset_id=form.id AND captured.version=candidate.form_version AND captured.action='activate' AND captured.status='active'\n JOIN marketing_engagement_events submission ON submission.candidate_id=candidate.id AND submission.version=1 AND submission.event_type='form_submit'\n WHERE length(trim(candidate.consent_evidence))>=3"
+        )
+    };
+}
+const LIVE_PACKAGE_OBLIGATIONS: &str = package_obligations!();
 
 const DDL: &str = "\
 CREATE TABLE marketing_assets(id text primary key,company_id text not null,name text,version bigint,preview_json text,configuration_json text,kind text,status text,updated_at text);\
@@ -71,6 +104,20 @@ fn live_statements_match_typescript_authority() {
     assert!(TS_PUBLIC_FORM.contains("marketingFormContentSql('1')"));
     assert!(TS_PUBLIC_FORM.contains("marketingFormContentSql('id,version,preview_json')"));
     assert!(TS_PUBLIC_FORM.contains("activeFormSql('public')"));
+    assert!(TS_CRM_SOURCES.contains(crm_candidates!()));
+    assert!(TS_PACKAGE.contains("nativeMarketingReadAll<{kind:string;id:string;fact:unknown;pending:boolean}>(MARKETING_RD_PACKAGE_OBLIGATIONS"));
+    assert!(TS_PACKAGE.contains("LOCK TABLE marketing_assets,marketing_asset_events,marketing_lead_candidates,marketing_engagement_events,marketing_campaigns,marketing_campaign_costs,marketing_touches,marketing_public_receipts,marketing_public_limits,command_receipts IN SHARE MODE"));
+    assert!(!TS_PACKAGE.contains("WITH scope AS(SELECT ?::text company_id)\n SELECT 'asset' kind"));
+}
+/// The retired statement has no TypeScript literal left to read; the exact
+/// former live statement is frozen here and must equal the registered plan.
+#[test]
+fn retired_package_obligations_statement_is_byte_identical() {
+    let plan = plans::plan(plans::RD_PACKAGE_OBLIGATIONS).expect("registered plan");
+    assert_eq!(plan.sql, LIVE_PACKAGE_OBLIGATIONS);
+    assert_eq!(plan.sql.matches("SELECT ").count(), 17);
+    assert_eq!(plan.binds.len(), 1);
+    assert_eq!(plan.binds, &[BindField::CompanyId]);
 }
 
 /// The registry must hold the exact statements the TypeScript caller runs.
@@ -86,6 +133,7 @@ fn native_plans_match_live_typescript_statements() {
         (plans::RD_CAMPAIGN_EXISTS, LIVE_CAMPAIGN_EXISTS),
         (plans::RD_CAMPAIGN_WITNESS, LIVE_CAMPAIGN_WITNESS),
         (plans::RD_CAMPAIGN_COST_WITNESS, LIVE_CAMPAIGN_COST_WITNESS),
+        (plans::RD_PACKAGE_OBLIGATIONS, LIVE_PACKAGE_OBLIGATIONS),
     ];
     for (kind, live) in cases {
         let plan = plans::plan(kind).expect("registered plan");
