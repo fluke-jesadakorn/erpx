@@ -18,6 +18,7 @@
     "./adapters/server/next-native-sales-documents": "./src/adapters/server/next-native-sales-documents.ts",
     "./public/native-ecommerce-catalog": "./src/public/native-ecommerce-catalog.ts",
     "./public/native-ecommerce-catalog-page": "./src/public/native-ecommerce-catalog-page.ts",
+    "./public/native-ecommerce-listing": "./src/public/native-ecommerce-listing.ts",
     "./adapters/server/next-native-ecommerce-catalog": "./src/adapters/server/next-native-ecommerce-catalog.ts",
     "./public/native-crm-command": "./src/public/native-crm-command.ts",
     "./public/native-crm-pipeline": "./src/public/native-crm-pipeline.ts",

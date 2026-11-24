@@ -53056,6 +53056,71 @@
       ]
     },
     {
+      "lane": "unit",
+      "owner": "manufacturing",
+      "modules": [
+        "manufacturing"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native manufacturing read-plan transport must stay fail-closed and owner-scoped."
+      },
+      "apps": "manufacturing",
+      "packages": [
+        "@erpx/server-manufacturing"
+      ],
+      "id": "manufacturing.native-manufacturing-read-transport.unit",
+      "files": [
+        "tests/unit/manufacturing/native-manufacturing-read-transport.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "id": "manufacturing.native-read-parity-postgres.integration",
+      "lane": "integration",
+      "owner": "manufacturing",
+      "modules": [
+        "manufacturing"
+      ],
+      "files": [
+        "tests/integration/manufacturing/rust-native-read-parity-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Manufacturing native read plans must match retained TS statements and PG rows."
+      },
+      "apps": [
+        "manufacturing"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-manufacturing",
+        "targets": [
+          "manufacturing_read_parity_postgres"
+        ],
+        "features": []
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-manufacturing/Cargo.toml"
+      ],
+      "packages": [
+        "@erpx/server-manufacturing"
+      ]
+    },
+    {
       "id": "manufacturing.production.integration",
       "lane": "integration",
       "owner": "manufacturing",

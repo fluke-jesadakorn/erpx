@@ -6,7 +6,7 @@ use erpx_server_ecommerce::public::catalog::EcommerceActor;
 use erpx_server_ecommerce::public::ecommerce_http::{
     EcommerceHttpFuture, EcommerceHttpResponse, EcommerceListingChangeHttpRequest,
     EcommerceListingCreateHttpRequest, EcommerceListingHttpBackend, EcommerceListingHttpState,
-    EcommerceListingHttpTarget,
+    EcommerceListingHttpTarget, ecommerce_listing_router,
 };
 use erpx_server_ecommerce::public::listing::{
     AuditEntry, ChangeListing, CommandReceipt, CreateListing, EcommerceFunctionalCurrency,
@@ -1231,4 +1231,17 @@ fn listing_http_configuration_requires_distinct_https_targets() {
         let error = EcommerceListingHttpState::new(targets).err().unwrap();
         assert_eq!(error.code, "ECOMMERCE_HTTP_CONFIGURATION_INVALID");
     }
+}
+
+/// The axum constructor used by the composed private API mount must accept the
+/// exact per-Holding target set and reject a misconfigured one.
+#[test]
+fn listing_mount_router_accepts_valid_and_rejects_duplicate_targets() {
+    let backend: Arc<dyn EcommerceListingHttpBackend> = Arc::new(HttpProbe::default());
+    assert!(ecommerce_listing_router(vec![http_target(backend.clone())]).is_ok());
+    assert!(ecommerce_listing_router(vec![
+        http_target(backend.clone()),
+        http_target(backend),
+    ])
+    .is_err());
 }

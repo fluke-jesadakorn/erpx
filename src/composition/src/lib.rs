@@ -113,6 +113,8 @@ pub mod customer_portal_invitation_worker;
 pub mod directory_operation_worker;
 #[cfg(feature = "existing-business")]
 pub mod ecommerce;
+#[cfg(feature = "existing-business")]
+pub mod ecommerce_listing;
 pub mod executive_connections;
 pub mod files;
 pub mod files_wave1b;
@@ -144,6 +146,8 @@ pub mod maintenance_create;
 pub mod manage_erpx;
 #[cfg(feature = "existing-business")]
 pub mod manufacturing;
+#[cfg(feature = "existing-business")]
+pub mod manufacturing_read;
 pub mod workflow_wave3;
 pub mod manufacturing_wave3;
 #[cfg(feature = "existing-business")]

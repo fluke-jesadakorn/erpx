@@ -51,3 +51,7 @@ path = "../../tests/unit/manufacturing/rust-manufacturing-specification-http.tes
 [[test]]
 name = "manufacturing_specification_postgres"
 path = "../../tests/integration/manufacturing/rust-manufacturing-specification-postgres.test.rs"
+
+[[test]]
+name = "manufacturing_read_parity_postgres"
+path = "../../tests/integration/manufacturing/rust-native-read-parity-postgres.test.rs"

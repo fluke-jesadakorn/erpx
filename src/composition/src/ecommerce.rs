@@ -83,6 +83,10 @@ impl EcommerceConfiguration {
     pub fn company(&self) -> &CompanyId {
         &self.company
     }
+
+    pub fn holding(&self) -> &HoldingId {
+        &self.holding
+    }
 }
 
 fn ecommerce_actor(current: &AuthorizedWorkContext) -> Result<EcommerceActor, BusinessError> {

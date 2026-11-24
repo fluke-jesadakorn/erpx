@@ -3376,6 +3376,8 @@ async fn assemble_checked(
         #[cfg(feature = "existing-business")]
         let mut ecommerce_targets = Vec::new();
         #[cfg(feature = "existing-business")]
+        let mut ecommerce_listing_targets = Vec::new();
+        #[cfg(feature = "existing-business")]
         let mut crm_targets = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut crm_command_targets = Vec::new();
@@ -3502,6 +3504,8 @@ async fn assemble_checked(
         let mut manufacturing_owner_write_targets: Vec<
             erpx_server_manufacturing::public::owner_write_wave3_http::OwnerWriteTarget,
         > = Vec::new();
+        #[cfg(feature = "existing-business")]
+        let mut manufacturing_read_targets: Vec<(String, String, String)> = Vec::new();
         #[cfg(feature = "existing-business")]
         let mut marketing_targets = Vec::new();
         #[cfg(feature = "existing-business")]
@@ -4000,6 +4004,11 @@ async fn assemble_checked(
                         ),
                     },
                 );
+                manufacturing_read_targets.push((
+                    holding.host.clone(),
+                    holding.registration.slug.clone(),
+                    format!("https://{}", holding.host),
+                ));
                 let pms_backend = Arc::new(crate::pms::PmsBackend::new(
                     config.policy.clone(),
                     Arc::new(FinanceJournalReadScopeHeaders),
@@ -4777,6 +4786,25 @@ async fn assemble_checked(
                             config.policy.clone(),
                             Arc::new(FinanceJournalReadScopeHeaders),
                             Arc::new(crate::ecommerce::EcommerceService::new(
+                                authorizer.clone(),
+                                crate::ecommerce::EcommerceConfiguration::new(
+                                    holding.registration.holding_id.clone(),
+                                    company.clone(),
+                                ),
+                                Arc::new(SharedClock(clock.clone())),
+                            )),
+                        )),
+                    },
+                );
+                ecommerce_listing_targets.push(
+                    erpx_server_ecommerce::public::ecommerce_http::EcommerceListingHttpTarget {
+                        host: holding.host.clone(),
+                        holding_slug: holding.registration.slug.clone(),
+                        origin: format!("https://{}", holding.host),
+                        backend: Arc::new(crate::ecommerce_listing::EcommerceListingBackend::new(
+                            config.policy.clone(),
+                            Arc::new(FinanceJournalReadScopeHeaders),
+                            Arc::new(crate::ecommerce_listing::EcommerceListingService::new(
                                 authorizer.clone(),
                                 crate::ecommerce::EcommerceConfiguration::new(
                                     holding.registration.holding_id.clone(),
@@ -7112,6 +7140,15 @@ async fn assemble_checked(
             );
         }
         #[cfg(feature = "existing-business")]
+        if !ecommerce_listing_targets.is_empty() {
+            router = router.merge(
+                erpx_server_ecommerce::public::ecommerce_http::ecommerce_listing_router(
+                    ecommerce_listing_targets,
+                )
+                .map_err(|_| "PRIVATE_API_ECOMMERCE_LISTING_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
         if !crm_targets.is_empty() {
             router = router.merge(
                 erpx_server_crm::public::pipeline_http::crm_pipeline_http_router(crm_targets)
@@ -7740,6 +7777,15 @@ async fn assemble_checked(
                     manufacturing_owner_write_targets,
                 )
                 .map_err(|_| "PRIVATE_API_MANUFACTURING_CONFIGURATION_INVALID")?,
+            );
+        }
+        #[cfg(feature = "existing-business")]
+        if !manufacturing_read_targets.is_empty() {
+            router = router.merge(
+                crate::manufacturing_read::manufacturing_read_all_composed_router(
+                    manufacturing_read_targets,
+                )
+                .map_err(|_| "PRIVATE_API_MANUFACTURING_READ_CONFIGURATION_INVALID")?,
             );
         }
         #[cfg(feature = "existing-business")]
@@ -9644,6 +9690,8 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
                 && path.ends_with("/commercial/owner-write")
             || path.starts_with("/api/v1/holdings/")
                 && path.ends_with("/commercial/owner-read")
+            || path.starts_with("/api/v1/holdings/")
+                && path.ends_with("/manufacturing/read-plan")
             || path.ends_with("/pos/owner-write")
             || path.ends_with("/organization/owner-write"));
     if state.policy.audience(host).is_none()
@@ -12350,6 +12398,24 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
             .is_some_and(|_| !slug.is_empty()),
         _ => false,
     };
+    let manufacturing_owner_read = match (
+        request.method(),
+        request
+            .uri()
+            .path()
+            .split('/')
+            .collect::<Vec<_>>()
+            .as_slice(),
+    ) {
+        (
+            &axum::http::Method::POST,
+            ["", "api", "v1", "holdings", slug, "manufacturing", "read-plan"],
+        ) => state
+            .policy
+            .audience(host)
+            .is_some_and(|_| !slug.is_empty()),
+        _ => false,
+    };
     let talent = match (
         request.method(),
         request
@@ -12684,6 +12750,7 @@ fn validate_request(state: &Boundary, request: &Request) -> Result<(), BoundaryD
         || commerce
         || commercial_owner_write
         || commercial_owner_read
+        || manufacturing_owner_read
         || organization_owner_write
         || pos_owner_write
         || customer_access

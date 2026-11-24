@@ -25,6 +25,7 @@
     "./adapters/posting-setup-entry": "./src/adapters/posting-setup-entry.ts",
     "./adapters/accounting": "./src/adapters/accounting.ts",
     "./adapters/native-owner-write": "./src/adapters/native-owner-write.ts",
+    "./adapters/native-manufacturing-read": "./src/adapters/native-manufacturing-read.ts",
     "./adapters/attachments-operational-facts": "./src/adapters/attachments-operational-facts.ts",
     "./adapters/package-obligations": "./src/adapters/package-obligations.ts",
     "./adapters/executive-main-evidence-sources": "./src/adapters/executive-main-evidence-sources.ts",
