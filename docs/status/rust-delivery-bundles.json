@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12230,
+    "revision": 12232,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -181729,7 +181729,7 @@
         "owner": "pms",
         "title": "pms night lineage and booking email heads",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -181740,22 +181740,37 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n35",
-          "claimedAt": "2026-11-24T13:59:06.846Z",
-          "heartbeatAt": "2026-11-24T14:04:54.024Z",
-          "expiresAt": "2026-11-24T14:34:54.024Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pms/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d9e21bbc1",
+            "owner": "pms",
+            "before": 302,
+            "after": 299,
+            "note": "Night source witness, booking email pending and night lineage step closed unions; locks/feature/native untouched."
+          },
+          {
+            "command": "vitest PMS dedupe (132) + scoped tsc + byte proof",
+            "result": "passed",
+            "sourceSha": "d9e21bbc1"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Night-source witness (-1), booking email pending head (-1), night lineage recursive step (-1): 302->299.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n35",
+          "at": "2026-11-24T14:08:16.917Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -181912,17 +181927,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 7,
+        "in_progress": 6,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1402,
+        "blocked": 1403,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:07:40.837Z",
+    "updatedAt": "2026-11-24T14:08:16.921Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
