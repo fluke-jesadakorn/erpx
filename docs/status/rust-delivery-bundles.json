@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12261,
+    "revision": 12263,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -182012,7 +182012,7 @@
         "owner": "projects",
         "title": "projects union arm and proof group heads",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -182023,22 +182023,37 @@
         "resources": [
           "owner:projects"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n40",
-          "claimedAt": "2026-11-24T14:11:30.569Z",
-          "heartbeatAt": "2026-11-24T14:11:30.569Z",
-          "expiresAt": "2026-11-24T14:41:30.569Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-projects/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e464dda00",
+            "owner": "projects",
+            "before": 93,
+            "after": 88,
+            "note": "Four-arm fact union closed helper and three-arm not-exists proof group; locks/spaced joins/native untouched."
+          },
+          {
+            "command": "vitest projects dedupe (68) + scoped tsc + byte verify",
+            "result": "passed",
+            "sourceSha": "e464dda00"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "4-arm fact union closed helper (-3) and 3-arm not-exists proof group (-2): 93->88.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n40",
+          "at": "2026-11-24T14:23:46.839Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -182264,17 +182279,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 6,
+        "in_progress": 5,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1410,
+        "blocked": 1411,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:20:46.461Z",
+    "updatedAt": "2026-11-24T14:23:46.842Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
