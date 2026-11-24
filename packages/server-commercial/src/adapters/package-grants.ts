@@ -1,6 +1,7 @@
 import "server-only";
 import { commercialChangeSetReceiptSql } from "./commercial-read-tail-r1-sources";
 import { purchaseFactAgg } from "./commercial-read-tail-r4-sources";
+import { receiptProbe } from "./commercial-read-tail-r5-sources";
 import { createHash } from "node:crypto";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
@@ -66,7 +67,7 @@ export function packageGrantStore(db: PostgresDatabase, ports: {
       },
       receipt: async key => {
         if (await database.prepare(commercialChangeSetReceiptSql).bind(key).first()) throw new Error("IDEMPOTENCY_CONFLICT");
-        const row = await database.prepare("SELECT request_hash,after_json FROM company_package_grant_events WHERE id=?").bind(key).first<{ request_hash: string; after_json: CompanyPackageGrant | string }>();
+        const row = await database.prepare(receiptProbe("company_package_grant_events","request_hash,after_json")).bind(key).first<{ request_hash: string; after_json: CompanyPackageGrant | string }>();
         return row ? { hash: row.request_hash, grant: typeof row.after_json === "string" ? JSON.parse(row.after_json) as CompanyPackageGrant : row.after_json } : null;
       },
       obligations: (companyId, packageId) => ports.obligations(database, companyId, packageId),
@@ -114,8 +115,8 @@ export function packageGrantStore(db: PostgresDatabase, ports: {
       revision: packageGrantRevision,
       previewDependencies: async (grant, prospective) => validatePackageDependencies(grant, prospective, now()),
       receipt: async key => {
-        if (await database.prepare("SELECT 1 FROM company_package_grant_events WHERE id=?").bind(key).first()) throw new Error("IDEMPOTENCY_CONFLICT");
-        const row = await database.prepare("SELECT request_hash,result_json FROM company_package_change_sets WHERE id=?").bind(key)
+        if (await database.prepare(receiptProbe("company_package_grant_events","1")).bind(key).first()) throw new Error("IDEMPOTENCY_CONFLICT");
+        const row = await database.prepare(receiptProbe("company_package_change_sets","request_hash,result_json")).bind(key)
           .first<{ request_hash: string; result_json: PackageGrantBatchPreview | string }>();
         return row ? { hash: row.request_hash, result: typeof row.result_json === "string" ? JSON.parse(row.result_json) as PackageGrantBatchPreview : row.result_json } : null;
       },
