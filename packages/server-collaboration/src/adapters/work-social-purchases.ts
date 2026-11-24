@@ -23,6 +23,7 @@ import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-fea
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
+import {requestedSourcesJsonb,workSocialPostsAgg,workSocialCommentsAgg,workSocialSourcesAgg} from './read-tail-sql';
 
 import {executeCommand,replayCommand} from '@erpx/server-workflow/public/commands';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
@@ -64,7 +65,7 @@ async function actualAudienceProjects(database:SqlDatabase,actor:StaffActor,comm
  const rows=command.type==='post'?await database.prepare("SELECT audience_id id FROM social_posts WHERE id=? AND company_id=? AND audience_kind='project'").bind(command.id,actor.companyId).all<{id:string}>():await database.prepare("SELECT audience_id id FROM social_post_drafts WHERE id=? AND company_id=? AND audience_kind='project' UNION SELECT p.audience_id FROM social_post_drafts d JOIN social_posts p ON p.id=COALESCE(d.published_post_id,d.comment_parent_post_id,d.edit_post_id) AND p.company_id=d.company_id WHERE d.id=? AND d.company_id=? AND p.audience_kind='project'").bind(command.id,actor.companyId,command.id,actor.companyId).all<{id:string}>();
  return [...new Set(rows.results.map(row=>row.id))];
 }
-async function sourceFacts(database:SqlDatabase,companyId:string,sources:Source[]){return database.prepare(`WITH requested AS(SELECT kind,id FROM jsonb_to_recordset(?::jsonb) AS r(kind text,id text)) SELECT jsonb_build_object('project',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.source_kind,p.source_id) FROM (${projectSocialPurchaseSources}) p JOIN requested r ON r.kind=p.source_kind AND r.id=p.source_id WHERE p.company_id=?),'pms',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM (${socialPmsSourceFacts}) p JOIN requested r ON r.kind='pms_record' AND r.id=p.id WHERE p.company_id=?),'tasks',(SELECT jsonb_agg(jsonb_build_object('task',to_jsonb(t),'social',social.image,'delegations',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM (${workOperationsSettlementSources.delegations}) d WHERE d.task_id=t.id AND d.company_id=t.company_id)) ORDER BY t.id) FROM (${workOperationsSettlementSources.tasks}) t JOIN requested r ON r.kind='staff_task' AND r.id=t.id LEFT JOIN (${workTaskSocialFileSourceRows}) social ON social.id=t.id AND social.company_id=t.company_id WHERE t.company_id=?))::text image`).bind(JSON.stringify(sources),companyId,companyId,companyId).first<string>('image');}
+async function sourceFacts(database:SqlDatabase,companyId:string,sources:Source[]){return database.prepare(`WITH requested AS${requestedSourcesJsonb} SELECT jsonb_build_object('project',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.source_kind,p.source_id) FROM (${projectSocialPurchaseSources}) p JOIN requested r ON r.kind=p.source_kind AND r.id=p.source_id WHERE p.company_id=?),'pms',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM (${socialPmsSourceFacts}) p JOIN requested r ON r.kind='pms_record' AND r.id=p.id WHERE p.company_id=?),'tasks',(SELECT jsonb_agg(jsonb_build_object('task',to_jsonb(t),'social',social.image,'delegations',(SELECT jsonb_agg(to_jsonb(d) ORDER BY d.id) FROM (${workOperationsSettlementSources.delegations}) d WHERE d.task_id=t.id AND d.company_id=t.company_id)) ORDER BY t.id) FROM (${workOperationsSettlementSources.tasks}) t JOIN requested r ON r.kind='staff_task' AND r.id=t.id LEFT JOIN (${workTaskSocialFileSourceRows}) social ON social.id=t.id AND social.company_id=t.company_id WHERE t.company_id=?))::text image`).bind(JSON.stringify(sources),companyId,companyId,companyId).first<string>('image');}
 
 const draftPostSql='SELECT COALESCE(published_post_id,comment_parent_post_id,edit_post_id) id FROM social_post_drafts WHERE id=? AND company_id=?';
 async function image(database:SqlDatabase,actor:Pick<StaffActor,'companyId'>,command:Command,id?:string){
@@ -195,9 +196,9 @@ export async function workSocialAttachmentSourceImage(database:SqlDatabase,compa
  posts AS(SELECT p.* FROM social_posts p JOIN post_ids selected ON selected.id=p.id WHERE p.company_id=?),
  native_sources AS(SELECT source.source_kind kind,source.source_id id FROM social_post_sources source JOIN posts p ON p.id=source.post_id
  UNION SELECT element->>'kind',element->>'id' FROM drafts d CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN pg_input_is_valid(d.sources_json,'jsonb') THEN CASE WHEN jsonb_typeof(d.sources_json::jsonb)='array' THEN d.sources_json::jsonb ELSE '[]'::jsonb END ELSE '[]'::jsonb END) element WHERE element->>'kind' IN('staff_task','staff_project','pms_record') AND length(element->>'id')>0)
- SELECT jsonb_build_object('root',(SELECT image FROM native_root),'posts',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM posts p),
- 'comments',(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM social_comments c JOIN posts p ON p.id=c.post_id),
- 'sources',(SELECT jsonb_agg(to_jsonb(s) ORDER BY s.post_id,s.ordinal) FROM social_post_sources s JOIN posts p ON p.id=s.post_id),
+ SELECT jsonb_build_object('root',(SELECT image FROM native_root),'posts',${workSocialPostsAgg},
+ 'comments',${workSocialCommentsAgg},
+ 'sources',${workSocialSourcesAgg},
  'participants',(SELECT jsonb_agg(to_jsonb(member) ORDER BY member.post_id,member.user_id) FROM social_post_participants member JOIN posts p ON p.id=member.post_id),
  'teams',(SELECT jsonb_agg(jsonb_build_object('team',to_jsonb(team),'members',(SELECT jsonb_agg(to_jsonb(member) ORDER BY member.user_id) FROM messaging_team_members member WHERE member.team_id=team.id)) ORDER BY team.id) FROM messaging_teams team WHERE team.company_id=? AND EXISTS(SELECT 1 FROM posts p WHERE p.audience_kind='team' AND p.audience_id=team.id)),
  'revisions',(SELECT jsonb_agg(to_jsonb(revision) ORDER BY revision.id) FROM social_post_revisions revision JOIN posts p ON p.id=revision.post_id))::text image,

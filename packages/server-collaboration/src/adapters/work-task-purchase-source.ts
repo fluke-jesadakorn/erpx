@@ -2,7 +2,7 @@ import 'server-only';
 import {workOperationsSettlementSources} from '@erpx/server-operations/public/work-package-obligation-sources';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {workSocialNativePostPredicate} from '@erpx/server-collaboration/adapters/work-social-source';
-import {socialTaskOriginPostExists} from './read-tail-sql';
+import {socialTaskOriginPostExists,workSocialPostsAgg,workSocialCommentsAgg,workSocialSourcesAgg} from './read-tail-sql';
 export function workTaskSocialSourceLocks(database:SqlDatabase){return database.prepare('LOCK TABLE social_posts,social_comments,social_post_sources,social_post_revisions,social_task_origins IN SHARE ROW EXCLUSIVE MODE');}
 /** Original team audience membership is a source of private conversation
  * authority. Its lease must precede a consumer's first Holding snapshot. */
@@ -15,7 +15,7 @@ export function workTaskSocialAudienceSourceLocks(database:SqlDatabase){return d
 export async function workTaskSocialPurchaseSource(database:SqlDatabase,companyId:string,taskId:string,requestedPostId?:string){
  const row=await database.prepare(`WITH origins AS(SELECT * FROM social_task_origins WHERE task_id=?),ids AS(SELECT post_id id FROM origins UNION SELECT ?::text WHERE ?::text IS NOT NULL),posts AS(SELECT p.* FROM social_posts p JOIN ids ON ids.id=p.id WHERE p.company_id=?)
  SELECT COALESCE((SELECT bool_or(${workSocialNativePostPredicate('p')}) FROM posts p),false) work_social,
- jsonb_build_object('posts',(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM posts p),'comments',(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM social_comments c JOIN posts p ON p.id=c.post_id),'sources',(SELECT jsonb_agg(to_jsonb(s) ORDER BY s.post_id,s.ordinal) FROM social_post_sources s JOIN posts p ON p.id=s.post_id),'revisions',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM social_post_revisions r JOIN posts p ON p.id=r.post_id))::text posts_image,
+ jsonb_build_object('posts',${workSocialPostsAgg},'comments',${workSocialCommentsAgg},'sources',${workSocialSourcesAgg},'revisions',(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM social_post_revisions r JOIN posts p ON p.id=r.post_id))::text posts_image,
  (SELECT COALESCE(jsonb_agg(to_jsonb(o) ORDER BY o.post_id),'[]'::jsonb)::text FROM origins o) origin_image`).bind(taskId,requestedPostId??null,requestedPostId??null,companyId).first<{work_social:boolean;posts_image:string;origin_image:string}>();
  return {workSocial:row?.work_social??false,postsImage:row?.posts_image??'',originImage:row?.origin_image??''};
 }
