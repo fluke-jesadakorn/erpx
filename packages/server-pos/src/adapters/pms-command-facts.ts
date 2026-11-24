@@ -1,19 +1,30 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import {
+  nativePosPromptPayConnectionStatement,
+  nativePosChargeConnectionStatement,
+  nativePosConnectionAccountStatement,
+} from "./native-pos-core-statement";
 export function pmsPosFacts(db: SqlDatabase) {
     return {
+        /** Served by the native POS owner statement registry
+         * (`pms_readposconnectionspromptpay_533`); no local SQL mirror remains. */
         readPosConnections: (facts: {
             companyId: string;
-        }) => db.prepare("SELECT 1 FROM pos_connections WHERE company_id=? AND state='ready' AND promptpay_enabled=true AND thb_bank_ready=true AND payout_interval='daily'").bind(facts.companyId).first(),
+        }) => nativePosPromptPayConnectionStatement(db, facts.companyId),
+        /** Served by the native POS owner statement registry
+         * (`pms_readposconnectionscharge_534`); no local SQL mirror remains. */
         readPosConnections2: (facts: {
             companyId: string;
             fact1: string;
-        }) => db.prepare("SELECT 1 FROM pos_connections WHERE company_id=? AND state='ready' AND charges_enabled=true AND payouts_enabled=true AND (card_enabled=true OR promptpay_enabled=true) AND (livemode=false OR ?='true')").bind(facts.companyId, facts.fact1).first(),
+        }) => nativePosChargeConnectionStatement(db, facts.companyId, facts.fact1),
+        /** Served by the native POS owner statement registry
+         * (`pms_readposconnectionsaccount_535`); no local SQL mirror remains. */
         readPosConnections3: (facts: {
             companyId: string;
-        }) => db.prepare("SELECT account_id,livemode FROM pos_connections WHERE company_id=? AND state='ready' AND charges_enabled=true AND payouts_enabled=true AND (card_enabled=true OR promptpay_enabled=true)").bind(facts.companyId).first<{
+        }) => nativePosConnectionAccountStatement<{
             account_id: string;
             livemode: boolean;
-        }>()
+        }>(db, facts.companyId)
     };
 }

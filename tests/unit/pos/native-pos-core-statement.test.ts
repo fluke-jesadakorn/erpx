@@ -17,8 +17,13 @@ import {
   nativePosMovementSaleStatement,
   nativePosCatalogStatement,
   nativePosProductImagesStatement,
+  nativePosPromptPayConnectionStatement,
+  nativePosChargeConnectionStatement,
+  nativePosConnectionAccountStatement,
+  nativePosCounterPaymentConnectionStatement,
 } from '../../../packages/server-pos/src/adapters/native-pos-core-statement';
 import { pmsHospitalitySetupPosFacts } from '../../../packages/server-pos/src/adapters/pms-hospitality-setup-facts';
+import { pmsPosFacts } from '../../../packages/server-pos/src/adapters/pms-command-facts';
 import { pmsBookingChangeFacts } from '../../../packages/server-pos/src/adapters/pms-booking-change-facts';
 import { pmsBookingPosFacts } from '../../../packages/server-pos/src/adapters/pms-booking-facts';
 import { pmsCounterPaymentFacts } from '../../../packages/server-pos/src/adapters/pms-counter-payment-facts';
@@ -827,5 +832,135 @@ describe('native POS core workspace read bridge (shifts family)', () => {
     expect(source).not.toContain('SELECT attachment_source_id FROM pos_product_images');
     expect(source).toContain('nativePosCatalogStatement');
     expect(source).toContain('nativePosProductImagesStatement');
+  });
+});
+
+describe('native POS PMS/counter connection read bridge (SELECT-only family)', () => {
+  const cases = [
+    {
+      name: 'PromptPay/daily-payout probe',
+      kind: 'pms_readposconnectionspromptpay_533',
+      sql: "SELECT 1 FROM pos_connections WHERE company_id=? AND state='ready' AND promptpay_enabled=true AND thb_bank_ready=true AND payout_interval='daily'",
+      values: ['company'],
+      bridge: nativePosPromptPayConnectionStatement,
+      args: ['company'] as const,
+    },
+    {
+      name: 'card/PromptPay charge-readiness probe',
+      kind: 'pms_readposconnectionscharge_534',
+      sql: "SELECT 1 FROM pos_connections WHERE company_id=? AND state='ready' AND charges_enabled=true AND payouts_enabled=true AND (card_enabled=true OR promptpay_enabled=true) AND (livemode=false OR ?='true')",
+      values: ['company', 'true'],
+      bridge: nativePosChargeConnectionStatement,
+      args: ['company', 'true'] as const,
+    },
+    {
+      name: 'account/livemode probe',
+      kind: 'pms_readposconnectionsaccount_535',
+      sql: "SELECT account_id,livemode FROM pos_connections WHERE company_id=? AND state='ready' AND charges_enabled=true AND payouts_enabled=true AND (card_enabled=true OR promptpay_enabled=true)",
+      values: ['company'],
+      bridge: nativePosConnectionAccountStatement,
+      args: ['company'] as const,
+    },
+    {
+      name: 'counter-payment readiness read',
+      kind: 'counter_readposconnectionreadiness_536',
+      sql: "SELECT * FROM pos_connections WHERE company_id=? AND state='ready' AND charges_enabled=true AND payouts_enabled=true AND promptpay_enabled=true AND thb_bank_ready=true AND payout_interval='daily'",
+      values: ['company'],
+      bridge: nativePosCounterPaymentConnectionStatement,
+      args: ['company'] as const,
+    },
+  ] as const;
+
+  it.each(cases)('requests the $name from the native owner registry only', async ({ kind, sql, values, bridge, args }) => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { sql, values } }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const seen: { sql?: string; values?: unknown[] } = {};
+    const row = { account_id: 'acct_1', livemode: false };
+    const db = {
+      prepare: (text: string) => ({
+        bind: (...bound: unknown[]) => {
+          seen.sql = text;
+          seen.values = bound;
+          return { first: async () => row };
+        },
+      }),
+    };
+    const prepare = vi.spyOn(db, 'prepare');
+    const result = await (bridge as (db: never, ...rest: string[]) => Promise<unknown>)(db as never, ...args);
+    expect(result).toEqual(row);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe('http://127.0.0.1:44994/api/v1/companies/company/pos/owner-write');
+    expect(init.method).toBe('POST');
+    expect(init.headers['x-erpx-context-company']).toBe('company');
+    expect(JSON.parse(init.body)).toEqual({ company: 'company', kind, values });
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(seen.sql).toBe(sql);
+    expect(seen.values).toEqual(values);
+    expect(seen.sql).not.toMatch(/FOR UPDATE|FOR SHARE/);
+  });
+
+  it.each(cases)('fails closed for $name when the native owner service is unconfigured', async ({ bridge, args }) => {
+    delete process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    await expect((bridge as (db: never, ...rest: string[]) => Promise<unknown>)({} as never, ...args)).rejects.toMatchObject({
+      code: 'NATIVE_POS_OWNER_UNAVAILABLE',
+      status: 503,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('serves all three PMS command connection probes from the native registry', async () => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const byKind: Record<string, { sql: string; values: unknown[] }> = {
+      pms_readposconnectionspromptpay_533: { sql: "SELECT 1 FROM pos_connections WHERE company_id=? AND state='ready' AND promptpay_enabled=true AND thb_bank_ready=true AND payout_interval='daily'", values: ['company'] },
+      pms_readposconnectionscharge_534: { sql: "SELECT 1 FROM pos_connections WHERE company_id=? AND state='ready' AND charges_enabled=true AND payouts_enabled=true AND (card_enabled=true OR promptpay_enabled=true) AND (livemode=false OR ?='true')", values: ['company', 'false'] },
+      pms_readposconnectionsaccount_535: { sql: "SELECT account_id,livemode FROM pos_connections WHERE company_id=? AND state='ready' AND charges_enabled=true AND payouts_enabled=true AND (card_enabled=true OR promptpay_enabled=true)", values: ['company'] },
+    };
+    const fetch = vi.fn().mockImplementation((_url: string, init: { body: string }) => {
+      const { kind } = JSON.parse(init.body) as { kind: string };
+      const data = byKind[kind];
+      return Promise.resolve(
+        new Response(JSON.stringify({ data }), { status: 200, headers: { 'content-type': 'application/json' } }),
+      );
+    });
+    vi.stubGlobal('fetch', fetch);
+    const seen: string[] = [];
+    const db = {
+      prepare: (text: string) => ({
+        bind: () => {
+          seen.push(text);
+          return { first: async () => ({ account_id: 'acct_1', livemode: false }) };
+        },
+      }),
+    };
+    const facts = pmsPosFacts(db as never);
+    await facts.readPosConnections({ companyId: 'company' });
+    await facts.readPosConnections2({ companyId: 'company', fact1: 'false' });
+    await facts.readPosConnections3({ companyId: 'company' });
+    expect(fetch).toHaveBeenCalledTimes(3);
+    expect(seen).toEqual([
+      byKind.pms_readposconnectionspromptpay_533.sql,
+      byKind.pms_readposconnectionscharge_534.sql,
+      byKind.pms_readposconnectionsaccount_535.sql,
+    ]);
+  });
+
+  it('keeps no byte-identical PMS/counter connection SQL literal in the TS adapters', async () => {
+    const { readFileSync } = await import('node:fs');
+    const command = readFileSync(new URL('../../../packages/server-pos/src/adapters/pms-command-facts.ts', import.meta.url), 'utf8');
+    const counter = readFileSync(new URL('../../../packages/server-pos/src/adapters/pms-counter-payment-facts.ts', import.meta.url), 'utf8');
+    for (const source of [command, counter]) {
+      expect(source).not.toContain('FROM pos_connections');
+      expect(source).not.toMatch(/FOR UPDATE|FOR SHARE/);
+    }
+    expect(command).toContain('nativePosPromptPayConnectionStatement');
+    expect(command).toContain('nativePosChargeConnectionStatement');
+    expect(command).toContain('nativePosConnectionAccountStatement');
+    expect(counter).toContain('nativePosCounterPaymentConnectionStatement');
   });
 });

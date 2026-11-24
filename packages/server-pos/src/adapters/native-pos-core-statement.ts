@@ -260,3 +260,66 @@ export async function nativePosProductImagesStatement<T = SqlValueRow>(
 ): Promise<T | null> {
   return nativePosOne<T>(db, company, 'images_readposproductimages_532', [imageId, company, productId]);
 }
+
+/**
+ * Owner-issued PMS PromptPay/daily-payout connection probe. The SQL lives in
+ * the native POS owner registry (`erpx-server-pos::adapters::owner_writes`,
+ * kind `pms_readposconnectionspromptpay_533`) and is byte-identical to the
+ * retired `readPosConnections` literal in `pms-command-facts.ts`. This bridge
+ * sends only the kind and Company value; the caller executes the registry
+ * statement on its own unit, so no local SQL, mirror or fallback remains.
+ */
+export async function nativePosPromptPayConnectionStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  companyId: string,
+): Promise<T | null> {
+  return nativePosOne<T>(db, companyId, 'pms_readposconnectionspromptpay_533', [companyId]);
+}
+
+/**
+ * Owner-issued PMS card/PromptPay charge-readiness probe. The SQL lives in the
+ * native POS owner registry (`erpx-server-pos::adapters::owner_writes`, kind
+ * `pms_readposconnectionscharge_534`) and is byte-identical to the retired
+ * `readPosConnections2` literal in `pms-command-facts.ts`. This bridge sends
+ * only the kind, Company and livemode-fact values; the caller executes the
+ * registry statement on its own unit, so no local SQL, mirror or fallback
+ * remains.
+ */
+export async function nativePosChargeConnectionStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  companyId: string,
+  fact1: string,
+): Promise<T | null> {
+  return nativePosOne<T>(db, companyId, 'pms_readposconnectionscharge_534', [companyId, fact1]);
+}
+
+/**
+ * Owner-issued PMS connection account/livemode probe. The SQL lives in the
+ * native POS owner registry (`erpx-server-pos::adapters::owner_writes`, kind
+ * `pms_readposconnectionsaccount_535`) and is byte-identical to the retired
+ * `readPosConnections3` literal in `pms-command-facts.ts`. This bridge sends
+ * only the kind and Company value; the caller executes the registry statement
+ * on its own unit, so no local SQL, mirror or fallback remains.
+ */
+export async function nativePosConnectionAccountStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  companyId: string,
+): Promise<T | null> {
+  return nativePosOne<T>(db, companyId, 'pms_readposconnectionsaccount_535', [companyId]);
+}
+
+/**
+ * Owner-issued counter-payment connection readiness read. The SQL lives in
+ * the native POS owner registry (`erpx-server-pos::adapters::owner_writes`,
+ * kind `counter_readposconnectionreadiness_536`) and is byte-identical to the
+ * retired `readPosConnections` literal in `pms-counter-payment-facts.ts`. This
+ * bridge sends only the kind and Company value; the caller executes the
+ * registry statement on its own unit, so no local SQL, mirror or fallback
+ * remains.
+ */
+export async function nativePosCounterPaymentConnectionStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  companyId: string,
+): Promise<T | null> {
+  return nativePosOne<T>(db, companyId, 'counter_readposconnectionreadiness_536', [companyId]);
+}
