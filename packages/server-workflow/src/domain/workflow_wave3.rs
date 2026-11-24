@@ -204,6 +204,16 @@ pub const WF_NATIVE_APPROVAL_STEPS_BATCH: &str = "wf_native_approval_steps_batch
 /// to the retired TypeScript literal; the TypeScript bridge executes it on the
 /// caller's open company unit and carries no receipt/assertion semantics.
 pub const WF_NATIVE_EXPENSE_BATCH_INSTANCES: &str = "wf_native_expense_batch_instances";
+/// Owner-authored caller-unit read for the calendar index audit-history family.
+/// Byte-identical to the retired TypeScript literal, SELECT-only and
+/// company-scoped; the planner resolves it to one fixed SELECT executed on the
+/// caller's open company unit and carries no receipt/assertion semantics.
+pub const WF_NATIVE_CALENDAR_INDEX_FACTS: &str = "wf_native_calendar_index_facts";
+/// Owner-authored caller-unit read for record-details audit history. The
+/// mounted wave3-command planner resolves it to one fixed SELECT byte-identical
+/// to the retired TypeScript literal; the TypeScript bridge executes it on the
+/// caller's open company unit and carries no receipt/assertion semantics.
+pub const WF_NATIVE_RECORD_DETAILS_HISTORY: &str = "wf_native_record_details_history";
 pub const KINDS: &[&str] = &[
     WF_OPENAPPROVAL,
     WF_OPENAPPROVAL2,
@@ -258,6 +268,8 @@ pub const KINDS: &[&str] = &[
     WF_NATIVE_APPROVAL_STEPS_APPROVER,
     WF_NATIVE_APPROVAL_STEPS_BATCH,
     WF_NATIVE_EXPENSE_BATCH_INSTANCES,
+    WF_NATIVE_CALENDAR_INDEX_FACTS,
+    WF_NATIVE_RECORD_DETAILS_HISTORY,
 ];
 
 fn statement(kind: &str) -> Option<(&'static str, usize)> {
@@ -572,6 +584,14 @@ fn statement(kind: &str) -> Option<(&'static str, usize)> {
         WF_NATIVE_EXPENSE_BATCH_INSTANCES => (
             "SELECT DISTINCT ON(record_id) * FROM approval_instances WHERE record_type='expense' AND company_id=? AND record_id IN(SELECT value FROM erpx_json_each(?)) ORDER BY record_id,insertion_order DESC",
             2,
+        ),
+        WF_NATIVE_CALENDAR_INDEX_FACTS => (
+            "SELECT record_id,action,actor,at FROM (SELECT e.record_id,e.action,coalesce(p.legal_name,'Authorized colleague') actor,e.created_at at,row_number() OVER(PARTITION BY e.record_id ORDER BY e.created_at DESC,e.id DESC) ordinal FROM audit_events e JOIN command_receipts r ON r.command_id=e.command_id LEFT JOIN (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) p ON p.user_id=e.actor_id AND p.company_id=? AND p.merged_into_id IS NULL WHERE r.authority_json::jsonb->>'companyId'=? AND e.record_id IN (SELECT jsonb_array_elements_text(?::jsonb))) h WHERE ordinal<=20 ORDER BY at DESC",
+            3,
+        ),
+        WF_NATIVE_RECORD_DETAILS_HISTORY => (
+            "SELECT action,actor_id,created_at,record_version FROM audit_events WHERE record_id=? ORDER BY created_at DESC LIMIT 50",
+            1,
         ),
 _ => return None,
     })
@@ -1388,5 +1408,73 @@ mod tests {
             assert!(plan(kind, vec![json!("company"), json!("a"), json!("b")]).is_err());
         }
         assert!(!supported("wf_native_approval_steps_unknown"));
+    }
+
+    /// The r47 calendar index facts and record-details history reads stay
+    /// byte-identical to the retired TypeScript literals: SELECT-only,
+    /// placeholder-exact with three and one binds respectively, and no
+    /// receipt/audit/outbox ledger on either kind.
+    #[test]
+    fn calendar_index_and_record_details_reads_are_byte_identical_owner_selects() {
+        let hr = "\"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\"";
+        let calendar = format!(
+            "SELECT record_id,action,actor,at FROM (SELECT e.record_id,e.action,coalesce(p.legal_name,'Authorized colleague') actor,e.created_at at,row_number() OVER(PARTITION BY e.record_id ORDER BY e.created_at DESC,e.id DESC) ordinal FROM audit_events e JOIN command_receipts r ON r.command_id=e.command_id LEFT JOIN (SELECT {hr} FROM hr_people) p ON p.user_id=e.actor_id AND p.company_id=? AND p.merged_into_id IS NULL WHERE r.authority_json::jsonb->>'companyId'=? AND e.record_id IN (SELECT jsonb_array_elements_text(?::jsonb))) h WHERE ordinal<=20 ORDER BY at DESC"
+        );
+        let history = "SELECT action,actor_id,created_at,record_version FROM audit_events WHERE record_id=? ORDER BY created_at DESC LIMIT 50";
+        for (kind, expected_sql, expected_binds, values) in [
+            (
+                WF_NATIVE_CALENDAR_INDEX_FACTS,
+                calendar,
+                3usize,
+                vec![json!("company"), json!("company"), json!("[\"r1\"]")],
+            ),
+            (
+                WF_NATIVE_RECORD_DETAILS_HISTORY,
+                history.to_owned(),
+                1usize,
+                vec![json!("r1")],
+            ),
+        ] {
+            let (sql, binds) = statement(kind).expect("registered owner read kind");
+            assert_eq!(sql, expected_sql, "SQL must stay byte-identical for {kind}");
+            assert_eq!(
+                binds, expected_binds,
+                "bind count must stay fixed for {kind}"
+            );
+            assert_eq!(sql.matches('?').count(), binds);
+            assert!(
+                sql.starts_with("SELECT "),
+                "read must be SELECT-only: {sql}"
+            );
+            for forbidden in [
+                "INSERT",
+                "UPDATE ",
+                "DELETE",
+                "RETURNING",
+                ";",
+                "FOR UPDATE",
+                "FOR SHARE",
+                "LOCK TABLE",
+            ] {
+                assert!(
+                    !sql.contains(forbidden),
+                    "read must not mutate or lock: {forbidden}"
+                );
+            }
+            assert!(supported(kind));
+            assert!(
+                plan(kind, values).is_ok(),
+                "valid binds must plan for {kind}"
+            );
+            assert!(plan(kind, vec![]).is_err());
+            assert!(plan(kind, vec![json!("company"); expected_binds + 1]).is_err());
+        }
+        assert!(sql_mentions_company_scope(WF_NATIVE_CALENDAR_INDEX_FACTS));
+        assert!(!supported("wf_native_calendar_index_unknown"));
+        assert!(!supported("wf_native_record_details_unknown"));
+    }
+
+    fn sql_mentions_company_scope(kind: &str) -> bool {
+        statement(kind).expect("kind").0.contains("company_id=?")
     }
 }

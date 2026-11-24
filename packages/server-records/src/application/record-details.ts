@@ -61,7 +61,7 @@ export interface RecordDetailsRepository {
     readCommerceMasterDetailRow(id: string, companyId: string): Promise<Row | null>;
     readCommerceMasterDetailRow2(id: string, companyId: string): Promise<Row | null>;
     readCommerceMasterDetailRow3(id: string, companyId: string, branchId: string | null, branchId2: string | null): Promise<Row | null>;
-    readCommerceMasterDetailHistory(id: string): Promise<{
+    readCommerceMasterDetailHistory(id: string, companyId: string): Promise<{
         results: (Row)[];
     }>;
     readRecordSupplementDataRow(id: string, companyId: string, branchId: string | null, branchId2: string | null): Promise<Row | null>;
@@ -164,7 +164,7 @@ export function createRecordDetailsApplication<Effect>(ports: RecordDetailsPorts
             throw new BusinessRuleError(404, "RECORD_NOT_FOUND", "Record not found in this workspace.");
         const permissions = ports.commercePermissions(actor), canEdit = kind === "party" ? row.kind === "supplier" ? permissions.purchase : permissions.sales : permissions.stock;
         const options = canEdit ? await ports.commerceOverview(actor) : null;
-        const history = (await r.readCommerceMasterDetailHistory(id)).results;
+        const history = (await r.readCommerceMasterDetailHistory(id, actor.companyId)).results;
         return { kind, row, options, history, canEdit };
     }
     async function recordSupplementData(actor: WorkContext, target: RecordTarget, args: Record<string, string>) {
