@@ -145,6 +145,15 @@ pub const WF_NATIVE_FLOW_DEFINITIONS_INSTANCE: &str = "wf_native_flow_definition
 pub const WF_NATIVE_FLOW_ROUTES_BY_COMPANY: &str = "wf_native_flow_routes_by_company";
 pub const WF_NATIVE_FLOW_ROUTES_BY_COMPANY_KIND_RECORD: &str =
     "wf_native_flow_routes_by_company_kind_record";
+/// Owner-authored caller-unit reads for the company-scoped flow-defaults and
+/// flow-route steps family. Each is byte-identical to the retired TypeScript
+/// literal it replaces; the planner resolves it to one fixed SELECT executed on
+/// the caller's open unit and carries no receipt/assertion semantics.
+pub const WF_NATIVE_FLOW_DEFAULTS_BY_COMPANY: &str = "wf_native_flow_defaults_by_company";
+pub const WF_NATIVE_FLOW_DEFAULTS_REVISION: &str = "wf_native_flow_defaults_revision";
+pub const WF_NATIVE_FLOW_DEFAULTS_BY_KIND_REVISION: &str =
+    "wf_native_flow_defaults_by_kind_revision";
+pub const WF_NATIVE_FLOW_ROUTES_STEPS_JSON: &str = "wf_native_flow_routes_steps_json";
 /// Owner-authored caller-unit read for the finance sales-invoice completion
 /// receipt family. The mounted wave3-command planner resolves it to one fixed
 /// SELECT on the Workflow-owned command ledger; the TypeScript bridge executes
@@ -209,6 +218,10 @@ pub const KINDS: &[&str] = &[
     WF_NATIVE_FLOW_DEFINITIONS_INSTANCE,
     WF_NATIVE_FLOW_ROUTES_BY_COMPANY,
     WF_NATIVE_FLOW_ROUTES_BY_COMPANY_KIND_RECORD,
+    WF_NATIVE_FLOW_DEFAULTS_BY_COMPANY,
+    WF_NATIVE_FLOW_DEFAULTS_REVISION,
+    WF_NATIVE_FLOW_DEFAULTS_BY_KIND_REVISION,
+    WF_NATIVE_FLOW_ROUTES_STEPS_JSON,
     WF_NATIVE_FINANCE_SALES_COMPLETION,
     WF_NATIVE_FINANCE_SOURCE_REVISION,
     WF_NATIVE_PROJECT_WORKER_COMMAND_EVIDENCE,
@@ -470,6 +483,22 @@ fn statement(kind: &str) -> Option<(&'static str, usize)> {
         WF_NATIVE_FLOW_ROUTES_BY_COMPANY => ("SELECT * FROM flow_routes WHERE company_id=?", 1),
         WF_NATIVE_FLOW_ROUTES_BY_COMPANY_KIND_RECORD => (
             "SELECT * FROM flow_routes WHERE company_id=? AND kind=? AND record_id=?",
+            3,
+        ),
+        WF_NATIVE_FLOW_DEFAULTS_BY_COMPANY => (
+            "SELECT * FROM flow_defaults WHERE company_id=? ORDER BY CASE WHEN department_id IS NOT NULL THEN 3 WHEN branch_id IS NOT NULL THEN 2 ELSE 1 END DESC,revision DESC",
+            1,
+        ),
+        WF_NATIVE_FLOW_DEFAULTS_REVISION => (
+            "SELECT COALESCE(MAX(revision),0) revision FROM flow_defaults WHERE company_id=?",
+            1,
+        ),
+        WF_NATIVE_FLOW_DEFAULTS_BY_KIND_REVISION => (
+            "SELECT revision,step_key,primary_user_id FROM flow_defaults WHERE company_id=? AND kind=? AND (branch_id IS NULL OR branch_id=?) AND (department_id IS NULL OR department_id=?) AND revision<=? ORDER BY CASE WHEN department_id IS NOT NULL THEN 3 WHEN branch_id IS NOT NULL THEN 2 ELSE 1 END DESC,revision DESC",
+            5,
+        ),
+        WF_NATIVE_FLOW_ROUTES_STEPS_JSON => (
+            "SELECT steps_json FROM flow_routes WHERE company_id=? AND kind=? AND record_id=?",
             3,
         ),
         WF_NATIVE_FINANCE_SALES_COMPLETION => (
@@ -940,6 +969,66 @@ mod tests {
             )
             .is_err()
         );
+    }
+
+    /// The company-scoped flow-defaults and route-steps reads stay byte-identical
+    /// to the retired TypeScript literals, SELECT-only and fixed to their exact
+    /// bind counts.
+    #[test]
+    fn flow_defaults_and_route_steps_read_kinds_are_fixed_company_scoped_select() {
+        let cases = [
+            (
+                WF_NATIVE_FLOW_DEFAULTS_BY_COMPANY,
+                "SELECT * FROM flow_defaults WHERE company_id=? ORDER BY CASE WHEN department_id IS NOT NULL THEN 3 WHEN branch_id IS NOT NULL THEN 2 ELSE 1 END DESC,revision DESC",
+                1,
+                vec![json!("company")],
+            ),
+            (
+                WF_NATIVE_FLOW_DEFAULTS_REVISION,
+                "SELECT COALESCE(MAX(revision),0) revision FROM flow_defaults WHERE company_id=?",
+                1,
+                vec![json!("company")],
+            ),
+            (
+                WF_NATIVE_FLOW_DEFAULTS_BY_KIND_REVISION,
+                "SELECT revision,step_key,primary_user_id FROM flow_defaults WHERE company_id=? AND kind=? AND (branch_id IS NULL OR branch_id=?) AND (department_id IS NULL OR department_id=?) AND revision<=? ORDER BY CASE WHEN department_id IS NOT NULL THEN 3 WHEN branch_id IS NOT NULL THEN 2 ELSE 1 END DESC,revision DESC",
+                5,
+                vec![json!("company"), json!("expense"), Value::Null, Value::Null, json!(7)],
+            ),
+            (
+                WF_NATIVE_FLOW_ROUTES_STEPS_JSON,
+                "SELECT steps_json FROM flow_routes WHERE company_id=? AND kind=? AND record_id=?",
+                3,
+                vec![json!("company"), json!("expense"), json!("record-1")],
+            ),
+        ];
+        for (kind, sql, expected, values) in cases {
+            let (planned_sql, planned_expected) =
+                statement(kind).expect("registered owner read kind");
+            assert_eq!(planned_sql, sql, "SQL must stay byte-identical for {kind}");
+            assert_eq!(planned_expected, expected, "bind count must stay fixed for {kind}");
+            assert_eq!(planned_sql.matches('?').count(), expected);
+            assert!(planned_sql.starts_with("SELECT "), "read must be SELECT-only: {planned_sql}");
+            assert!(planned_sql.contains("company_id=?"), "read must stay company-scoped: {planned_sql}");
+            assert!(
+                planned_sql.contains("flow_defaults") || planned_sql.contains("flow_routes"),
+                "read must stay owner-local: {planned_sql}"
+            );
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE", "FOR SHARE", "LOCK TABLE"] {
+                assert!(!planned_sql.contains(forbidden), "read must not mutate or lock: {forbidden}");
+            }
+            assert!(supported(kind));
+            assert!(plan(kind, values).is_ok(), "valid binds must plan for {kind}");
+            assert!(
+                plan(kind, vec![json!("company")]).is_err() || expected == 1,
+                "under-bound read must fail for {kind}"
+            );
+        }
+        assert!(plan(WF_NATIVE_FLOW_DEFAULTS_BY_COMPANY, vec![]).is_err());
+        assert!(plan(WF_NATIVE_FLOW_DEFAULTS_REVISION, vec![]).is_err());
+        assert!(plan(WF_NATIVE_FLOW_DEFAULTS_REVISION, vec![json!("company"), json!("x")]).is_err());
+        assert!(plan(WF_NATIVE_FLOW_DEFAULTS_BY_KIND_REVISION, vec![json!("company")]).is_err());
+        assert!(plan(WF_NATIVE_FLOW_ROUTES_STEPS_JSON, vec![json!("company"), json!("expense")]).is_err());
     }
 
     /// The owner-local finance sales-invoice completion receipt read stays

@@ -96,17 +96,17 @@ export function nativeFlowPlanningPorts(database: SqlDatabase): FlowPlanningPort
             kind: string;
             record_id: string;
         }>('wf_native_flow_routes_by_company', [companyId], companyId, database)}; },
-        readSharedFlowReferencesRoutesdefaultsevents2(companyId: string) { return database.prepare("SELECT * FROM flow_defaults WHERE company_id=? ORDER BY CASE WHEN department_id IS NOT NULL THEN 3 WHEN branch_id IS NOT NULL THEN 2 ELSE 1 END DESC,revision DESC").bind(companyId).all<DefaultRow & {
+        async readSharedFlowReferencesRoutesdefaultsevents2(companyId: string) { return {results: await nativeWorkflowReadAll<DefaultRow & {
             kind: string;
             branch_id: string | null;
             department_id: string | null;
-        }>(); },
+        }>('wf_native_flow_defaults_by_company', [companyId], companyId, database)}; },
         readSharedFlowReferencesRoutesdefaultsevents3(companyId: string) { return database.prepare(flowEventsHistorySql('kind,record_id,action,actor_name,created_at,reason,step_key')).bind(companyId).all<FlowHistoryRow>(); },
         async readReadFlowRoute(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string) { const rows = await nativeWorkflowReadAll<Route>('wf_native_flow_routes_by_company_kind_record', [companyId, kind, id], companyId, database); return rows[0] ?? null; },
-        readReadFlowDefaultsRevision(companyId: string) { return database.prepare(`${flowDefaultsMaxRevisionSql} revision FROM flow_defaults WHERE company_id=?`).bind(companyId).first<{
+        async readReadFlowDefaultsRevision(companyId: string) { return nativeWorkflowReadFirst<{
             revision: number;
-        }>(); },
-        readReadFlowDefaults(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", branch_id: string | null, department_id: string | null, defaultsRevision: number) { return database.prepare(`SELECT revision,step_key,primary_user_id FROM flow_defaults WHERE company_id=? AND kind=? AND (branch_id IS NULL OR branch_id=?) AND (department_id IS NULL OR department_id=?) AND revision<=? ORDER BY CASE WHEN department_id IS NOT NULL THEN 3 WHEN branch_id IS NOT NULL THEN 2 ELSE 1 END DESC,revision DESC`).bind(companyId, kind, branch_id, department_id, defaultsRevision).all<DefaultRow>(); },
+        }>('wf_native_flow_defaults_revision', [companyId], companyId, database); },
+        async readReadFlowDefaults(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", branch_id: string | null, department_id: string | null, defaultsRevision: number) { return {results: await nativeWorkflowReadAll<DefaultRow>('wf_native_flow_defaults_by_kind_revision', [companyId, kind, branch_id, department_id, defaultsRevision], companyId, database)}; },
         readReadFlowPeople(companyId: string, now: number, now2: number) { return people_payroll_flow_routing(database).readReadFlowPeople(companyId, now, now2); },
         readReadFlowMembers(companyId: string, now: number, now2: number) { return identity_access_flow_routing(database).readReadFlowMembers(companyId, now, now2); },
         readReadFlowHistoryRows(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string) { return database.prepare(flowEventsHistorySql('action,actor_name,created_at,reason,step_key', ' AND kind=? AND record_id=?')).bind(companyId, kind, id).all<{
@@ -124,9 +124,9 @@ export function nativeFlowPlanningPorts(database: SqlDatabase): FlowPlanningPort
         async stagePrepareFlowCommandSteps(value: string, key: string, companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string, value2: string, action: string, userId: string, value3: string, reason: string, version: number, now: number) {
             return workflowWave3Statement(database, {kind:'system'}, 'wf_flow_stageprepareflowcommandsteps', [value, key, companyId, kind, id, value2, action, userId, value3, reason, version, now], String(key).slice(0,180), now); },
         readPrepareFlowCommandParent(id: string, companyId: string) { return commerce_flow_routing(database).readPrepareFlowCommandParent(id, companyId); },
-        readAssignFlowPrimaryExisting(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string) { return database.prepare("SELECT steps_json FROM flow_routes WHERE company_id=? AND kind=? AND record_id=?").bind(companyId, kind, id).first<{
+        async readAssignFlowPrimaryExisting(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string) { return nativeWorkflowReadFirst<{
             steps_json: string;
-        }>(); },
+        }>('wf_native_flow_routes_steps_json', [companyId, kind, id], companyId, database); },
         readAssignFlowPrimaryParent(id: string, companyId: string) { return commerce_flow_routing(database).readAssignFlowPrimaryParent(id, companyId); },
         async stageAssignFlowPrimaryEffect(userId: string, companyId: string, order_id: string) {
             return workflowWave3Statement(database, {kind:'system'}, 'wf_flow_stageassignflowprimaryeffect', [userId, companyId, order_id], String(companyId).slice(0,180), Date.now()); },

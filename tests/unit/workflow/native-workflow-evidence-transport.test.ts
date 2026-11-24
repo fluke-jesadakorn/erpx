@@ -984,3 +984,84 @@ describe('workflow flow-routes read tail (r41 native read plan)', () => {
     }
   });
 });
+
+describe('workflow flow-defaults/steps read tail (r42 native read plan)', () => {
+  it('carries no retired owner SQL for the switched reads and keeps the r32 revision span', async () => {
+    const source = await readFile(
+      new URL('../../../packages/server-workflow/src/adapters/flow-planning-ports.ts', import.meta.url),
+      'utf8',
+    );
+    expect(source).not.toContain('SELECT * FROM flow_defaults WHERE company_id=?');
+    expect(source).not.toContain('SELECT revision,step_key,primary_user_id FROM flow_defaults');
+    expect(source).not.toContain('SELECT steps_json FROM flow_routes WHERE company_id=?');
+    expect(source).not.toContain('${flowDefaultsMaxRevisionSql} revision FROM flow_defaults');
+    // Kept for guard25 (r24-r41 untouched); only the read call site was retired.
+    expect(source).toContain('const flowDefaultsMaxRevisionSql = "SELECT COALESCE(MAX(revision),0)";');
+    expect(source).toContain('(${flowDefaultsMaxRevisionSql} FROM flow_defaults WHERE company_id=?)=?');
+  });
+
+  it('plans the flow-defaults list/revision reads through the mounted native read with no local SQL', async () => {
+    const rows = [{ revision: 4, step_key: 'draft', primary_user_id: 'actor' }];
+    const all = vi.fn(async () => rows);
+    const first = vi.fn(async () => ({ revision: 7 }));
+    vi.resetModules();
+    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+      nativeWorkflowReadAll: all,
+      nativeWorkflowReadFirst: first,
+    }));
+    try {
+      const { nativeFlowPlanningPorts } = await import(
+        '../../../packages/server-workflow/src/adapters/flow-planning-ports'
+      );
+      const prepare = vi.fn();
+      const db = { prepare } as never;
+      const repo = nativeFlowPlanningPorts(db).repository;
+      expect(await repo.readSharedFlowReferencesRoutesdefaultsevents2('company')).toEqual({ results: rows });
+      expect(all).toHaveBeenCalledWith('wf_native_flow_defaults_by_company', ['company'], 'company', db);
+      expect(await repo.readReadFlowDefaultsRevision('company')).toEqual({ revision: 7 });
+      expect(first).toHaveBeenCalledWith('wf_native_flow_defaults_revision', ['company'], 'company', db);
+      expect(await repo.readReadFlowDefaults('company', 'expense', null, null, 7)).toEqual({ results: rows });
+      expect(all).toHaveBeenCalledWith(
+        'wf_native_flow_defaults_by_kind_revision',
+        ['company', 'expense', null, null, 7],
+        'company',
+        db,
+      );
+      expect(prepare).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.resetModules();
+    }
+  });
+
+  it('plans the steps_json point read through the native read and keeps first-row parity', async () => {
+    const first = vi.fn(async (): Promise<{ steps_json: string } | null> => ({ steps_json: '{}' }));
+    const all = vi.fn();
+    vi.resetModules();
+    vi.doMock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+      nativeWorkflowReadAll: all,
+      nativeWorkflowReadFirst: first,
+    }));
+    try {
+      const { nativeFlowPlanningPorts } = await import(
+        '../../../packages/server-workflow/src/adapters/flow-planning-ports'
+      );
+      const prepare = vi.fn();
+      const db = { prepare } as never;
+      const repo = nativeFlowPlanningPorts(db).repository;
+      expect(await repo.readAssignFlowPrimaryExisting('company', 'expense', 'record-1')).toEqual({ steps_json: '{}' });
+      expect(first).toHaveBeenCalledWith(
+        'wf_native_flow_routes_steps_json',
+        ['company', 'expense', 'record-1'],
+        'company',
+        db,
+      );
+      first.mockResolvedValueOnce(null);
+      expect(await repo.readAssignFlowPrimaryExisting('company', 'leave', 'record-2')).toBeNull();
+      expect(prepare).not.toHaveBeenCalled();
+    } finally {
+      vi.doUnmock('../../../packages/server-workflow/src/adapters/native-workflow-read');
+      vi.resetModules();
+    }
+  });
+});

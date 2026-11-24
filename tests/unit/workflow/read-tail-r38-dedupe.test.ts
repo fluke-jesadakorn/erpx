@@ -60,7 +60,7 @@ describe('company-scoped flow-event history generator family (r38)', () => {
     expect(src).toContain("flowEventsHistorySql('action,actor_name,created_at,reason,step_key', ' AND kind=? AND record_id=?')");
   });
 
-  it('retirement:ts-statements is strictly lower than the recorded 54 r38 baseline after the r41 native flow-routes cut', async () => {
+  it('retirement:ts-statements is strictly lower than the recorded 53 r41 baseline after the r42 native flow-defaults/steps cut', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -70,7 +70,7 @@ describe('company-scoped flow-event history generator family (r38)', () => {
       }
     };
     await walk(srcRoot);
-    expect(total).toBeLessThan(54);
-    expect(total).toBe(53);
+    expect(total).toBeLessThan(53);
+    expect(total).toBe(50);
   });
 });
