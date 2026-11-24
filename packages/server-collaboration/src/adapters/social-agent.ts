@@ -26,9 +26,9 @@ import { collaborationAgentSources as workflow } from '@erpx/server-workflow/pub
 import type { Reply } from '@erpx/server-collaboration/domain/social-agent';
 import { createSocialAgentApplication, type SocialAgentRepository } from '@erpx/server-collaboration/application/social-agent';
 import { nativeOwnerWriteSystemUnscoped } from '@erpx/server-collaboration/adapters/native-owner-write';
-import { socialAgentReplyStateGuard } from './read-tail-sql';
+import { socialAgentReplyStateGuard, publishedCommentRead } from './read-tail-sql';
 const scheduledReply = (company: string) => `(${scheduledFeaturePredicate(company, "collaboration")} AND ${scheduledFeaturePredicate(company, "agent")})`;
-const publishedCommentByIdSql = "SELECT id FROM social_comments WHERE id=? AND post_id=? AND state='published'";
+const publishedCommentByIdSql = publishedCommentRead('id');
 const replyFeatureGuards = (db: SqlDatabase, key: string, company: string) => process.env.NODE_ENV !== "production" ? [] : [
     socialReplyEngineeringLock(db, company),
     ...productionFeatureGuard(db, key, company, "agent"),
@@ -57,7 +57,7 @@ const repository: SocialAgentRepository<SqlStatement> = { async requestReply(id:
         id: string;
     }>(); }, async postContent(post_id: string, companyId: string) { return db.prepare("SELECT content_json FROM social_posts WHERE id=? AND company_id=? AND state='published'").bind(post_id, companyId).first<{
         content_json: string | null;
-    }>(); }, async commentContent(owner_id: string, post_id: string) { return db.prepare("SELECT rich_content_json FROM social_comments WHERE id=? AND post_id=? AND state='published'").bind(owner_id, post_id).first<{
+    }>(); }, async commentContent(owner_id: string, post_id: string) { return db.prepare(publishedCommentRead('rich_content_json')).bind(owner_id, post_id).first<{
         rich_content_json: string | null;
     }>(); }, lockSocialQuota(value: string) { return db.prepare("SELECT pg_advisory_xact_lock(hashtext(?))").bind(value); }, prepareReplyDraft(usageId: string, post_id: string, userId: string, version: number, hash: string, value: string, value2: string, value3: string, now: number, value4: number, value5: string | null) { return write('agent_reply_draft', [usageId, post_id, userId, version, hash, value, value2, value3, now, value4, value5], `agent-draft:${usageId}`, undefined, now); }, reserveUsage(usageId: string, companyId: string, userId: string, value: string, value2: number, now: number) { return write('agent_usage_reserve', [usageId, companyId, userId, value, value2, now], `agent-usage:${usageId}`, undefined, now); }, async currentParent(owner_id: string, post_id: string) { return db.prepare(publishedCommentByIdSql).bind(owner_id, post_id).first<{
         id: string;

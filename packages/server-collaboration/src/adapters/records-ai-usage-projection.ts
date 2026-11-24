@@ -1,1 +1,2 @@
-export const recordsSocialUsageCountSql = '(SELECT COUNT(*) FROM social_ai_usage WHERE company_id=? AND month=?)';
+import {socialAiMonthlyUsageCount} from './read-tail-sql';
+export const recordsSocialUsageCountSql = '('+socialAiMonthlyUsageCount('COUNT(*)')+')';

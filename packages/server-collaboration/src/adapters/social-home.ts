@@ -77,7 +77,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
             return nativeOwnerWriteDescriptor(db, 'SH_DRAFT_PREPARE', [recordId, userId, companyId, branch, body, now, now2, department, value, audienceId, value2, value3, purpose, value4, value5, value6]);
         }, async publishDraft(id: string, companyId: string, userId: string) {
             return db
-                .prepare(`${socialPostDraftById} AND author_id=?`)
+                .prepare(`${socialPostDraftById('*')} AND author_id=?`)
                 .bind(id, companyId, userId)
                 .first<PostDraft>();
         }, guardPublishDraft(key: string, value: "draft", id: string, userId: string, version: number) {
@@ -245,7 +245,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
         }, prepareEditNotification(value: string, user: string, now: number, id: string, user2: string, now2: number, now3: number) {
             return nativeOwnerWriteDescriptor(db, 'SH_EDIT_NOTIFICATION', [value, user, now, id, user2, now2, now3], { predicate: sourceAccessSql() });
         }, guardCommentUpload(key: string, value: "comment-upload", commentDraftId: string, userId: string, id: string) { return assertion(db, key, value, socialPostDraftExists('comment_parent_post_id=? AND published_comment_id IS NULL AND cancelled_at IS NULL'), [commentDraftId, userId, id]); }, async parentComment(parentCommentId: string, id: string) {
-            return db.prepare("SELECT id,author_id,parent_comment_id FROM social_comments WHERE id=? AND post_id=? AND state='published'")
+            return db.prepare(publishedCommentRead('id,author_id,parent_comment_id'))
                 .bind(parentCommentId, id)
                 .first<{
                 id: string;
@@ -253,7 +253,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
                 parent_comment_id: string | null;
             }>();
         }, guardParentComment(key: string, value: "reply-parent", id: string, id2: string) {
-            return assertion(db, key, value, `EXISTS(${publishedCommentRead})`, [id, id2]);
+            return assertion(db, key, value, `EXISTS(${publishedCommentRead('1')})`, [id, id2]);
         }, prepareComment(value: string, id: string, userId: string, name: string, body: string, key: string, now: number, now2: number, value2: string, value3: string | null, value4: string | null, value5: string | null) {
             return nativeOwnerWriteDescriptor(db, 'SH_COMMENT_PREPARE', [value, id, userId, name, body, key, now, now2, value2, value3, value4, value5]);
         }, bindCommentDraft(value: string, now: number, commentDraftId: string) {

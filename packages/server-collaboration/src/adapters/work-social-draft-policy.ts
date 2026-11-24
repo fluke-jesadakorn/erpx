@@ -22,7 +22,7 @@ import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import { appsPackageEnforcementMode, projectsPackageEnforcementMode, readPurchasedAccesses, checkPurchasedCapability } from '@erpx/server-commercial/public/purchase-command-boundary';
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import { operationalHandoverReceiptPredicate } from '@erpx/server-collaboration/adapters/work-social-source';
-import {requestedSourcesJsonb,socialPurchaseActorFeature,socialPostByIdPredicate,socialPostByIdGuard} from './read-tail-sql';
+import {requestedSourcesJsonb,socialPurchaseActorFeature,socialPostByIdPredicate,socialPostByIdGuard,socialPostDraftById} from './read-tail-sql';
 
 export type Source={kind:'staff_task'|'staff_project'|'pms_record';id:string};
 export type Command={key:string;operation:string;purpose:CapabilityPurpose;type:'post'|'draft'|'story';id?:string;sources?:Source[];audienceProjectId?:string|null;publishedDraftReplay?:boolean;privateImages?:true;providerSources?:true};
@@ -30,7 +30,7 @@ export async function current(database:SqlDatabase,actor:StaffActor,key:string){
 const sourceSql='SELECT source_kind kind,source_id id FROM social_post_sources s JOIN social_posts p ON p.id=s.post_id WHERE p.id=? AND p.company_id=? ORDER BY s.ordinal';
 export async function actualSources(database:SqlDatabase,actor:Pick<StaffActor,'companyId'>,command:Command):Promise<Source[]>{
  const rows:Source[]=[];if(command.id&&command.type==='post')rows.push(...(await database.prepare(sourceSql).bind(command.id,actor.companyId).all<Source>()).results);
- if(command.id&&command.type==='draft'){const draft=await database.prepare('SELECT sources_json,COALESCE(comment_parent_post_id,edit_post_id,published_post_id) post_id FROM social_post_drafts WHERE id=? AND company_id=?').bind(command.id,actor.companyId).first<{sources_json:string;post_id:string|null}>();if(draft){rows.push(...JSON.parse(draft.sources_json) as Source[]);if(draft.post_id)rows.push(...(await database.prepare(sourceSql).bind(draft.post_id,actor.companyId).all<Source>()).results);}}
+ if(command.id&&command.type==='draft'){const draft=await database.prepare(socialPostDraftById('sources_json,COALESCE(comment_parent_post_id,edit_post_id,published_post_id) post_id')).bind(command.id,actor.companyId).first<{sources_json:string;post_id:string|null}>();if(draft){rows.push(...JSON.parse(draft.sources_json) as Source[]);if(draft.post_id)rows.push(...(await database.prepare(sourceSql).bind(draft.post_id,actor.companyId).all<Source>()).results);}}
  rows.push(...command.sources??[]);return [...new Map(rows.map(row=>[`${row.kind}:${row.id}`,row])).values()];
 }
 export async function capabilities(database:SqlDatabase,actor:StaffActor,command:Command,sources:Source[],purpose:CapabilityPurpose){
@@ -45,6 +45,6 @@ export async function capabilities(database:SqlDatabase,actor:StaffActor,command
  return [...codes];
 }
 export async function requireWorkSocialDraftRead(database:SqlDatabase,actor:StaffActor,id:string,edit=false){
- const {work:mode,project,disabled}=await socialOwnerModes();if(disabled)return;const row=await database.prepare('SELECT comment_parent_post_id,edit_post_id,published_post_id FROM social_post_drafts WHERE id=? AND company_id=?').bind(id,actor.companyId).first<{comment_parent_post_id:string|null;edit_post_id:string|null;published_post_id:string|null}>();if(!row)throw new ApiError(404,'DRAFT_NOT_FOUND','Draft unavailable.');
+ const {work:mode,project,disabled}=await socialOwnerModes();if(disabled)return;const row=await database.prepare(socialPostDraftById('comment_parent_post_id,edit_post_id,published_post_id')).bind(id,actor.companyId).first<{comment_parent_post_id:string|null;edit_post_id:string|null;published_post_id:string|null}>();if(!row)throw new ApiError(404,'DRAFT_NOT_FOUND','Draft unavailable.');
  const command:Command={key:'read',operation:'read',type:'draft',id,purpose:edit?row.comment_parent_post_id?'settle-existing':'new-work':'history'},sources=await actualSources(database,actor,command);await current(database,actor,`work-social-draft:${randomUUID()}`);for(const capability of await capabilities(database,actor,command,sources,command.purpose))await checkPurchasedCapability(database,capability.startsWith('projects.')?project:mode,{companyId:actor.companyId,capability,purpose:command.purpose});await pmsSocialSourcePurchaseScopes(database,actor,sources.filter(source=>source.kind==='pms_record').map(source=>source.id),command.purpose);const post=row.comment_parent_post_id??row.edit_post_id??row.published_post_id;if(post)await requireWorkSocialRead(database,actor,post);
 }

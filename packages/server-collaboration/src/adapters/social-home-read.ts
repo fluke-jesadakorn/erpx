@@ -21,10 +21,10 @@ import{createSocialUploadRead,type createSocialUploadReadPorts}from '@erpx/serve
 
 export function nativeSocialUploadReadRepository(db:SqlDatabase):createSocialUploadReadPorts<SqlStatement>['repository']{return{async draft(id: string, companyId: string) {
             return db
-                .prepare(socialPostDraftById)
+                .prepare(socialPostDraftById('*'))
                 .bind(id, companyId)
                 .first<PostDraft>();
-        },async publishedComment(published_comment_id: string, comment_parent_post_id: string) { return db.prepare(publishedCommentRead).bind(published_comment_id, comment_parent_post_id).first(); }};}
+        },async publishedComment(published_comment_id: string, comment_parent_post_id: string) { return db.prepare(publishedCommentRead('1')).bind(published_comment_id, comment_parent_post_id).first(); }};}
 function application(db:SqlDatabase){return createSocialUploadRead({repository:{draft:(...args)=>nativeSocialUploadReadRepository(db).draft(...args),publishedComment:(...args)=>nativeSocialUploadReadRepository(db).publishedComment(...args)},readablePost: (...args) => inward(() => readablePost(db, ...args))});}
 async function inward<T>(action: () => Promise<T>) {
     try {
