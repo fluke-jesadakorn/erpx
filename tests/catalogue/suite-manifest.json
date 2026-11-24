@@ -106482,6 +106482,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "support",
+      "modules": [
+        "support"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Support ticket guard EXISTS witness family must stay one helper."
+      },
+      "apps": "support",
+      "packages": [
+        "@erpx/server-support"
+      ],
+      "id": "support.read-tail-r22-ticket-guard-family.unit",
+      "files": [
+        "tests/unit/support/read-tail-r22-ticket-guard-family.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "support.rust-record-source-postgres.integration",
       "lane": "integration",
       "owner": "support",

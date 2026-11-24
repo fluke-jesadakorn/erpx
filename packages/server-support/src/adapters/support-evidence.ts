@@ -9,6 +9,7 @@ import { getSupportTicket } from "@erpx/server-support/adapters/support";
 import { attachmentsV2ReadOnly } from "@erpx/server-files/public/attachments/feature";
 import { supportRecipientEligibility } from "@erpx/server-support/adapters/support-recipient";
 import { nativeSupportRuntime } from "@erpx/server-support/adapters/command-runtime";
+import { ticketGuardExistsSql } from './ticket-guard-sources';
 import { nativeSupportReadRuntime } from "@erpx/server-support/adapters/read-runtime";
 import { createNativeSupportTicketRead } from "@erpx/server-support/public/support-ticket-read";
 import { createSupportEvidence, createSupportEvidenceGuard } from "@erpx/server-support/application/support-evidence";
@@ -32,7 +33,7 @@ export async function supportEvidenceGuard(db: SqlDatabase, a: WorkContext, id: 
         ...runtime,
         ticket: nativeTicketRead.getSupportTicket,
         eligible: async (a, id) => { const write = await runtime.database(); return Boolean(await write.prepare(evidenceEligibilitySelect()).bind(id, a.userId).first()); },
-        guard: async (a, id, expectedVersion, key, manager) => { const write = await runtime.database(); return { native: [assertion(write, key, 'support-evidence', `EXISTS(SELECT 1 FROM support_tickets t WHERE t.id=? AND t.company_id=? AND t.version=? AND t.status IN ('open','in_progress','waiting_customer') AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?) AND ${manager ? eligible.replaceAll('t.owner_id', '?::text') : eligible + ' AND t.owner_id=?'})`, [id, a.companyId, expectedVersion, a.branchId, a.branchId, a.departmentId, a.departmentId, a.userId])] }; },
+        guard: async (a, id, expectedVersion, key, manager) => { const write = await runtime.database(); return { native: [assertion(write, key, 'support-evidence', ticketGuardExistsSql(`t.company_id=? AND t.version=? AND t.status IN ('open','in_progress','waiting_customer') AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?) AND ${manager ? eligible.replaceAll('t.owner_id', '?::text') : eligible + ' AND t.owner_id=?'}`), [id, a.companyId, expectedVersion, a.branchId, a.branchId, a.departmentId, a.departmentId, a.userId])] }; },
     });
     return guard(a, id, expectedVersion, key);
 }
