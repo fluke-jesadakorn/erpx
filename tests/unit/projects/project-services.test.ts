@@ -701,7 +701,17 @@ it('keeps one byte-identical native-source identity probe for the Projects recor
  expect(source).not.toContain('EXISTS(SELECT 1 FROM (${nativeSources}) project_source_identity WHERE project_source_identity.id=${id})');
  expect(source).not.toContain('database.prepare(`SELECT 1 FROM (${nativeSources}) native WHERE id=?`)');
 });
-it('retirement:ts-statements stays strictly below the r17 BEFORE=134 baseline',async()=>{
+it('keeps one byte-identical grouped metric projection family for the Projects executive reads',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const source=await readFile(new URL('../../../packages/server-projects/src/adapters/executive-metric-projections.ts',import.meta.url),'utf8');
+ const count=(token:string)=>source.split(token).length-1;
+ expect(count('const groupedMetricSelect =')).toBe(1);
+ expect(count('groupedMetricSelect(label,')).toBe(3);
+ expect(count('SELECT min(${label}) label,count(*)::text value,count(*)::text count_value')).toBe(0);
+ expect(count('SELECT min(${label}) label,(sum(l.minutes::numeric)*60000)::text value,count(*)::text count_value')).toBe(0);
+ expect(count('SELECT min(${label}) label,sum(a.amount_minor::numeric)::text value,count(*)::text count_value')).toBe(0);
+});
+it('retirement:ts-statements stays strictly below the r18 BEFORE=132 baseline',async()=>{
  const {readFileSync,readdirSync}=await import('node:fs');
  const {resolve}=await import('node:path');
  const root=resolve(__dirname,'../../../packages/server-projects/src');
@@ -714,5 +724,5 @@ it('retirement:ts-statements stays strictly below the r17 BEFORE=134 baseline',a
   }
  };
  walk(root);
- expect(total).toBeLessThan(134);
+ expect(total).toBeLessThan(132);
 });

@@ -10,6 +10,10 @@ import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { projectDependencyBlockerCohort, projectMilestoneOverdueCohort } from '@erpx/server-runtime/public/executive/project-milestone-access';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
+/** Byte-identical grouped metric projection shared by the dependency-blocker,
+ * actual-hours and posted-cost executive metric reads. Only the closed label and
+ * value expressions vary; the value/count aliases and bind order stay exact. */
+const groupedMetricSelect = (label: string, value: string) => `SELECT min(${label}) label,${value} value,count(*)::text count_value`;
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const spec = specs[id], scopedAlias = (alias: string) => `${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?)`, scopeArgs = [a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId];
     const projectSource=await projectMetricSource(sourceDb,a,id);
@@ -39,7 +43,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         const label = breakdown === "project" ? "p.title" : "'Blocked project dependencies'";
         const cohort = projectDependencyBlockerCohort(a, f);
         const grouping = breakdown === "project" ? "GROUP BY p.id" : "";
-        sql = `SELECT min(${label}) label,count(*)::text value,count(*)::text count_value
+        sql = `${groupedMetricSelect(label,'count(*)::text')}
       FROM staff_project_milestones m JOIN (${projectSource.sql}) p ON p.id=m.project_id AND p.company_id=m.company_id
       WHERE ${cohort.sql} ${grouping} ORDER BY 1 LIMIT 101`;
         values = cohort.values;
@@ -50,7 +54,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         const group = breakdown === "month" ? "substring(l.work_date::text,1,7)"
             : breakdown === "project" ? "p.id" : null;
         const grouping = group ? `GROUP BY ${group}` : "";
-        sql = `SELECT min(${label}) label,(sum(l.minutes::numeric)*60000)::text value,count(*)::text count_value
+        sql = `${groupedMetricSelect(label,'(sum(l.minutes::numeric)*60000)::text')}
       FROM staff_project_work_logs l JOIN (${projectSource.sql}) p ON p.id=l.project_id AND p.company_id=l.company_id
       WHERE p.company_id=? AND (?::text IS NULL OR p.branch_id=?) AND (?::text IS NULL OR p.department_id=?)
         AND ${projectMemberScopeSql}
@@ -64,7 +68,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         const group = breakdown === "month" ? "substring(j.entry_date::text,1,7)"
             : breakdown === "project" ? "p.id" : null;
         const grouping = group ? `GROUP BY ${group}` : "";
-        sql = `SELECT min(${label}) label,sum(a.amount_minor::numeric)::text value,count(*)::text count_value
+        sql = `${groupedMetricSelect(label,'sum(a.amount_minor::numeric)::text')}
       FROM staff_project_cost_allocations a JOIN (${projectSource.sql}) p ON p.id=a.project_id AND p.company_id=a.company_id
       JOIN (${financeProjectionSources.finance_journal_lines}) l ON l.id=a.journal_line_id JOIN (${financeProjectionSources.finance_journals}) j ON j.id=l.journal_id
       JOIN (${financeProjectionSources.finance_accounts}) ac ON ac.id=l.account_id
