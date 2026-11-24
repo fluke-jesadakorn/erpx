@@ -117,7 +117,7 @@ describe('Projects read-tail r31 receipt-event and owner-or-member dedupe', () =
     };
     walk(srcRoot);
     expect(total).toBeLessThan(112);
-    expect(total).toBe(96); // r30 left 112; r31 receipt-event proof 112->111; owner-or-member column 111->110; r32 purchase-source head 110->108; r33 point-read head and owner-or-member reuse 108->105. r34 staff_tasks point 4->1 (-3) and staff_projects by-ref 7->1 (-6): 105->96
+    expect(total).toBe(95); // r35 point-read family merge (projectIdSql -> projectPointReadHead): 96->95 // r30 left 112; r31 receipt-event proof 112->111; owner-or-member column 111->110; r32 purchase-source head 110->108; r33 point-read head and owner-or-member reuse 108->105. r34 staff_tasks point 4->1 (-3) and staff_projects by-ref 7->1 (-6): 105->96
   });
 });
 

@@ -126,6 +126,6 @@ describe('Projects read-tail r34 staff_tasks point / staff_projects by-ref dedup
     };
     walk(srcRoot);
     // r33 left 105. Family A 4->1 removes 3; Family B 7->1 removes 6: 105-9 = 96.
-    expect(total).toBe(96);
+    expect(total).toBe(95); // r35 point-read family merge (projectIdSql -> projectPointReadHead): 96->95
   });
 });

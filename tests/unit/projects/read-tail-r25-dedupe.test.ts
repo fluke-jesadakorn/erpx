@@ -81,6 +81,6 @@ describe('Projects read-tail r25 byte-identical FROM/JOIN family dedupe', () => 
     };
     walk(srcRoot);
     expect(total).toBeLessThan(122);
-    expect(total).toBe(96); // r25 left 119; r26 proof guards 119->118; r27 member EXISTS 118->117; r28 viewer 117->115; r29 image head 115->113; r30 visible-project-rows head 113->112; r31 receipt-event proof 112->111; r31 owner-or-member column 111->110; r32 purchase-source head 110->108; r33 point-read head and owner-or-member reuse 108->105. r34 staff_tasks point 4->1 (-3) and staff_projects by-ref 7->1 (-6): 105->96
+    expect(total).toBe(95); // r35 point-read family merge (projectIdSql -> projectPointReadHead): 96->95 // r25 left 119; r26 proof guards 119->118; r27 member EXISTS 118->117; r28 viewer 117->115; r29 image head 115->113; r30 visible-project-rows head 113->112; r31 receipt-event proof 112->111; r31 owner-or-member column 111->110; r32 purchase-source head 110->108; r33 point-read head and owner-or-member reuse 108->105. r34 staff_tasks point 4->1 (-3) and staff_projects by-ref 7->1 (-6): 105->96
   });
 });
