@@ -254,3 +254,33 @@ describe('native Operations work task alert source read plan',()=>{
     expect(source).toContain('READ_WORK_TASK_ALERT_SOURCE,');
   });
 });
+
+describe('native Operations work task image read plans',()=>{
+  const adapter=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  const registry=()=>readFileSync(new URL('../../../packages/server-operations/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
+  it('retires both composed TypeScript image literals',()=>{
+    const completed=adapter('work-task-purchases.ts');
+    expect(completed).not.toContain("const taskImageSql=`SELECT jsonb_build_object('task',to_jsonb(t)-'updated_at'");
+    expect(completed).not.toContain("operationsApprovalImageSql('approvals'");
+    expect(completed).toContain('OPERATIONS_RD_WORK_TASK_IMAGE');
+    expect(completed).toContain('completedImage=await taskImage(database,command.id,actor.companyId)');
+    const queued=adapter('work-task-alert-purchases.ts');
+    expect(queued).not.toContain("const imageSql=`SELECT jsonb_build_object('task',to_jsonb(t),'template'");
+    expect(queued).not.toContain("operationsApprovalImageSql('approval'");
+    expect(queued).toContain('OPERATIONS_RD_WORK_TASK_ALERT_IMAGE');
+    expect(queued).toContain('image=await taskImage(database,target.id,target.companyId)');
+  });
+  it('registers both image reads in the native allow-list with the exact frozen literals',()=>{
+    const source=registry();
+    expect(source).toContain('operations_rd_work_task_image');
+    expect(source).toContain('READ_WORK_TASK_IMAGE,');
+    expect(source).toContain('operations_rd_work_task_alert_image');
+    expect(source).toContain('READ_WORK_TASK_ALERT_IMAGE,');
+    expect(source).toContain("'approvals',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(a)");
+    expect(source).toContain("'approval',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(instance)");
+  });
+  it('keeps the surrounding locks untouched while the image reads are native',()=>{
+    expect(adapter('work-task-purchases.ts')).toContain('LOCK TABLE staff_tasks,staff_task_delegations,routine_templates,routine_schedules IN SHARE ROW EXCLUSIVE MODE');
+    expect(adapter('work-task-alert-purchases.ts')).toContain('LOCK TABLE staff_tasks,staff_task_delegations,routine_templates,routine_schedules IN SHARE ROW EXCLUSIVE MODE');
+  });
+});

@@ -1,8 +1,8 @@
 import 'server-only';
-import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL,operationsApprovalImageSql,operationsChildJsonByBoundId} from './task-delegation-source';
+import {operationsChildJsonByBoundId} from './task-delegation-source';
 import {operationsClockProbe,operationsActorScopeInputExists} from './workforce-actor-scope-source';
 import {randomUUID} from 'node:crypto';
-import {nativeOperationsReadFirst,OPERATIONS_RD_WORK_TASK_SOURCE} from './native-operations-read';
+import {nativeOperationsReadFirst,OPERATIONS_RD_WORK_TASK_SOURCE,OPERATIONS_RD_WORK_TASK_IMAGE} from './native-operations-read';
 import type {StaffActor} from '@erpx/server-operations/public/staff-policy';
 import {staffGuard} from '@erpx/server-operations/adapters/staff-policy';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
@@ -16,7 +16,7 @@ import {socialPmsSourceReadLocks} from '@erpx/server-pms/public/social-source-fa
 import {iamMutationGuards} from '@erpx/server-identity_access/public/iam-store';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
-import {workApprovalSettlementSources as approvals,workTaskApprovalSourceLocks} from '@erpx/server-workflow/public/work-package-obligation-sources';
+import {workTaskApprovalSourceLocks} from '@erpx/server-workflow/public/work-package-obligation-sources';
 import {workTaskSocialReadPolicy,workTaskSocialReadScope} from '@erpx/server-collaboration/public/work-task-read-policy';
 import {workTaskSocialPurchasePredicate,workTaskSocialSourceLocks,workTaskSocialAudienceSourceLocks,workTaskSocialPurchaseSource} from '@erpx/server-collaboration/public/work-task-purchase-source';
 import {withOperationsTaskPurchaseUnit,deferOperationsTaskPurchaseCheck,withProjectTaskPurchasedCommand} from '@erpx/server-projects/public/task-purchases';
@@ -35,7 +35,10 @@ async function current(database:SqlDatabase,actor:StaffActor,key:string,write=fa
 async function capabilities(database:SqlDatabase,actor:StaffActor,task:TaskSource|null,ordinary:boolean,postId?:string){
  if(!ordinary)return [];const codes=['work.actions'];if(task?.template_id)codes.push('work.advanced-routines');if((await workTaskSocialPurchaseSource(database,actor.companyId,task?.id??'',postId)).workSocial)codes.push('work.social');return codes;
 }
-const taskImageSql=`SELECT jsonb_build_object('task',to_jsonb(t)-'updated_at','template',${OPERATIONS_TASK_TEMPLATE_SOURCE_SQL},'schedule',${OPERATIONS_TASK_SCHEDULE_SOURCE_SQL},'delegations',${OPERATIONS_TASK_DELEGATION_SOURCE_SQL},${operationsApprovalImageSql('approvals','a','',approvals.instances,approvals.steps,approvals.decisions)})::text image FROM staff_tasks t WHERE t.id=? AND t.company_id=?`;
+/** Owner-planned completed task image. The native registry owns the composed
+ * literal; the caller runs it on its open unit with the unchanged `[id, company]`
+ * bind, and `first('image')` becomes the first row's `image` column. */
+const taskImage=(database:SqlDatabase,id:string,companyId:string)=>nativeOperationsReadFirst<{image:string}>(OPERATIONS_RD_WORK_TASK_IMAGE,[id,companyId],database).then(row=>row?.image??null);
 const referencesImageSql=`SELECT jsonb_build_object('template',${operationsChildJsonByBoundId('routine_templates','t')},'schedule',${operationsChildJsonByBoundId('routine_schedules','s')})::text image`;
 /** A complete existing owner unit composes both actual Project and ordinary
  * Work sources. No Work purchase is added to Project-only task foundations. */
@@ -46,10 +49,10 @@ export async function withWorkTaskPurchasedCommand<Result>(owner:SqlDatabase,act
   const codes=mode==='disabled'?[]:await capabilities(database,actor,before,ordinary,replay?undefined:command.sourcePostId),purpose=replay?'history' as const:command.purpose,key=`work-task:${randomUUID()}`,boundaries=codes.map((capability,index)=>{const id=`${key}:${index}`,scope={companyId:actor.companyId,capability,purpose};return {id,scope,boundary:purchaseCommandBoundary(database,mode,id,scope)!};});
   await current(database,actor,key,true);await requireSocialSource(database,actor,command.id);if(codes.length){for(const item of boundaries)await checkPurchasedCapability(database,mode,item.scope);await database.batch(boundaries.flatMap(item=>item.boundary.before));}
   const socialBefore=await workTaskSocialPurchaseSource(database,actor.companyId,command.id,replay?undefined:command.sourcePostId),referencesBefore=before?await database.prepare(referencesImageSql).bind(before.template_id,actor.companyId,before.schedule_id,actor.companyId).first<string>('image'):null;
-  const result=await withProjectTaskPurchasedCommand(database,actor,command,async tx=>{attachmentActions.set(tx,{id:command.id,userId:actor.userId});try{return await run(tx);}finally{attachmentActions.delete(tx);}}),completedImage=await database.prepare(taskImageSql).bind(command.id,actor.companyId).first<string>('image'),socialCompleted=await workTaskSocialPurchaseSource(database,actor.companyId,command.id,replay?undefined:command.sourcePostId);
+  const result=await withProjectTaskPurchasedCommand(database,actor,command,async tx=>{attachmentActions.set(tx,{id:command.id,userId:actor.userId});try{return await run(tx);}finally{attachmentActions.delete(tx);}}),completedImage=await taskImage(database,command.id,actor.companyId),socialCompleted=await workTaskSocialPurchaseSource(database,actor.companyId,command.id,replay?undefined:command.sourcePostId);
   deferOperationsTaskPurchaseCheck(database,actor,async()=>{
    const after=await source(database,actor,command.id),ack=result&&typeof result==='object'?result as Record<string,unknown>:null;
-   if(!after||after.project_id!==expectedProject||after.assignee_user_id!==expectedAssignee||before&&(['id','company_id','branch_id','department_id','creator_user_id','template_id','schedule_id'] as const).some(field=>before[field]!==after[field])||!before&&after.creator_user_id!==actor.userId||!replay&&ack?.id===command.id&&(after.version!==ack.version||typeof ack.state==='string'&&after.state!==ack.state)||!completedImage||completedImage!==await database.prepare(taskImageSql).bind(command.id,actor.companyId).first<string>('image'))throw new ApiError(409,'WORK_TASK_SOURCE_CHANGED','The completed task source or original owner changed during deferred effects.');
+   if(!after||after.project_id!==expectedProject||after.assignee_user_id!==expectedAssignee||before&&(['id','company_id','branch_id','department_id','creator_user_id','template_id','schedule_id'] as const).some(field=>before[field]!==after[field])||!before&&after.creator_user_id!==actor.userId||!replay&&ack?.id===command.id&&(after.version!==ack.version||typeof ack.state==='string'&&after.state!==ack.state)||!completedImage||completedImage!==await taskImage(database,command.id,actor.companyId))throw new ApiError(409,'WORK_TASK_SOURCE_CHANGED','The completed task source or original owner changed during deferred effects.');
    const socialAfter=await workTaskSocialPurchaseSource(database,actor.companyId,command.id,replay?undefined:command.sourcePostId);
    if(socialBefore.postsImage!==socialAfter.postsImage||socialCompleted.originImage!==socialAfter.originImage||socialCompleted.postsImage!==socialAfter.postsImage||before&&referencesBefore!==await database.prepare(referencesImageSql).bind(before.template_id,actor.companyId,before.schedule_id,actor.companyId).first<string>('image'))throw new ApiError(409,'WORK_TASK_SOURCE_CHANGED','The original routine or social source changed during the task command.');
    await current(database,actor,key,true);await requireSocialSource(database,actor,command.id);if(codes.length){const results=await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.id)]));boundaries[0]?.boundary.observe?.(results);}

@@ -480,11 +480,12 @@ describe('Operations staff_tasks snapshot sources share one canonical projection
 import {readFileSync,readdirSync} from 'node:fs';
 import {resolve} from 'node:path';
 import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL,operationsApprovalImageSql,operationsActiveDelegationSql,operationsChildJsonSql,operationsChildAggJsonSql,operationsChildJsonByBoundId} from '../../../packages/server-operations/src/adapters/task-delegation-source';
-import {workforceActorScopeSql,OPERATIONS_VIEWER_CLOCK_SQL,operationsActorScopeInput,operationsActorScopeInputExists} from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
+import {workforceActorScopeSql,OPERATIONS_VIEWER_CLOCK_SQL,operationsActorScopeInput,operationsActorScopeInputExists,operationsPurchasedActorScopeClockExists} from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
 import {operationsActiveStaffLevels} from '../../../packages/server-operations/src/adapters/staff-facts';
 import {operationsOwnerVersionExists} from '../../../packages/server-operations/src/adapters/identity-policy-version-guard';
 import {finalRootOwnerProjectionSources as organizationProjectionSources} from '@erpx/server-organization/public/final-root-owner-projection-sources';
-import {packageClockSql} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {scheduledFeaturePredicate} from '@erpx/server-pms/public/feature-availability';
 import {OPERATIONS_TASK_START_APPROVER_SQL,OPERATIONS_TASK_COMPLETION_APPROVER_SQL,approverJsonExistsSql} from '../../../packages/server-operations/src/adapters/task-approver-access-source';
 import {handoverTaskAccessSql} from '../../../packages/server-operations/src/adapters/handover-policy';
 import {taskParticipantReadPolicy} from '../../../packages/server-operations/src/adapters/project-task-record-policy';
@@ -495,13 +496,14 @@ describe('Operations task delegation source dedupe',()=>{
   expect(OPERATIONS_TASK_DELEGATION_SOURCE_SQL).toBe(fragment);
   expect(OPERATIONS_TASK_DELEGATION_SOURCE_SQL.match(/SELECT /g)).toHaveLength(1);
  });
- test('all owner task source clauses compose the canonical interpolation',()=>{
-  const names=['work-task-alert-purchases.ts','work-task-purchases.ts','task-attachment-read.ts','task-attachment-purchases.ts'];
-  for(const name of names){
+ test('the remaining TypeScript builders compose the canonical interpolation and the native plan freezes it',()=>{
+  for(const name of ['task-attachment-read.ts','task-attachment-purchases.ts']){
    const source=readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
    expect(source).toContain('${OPERATIONS_TASK_DELEGATION_SOURCE_SQL}');
    expect(source).not.toContain(fragment);
   }
+  const native=readFileSync(new URL('../../../packages/server-operations/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
+  expect(native).toContain(fragment);
  });
 });
 
@@ -514,15 +516,17 @@ describe('Operations task image template/schedule source dedupe',()=>{
   expect(OPERATIONS_TASK_TEMPLATE_SOURCE_SQL.match(/SELECT /g)).toHaveLength(1);
   expect(OPERATIONS_TASK_SCHEDULE_SOURCE_SQL.match(/SELECT /g)).toHaveLength(1);
  });
- test('all four task image SQL builders compose the canonical interpolations',()=>{
-  const names=['work-task-alert-purchases.ts','work-task-purchases.ts','task-attachment-read.ts','task-attachment-purchases.ts'];
-  for(const name of names){
+ test('the remaining TypeScript builders compose the canonical interpolations and the native plan freezes them',()=>{
+  for(const name of ['task-attachment-read.ts','task-attachment-purchases.ts']){
    const source=readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
    expect(source).toContain('${OPERATIONS_TASK_TEMPLATE_SOURCE_SQL}');
    expect(source).toContain('${OPERATIONS_TASK_SCHEDULE_SOURCE_SQL}');
    expect(source).not.toContain(templateFragment);
    expect(source).not.toContain(scheduleFragment);
   }
+  const native=readFileSync(new URL('../../../packages/server-operations/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
+  expect(native).toContain(templateFragment);
+  expect(native).toContain(scheduleFragment);
  });
 });
 
@@ -593,14 +597,15 @@ describe('Operations approval-instance image dedupe',()=>{
   expect(image('approvals','a','')).toBe(purchaseFragment);
   expect(image('approval','instance',' ').match(/SELECT /g)).toHaveLength(3);
  });
- test('both task image builders compose the canonical image and keep no local literal',()=>{
-  for(const [name,call,literal] of [
-   ['work-task-alert-purchases.ts',"operationsApprovalImageSql('approval','instance',' '","'approval',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(instance)"],
-   ['work-task-purchases.ts',"operationsApprovalImageSql('approvals','a',''","'approvals',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(a)"],
+ test('the retired builders keep no local image literal and the native plan owns it',()=>{
+  const native=readFileSync(new URL('../../../packages/server-operations/src/adapters/native_operations_read_sql.rs',import.meta.url),'utf8');
+  for(const [name,literal] of [
+   ['work-task-alert-purchases.ts',"'approval',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(instance)"],
+   ['work-task-purchases.ts',"'approvals',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(a)"],
   ] as const){
    const source=readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
-   expect(source).toContain(call);
    expect(source).not.toContain(literal);
+   expect(native).toContain(literal);
   }
  });
 });
@@ -748,7 +753,54 @@ describe('Operations read-tail r38 dedupe',()=>{
    }
   };
   walk(root);
-  expect(space).toBe(117);
+  // r39 retired both task-image reads and deduped the purchased actor-scope
+  // clock probe; the r38 BEFORE=125 baseline itself is unchanged.
+  expect(space).toBeLessThanOrEqual(114);
   expect(space).toBeLessThan(125);
  });
+});
+
+describe('Operations read-tail r39 retirement',()=>{
+  const source=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  test('purchased actor-scope clock probe renders both readers byte-identically',()=>{
+    const where='<WHERE>';
+    const purchased=` AND ${purchasedCapabilityPredicate('workforce_actor_scope.company_id','work.actions','history','workforce_actor_scope.now_ms')}`;
+    const feature=` AND ${scheduledFeaturePredicate('workforce_actor_scope.company_id','operations')}`;
+    expect(operationsPurchasedActorScopeClockExists('workspace_records.company_id company_id','workspace_records.branch_id','workspace_records.department_id',where)).toBe(`EXISTS(SELECT 1 FROM(SELECT workspace_records.company_id company_id,workspace_records.branch_id,workspace_records.department_id,${packageClockSql} now_ms)workforce_actor_scope WHERE ${where}${purchased}${feature})`);
+    expect(operationsPurchasedActorScopeClockExists('?::text company_id','?::text branch_id','?::text department_id',where)).toBe(`EXISTS(SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id,${packageClockSql} now_ms)workforce_actor_scope WHERE ${where}${purchased}${feature})`);
+    const rendered=operationsPurchasedActorScopeClockExists('a','b','c',where);
+    expect(rendered).toContain('EXISTS(SELECT 1 FROM(SELECT');
+    expect(rendered.match(/EXISTS\(SELECT 1 FROM\(SELECT/g)).toHaveLength(1);
+  });
+  test('the two record-workspace guards compose the canonical probe and keep no local literal',()=>{
+    const records=source('record-purchases.ts');
+    expect(records).toContain('operationsPurchasedActorScopeClockExists(`${company} company_id`,');
+    expect(records).toContain("operationsPurchasedActorScopeClockExists('?::text company_id'");
+    expect(records).not.toContain('EXISTS(SELECT 1 FROM${operationsActorScopeInput(');
+    expect(records).not.toContain('${packageClockSql} now_ms');
+  });
+  test('task image reads are owner-planned and the locks remain',()=>{
+    const completed=source('work-task-purchases.ts');
+    expect(completed).toContain('OPERATIONS_RD_WORK_TASK_IMAGE');
+    expect(completed).not.toContain('taskImageSql');
+    expect(completed).toContain('LOCK TABLE staff_tasks,staff_task_delegations,routine_templates,routine_schedules IN SHARE ROW EXCLUSIVE MODE');
+    const queued=source('work-task-alert-purchases.ts');
+    expect(queued).toContain('OPERATIONS_RD_WORK_TASK_ALERT_IMAGE');
+    expect(queued).not.toContain('imageSql');
+    expect(queued).toContain('LOCK TABLE staff_tasks,staff_task_delegations,routine_templates,routine_schedules IN SHARE ROW EXCLUSIVE MODE');
+  });
+  test('retirement:ts-statements stays strictly below the r39 BEFORE=117 baseline',()=>{
+    const root=resolve(__dirname,'../../../packages/server-operations/src');
+    let space=0;
+    const walk=(dir:string)=>{
+     for(const entry of readdirSync(dir,{withFileTypes:true})){
+      const path=resolve(dir,entry.name);
+      if(entry.isDirectory())walk(path);
+      else if(entry.name.endsWith('.ts'))space+=(readFileSync(path,'utf8').match(/SELECT /g)??[]).length;
+     }
+    };
+    walk(root);
+    expect(space).toBe(114);
+    expect(space).toBeLessThan(117);
+  });
 });

@@ -1,5 +1,6 @@
 import 'server-only';
-import {packageClockSql} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {scheduledFeaturePredicate} from '@erpx/server-pms/public/feature-availability';
 /** Canonical clock CTE projection shared by Operations owner reads. */
 export const OPERATIONS_CLOCK_CTE_SQL = `(SELECT ${packageClockSql} now_ms)`;
 /** Canonical bound viewer/assignment clock CTE shared by Operations owner reads. */
@@ -21,3 +22,8 @@ export const operationsActorScopeInput = (company: string, branch: string, depar
  *  The FROM separator and predicate are the only varying bytes. */
 export const operationsActorScopeInputExists = (where: string, fromSep = ' ') =>
   `SELECT 1 FROM${fromSep}${OPERATIONS_ACTOR_SCOPE_INPUT_SQL} workforce_actor_scope WHERE ${where}`;
+/** Canonical purchased Work actor-scope clock probe shared by the two record
+ * workspace guards. The scope input segments and the current actor scope are
+ * the only varying bytes; the purchased-history and feature clauses are fixed. */
+export const operationsPurchasedActorScopeClockExists = (company: string, branch: string, department: string, where: string) =>
+  `EXISTS(SELECT 1 FROM${operationsActorScopeInput(company, branch, department, `,${packageClockSql} now_ms`)}workforce_actor_scope WHERE ${where} AND ${purchasedCapabilityPredicate('workforce_actor_scope.company_id', 'work.actions', 'history', 'workforce_actor_scope.now_ms')} AND ${scheduledFeaturePredicate('workforce_actor_scope.company_id', 'operations')})`;

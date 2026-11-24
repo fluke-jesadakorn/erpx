@@ -1,5 +1,4 @@
 import 'server-only';
-import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL,operationsApprovalImageSql} from './task-delegation-source';
 import {operationsClockProbe} from './workforce-actor-scope-source';
 import {randomUUID} from 'node:crypto';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
@@ -21,7 +20,7 @@ import {projectSocialSourceReadLocks} from '@erpx/server-projects/public/social-
 import {socialPmsSourceReadLocks} from '@erpx/server-pms/public/social-source-facts';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
-import {nativeOperationsReadFirst,OPERATIONS_RD_WORK_TASK_ALERT_SOURCE} from './native-operations-read';
+import {nativeOperationsReadFirst,OPERATIONS_RD_WORK_TASK_ALERT_SOURCE,OPERATIONS_RD_WORK_TASK_ALERT_IMAGE} from './native-operations-read';
 
 /** Canonical Work-alert recipient viewer column projection, shared by the read
  * scope and the recipient lookup so the two fragments cannot drift. The clock
@@ -39,7 +38,10 @@ export async function workTaskAlertReadScope(now:number,deadline=now+86400000){
  const social=await workTaskSocialQueuedSourceScope({deadline}),recipient=`(iam_same_person(work_alert_viewer.user_id,t.assignee_user_id,t.company_id) OR iam_same_person(work_alert_viewer.user_id,d.delegate_user_id,t.company_id) OR (t.due_at<${now} AND iam_same_person(work_alert_viewer.user_id,t.creator_user_id,t.company_id)) OR EXISTS(SELECT 1 FROM (${approval.instances}) pending_instance JOIN (${approval.steps}) pending_step ON pending_step.instance_id=pending_instance.id AND pending_step.state='pending' WHERE pending_instance.company_id=t.company_id AND pending_instance.record_id=t.id AND pending_instance.state='pending' AND iam_same_person(pending_step.approver_user_id,work_alert_viewer.user_id,t.company_id)))`;
  return {prefix:social.prefix,args:social.args,where:`(t.project_id IS NOT NULL OR EXISTS(${operationsClockProbe("work_alert_clock")} WHERE ${purchased(social.socialRequired)} AND EXISTS(SELECT 1 FROM assignments assignment ${workAlertViewerColumns}work_alert_clock.now_ms) work_alert_viewer WHERE assignment.company_id=t.company_id AND ${recipient} AND ${authority('work_alert_viewer',social.where)})))`};
 }
-const imageSql=`SELECT jsonb_build_object('task',to_jsonb(t),'template',${OPERATIONS_TASK_TEMPLATE_SOURCE_SQL},'schedule',${OPERATIONS_TASK_SCHEDULE_SOURCE_SQL},'delegations',${OPERATIONS_TASK_DELEGATION_SOURCE_SQL},${operationsApprovalImageSql('approval','instance',' ',approval.instances,approval.steps,approval.decisions)})::text image FROM staff_tasks t WHERE t.id=? AND t.company_id=?`;
+/** Owner-planned queued task image. The native registry owns the composed
+ * literal; the caller runs it on its open unit with the unchanged `[id, company]`
+ * bind, and `first('image')` becomes the first row's `image` column. */
+const taskImage=(database:SqlDatabase,id:string,companyId:string)=>nativeOperationsReadFirst<{image:string}>(OPERATIONS_RD_WORK_TASK_ALERT_IMAGE,[id,companyId],database).then(row=>row?.image??null);
 const recipientSql=(social:string)=>`SELECT assignment.id,assignment.version FROM assignments assignment ${workAlertViewerColumns}${packageClockSql} now_ms) work_alert_viewer JOIN staff_tasks t ON t.company_id=assignment.company_id WHERE assignment.user_id=? AND assignment.company_id=? AND t.id=? AND ${authority('work_alert_viewer',social)} ORDER BY assignment.id`;
 type Target={id:string;companyId:string;userId:string;version:number};
 /** Pin a real current recipient assignment, never fabricate a role/session for
@@ -54,7 +56,7 @@ export async function withWorkTaskAlert<Result>(owner:SqlDatabase,selected:TaskA
   await database.batch([companyPurchaseReadLocks(database,target.companyId)[0],database.prepare('LOCK TABLE staff_tasks,staff_task_delegations,routine_templates,routine_schedules IN SHARE ROW EXCLUSIVE MODE'),workTaskApprovalSourceLocks(database),workTaskSocialSourceLocks(database),workTaskSocialAudienceSourceLocks(database),projectSocialSourceReadLocks(database),socialPmsSourceReadLocks(database)]);await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);
   const source=await nativeOperationsReadFirst<{id:string;company_id:string;project_id:string|null;template_id:string|null;version:number;title:string;due_at:number|null;assignee_user_id:string;creator_user_id:string;delegate_user_id:string|null;state:string}>(OPERATIONS_RD_WORK_TASK_ALERT_SOURCE,[Date.now(),Date.now(),target.id,target.companyId],database);
   if(!source||source.version!==target.version||['completed','cancelled'].includes(source.state)||(['project_id','title','due_at','assignee_user_id','creator_user_id','delegate_user_id'] as const).some(field=>(source[field]??null)!==(selected[field]??null)))return undefined;
-  const socialPolicy=await workTaskSocialQueuedSourceScope({deadline:Date.now(),target:{id:target.id,companyId:target.companyId}}),image=await database.prepare(imageSql).bind(target.id,target.companyId).first<string>('image'),social=await workTaskSocialPurchaseSource(database,target.companyId,target.id),codes=source.project_id?[]:['work.actions',...(source.template_id?['work.advanced-routines']:[]),...(social.workSocial?['work.social']:[])];
+  const socialPolicy=await workTaskSocialQueuedSourceScope({deadline:Date.now(),target:{id:target.id,companyId:target.companyId}}),image=await taskImage(database,target.id,target.companyId),social=await workTaskSocialPurchaseSource(database,target.companyId,target.id),codes=source.project_id?[]:['work.actions',...(source.template_id?['work.advanced-routines']:[]),...(social.workSocial?['work.social']:[])];
   let assignment:{id:string;version:number}|undefined;
   const fences:{key:string;boundary:NonNullable<ReturnType<typeof purchaseCommandBoundary>>}[]=[];
   if(codes.length){
@@ -64,7 +66,7 @@ export async function withWorkTaskAlert<Result>(owner:SqlDatabase,selected:TaskA
   }
   const result=await run(database);await flushFinanceDeferredEffects(database);
   const socialAfter=await workTaskSocialPurchaseSource(database,target.companyId,target.id);
-  if(!image||image!==await database.prepare(imageSql).bind(target.id,target.companyId).first<string>('image')||social.postsImage!==socialAfter.postsImage||social.originImage!==socialAfter.originImage)throw new ApiError(409,'WORK_ALERT_SOURCE_CHANGED','The original queued Work task source changed before alert commit.');
+  if(!image||image!==await taskImage(database,target.id,target.companyId)||social.postsImage!==socialAfter.postsImage||social.originImage!==socialAfter.originImage)throw new ApiError(409,'WORK_ALERT_SOURCE_CHANGED','The original queued Work task source changed before alert commit.');
   if(assignment&&!(await database.prepare(`${socialPolicy.prefix}${recipientSql(socialPolicy.where)}`).bind(...socialPolicy.args,target.userId,target.companyId,target.id).all<{id:string;version:number}>()).results.some(row=>row.id===assignment!.id&&row.version===assignment!.version))throw new ApiError(403,'WORK_ALERT_AUTHORITY_CHANGED','The current original Work alert recipient authority changed.');
   const results=await database.batch(fences.flatMap(({key,boundary})=>[...boundary.after,clearWorkflowCommandAssertions(database, key)]));fences[0]?.boundary.observe?.(results);return result;
  });}catch(error){throw purchaseCommandFailure(error)??error;}

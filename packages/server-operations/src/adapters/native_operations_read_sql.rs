@@ -218,6 +218,35 @@ const READ_WORK_TASK_ALERT_SOURCE: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `work-task-purchases` completed task
+/// image read. The owner plans the exact composed literal; the caller executes
+/// it on its open unit with the same `[id, company_id]` bind and takes the
+/// `image` column exactly as the retired `.first('image')` did. The plan joins
+/// owner-local task/routine tables with the owner-planned approval image.
+pub const RD_WORK_TASK_IMAGE: &str = "operations_rd_work_task_image";
+const SQL_WORK_TASK_IMAGE: &str = "SELECT jsonb_build_object('task',to_jsonb(t)-'updated_at','template',(SELECT to_jsonb(template) FROM routine_templates template WHERE template.id=t.template_id AND template.company_id=t.company_id),'schedule',(SELECT to_jsonb(schedule) FROM routine_schedules schedule WHERE schedule.id=t.schedule_id AND schedule.company_id=t.company_id),'delegations',(SELECT jsonb_agg(to_jsonb(delegation) ORDER BY delegation.id) FROM staff_task_delegations delegation WHERE delegation.task_id=t.id AND delegation.company_id=t.company_id),'approvals',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(a),'steps',(SELECT jsonb_agg(to_jsonb(step) ORDER BY step.id) FROM (SELECT * FROM approval_steps)step WHERE step.instance_id=a.id),'decisions',(SELECT jsonb_agg(to_jsonb(decision) ORDER BY decision.id) FROM (SELECT * FROM approval_decisions)decision WHERE decision.instance_id=a.id)) ORDER BY a.id) FROM (SELECT * FROM approval_instances WHERE record_type='task')a WHERE a.record_id=t.id AND a.company_id=t.company_id))::text image FROM staff_tasks t WHERE t.id=? AND t.company_id=?";
+const READ_WORK_TASK_IMAGE: NativeReadStatement = NativeReadStatement {
+    kind: RD_WORK_TASK_IMAGE,
+    sql: SQL_WORK_TASK_IMAGE,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript `work-task-alert-purchases` queued task
+/// image read. The owner plans the exact composed literal; the caller executes
+/// it on its open unit with the same `[id, company_id]` bind and takes the
+/// `image` column exactly as the retired `.first('image')` did. It shares the
+/// owner-local child projections with the completed image but keeps the extra
+/// approval alias/separator bytes of the queued reader.
+pub const RD_WORK_TASK_ALERT_IMAGE: &str = "operations_rd_work_task_alert_image";
+const SQL_WORK_TASK_ALERT_IMAGE: &str = "SELECT jsonb_build_object('task',to_jsonb(t),'template',(SELECT to_jsonb(template) FROM routine_templates template WHERE template.id=t.template_id AND template.company_id=t.company_id),'schedule',(SELECT to_jsonb(schedule) FROM routine_schedules schedule WHERE schedule.id=t.schedule_id AND schedule.company_id=t.company_id),'delegations',(SELECT jsonb_agg(to_jsonb(delegation) ORDER BY delegation.id) FROM staff_task_delegations delegation WHERE delegation.task_id=t.id AND delegation.company_id=t.company_id),'approval',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(instance),'steps',(SELECT jsonb_agg(to_jsonb(step) ORDER BY step.id) FROM (SELECT * FROM approval_steps) step WHERE step.instance_id=instance.id),'decisions',(SELECT jsonb_agg(to_jsonb(decision) ORDER BY decision.id) FROM (SELECT * FROM approval_decisions) decision WHERE decision.instance_id=instance.id)) ORDER BY instance.id) FROM (SELECT * FROM approval_instances WHERE record_type='task') instance WHERE instance.record_id=t.id AND instance.company_id=t.company_id))::text image FROM staff_tasks t WHERE t.id=? AND t.company_id=?";
+const READ_WORK_TASK_ALERT_IMAGE: NativeReadStatement = NativeReadStatement {
+    kind: RD_WORK_TASK_ALERT_IMAGE,
+    sql: SQL_WORK_TASK_ALERT_IMAGE,
+    bind_count: 2,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_TASK_PROJECTION_SOURCE,
     READ_APP_UPLOAD_TASK_STATE,
@@ -234,6 +263,8 @@ const READS: &[NativeReadStatement] = &[
     READ_WORK_TASK_SOURCE,
     READ_TASK_ATTACHMENT_ASSIGNEE,
     READ_WORK_TASK_ALERT_SOURCE,
+    READ_WORK_TASK_IMAGE,
+    READ_WORK_TASK_ALERT_IMAGE,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -541,6 +572,36 @@ mod tests {
         assert_eq!(
             read.sql,
             "SELECT t.id,t.company_id,t.project_id,t.template_id,t.version,t.title,t.due_at,t.assignee_user_id,t.creator_user_id,t.state,(SELECT sd.delegate_user_id FROM staff_task_delegations sd WHERE sd.task_id=t.id AND sd.company_id=t.company_id AND sd.status='active' AND sd.starts_at<=? AND sd.expires_at>? ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1) delegate_user_id FROM staff_tasks t WHERE t.id=? AND t.company_id=?"
+        );
+    }
+
+    #[test]
+    fn work_task_image_plans_are_holding_scoped_and_ledger_free() {
+        for kind in [RD_WORK_TASK_IMAGE, RD_WORK_TASK_ALERT_IMAGE] {
+            let read = read_statement(kind).expect("read kind");
+            let upper = read.sql.to_ascii_uppercase();
+            assert!(upper.starts_with("SELECT"), "{}", read.kind);
+            assert!(!upper.contains("INSERT "));
+            assert!(!upper.contains("UPDATE "));
+            assert!(!upper.contains("DELETE "));
+            assert_eq!(read.bind_count, 2);
+            assert_eq!(read.sql.matches('?').count(), 2);
+            assert_eq!(read.scope, "holding");
+            assert!(is_read(kind));
+        }
+    }
+
+    #[test]
+    fn work_task_image_sql_matches_retired_typescript_literals() {
+        let completed = read_statement(RD_WORK_TASK_IMAGE).expect("read kind");
+        assert_eq!(
+            completed.sql,
+            "SELECT jsonb_build_object('task',to_jsonb(t)-'updated_at','template',(SELECT to_jsonb(template) FROM routine_templates template WHERE template.id=t.template_id AND template.company_id=t.company_id),'schedule',(SELECT to_jsonb(schedule) FROM routine_schedules schedule WHERE schedule.id=t.schedule_id AND schedule.company_id=t.company_id),'delegations',(SELECT jsonb_agg(to_jsonb(delegation) ORDER BY delegation.id) FROM staff_task_delegations delegation WHERE delegation.task_id=t.id AND delegation.company_id=t.company_id),'approvals',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(a),'steps',(SELECT jsonb_agg(to_jsonb(step) ORDER BY step.id) FROM (SELECT * FROM approval_steps)step WHERE step.instance_id=a.id),'decisions',(SELECT jsonb_agg(to_jsonb(decision) ORDER BY decision.id) FROM (SELECT * FROM approval_decisions)decision WHERE decision.instance_id=a.id)) ORDER BY a.id) FROM (SELECT * FROM approval_instances WHERE record_type='task')a WHERE a.record_id=t.id AND a.company_id=t.company_id))::text image FROM staff_tasks t WHERE t.id=? AND t.company_id=?"
+        );
+        let queued = read_statement(RD_WORK_TASK_ALERT_IMAGE).expect("read kind");
+        assert_eq!(
+            queued.sql,
+            "SELECT jsonb_build_object('task',to_jsonb(t),'template',(SELECT to_jsonb(template) FROM routine_templates template WHERE template.id=t.template_id AND template.company_id=t.company_id),'schedule',(SELECT to_jsonb(schedule) FROM routine_schedules schedule WHERE schedule.id=t.schedule_id AND schedule.company_id=t.company_id),'delegations',(SELECT jsonb_agg(to_jsonb(delegation) ORDER BY delegation.id) FROM staff_task_delegations delegation WHERE delegation.task_id=t.id AND delegation.company_id=t.company_id),'approval',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(instance),'steps',(SELECT jsonb_agg(to_jsonb(step) ORDER BY step.id) FROM (SELECT * FROM approval_steps) step WHERE step.instance_id=instance.id),'decisions',(SELECT jsonb_agg(to_jsonb(decision) ORDER BY decision.id) FROM (SELECT * FROM approval_decisions) decision WHERE decision.instance_id=instance.id)) ORDER BY instance.id) FROM (SELECT * FROM approval_instances WHERE record_type='task') instance WHERE instance.record_id=t.id AND instance.company_id=t.company_id))::text image FROM staff_tasks t WHERE t.id=? AND t.company_id=?"
         );
     }
 }
