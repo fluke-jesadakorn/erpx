@@ -35,6 +35,7 @@ import {fulfillmentLinesBy} from './read-tail-r26';
 import {policyVersionGuard} from './read-tail-r29';
 import {settingsRead} from './read-tail-r27';
 import {versionStatusScopeGuard} from './read-tail-r30';
+import {supplierBillPointGuard} from './read-tail-r34';
 export {supplierBillSchema,supplierBillDecisionSchema,supplierInvoicePolicySchema,matchedBillLines} from "@erpx/server-procurement/domain/supplier-bills";
 const scope=branchDepartmentScope("m");
 const args=(actor:WorkContext)=>[actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId];
@@ -142,11 +143,11 @@ return {lines:lines.results,receipts:receipts.results,events:events.results,acco
  matchingRequired:async()=>!!await nativeProcurementReadFirst(PROCUREMENT_RD_INVOICE_POLICY_MATCHING_REQUIRED,[actor.companyId],await database()),
  billReceipts:async(id)=>(await nativeProcurementReadAll<Row>(PROCUREMENT_RD_BILL_MATCH_RECEIPTS,[id],await database())).results,
  stageInvoice:async(h)=>{const db=await database(),bill=h.bill,nextVersion=Number(bill.version)+1;
- const steps:SqlStatement[]=[assertion(db,h.key,'supplier-bill-handoff',"EXISTS(SELECT 1 FROM procurement_bill_matches WHERE id=? AND company_id=? AND fulfillment_id=? AND status='approved' AND version=? AND invoice_id IS NULL)",[bill.id,actor.companyId,h.fulfillment.id,h.matchVersion])];
+ const steps:SqlStatement[]=[assertion(db,h.key,'supplier-bill-handoff',supplierBillPointGuard(" AND company_id=? AND fulfillment_id=? AND status='approved' AND version=? AND invoice_id IS NULL"),[bill.id,actor.companyId,h.fulfillment.id,h.matchVersion])];
  for(const [index,receipt]of h.receipts.entries())steps.push(assertion(db,h.key,`supplier-bill-receipt-${index}`,`EXISTS(SELECT 1 FROM procurement_bill_match_receipts br JOIN (${commercePlatformSources.commerce_fulfillments}) f ON f.id=br.fulfillment_id WHERE br.id=? AND br.match_id=? AND br.active=TRUE AND f.version=br.captured_version AND f.invoice_id IS NULL)`,[receipt.id,bill.id]));
  steps.push(stageSupplierBillReceiptLinks(db,String(bill.id),h.invoiceId),nativeProcurementStatement('procurement_stmt_2', { now: Date.now() }).bind(h.invoiceId,h.now,bill.id),event(db,actor,String(bill.id),h.key,nextVersion,'invoice-created',`Draft invoice ${h.invoiceId} prepared from ${h.receipts.length} receipt(s) for independent GL posting`,h.now),await nativeSupplierBillNotification(db,actor,String(bill.id),h.key));return steps;},
  billByInvoice:async(id)=>nativeProcurementReadFirst<Row>(PROCUREMENT_RD_BILL_BY_INVOICE,[id,actor.companyId],await database()),
- stagePosting:async(h)=>{const db=await database(),bill=h.bill;return [assertion(db,h.key,'supplier-bill-post',"EXISTS(SELECT 1 FROM procurement_bill_matches WHERE id=? AND version=? AND status='invoiced' AND invoice_id=?)",[bill.id,bill.version,h.invoice.id]),nativeProcurementStatement('procurement_stmt_3', { now: Date.now() }).bind(h.now,bill.id),event(db,actor,String(bill.id),h.key,Number(bill.version)+1,'posted','Matched invoice and price variance posted to GL',h.now),await nativeSupplierBillNotification(db,actor,String(bill.id),h.key)];},
+ stagePosting:async(h)=>{const db=await database(),bill=h.bill;return [assertion(db,h.key,'supplier-bill-post',supplierBillPointGuard(" AND version=? AND status='invoiced' AND invoice_id=?"),[bill.id,bill.version,h.invoice.id]),nativeProcurementStatement('procurement_stmt_3', { now: Date.now() }).bind(h.now,bill.id),event(db,actor,String(bill.id),h.key,Number(bill.version)+1,'posted','Matched invoice and price variance posted to GL',h.now),await nativeSupplierBillNotification(db,actor,String(bill.id),h.key)];},
  workFacts:async(row)=>{const write=await database();
 let latest:Row|null=null,eligible=0,primary:{userId:string;name:string}|null=null,flowBlocker:string|null=null;
  if(row.status==='returned')latest=await nativeProcurementReadFirst<Row>(PROCUREMENT_RD_LATEST_BILL_BY_FULFILLMENT,[row.fulfillment_id],write);

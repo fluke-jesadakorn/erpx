@@ -6,6 +6,7 @@ import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {inList,branchDepartmentScope} from './read-tail-sql';
 import {hrPersonIn} from './read-tail-r20';
+import {calendarScopedListRead} from './read-tail-r34';
 export function calendarSupplierPromisesProcurementFacts(db: SqlDatabase,actor?:WorkContext) { return { read1: async (facts: {
         value1: string;
         value2: string | null;
@@ -18,7 +19,7 @@ export function calendarSupplierPromisesProcurementFacts(db: SqlDatabase,actor?:
         value9: string | null;
         value10: string;
         value11: number;
-    }) => { const scope=await procurementSourcePredicate(db,actor,"o");return db.prepare(`SELECT p.id,h.order_id,o.number,p.promised_date,p.remaining_milli,p.description,o.version,o.branch_id,o.department_id FROM procurement_open_promise_lines p JOIN procurement_delivery_promises h ON h.id=p.promise_id JOIN (${commercePlatformSources.commerce_orders}) o ON o.id=h.order_id WHERE ${branchDepartmentScope("o")} AND ${inList('coalesce(o.department_id,o.branch_id,o.company_id)')} AND p.remaining_milli>0 AND p.promised_date>=? AND p.promised_date<? AND (?='team' OR h.recorded_by=? OR o.created_by=?) AND (?::text IS NULL OR ${hrPersonIn(people_payrollPlatformSources.hr_people,"h.recorded_by","o")}) AND (?='' OR o.number ILIKE '%'||?||'%' OR p.description ILIKE '%'||?||'%') AND ${scope.where} ORDER BY p.id LIMIT ?`).bind(facts.value1, facts.value2, facts.value2, facts.value3, facts.value3, facts.value4, facts.value5, facts.value6, facts.value7, facts.value8, facts.value8, facts.value9, facts.value9, facts.value10, facts.value10, facts.value10,...scope.args, facts.value11).all<{
+    }) => { const scope=await procurementSourcePredicate(db,actor,"o");return db.prepare(calendarScopedListRead('p.id,h.order_id,o.number,p.promised_date,p.remaining_milli,p.description,o.version,o.branch_id,o.department_id',`procurement_open_promise_lines p JOIN procurement_delivery_promises h ON h.id=p.promise_id JOIN (${commercePlatformSources.commerce_orders}) o ON o.id=h.order_id`,branchDepartmentScope("o"),inList('coalesce(o.department_id,o.branch_id,o.company_id)'),`p.remaining_milli>0 AND p.promised_date>=? AND p.promised_date<? AND (?='team' OR h.recorded_by=? OR o.created_by=?) AND (?::text IS NULL OR ${hrPersonIn(people_payrollPlatformSources.hr_people,"h.recorded_by","o")}) AND (?='' OR o.number ILIKE '%'||?||'%' OR p.description ILIKE '%'||?||'%')`,scope.where,'p.id')).bind(facts.value1, facts.value2, facts.value2, facts.value3, facts.value3, facts.value4, facts.value5, facts.value6, facts.value7, facts.value8, facts.value8, facts.value9, facts.value9, facts.value10, facts.value10, facts.value10,...scope.args, facts.value11).all<{
         id: string;
         order_id: string;
         number: string;

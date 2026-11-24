@@ -4,6 +4,7 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {supplierBillSourcePredicate} from "@erpx/server-procurement/adapters/record-purchases";
 import {inList,branchDepartmentScope} from './read-tail-sql';
+import {calendarScopedListRead} from './read-tail-r34';
 export function calendarSupplierBillsProcurementFacts(db: SqlDatabase,actor?:WorkContext) { return { read1: async (facts: {
         value1: string;
         value2: string | null;
@@ -16,7 +17,7 @@ export function calendarSupplierBillsProcurementFacts(db: SqlDatabase,actor?:Wor
         value9: string | null;
         value10: string;
         value11: number;
-    }) => { const scope=await supplierBillSourcePredicate(db,actor,"r");return db.prepare(`SELECT r.* FROM procurement_bill_matches r WHERE ${branchDepartmentScope("r")} AND ${inList('coalesce(r.department_id,r.branch_id,r.company_id)')} AND (r.status IN ('review','approved') OR (r.status='returned' AND r.id=(SELECT latest.id FROM procurement_bill_matches latest WHERE latest.fulfillment_id=r.fulfillment_id ORDER BY (latest.status<>'returned') DESC,latest.created_at DESC,latest.id DESC LIMIT 1))) AND r.due_date>=? AND r.due_date<? AND (?='team' OR r.created_by=? OR r.reviewed_by=?) AND (?::text IS NULL OR ${financeSnapshotSources().billPerson}) AND (?='' OR r.reference ILIKE '%'||?||'%') AND ${scope.where} ORDER BY r.due_date,r.id LIMIT ?`).bind(facts.value1, facts.value2, facts.value2, facts.value3, facts.value3, facts.value4, facts.value5, facts.value6, facts.value7, facts.value8, facts.value8, facts.value9, facts.value9, facts.value10, facts.value10,...scope.args, facts.value11).all<{
+    }) => { const scope=await supplierBillSourcePredicate(db,actor,"r");return db.prepare(calendarScopedListRead('r.*','procurement_bill_matches r',branchDepartmentScope("r"),inList('coalesce(r.department_id,r.branch_id,r.company_id)'),`(r.status IN ('review','approved') OR (r.status='returned' AND r.id=(SELECT latest.id FROM procurement_bill_matches latest WHERE latest.fulfillment_id=r.fulfillment_id ORDER BY (latest.status<>'returned') DESC,latest.created_at DESC,latest.id DESC LIMIT 1))) AND r.due_date>=? AND r.due_date<? AND (?='team' OR r.created_by=? OR r.reviewed_by=?) AND (?::text IS NULL OR ${financeSnapshotSources().billPerson}) AND (?='' OR r.reference ILIKE '%'||?||'%')`,scope.where,'r.due_date,r.id')).bind(facts.value1, facts.value2, facts.value2, facts.value3, facts.value3, facts.value4, facts.value5, facts.value6, facts.value7, facts.value8, facts.value8, facts.value9, facts.value9, facts.value10, facts.value10,...scope.args, facts.value11).all<{
         id: string;
         reference: string;
         due_date: string;

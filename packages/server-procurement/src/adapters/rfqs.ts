@@ -28,6 +28,7 @@ import {versionStatusScopeGuard,activeMasterLookup} from './read-tail-r30';
 import {pointVersionGuard} from './read-tail-r19';
 import {eligiblePurchaseCount,memberScopeExclusion} from './read-tail-r24';
 import {settingsRead} from './read-tail-r27';
+import {approvedRequestExists,rfqScopedRead} from './read-tail-r34';
 export {rfqCreateSchema,rfqActionSchema} from "@erpx/server-procurement/domain/rfqs";
 type Evidence=Awaited<ReturnType<typeof prepareAttachmentBinding>>;
 type Authority=SqlStatement[];
@@ -41,14 +42,14 @@ function application(a:WorkContext,provided?:SqlDatabase){
  const ports:RfqPorts<Evidence,Authority,SqlStatement>={clock:{now:()=>Date.now()},canRead:hasPermission(a,'commerce.read'),canPurchase:hasPermission(a,'commerce.purchase'),canApprove:hasPermission(a,'commerce.approve'),samePerson:(id)=>samePerson(a,id),
  async authorizeRead(){requirePermission(a,'commerce.read');},async authorizePurchase(){requirePermission(a,'commerce.purchase');},async authorizeApprove(){requirePermission(a,'commerce.approve');},
  replay:async(key,operation,id,input)=>replayCommand(await database(),a,key,operation,id,input),
- rfq:async(id)=>(await database()).prepare(`SELECT r.* FROM procurement_rfqs r WHERE r.id=? AND ${scope}`).bind(id,...args(a)).first<Row>(),
+ rfq:async(id)=>(await database()).prepare(rfqScopedRead(`r.id=? AND ${scope}`)).bind(id,...args(a)).first<Row>(),
  detail:async(id)=>{const write=await database();const [lines,offers,offerLines,events]=await Promise.all([
  write.prepare(orderedRead('*','procurement_rfq_lines','rfq_id=?','ordinal')).bind(id).all<Row>(),
  write.prepare(orderedRead('o.*,p.name supplier_name',`procurement_rfq_offers o JOIN (${financePlatformSources.finance_parties}) p ON p.id=o.supplier_id`,'o.rfq_id=?','o.rfq_version DESC')).bind(id).all<Row>(),
  write.prepare('SELECT l.* FROM procurement_rfq_offer_lines l JOIN procurement_rfq_offers o ON o.id=l.offer_id WHERE o.rfq_id=?').bind(id).all<Row>(),
  write.prepare(orderedRead('*','procurement_rfq_events','rfq_id=?','version DESC')).bind(id).all<Row>()]);return {lines:lines.results,offers:offers.results,offerLines:offerLines.results,events:events.results};},
  workspace:async()=>{const write=await database();const [rfqs,products,warehouses,suppliers,config]=await Promise.all([
- write.prepare(`SELECT r.* FROM procurement_rfqs r WHERE ${scope} ORDER BY r.updated_at DESC LIMIT 100`).bind(...args(a)).all<Row>(),
+ write.prepare(rfqScopedRead(`${scope} ORDER BY r.updated_at DESC LIMIT 100`)).bind(...args(a)).all<Row>(),
  write.prepare(activeMasterLookup('id,sku,name,unit',`${commercePlatformSources.commerce_products}`,'commerce_products','sku')).bind(a.companyId).all<Row>(),
  write.prepare(activeMasterLookup('id,name,branch_id',`${commercePlatformSources.commerce_warehouses}`,'commerce_warehouses','name',''," AND (?::text IS NULL OR branch_id=?)")).bind(a.companyId,a.branchId,a.branchId).all<Row>(),
  write.prepare(activeMasterLookup('id,name',`${financePlatformSources.finance_parties}`,'finance_parties','name'," AND kind='supplier'")).bind(a.companyId).all<Row>(),
@@ -65,12 +66,12 @@ function application(a:WorkContext,provided?:SqlDatabase){
  linkedRfq:async(id)=>nativeProcurementReadFirst<Row>(PROCUREMENT_RD_RFQ_BY_ORDER,[id,a.companyId],await database()),
  stageHandoff:async(h)=>{const db=await database(),r=h.detail.rfq;
  await prepareRfqPurchaseHandoff(db,a,String(r.id),h.orderId,h.key,h.editing);
- const sourceGuard=r.request_id?[assertion(db,h.key,'rfq-source-evidence',`EXISTS(SELECT 1 FROM (${recordsPlatformSources.employee_requests}) e JOIN procurement_request_orders l ON l.request_id=e.id AND l.order_id=? AND l.rfq_id=? WHERE e.id=? AND e.company_id=? AND e.evidence_version=? AND e.items_json=? AND e.approval_json::jsonb->>'decision'='approved')`,[h.orderId,r.id,r.request_id,a.companyId,r.request_evidence_version,r.request_items_json])]:[];
+ const sourceGuard=r.request_id?[assertion(db,h.key,'rfq-source-evidence',approvedRequestExists(`(${recordsPlatformSources.employee_requests}) e JOIN procurement_request_orders l ON l.request_id=e.id AND l.order_id=? AND l.rfq_id=?`,'e.',`e.id=? AND e.company_id=?`,'?','?'),[h.orderId,r.id,r.request_id,a.companyId,r.request_evidence_version,r.request_items_json])]:[];
  const currencyGuard=assertion(db,h.key,'rfq-currency',`EXISTS(SELECT 1 FROM (${commercePlatformSources.commerce_settings}) commerce_settings WHERE company_id=? AND currency=?)`,[a.companyId,r.currency]);
  if(h.editing)return [currencyGuard,...sourceGuard,guard(db,a,r,h.key,Number(r.version))];
  return [currencyGuard,...sourceGuard,guard(db,a,r,h.key,h.order.rfqVersion??0),nativeProcurementStatement('procurement_stmt_12', { now: Date.now() }).bind(h.orderId,h.now,r.id),event(db,a,String(r.id),h.key,Number(r.version)+1,'order-created',`Draft purchase order ${h.orderId} created; normal PO approval still required.`,String(h.selected.id),h.now),await nativeRfqNotification(db,a,String(r.id),h.key)];},
  workRows:async()=>{const write=await database();
-return (await write.prepare(`SELECT r.*,o.recorded_by offer_recorder,CASE WHEN r.request_id IS NULL THEN 1 WHEN EXISTS(SELECT 1 FROM (${recordsPlatformSources.employee_requests}) source WHERE source.id=r.request_id AND source.company_id=r.company_id AND source.state='in_progress' AND source.evidence_version=r.request_evidence_version AND source.items_json=r.request_items_json AND source.approval_json::jsonb->>'decision'='approved') THEN 1 ELSE 0 END source_ready,
+return (await write.prepare(`SELECT r.*,o.recorded_by offer_recorder,CASE WHEN r.request_id IS NULL THEN 1 WHEN ${approvedRequestExists(`(${recordsPlatformSources.employee_requests}) source`,'source.',`source.id=r.request_id AND source.company_id=r.company_id AND source.state='in_progress'`,'r.request_evidence_version','r.request_items_json')} THEN 1 ELSE 0 END source_ready,
  ${eligiblePurchaseCount(identity_accessPlatformSources.assignments,"candidate","r.company_id","r.branch_id","r.department_id",` AND (r.status<>'review' OR (iam_role_allows(candidate.role,candidate.company_id,'commerce.approve') AND candidate.user_id<>r.created_by AND candidate.user_id<>COALESCE(r.submitted_by,'') AND candidate.user_id<>COALESCE(o.recorded_by,'') AND ${memberScopeExclusion(identity_accessPlatformSources.iam_members,"owner","r.company_id","candidate.user_id"," IN(r.created_by,r.submitted_by,o.recorded_by)")}))`)} eligible_count
  FROM procurement_rfqs r LEFT JOIN procurement_rfq_offers o ON o.id=r.selected_offer_id WHERE ${scope} AND r.status NOT IN ('ordered','cancelled') ORDER BY r.needed_date`).bind(...args(a)).all<Row>()).results;
  },};return createRfqApplication(ports);
@@ -86,7 +87,7 @@ async function commit<Result>(write:SqlDatabase,a:WorkContext,m:RfqMutation<Evid
  }else{
  const r=m.rfq;version=m.input.expectedVersion+1;branchId=String(r.branch_id);departmentId=r.department_id?String(r.department_id):null;
  steps=[guard(write,a,r,key,m.input.expectedVersion)];
- if(r.request_id&&m.input.action!=='cancel')steps.push(assertion(write,key,'rfq-request-approval',`EXISTS(SELECT 1 FROM (${recordsPlatformSources.employee_requests}) employee_requests WHERE id=? AND company_id=? AND kind='purchase' AND state='in_progress' AND evidence_version=? AND items_json=? AND approval_json::jsonb->>'decision'='approved')`,[r.request_id,a.companyId,r.request_evidence_version,r.request_items_json]));
+ if(r.request_id&&m.input.action!=='cancel')steps.push(assertion(write,key,'rfq-request-approval',approvedRequestExists(`(${recordsPlatformSources.employee_requests}) employee_requests`,'',`id=? AND company_id=? AND kind='purchase' AND state='in_progress'`,'?','?'),[r.request_id,a.companyId,r.request_evidence_version,r.request_items_json]));
  if(m.kind==='offer'){
  const offer=`rfq-offer-${key}`,supplier=m.offer.supplier;
  steps.push(...(m.evidenceBinding?.guards??[]),assertion(write,key,'supplier',pointVersionGuard(`(${financePlatformSources.finance_parties}) finance_parties`,"",` AND status='active' AND currency=?`),[supplier.id,a.companyId,supplier.version,r.currency]),nativeProcurementStatement('procurement_stmt_15', { now: Date.now() }).bind(offer,id,m.input.supplierId,m.input.expectedVersion,m.input.reference,m.input.evidence,m.input.arrivalDate,m.input.validUntil,r.currency,m.offer.subtotal,m.offer.tax,a.userId,now));
