@@ -9,6 +9,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
+import { manufacturingMetricBreakdownSelect } from './manufacturing-read-tail-r32-sql';
 /** Owner-local fixed read fragment: the organization branch display name used
  * by executive metric breakdowns. The completed-orders and production-cost
  * branch breakdowns project the same organization_nodes witness on the caller's
@@ -25,7 +26,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         const scrap = id === "manufacturing-orders-with-scrap";
         const label = breakdown === "branch" ? branchDisplayLabel
             : "to_char(to_timestamp(o.updated_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')";
-        sql = `SELECT ${label} label,count(*)::text value FROM manufacturing_orders o JOIN (${source.sql}) purchased_production ON purchased_production.id=o.id WHERE o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND o.status='completed' AND o.updated_at>=? AND o.updated_at<? ${scrap ? "AND o.reported_scrap_milli>0" : ""} GROUP BY 1 ORDER BY 1`;
+        sql = manufacturingMetricBreakdownSelect(label, "count(*)::text", ` FROM manufacturing_orders o JOIN (${source.sql}) purchased_production ON purchased_production.id=o.id WHERE o.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND o.status='completed' AND o.updated_at>=? AND o.updated_at<? ${scrap ? "AND o.reported_scrap_milli>0" : ""} GROUP BY 1 ORDER BY 1`);
         values = [a.companyId, a.branchId, a.branchId, Date.parse(f.from), Date.parse(f.to) + 86400000];
     }
     if (id === "production-cost") {
@@ -35,7 +36,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
                     : breakdown === "warehouse" ? "w.name"
                         : "'Posted production costs'";
         const groupKey = breakdown === "product" ? ",p.id" : breakdown === "warehouse" ? ",w.id" : breakdown === "branch" ? ",o.branch_id" : "";
-        sql = `SELECT ${label} label,COALESCE(sum(m.amount_minor::numeric),0)::text value
+        sql = manufacturingMetricBreakdownSelect(label, "COALESCE(sum(m.amount_minor::numeric),0)::text", `
       FROM manufacturing_cost_movements m
       JOIN manufacturing_orders o ON o.id=m.order_id AND o.company_id=m.company_id
       JOIN (${source.sql}) purchased_production ON purchased_production.id=o.id
@@ -46,7 +47,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
       JOIN (${commerceProjectionSources.commerce_settings}) cs ON cs.company_id=o.company_id AND cs.currency=j.currency
       WHERE m.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND o.status='completed'
         AND m.movement_kind IN ('material_issue','material_return','labor') AND j.posted_at>=? AND j.posted_at<?
-      GROUP BY 1${groupKey} ORDER BY 1`;
+      GROUP BY 1${groupKey} ORDER BY 1`);
         values = [f.currency, a.companyId, a.branchId, a.branchId, Date.parse(f.from), Date.parse(f.to) + 86400000];
     }
     values=[...source.args,...values];
