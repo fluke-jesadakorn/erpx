@@ -35,3 +35,7 @@ export const projectPurchaseSourceAbsent=(sourceRows:string,purchaseSources:stri
  * facts query and the social draft-replay guard. Only the post-id and actor-id column
  * expressions vary; the operation literal, binds and lock semantics are unchanged. */
 export const socialPostPublishReceipt=(postId:string,actorId:string)=>`SELECT 1 FROM command_receipts receipt WHERE receipt.operation='social.post.publish' AND receipt.record_id=${postId} AND receipt.actor_id=${actorId} AND receipt.result_json::jsonb->>'id'=${postId}`;
+/** Byte-identical Social draft-existence guard shared across the three Social
+ * home call sites. Only the trailing field predicate varies; the fixed
+ * `id=? AND author_id=?` prefix, bind order and lock semantics stay unchanged. */
+export const socialPostDraftExists=(tail:string)=>`EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND ${tail})`;

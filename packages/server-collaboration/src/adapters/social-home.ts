@@ -37,8 +37,8 @@ import { collaborationHomeSources as operations } from '@erpx/server-operations/
 import {handoverAcknowledgements} from '@erpx/server-operations/public/handover-acknowledgement-read';
 import {workSocialReadScope,workSocialPresentation} from '@erpx/server-collaboration/public/work-social-read-policy';
 import {withWorkSocialCommand} from '@erpx/server-collaboration/adapters/work-social-purchases';
-import {socialFollowPostExists,messagingTeamMemberExists,publishedCommentRead,socialPostDraftById,socialPostTopicExists,socialCommentTopicExists,socialCommentAncestorStep} from './read-tail-sql';
-const draftVersionGuardSql = "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND version=? AND published_post_id IS NULL)";
+import {socialFollowPostExists,messagingTeamMemberExists,publishedCommentRead,socialPostDraftById,socialPostTopicExists,socialCommentTopicExists,socialCommentAncestorStep,socialPostDraftExists} from './read-tail-sql';
+const draftVersionGuardSql = socialPostDraftExists('version=? AND published_post_id IS NULL');
 async function inward<T>(action: () => Promise<T>) {
     try {
         return await action();
@@ -231,7 +231,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
         }, retract(now: number, now2: number, id: string, userId: string, version: number) {
             return nativeOwnerWriteDescriptor(db, 'SH_POST_RETRACT', [now, now2, id, userId, version]);
         }, guardEditUpload(key: string, value: "edit-upload-draft", editDraftId: string, userId: string, companyId: string, id: string, version: number) {
-            return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND company_id=? AND edit_post_id=? AND edit_post_version=? AND edit_saved_version IS NULL AND cancelled_at IS NULL)", [editDraftId, userId, companyId, id, version]);
+            return assertion(db, key, value, socialPostDraftExists('company_id=? AND edit_post_id=? AND edit_post_version=? AND edit_saved_version IS NULL AND cancelled_at IS NULL'), [editDraftId, userId, companyId, id, version]);
         }, clearPostMentions(id: string) { return nativeOwnerWriteDescriptor(db, 'SH_POST_MENTIONS_CLEAR', [id]); }, clearPostTopics(id: string) { return nativeOwnerWriteDescriptor(db, 'SH_POST_TOPICS_CLEAR', [id]); }, updatePost(body: string, value: string, value2: string | null, value3: string, now: number, now2: number, id: string, userId: string, version: number) {
             return nativeOwnerWriteDescriptor(db, 'SH_POST_UPDATE', [body, value, value2, value3, now, now2, id, userId, version]);
         }, bindEditUpload(value: number, now: number, editDraftId: string) {
@@ -244,7 +244,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
             return nativeOwnerWriteDescriptor(db, 'SH_POST_TOPIC_PREPARE', [id, tag]);
         }, prepareEditNotification(value: string, user: string, now: number, id: string, user2: string, now2: number, now3: number) {
             return nativeOwnerWriteDescriptor(db, 'SH_EDIT_NOTIFICATION', [value, user, now, id, user2, now2, now3], { predicate: sourceAccessSql() });
-        }, guardCommentUpload(key: string, value: "comment-upload", commentDraftId: string, userId: string, id: string) { return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND comment_parent_post_id=? AND published_comment_id IS NULL AND cancelled_at IS NULL)", [commentDraftId, userId, id]); }, async parentComment(parentCommentId: string, id: string) {
+        }, guardCommentUpload(key: string, value: "comment-upload", commentDraftId: string, userId: string, id: string) { return assertion(db, key, value, socialPostDraftExists('comment_parent_post_id=? AND published_comment_id IS NULL AND cancelled_at IS NULL'), [commentDraftId, userId, id]); }, async parentComment(parentCommentId: string, id: string) {
             return db.prepare("SELECT id,author_id,parent_comment_id FROM social_comments WHERE id=? AND post_id=? AND state='published'")
                 .bind(parentCommentId, id)
                 .first<{
