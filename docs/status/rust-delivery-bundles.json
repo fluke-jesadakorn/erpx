@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10652,
+    "revision": 10656,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -164161,7 +164161,7 @@
         "owner": "quality",
         "title": "quality read tail families (round 16)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -164173,22 +164173,37 @@
         "resources": [
           "owner:quality"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCUqub",
-          "claimedAt": "2026-11-24T08:16:43.422Z",
-          "heartbeatAt": "2026-11-24T08:16:43.422Z",
-          "expiresAt": "2026-11-24T08:46:43.422Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-quality/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b59c49d6e",
+            "owner": "quality",
+            "before": 80,
+            "after": 76,
+            "note": "Quality scope tuples, native source wrappers and inspection evidence joins share three helpers; descriptor cutover, locks and r1-r15 untouched."
+          },
+          {
+            "command": "vitest quality r16 (50) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "b59c49d6e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next families after r15: scope tuple, native source wrapper, inspection evidence join. BEFORE=84.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCUqub",
+          "at": "2026-11-24T08:32:49.712Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -165153,6 +165168,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=1966.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.quality.read-tail-r17",
+        "goalId": "G4",
+        "owner": "quality",
+        "title": "quality TS read tail native cutover (round 17)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-quality/src/**",
+          "tests/unit/quality/**",
+          "tests/integration/quality/**"
+        ],
+        "resources": [
+          "owner:quality"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCUquc",
+          "claimedAt": "2026-11-24T08:32:50.120Z",
+          "heartbeatAt": "2026-11-24T08:32:50.120Z",
+          "expiresAt": "2026-11-24T09:02:50.120Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=76.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -165161,7 +165212,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1431,
+      "totalPackets": 1432,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
@@ -165169,13 +165220,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1061,
+        "blocked": 1062,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:32:19.668Z",
+    "updatedAt": "2026-11-24T08:32:50.125Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
