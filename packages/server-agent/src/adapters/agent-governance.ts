@@ -22,6 +22,9 @@ export type {AssistantGovernance} from '@erpx/server-agent/domain/governance';
 /** Byte-identical Agent pool-member access EXISTS shared by policyCandidates and guardDefaultPolicy.
  * Each call site keeps its own binds; the native policy owner remains the authority. */
 const agentPoolMemberAccessSql = 'EXISTS(SELECT 1 FROM agent_pool_members m WHERE m.pool_id=x.pool_id AND m.user_id=? AND m.revoked_at IS NULL)';
+/** Byte-identical Agent private-session projection shared by workspaceSessions and sessionRecord.
+ * Each call site keeps its own binds; the native session owner remains the authority. */
+const privateSessionSelectSql = 'SELECT s.id,s.user_id,s.assignment_id,s.conversation_key,s.generation,s.created_at,c.* FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id WHERE s.company_id=?';
 async function exposed<T>(action:()=>Promise<T>){try{return await action();}catch(error){if(error instanceof BusinessRuleError)throw new ApiError(error.status,error.code,error.message);throw error;}}
 function bindRepository(db:SqlDatabase):AgentGovernanceRepository<SqlStatement>{return {async policyCandidates(companyId:string,userId:string){return (await db.prepare(
     `SELECT x.id,x.version assignment_version,x.scope_path,x.pool_id,x.agent_version_id,
@@ -79,7 +82,7 @@ async workspaceInvocations(companyId:string){return (await db
 async workspacePeople(companyId:string,now:number){return agentGovernanceEligiblePeople(db,companyId,now);},
 async workspaceMembers(companyId:string){return (await db.prepare("SELECT m.* FROM agent_pool_members m JOIN agent_pools p ON p.id=m.pool_id WHERE p.company_id=? ORDER BY m.pool_id,m.user_id").bind(companyId).all<Row>()).results;},
 async workspacePoolHistory(companyId:string){return (await db.prepare("SELECT r.* FROM agent_pool_revisions r JOIN agent_pools p ON p.id=r.pool_id WHERE p.company_id=? ORDER BY r.created_at DESC").bind(companyId).all<Row>()).results;},
-async workspaceSessions(companyId:string,userId:string,value:0 | 1){return (await db.prepare("SELECT s.id,s.user_id,s.assignment_id,s.conversation_key,s.generation,s.created_at,c.* FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id WHERE s.company_id=? AND (s.user_id=? OR ?) ORDER BY c.updated_at DESC LIMIT 100").bind(companyId,userId,value).all<Row>()).results;},
+async workspaceSessions(companyId:string,userId:string,value:0 | 1){return (await db.prepare(`${privateSessionSelectSql} AND (s.user_id=? OR ?) ORDER BY c.updated_at DESC LIMIT 100`).bind(companyId,userId,value).all<Row>()).results;},
 async latestPrivateSession(companyId:string,userId:string,assignmentId:string,scopeKey:string,conversationKey:string){return db.prepare("SELECT s.id,s.generation,c.status,c.expires_at FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id WHERE s.company_id=? AND s.user_id=? AND s.assignment_id=? AND s.scope_key=? AND s.conversation_key=? ORDER BY s.generation DESC LIMIT 1")
     .bind(companyId,userId,assignmentId,scopeKey,conversationKey).first<{id:string;generation:number;status:string;expires_at:number}>();},
 async preparePrivateSession(id:string,companyId:string,userId:string,assignmentId:string,scopeKey:string,conversationKey:string,assignmentId2:string | null,now:number,generation:number){return nativeOwnerWrite('ag_private_session_insert',[id,companyId,userId,assignmentId,scopeKey,conversationKey,assignmentId2,now,now,generation],`ag-session:${id}`,{companyId,now},()=>db.prepare(nativeOwnerWriteNoopSql));},
@@ -91,7 +94,7 @@ async recordInvocation(value:string,sessionId:string,turnId:string,companyId:str
     ],`ag-invocation:${turnId}`,{companyId,now},()=>db.prepare(nativeOwnerWriteNoopSql));
   },
 async invocationRecord(companyId:string,id:string){return db.prepare('SELECT id,turn_id,company_id,user_id,agent_version_id,question_digest,sources_digest,outcome,input_tokens,output_tokens,error,created_at FROM ai_invocation_evidence WHERE company_id=? AND id=?').bind(companyId,id).first<Row>();},
-async sessionRecord(companyId:string,id:string,userId:string,value:0 | 1){return db.prepare('SELECT s.id,s.user_id,s.assignment_id,s.conversation_key,s.generation,s.created_at,c.* FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id WHERE s.company_id=? AND s.id=? AND (s.user_id=? OR ?)').bind(companyId,id,userId,value).first<Row>();},async batch(effects){await db.batch(effects);}};}
+async sessionRecord(companyId:string,id:string,userId:string,value:0 | 1){return db.prepare(`${privateSessionSelectSql} AND s.id=? AND (s.user_id=? OR ?)`).bind(companyId,id,userId,value).first<Row>();},async batch(effects){await db.batch(effects);}};}
 function application(db?:SqlDatabase){const repositories=new Map<string,Promise<AgentGovernanceRepository<SqlStatement>>>();return createAgentGovernanceApplication({repository:async actor=>{if(db)return bindRepository(db);if(!repositories.has(actor.holdingId))repositories.set(actor.holdingId,holdingResources(actor.holdingId).then(resources=>bindRepository(resources.write)));return repositories.get(actor.holdingId)!;},clock:{now:()=>Date.now()},hash:sha256,authorize:requirePermission});}
 export async function validateAssistantGovernance(db:SqlDatabase,a:WorkContext,path:string,governance:AssistantGovernance){return exposed(()=>application(db).validateAssistantGovernance(a,path,governance));}
 export async function agentWorkspace(a: WorkContext, includeEvidence = true){return exposed(()=>application().agentWorkspace(a, includeEvidence));}
