@@ -51898,6 +51898,33 @@
       ]
     },
     {
+      "lane": "unit",
+      "owner": "manage_erpx",
+      "modules": [
+        "manage_erpx"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Owner-write no-op placeholders must be one shared statement with unchanged lazy write batch shape."
+      },
+      "apps": [
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-manage_erpx"
+      ],
+      "id": "manage_erpx.native-owner-write-noop-dedupe.unit",
+      "files": [
+        "tests/unit/manage_erpx/native-owner-write-noop-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "manage_erpx.resource-cleanup.integration",
       "lane": "integration",
       "owner": "manage_erpx",

@@ -19,7 +19,7 @@ import { betaOnboardingEffects as owner1 } from "@erpx/server-identity_access/pu
 import { betaOnboardingEffects as owner2 } from "@erpx/server-organization/public/beta-onboarding-effects";
 import { betaOnboardingEffects as owner3 } from "@erpx/server-runtime/public/beta-onboarding-effects";
 import { betaOnboardingEffects as owner4 } from "@erpx/server-billing/public/beta-onboarding-effects";
-import { nativeOwnerWrite } from "./native-owner-write";
+import { nativeOwnerWrite, NATIVE_OWNER_WRITE_NOOP_SQL } from "./native-owner-write";
 
 /** Retained beta bootstrap effects for team invitations and seeded fixtures.
  * Company onboarding itself is owned by the native command router. */
@@ -28,7 +28,7 @@ function bindHolding(db: SqlDatabase): BetaHoldingRepository<SqlStatement> {
     // Native axum owner write owns this insert. The returned statement is an
     // inert placeholder; no write SQL remains in TypeScript.
     async prepareMembership(id: string, invitation: string | null, now: number) {
-      return nativeOwnerWrite('me_beta_membership_insert',[id,invitation,now],`me-member:${id}`,{now},()=>db.prepare("SELECT 1")) as unknown as SqlStatement;
+      return nativeOwnerWrite('me_beta_membership_insert',[id,invitation,now],`me-member:${id}`,{now},()=>db.prepare(NATIVE_OWNER_WRITE_NOOP_SQL)) as unknown as SqlStatement;
     },
     ...owner0(db),
     ...owner1(db),
