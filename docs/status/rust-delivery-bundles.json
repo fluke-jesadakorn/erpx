@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8688,
+    "revision": 8692,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -142390,7 +142390,7 @@
         "owner": "commerce",
         "title": "commerce TS read tail native cutover (round 13)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -142402,22 +142402,37 @@
         "resources": [
           "owner:commerce"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGC2com",
-          "claimedAt": "2026-11-24T02:34:22.590Z",
-          "heartbeatAt": "2026-11-24T02:34:22.590Z",
-          "expiresAt": "2026-11-24T03:04:22.590Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-commerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "915c70c56",
+            "owner": "commerce",
+            "before": 473,
+            "after": 469,
+            "note": "Flow parent lookup, expense receipt image, manufacturing initialize guard, posting receipt record guard shared; prepares independent."
+          },
+          {
+            "command": "vitest commerce native read (27) + tsc commerce/tests-config",
+            "result": "passed",
+            "sourceSha": "915c70c56"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: workflow-flow-routing-facts 2x, expense-posting-setup 2x, manufacturing-existing-posting-setup 2x, cross-file command_receipts guard. BEFORE=473.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC2com",
+          "at": "2026-11-24T02:45:23.590Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -143301,6 +143316,42 @@
         "nextAction": "Next: cross-file prefixes - followups vs executive-followup-evidence `SELECT c.id,... FROM`, metric-purchases vs followup-purchases `SELECT followup.*,...`; verify byte-identical; locks independent. BEFORE=101.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.commerce.read-tail-r14",
+        "goalId": "G4",
+        "owner": "commerce",
+        "title": "commerce TS read tail native cutover (round 14)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-commerce/src/**",
+          "tests/unit/commerce/**",
+          "tests/integration/commerce/**"
+        ],
+        "resources": [
+          "owner:commerce"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC3com",
+          "claimedAt": "2026-11-24T02:45:24.196Z",
+          "heartbeatAt": "2026-11-24T02:45:24.196Z",
+          "expiresAt": "2026-11-24T03:15:24.196Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: remaining command_receipts/projection guard duplicates; re-scan. BEFORE=469.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -143309,7 +143360,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 997,
+      "totalPackets": 998,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -143317,13 +143368,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 617,
+        "blocked": 618,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:45:09.354Z",
+    "updatedAt": "2026-11-24T02:45:24.211Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
