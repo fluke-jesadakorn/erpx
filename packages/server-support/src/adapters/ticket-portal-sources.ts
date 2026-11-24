@@ -13,12 +13,18 @@ export const portalReplayProofSql=(table:string,alias:string,operation:string,ac
  * Only the explicitly reviewed summary is public. No original issue or foreign
  * record content is selected into the customer projection. */
 export const supportTicketPortalValidBindings=`SELECT binding.* FROM support_ticket_portal_bindings binding JOIN support_tickets ticket ON ticket.id=binding.ticket_id AND ticket.company_id=binding.company_id AND ticket.source_kind<>'field_service' AND binding.source_identity=${supportTicketPortalIdentitySql('ticket')} JOIN command_receipts birth ON birth.command_id=binding.prepare_command_id AND birth.operation='support.ticket-portal.prepare' AND birth.record_id=binding.id AND birth.actor_id=binding.prepared_by AND birth.authority_json::jsonb->>'companyId'=binding.company_id AND birth.result_json::jsonb->>'id'=binding.id AND birth.result_json::jsonb->>'status'='draft' AND birth.result_json::jsonb->>'version'='1'`;
+/** One parameterized outer read family over the reviewed valid-binding source.
+ * The staff single-binding read and the shared customer/work-list prefix render
+ * byte-identically; only the projected columns and their own trailing clauses
+ * vary. Locks, purchase gates and the earlier r19 prefix constant stay intact;
+ * the native ticket-portal reader remains the authority. */
+export const portalValidBindingRead=(columns:string)=>`SELECT ${columns} FROM (${supportTicketPortalValidBindings}) binding`;
 /** One byte-identical outer read prefix over the reviewed valid-binding source. The
  * customer identity join and the staff work-list join share this exact text;
  * only their own JOIN/WHERE/ORDER clauses vary. Each caller keeps its own binds
  * and its own independent statement; the native ticket-portal reader remains
  * the authority. */
-export const portalValidBindingSelect=`SELECT binding.* FROM (${supportTicketPortalValidBindings}) binding`;
+export const portalValidBindingSelect=portalValidBindingRead('binding.*');
 export async function supportTicketPortalTicketImage(database:SqlDatabase,ticketId:string){return database.prepare('SELECT to_jsonb(ticket)::text image FROM support_tickets ticket WHERE ticket.id=?').bind(ticketId).first<string>('image');}
 export async function supportTicketPortalImage(database:SqlDatabase,bindingIds:string[]){if(!bindingIds.length)return '[]';return database.prepare(`${portalImageSelectedCte(bindingIds)} ${portalImageAggregateSql([portalBindingImageSql(),portalBoundImageSql('ticket','support_tickets','id','binding.ticket_id=ticket.id'),portalBoundImageSql('event','support_ticket_portal_events','id','binding.id=event.binding_id'),portalBoundImageSql('identity','support_ticket_portal_identities','binding_id','binding.id=identity.binding_id'),portalBoundImageSql('read','support_ticket_portal_reads','id','binding.id=read.binding_id'),portalBoundImageSql('response','support_ticket_portal_responses','id','binding.id=response.binding_id'),portalBoundImageSql('ack','support_ticket_portal_acknowledgements','id','binding.id=ack.binding_id')])}`).bind(...bindingIds).first<string>('image');}
 /** Public reads may only add their exact identity/read event; acknowledgements

@@ -9,11 +9,11 @@ import {readPurchasedAccesses} from '@erpx/server-commercial/public/purchase-com
 import {executeCommand,replayCommand} from '@erpx/server-workflow/public/commands';
 import {getSupportTicket} from '@erpx/server-support/adapters/support';
 import {supportTicketPortalPrepareSchema,supportTicketPortalDecisionSchema,supportTicketPortalResponseSchema,supportTicketPortalSelectionSchema,type SupportTicketPortalWorkspace,type SupportTicketPortalBinding,type SupportTicketPortalResponse,type SupportTicketPortalPrepareResult,type SupportTicketPortalDecisionResult,type SupportTicketPortalResponseResult} from '@erpx/server-support/domain/ticket-portal';
-import {supportTicketPortalInstalled,supportTicketPortalValidBindings,portalValidBindingSelect,supportTicketPortalIdentitySql,supportTicketPortalTicketImage,supportTicketPortalImage,portalReplayProofSql} from '@erpx/server-support/adapters/ticket-portal-sources';
+import {supportTicketPortalInstalled,portalValidBindingRead,portalValidBindingSelect,supportTicketPortalIdentitySql,supportTicketPortalTicketImage,supportTicketPortalImage,portalReplayProofSql} from '@erpx/server-support/adapters/ticket-portal-sources';
 import {ticketPortalCapability,ticketPortalStaffAuthority,ticketPortalChanged,ticketPortalDigest,ticketPortalKey,withSupportTicketPortalUnit} from '@erpx/server-support/adapters/ticket-portal-unit';
 import {nativeSupportReadAll,SUPPORT_RD_TICKET_PORTAL_RESPONSE,SUPPORT_RD_TICKET_PORTAL_ACKNOWLEDGED_AT} from './native-support-read';
 export type TicketPortalRow={id:string;company_id:string;ticket_id:string;ticket_version:number;customer_name:string;email:string;subject:string;summary:string;expires_at:number;status:'draft'|'approved'|'rejected'|'revoked';version:number;prepared_by:string;source_identity:unknown};
-export async function ticketPortalBinding(database:SqlDatabase,id:string){return database.prepare(`SELECT * FROM (${supportTicketPortalValidBindings}) binding WHERE binding.id=?`).bind(id).first<TicketPortalRow>();}
+export async function ticketPortalBinding(database:SqlDatabase,id:string){return database.prepare(`${portalValidBindingRead('*')} WHERE binding.id=?`).bind(id).first<TicketPortalRow>();}
 /** Owner-native reads: the statements are planned by the Support native read
  * port (`RD_TICKET_PORTAL_RESPONSE` / `RD_TICKET_PORTAL_ACKNOWLEDGED_AT`) and
  * executed on the caller's open unit. This module carries no SQL for them. */
