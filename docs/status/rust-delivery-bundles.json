@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12609,
+    "revision": 12613,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261125-b",
       "agentId": "lead-opencode",
       "startedAt": "2026-11-24T19:56:46.702Z",
-      "heartbeatAt": "2026-11-24T19:56:46.888Z",
-      "expiresAt": "2026-11-24T20:26:46.888Z",
+      "heartbeatAt": "2026-11-24T20:07:12.159Z",
+      "expiresAt": "2026-11-24T20:37:12.159Z",
       "generation": 172,
       "tokenHash": "e8af9d3fd8f17bd9386d1ec1e506093d0ed8f1552baae8311e0f510e8d011c01"
     },
@@ -185203,17 +185203,27 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "native prior route probe",
+            "result": "failed",
+            "sourceSha": "719213f0d",
+            "owner": "platform_administration",
+            "before": 28,
+            "after": 28,
+            "note": "No mounted native read route for engineering prior; only enroll is mounted. No KPI claim."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
-        "nextAction": "Engineering prior read via existing native mirror (-1): 28->27. BEFORE=28.",
+        "blocker": "handoff",
+        "nextAction": "Blocked with evidence; claim released",
         "handoff": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n117",
-          "at": "2026-11-24T19:56:46.702Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
-          "nextAction": "Engineering prior read via existing native mirror (-1): 28->27. BEFORE=28."
+          "runId": "run-20261125-b",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T20:07:11.995Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with evidence; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -185878,7 +185888,7 @@
       }
     },
     "lastCoordinatorGeneration": 172,
-    "updatedAt": "2026-11-24T20:03:57.755Z",
+    "updatedAt": "2026-11-24T20:07:12.162Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
