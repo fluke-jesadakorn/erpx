@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9200,
+    "revision": 9204,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -148483,7 +148483,7 @@
         "owner": "billing",
         "title": "billing TS read tail native cutover (r19)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -148495,22 +148495,37 @@
         "resources": [
           "owner:billing"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGC5bil",
-          "claimedAt": "2026-11-24T04:58:52.529Z",
-          "heartbeatAt": "2026-11-24T04:58:52.529Z",
-          "expiresAt": "2026-11-24T05:28:52.529Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-billing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a31f7b7d6",
+            "owner": "billing",
+            "before": 74,
+            "after": 71,
+            "note": "Provider costs and usage snapshot families shared; advisory locks and FOR UPDATE untouched."
+          },
+          {
+            "command": "vitest billing (120) + tsc billing",
+            "result": "passed",
+            "sourceSha": "a31f7b7d6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=74.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-j",
+          "agentId": "wGC5bil",
+          "at": "2026-11-24T05:05:27.154Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -148591,7 +148606,7 @@
         "owner": "benefits",
         "title": "benefits TS read tail native cutover (r15)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -148603,22 +148618,37 @@
         "resources": [
           "owner:benefits"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGC7ben",
-          "claimedAt": "2026-11-24T04:58:53.349Z",
-          "heartbeatAt": "2026-11-24T04:58:53.349Z",
-          "expiresAt": "2026-11-24T05:28:53.349Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-benefits/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a31f7b7d6",
+            "owner": "benefits",
+            "before": 50,
+            "after": 48,
+            "note": "Election related point and array selectors generated from two helpers; writes/locks untouched."
+          },
+          {
+            "command": "vitest benefits r8/r11-r15 (44) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "a31f7b7d6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=50.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-j",
+          "agentId": "wGC7ben",
+          "at": "2026-11-24T05:05:26.259Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -149056,17 +149086,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
-        "in_progress": 27,
+        "in_progress": 25,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 731,
+        "blocked": 733,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 162,
-    "updatedAt": "2026-11-24T05:05:05.443Z",
+    "updatedAt": "2026-11-24T05:05:27.165Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
