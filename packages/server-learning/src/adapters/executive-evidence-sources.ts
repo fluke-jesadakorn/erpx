@@ -1,5 +1,6 @@
 import {learningMetricSource} from "@erpx/server-learning/adapters/metric-purchases";
 import {overdueEvidenceColumns} from "./learning-read-sql";
+import {completionEvidenceColumns} from "./learning-completion-evidence";
 import "server-only";
 import { z } from "zod";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -27,7 +28,7 @@ export function executiveEvidenceSources(database: SqlDatabase) {
                     scope.push("(e.created_at<? OR (e.created_at=? AND e.id<?))");
                     values.push(completionCursor.createdAt, completionCursor.createdAt, completionCursor.id);
                 }
-                rows = (await db.prepare(`SELECT e.id,e.assignment_id,e.version event_version,e.status,e.created_at,c.title course_title
+                rows = (await db.prepare(`${completionEvidenceColumns}
       FROM learning_assignment_events e
       JOIN (${source.sql}) a ON a.id=e.assignment_id
       JOIN learning_courses c ON c.id=a.course_id AND c.company_id=a.company_id
