@@ -63,7 +63,7 @@ async function image(database:SqlDatabase,companyId:string,type:string,id:string
  'responses',${appointmentChildImageSql('jsonb_agg(to_jsonb(r) ORDER BY r.occurrence_key,r.user_id)','calendar_occurrence_responses','r','row')})::text`,'calendar_appointments')).bind(id,companyId).first<string>('image');
 }
 async function recordAuthority(database:SqlDatabase,actor:WorkContext,input:Pick<CalendarCommand,'action'>,id:string,existing:boolean){
- const type=kind(input),row=await database.prepare(`SELECT company_id,branch_id,department_id,created_by${type==='appointment'?',organizer_person_id':''} FROM ${type==='appointment'?'calendar_appointments':'calendar_announcements'} WHERE id=? AND company_id=?`).bind(id,actor.companyId).first<{company_id:string;branch_id:string|null;department_id:string|null;created_by:string;organizer_person_id?:string|null}>();
+ const type=kind(input),row=await database.prepare(appointmentProbe(`company_id,branch_id,department_id,created_by${type==='appointment'?',organizer_person_id':''}`,'',type==='appointment'?'calendar_appointments':'calendar_announcements')).bind(id,actor.companyId).first<{company_id:string;branch_id:string|null;department_id:string|null;created_by:string;organizer_person_id?:string|null}>();
  if(!row){if(existing)throw new ApiError(404,'NOT_FOUND','The original Calendar record is unavailable.');return;}
  const placement=currentAssignmentReadScope(actor,'workforce_actor_scope');
  if(!await database.prepare(actorScopeSql(placement.where)).bind(row.company_id,row.branch_id,row.department_id,...placement.args).first())throw new ApiError(403,'CALENDAR_SOURCE_CHANGED','The original Calendar workspace is outside the selected role.');

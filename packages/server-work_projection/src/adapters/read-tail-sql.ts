@@ -5,9 +5,9 @@ export const versionById = (table: 'calendar_appointments' | 'calendar_announcem
     `SELECT version FROM ${table} WHERE id=? AND company_id=?`;
 /** Inert placeholder returned to native owner-write callers so batches keep their shape. One definition serves every caller. */
 export const noopSql = "SELECT 1";
-/** Calendar appointment existence probe. Columns and an optional predicate are the only variation. */
-export const appointmentProbe = (columns: string, extra = '') =>
-    `SELECT ${columns} FROM calendar_appointments WHERE id=? AND company_id=?${extra}`;
+/** Calendar source-row point read by id and company. Columns, source table and an optional predicate are the only variation. */
+export const appointmentProbe = (columns: string, extra = '', table: 'calendar_appointments' | 'calendar_announcements' = 'calendar_appointments') =>
+    `SELECT ${columns} FROM ${table} WHERE id=? AND company_id=?${extra}`;
 /** Confirms the actor is an invited attendee of the calendar appointment. One definition serves every authority check and inbox source. */
 export const invitedAttendeeSql = "SELECT 1 FROM calendar_attendees WHERE appointment_id=? AND company_id=? AND user_id=?";
 /** Work-cache revision read. The full snapshot and a filtered watermark subset share one definition. */
