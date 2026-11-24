@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9617,
+    "revision": 9619,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -149382,7 +149382,7 @@
         "owner": "pos",
         "title": "pos TS read tail native cutover (round 22)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -149394,28 +149394,36 @@
         "resources": [
           "owner:pos"
         ],
-        "claim": {
-          "runId": "run-20261123-k",
-          "agentId": "wGC3pos",
-          "claimedAt": "2026-11-24T05:25:31.257Z",
-          "heartbeatAt": "2026-11-24T05:25:39.041Z",
-          "expiresAt": "2026-11-24T05:55:39.041Z",
-          "generation": 163
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pos/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b27a35c39",
+            "owner": "pos",
+            "before": 250,
+            "after": 248,
+            "note": "Payment by id and company checkout reads moved to native POS kind 540; protected locks/refund reads untouched."
+          },
+          {
+            "command": "cargo test -p erpx-server-pos --lib owner_writes (24) + vitest pos (234) + tsc pos",
+            "result": "passed",
+            "sourceSha": "b27a35c39"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: only protected lock/refund reads likely remain; re-scan and report blocked if so. BEFORE=250.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; remaining reads require refinement",
         "handoff": {
-          "runId": "run-20261123-j",
+          "runId": "run-20261123-k",
           "agentId": "wGC3pos",
-          "at": "2026-11-24T05:25:21.119Z",
+          "at": "2026-11-24T05:39:08.165Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired at 05:16Z; all claims and WIP reviewed in shared checkout; release claims and continue under new generation.",
-          "nextAction": "Next: only protected lock/refund reads likely remain; re-scan and report blocked if so. BEFORE=250."
+          "reason": "handoff",
+          "nextAction": "Integrated; remaining reads require refinement"
         },
         "scopeRefinementRequired": false
       },
@@ -153838,17 +153846,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 30,
+        "in_progress": 29,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 824,
+        "blocked": 825,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 163,
-    "updatedAt": "2026-11-24T05:38:46.410Z",
+    "updatedAt": "2026-11-24T05:39:08.173Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
