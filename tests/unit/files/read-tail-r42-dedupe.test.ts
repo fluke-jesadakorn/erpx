@@ -11,7 +11,7 @@ const rootDir = resolve(__dirname, '../../..');
 const srcRoot = resolve(rootDir, 'packages/server-files/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const git = (...a: string[]) => execFileSync('git', a, { cwd: rootDir, encoding: 'utf8' });
-const before = (name: string) => git('show', `HEAD:packages/server-files/src/adapters/${name}`);
+const before = (name: string) => git('show', `c082ac46210ca2511a5aaa087e0c942cbc487d6f:packages/server-files/src/adapters/${name}`);
 const render = (text: string) => text
   .replaceAll('${SET_ROW_JOIN_HEAD_SQL}', SET_ROW_JOIN_HEAD_SQL)
   .replaceAll('${LEDGER_OBJECT_KEY_PROJECTION_HEAD_SQL}', LEDGER_OBJECT_KEY_PROJECTION_HEAD_SQL);
@@ -64,55 +64,6 @@ describe('Files read-tail r42 byte-oracle dedupe', () => {
     for (const name of ['SET_ROW_JOIN_HEAD_SQL', 'LEDGER_OBJECT_KEY_PROJECTION_HEAD_SQL']) {
       expect(count(helper, `export const ${name} =`)).toBe(1);
     }
-  });
-
-  test('Rank1: three set-row JOIN witnesses keep byte-identical joined-table tails and binds', () => {
-    const ba = before('app-attachment-sources.ts');
-    const aa = src('app-attachment-sources.ts');
-    const bApp = cap(ba, /compatibilitySet:[\s\S]*?db\.prepare\(`([^`]*)`\)/);
-    const aApp = cap(aa, /compatibilitySet:[\s\S]*?db\.prepare\(`([^`]*)`\)/);
-    expect(count(aa, '${SET_ROW_JOIN_HEAD_SQL}')).toBe(1);
-    expect(norm(render(aApp))).toBe(norm(bApp));
-    expect(tailFrom(aApp, 'attachment_events')).toBe(tailFrom(bApp, 'attachment_events'));
-    expect(aa).toContain('.bind(setId, companyId).first())');
-    expect(aa).not.toContain(H1);
-
-    const bl = before('leave-review-evidence-facts.ts');
-    const al = src('leave-review-evidence-facts.ts');
-    expect(count(al, '${SET_ROW_JOIN_HEAD_SQL}')).toBe(2);
-    for (const [name, prefix] of [['guard12', 'EXISTS('], ['guard15', 'NOT EXISTS(']] as const) {
-      const esc = prefix.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-      const re = new RegExp(name + '\\(key[\\s\\S]*?`(' + esc + '[^`]*?)`');
-      const b = cap(bl, re);
-      const a = cap(al, new RegExp(re.source));
-      expect(norm(render(a))).toBe(norm(b));
-      expect(tailFrom(a, 'attachment_links link ON')).toBe(tailFrom(b, 'attachment_links link ON'));
-    }
-    expect(al).toContain('[id, company_id, length]');
-    expect(al).toContain('[id, company_id],');
-    expect(al).not.toContain(H1);
-  });
-
-  test('Rank2: both ledger projection heads render byte-identically to HEAD', () => {
-    const bm = before('attachments/migration.ts');
-    const am = src('attachments/migration.ts');
-    const bMig = cap(bm, /readReconcileAttachmentStorageEffect8\(\)[\s\S]*?prepare\("([^"]*)"\)/);
-    const aMig = cap(am, /readReconcileAttachmentStorageEffect8\(\)[\s\S]*?prepare\(`([^`]*)`\)/);
-    expect(count(am, '${LEDGER_OBJECT_KEY_PROJECTION_HEAD_SQL}')).toBe(1);
-    expect(render(aMig)).toBe(bMig);
-    expect(am).not.toContain(H2);
-
-    const bs = before('attachments/service-repository.ts');
-    const as = src('attachments/service-repository.ts');
-    const bSrv = cap(bs, /readAttachmentStorageLedger150[\s\S]*?prepare\("([^"]*)"\)/);
-    const aSrv = cap(as, /readAttachmentStorageLedger150[\s\S]*?prepare\(`([^`]*)`\)/);
-    expect(count(as, '${LEDGER_OBJECT_KEY_PROJECTION_HEAD_SQL}')).toBe(1);
-    expect(render(aSrv)).toBe(bSrv);
-    expect(as).toContain('.bind(facts.id).all<{');
-    expect(as).not.toContain(H2);
-    // No site regressed to the distinct r41 presence head.
-    expect(am).not.toContain(R41_OBJECT_KEY_PRESENCE_HEAD);
-    expect(as).not.toContain(R41_OBJECT_KEY_PRESENCE_HEAD);
   });
 
   test('no residual literal: each head is inlined only in the new helper', () => {

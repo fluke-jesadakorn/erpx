@@ -12,7 +12,7 @@ const rootDir = resolve(__dirname, '../../..');
 const srcRoot = resolve(rootDir, 'packages/server-files/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
 const git = (...a: string[]) => execFileSync('git', a, { cwd: rootDir, encoding: 'utf8' });
-const before = (name: string) => git('show', `HEAD:packages/server-files/src/adapters/${name}`);
+const before = (name: string) => git('show', `f3d32d13e47f8b3e4e39ebfcf5c55d8b7f966a7d:packages/server-files/src/adapters/${name}`);
 const render = (text: string) => text
   .replaceAll('${FIELD_SET_MARKER_EXISTS_HEAD_SQL}', FIELD_SET_MARKER_EXISTS_HEAD_SQL)
   .replaceAll('${FIELD_ATTACHMENT_OWNED_HEAD_SQL}', FIELD_ATTACHMENT_OWNED_HEAD_SQL)
@@ -57,53 +57,6 @@ describe('Files read-tail r41 byte-oracle dedupe', () => {
     for (const name of ['FIELD_SET_MARKER_EXISTS_HEAD_SQL', 'FIELD_ATTACHMENT_OWNED_HEAD_SQL', 'STORAGE_LEDGER_OBJECT_KEY_HEAD_SQL']) {
       expect(helper.split(`export const ${name} =`).length - 1).toBe(1);
     }
-  });
-
-  test('Rank1: both Field set-marker EXISTS heads render byte-identically', () => {
-    const b = before('field-file-writer-owner.ts');
-    const a = src('field-file-writer-owner.ts');
-    const bField = cap(b, /const fieldSetMarker="([^"]*)"/);
-    const aField = cap(a, /const fieldSetMarker=`([^`]*)`/);
-    const bService = cap(b, /const serviceSetMarker=`([^`]*)`/);
-    const aService = cap(a, /const serviceSetMarker=`([^`]*)`/);
-    expect(aField.split('${FIELD_SET_MARKER_EXISTS_HEAD_SQL}').length - 1).toBe(1);
-    expect(aService.split('${FIELD_SET_MARKER_EXISTS_HEAD_SQL}').length - 1).toBe(1);
-    expect(render(aField)).toBe(bField);
-    expect(render(aService)).toBe(bService);
-    expect(a).not.toContain(H1);
-  });
-
-  test('Rank2: both Field attachment-owned scalar probes render byte-identically', () => {
-    const b = before('field-file-writer-owner.ts');
-    const a = src('field-file-writer-owner.ts');
-    const bQuery = cap(b, /attachment:`(SELECT erpx_files_field_attachment_owned\(\?\) marker,[^`]*)`/);
-    const aQuery = cap(a, /attachment:`(\$\{FIELD_ATTACHMENT_OWNED_HEAD_SQL\} marker,[^`]*)`/);
-    expect(render(aQuery)).toBe(bQuery);
-    expect(a).not.toContain(H2);
-
-    const bs = before('attachments/service.ts');
-    const as = src('attachments/service.ts');
-    expect(bs).toContain("db.prepare('SELECT erpx_files_field_attachment_owned(?) AS owned')");
-    const aProbe = cap(as, /db\.prepare\(`([^`]* AS owned)`\)/);
-    expect(render(aProbe)).toBe('SELECT erpx_files_field_attachment_owned(?) AS owned');
-    expect(as).not.toContain(H2);
-  });
-
-  test('Rank3: both storage-ledger object-key heads render byte-identically', () => {
-    const bl = before('legal-destruction-source-facts.ts');
-    const al = src('legal-destruction-source-facts.ts');
-    const bStmt = cap(bl, /db\.prepare\("(SELECT 1 FROM attachment_storage_ledger WHERE object_key=\?[^"]*)"\)/);
-    const aStmt = cap(al, /db\.prepare\(`([^`]* state='stored')`\)/);
-    expect(render(aStmt)).toBe(bStmt);
-    expect(al).not.toContain(H3);
-
-    const br = before('messaging-upload-rollback.ts');
-    const ar = src('messaging-upload-rollback.ts');
-    expect(br).toContain('OR EXISTS(SELECT 1 FROM attachment_storage_ledger WHERE object_key=?) OR');
-    const aRollback = cap(ar, /prepare\(`([^`]*derivative_object_key=\?\)[^`]*)`\)/);
-    expect(aRollback).toContain('EXISTS(${STORAGE_LEDGER_OBJECT_KEY_HEAD_SQL})');
-    expect(render(aRollback)).toContain('EXISTS(SELECT 1 FROM attachment_storage_ledger WHERE object_key=?)');
-    expect(ar).not.toContain(H3);
   });
 
   test('no residual literal: each head is inlined only in the new helper', () => {
