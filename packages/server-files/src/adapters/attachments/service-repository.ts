@@ -16,8 +16,17 @@ const publicationByIdSql = "SELECT * FROM attachment_publications WHERE id=? AND
 const publicationOrderVersionSql = "SELECT version FROM attachment_publication_orders WHERE company_id=? AND target_type=? AND target_id=?";
 const uploadIntentForSetSql = "SELECT * FROM upload_intents WHERE id=? AND attachment_set_id IS NOT NULL AND created_by=? AND company_id=?";
 const attachmentLinkSql = "SELECT l.*,s.target_type,s.target_id,s.component_kind,s.purpose_key,s.expected_target_version,s.state set_state,s.company_id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=? AND s.company_id=?";
+/** Byte-identical latest-change witness shared by the attested sanitization
+ * read and its command assertion. The rendered SQL and binds are unchanged;
+ * each site still prepares its own statement. */
+const changedCreatedAtSql = "(SELECT max(changed.created_at) FROM attachment_events changed WHERE changed.set_id=attested.set_id AND changed.action IN ('file.reserved','link.reused','link.withdrawn'))";
+/** Parameterized set.created compatibility witness shared by the candidate
+ * read and its count assertion; only the trailing predicate differs. Each site
+ * still prepares its own statement with its own binds. */
+const setCreatedCompatibilitySql = (value: string) =>
+  `EXISTS(SELECT 1 FROM attachment_events event WHERE event.set_id=candidate.id AND event.company_id=candidate.company_id AND event.action='set.created' AND COALESCE((event.details_json::jsonb->>'compatibilityAdapter')::boolean,false)=${value})`;
 const sanitizationAttestedSql = `SELECT 1 FROM attachment_events attested WHERE attested.set_id=? AND attested.company_id=? AND attested.action='sanitization.attested'
-        AND attested.created_at>=COALESCE((SELECT max(changed.created_at) FROM attachment_events changed WHERE changed.set_id=attested.set_id AND changed.action IN ('file.reserved','link.reused','link.withdrawn')),0)
+        AND attested.created_at>=COALESCE(${changedCreatedAtSql},0)
         ORDER BY attested.created_at DESC LIMIT 1`;
 export function repository(db: SqlDatabase) {
     return {
@@ -106,8 +115,7 @@ export function repository(db: SqlDatabase) {
         }) => {
             return db.prepare(`SELECT candidate.* FROM attachment_sets candidate WHERE candidate.company_id=? AND candidate.target_type=? AND candidate.target_id=? AND candidate.component_kind=?
       AND COALESCE(candidate.component_ref,'')=COALESCE(?,'') AND candidate.purpose_key=? AND candidate.expected_target_version=? AND candidate.created_by=? AND candidate.state='draft'
-      AND EXISTS(SELECT 1 FROM attachment_events event WHERE event.set_id=candidate.id AND event.company_id=candidate.company_id AND event.action='set.created'
-        AND COALESCE((event.details_json::jsonb->>'compatibilityAdapter')::boolean,false)=?)`).bind(facts.companyId, facts.targetType, facts.targetId, facts.componentKind, facts.componentRef, facts.purposeKey, facts.expectedTargetVersion, facts.userId, facts.arg9).first<SetRow>();
+      AND ${setCreatedCompatibilitySql('?')}`).bind(facts.companyId, facts.targetType, facts.targetId, facts.componentKind, facts.componentRef, facts.purposeKey, facts.expectedTargetVersion, facts.userId, facts.arg9).first<SetRow>();
         },
         stepAttachmentSets12: (facts: {
             id: string;
@@ -507,8 +515,7 @@ export function repository(db: SqlDatabase) {
         }) => {
             return db.prepare(`SELECT count(DISTINCT candidate.id) FROM attachment_sets candidate
     WHERE candidate.company_id=? AND candidate.id IN (${facts.setIds.map(() => "?").join(",")})
-      AND EXISTS(SELECT 1 FROM attachment_events event WHERE event.set_id=candidate.id AND event.company_id=candidate.company_id
-        AND event.action='set.created' AND COALESCE((event.details_json::jsonb->>'compatibilityAdapter')::boolean,false)=true)`).bind(facts.companyId, ...facts.setIds).first("count");
+      AND ${setCreatedCompatibilitySql('true')}`).bind(facts.companyId, ...facts.setIds).first("count");
         },
         readAttachmentLinks64: (facts: {
             id: string;
@@ -988,7 +995,7 @@ export function repository(db: SqlDatabase) {
             commandId: string;
             step: string;
             values: (string | number | null)[];
-        }) => assertion(db, facts.commandId, facts.step, `EXISTS(SELECT 1 FROM attachment_events attested WHERE attested.set_id=? AND attested.company_id=? AND attested.action='sanitization.attested' AND attested.created_at>=COALESCE((SELECT max(changed.created_at) FROM attachment_events changed WHERE changed.set_id=attested.set_id AND changed.action IN ('file.reserved','link.reused','link.withdrawn')),0))`, facts.values),
+        }) => assertion(db, facts.commandId, facts.step, `EXISTS(SELECT 1 FROM attachment_events attested WHERE attested.set_id=? AND attested.company_id=? AND attested.action='sanitization.attested' AND attested.created_at>=COALESCE(${changedCreatedAtSql},0))`, facts.values),
         bindingGuard2: (facts: {
             commandId: string;
             step: string;
