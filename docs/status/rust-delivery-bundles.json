@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10584,
+    "revision": 10587,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -159654,7 +159654,7 @@
         "owner": "crm",
         "title": "crm TS read tail native cutover (round 26)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -159666,28 +159666,36 @@
         "resources": [
           "owner:crm"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMcrm3",
-          "claimedAt": "2026-11-24T07:54:20.325Z",
-          "heartbeatAt": "2026-11-24T08:15:48.647Z",
-          "expiresAt": "2026-11-24T08:45:48.647Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-crm/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "45505e1ae",
+            "owner": "crm",
+            "before": 136,
+            "after": 134,
+            "note": "Guest link reservation/stay and case event lead reads share one renderer each; r8-r25, locks and native kinds untouched."
+          },
+          {
+            "command": "vitest crm r26 (7) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "45505e1ae"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=136.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-n",
+          "runId": "run-20261124-a",
           "agentId": "wGCMcrm3",
-          "at": "2026-11-24T07:53:21.211Z",
+          "at": "2026-11-24T08:20:10.090Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long worker integration; WIP reviewed by lead; all live claims re-claimed with the same agents under a new generation",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=136."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -163967,7 +163975,7 @@
         "owner": "crm",
         "title": "crm read tail native cutover (round 27)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -163979,7 +163987,14 @@
         "resources": [
           "owner:crm"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMcrm4",
+          "claimedAt": "2026-11-24T08:20:10.342Z",
+          "heartbeatAt": "2026-11-24T08:20:10.342Z",
+          "expiresAt": "2026-11-24T08:50:10.342Z",
+          "generation": 167
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -164454,18 +164469,18 @@
       "totalPackets": 1418,
       "migratedPackets": 330,
       "statusCounts": {
-        "pending": 21,
+        "pending": 20,
         "in_progress": 24,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1041,
+        "blocked": 1042,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:18:44.361Z",
+    "updatedAt": "2026-11-24T08:20:10.350Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
