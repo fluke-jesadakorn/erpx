@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12199,
+    "revision": 12203,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -181592,6 +181592,77 @@
         "nextAction": "Night-source witness (-1), booking email pending head (-1), night lineage recursive step (-1): 302->299.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.marketing.read-tail-r41",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n36",
+          "claimedAt": "2026-11-24T14:00:08.096Z",
+          "heartbeatAt": "2026-11-24T14:00:08.096Z",
+          "expiresAt": "2026-11-24T14:30:08.096Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Company list (-1), clocked report frame (-2), purchase UNION arm head (-3): 55->49. BEFORE=55.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.procurement.read-tail-r45",
+        "goalId": "G4",
+        "owner": "procurement",
+        "title": "procurement TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-procurement/src/**",
+          "tests/unit/procurement/**",
+          "tests/integration/procurement/**"
+        ],
+        "resources": [
+          "owner:procurement"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n37",
+          "claimedAt": "2026-11-24T14:00:21.170Z",
+          "heartbeatAt": "2026-11-24T14:00:21.170Z",
+          "expiresAt": "2026-11-24T14:30:21.170Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Recursive attachment version witness seed (-3), RFQ ARRAY outer frame (-1): 99->95. BEFORE=99.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -181600,11 +181671,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1755,
+      "totalPackets": 1757,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 14,
+        "in_progress": 16,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -181614,7 +181685,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:59:30.367Z",
+    "updatedAt": "2026-11-24T14:00:21.175Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
