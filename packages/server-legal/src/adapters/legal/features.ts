@@ -16,6 +16,7 @@ import { legalFeatureStatements } from '@erpx/server-collaboration/adapters/nati
 import {legalMembershipSql} from '../legal-members-read-sources';
 import {legalDocumentsItemPairSql} from '../legal-read-tail-r9-sources';
 import {legalByIdAndItemSql} from '../legal-read-tail-r27-sources';
+import {legalPointByIdAndKeySql} from '../legal-read-tail-r34-sources';
 function application(db:SqlDatabase,a:WorkContext){const nativeWrites=new WeakMap<LegalWrite,SqlStatement>();const nativeFeatures=legalFeatureStatements(db,a.companyId,a.userId);const stage=(statement:SqlStatement):LegalWrite=>{const write:LegalWrite={owner:"legal"};nativeWrites.set(write,statement);return write;};
 return createLegalFeaturesApplication({actor:a,access:(id,p)=>access(db,a,id,p),eligible:(id,item,p)=>eligible(db,a,id,item,p),samePerson:id=>samePerson(a,id),require:permission=>requirePermission(a,permission),clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},error:(status,code,message)=>new ApiError(status,code,message),repository:{
 featureCount:(facts:{id:string;search:string;search2:string;capability:(typeof featureKinds)[number];})=>db.prepare(`SELECT count(*) n FROM ${featureSpecs[facts.capability].table} WHERE item_id=? AND (?='' OR strpos(lower(title||' '||data::text),lower(?))>0)`).bind(facts.id,facts.search,facts.search2).first("n"),
@@ -38,6 +39,6 @@ export async function featureDetail(db:SqlDatabase,a:WorkContext,id:string,query
 export async function featureCommand(db:SqlDatabase,a:WorkContext,raw:unknown,key:string){
  if(await legalPackageEnforcementMode()==="disabled")return inLegacyLegalOperationsUnit(db,a.companyId,tx=>application(tx,a).featureCommand(raw,key));
  const input=(raw&&typeof raw==='object'?raw:{}) as Record<string,unknown>,spec=featureSpecs[input.category as keyof typeof featureSpecs],id=typeof input.id==='string'?input.id:undefined;
- const row=spec&&typeof input.featureId==='string'?await db.prepare(`SELECT owner_id FROM ${spec.table} WHERE id=? AND item_id=?`).bind(input.featureId,id??null).first<{owner_id:string}>():null,ownerResponse=row&&samePrincipal(a,row.owner_id)&&['intake','policy_ack'].includes(String(input.category))&&input.action!=='feature.create';
+ const row=spec&&typeof input.featureId==='string'?await db.prepare(legalPointByIdAndKeySql("owner_id",spec.table,"item_id")).bind(input.featureId,id??null).first<{owner_id:string}>():null,ownerResponse=row&&samePrincipal(a,row.owner_id)&&['intake','policy_ack'].includes(String(input.category))&&input.action!=='feature.create';
  return withLegalPurchasedCommand(db,a,{key,id,operation:String(input.action),purpose:input.action==='feature.transition'?'settle-existing':'new-work',permission:ownerResponse?'legal.read':'legal.edit',additionalPermissions:(spec?.independentStates as readonly string[]|undefined)?.includes(String(input.state))?['legal.approve']:[],additional:['legal.obligations']},tx=>application(tx,a).featureCommand(raw,key));
 }

@@ -10,6 +10,7 @@ import {legalItemPurchasePredicate,inLegalOwnerUnit,deferLegalOwnerCheck,legalSo
 import {legalPackageEnforcementMode,checkPurchasedCapability,purchaseCommandBoundary} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {legalPurchaseClockExistsSql} from './legal-read-tail-r29-sources';
+import {legalPointByIdAndKeySql} from './legal-read-tail-r34-sources';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import {attachmentPrivateReadSourceLocks} from '@erpx/server-files/public/private-attachment-reads';
@@ -56,7 +57,7 @@ export async function withLegalPortalPurchasedCommand<Result>(owner:SqlDatabase,
  const identified=await share(owner,actor,target.shareId);if(!identified)throw new ApiError(404,'LEGAL_SHARE_UNAVAILABLE','This share expired or is unavailable.');
  return inLegalOwnerUnit(owner,identified.company_id,async database=>{
   const before=await share(database,actor,target.shareId);if(!before||before.company_id!==identified.company_id||before.item_id!==identified.item_id||before.document_id!==identified.document_id)throw new ApiError(409,'LEGAL_SHARE_CHANGED','The actual shared Legal source changed.');
-  const replay=!!await database.prepare('SELECT 1 FROM legal_portal_receipts WHERE id=? AND user_id=?').bind(target.key,actor.userId).first(),purpose=replay?'history' as const:'settle-existing' as const,scopes=[legalKindCapability(before.kind),'legal.documents','legal.access'].map(capability=>({companyId:before.company_id,capability,purpose}));
+  const replay=!!await database.prepare(legalPointByIdAndKeySql("1","legal_portal_receipts","user_id")).bind(target.key,actor.userId).first(),purpose=replay?'history' as const:'settle-existing' as const,scopes=[legalKindCapability(before.kind),'legal.documents','legal.access'].map(capability=>({companyId:before.company_id,capability,purpose}));
   const boundaries=scopes.flatMap(scope=>{const key=`legal-portal-purchase:${randomUUID()}`,boundary=purchaseCommandBoundary(database,mode,key,scope);return boundary?[{key,boundary}]:[];});for(const scope of scopes)await checkPurchasedCapability(database,mode,scope);await database.batch(boundaries.flatMap(item=>item.boundary.before));
   if(assertCurrent)await assertCurrent();
   const result=await run(database),expected=await legalSourceWitness(database,{companyId:before.company_id},before.item_id),expectedToken=await share(database,actor,target.shareId),expectedPortal=assertCurrent?await legalPortalSnapshotSourceImage(database,actor,target.shareId):null;if(!expectedToken)throw new ApiError(409,'LEGAL_SHARE_CHANGED','The current shared Legal source became unavailable.');

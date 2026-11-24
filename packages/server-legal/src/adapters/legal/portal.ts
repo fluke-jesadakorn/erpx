@@ -21,10 +21,11 @@ import {createLegalPortalApplication,type LegalPortalWrite,type LegalPortalUnit,
 import { legalPortalWrites } from '@erpx/server-collaboration/adapters/native-legal-portal-writes';
 import {legalSettingsEnabledSql,legalDocumentByIdSql,legalDestructionActiveSql} from '../legal-read-tail-r9-sources';
 import {legalPointByIdSql} from '../legal-read-tail-r32-sources';
+import {legalPointByIdAndKeySql} from '../legal-read-tail-r34-sources';
 export type {PortalActor} from "@erpx/server-legal/domain/portal";
 /** Shared read of a portal idempotency receipt by key and actor; both upload
  * repository methods assert the same authority-bound row. */
-const portalReceiptReadSql="SELECT request_hash,result_json FROM legal_portal_receipts WHERE id=? AND user_id=?";
+const portalReceiptReadSql=legalPointByIdAndKeySql("request_hash,result_json","legal_portal_receipts","user_id");
 export async function portalContext(slug:string){const {session}=await currentSession();const actor=legalPortalActor(session.user,session.session.id,(status,code,message)=>new ApiError(status,code,message)),binding=await holdingBindingBySlug(slug),resources=await holdingResources(binding.id);return {...resources,actor};}
 async function shareRecord(database:SqlDatabase,facts:LegalPortalShareFacts,strictHistory=false){return database.prepare(`SELECT s.*,i.company_id,i.branch_id,i.department_id,i.version AS item_version,i.kind FROM legal_shares s JOIN legal_items i ON i.id=s.item_id JOIN legal_documents d ON d.id=s.document_id AND d.item_id=i.id WHERE ${await legalPortalPurchasePredicate('i',strictHistory)} AND s.id=? AND lower(s.email)=? AND (s.user_id IS NULL OR s.user_id=?) AND s.revoked_at IS NULL AND s.expires_at>?`).bind(facts.id,facts.email,facts.actorId,facts.now).first<LegalPortalShare>();}
 function unit(db:SqlDatabase):LegalPortalUnit{const nw=legalPortalWrites(db);const legalNative=legalPortalBindingStatements(db),journal=legalPortalJournal(db),writes=new WeakMap<LegalPortalWrite,SqlStatement>();function stage(statement:SqlStatement):LegalPortalWrite{const write:LegalPortalWrite={owner:"legal"};writes.set(write,statement);return write;}
