@@ -8,6 +8,7 @@ import { getRecord, searchReferences } from '@erpx/server-records/public/records
 import { runtimeEnv } from '../../../../packages/server-runtime/src/public/runtime';
 import { ApiError } from '@erpx/server-runtime/public/http';
 import {sourceAccessSql} from '@erpx/server-collaboration/public/social-source-policy';
+import {socialPostTopicExists,socialCommentTopicExists} from './read-tail-sql';
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { createSocialTextApplication, type SocialTextRepository } from '@erpx/server-collaboration/application/social-text';
 import { collaborationMentionPrincipals } from '@erpx/server-identity_access/public/collaboration-mention-principals';
@@ -35,7 +36,7 @@ async function exposed<T>(action: () => Promise<T>) {
 }
 function application(db: SqlDatabase, actor: WorkContext) {
     const repository: SocialTextRepository<SqlStatement> = { async tagSuggestions(value: string, companyId: string, userId: string, now: number, now2: number) {
-            return db.prepare(`SELECT DISTINCT t.tag FROM social_topics t WHERE lower(t.tag) LIKE ? AND EXISTS(SELECT 1 FROM social_posts p WHERE p.company_id=? AND p.state='published' AND ${sourceAccessSql()} AND (EXISTS(SELECT 1 FROM social_post_topics pt WHERE pt.post_id=p.id AND pt.tag=t.tag) OR EXISTS(SELECT 1 FROM social_comment_topics ct JOIN social_comments c ON c.id=ct.comment_id WHERE c.post_id=p.id AND c.state='published' AND ct.tag=t.tag))) ORDER BY t.tag LIMIT 12`).bind(value, companyId, userId, now, now2).all<{
+            return db.prepare(`SELECT DISTINCT t.tag FROM social_topics t WHERE lower(t.tag) LIKE ? AND EXISTS(SELECT 1 FROM social_posts p WHERE p.company_id=? AND p.state='published' AND ${sourceAccessSql()} AND (${socialPostTopicExists('t.tag')} OR ${socialCommentTopicExists('t.tag')})) ORDER BY t.tag LIMIT 12`).bind(value, companyId, userId, now, now2).all<{
                 tag: string;
             }>();
         }, ...nativeSocialTextStatements(db, actor),
