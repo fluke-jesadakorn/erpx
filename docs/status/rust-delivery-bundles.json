@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8843,
+    "revision": 8847,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -144007,7 +144007,7 @@
         "owner": "billing",
         "title": "billing TS read tail native cutover",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -144019,22 +144019,37 @@
         "resources": [
           "owner:billing"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGC2bil",
-          "claimedAt": "2026-11-24T03:05:13.095Z",
-          "heartbeatAt": "2026-11-24T03:23:58.596Z",
-          "expiresAt": "2026-11-24T03:53:58.596Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-billing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "751b39a13",
+            "owner": "billing",
+            "before": 86,
+            "after": 80,
+            "note": "Rollout eligibility, legacy overlap and month-invoice reads shared across repos; subscription projection prefix shared at three sites; advisory/FOR UPDATE excluded."
+          },
+          {
+            "command": "vitest billing r16 (3) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "751b39a13"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=86.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC2bil",
+          "at": "2026-11-24T03:27:37.488Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -145236,6 +145251,42 @@
         "nextAction": "Next: new byte-identical or parameterized family; remaining near-duplicates are not identical. BEFORE=63.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.billing.read-tail-r17",
+        "goalId": "G4",
+        "owner": "billing",
+        "title": "billing TS read tail native cutover (round 17)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-billing/src/**",
+          "tests/unit/billing/**",
+          "tests/integration/billing/**"
+        ],
+        "resources": [
+          "owner:billing"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC3bil",
+          "claimedAt": "2026-11-24T03:27:37.945Z",
+          "heartbeatAt": "2026-11-24T03:27:37.945Z",
+          "expiresAt": "2026-11-24T03:57:37.945Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: remaining alias-parameterized/read families; advisory and FOR UPDATE excluded. BEFORE=80.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -145244,7 +145295,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1035,
+      "totalPackets": 1036,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -145252,13 +145303,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 655,
+        "blocked": 656,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T03:26:43.075Z",
+    "updatedAt": "2026-11-24T03:27:37.961Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
