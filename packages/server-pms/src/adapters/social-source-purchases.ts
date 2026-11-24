@@ -6,6 +6,7 @@ import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commerc
 import type {CapabilityPurpose} from '@erpx/server-commercial/public/rules/packages';
 import {scheduledFeaturePredicate} from '@erpx/server-pms/adapters/feature-availability';
 import {pmsSourcesSql} from '@erpx/server-pms/adapters/pms/source-query';
+import {PMS_IDS_JSONB_MEMBER_SQL} from './pms-read-tail-r26-sql';
 import {ApiError} from '@erpx/server-runtime/public/http';
 
 const capabilities=['pms.reservations','pms.front-desk','pms.rooms','pms.housekeeping','pms.guest-accounts','pms.night-audit'] as const;
@@ -22,7 +23,7 @@ export function pmsSocialSourcePurchasePredicate(purpose:CapabilityPurpose){
  * IAM/participant policy is independently repeated by Social before effects. */
 export async function pmsSocialSourcePurchaseScopes(database:SqlDatabase,actor:Pick<StaffActor,'companyId'|'role'>,ids:readonly string[],purpose:CapabilityPurpose){
  const mode=await pmsPackageEnforcementMode();if(mode==='disabled'||!ids.length)return [];
- const rows=(await database.prepare(`SELECT id,kind FROM (${pmsSourcesSql}) social_pms_source WHERE company_id=? AND id IN(SELECT jsonb_array_elements_text(?::jsonb))`).bind(actor.companyId,JSON.stringify(ids)).all<{id:string;kind:string}>()).results;
+ const rows=(await database.prepare(`SELECT id,kind FROM (${pmsSourcesSql}) social_pms_source WHERE company_id=? AND id IN${PMS_IDS_JSONB_MEMBER_SQL}`).bind(actor.companyId,JSON.stringify(ids)).all<{id:string;kind:string}>()).results;
  if(rows.length!==new Set(ids).size)throw new ApiError(404,'POST_NOT_FOUND','This post is unavailable.');
  const access=await readPurchasedAccesses(database,mode,actor.companyId,[...capabilities,'finance.hotel-posting','finance.accounting']);
  const allowed=(capability:string)=>purpose==='new-work'?access[capability].newWork:purpose==='settle-existing'?access[capability].settleExisting:access[capability].history;
@@ -31,6 +32,6 @@ export async function pmsSocialSourcePurchaseScopes(database:SqlDatabase,actor:P
   if(!allowed(capability)&&purpose==='history'&&['guest_account','transfer'].includes(row.kind)&&await database.prepare("SELECT 1 WHERE iam_role_allows(?,?,'finance.read')").bind(actor.role,actor.companyId).first())capability=['finance.hotel-posting','finance.accounting'].find(allowed)??capability;
   await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability,purpose});scopes.add(capability);
  }
- if(mode==='enforced'&&!await database.prepare(`WITH social_purchase_actor AS(SELECT ?::text role,${packageClockSql} now_ms) SELECT 1 WHERE NOT EXISTS(SELECT 1 FROM (${pmsSourcesSql}) social_pms_source CROSS JOIN social_purchase_actor WHERE social_pms_source.company_id=? AND social_pms_source.id IN(SELECT jsonb_array_elements_text(?::jsonb)) AND NOT (${pmsSocialSourcePurchasePredicate(purpose)}))`).bind(actor.role,actor.companyId,JSON.stringify(ids)).first())throw new ApiError(403,'FEATURE_COMING_SOON','The original Hotel source is not currently released.');
+ if(mode==='enforced'&&!await database.prepare(`WITH social_purchase_actor AS(SELECT ?::text role,${packageClockSql} now_ms) SELECT 1 WHERE NOT EXISTS(SELECT 1 FROM (${pmsSourcesSql}) social_pms_source CROSS JOIN social_purchase_actor WHERE social_pms_source.company_id=? AND social_pms_source.id IN${PMS_IDS_JSONB_MEMBER_SQL} AND NOT (${pmsSocialSourcePurchasePredicate(purpose)}))`).bind(actor.role,actor.companyId,JSON.stringify(ids)).first())throw new ApiError(403,'FEATURE_COMING_SOON','The original Hotel source is not currently released.');
  return [...scopes].map(capability=>({mode,companyId:actor.companyId,capability,purpose}));
 }

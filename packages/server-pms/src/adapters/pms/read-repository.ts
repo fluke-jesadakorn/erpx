@@ -5,6 +5,7 @@ import type { PmsSetupFacts } from "@erpx/feature-pms/lib/pms-read";
 import { decodePmsRecord, type PmsStoredRecord } from "@erpx/server-pms/domain/stored-record";
 import { PMS_RECORDS_PROJECTION_PREFIX_SQL } from "../pms-read-tail-r24-sql";
 import { PMS_GUEST_STAYS_CHOSEN_MEMBER_SQL } from "../pms-read-tail-r25-sql";
+import { PMS_CHOSEN_RECORDS_SQL } from "../pms-read-tail-r26-sql";
 import { nativePmsReadAll, PMS_RD_INVENTORY_COMMAND } from "../native-pms-read";
 import * as application from "@erpx/server-pms/application/read-repository";
 const stayPredicate = `(data_json::jsonb->>'state' IN ('reserved','in_house') OR
@@ -113,7 +114,7 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
             seedsJson: string;
             propertyId2: string;
             propertyId3: string;
-        }) => db.prepare(`WITH chosen AS (SELECT id,kind,data_json::jsonb data FROM pms_records WHERE property_id=? AND id IN (SELECT jsonb_array_elements_text(?::jsonb))),
+        }) => db.prepare(`WITH chosen AS (${PMS_CHOSEN_RECORDS_SQL}),
    reservations AS (SELECT id FROM chosen WHERE kind='reservation' UNION SELECT data->>'reservationId' FROM chosen),
    stays AS (SELECT id,data_json::jsonb data FROM pms_records WHERE property_id=? AND kind='stay' AND (id IN (SELECT id FROM chosen) OR data_json::jsonb->>'reservationId' IN (SELECT id FROM reservations))),
    guestAccounts AS (SELECT data->>'guestAccountId' id FROM stays),
@@ -151,7 +152,7 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
             nightView3: boolean;
             nightView4: boolean;
         }) => db.prepare(`WITH chosen AS (
-   SELECT id,kind,data_json::jsonb data FROM pms_records WHERE property_id=? AND id IN (SELECT jsonb_array_elements_text(?::jsonb))
+   ${PMS_CHOSEN_RECORDS_SQL}
  ), guest_history AS (
    SELECT id,data_json::jsonb data,row_number() OVER(PARTITION BY data_json::jsonb->>'guestId' ORDER BY data_json::jsonb->>'arrival' DESC,id) position
    FROM pms_records WHERE property_id=? AND kind='stay' AND data_json::jsonb->>'guestId' IN (SELECT id FROM chosen WHERE kind='guest')

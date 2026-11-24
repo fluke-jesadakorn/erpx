@@ -54,7 +54,7 @@ describe('pms read-tail r20 byte-identical owner-projection dedupe', () => {
     let count = 0;
     for (const file of await tsFiles(dir)) count += (await readFile(file, 'utf8')).split('SELECT ').length - 1;
     // r21 deduped the 4x parameterized recipient cross-join fragment below r20 after=477.
-    expect(count).toBe(414);
+    expect(count).toBe(405);
     expect(count).toBeLessThan(481);
   });
 });

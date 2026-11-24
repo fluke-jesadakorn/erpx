@@ -4,6 +4,7 @@ import { PMS_STRIPE_REFUND_COLUMNS_SQL } from "./pms-read-tail-r22-sql";
 import { PMS_RECORDS_PROJECTION_PREFIX_SQL } from "./pms-read-tail-r24-sql";
 import { PMS_SCOPED_RECORDS_SQL } from "./pms-read-tail-r23-sql";
 import { PMS_GUEST_ACCOUNT_ID_MEMBER_SQL, PMS_GUEST_ACCOUNT_CASHIER_MEMBER_SQL, PMS_RESERVATION_ID_MEMBER_SQL } from "./pms-read-tail-r25-sql";
+import { PMS_IDS_JSONB_MEMBER_SQL, PMS_GUEST_ID_FROM_ACCOUNTS_SQL, PMS_GUEST_ID_FROM_STAYS_SQL } from "./pms-read-tail-r26-sql";
 import { roomChargeReversalWork } from "@erpx/server-pos/public/room-charge-reversal-queue";
 import { withPmsPurchasedCommand } from "@erpx/server-pms/adapters/purchase-boundary";
 import { readPurchasedAccesses, pmsPackageEnforcementMode, type PurchasedAccess } from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -93,7 +94,7 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
             guest_account_id: string;
             kind: string;
             created_at: number;
-        }>(db, "SELECT id,guest_account_id,kind,created_at FROM pms_documents WHERE property_id=? AND (?::jsonb IS NULL OR guest_account_id IN (SELECT jsonb_array_elements_text(?::jsonb))) ORDER BY created_at DESC,id LIMIT 200", facts.id, facts.fact1, facts.fact2),
+        }>(db, `SELECT id,guest_account_id,kind,created_at FROM pms_documents WHERE property_id=? AND (?::jsonb IS NULL OR guest_account_id IN ${PMS_IDS_JSONB_MEMBER_SQL}) ORDER BY created_at DESC,id LIMIT 200`, facts.id, facts.fact1, facts.fact2),
         readFinanceJournalLines: facts => finance.readFinanceJournalLines(facts),
         readReceiptAllocationCredits: async facts => {
             const postings=await query<{entryId:string;date:string;journalId:string}>(db,`
@@ -565,7 +566,7 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
           UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='guest' AND (r.id=q.guest_id
               OR r.id IN (SELECT data_json::jsonb->>'guestId' FROM siblings)
-              OR r.id IN (SELECT data_json::jsonb->>'guestId' FROM accounts)
+              OR r.id IN (${PMS_GUEST_ID_FROM_ACCOUNTS_SQL})
               OR r.id IN (SELECT data_json::jsonb->>'guestId' FROM pms_records WHERE property_id=q.property_id AND kind='reservation' AND id IN (SELECT id FROM booking_ids)))
           UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='task' AND r.data_json::jsonb->>'roomId' IN (SELECT id FROM affected_rooms)
@@ -592,7 +593,7 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
               ${PMS_GUEST_ACCOUNT_ID_MEMBER_SQL}
           UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='guest'
-              AND r.id IN (SELECT data_json::jsonb->>'guestId' FROM accounts)
+              AND r.id IN (${PMS_GUEST_ID_FROM_ACCOUNTS_SQL})
           UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND q.target_kind='account_close' AND r.kind='stay'
               ${PMS_GUEST_ACCOUNT_ID_MEMBER_SQL}
@@ -625,7 +626,7 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
               AND r.data_json::jsonb->>'originalId' IN (SELECT id FROM source)
           UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='guest'
-              AND r.id IN (SELECT data_json::jsonb->>'guestId' FROM accounts UNION SELECT data_json::jsonb->>'guestId' FROM stays)
+              AND r.id IN (${PMS_GUEST_ID_FROM_ACCOUNTS_SQL} UNION ${PMS_GUEST_ID_FROM_STAYS_SQL})
         ) SELECT * FROM selected ORDER BY updated_at,id`).bind(propertyId,stayId,sourceKey)
           .all<PmsStoredRecord>().then(rows=>rows.results.map(decodePmsRecord)),
         readPmsNightCommand: (propertyId, businessDate, targetId) => db.prepare(`WITH scope AS (
@@ -649,7 +650,7 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
               AND r.data_json::jsonb->>'guestAccountId' IN (SELECT id FROM accounts)
           UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='guest' AND r.id IN (
-              SELECT data_json::jsonb->>'guestId' FROM stays UNION SELECT data_json::jsonb->>'guestId' FROM accounts)
+              ${PMS_GUEST_ID_FROM_STAYS_SQL} UNION ${PMS_GUEST_ID_FROM_ACCOUNTS_SQL})
           UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='night' AND (r.id=q.target_id OR r.data_json::jsonb->>'date'=q.business_date)
           UNION ${PMS_SCOPED_RECORDS_SQL}
