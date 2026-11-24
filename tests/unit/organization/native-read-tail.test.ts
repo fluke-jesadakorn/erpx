@@ -133,4 +133,18 @@ describe('Organization owner-local read tail', () => {
     expect(ORG_NODE_DISPLAY_NAME_SOURCE).toBe('SELECT display_name FROM organization_nodes WHERE id=?');
   });
 
+  it('shares one canonical Company-scoped display-name source across the finance/payroll company reads', async () => {
+    const {ORG_COMPANY_DISPLAY_NAME_SOURCE} = await import('../../../packages/server-organization/src/adapters/org-sources');
+    const {financeSalesCompanyName} = await import('@erpx/server-organization/adapters/finance-sales-company');
+    const {companySource} = await import('@erpx/server-organization/adapters/payroll-payslip-company');
+    const seen: string[] = [];
+    const first = vi.fn(async (column?: string) => column === 'display_name' ? 'Acme' : {display_name: 'Acme'});
+    const bind = vi.fn(() => ({first}));
+    const handle = {prepare: vi.fn((sql: string) => {seen.push(sql); return {bind};})} as unknown as SqlDatabase;
+    await expect(financeSalesCompanyName(handle, 'company')).resolves.toBe('Acme');
+    await expect(companySource(handle).company('company')).resolves.toEqual({display_name: 'Acme'});
+    expect(seen).toEqual([ORG_COMPANY_DISPLAY_NAME_SOURCE, ORG_COMPANY_DISPLAY_NAME_SOURCE]);
+    expect(ORG_COMPANY_DISPLAY_NAME_SOURCE).toBe("SELECT display_name FROM organization_nodes WHERE id=? AND kind='company'");
+  });
+
 });

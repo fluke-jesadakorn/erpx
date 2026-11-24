@@ -14,3 +14,7 @@ export const ORG_BRANCH_COMPANY_SOURCE =
  * Each caller keeps its own binding and supplied transaction. */
 export const ORG_NODE_DISPLAY_NAME_SOURCE =
   "SELECT display_name FROM organization_nodes WHERE id=?";
+/** Canonical Company-scoped display-name read shared by the finance/people owner facts.
+ * Each caller keeps its own binding and supplied transaction. */
+export const ORG_COMPANY_DISPLAY_NAME_SOURCE =
+  "SELECT display_name FROM organization_nodes WHERE id=? AND kind='company'";
