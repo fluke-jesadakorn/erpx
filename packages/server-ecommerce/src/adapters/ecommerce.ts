@@ -50,9 +50,9 @@ const activeProjectionAssertion = (source: string, alias: string, predicate: str
   ecommerceExistsGuard(`(${source}) ${alias}`, `id=? AND company_id=? AND ${predicate}`);
 /** r11: one parameterized source-row read; the channel, cart-line and
  *  fulfillment-link callers rebuild byte-identically. Text only: binds and
- *  locks unchanged. */
-const readSource = (table: string, scope: string, order = '') =>
-  `SELECT * FROM ${table} WHERE ${scope}${order ? ` ORDER BY ${order}` : ''}`;
+ *  locks unchanged. r24: routes all three outputs through the shared
+ *  ecommerceOrderedList frame with '*' columns, byte-identically. */
+const readSource = ecommerceOrderedList.bind(null, '*');
 /** r13: one parameterized checkout-row read; the detail and lock callers
  *  rebuild byte-identically. Text only: projection, binds and locks unchanged. */
 const checkoutRow = (projection: string, lock = '') =>

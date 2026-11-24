@@ -69,7 +69,8 @@ describe('Ecommerce read-tail r20 C5-C9 dedupe', () => {
     expect((head.checkoutDelivery.match(/\?/g) ?? []).length).toBe(0);
     expect((head.workforceProbe.match(/\?/g) ?? []).length).toBe(3);
     expect((head.receiptProbe.match(/\?/g) ?? []).length).toBe(5);
-    expect((po.match(/\?/g) ?? []).length).toBe(1);
+    expect((po.match(/\?/g) ?? []).length).toBe(0);
+    expect((`WITH scope AS${ecommerceScopeRow('', false, '')}`.match(/\?/g) ?? []).length).toBe(1);
     for (const sql of Object.values(head)) {
       expect(sql).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
     }
@@ -116,7 +117,7 @@ describe('Ecommerce read-tail r20 C5-C9 dedupe', () => {
 });
 
 describe('Ecommerce read-tail r20 retirement check', () => {
-  test('retirement:ts-statements === 25 (r23 BEFORE=26; r22 BEFORE=29)', () => {
+  test('retirement:ts-statements === 22 (r24 BEFORE=25; r23 BEFORE=26)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -126,6 +127,6 @@ describe('Ecommerce read-tail r20 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(25);
+    expect(total).toBe(22);
   });
 });

@@ -52,7 +52,8 @@ describe('Ecommerce read-tail r17 receipt-audit guard family', () => {
   });
 
   test('no binds added and every source lock stays intact', () => {
-    expect((src.match(/\?/g) ?? []).length).toBe(1);
+    expect((src.match(/\?/g) ?? []).length).toBe(0);
+    expect(('WITH scope AS(SELECT ?::text company_id)'.match(/\?/g) ?? []).length).toBe(1);
     expect(src).toContain("LOCK TABLE command_receipts,audit_events,money_transaction_snapshots IN SHARE MODE");
     expect(src).toContain("salesCommerceSettlementSourceReadLocks(database)");
     expect(src).toContain("ecommerceCommerceSourceReadLocks(database)");

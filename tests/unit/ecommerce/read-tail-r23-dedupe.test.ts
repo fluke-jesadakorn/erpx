@@ -57,7 +57,7 @@ describe('Ecommerce read-tail r23 bare one-row probe dedupe', () => {
       expect(shared).toContain(`export const ${token} =`);
     }
     expect((shared.match(/export const ecommerceSelectOne = /g) ?? []).length).toBe(1);
-    expect((shared.match(/ecommerceSelectOne\(/g) ?? []).length).toBe(2);
+    expect((shared.match(/ecommerceSelectOne\(/g) ?? []).length).toBe(3);
     expect((read('adapters/package-obligations.ts').match(/ecommerceSelectOne\(/g) ?? []).length).toBe(2);
     expect(ar).toContain('ecommerceCommerceSourceReadLocks');
     expect(pb).toContain('commerceOwnerTransaction(');
@@ -71,7 +71,7 @@ describe('Ecommerce read-tail r23 bare one-row probe dedupe', () => {
 });
 
 describe('Ecommerce read-tail r23 retirement check', () => {
-  test('retirement:ts-statements === 25 (r23 BEFORE=26; r22 BEFORE=29)', () => {
+  test('retirement:ts-statements === 22 (r24 BEFORE=25; r23 BEFORE=26)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -81,7 +81,7 @@ describe('Ecommerce read-tail r23 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(25);
-    expect(total).toBeLessThan(26);
+    expect(total).toBe(22);
+    expect(total).toBeLessThan(25);
   });
 });

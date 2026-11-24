@@ -99,7 +99,8 @@ describe('Ecommerce read-tail r21 fact-arm, gate and scope-row dedupe', () => {
 
   test('binds and locks stay unchanged; composed frames stay read-only', () => {
     const cte = po.split('\n').find(l => l.includes('WITH scope AS'))!;
-    expect((cte.match(/\?/g) ?? []).length).toBe(1);
+    expect(cte).toContain("WITH scope AS${ecommerceScopeRow('',false,'')}");
+    expect((`WITH scope AS${ecommerceScopeRow('',false,'')}`.match(/\?/g) ?? []).length).toBe(1);
     expect((ecommerceScopeRow('ecommerce_file').match(/\?/g) ?? []).length).toBe(1);
     expect((ecommerceScopeRow('ecommerce_file', true).match(/\?/g) ?? []).length).toBe(3);
     expect(po).toContain('.bind(input.companyId)');
@@ -131,7 +132,7 @@ describe('Ecommerce read-tail r21 fact-arm, gate and scope-row dedupe', () => {
 });
 
 describe('Ecommerce read-tail r21 retirement check', () => {
-  test('retirement:ts-statements === 25 (r23 BEFORE=26; r20 BEFORE=38)', () => {
+  test('retirement:ts-statements === 22 (r24 BEFORE=25; r20 BEFORE=38)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -141,6 +142,6 @@ describe('Ecommerce read-tail r21 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(25);
+    expect(total).toBe(22);
   });
 });

@@ -42,11 +42,11 @@ describe('Ecommerce read-tail r22 select-one probe dedupe', () => {
     expect(`NOT EXISTS(${cartHasCheckout})`).toBe(`NOT EXISTS(${head.cartCheckout})`);
   });
 
-  test('raw probe literals are gone and the frame composes from exactly five sites', () => {
+  test('raw probe literals are gone and the frame composes from exactly six sites', () => {
     expect((shared.match(/export const ecommerceSelectOne = /g) ?? []).length).toBe(1);
-    expect((shared.match(/ecommerceSelectOne\(/g) ?? []).length).toBe(2);
+    expect((shared.match(/ecommerceSelectOne\(/g) ?? []).length).toBe(3);
     expect((po.match(/ecommerceSelectOne\(/g) ?? []).length).toBe(2);
-    expect((shared.match(/export const ecommerceSelectOne = /g) ?? []).length + (shared.match(/ecommerceSelectOne\(/g) ?? []).length + (po.match(/ecommerceSelectOne\(/g) ?? []).length).toBe(5);
+    expect((shared.match(/export const ecommerceSelectOne = /g) ?? []).length + (shared.match(/ecommerceSelectOne\(/g) ?? []).length + (po.match(/ecommerceSelectOne\(/g) ?? []).length).toBe(6);
     expect(shared).not.toContain('SELECT 1 FROM assignments WHERE');
     expect(shared).not.toContain('EXISTS(SELECT 1 FROM ${table} WHERE ${where})');
     expect(po).not.toContain('(SELECT 1 FROM command_receipts receipt');
@@ -93,7 +93,7 @@ describe('Ecommerce read-tail r22 select-one probe dedupe', () => {
 });
 
 describe('Ecommerce read-tail r22 retirement check', () => {
-  test('retirement:ts-statements === 25 (r23 BEFORE=26; r22 BEFORE=29)', () => {
+  test('retirement:ts-statements === 22 (r24 BEFORE=25; r23 BEFORE=26)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -103,6 +103,6 @@ describe('Ecommerce read-tail r22 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(25);
+    expect(total).toBe(22);
   });
 });

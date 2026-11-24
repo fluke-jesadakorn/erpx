@@ -8,9 +8,10 @@ export const ecommerceModuleAssignment = (alias = '') => {
 };
 /** r23: one parameterized bare one-row probe frame. The workforce-scope
  *  current-assignment probe and the command-receipt replay probe rebuild
- *  byte-identically. Text only: binds, source locks and emitted SQL unchanged. */
+ *  byte-identically. Text only: binds, source locks and emitted SQL unchanged.
+ *  r24: composes from the shared r22 select-one frame, byte-identically. */
 export const ecommerceRowProbe = (from: string, where: string, gap = ' ') =>
-  `SELECT 1 FROM${gap}${from} WHERE ${where}`;
+  ecommerceSelectOne(`FROM${gap}${from} WHERE ${where}`);
 /** r21: one scoped-row frame emits both column shapes byte-identically. The
  *  r20 separator stays configurable; text only, binds and locks unchanged. */
 export const ecommerceScopeRow = (alias: string, branch = false, separator = ' ') =>
@@ -24,9 +25,11 @@ export const ecommerceReleaseGate = (scope: string, predicate: string, selectAli
 export const ecommerceExistsGuard = (table: string, where: string) =>
   `EXISTS(${ecommerceSelectOne(`FROM ${table} WHERE ${where}`)})`;
 /** r14: one parameterized ordered list read; the listing, cart and checkout
- *  workspace callers rebuild byte-identically. Text only: binds unchanged. */
-export const ecommerceOrderedList = (columns: string, from: string, where: string, order: string) =>
-  `SELECT ${columns} FROM ${from} WHERE ${where} ORDER BY ${order}`;
+ *  workspace callers rebuild byte-identically. Text only: binds unchanged.
+ *  r24: the ORDER BY tail is optional so the three r11 source-row reads
+ *  compose from the same frame, byte-identically. */
+export const ecommerceOrderedList = (columns: string, from: string, where: string, order?: string) =>
+  `SELECT ${columns} FROM ${from} WHERE ${where}${order ? ` ORDER BY ${order}` : ''}`;
 /** r14: one parameterized listing-channel row read; the repository detail and
  *  attachment-facts callers rebuild byte-identically. Binds unchanged. */
 export const ecommerceListingChannelRow = (columns: string) =>
