@@ -167,7 +167,7 @@ describe('Manufacturing finance-close read retirement',()=>{
     expect(paths.some(path=>path.includes('finance-close-source'))).toBe(false);
     const count=paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0);
     expect(count).toBeLessThan(148);
-    expect(count).toBe(102);
+    expect(count).toBe(101);
   });
 });
 describe('Manufacturing owner-local report-actor read dedupe',()=>{
@@ -389,6 +389,27 @@ describe('Manufacturing posting-source aggregate dedupe',()=>{
   it('emits the former profile image text byte for byte',()=>{
     const productionAgg=(table:string,alias:string,scope="")=>`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${table} ${alias}${scope})`;
     expect(productionAgg('manufacturing_accounting_profiles','p',',scope WHERE p.company_id=scope.company_id')).toBe(profile);
+  });
+});
+describe('Manufacturing initial-physical-stock history guard dedupe',()=>{
+  const source=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/initial-physical-stock-sources.ts',import.meta.url),'utf8');
+  const registry=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/public/native_command.rs',import.meta.url),'utf8');
+  const reservation='EXISTS(SELECT 1 FROM manufacturing_material_reservations r JOIN manufacturing_orders o ON o.id=r.order_id WHERE o.company_id=? AND r.warehouse_id=? AND r.product_id=?)';
+  const movement='EXISTS(SELECT 1 FROM manufacturing_inventory_moves m JOIN manufacturing_orders o ON o.id=m.order_id WHERE o.company_id=? AND m.warehouse_id=? AND m.product_id=?)';
+  const guard=(table:string,alias:string)=>`EXISTS(SELECT 1 FROM ${table} ${alias} JOIN manufacturing_orders o ON o.id=${alias}.order_id WHERE o.company_id=? AND ${alias}.warehouse_id=? AND ${alias}.product_id=?)`;
+  it('keeps one parameterized guard definition and routes both history guards through it',()=>{
+    expect(source).toContain('const initialStockHistoryGuard = (table: string, alias: string) =>');
+    expect(source).not.toContain(reservation);
+    expect(source).not.toContain(movement);
+    expect(source).toContain('initialStockHistoryGuard("manufacturing_material_reservations","r")');
+    expect(source).toContain('initialStockHistoryGuard("manufacturing_inventory_moves","m")');
+    expect(source.split('EXISTS(SELECT 1 FROM ')).toHaveLength(2);
+  });
+  it('emits both former guards byte for byte and stays outside the RD_* registry',()=>{
+    expect(guard('manufacturing_material_reservations','r')).toBe(reservation);
+    expect(guard('manufacturing_inventory_moves','m')).toBe(movement);
+    expect(registry).not.toContain(reservation);
+    expect(registry).not.toContain(movement);
   });
 });
 describe('Manufacturing read-tail text-only fragment dedupe', () => {
