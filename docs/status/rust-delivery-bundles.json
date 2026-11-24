@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7605,
+    "revision": 7609,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -128788,7 +128788,7 @@
         "owner": "organization",
         "title": "organization TS read tail native cutover (round 6)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -128800,22 +128800,42 @@
         "resources": [
           "owner:organization"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wF31org",
-          "claimedAt": "2026-11-24T00:31:08.588Z",
-          "heartbeatAt": "2026-11-24T00:31:22.515Z",
-          "expiresAt": "2026-11-24T01:01:22.515Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-organization/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a69f73e2d",
+            "owner": "organization",
+            "before": 399,
+            "after": 397,
+            "note": "PMS/POS company display name reads share ORG_NODE_DISPLAY_NAME_SOURCE."
+          },
+          {
+            "command": "cargo check -p erpx-server-organization",
+            "result": "passed",
+            "sourceSha": "a69f73e2d"
+          },
+          {
+            "command": "vitest organization native read tail (10) + tsc organization",
+            "result": "passed",
+            "sourceSha": "a69f73e2d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: node display_name reads across pms-hospitality/pos-core/pos facts, or the EXISTS(organization_nodes) predicate family; record a strictly lower spaced count (BEFORE=399).",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wF31org",
+          "at": "2026-11-24T00:37:08.493Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -129357,6 +129377,42 @@
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to a mounted native read; record a strictly lower spaced count (BEFORE=109).",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.organization.read-tail-r7",
+        "goalId": "G4",
+        "owner": "organization",
+        "title": "organization TS read tail native cutover (round 7)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-organization/src/**",
+          "tests/unit/organization/**",
+          "tests/integration/organization/**"
+        ],
+        "resources": [
+          "owner:organization"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG15org",
+          "claimedAt": "2026-11-24T00:37:08.672Z",
+          "heartbeatAt": "2026-11-24T00:37:08.672Z",
+          "expiresAt": "2026-11-24T01:07:08.672Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: EXISTS(organization_nodes) predicate family or the company display-name pair in finance-sales-company/payroll-payslip-company; record a strictly lower spaced count (BEFORE=397).",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -129365,7 +129421,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 736,
+      "totalPackets": 737,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
@@ -129373,13 +129429,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 360,
+        "blocked": 361,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T00:36:04.451Z",
+    "updatedAt": "2026-11-24T00:37:08.676Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
