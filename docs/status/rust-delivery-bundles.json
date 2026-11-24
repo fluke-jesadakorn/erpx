@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9739,
+    "revision": 9745,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -153604,7 +153604,7 @@
         "owner": "sales",
         "title": "sales TS read tail native cutover (r17)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -153616,22 +153616,37 @@
         "resources": [
           "owner:sales"
         ],
-        "claim": {
-          "runId": "run-20261123-k",
-          "agentId": "wGCMsal",
-          "claimedAt": "2026-11-24T05:37:11.018Z",
-          "heartbeatAt": "2026-11-24T05:37:11.018Z",
-          "expiresAt": "2026-11-24T06:07:11.018Z",
-          "generation": 163
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-sales/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "45c59b4cc",
+            "owner": "sales",
+            "before": 70,
+            "after": 68,
+            "note": "Three customer followups EXISTS guards share followupExists; r7-r16 and locks untouched."
+          },
+          {
+            "command": "vitest sales r17 + registered suites (139) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "45c59b4cc"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=71.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCMsal",
+          "at": "2026-11-24T05:52:56.318Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -155301,6 +155316,78 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=75.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.sales.read-tail-r18",
+        "goalId": "G4",
+        "owner": "sales",
+        "title": "sales TS read tail native cutover (r18)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-sales/src/**",
+          "tests/unit/sales/**",
+          "tests/integration/sales/**"
+        ],
+        "resources": [
+          "owner:sales"
+        ],
+        "claim": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCPsal",
+          "claimedAt": "2026-11-24T05:52:57.226Z",
+          "heartbeatAt": "2026-11-24T05:52:57.226Z",
+          "expiresAt": "2026-11-24T06:22:57.226Z",
+          "generation": 163
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=68.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.talent.read-tail-r25",
+        "goalId": "G4",
+        "owner": "talent",
+        "title": "talent TS read tail native cutover (r25)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-talent/src/**",
+          "tests/unit/talent/**",
+          "tests/integration/talent/**"
+        ],
+        "resources": [
+          "owner:talent"
+        ],
+        "claim": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCPtal",
+          "claimedAt": "2026-11-24T05:52:58.053Z",
+          "heartbeatAt": "2026-11-24T05:52:58.053Z",
+          "expiresAt": "2026-11-24T06:22:58.053Z",
+          "generation": 163
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=55.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -155309,21 +155396,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1227,
+      "totalPackets": 1229,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 23,
+        "in_progress": 24,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 858,
+        "blocked": 859,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 163,
-    "updatedAt": "2026-11-24T05:52:37.781Z",
+    "updatedAt": "2026-11-24T05:52:58.058Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
