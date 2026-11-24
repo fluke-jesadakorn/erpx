@@ -4,6 +4,10 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type {TargetRow} from "@erpx/server-files/public/contracts/attachments-operational";
 const versionOwners:Record<string,string>={"ecommerce_listing": "ecommerce_listings"};
 const allowedTargets=new Set<string>(["ecommerce_listing"]);
+/** r9: one parameterized attachment-owner version guard; the listing-specific
+ *  and generic callers rebuild byte-identically. Text only: binds unchanged. */
+const attachmentVersionGuardSql = (source: string, where: string) =>
+  `EXISTS(SELECT 1 FROM ${source} WHERE ${where})`;
 function remainingOperationalAttachmentTargetVersionGuard(
   db: SqlDatabase,
   commandId: string,
@@ -19,7 +23,7 @@ if(!allowedTargets.has(targetType))return null;
       db,
       commandId,
       `attachment-owner-${index}`,
-      "EXISTS(SELECT 1 FROM ecommerce_listings l JOIN ecommerce_channels c ON c.id=l.channel_id WHERE l.id=? AND c.company_id=? AND l.version=?)",
+      attachmentVersionGuardSql("ecommerce_listings l JOIN ecommerce_channels c ON c.id=l.channel_id", "l.id=? AND c.company_id=? AND l.version=?"),
       [targetId, companyId, version],
     );
   const table = versionOwners[targetType];
@@ -28,7 +32,7 @@ if(!allowedTargets.has(targetType))return null;
     db,
     commandId,
     `attachment-owner-${index}`,
-    `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=?)`,
+    attachmentVersionGuardSql(table, "id=? AND company_id=? AND version=?"),
     [targetId, companyId, version],
   );
 }
