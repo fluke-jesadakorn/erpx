@@ -343,4 +343,30 @@ describe('Organization owner-local read tail', () => {
     expect(shared.NODE_BRANCH_ACTIVE).toBe("SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active'");
   });
 
+  it('shares one table-parameterized active-id read across the evaluation and placement readers', async () => {
+    const {activeIdByCompanySource} = await import('../../../packages/server-organization/src/adapters/org-sources');
+    const {peopleEvaluationOrganizationFacts} = await import('@erpx/server-organization/adapters/people-evaluation-facts');
+    const {peoplePlacementBatchFacts} = await import('@erpx/server-organization/adapters/people-placement-batch-facts');
+    const seen: string[] = [];
+    const rowsAll = vi.fn(async () => ({results: [] as unknown[]}));
+    const bind = vi.fn(() => ({all: rowsAll}));
+    const handle = {prepare: vi.fn((sql: string) => {seen.push(sql); return {bind};})} as unknown as SqlDatabase;
+    await expect(peopleEvaluationOrganizationFacts(handle).readImportEvaluationMarketLevels('company')).resolves.toEqual({results: []});
+    await expect(peoplePlacementBatchFacts(handle).activePositions('company')).resolves.toEqual({results: []});
+    expect(seen).toEqual([
+      activeIdByCompanySource('staff_levels'),
+      activeIdByCompanySource('organization_positions'),
+    ]);
+    expect(activeIdByCompanySource('staff_levels')).toBe('SELECT id FROM staff_levels WHERE company_id=? AND active=1');
+    expect(activeIdByCompanySource('organization_positions')).toBe('SELECT id FROM organization_positions WHERE company_id=? AND active=1');
+  });
+
+  it('renders one byte-identical table-parameterized department absence guard', async () => {
+    const {departmentSnapshotMissing} = await import('../../../packages/server-organization/src/adapters/organization-read-tail-sources');
+    expect(departmentSnapshotMissing('department_heads')).toBe('NOT EXISTS(SELECT 1 FROM department_heads WHERE company_id=? AND department_id=?)');
+    expect(departmentSnapshotMissing('department_flow_versions')).toBe('NOT EXISTS(SELECT 1 FROM department_flow_versions WHERE company_id=? AND department_id=?)');
+    expect(departmentSnapshotMissing('department_heads').replace('department_heads', 'T')).toBe(
+      departmentSnapshotMissing('department_flow_versions').replace('department_flow_versions', 'T'));
+  });
+
 });

@@ -22,3 +22,7 @@ export const ORG_COMPANY_DISPLAY_NAME_SOURCE =
  * Each caller keeps its own binding and supplied transaction. */
 export const ORG_ACTIVE_BRANCHES_SOURCE =
   "SELECT id,display_name FROM organization_nodes WHERE kind='branch' AND company_id=? AND status='active' AND (?::text IS NULL OR id=?)";
+/** Canonical company-scoped active-id read, parameterized by table. Each caller
+ * renders the exact same SQL; only the relation name varies. No caller input
+ * enters the SQL text. */
+export const activeIdByCompanySource = (table: string) => `SELECT id FROM ${table} WHERE company_id=? AND active=1`;

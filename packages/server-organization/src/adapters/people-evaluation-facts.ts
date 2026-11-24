@@ -1,5 +1,6 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import {activeIdByCompanySource} from './org-sources';
 export function peopleEvaluationOrganizationFacts(database: SqlDatabase) {
     return { readSaveEvaluationDefinitionPosition(positionId: string, companyId: string, levelId: string) { return database.prepare("SELECT id FROM organization_positions WHERE id=? AND company_id=? AND level_id=? AND active=1").bind(positionId, companyId, levelId).first(); },
         readSaveEvaluationDefinitionEffect(levelId: string, companyId: string) { return database.prepare("SELECT 1 FROM staff_levels WHERE id=? AND company_id=? AND active=1").bind(levelId, companyId).first(); },
@@ -12,7 +13,7 @@ export function peopleEvaluationOrganizationFacts(database: SqlDatabase) {
             id: string;
             name: string;
         }>(); },
-        readImportEvaluationMarketLevels(companyId: string) { return database.prepare("SELECT id FROM staff_levels WHERE company_id=? AND active=1").bind(companyId).all<{
+        readImportEvaluationMarketLevels(companyId: string) { return database.prepare(activeIdByCompanySource('staff_levels')).bind(companyId).all<{
             id: string;
         }>(); } };
 }

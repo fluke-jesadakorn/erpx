@@ -32,7 +32,7 @@ import type {ChangeFilters,NodeChangeInput,NodeDecisionInput} from '@erpx/server
 export {positionSchema,organizationNodeChangeSchema,organizationNodeDecisionSchema} from '@erpx/server-organization/domain/organization';
 import {organizationGuard}from '@erpx/server-organization/public/organization-graph-guard';
 import {organizationRoster}from '@erpx/server-organization/public/organization-roster-read';
-import {NODE_BRANCH_ACTIVE,NODE_BRANCH_ACTIVE_EXISTS} from './organization-read-tail-sources';
+import {NODE_BRANCH_ACTIVE,NODE_BRANCH_ACTIVE_EXISTS,departmentSnapshotMissing} from './organization-read-tail-sources';
 const HEAD_SEAT_SNAPSHOT_SOURCE =
   "SELECT version,position_id,person_id,effective_at FROM authority_seats WHERE company_id=? AND kind='head' AND scope_id=?";
 const DEPARTMENT_HEAD_SNAPSHOT_SOURCE =
@@ -98,11 +98,11 @@ stageRelocate:async (actor,change,id,appliedNodeId,key,{head,legacyHead,flow},no
           head?[actor.companyId,change.target_node_id,head.version,head.position_id,head.person_id,head.effective_at]:[actor.companyId,change.target_node_id]),
           assertion(db,key,"relocation-legacy-head-unchanged",legacyHead
             ? "EXISTS(SELECT 1 FROM department_heads WHERE company_id=? AND department_id=? AND version=? AND person_id=?)"
-            : "NOT EXISTS(SELECT 1 FROM department_heads WHERE company_id=? AND department_id=?)",
+            : departmentSnapshotMissing('department_heads'),
           legacyHead?[actor.companyId,change.target_node_id,legacyHead.version,legacyHead.person_id]:[actor.companyId,change.target_node_id]),
           assertion(db,key,"relocation-flow-unchanged",flow
             ? "(SELECT id FROM department_flow_versions WHERE company_id=? AND department_id=? ORDER BY version DESC LIMIT 1)=? AND EXISTS(SELECT 1 FROM department_flow_versions WHERE id=? AND company_id=? AND department_id=? AND version=? AND steps_json=?::jsonb)"
-            : "NOT EXISTS(SELECT 1 FROM department_flow_versions WHERE company_id=? AND department_id=?)",
+            : departmentSnapshotMissing('department_flow_versions'),
           flow?[actor.companyId,change.target_node_id,flow.id,flow.id,actor.companyId,change.target_node_id,flow.version,typeof flow.steps_json==="string"?flow.steps_json:JSON.stringify(flow.steps_json)]:[actor.companyId,change.target_node_id]),
           await nativeOrgStatement(db,actor.companyId,'node_relocate_copy',[appliedNodeId,change.display_name,change.branch_id,change.branch_id,change.target_node_id,actor.companyId],key,now),
           await nativeOrgStatement(db,actor.companyId,'node_archive',[change.target_node_id,actor.companyId],key,now),

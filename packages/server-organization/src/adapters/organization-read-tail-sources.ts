@@ -6,3 +6,7 @@ export const NODE_BRANCH_ACTIVE_EXISTS =
   "EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active')";
 export const NODE_BRANCH_ACTIVE =
   "SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active'";
+/** Company+department absence guard, parameterized by table. Both relocation
+ * guards render the exact same SQL; only the relation name varies. Text only:
+ * callers keep their own binds and supplied statement. */
+export const departmentSnapshotMissing = (table: string) => `NOT EXISTS(SELECT 1 FROM ${table} WHERE company_id=? AND department_id=?)`;
