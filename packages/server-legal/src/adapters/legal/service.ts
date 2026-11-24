@@ -5,6 +5,7 @@ import {legalReadScope,withLegalPurchasedCommand,inLegalOwnerUnit} from '@erpx/s
 import {parseItem} from '@erpx/server-legal/domain/model';
 import { finalRootOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/final-root-owner-projection-sources";
 import { legalManagerAvailableSql } from "../legal-read-tail-r9-sources";
+import { legalItemSelectSql } from "../legal-read-tail-r16-sources";
 import { finalRootOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/final-root-owner-projection-sources";
 import {nativeLegalHoldNotice} from "../native-legal-hold-notice";
 import "server-only";
@@ -47,7 +48,7 @@ return {clause,args};}
 return createLegalRegisterApplication({actor:a,clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},require:permission=>requirePermission(a,permission),can:permission=>hasPermission(a,permission),samePerson:userId=>samePerson(a,userId),permissionCatalog,error:(status,code,message)=>new ApiError(status,code,message),hash,utf8Length:value=>Buffer.byteLength(value),access:(id,permission)=>access(db,a,id,permission),eligible:(id,scope,permission)=>eligible(db,a,id,scope,permission),people:()=>legalPeople(db,a),repository:{
 items:async(query:LegalListQuery)=>{const {clause,args}=listScope(query),purchase=await purchasedRead();return db
       .prepare(
-        `SELECT i.* FROM legal_items i WHERE ${clause} AND ${purchase.where} ORDER BY i.updated_at DESC,i.id LIMIT 30 OFFSET ?`,
+        `${legalItemSelectSql}${clause} AND ${purchase.where} ORDER BY i.updated_at DESC,i.id LIMIT 30 OFFSET ?`,
       )
       .bind(...args, (query.page - 1) * 30)
       .all<LegalItem>();},

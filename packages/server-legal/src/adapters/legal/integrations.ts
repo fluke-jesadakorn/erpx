@@ -1,4 +1,5 @@
 import {legalReadScope} from '@erpx/server-legal/adapters/purchases';
+import {legalItemSelectSql} from '../legal-read-tail-r16-sources';
 import {filterLegalPurchasedWork} from '@erpx/server-legal/adapters/work-purchases';
 import { finalRootOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/final-root-owner-projection-sources";
 import "server-only";
@@ -12,7 +13,7 @@ import {visibility} from "@erpx/server-legal/adapters/legal/access";
 import {createLegalIntegrations} from "@erpx/server-legal/application/integrations";
 function application(db:SqlDatabase,a:WorkContext){const v=visibility(a);let purchase:ReturnType<typeof legalReadScope>|undefined;const readScope=()=>purchase??=legalReadScope(db,a);return createLegalIntegrations({canRead:()=>hasPermission(a,"legal.read"),canEdit:()=>hasPermission(a,"legal.edit"),canApprove:()=>hasPermission(a,"legal.approve"),clock:{now:()=>Date.now()},featureCategories:Object.keys(featureSpecs),repository:{records:async(now)=>{const purchase=await readScope();return db
       .prepare(
-        `SELECT i.* FROM legal_items i WHERE ${v.sql} AND ${purchase.where} AND i.state NOT IN ('archived','closed','cancelled','terminated','expired','completed') AND (i.owner_id=? OR i.created_by=? OR EXISTS(SELECT 1 FROM legal_envelopes e JOIN legal_signers s ON s.envelope_id=e.id WHERE e.item_id=i.id AND e.state='sent' AND e.expires_at>? AND s.user_id=? AND s.state='pending')) ORDER BY i.updated_at DESC LIMIT 200`,
+        `${legalItemSelectSql}${v.sql} AND ${purchase.where} AND i.state NOT IN ('archived','closed','cancelled','terminated','expired','completed') AND (i.owner_id=? OR i.created_by=? OR EXISTS(SELECT 1 FROM legal_envelopes e JOIN legal_signers s ON s.envelope_id=e.id WHERE e.item_id=i.id AND e.state='sent' AND e.expires_at>? AND s.user_id=? AND s.state='pending')) ORDER BY i.updated_at DESC LIMIT 200`,
       )
       .bind(...v.values, a.userId, a.userId, now, a.userId)
       .all<LegalItem>();},tasks:async(category)=>{const purchase=await readScope();return db

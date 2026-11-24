@@ -11,6 +11,7 @@ import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";
 import { legalEvent } from '@erpx/server-collaboration/adapters/native-legal-event';
 import {legalCompanyAdvisoryLockSql,legalFilesAdvisoryLockSql,legalDestructionActiveSql} from '../legal-read-tail-r9-sources';
+import {legalItemSelectSql} from '../legal-read-tail-r16-sources';
 export const tables: Record<LegalKind, string> = {
   request: "legal_requests",
   matter: "legal_matters",
@@ -55,7 +56,7 @@ export async function enabled(db: SqlDatabase, a: WorkContext) {
 function application(db:SqlDatabase,a:WorkContext){
  const scope=visibility(a);
  return createLegalAccessApplication({actor:a,require:permission=>requirePermission(a,permission),error:(status,code,message)=>new ApiError(status,code,message),repository:{
-  visible:id=>db.prepare(`SELECT i.* FROM legal_items i WHERE i.id=? AND ${scope.sql}`).bind(id,...scope.values).first<Omit<LegalItem,"data">>(),
+  visible:id=>db.prepare(`${legalItemSelectSql}i.id=? AND ${scope.sql}`).bind(id,...scope.values).first<Omit<LegalItem,"data">>(),
   enabled:()=>enabled(db,a),
   editor:async id=>Boolean(await db.prepare("SELECT 1 FROM legal_members WHERE item_id=? AND user_id=? AND access='edit'").bind(id,a.userId).first()),
   data:(id,kind)=>db.prepare(`SELECT data FROM ${tables[kind]} WHERE item_id=?`).bind(id).first<{data:LegalItem["data"]}>(),
