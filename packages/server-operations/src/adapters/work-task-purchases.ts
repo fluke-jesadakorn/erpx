@@ -1,5 +1,5 @@
 import 'server-only';
-import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL} from './task-delegation-source';
+import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL,operationsApprovalImageSql} from './task-delegation-source';
 import {OPERATIONS_ACTOR_SCOPE_INPUT_SQL,operationsClockProbe} from './workforce-actor-scope-source';
 import {randomUUID} from 'node:crypto';
 import {nativeOperationsReadFirst,OPERATIONS_RD_WORK_TASK_SOURCE} from './native-operations-read';
@@ -35,7 +35,7 @@ async function current(database:SqlDatabase,actor:StaffActor,key:string,write=fa
 async function capabilities(database:SqlDatabase,actor:StaffActor,task:TaskSource|null,ordinary:boolean,postId?:string){
  if(!ordinary)return [];const codes=['work.actions'];if(task?.template_id)codes.push('work.advanced-routines');if((await workTaskSocialPurchaseSource(database,actor.companyId,task?.id??'',postId)).workSocial)codes.push('work.social');return codes;
 }
-const taskImageSql=`SELECT jsonb_build_object('task',to_jsonb(t)-'updated_at','template',${OPERATIONS_TASK_TEMPLATE_SOURCE_SQL},'schedule',${OPERATIONS_TASK_SCHEDULE_SOURCE_SQL},'delegations',${OPERATIONS_TASK_DELEGATION_SOURCE_SQL},'approvals',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(a),'steps',(SELECT jsonb_agg(to_jsonb(step) ORDER BY step.id) FROM (${approvals.steps})step WHERE step.instance_id=a.id),'decisions',(SELECT jsonb_agg(to_jsonb(decision) ORDER BY decision.id) FROM (${approvals.decisions})decision WHERE decision.instance_id=a.id)) ORDER BY a.id) FROM (${approvals.instances})a WHERE a.record_id=t.id AND a.company_id=t.company_id))::text image FROM staff_tasks t WHERE t.id=? AND t.company_id=?`;
+const taskImageSql=`SELECT jsonb_build_object('task',to_jsonb(t)-'updated_at','template',${OPERATIONS_TASK_TEMPLATE_SOURCE_SQL},'schedule',${OPERATIONS_TASK_SCHEDULE_SOURCE_SQL},'delegations',${OPERATIONS_TASK_DELEGATION_SOURCE_SQL},${operationsApprovalImageSql('approvals','a','',approvals.instances,approvals.steps,approvals.decisions)})::text image FROM staff_tasks t WHERE t.id=? AND t.company_id=?`;
 const referencesImageSql="SELECT jsonb_build_object('template',(SELECT to_jsonb(t) FROM routine_templates t WHERE t.id=? AND t.company_id=?),'schedule',(SELECT to_jsonb(s) FROM routine_schedules s WHERE s.id=? AND s.company_id=?))::text image";
 /** A complete existing owner unit composes both actual Project and ordinary
  * Work sources. No Work purchase is added to Project-only task foundations. */

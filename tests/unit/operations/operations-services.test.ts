@@ -478,7 +478,7 @@ describe('Operations staff_tasks snapshot sources share one canonical projection
 });
 
 import {readFileSync} from 'node:fs';
-import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL} from '../../../packages/server-operations/src/adapters/task-delegation-source';
+import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL,operationsApprovalImageSql,operationsActiveDelegationSql} from '../../../packages/server-operations/src/adapters/task-delegation-source';
 import {workforceActorScopeSql} from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
 import {OPERATIONS_TASK_START_APPROVER_SQL,OPERATIONS_TASK_COMPLETION_APPROVER_SQL} from '../../../packages/server-operations/src/adapters/task-approver-access-source';
 describe('Operations task delegation source dedupe',()=>{
@@ -549,6 +549,49 @@ describe('Operations task approver access dedupe',()=>{
    expect(source).toContain('${OPERATIONS_TASK_COMPLETION_APPROVER_SQL}');
    expect(source).not.toContain(startFragment);
    expect(source).not.toContain(completionFragment);
+  }
+ });
+});
+
+describe('Operations approval-instance image dedupe',()=>{
+ const sources={instances:'${sources.instances}',steps:'${sources.steps}',decisions:'${sources.decisions}'};
+ const image=(key:string,alias:string,sep:string)=>operationsApprovalImageSql(key,alias,sep,sources.instances,sources.steps,sources.decisions);
+ const alertFragment="'approval',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(instance),'steps',(SELECT jsonb_agg(to_jsonb(step) ORDER BY step.id) FROM (${sources.steps}) step WHERE step.instance_id=instance.id),'decisions',(SELECT jsonb_agg(to_jsonb(decision) ORDER BY decision.id) FROM (${sources.decisions}) decision WHERE decision.instance_id=instance.id)) ORDER BY instance.id) FROM (${sources.instances}) instance WHERE instance.record_id=t.id AND instance.company_id=t.company_id)";
+ const purchaseFragment="'approvals',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(a),'steps',(SELECT jsonb_agg(to_jsonb(step) ORDER BY step.id) FROM (${sources.steps})step WHERE step.instance_id=a.id),'decisions',(SELECT jsonb_agg(to_jsonb(decision) ORDER BY decision.id) FROM (${sources.decisions})decision WHERE decision.instance_id=a.id)) ORDER BY a.id) FROM (${sources.instances})a WHERE a.record_id=t.id AND a.company_id=t.company_id)";
+ test('the canonical image renders both aliases byte-identically',()=>{
+  expect(image('approval','instance',' ')).toBe(alertFragment);
+  expect(image('approvals','a','')).toBe(purchaseFragment);
+  expect(image('approval','instance',' ').match(/SELECT /g)).toHaveLength(3);
+ });
+ test('both task image builders compose the canonical image and keep no local literal',()=>{
+  for(const [name,call,literal] of [
+   ['work-task-alert-purchases.ts',"operationsApprovalImageSql('approval','instance',' '","'approval',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(instance)"],
+   ['work-task-purchases.ts',"operationsApprovalImageSql('approvals','a',''","'approvals',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(a)"],
+  ] as const){
+   const source=readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+   expect(source).toContain(call);
+   expect(source).not.toContain(literal);
+  }
+ });
+});
+
+describe('Operations active-delegation clock window dedupe',()=>{
+ const window=(select:string,alias:string,task:string,company:string,clock:string,tail='',sep=' ')=>operationsActiveDelegationSql(select,alias,task,company,clock,tail,sep);
+ const execWindow="SELECT sd.delegate_user_id FROM staff_task_delegations sd WHERE sd.task_id=t.id AND sd.company_id=t.company_id\n      AND sd.status='active' AND sd.starts_at<=? AND sd.expires_at>?\n      ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1";
+ const projectWindow="SELECT sd.delegate_user_id FROM staff_task_delegations sd WHERE sd.task_id=project_task_record.id AND sd.company_id=project_task_record.company_id AND sd.status='active' AND sd.starts_at<=${viewer}.now_ms AND sd.expires_at>${viewer}.now_ms ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1";
+ const attachmentWindow="SELECT 1 FROM staff_task_delegations delegation WHERE delegation.task_id=work_task_file_source.id AND delegation.company_id=work_task_file_source.company_id AND delegation.status='active' AND delegation.starts_at<=${viewer}.now_ms AND delegation.expires_at>${viewer}.now_ms AND iam_same_person(delegation.delegate_user_id,${viewer}.user_id,delegation.company_id)";
+ test('the canonical window renders all three callers byte-identically',()=>{
+  expect(window('sd.delegate_user_id','sd','t.id','t.company_id','?','\n      ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1','\n      ')).toBe(execWindow);
+  expect(window('sd.delegate_user_id','sd','project_task_record.id','project_task_record.company_id','${viewer}.now_ms',' ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1')).toBe(projectWindow);
+  expect(window('1','delegation','work_task_file_source.id','work_task_file_source.company_id','${viewer}.now_ms',' AND iam_same_person(delegation.delegate_user_id,${viewer}.user_id,delegation.company_id)')).toBe(attachmentWindow);
+  expect(window('1','delegation','x','y','z').match(/SELECT /g)).toHaveLength(1);
+ });
+ test('all three readers compose the canonical window and keep no local literal',()=>{
+  for(const name of ['executive-task-cohort.ts','project-task-record-policy.ts','task-attachment-purchases.ts']){
+   const source=readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+   expect(source).toContain('operationsActiveDelegationSql(');
+   expect(source).not.toContain('FROM staff_task_delegations sd WHERE sd.task_id=');
+   expect(source).not.toContain('FROM staff_task_delegations delegation WHERE delegation.task_id=');
   }
  });
 });

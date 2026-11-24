@@ -5,6 +5,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import {participantSql} from '@erpx/server-workflow/public/approval-participant-projection';
 import {socialPostScope} from '@erpx/server-collaboration/public/social-source-policy';
 import {OPERATIONS_TASK_START_APPROVER_SQL,OPERATIONS_TASK_COMPLETION_APPROVER_SQL} from './task-approver-access-source';
+import {operationsActiveDelegationSql} from './task-delegation-source';
 
 export const operationsMetrics = [
   "open-operations-exceptions",
@@ -24,9 +25,7 @@ export function operationsTaskVisibility(actor: WorkContext, referenceAt = Date.
   const access = `(
     iam_same_person(t.creator_user_id,?,t.company_id)
     OR iam_same_person(t.assignee_user_id,?,t.company_id)
-    OR iam_same_person((SELECT sd.delegate_user_id FROM staff_task_delegations sd WHERE sd.task_id=t.id AND sd.company_id=t.company_id
-      AND sd.status='active' AND sd.starts_at<=? AND sd.expires_at>?
-      ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1),?,t.company_id)
+    OR iam_same_person((${operationsActiveDelegationSql('sd.delegate_user_id','sd','t.id','t.company_id','?','\n      ORDER BY sd.created_at DESC,sd.id DESC LIMIT 1','\n      ')},?,t.company_id)
     OR EXISTS(SELECT 1 FROM (${projectsProjectionSources.staff_projects}) sp WHERE sp.id=t.project_id AND sp.company_id=t.company_id
       AND iam_same_person(sp.owner_user_id,?,t.company_id))
     OR EXISTS(SELECT 1 FROM (${projectsProjectionSources.staff_project_members}) pm WHERE pm.project_id=t.project_id AND pm.user_id=?)
