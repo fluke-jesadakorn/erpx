@@ -304,4 +304,26 @@ describe('native Customer 360 timeline transport',()=>{
   for(const prefix of ['fulfillment:','return:','contact:','invoice:','crm-activity:'])
    expect(timeline).not.toContain(`SELECT '${prefix}'`);
  });
+
+ it('shares one byte-identical company scope source across package-obligation facts and the portal projection',async()=>{
+  const {companyScopeSource}=await import('../../../packages/server-customer_360/src/adapters/customer-read-sources');
+  expect(companyScopeSource('')).toBe('(SELECT ?::text company_id)');
+  expect(companyScopeSource('portal_release')).toBe('(SELECT ?::text company_id) portal_release');
+  const read=async(path:string)=> (await import('node:fs/promises')).readFile(new URL(path,import.meta.url),'utf8');
+  const scoped=await read('../../../packages/server-customer_360/src/adapters/customer-read-sources.ts');
+  const facts=await read('../../../packages/server-customer_360/src/adapters/package-obligations.ts');
+  const portal=await read('../../../packages/server-customer_360/src/adapters/portal.ts');
+  // One source definition; both call sites render through it.
+  expect(scoped.match(/companyScopeSource = \(/g)).toHaveLength(1);
+  expect(facts).toContain("WITH scope AS${companyScopeSource('')}");
+  expect(portal).toContain("FROM ${companyScopeSource('portal_release')}");
+  expect(facts).not.toContain('WITH scope AS(SELECT ?::text company_id)');
+  expect(portal).not.toContain('FROM (SELECT ?::text company_id) portal_release');
+  // Locks and the r5/r6/r7 helpers stay untouched.
+  expect(facts).toContain('LOCK TABLE customer_portal_actions IN SHARE ROW EXCLUSIVE MODE');
+  expect(scoped.match(/const scopedRow = \(/g)).toHaveLength(1);
+  const timeline=await read('../../../packages/server-customer_360/src/adapters/timeline.ts');
+  expect(timeline.match(/const eventSelect=\(/g)).toHaveLength(1);
+  expect(timeline.match(/const eventRow=\(/g)).toHaveLength(1);
+ });
 });

@@ -21,6 +21,7 @@ import {commercePackageEnforcementMode,checkPurchasedCapability,readPurchasedAcc
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import { customerPortalActions } from '@erpx/server-collaboration/adapters/native-customer-portal-actions';
+import { companyScopeSource } from './customer-read-sources';
 
 function portalRepository(db: SqlDatabase,owned=false,assertRequestAuthority?:()=>Promise<void>): PortalRepository {
   const action = (predicate: string, values: string[]) => db.prepare(`SELECT id,binding_id,order_id,action,status,created_at,request_hash,user_id FROM customer_portal_actions WHERE ${predicate}`).bind(...values).first<PortalActionRow>();
@@ -50,7 +51,7 @@ function portalRepository(db: SqlDatabase,owned=false,assertRequestAuthority?:()
     authorize:async(actor,binding,purpose)=>{
       const mode=await commercePackageEnforcementMode();if(mode==='disabled')return async()=>{};
       const scope={companyId:binding.company_id,capability:'sales.portal',purpose},key=`customer-portal-purchase:${crypto.randomUUID()}`,boundary=purchaseCommandBoundary(db,mode,key,scope)!;
-      const release=async()=>{if(!await db.prepare(`SELECT ${scheduledFeaturePredicate('portal_release.company_id','customer_authority')} allowed FROM (SELECT ?::text company_id) portal_release`).bind(binding.company_id).first<boolean>('allowed'))throw new ApiError(403,'FEATURE_COMING_SOON','Customer access is not released for this Company.');};
+      const release=async()=>{if(!await db.prepare(`SELECT ${scheduledFeaturePredicate('portal_release.company_id','customer_authority')} allowed FROM ${companyScopeSource('portal_release')}`).bind(binding.company_id).first<boolean>('allowed'))throw new ApiError(403,'FEATURE_COMING_SOON','Customer access is not released for this Company.');};
       await release();
       await checkPurchasedCapability(db,mode,scope);await db.batch(boundary.before);
       return async()=>{
