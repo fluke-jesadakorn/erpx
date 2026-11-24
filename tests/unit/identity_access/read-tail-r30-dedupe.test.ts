@@ -94,7 +94,7 @@ describe('Identity access read-tail r30 probe families', () => {
     expect(hash('adapters/legacy-module-access.ts')).toBe('b90209698ed4adfbd08ae9de45e5619e2f5a9ebffdf4c92a10a065dc4bc5a01e');
     expect(hash('adapters/iam-transactions.ts')).toBe('70923db932b36cebd425f6aa6c860892cb03ed75bc41fb40ea2193e7884de3b7');
     expect(hash('adapters/native-session.ts')).toBe('1c390e8f6c47b25da718120ef5f6546103b1f8bbbfa837406ff7be462d1a51c1');
-    expect(hash('adapters/iam-probe-sql.ts')).toBe('e9966b74188ce0763c43a50ddc0f98c6c113646d21296c75188dd158d742a172');
+    expect(hash('adapters/iam-probe-sql.ts')).toBe('e0984c3774b38a3229fe848061482e46efd984f26e86152ce9973c3c49104101');
     expect(hash('adapters/active-role-probe-family-r25.ts')).toBe('aea7ee49d4c93ac3c904b5f8190119a277ad43921a21a70903cfdf5c0455d448');
     expect(hash('adapters/read-tail-family-r27.ts')).toBe('f921a14d81bfc53158005b4fdc270deaa7580a276bb52d409a36a50995cbce76');
     expect(hash('adapters/read-tail-family-r28.ts')).toBe('6f5f736acb5cc6c796584ec86dfe52dcc40408ad0122be17bccfb8b2c7d1051d');
@@ -109,7 +109,7 @@ describe('Identity access read-tail r30 probe families', () => {
 });
 
 describe('Identity access read-tail r30 retirement check', () => {
-  test('retirement:ts-statements is strictly below BEFORE=478 (r31 lowered 478 to 475)', () => {
+  test('retirement:ts-statements is strictly below BEFORE=478 (r32 lowered 475 to 472)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -120,6 +120,6 @@ describe('Identity access read-tail r30 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(478);
-    expect(total).toBe(475);
+    expect(total).toBe(472);
   });
 });

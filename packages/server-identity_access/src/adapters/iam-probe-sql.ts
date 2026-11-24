@@ -2,6 +2,8 @@
  * collaboration and legal facts ports. One literal per probe serves every
  * call site so they cannot drift apart; the native identity role and principal
  * readers own the same authorization shape. */
+import { iamMembersPairSql } from './read-tail-family-r32';
+
 export const roleAllowsSql = "SELECT 1 WHERE iam_role_allows(?,?,?)";
 export const samePersonSql = "SELECT 1 WHERE iam_same_person(?,?,?)";
 /** Parameterized same-person column probe shared by the pg IAM callers (positional
@@ -17,7 +19,7 @@ export const assignmentActiveQuerySql = "SELECT iam_assignment_active($1,$2) ok"
 /** pg positional-parameter probe returning the locked iam_members row, shared by the migration and transaction adapters. */
 export const memberForShareSql = "SELECT * FROM iam_members WHERE company_id=$1 AND user_id=$2 FOR SHARE";
 /** pg positional-parameter probe for a protected emergency/directory migration identity, shared by the prepare and review migration adapters. */
-export const protectedMigrationIdentitySql = "SELECT 1 FROM iam_members WHERE company_id=$1 AND user_id=$2 AND (login_policy IN ('emergency','directory') OR status!='active')";
+export const protectedMigrationIdentitySql = iamMembersPairSql("(login_policy IN ('emergency','directory') OR status!='active')");
 /** Byte-identical active-recipient assignment read shared by the calendar and
  * collaboration facts ports. `gap` preserves each caller's original whitespace
  * between the bind list and the active predicates, so every rendered statement

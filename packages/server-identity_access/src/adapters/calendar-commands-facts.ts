@@ -1,12 +1,13 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { activeRecipientsSql, samePersonSql } from "./iam-probe-sql";
+import { assignmentCompanyUserProbeSql } from "./read-tail-family-r32";
 export function calendarCommandsIdentityAccessFacts(db: SqlDatabase) {
     return { read6: (facts: {
             value1: string;
             value2: string;
             value3: number;
-        }) => db.prepare(`SELECT 1 FROM assignments WHERE company_id=? AND user_id=? AND scope_kind='holding' AND iam_role_allows(role,company_id,'iam.directory.manage') AND iam_assignment_active(id,?) LIMIT 1`).bind(facts.value1, facts.value2, facts.value3).first<Record<string, unknown>>(),
+        }) => db.prepare(assignmentCompanyUserProbeSql("scope_kind='holding' AND iam_role_allows(role,company_id,'iam.directory.manage') AND iam_assignment_active(id,?) LIMIT 1")).bind(facts.value1, facts.value2, facts.value3).first<Record<string, unknown>>(),
         read10: (facts: {
             value1: string | null;
             value2: string;

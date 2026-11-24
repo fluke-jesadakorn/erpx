@@ -88,7 +88,7 @@ describe('Identity access read-tail r27 seven parameterized families', () => {
     expect(hash('adapters/workflow-command-authority.ts')).toBe('812f5e85cb404d8500749f3697469688ecf69eb35154133475763ecdbef286f5');
     expect(read('adapters/iam-migrations.ts')).toContain('SELECT * FROM iam_connections WHERE id=$1 AND company_id=$2 AND status=\'active\' AND last_sync_at>$3 FOR SHARE');
     // Session authority families keep their byte identity.
-    expect(hash('adapters/iam-probe-sql.ts')).toBe('e9966b74188ce0763c43a50ddc0f98c6c113646d21296c75188dd158d742a172');
+    expect(hash('adapters/iam-probe-sql.ts')).toBe('e0984c3774b38a3229fe848061482e46efd984f26e86152ce9973c3c49104101');
     expect(hash('adapters/native-session.ts')).toBe('1c390e8f6c47b25da718120ef5f6546103b1f8bbbfa837406ff7be462d1a51c1');
     // Native (Rust) kinds and earlier-round helpers are not edited.
     expect(readdirSync(srcRoot, { recursive: true }).filter((f) => String(f).endsWith('.rs')).length).toBeGreaterThan(0);

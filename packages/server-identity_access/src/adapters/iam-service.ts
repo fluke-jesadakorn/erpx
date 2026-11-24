@@ -1,5 +1,6 @@
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
 import { samePersonQuerySql } from "./iam-probe-sql";
+import { iamMembersPairSql } from "./read-tail-family-r32";
 import { userAttributeByIdExtendedSql } from "./identity-user-projection-family-r21";
 import { grantTransaction } from '@erpx/server-identity_access/adapters/iam-grant-transaction';
 import {preparePeopleLifecycleIamReview} from "@erpx/server-people_payroll/public/iam-purchases";
@@ -59,7 +60,7 @@ revokeSamePerson: async (facts) => {
         },
 revokeRecoveryMember: async (facts) => {
             const { row } = facts;
-            return (await c.query("SELECT 1 FROM iam_members WHERE company_id=$1 AND user_id=$2 AND login_policy='emergency' AND status='active'", [actor.companyId, row.user_id])).rowCount;
+            return (await c.query(iamMembersPairSql("login_policy='emergency' AND status='active'"), [actor.companyId, row.user_id])).rowCount;
         },
 otherRecoveryAdministrators: async (facts) => {
             const { row, observedNow } = facts;

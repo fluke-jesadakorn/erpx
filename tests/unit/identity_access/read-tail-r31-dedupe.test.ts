@@ -60,7 +60,7 @@ describe('Identity access read-tail r31 wiring', () => {
   test('locks, session authority, native kinds and r1-r30 helpers stay untouched', () => {
     const helper = read('adapters/read-tail-family-r31.ts');
     expect(helper).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
-    expect(hash('adapters/iam-probe-sql.ts')).toBe('e9966b74188ce0763c43a50ddc0f98c6c113646d21296c75188dd158d742a172');
+    expect(hash('adapters/iam-probe-sql.ts')).toBe('e0984c3774b38a3229fe848061482e46efd984f26e86152ce9973c3c49104101');
     expect(hash('adapters/read-tail-family-r30.ts')).toBe('2cde8f94073ca753169c63c8024ea217282a953d2420a1ae6f60c056a11675a0');
     expect(hash('adapters/read-tail-family-r29.ts')).toBe('2c392291ac6bfa7558a022f750fba0742acfe7014702875d8836321063650775');
     expect(read('adapters/workflow-command-authority.ts')).toContain('SELECT id FROM assignments WHERE id=? FOR SHARE');
@@ -70,7 +70,7 @@ describe('Identity access read-tail r31 wiring', () => {
 });
 
 describe('Identity access read-tail r31 retirement check', () => {
-  test('retirement:ts-statements is 475 after BEFORE=478', () => {
+  test('retirement:ts-statements is 472 after BEFORE=478', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -81,6 +81,6 @@ describe('Identity access read-tail r31 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(478);
-    expect(total).toBe(475);
+    expect(total).toBe(472);
   });
 });

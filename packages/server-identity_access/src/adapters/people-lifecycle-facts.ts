@@ -2,6 +2,7 @@ import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-
 import { samePersonQuerySql } from "./iam-probe-sql";
 import { iamGroupProbeSql, iamReviewProbeSql } from "./read-tail-family-r28";
 import { assignmentCompanyProbeSql, umGroupProbeSql, protectedPersonOwnerSql } from './read-tail-family-r30';
+import { assignmentCompanyUserProbeSql } from './read-tail-family-r32';
 import { nativePrepare } from '@erpx/server-identity_access/public/native-identity-write';
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
 const peoplepayrollSources=peoplepayrollSnapshotSources();
@@ -98,7 +99,7 @@ export function peopleLifecycleIdentityAccessFacts(database: SqlDatabase, client
             }>();
         },
         guard65(key: string, value: "it-assignee", itAssigneeId: string | null, companyId: string, itAssigneeId2: string | null) {
-            return assertion(database, key, value, "?::text IS NULL OR EXISTS(SELECT 1 FROM assignments WHERE company_id=? AND user_id=? AND scope_kind='holding' AND iam_role_allows(role,company_id,'iam.directory.manage') AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint))", [itAssigneeId, companyId, itAssigneeId2]);
+            return assertion(database, key, value, "?::text IS NULL OR EXISTS(" + assignmentCompanyUserProbeSql("scope_kind='holding' AND iam_role_allows(role,company_id,'iam.directory.manage') AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)") + ")", [itAssigneeId, companyId, itAssigneeId2]);
         },
         applyValidatePackageEffect(companyId: unknown, id: unknown) { return client!.query<Record<string, unknown>>(umGroupProbeSql(""), [companyId, id]); },
         readValidatePackagerole(companyId: unknown, roleId: unknown) { return client!.query<LifecycleRoleFact>("SELECT r.published_revision,v.scopes_json FROM iam_roles r JOIN iam_role_revisions v ON v.company_id=r.company_id AND v.role_id=r.id AND v.revision=r.published_revision WHERE r.company_id IN ('*',$1) AND r.id=$2 AND r.status='active'", [companyId, roleId]); },
