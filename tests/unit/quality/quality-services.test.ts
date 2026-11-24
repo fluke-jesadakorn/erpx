@@ -116,6 +116,24 @@ describe('quality metric branch-label dedupe',()=>{
   for(const statement of sql){expect(statement).toContain(qualityBranchDisplayLabelSql);expect(statement.match(/SELECT n\.display_name/g)?.length).toBe(1);}
  });
 });
+describe('quality attachment owner version-guard dedupe',()=>{
+ const source=(path:string)=>resolve(process.cwd(),path);
+ test('one fixed CAS SELECT is composed by both attachment owner facts',async()=>{
+  const {qualityAttachmentVersionGuardSql}=await import('@erpx/server-quality/adapters/attachments-service-facts');
+  const sql=qualityAttachmentVersionGuardSql('inventory_quality_holds');
+  expect(sql.match(/SELECT /g)).toHaveLength(1);
+  expect(sql).toBe('EXISTS(SELECT 1 FROM inventory_quality_holds WHERE id=? AND company_id=? AND version=?)');
+  expect(qualityAttachmentVersionGuardSql('inventory_quality_holds','h.status=?'))
+   .toBe('EXISTS(SELECT 1 FROM inventory_quality_holds WHERE id=? AND company_id=? AND version=? AND h.status=?)');
+  const inline=/EXISTS\(SELECT 1 FROM \$\{[^}]+\} WHERE id=\? AND company_id=\? AND version=\?/g;
+  const service=readFileSync(source('packages/server-quality/src/adapters/attachments-service-facts.ts'),'utf8');
+  const operational=readFileSync(source('packages/server-quality/src/adapters/attachments-operational-facts.ts'),'utf8');
+  expect(service.match(inline)??[]).toHaveLength(1);
+  expect(operational.match(inline)??[]).toHaveLength(0);
+  expect(service).toContain('qualityAttachmentVersionGuardSql');
+  expect(operational).toContain('qualityAttachmentVersionGuardSql');
+ });
+});
 describe('retired Quality dead read branch',()=>{
  const source=(path:string)=>resolve(process.cwd(),path);
  test('the active-spec and evidence-version reads are gone from the Quality application, adapter and public layers',()=>{
