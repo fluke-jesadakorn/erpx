@@ -10,6 +10,7 @@ import {qualityPurchaseSourceRows} from "@erpx/server-quality/adapters/purchase-
 import {qualityClockCte} from "@erpx/server-quality/adapters/quality-scope-sql";
 import {qualityAlertHoldId,requireQualityPurchasedRead} from "@erpx/server-quality/adapters/purchases";
 import {qualitySourceIdExistsSql} from "./quality-record-source-sql";
+import {qualitySourceUnionSelect} from "./quality-source-union-sql";
 /** Fixed owner capability intersection; callers supply only server-owned aliases. */
 export function qualitySourcePurchasePredicate(alias:string,purpose:CapabilityPurpose,clock:string){
  const cap=(capability:string)=>purchasedCapabilityPredicate(`${alias}.company_id`,capability,purpose,clock);
@@ -21,7 +22,7 @@ export async function qualitySourceReadScope(database:SqlDatabase,actor:WorkCont
  const id=surface==="staff"?"staff_notifications.record_id":surface==="inbox"?"e.source_id":"workspace_records.id",company=surface==="staff"?"staff_notifications.company_id":surface==="inbox"?"e.company_id":"workspace_records.company_id",type=surface==="staff"?"staff_notifications.record_type":"e.source_type";
  const relevant=surface==="records"?`EXISTS(${qualitySourceIdExistsSql('inventory_quality_holds','actual_hold',id)}) OR EXISTS(${qualitySourceIdExistsSql('inventory_quality_alerts','actual_alert',id)}) OR EXISTS(${qualitySourceIdExistsSql('inventory_quality_specs','actual_spec',id)})`:`${type} IN ('quality_hold','inventory_quality_hold','quality_alert','inventory_quality_alert','inventory_quality_spec')`;
  if(actor.departmentId||!hasPermission(actor,"quality.read"))return {where:`NOT (${relevant})`,args:[]};
- const native=`SELECT s.id,s.company_id,s.branch_id,NULL::text department_id,s.kind FROM (${qualityPurchaseSourceRows}) s UNION ALL SELECT a.id,s.company_id,s.branch_id,NULL::text,s.kind FROM inventory_quality_alerts a JOIN (${qualityPurchaseSourceRows}) s ON s.id=a.hold_id UNION ALL SELECT id,company_id,NULL::text,NULL::text,'advanced' FROM inventory_quality_specs`;
+ const native=`${qualitySourceUnionSelect("s.id","s.company_id","s.branch_id","NULL::text department_id","s.kind",`(${qualityPurchaseSourceRows}) s`)} UNION ALL ${qualitySourceUnionSelect("a.id","s.company_id","s.branch_id","NULL::text","s.kind",`inventory_quality_alerts a JOIN (${qualityPurchaseSourceRows}) s ON s.id=a.hold_id`)} UNION ALL ${qualitySourceUnionSelect("id","company_id","NULL::text","NULL::text","'advanced'","inventory_quality_specs")}`;
  const visible=`EXISTS(${qualityClockCte("quality_source_clock")} SELECT 1 FROM (${native}) quality_source CROSS JOIN quality_source_clock WHERE quality_source.id=${id} AND quality_source.company_id=${company} AND (?::text IS NULL OR quality_source.branch_id IS NULL OR quality_source.branch_id=?) AND ${assignmentReadSql("quality_source","quality.read")} AND ${qualitySourcePurchasePredicate("quality_source","history","quality_source_clock.now_ms")})`;
  return {where:`(NOT (${relevant}) OR ${visible})`,args:[actor.branchId,actor.branchId,actor.assignmentId,actor.userId,actor.role]};
 }
