@@ -9,6 +9,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { operationsMetrics, operationsTaskCohort, operationsTaskVisibility, type OperationsMetricId } from '@erpx/server-runtime/public/executive/operations-access';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
+import { operationsAliasSelectAll } from './operations-alias-select-all';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 /** Canonical branch/department org-node label projection, shared by the two
  * breakdown fragments so the COALESCE subquery cannot drift. Yields the exact
@@ -37,7 +38,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
                 ? `to_char(to_timestamp(t.updated_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')`
                 : "'Median overdue time to completion'";
             sql = `WITH visible_tasks AS (
-          SELECT t.* FROM staff_tasks t WHERE ${visibility.sql} AND ${cohort.sql} AND ${purchase.where}
+          ${operationsAliasSelectAll('t','staff_tasks',`${visibility.sql} AND ${cohort.sql} AND ${purchase.where}`)}
         ), grouped AS (
           SELECT ${label} label,
             ROUND(percentile_cont(0.5) WITHIN GROUP (ORDER BY (t.updated_at-t.due_at)::double precision))::bigint::text value

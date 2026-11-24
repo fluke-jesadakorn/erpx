@@ -496,6 +496,7 @@ import {operationsSocialTaskOriginExists} from '../../../packages/server-operati
 import {operationsReceiptVersionExists} from '../../../packages/server-operations/src/adapters/operations-receipt-version-exists';
 import {operationsStaffTaskExists} from '../../../packages/server-operations/src/adapters/operations-staff-task-exists';
 import {operationsProjectSourceExists} from '../../../packages/server-operations/src/adapters/project-source-exists';
+import {operationsAliasSelectAll} from '../../../packages/server-operations/src/adapters/operations-alias-select-all';
 import {finalRootOwnerProjectionSources as collaborationProjectionSources} from '@erpx/server-collaboration/public/final-root-owner-projection-sources';
 describe('Operations task delegation source dedupe',()=>{
  const fragment='(SELECT jsonb_agg(to_jsonb(delegation) ORDER BY delegation.id) FROM staff_task_delegations delegation WHERE delegation.task_id=t.id AND delegation.company_id=t.company_id)';
@@ -890,7 +891,7 @@ describe('Operations read-tail r41 retirement',()=>{
     walk(root);
     // r42 deduped the social task-origin EXISTS family and r43 deduped the
     // command-receipt version guard; the r41 BEFORE=110 baseline is unchanged.
-    expect(space).toBe(106);
+    expect(space).toBe(105);
     expect(space).toBeLessThan(110);
   });
 });
@@ -929,7 +930,7 @@ describe('Operations read-tail r42 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(106);
+    expect(space).toBe(105);
     expect(space).toBeLessThan(110);
   });
 });
@@ -974,7 +975,7 @@ describe('Operations read-tail r43 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(106);
+    expect(space).toBe(105);
     expect(space).toBeLessThan(109);
   });
 });
@@ -1018,7 +1019,7 @@ describe('Operations read-tail r44 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(106);
+    expect(space).toBe(105);
     expect(space).toBeLessThan(108);
   });
 });
@@ -1066,7 +1067,55 @@ describe('Operations read-tail r45 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(106);
+    expect(space).toBe(105);
     expect(space).toBeLessThan(107);
+  });
+});
+
+describe('Operations read-tail r46 retirement',()=>{
+  const source=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  const head=(alias:string,table:string,tail:string)=>`SELECT ${alias}.* FROM ${table} ${alias} WHERE ${tail}`;
+  const opsTail=`\${scope} AND e.source_kind<>'field_service_order' ORDER BY e.updated_at DESC LIMIT 200`;
+  const metricTail='${visibility.sql} AND ${cohort.sql} AND ${purchase.where}';
+  test('the alias-qualified select-all renders byte-identically at both sites',()=>{
+    expect(operationsAliasSelectAll('e','operations_exceptions',opsTail)).toBe(head('e','operations_exceptions',opsTail));
+    expect(operationsAliasSelectAll('e','operations_exceptions',opsTail)).toBe("SELECT e.* FROM operations_exceptions e WHERE ${scope} AND e.source_kind<>'field_service_order' ORDER BY e.updated_at DESC LIMIT 200");
+    expect(operationsAliasSelectAll('t','staff_tasks',metricTail)).toBe("SELECT t.* FROM staff_tasks t WHERE ${visibility.sql} AND ${cohort.sql} AND ${purchase.where}");
+    expect(operationsAliasSelectAll('x','y','z').match(/SELECT /g)).toHaveLength(1);
+  });
+  test('the family keeps one canonical literal and no local SELECT at its call sites',()=>{
+    const ops=source('operations-exceptions.ts'),metric=source('executive-metric-projections.ts');
+    expect(ops).toContain("operationsAliasSelectAll('e','operations_exceptions',");
+    expect(metric).toContain("operationsAliasSelectAll('t','staff_tasks',");
+    expect(ops.match(/operationsAliasSelectAll\(/g)).toHaveLength(1);
+    expect(metric.match(/operationsAliasSelectAll\(/g)).toHaveLength(1);
+    expect(ops).not.toContain('SELECT e.* FROM operations_exceptions e WHERE ${scope}');
+    expect(metric).not.toContain('SELECT t.* FROM staff_tasks t WHERE ${visibility.sql}');
+    expect(source('operations-alias-select-all.ts').match(/SELECT /g)).toHaveLength(1);
+  });
+  test('LOCK TABLE and the r29-r45 helpers remain untouched',()=>{
+    expect(source('work-package-obligation-sources.ts')).toContain('LOCK TABLE');
+    expect(source('project-package-obligation-sources.ts')).toContain('LOCK TABLE');
+    expect(source('work-package-obligations.ts')).toContain('LOCK TABLE command_receipts IN SHARE MODE');
+    expect(source('social-task-origin-exists.ts')).toContain('operationsSocialTaskOriginExists');
+    expect(source('operations-receipt-version-exists.ts')).toContain('operationsReceiptVersionExists');
+    expect(source('operations-staff-task-exists.ts')).toContain('operationsStaffTaskExists');
+    expect(source('project-source-exists.ts')).toContain('operationsProjectSourceExists');
+    expect(source('executive-task-cohort.ts')).toContain('operationsOverdueAlertSql');
+    expect(source('work-cache-deadlines.ts')).toContain('activeDelegationDeadline');
+  });
+  test('retirement:ts-statements stays strictly below the r46 BEFORE=106 baseline',()=>{
+    const root=resolve(__dirname,'../../../packages/server-operations/src');
+    let space=0;
+    const walk=(dir:string)=>{
+      for(const entry of readdirSync(dir,{withFileTypes:true})){
+        const path=resolve(dir,entry.name);
+        if(entry.isDirectory())walk(path);
+        else if(entry.name.endsWith('.ts'))space+=(readFileSync(path,'utf8').match(/SELECT /g)??[]).length;
+      }
+    };
+    walk(root);
+    expect(space).toBe(105);
+    expect(space).toBeLessThan(106);
   });
 });

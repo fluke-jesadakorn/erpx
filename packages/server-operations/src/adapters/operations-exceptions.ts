@@ -12,11 +12,12 @@ import { createOperationsExceptionsApplication, type OperationsExceptionsReposit
 import { BusinessRuleError } from '@erpx/server-shared/index';
 import { OperationsExceptionsIdentityAccessFacts } from '@erpx/server-identity_access/public/operations-operations-exceptions-facts';
 import { nativeOperationsReadAll, OPERATIONS_RD_OPERATIONS_QUEUE_POLICIES, OPERATIONS_RD_OPERATIONS_EXCEPTION_EVENTS } from './native-operations-read';
+import { operationsAliasSelectAll } from './operations-alias-select-all';
 const scope = "e.company_id=? AND (?::text IS NULL OR e.branch_id=?) AND (?::text IS NULL OR e.department_id=?)";
 function application() {
     let database!: SqlDatabase;
     const repository: OperationsExceptionsRepository<SqlStatement> = {
-        readOperationsWorkspaceCandidatespoliciespeople(value: (string | null)[]) { return database.prepare(`SELECT e.* FROM operations_exceptions e WHERE ${scope} AND e.source_kind<>'field_service_order' ORDER BY e.updated_at DESC LIMIT 200`).bind(...value).all<Exception>(); },
+        readOperationsWorkspaceCandidatespoliciespeople(value: (string | null)[]) { return database.prepare(operationsAliasSelectAll('e','operations_exceptions',`${scope} AND e.source_kind<>'field_service_order' ORDER BY e.updated_at DESC LIMIT 200`)).bind(...value).all<Exception>(); },
         readOperationsWorkspaceCandidatespoliciespeople2(companyId: string) { return nativeOperationsReadAll<Row>(OPERATIONS_RD_OPERATIONS_QUEUE_POLICIES,[companyId],database); },
         readOperationsWorkspaceCandidatespoliciespeople3(...args) { return OperationsExceptionsIdentityAccessFacts(database).readOperationsWorkspaceCandidatespoliciespeople3(...args); },
         readOperationsExceptionDetailEffect(recordId: string) { return nativeOperationsReadAll<Row>(OPERATIONS_RD_OPERATIONS_EXCEPTION_EVENTS,[recordId],database); } };
