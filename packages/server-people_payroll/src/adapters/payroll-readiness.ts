@@ -1,5 +1,6 @@
 import { PP_RD23_HR_COMP_REVISIONS_SQL, PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL, PP_RD23_HR_PAY_GROUPS_IMAGE_SQL, PP_RD23_HR_TIME_ENTRIES_OVERTIME_SQL, PP_RD23_OVERTIME_PAYROLL_HANDOFFS_SQL } from './pp-read-tail-r23-sources';
 import { ppRd27IdVersionStatusInGuard } from './pp-read-tail-r27-sources';
+import { PP_RD28_ADVANCE_REPAYMENTS_SQL, PP_RD28_CONTRACTOR_COUNT_SQL, PP_RD28_PENDING_TIME_COUNT_SQL } from './pp-read-tail-r28-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import {PP_RD15_ACTIVE_PAYEE_SQL} from './pp-read-tail-r15-sources';
 import { payrollItemSourceRows } from './payroll-item-source-read';
@@ -89,7 +90,7 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
         readSourceBlockersCostAssignments(engagementId: string, company_id: string, activeEnd: string, activeStart: string) { return database.prepare(PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL).bind(engagementId, company_id, activeEnd, activeStart).all(); },
         readSourceBlockersHandoffs(engagementId: string, period_start: string, period_end: string) { return database.prepare(PP_RD23_OVERTIME_PAYROLL_HANDOFFS_SQL).bind(engagementId, period_start, period_end).all(); },
         readSourceBlockersBenefits(...args) { return payrollBenefitSources(database).readSourceBlockersBenefits(...args); },
-        readSourceBlockersAdvances(company_id: string, engagementId: string, period_end: string, period_start: string, id: string) { return database.prepare("SELECT r.id,r.version,r.amount_minor,r.due_period_start,r.due_period_end,a.reason FROM hr_payroll_advance_repayments r JOIN hr_payroll_advances a ON a.id=r.advance_id WHERE r.company_id=? AND a.engagement_id=? AND a.status='approved' AND r.status IN ('open','reserved') AND r.due_period_start<=? AND r.due_period_end>=? AND (r.payroll_run_id IS NULL OR r.payroll_run_id=?) ORDER BY r.sequence").bind(company_id, engagementId, period_end, period_start, id).all(); },
+        readSourceBlockersAdvances(company_id: string, engagementId: string, period_end: string, period_start: string, id: string) { return database.prepare(PP_RD28_ADVANCE_REPAYMENTS_SQL).bind(company_id, engagementId, period_end, period_start, id).all(); },
         readAssertPayrollSourceFreshRun(runId: string) { return database.prepare("SELECT id,company_id,pay_group_id,country_pack_id,scope_engagement_id,period_start,period_end,pay_date,currency,mode,status,version,revision,input_digest,submitted_by,submitted_digest,adjustment_of_run_id FROM hr_payroll_runs WHERE id=?").bind(runId).first<Run>(); },
         readPayrollSourceGuardsRun(runId: string) {
             return database.prepare("SELECT id,company_id,pay_group_id,country_pack_id,pay_date,mode,period_start,period_end,currency,scope_engagement_id,adjustment_of_run_id FROM hr_payroll_runs WHERE id=?").bind(runId).first<{
@@ -136,7 +137,7 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
             }>();
         },
         readPayrollReadinessContractors(companyId: string, pay_group_id: string, period_end: string, period_start: string) {
-            return database.prepare("SELECT COUNT(*) AS count FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND e.pay_group_id=? AND e.worker_type='contractor' AND e.status IN ('active','ended') AND p.status='active' AND e.start_date<=? AND (e.end_date IS NULL OR e.end_date>=?)").bind(companyId, pay_group_id, period_end, period_start).first<{
+            return database.prepare(PP_RD28_CONTRACTOR_COUNT_SQL).bind(companyId, pay_group_id, period_end, period_start).first<{
                 count: number;
             }>();
         },
@@ -165,7 +166,7 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
             }>();
         },
         readPayrollReadinessPendingTime(companyId: string, pay_group_id: string, period_start: string, period_end: string) {
-            return database.prepare("SELECT COUNT(*) AS count FROM hr_time_entries t JOIN hr_engagements e ON e.id=t.engagement_id WHERE e.company_id=? AND e.pay_group_id=? AND t.work_date BETWEEN ? AND ? AND t.status IN ('draft','submitted')").bind(companyId, pay_group_id, period_start, period_end).first<{
+            return database.prepare(PP_RD28_PENDING_TIME_COUNT_SQL).bind(companyId, pay_group_id, period_start, period_end).first<{
                 count: number;
             }>();
         },
@@ -235,15 +236,12 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
             return run;
         },
         readDrainPayrollScheduledPreviewsPending(company_id: string, pay_group_id: string, period_start: string, period_end: string) {
-            return database.prepare(`SELECT COUNT(*) AS count FROM hr_time_entries t JOIN hr_engagements e ON e.id=t.engagement_id
-          WHERE e.company_id=? AND e.pay_group_id=? AND t.work_date BETWEEN ? AND ? AND t.status IN ('draft','submitted')`).bind(company_id, pay_group_id, period_start, period_end).first<{
+            return database.prepare(PP_RD28_PENDING_TIME_COUNT_SQL).bind(company_id, pay_group_id, period_start, period_end).first<{
                 count: number;
             }>();
         },
         readDrainPayrollScheduledPreviewsContractors(company_id: string, pay_group_id: string, period_end: string, period_start: string) {
-            return database.prepare(`SELECT COUNT(*) AS count FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id
-          WHERE e.company_id=? AND e.pay_group_id=? AND e.worker_type='contractor' AND e.status IN ('active','ended')
-            AND p.status='active' AND e.start_date<=? AND (e.end_date IS NULL OR e.end_date>=?)`).bind(company_id, pay_group_id, period_end, period_start).first<{
+            return database.prepare(PP_RD28_CONTRACTOR_COUNT_SQL).bind(company_id, pay_group_id, period_end, period_start).first<{
                 count: number;
             }>();
         },

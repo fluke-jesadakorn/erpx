@@ -1,4 +1,5 @@
 import { PP_RD21_SCOPE_COMPANY_SQL } from './pp-read-tail-r21-sources';
+import { ppRd28LifecycleCasesProjectionSql } from './pp-read-tail-r28-sources';
 import {projectWorkerSourceRows,projectWorkerMarkedRows,projectWorkerPlacementRows,projectWorkerPlacementMarkedRows,projectWorkerPlacementTerminalRows} from '@erpx/server-people_payroll/adapters/project-worker-startup-source-sql';
 import "server-only";
 import {createHash} from "node:crypto";
@@ -27,5 +28,5 @@ export async function projectPeoplePackageObligations(owner:PostgresDatabase,dat
  UNION ALL SELECT 'worker-placement',c.id,c.status NOT IN ('completed','cancelled'),source.id IS NULL OR NOT EXISTS(SELECT 1 FROM (${projectWorkerPlacementTerminalRows}) terminal WHERE terminal.id=c.id AND terminal.company_id=c.company_id)
  FROM people_lifecycle_cases c CROSS JOIN scope JOIN (${projectWorkerPlacementMarkedRows}) marked ON marked.id=c.id AND marked.company_id=c.company_id LEFT JOIN (${projectWorkerPlacementRows}) source ON source.id=c.id AND source.company_id=c.company_id WHERE scope.is_base AND c.company_id=scope.company_id
  ORDER BY kind,id`).bind(input.companyId,input.packageId==='projects').all<{kind:string;id:string;pending_reference:boolean;pending:boolean}>()).results;
- return {companyId:input.companyId,packageId:input.packageId,moduleId:"people_payroll",observedAt:input.now,revision:createHash("sha256").update(JSON.stringify({companyId:input.companyId,packageVersion:input.packageVersion,facts,workerSources:(await database.prepare(`SELECT c.id,c.version,c.status,to_jsonb(c)::text image,source.proof FROM people_lifecycle_cases c JOIN (${projectWorkerPlacementMarkedRows}) marked ON marked.id=c.id AND marked.company_id=c.company_id LEFT JOIN (${projectWorkerPlacementRows}) source ON source.id=c.id AND source.company_id=c.company_id WHERE c.company_id=? ORDER BY c.id`).bind(input.companyId).all()).results})).digest("hex"),outstanding:facts.filter(fact=>fact.pending).length};
+ return {companyId:input.companyId,packageId:input.packageId,moduleId:"people_payroll",observedAt:input.now,revision:createHash("sha256").update(JSON.stringify({companyId:input.companyId,packageVersion:input.packageVersion,facts,workerSources:(await database.prepare(ppRd28LifecycleCasesProjectionSql(projectWorkerPlacementMarkedRows,projectWorkerPlacementRows)).bind(input.companyId).all()).results})).digest("hex"),outstanding:facts.filter(fact=>fact.pending).length};
 }

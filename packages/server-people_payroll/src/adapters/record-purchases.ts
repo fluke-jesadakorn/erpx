@@ -1,4 +1,5 @@
 import { PP_RD21_CLOCK_NOW_MS_SQL } from './pp-read-tail-r21-sources';
+import { ppRd28SourceExistsByIdSql } from './pp-read-tail-r28-sources';
 import { PP_RD24_TARGET_ID_SQL } from './pp-read-tail-r24-sources';
 import {expenseSourceReadScope,requireExpenseWorkspaceRecordRead} from '@erpx/server-people_payroll/adapters/expense-record-purchases';
 import "server-only";
@@ -47,7 +48,7 @@ function visible(actor:WorkContext,kinds:readonly SourceKind[],id:string,company
  return {sql:`WITH payroll_source_clock AS MATERIALIZED ${PP_RD21_CLOCK_NOW_MS_SQL} ${queries.map(query=>query.sql).join(" UNION ALL ")}`,args:queries.flatMap(query=>query.args)};
 }
 const allKinds=Object.keys(tables) as SourceKind[];
-const actualSource=(id:string)=>allKinds.map(kind=>`EXISTS(SELECT 1 FROM ${tables[kind]} s WHERE s.id=${id}${kind==="payment"?" AND s.source_type='payroll'":""})`).join(" OR ");
+const actualSource=(id:string)=>allKinds.map(kind=>ppRd28SourceExistsByIdSql(tables[kind], id, kind==="payment"?" AND s.source_type='payroll'":"")).join(" OR ");
 /** A generic People record only intersects Payroll when its ID resolves to an
  * actual Payroll owner. Directory, learning/project foundations and contractor
  * payment sources retain their own original owner policies. */
@@ -82,7 +83,7 @@ export async function requirePayrollWorkspaceRecordRead(database:SqlDatabase,act
 type PeopleSourceKind="person"|"engagement"|"compensation"|"lifecycle"|"clearance";
 const peopleSourceTables={person:"hr_people",engagement:"hr_engagements",compensation:"hr_compensation_revisions",lifecycle:"people_lifecycle_cases",clearance:"people_preparation_tasks"} as const;
 const baseKinds=Object.keys(peopleSourceTables) as PeopleSourceKind[];
-function baseActual(id:string){return baseKinds.map(kind=>`EXISTS(SELECT 1 FROM ${peopleSourceTables[kind]} s WHERE s.id=${id}${kind==="clearance"?" AND s.clearance_type IS NOT NULL":""})`).join(" OR ");}
+function baseActual(id:string){return baseKinds.map(kind=>ppRd28SourceExistsByIdSql(peopleSourceTables[kind], id, kind==="clearance"?" AND s.clearance_type IS NOT NULL":"")).join(" OR ");}
 function baseSourceQuery(actor:WorkContext,kind:PeopleSourceKind,id:string,company:string,purchased:boolean,work=false){
  const capability=kind==="lifecycle"||kind==="clearance"?"people.lifecycle":"people.directory";let from=`${peopleSourceTables[kind]} s`,branch="NULL::text",department="NULL::text",policy:Fragment;
  if(kind==="person")from+=" LEFT JOIN LATERAL(SELECT x.branch_id,x.department_id FROM hr_engagements x WHERE x.person_id=s.id AND x.company_id=s.company_id ORDER BY CASE WHEN x.status IN ('active','onboarding','suspended') THEN 0 ELSE 1 END,x.start_date DESC,x.id LIMIT 1) people_engagement ON TRUE";

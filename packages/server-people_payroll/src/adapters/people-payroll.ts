@@ -1,6 +1,7 @@
 import { PP_RD23_HR_COMP_REVISIONS_SQL, PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL, PP_RD23_HR_PAY_GROUPS_ACTIVE_CURRENCY_GUARD, PP_RD23_HR_TIME_ENTRIES_OVERTIME_SQL, PP_RD23_OVERTIME_PAYROLL_HANDOFFS_SQL, PP_RD23_POSTED_PAYROLL_RUN_GUARD } from './pp-read-tail-r23-sources';
 import { ppRd26IdCompanyVersionStatusGuard, ppRd26CommandReceiptPriorSql, ppRd26RunIdGuard } from './pp-read-tail-r26-sources';
 import { ppRd27IdByIdCompanySql } from './pp-read-tail-r27-sources';
+import { PP_RD28_ADVANCE_REPAYMENTS_SQL } from './pp-read-tail-r28-sources';
 import { PP_RD24_TIME_ENTRY_REVIEWABLE_GUARD, PP_RD24_STATUTORY_PACK_GUARD, PP_RD24_APPROVED_RUN_EVIDENCE_GUARD } from './pp-read-tail-r24-sources';
 import { ppRd21IdCompanyStatusVersionGuard } from './pp-read-tail-r21-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
@@ -258,11 +259,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
         },
         readCalculateItemBenefitInputs(...args) { return payrollBenefitOwnerFacts(database).readCalculateItemBenefitInputs(...args); },
         readCalculateItemAdvanceRepayments(company_id: string, id: string, period_end: string, period_start: string, id2: string) {
-            return database.prepare(`SELECT r.id,r.version,r.amount_minor,r.due_period_start,r.due_period_end,a.reason
-      FROM hr_payroll_advance_repayments r JOIN hr_payroll_advances a ON a.id=r.advance_id
-      WHERE r.company_id=? AND a.engagement_id=? AND a.status='approved' AND r.status IN ('open','reserved')
-        AND r.due_period_start<=? AND r.due_period_end>=? AND (r.payroll_run_id IS NULL OR r.payroll_run_id=?)
-      ORDER BY r.sequence`).bind(company_id, id, period_end, period_start, id2).all<{
+            return database.prepare(PP_RD28_ADVANCE_REPAYMENTS_SQL).bind(company_id, id, period_end, period_start, id2).all<{
                 id: string;
                 version: number;
                 amount_minor: number;

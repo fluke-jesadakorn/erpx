@@ -1,4 +1,5 @@
 import { PP_RD21_SCOPE_COMPANY_SQL } from './pp-read-tail-r21-sources';
+import { ppRd28LifecycleCasesProjectionSql } from './pp-read-tail-r28-sources';
 import {learningWorkerSourceRows,learningWorkerMarkedRows,learningWorkerPlacementRows,learningWorkerPlacementMarkedRows,projectWorkerPlacementTerminalRows} from '@erpx/server-people_payroll/adapters/project-worker-startup-source-sql';
 import "server-only";
 import {createHash} from "node:crypto";
@@ -46,6 +47,6 @@ export async function learningPeoplePackageObligations(owner:PostgresDatabase,da
  FROM people_lifecycle_cases c CROSS JOIN scope JOIN (${learningWorkerPlacementMarkedRows}) marked ON marked.id=c.id AND marked.company_id=c.company_id LEFT JOIN (${learningWorkerPlacementRows}) source ON source.id=c.id AND source.company_id=c.company_id WHERE c.company_id=scope.company_id
  ORDER BY kind,id`).bind(input.companyId).all<{kind:string;id:string;version:number;pending:boolean}>()).results;
  return {companyId:input.companyId,packageId:input.packageId,moduleId:"people_payroll",observedAt:input.now,
-  revision:createHash("sha256").update(JSON.stringify({companyId:input.companyId,packageVersion:input.packageVersion,facts,workerSources:(await database.prepare(`SELECT c.id,c.version,c.status,to_jsonb(c)::text image,source.proof FROM people_lifecycle_cases c JOIN (${learningWorkerPlacementMarkedRows}) marked ON marked.id=c.id AND marked.company_id=c.company_id LEFT JOIN (${learningWorkerPlacementRows}) source ON source.id=c.id AND source.company_id=c.company_id WHERE c.company_id=? ORDER BY c.id`).bind(input.companyId).all()).results})).digest("hex"),
+  revision:createHash("sha256").update(JSON.stringify({companyId:input.companyId,packageVersion:input.packageVersion,facts,workerSources:(await database.prepare(ppRd28LifecycleCasesProjectionSql(learningWorkerPlacementMarkedRows,learningWorkerPlacementRows)).bind(input.companyId).all()).results})).digest("hex"),
   outstanding:facts.filter(fact=>fact.pending).length};
 }
