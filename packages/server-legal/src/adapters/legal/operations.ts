@@ -39,7 +39,7 @@ async derivedLink(facts){return nativeOps.derivedLink({id:facts.id,id2:facts.id2
 envelopes:(facts:{id:string;})=>db.prepare(legalEnvelopeSignerReadHead("e.*,s.user_id,s.ordinal,s.state signer_state,s.signed_at,s.evidence")+"e.item_id=? ORDER BY e.created_at,s.ordinal").bind(facts.id).all(),
 documents:(facts:{id:string;})=>db.prepare(legalItemOrderedSql("id,version,name,checksum,bytes,media_type,locked,created_at","legal_documents","version")).bind(facts.id).all(),
 events:(facts:{id:string;})=>db.prepare(`${legalEventsByItemSql},id`).bind(facts.id).all(),
-accesses:(facts:{id:string;})=>db.prepare("SELECT * FROM legal_access_events WHERE item_id=? ORDER BY created_at,id LIMIT 10001").bind(facts.id).all(),
+accesses:(facts:{id:string;})=>db.prepare(legalItemOrderedSql("*","legal_access_events","created_at,id",10001)).bind(facts.id).all(),
 async evidenceRead(facts){return (await nativeOps.accessEvent({identifier:facts.identifier,id:facts.id,actorId:facts.actorId,action:facts.fact4,now:facts.now})).run();},
 featureHistory:(facts:{id:string;})=>db.prepare(legalOrderedHistorySql("legal_feature_history","item_id")).bind(facts.id).all(),
 retention:(facts:{id:string;})=>db.prepare(legalItemOrderedSql("id,state,manifest,requested_by,approved_by,approved_at,completed_at","legal_destructions","created_at")).bind(facts.id).all(),

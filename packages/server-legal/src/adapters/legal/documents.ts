@@ -23,6 +23,7 @@ import { legalDocuments } from '@erpx/server-collaboration/adapters/native-legal
 import {legalDocumentByIdSql,legalFilesAdvisoryLockSql} from '../legal-read-tail-r9-sources';
 import {legalDisposedDocumentPrefix} from '../legal-read-tail-r20-sources';
 import {legalApprovedCycleSql} from '../legal-read-tail-r22-sources';
+import {legalDestructionGuardSql} from '../legal-read-tail-r52-sources';
 type InspectionFacts={inspectionId:string;id:string;kind:"ocr"|"verify";resultJson:string;actorId:string;now:number;item_id:string};
 /** Shared by canonical/stored document version reads and the operations read. */
 export const nextDocumentVersionSql = "SELECT coalesce(max(version),0)+1 n FROM legal_documents WHERE item_id=?";
@@ -40,7 +41,7 @@ async insertStoredDocument(facts){return stage(await nativeDocs.insertStoredDocu
 async advanceStoredItem(facts){return stage(await nativeDocs.advanceStoredItem(facts));},
 document:(facts:{id:string;})=>db.prepare(legalDocumentByIdSql).bind(facts.id).first<DocumentVersion>(),
 disposed:(facts:{id:string;})=>db.prepare(`${legalDisposedDocumentPrefix}=?`).bind(facts.id).first(),
-destroying:(facts:{item_id:string;})=>db.prepare("SELECT 1 FROM legal_destructions WHERE item_id=? AND state='executing'").bind(facts.item_id).first(),
+destroying:(facts:{item_id:string;})=>db.prepare(legalDestructionGuardSql('executing')).bind(facts.item_id).first(),
 async recordExport(facts){await (await nativeDocs.accessEvent({identifier:facts.identifier,itemId:facts.item_id,id:facts.id,actorId:facts.actorId,action:facts.fact4,now:facts.now})).run();},
 preservationLock:()=>stage(db.prepare(legalFilesAdvisoryLockSql)),
 async insertInspection(facts){const write=stage(await nativeDocs.inspection({inspectionId:facts.inspectionId,id:facts.id,kind:facts.kind,resultJson:facts.resultJson,actorId:facts.actorId,now:facts.now,itemId:facts.item_id}));inspections.set(write,facts);return write;},

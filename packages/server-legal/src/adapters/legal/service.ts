@@ -12,6 +12,7 @@ import { legalRecentItemListSql } from "../legal-read-tail-r31-sources";
 import { legalItemOrderedSql } from "../legal-read-tail-r35-sources";
 import { legalHoldOwnTargetSql } from "../legal-read-tail-r39-sources";
 import { legalExternalUploadShareJoinHead } from "../legal-read-tail-r44-sources";
+import { legalPointByKeySql } from "../legal-read-tail-r36-sources";
 import { finalRootOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/final-root-owner-projection-sources";
 import {nativeLegalHoldNotice} from "../native-legal-hold-notice";
 import "server-only";
@@ -81,7 +82,7 @@ events:(id:string)=>{return db
         .bind(id)
         .all<LegalDetail["events"][number]>();},
 members:(id:string)=>{return db
-        .prepare("SELECT user_id,access FROM legal_members WHERE item_id=?")
+        .prepare(legalPointByKeySql("user_id,access","legal_members","item_id"))
         .bind(id)
         .all<LegalDetail["members"][number]>();},
 holds:(id:string)=>{return db
@@ -117,7 +118,7 @@ signers:(envelopeId:string)=>{return db
 recordRead:async(id,identifier,now)=>{await (await nativeSvc.accessEvent({identifier,id,now})).run();},
 shares:(id:string)=>{return db
           .prepare(
-            "SELECT id,email,document_id,user_id,expires_at,revoked_at FROM legal_shares WHERE item_id=? ORDER BY created_at DESC LIMIT 100",
+            legalItemOrderedSql("id,email,document_id,user_id,expires_at,revoked_at","legal_shares","created_at DESC",100),
           )
           .bind(id)
           .all<LegalDetail["shares"][number]>();},
