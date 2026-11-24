@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12482,
+    "revision": 12484,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -184293,7 +184293,7 @@
         "owner": "ecommerce",
         "title": "ecommerce scalar head folds",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -184304,22 +184304,37 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n100",
-          "claimedAt": "2026-11-24T16:27:31.157Z",
-          "heartbeatAt": "2026-11-24T16:30:27.050Z",
-          "expiresAt": "2026-11-24T17:00:27.050Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-ecommerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "2689c5575",
+            "owner": "ecommerce",
+            "before": 10,
+            "after": 7,
+            "note": "factBranch, countBy and ecommerceNativeOrderRoots fold into ecommerceScalar; three emitted strings byte-identical. FOR UPDATE/LOCK TABLE/native untouched."
+          },
+          {
+            "command": "vitest ecommerce (135 targeted) + commerce consumer (18) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "2689c5575"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Fold factBranch, countBy and ecommerceNativeOrderRoots into ecommerceScalar (-3): 10->7. BEFORE=10.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n100",
+          "at": "2026-11-24T16:45:08.291Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       }
     ],
@@ -184333,17 +184348,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 3,
+        "in_progress": 2,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1454,
+        "blocked": 1455,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:44:55.204Z",
+    "updatedAt": "2026-11-24T16:45:08.295Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
