@@ -146,3 +146,10 @@ export const scopeExistsSql = (table: string, alias: string, firstColumn: string
  *  untouched. */
 export const journalAccountLineExistsSql = (accountKey: string, amountColumn: string, zeroColumn: string) =>
   `EXISTS(SELECT 1 FROM finance_journal_lines line WHERE line.journal_id=j.id AND line.account_id=source.source_proof->>'${accountKey}' AND line.${amountColumn}=c.net_value_minor AND line.${zeroColumn}=0)`;
+/** r26: parameterized source-row scope projection. A purchase/quality read wraps
+ *  its proven source rows in a uniform scope relation that exposes a NULL
+ *  department_id for assignment authority checks. The source rows and row alias
+ *  vary per consumer; only the SQL text is shared. Every caller keeps its own
+ *  statement, binds and scope. r11-r25 helpers above are left untouched. */
+export const sourceScopeRowsSql = (rows: string, alias: string) =>
+  `SELECT ${alias}.*,NULL::text department_id FROM (${rows}) ${alias}`;

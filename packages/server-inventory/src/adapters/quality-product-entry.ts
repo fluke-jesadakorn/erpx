@@ -5,12 +5,13 @@ import {assignmentReadSql} from "@erpx/server-identity_access/public/record-sour
 import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {qualityDisposalCountRows} from "@erpx/server-inventory/adapters/quality-count-purchases";
+import {sourceScopeRowsSql} from './read-tail-sql';
 /** Only a proven existing Sales disposal Count. This does not grant Supply's
  * collection, preparation, amendment or recount capabilities. */
 export async function salesQualityCountProductEntry(database:SqlDatabase,scope:QualityProductEntryScope,id:string){
  if(scope.departmentId||!Number.isSafeInteger(scope.assignmentVersion)||scope.assignmentVersion<1)return null;
  const row=await database.prepare(`WITH count_entry_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms)
- SELECT 1 FROM (SELECT source.*,NULL::text department_id FROM (${qualityDisposalCountRows}) source WHERE kind='customer-return') count_entry CROSS JOIN count_entry_clock
+ SELECT 1 FROM (${sourceScopeRowsSql(qualityDisposalCountRows,'source')} WHERE kind='customer-return') count_entry CROSS JOIN count_entry_clock
  WHERE count_entry.id=? AND count_entry.company_id=? AND (?::text IS NULL OR count_entry.branch_id=?)
  AND ${assignmentReadSql("count_entry","inventory.read")} AND EXISTS(SELECT 1 FROM assignments WHERE id=? AND version=?)
  AND ${scheduledFeaturePredicate("count_entry.company_id","inventory")} AND ${scheduledFeaturePredicate("count_entry.company_id","quality")}
