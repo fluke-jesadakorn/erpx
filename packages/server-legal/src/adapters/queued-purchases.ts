@@ -10,12 +10,12 @@ import {lockQueuedCommandAuthority,requireQueuedCommandAuthority} from '@erpx/se
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import {access,tables} from '@erpx/server-legal/adapters/legal/access';
 import {legalCompanyCapabilityReady} from '@erpx/server-legal/adapters/legal/runtime-gate';
-import {legalPurchaseClockCteSql} from './legal-read-tail-r21-sources';
+import {legalPurchaseClockExistsSql} from './legal-read-tail-r29-sources';
 /** Actual owner item alias only; no caller label can select a capability. */
 export async function legalQueuedPurchasePredicate(database:SqlDatabase,alias:string,kind:'ai'|'documents'|'invitations'|'feature'|'operations'){
  if(await legalPackageEnforcementMode()!=='enforced')return 'TRUE';
  const extra=kind==='ai'||kind==='documents'?['legal.documents']:kind==='invitations'?['legal.documents','legal.access']:kind==='feature'?['legal.obligations']:[];
- return `EXISTS(WITH legal_queued_clock AS MATERIALIZED${legalPurchaseClockCteSql} SELECT 1 FROM legal_queued_clock WHERE ${legalItemPurchasePredicate(alias,'settle-existing','legal_queued_clock.now_ms')} ${extra.map(code=>`AND ${purchasedCapabilityPredicate(`${alias}.company_id`,code,'settle-existing','legal_queued_clock.now_ms')}`).join(' ')})`;
+ return legalPurchaseClockExistsSql('legal_queued_clock',`${legalItemPurchasePredicate(alias,'settle-existing','legal_queued_clock.now_ms')} ${extra.map(code=>`AND ${purchasedCapabilityPredicate(`${alias}.company_id`,code,'settle-existing','legal_queued_clock.now_ms')}`).join(' ')}`,'');
 }
 type JobTable='legal_ai_proposals'|'legal_processing_jobs';
 type QueuedSource={item_id:string;company_id:string;actor_json:string;image:string;document_id:string|null;checksum:string|null};
