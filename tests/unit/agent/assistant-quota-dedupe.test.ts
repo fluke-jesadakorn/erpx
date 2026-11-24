@@ -291,7 +291,8 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     ]) expect(gov).toContain(lock);
     expect(locks.match(/SELECT/g)).toHaveLength(4);
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
-    expect(assistant).toContain('"SELECT state,answer_json FROM ai_workspace_turns WHERE id=?"');
+    expect(assistant).toContain('agentWorkspaceTurnByIdSql("state,answer_json")');
+    expect(assistant).toContain('agentWorkspaceTurnByIdSql("*")');
   });
 
   /** Verbatim pre-dedupe parameterized company-scoped list projection
@@ -337,7 +338,8 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     ]) expect(gov).toContain(lock);
     expect(locks.match(/SELECT/g)).toHaveLength(4);
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
-    expect(assistant).toContain('"SELECT state,answer_json FROM ai_workspace_turns WHERE id=?"');
+    expect(assistant).toContain('agentWorkspaceTurnByIdSql("state,answer_json")');
+    expect(assistant).toContain('agentWorkspaceTurnByIdSql("*")');
   });
 
   /** Verbatim pre-dedupe pool-child list projections (workspaceMembers / workspacePoolHistory). */
@@ -397,7 +399,8 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     expect(await src('adapters/native-owner-write.ts')).toContain('nativeOwnerWriteNoopSql = "SELECT 1"');
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
     expect(assistant).toContain(') calls WHERE company_id=? AND created_at>=?');
-    expect(assistant).toContain('"SELECT state,answer_json FROM ai_workspace_turns WHERE id=?"');
+    expect(assistant).toContain('agentWorkspaceTurnByIdSql("state,answer_json")');
+    expect(assistant).toContain('agentWorkspaceTurnByIdSql("*")');
     for (const lock of [
       '"SELECT session_id FROM ai_private_session_controls WHERE session_id=? FOR SHARE"',
       '"SELECT x.id FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id JOIN agent_catalog c ON c.id=v.agent_id WHERE x.id=? FOR SHARE OF x,v,c"',
