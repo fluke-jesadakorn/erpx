@@ -214,4 +214,17 @@ describe('Organization owner-local read tail', () => {
     for (const key of keys) expect(p[key]).toBe(expected);
   });
 
+  it('shares one canonical alias=l staff_levels projection across the people/payroll final-owner source map', async () => {
+    const {peoplePayrollFinalOwnerProjections} = await import('../../../packages/server-organization/src/adapters/people-payroll-final-owner-projections');
+    const p = peoplePayrollFinalOwnerProjections();
+    const keys = [
+      'executive_engagement_source_staff_levels_l_join',
+      'executive_report_sources_staff_levels_l_join',
+      'organization_roster_facts_staff_levels_l_join',
+      'workflow_approvals_facts_staff_levels_l_join',
+    ] as const;
+    const expected = 'JOIN (SELECT "id","company_id","code","name","rank","active","version","created_at","updated_at","level_number" FROM staff_levels) l';
+    for (const key of keys) expect(p[key]).toBe(expected);
+  });
+
 });
