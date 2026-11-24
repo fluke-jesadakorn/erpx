@@ -32,7 +32,7 @@ describe('work_projection read-tail r9 dedupe', () => {
     expect(source.match(/`SELECT \$\{columns\} FROM \$\{table\} WHERE company_id=\? AND \$\{inList\("appointment_id"\)\}`/g)).toHaveLength(1);
   });
 
-  it('emits the original byte-identical SQL for both parameterized callers', async () => {
+  it('emits the original byte-identical series SQL and leaves occurrence batches native', async () => {
     const { inList } = await import(
       '../../../packages/server-work_projection/src/adapters/read-tail-sql.ts'
     );
@@ -40,7 +40,10 @@ describe('work_projection read-tail r9 dedupe', () => {
       '../../../packages/server-work_projection/src/adapters/calendar-appointments-facts.ts'
     );
     expect(inList('appointment_id')).toBe('appointment_id IN (SELECT jsonb_array_elements_text(?::jsonb))');
-    expect(byAppointmentIds('calendar_series')).toBe(originalBatchSql.series);
-    expect(byAppointmentIds('calendar_occurrence_exceptions')).toBe(originalBatchSql.exceptions);
+    expect(byAppointmentIds()).toBe(originalBatchSql.series);
+    expect(Object.keys(originalBatchSql)).toEqual(['series', 'exceptions']);
+    expect(await readFile(src('calendar-appointments-facts.ts'), 'utf8')).not.toContain(
+      "byAppointmentIds('calendar_occurrence_exceptions')",
+    );
   });
 });

@@ -1,10 +1,12 @@
 import {calendarPeopleProjectionSources} from "@erpx/server-people_payroll/public/calendar-people-projection-sources";
 import "server-only";
+import { nativeCalendarRead } from "@erpx/feature-work_projection/lib/native-calendar-read";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { type RecurrenceRule } from "@erpx/feature-work_projection/lib/calendar-recurrence";
 import type { AppointmentRow } from "@erpx/server-work_projection/domain/calendar/appointments";
 import { inList, overlapProbe, attendeeScopeExistsSql, participantScopeExistsSql, derivedProbeSql } from './read-tail-sql';
-export const byAppointmentIds = (table: 'calendar_series' | 'calendar_occurrence_exceptions' | 'calendar_occurrence_responses', columns = '*') =>
+/** The series batch read stays owner-local SQL; occurrence batches are native reads 63/64. */
+export const byAppointmentIds = (table: 'calendar_series' = 'calendar_series', columns = '*') =>
     `SELECT ${columns} FROM ${table} WHERE company_id=? AND ${inList("appointment_id")}`;
 export function calendarAppointmentsWorkProjectionFacts(db: SqlDatabase) {
     return { read1: (facts: {
@@ -63,25 +65,14 @@ export function calendarAppointmentsWorkProjectionFacts(db: SqlDatabase) {
             occurrence_count: number | null;
             until_date: string | null;
         }>(); },
-        read4: (facts: {
+        read4: async (facts: {
             value1: string;
             value2: string;
-        }) => { return db.prepare(byAppointmentIds('calendar_occurrence_exceptions')).bind(facts.value1, facts.value2).all<{
-            appointment_id: string;
-            occurrence_key: string;
-            start_local: string | null;
-            end_local: string | null;
-            cancelled: boolean;
-        }>(); },
-        read5: (facts: {
+        }) => ({ results: await nativeCalendarRead.read63(facts) }),
+        read5: async (facts: {
             value1: string;
             value2: string;
-        }) => { return db.prepare(byAppointmentIds('calendar_occurrence_responses', 'appointment_id,occurrence_key,user_id,response')).bind(facts.value1, facts.value2).all<{
-            appointment_id: string;
-            occurrence_key: string;
-            user_id: string;
-            response: "accepted" | "tentative" | "declined";
-        }>(); },
+        }) => ({ results: await nativeCalendarRead.read64(facts) }),
         read6: (facts: {
             value1: string;
             value2: string;

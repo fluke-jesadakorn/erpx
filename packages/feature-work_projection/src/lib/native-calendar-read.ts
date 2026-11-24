@@ -202,6 +202,32 @@ export type CalendarAttendeeState = {
   reminder_minutes: number | null;
   response_at: number | null;
 };
+export type CalendarOccurrenceException = {
+  appointment_id: string;
+  occurrence_key: string;
+  start_local: string | null;
+  end_local: string | null;
+  cancelled: boolean;
+};
+export type CalendarOccurrenceResponse = {
+  appointment_id: string;
+  occurrence_key: string;
+  user_id: string;
+  response: 'accepted' | 'tentative' | 'declined';
+};
+export type CalendarReminderAuthorizationRow = {
+  command_id: string;
+  appointment_id: string;
+  recipient_id: string;
+  company_id: string;
+  actor_id: string;
+  assignment_id: string;
+  action: 'appointment.save' | 'appointment.reschedule' | 'appointment.reminder.set';
+  authority_json: string;
+  source_hash: string;
+  source_version: number;
+  created_at: number;
+};
 
 /**
  * Typed bridge for the twelve calendar command read facts. Each wrapper keeps
@@ -244,4 +270,35 @@ export const nativeCalendarRead = {
     row(await read('wp_cal_read_42', [facts.value1, facts.value2], facts.value2)) as { user_id: string } | null,
   read53: async (facts: { value1: string; value2: string }): Promise<AnnouncementRow | null> =>
     row(await read('wp_cal_read_53', [facts.value1, facts.value2], facts.value2)) as unknown as AnnouncementRow | null,
+  read61: async (facts: {
+    value1: string;
+    value2: string;
+    value3: string;
+    value4: string;
+  }): Promise<{ response: string } | null> => {
+    const result = row(await read('wp_cal_read_61', [facts.value1, facts.value2, facts.value3, facts.value4], facts.value2));
+    if (!result) return null;
+    if (typeof result.response !== 'string')
+      throw new NativeCalendarReadError('NATIVE_WORK_CALENDAR_READ_RESPONSE_INVALID');
+    return { response: result.response };
+  },
+  read63: async (facts: { value1: string; value2: string }): Promise<CalendarOccurrenceException[]> =>
+    rows(await read('wp_cal_read_63', [facts.value1, facts.value2], facts.value1)) as CalendarOccurrenceException[],
+  read64: async (facts: { value1: string; value2: string }): Promise<CalendarOccurrenceResponse[]> =>
+    rows(await read('wp_cal_read_64', [facts.value1, facts.value2], facts.value1)) as CalendarOccurrenceResponse[],
+  read67: async (facts: { value1: string; value2: string; value3: string }): Promise<CalendarReminderAuthorizationRow | null> => {
+    const result = row(await read('wp_cal_read_67', [facts.value1, facts.value2, facts.value3], facts.value2));
+    if (!result) return null;
+    const strings = [
+      'command_id', 'appointment_id', 'recipient_id', 'company_id', 'actor_id',
+      'assignment_id', 'action', 'authority_json', 'source_hash',
+    ];
+    if (
+      !strings.every(field => typeof result[field] === 'string') ||
+      typeof result.source_version !== 'number' ||
+      typeof result.created_at !== 'number'
+    )
+      throw new NativeCalendarReadError('NATIVE_WORK_CALENDAR_READ_RESPONSE_INVALID');
+    return result as unknown as CalendarReminderAuthorizationRow;
+  },
 };

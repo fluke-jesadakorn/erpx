@@ -3,14 +3,14 @@ import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapter
 import {randomUUID} from 'node:crypto';
 import type {Row} from '@erpx/server-work_projection/domain/calendar/reminders';
 import {calendarManualSourceReadLocks,requireCalendarReminderRecordAuthority} from '@erpx/server-work_projection/adapters/calendar/purchases';
-import {calendarReminderConfiguration,requireCalendarReminderBinding,appointmentVersionSql,type CalendarReminderAuthorization} from '@erpx/server-work_projection/adapters/calendar/reminder-authority';
-import {occurrenceResponseSql} from '@erpx/server-work_projection/adapters/calendar-availability-facts';
+import {calendarReminderConfiguration,requireCalendarReminderBinding,appointmentVersionSql} from '@erpx/server-work_projection/adapters/calendar/reminder-authority';
 import {occurrenceExceptionPointSql,reminderAttendeePointSql} from '@erpx/server-work_projection/adapters/read-tail-sql';
 import {appsPackageEnforcementMode,checkPurchasedCapability,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {localDateTimeToInstant} from '@erpx/feature-work_projection/lib/calendar-timeline';
+import {nativeCalendarRead} from '@erpx/feature-work_projection/lib/native-calendar-read';
 const occurrenceExceptionSql=occurrenceExceptionPointSql('cancelled,start_local');
 /** A worker receives a candidate, never a trusted SQL snapshot or inferred
  * recipient role. The complete ledger and private notification stay inside
@@ -23,17 +23,17 @@ export async function withCalendarReminderDelivery(owner:SqlDatabase,row:Row,occ
   const source=await database.prepare(reminderAttendeePointSql('a.version,a.status,a.title,a.starts_at,a.ends_at,a.timezone,t.reminder_minutes,t.response')).bind(row.id,row.company_id,row.user_id).first<{version:number;status:string;title:string;starts_at:number;ends_at:number;timezone:string;reminder_minutes:number|null;response:string}>();
   if(!source||source.status!=='scheduled'||source.reminder_minutes===null||source.response==='declined')return false;
   if(source.version!==row.version||source.title!==row.title||source.starts_at!==row.starts_at||source.ends_at!==row.ends_at||source.timezone!==row.timezone||source.reminder_minutes!==row.reminder_minutes)throw new ApiError(409,'CALENDAR_REMINDER_SOURCE_CHANGED','The candidate reminder configuration changed.');
-  const image=await calendarReminderConfiguration(database,row.company_id,row.id,row.user_id),authorization=await database.prepare('SELECT * FROM calendar_reminder_execution_authorizations WHERE appointment_id=? AND company_id=? AND recipient_id=? ORDER BY source_version DESC,created_at DESC,command_id DESC LIMIT 1').bind(row.id,row.company_id,row.user_id).first<CalendarReminderAuthorization>();
+  const image=await calendarReminderConfiguration(database,row.company_id,row.id,row.user_id),authorization=await nativeCalendarRead.read67({value1:row.id,value2:row.company_id,value3:row.user_id});
   if(!image||!authorization)return false;
   const actor=await requireCalendarReminderBinding(database,authorization,image);await requireCalendarReminderRecordAuthority(database,actor,row.id,authorization.action==='appointment.reminder.set');
-  const changed=await database.prepare(occurrenceExceptionSql).bind(row.id,row.company_id,occurrence.key).first<{cancelled:boolean;start_local:string|null}>(),response=await database.prepare(occurrenceResponseSql).bind(row.id,row.company_id,occurrence.key,row.user_id).first<string>('response');
+  const changed=await database.prepare(occurrenceExceptionSql).bind(row.id,row.company_id,occurrence.key).first<{cancelled:boolean;start_local:string|null}>(),response=(await nativeCalendarRead.read61({value1:row.id,value2:row.company_id,value3:occurrence.key,value4:row.user_id}))?.response??null;
   if(changed?.cancelled||response==='declined')return false;
   const startsAt=changed?.start_local?localDateTimeToInstant(changed.start_local,source.timezone):occurrence.startsAt;
   if(startsAt!==occurrence.startsAt||startsAt-source.reminder_minutes*60000!==occurrence.due||occurrence.due>occurrence.now||startsAt<occurrence.now-3600000)throw new ApiError(409,'CALENDAR_REMINDER_SOURCE_CHANGED','The original reminder occurrence changed.');
   const scope={companyId:row.company_id,capability:'work.calendar',purpose:'settle-existing' as const},key=`calendar-reminder:${randomUUID()}`,boundary=purchaseCommandBoundary(database,mode,key,scope)!;
   await checkPurchasedCapability(database,mode,scope);await database.batch(boundary.before);
   const result=await run(database);await flushFinanceDeferredEffects(database);
-  if(image!==await calendarReminderConfiguration(database,row.company_id,row.id,row.user_id)||source.version!==await database.prepare(appointmentVersionSql).bind(row.id,row.company_id).first<number>('version')||JSON.stringify(changed)!==JSON.stringify(await database.prepare(occurrenceExceptionSql).bind(row.id,row.company_id,occurrence.key).first())||response!==await database.prepare(occurrenceResponseSql).bind(row.id,row.company_id,occurrence.key,row.user_id).first<string>('response'))throw new ApiError(409,'CALENDAR_REMINDER_SOURCE_CHANGED','The original reminder source changed during delivery.');
+  if(image!==await calendarReminderConfiguration(database,row.company_id,row.id,row.user_id)||source.version!==await database.prepare(appointmentVersionSql).bind(row.id,row.company_id).first<number>('version')||JSON.stringify(changed)!==JSON.stringify(await database.prepare(occurrenceExceptionSql).bind(row.id,row.company_id,occurrence.key).first())||response!==((await nativeCalendarRead.read61({value1:row.id,value2:row.company_id,value3:occurrence.key,value4:row.user_id}))?.response??null))throw new ApiError(409,'CALENDAR_REMINDER_SOURCE_CHANGED','The original reminder source changed during delivery.');
   await requireCalendarReminderBinding(database,authorization,image);await requireCalendarReminderRecordAuthority(database,actor,row.id,authorization.action==='appointment.reminder.set');
   const results=await database.batch([...boundary.after,await nativeClearCommandAssertions(database, actor.companyId, key)]);boundary.observe?.(results);return result;
  });}catch(error){const failure=purchaseCommandFailure(error)??error;if(failure instanceof ApiError&&['CALENDAR_REMINDER_SOURCE_CHANGED','CALENDAR_REMINDER_RECIPIENT_CHANGED','QUEUED_AUTHORITY_CHANGED','CALENDAR_SOURCE_CHANGED','CALENDAR_AUTHORITY_CHANGED','PERMISSION_REQUIRED','INVITATION_UNAVAILABLE','FEATURE_COMING_SOON','PACKAGE_REQUIRED','PACKAGE_INACTIVE','PACKAGE_EXPIRED','PACKAGE_DRAINING'].includes(failure.code))return false;throw failure;}
