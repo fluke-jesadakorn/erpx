@@ -17,7 +17,8 @@ import { commerceFinalOwnerProjectionSources as procurementProjectionSources } f
 import { commerceFinalOwnerProjectionSources as recordsProjectionSources } from "@erpx/server-records/public/commerce-final-owner-projection-sources";
 import {commerceCommerceStockEffects} from '@erpx/server-inventory/public/commerce-stock-owner-effects';
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
-import { COMMERCE_STOCK_BY_WAREHOUSE_PRODUCT_SQL } from "./stock-source-dedupe-sql";
+import { COMMERCE_STOCK_BY_WAREHOUSE_PRODUCT_SQL, COMMERCE_STOCK_VERSION_GUARD_SQL } from "./stock-source-dedupe-sql";
+import { COMMERCE_PRODUCT_ACTIVE_VERSION_GUARD_SQL } from "./guarded-source-dedupe-sql";
 
 import { commerceExpensePaymentEffects } from "@erpx/server-people_payroll/public/commerce-expense-payment-effects";
 import { commerceFinancePageSources } from "@erpx/server-finance/public/commerce-page-sources";
@@ -516,7 +517,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             key: string;
             guardId: string;
             values: (string | number | null)[];
-        }) => assertion(db, facts.key, facts.guardId, `EXISTS(SELECT 1 FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? AND version=?)`, facts.values),
+        }) => assertion(db, facts.key, facts.guardId, COMMERCE_STOCK_VERSION_GUARD_SQL, facts.values),
         guardRule11: facts => CommerceInventoryFacts(db).guardRule11(facts),
         guardRule12: facts => CommerceInventoryFacts(db).guardRule12(facts),
         guardRule13: facts => CommerceFinanceFacts(db).guardRule13(facts),
@@ -529,7 +530,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             key: string;
             guardId: string;
             values: (string | number | null)[];
-        }) => assertion(db, facts.key, facts.guardId, "EXISTS(SELECT 1 FROM commerce_products WHERE id=? AND version=? AND status='active')", facts.values),
+        }) => assertion(db, facts.key, facts.guardId, COMMERCE_PRODUCT_ACTIVE_VERSION_GUARD_SQL, facts.values),
         guardRule20: facts => CommerceFinanceFacts(db).guardRule20(facts),
         guardRule21: facts => CommerceFinanceFacts(db).guardRule21(facts),
         guardRule22: facts => CommerceFinanceFacts(db).guardRule22(facts),
@@ -543,7 +544,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
             key: string;
             guardId: string;
             values: (string | number | null)[];
-        }) => assertion(db, facts.key, facts.guardId, `EXISTS(SELECT 1 FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? AND version=?)`, facts.values),
+        }) => assertion(db, facts.key, facts.guardId, COMMERCE_STOCK_VERSION_GUARD_SQL, facts.values),
         guardRule30: (facts: {
             key: string;
             guardId: string;

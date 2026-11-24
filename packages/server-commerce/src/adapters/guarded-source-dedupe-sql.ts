@@ -3,3 +3,4 @@
  * statement in its supplied transaction and no query result is cached here. */
 export const COMMERCE_POSTING_ABSENT_SQL = 'NOT EXISTS(SELECT 1 FROM commerce_settings WHERE company_id=?)';
 export const COMMERCE_RECEIPT_GUARD_SQL = "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?";
+export const COMMERCE_PRODUCT_ACTIVE_VERSION_GUARD_SQL = "EXISTS(SELECT 1 FROM commerce_products WHERE id=? AND version=? AND status='active')";

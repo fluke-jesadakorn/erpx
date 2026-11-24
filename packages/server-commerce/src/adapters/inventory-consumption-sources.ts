@@ -1,6 +1,7 @@
 import {commerceInventoryConsumptionSourcesStockEffects} from '@erpx/server-inventory/public/commerce-stock-owner-effects';
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
 import { inventoryReadProjection as inventoryinventoryProjection } from '@erpx/server-inventory/public/inventory-read-projections';
+import { COMMERCE_STOCK_VERSION_GUARD_SQL } from "./stock-source-dedupe-sql";
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 export function inventoryConsumptionSources(db: SqlDatabase) {
@@ -34,7 +35,7 @@ export function inventoryConsumptionSources(db: SqlDatabase) {
             }>();
         },
         lockStock(warehouseId: string, productId: string) { return db.prepare(`SELECT product_id FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? FOR UPDATE`).bind(warehouseId, productId); },
-        guardStockVersion(key: string, value: "part-stock-version", warehouseId: string, productId: string, version: number) { return assertion(db, key, value, `EXISTS(SELECT 1 FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? AND version=?)`, [warehouseId, productId, version]); },
+        guardStockVersion(key: string, value: "part-stock-version", warehouseId: string, productId: string, version: number) { return assertion(db, key, value, COMMERCE_STOCK_VERSION_GUARD_SQL, [warehouseId, productId, version]); },
         guardAvailableStock(key: string, value: "part-source-availability", warehouseId: string, productId: string, value2: number, quantityMilli: number) {
             return assertion(db, key, value, `EXISTS(SELECT 1 FROM (${inventoryProjectionSources.commerce_stock}) s WHERE s.warehouse_id=? AND s.product_id=? AND s.quantity_milli-
     ${inventoryinventoryProjection.reservedStock}
