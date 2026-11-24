@@ -9257,15 +9257,15 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7625,
+    "revision": 7645,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
       "runId": "run-20261123-i",
       "agentId": "lead",
       "startedAt": "2026-11-23T23:30:50.417Z",
-      "heartbeatAt": "2026-11-24T00:31:22.515Z",
-      "expiresAt": "2026-11-24T01:01:22.515Z",
+      "heartbeatAt": "2026-11-24T00:39:54.838Z",
+      "expiresAt": "2026-11-24T01:09:54.838Z",
       "generation": 161,
       "tokenHash": "4c60dbc998ba46df6b718204f233e00955f8d69b4718231f3de8aa14087ea5df"
     },
@@ -119989,8 +119989,8 @@
           "runId": "run-20261123-i",
           "agentId": "wF09man",
           "claimedAt": "2026-11-24T00:09:20.012Z",
-          "heartbeatAt": "2026-11-24T00:31:22.515Z",
-          "expiresAt": "2026-11-24T01:01:22.515Z",
+          "heartbeatAt": "2026-11-24T00:39:54.838Z",
+          "expiresAt": "2026-11-24T01:09:54.838Z",
           "generation": 161
         },
         "baseSha": null,
@@ -120473,8 +120473,8 @@
           "runId": "run-20261123-i",
           "agentId": "wAZsal",
           "claimedAt": "2026-11-23T23:30:57.260Z",
-          "heartbeatAt": "2026-11-24T00:31:22.515Z",
-          "expiresAt": "2026-11-24T01:01:22.515Z",
+          "heartbeatAt": "2026-11-24T00:39:54.838Z",
+          "expiresAt": "2026-11-24T01:09:54.838Z",
           "generation": 161
         },
         "baseSha": null,
@@ -123542,8 +123542,8 @@
           "runId": "run-20261123-i",
           "agentId": "wCB1inv",
           "claimedAt": "2026-11-23T23:30:57.340Z",
-          "heartbeatAt": "2026-11-24T00:31:22.515Z",
-          "expiresAt": "2026-11-24T01:01:22.515Z",
+          "heartbeatAt": "2026-11-24T00:39:54.838Z",
+          "expiresAt": "2026-11-24T01:09:54.838Z",
           "generation": 161
         },
         "baseSha": null,
@@ -123977,8 +123977,8 @@
           "runId": "run-20261123-i",
           "agentId": "wCJ1age",
           "claimedAt": "2026-11-23T23:30:57.419Z",
-          "heartbeatAt": "2026-11-24T00:31:22.515Z",
-          "expiresAt": "2026-11-24T01:01:22.515Z",
+          "heartbeatAt": "2026-11-24T00:39:54.838Z",
+          "expiresAt": "2026-11-24T01:09:54.838Z",
           "generation": 161
         },
         "baseSha": null,
@@ -128108,8 +128108,8 @@
           "runId": "run-20261123-i",
           "agentId": "wF15crm",
           "claimedAt": "2026-11-24T00:23:18.150Z",
-          "heartbeatAt": "2026-11-24T00:31:22.515Z",
-          "expiresAt": "2026-11-24T01:01:22.515Z",
+          "heartbeatAt": "2026-11-24T00:39:54.838Z",
+          "expiresAt": "2026-11-24T01:09:54.838Z",
           "generation": 161
         },
         "baseSha": null,
@@ -128480,8 +128480,8 @@
           "runId": "run-20261123-i",
           "agentId": "wF22pms",
           "claimedAt": "2026-11-24T00:25:29.795Z",
-          "heartbeatAt": "2026-11-24T00:31:22.515Z",
-          "expiresAt": "2026-11-24T01:01:22.515Z",
+          "heartbeatAt": "2026-11-24T00:39:54.838Z",
+          "expiresAt": "2026-11-24T01:09:54.838Z",
           "generation": 161
         },
         "baseSha": null,
@@ -128572,8 +128572,8 @@
           "runId": "run-20261123-i",
           "agentId": "wF24bil",
           "claimedAt": "2026-11-24T00:25:44.168Z",
-          "heartbeatAt": "2026-11-24T00:31:22.515Z",
-          "expiresAt": "2026-11-24T01:01:22.515Z",
+          "heartbeatAt": "2026-11-24T00:39:54.838Z",
+          "expiresAt": "2026-11-24T01:09:54.838Z",
           "generation": 161
         },
         "baseSha": null,
@@ -128608,8 +128608,8 @@
           "runId": "run-20261123-i",
           "agentId": "wF25sup",
           "claimedAt": "2026-11-24T00:25:44.464Z",
-          "heartbeatAt": "2026-11-24T00:31:22.515Z",
-          "expiresAt": "2026-11-24T01:01:22.515Z",
+          "heartbeatAt": "2026-11-24T00:39:54.838Z",
+          "expiresAt": "2026-11-24T01:09:54.838Z",
           "generation": 161
         },
         "baseSha": null,
@@ -128644,8 +128644,8 @@
           "runId": "run-20261123-i",
           "agentId": "wF26ope",
           "claimedAt": "2026-11-24T00:26:44.377Z",
-          "heartbeatAt": "2026-11-24T00:31:22.515Z",
-          "expiresAt": "2026-11-24T01:01:22.515Z",
+          "heartbeatAt": "2026-11-24T00:39:54.838Z",
+          "expiresAt": "2026-11-24T01:09:54.838Z",
           "generation": 161
         },
         "baseSha": null,
@@ -128680,8 +128680,8 @@
           "runId": "run-20261123-i",
           "agentId": "wF27pos",
           "claimedAt": "2026-11-24T00:27:28.195Z",
-          "heartbeatAt": "2026-11-24T00:31:22.515Z",
-          "expiresAt": "2026-11-24T01:01:22.515Z",
+          "heartbeatAt": "2026-11-24T00:39:54.838Z",
+          "expiresAt": "2026-11-24T01:09:54.838Z",
           "generation": 161
         },
         "baseSha": null,
@@ -128924,7 +128924,7 @@
         "owner": "assets",
         "title": "assets TS read tail native cutover (round 13)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -128936,22 +128936,42 @@
         "resources": [
           "owner:assets"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wF32ass",
-          "claimedAt": "2026-11-24T00:31:48.371Z",
-          "heartbeatAt": "2026-11-24T00:31:48.371Z",
-          "expiresAt": "2026-11-24T01:01:48.371Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-assets/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d",
+            "owner": "assets",
+            "before": 36,
+            "after": 35,
+            "note": "Purchase finance-link aggregate reuses assetPhysicalAggSql; byte-identical."
+          },
+          {
+            "command": "cargo check -p erpx-server-assets",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          },
+          {
+            "command": "vitest assets transport (24) + tsc assets/tests-config",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Remaining: package-obligations (9), financial-workflow-sources (6), purchases (3), metric-purchases (3), small families. Record a strictly lower spaced count (BEFORE=36).",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wF32ass",
+          "at": "2026-11-24T00:46:53.141Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -128976,8 +128996,8 @@
           "runId": "run-20261123-i",
           "agentId": "wF33pro",
           "claimedAt": "2026-11-24T00:33:02.815Z",
-          "heartbeatAt": "2026-11-24T00:33:02.815Z",
-          "expiresAt": "2026-11-24T01:03:02.815Z",
+          "heartbeatAt": "2026-11-24T00:39:54.838Z",
+          "expiresAt": "2026-11-24T01:09:54.838Z",
           "generation": 161
         },
         "baseSha": null,
@@ -129012,8 +129032,8 @@
           "runId": "run-20261123-i",
           "agentId": "wG01ida",
           "claimedAt": "2026-11-24T00:34:22.950Z",
-          "heartbeatAt": "2026-11-24T00:34:22.950Z",
-          "expiresAt": "2026-11-24T01:04:22.950Z",
+          "heartbeatAt": "2026-11-24T00:39:54.838Z",
+          "expiresAt": "2026-11-24T01:09:54.838Z",
           "generation": 161
         },
         "baseSha": null,
@@ -129032,7 +129052,7 @@
         "owner": "records",
         "title": "records TS read tail native cutover (r11)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -129044,22 +129064,42 @@
         "resources": [
           "owner:records"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG02rec",
-          "claimedAt": "2026-11-24T00:34:23.130Z",
-          "heartbeatAt": "2026-11-24T00:34:23.130Z",
-          "expiresAt": "2026-11-24T01:04:23.130Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-records/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d",
+            "owner": "records",
+            "before": 44,
+            "after": 43,
+            "note": "Workspace record version fence shared by guard3/guard25."
+          },
+          {
+            "command": "cargo check -p erpx-server-records",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          },
+          {
+            "command": "vitest records units (85)",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to an owner native read; BEFORE=44 spaced statements; record strictly lower.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG02rec",
+          "at": "2026-11-24T00:46:53.334Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -129068,7 +129108,7 @@
         "owner": "talent",
         "title": "talent TS read tail native cutover (r10)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -129080,22 +129120,42 @@
         "resources": [
           "owner:talent"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG03tal",
-          "claimedAt": "2026-11-24T00:34:23.350Z",
-          "heartbeatAt": "2026-11-24T00:34:23.350Z",
-          "expiresAt": "2026-11-24T01:04:23.350Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-talent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d",
+            "owner": "talent",
+            "before": 89,
+            "after": 86,
+            "note": "Executive metric org name labels share one helper; byte-identical SQL."
+          },
+          {
+            "command": "cargo check -p erpx-server-talent",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          },
+          {
+            "command": "vitest talent transport (20) + tsc talent",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to an owner native read; BEFORE=89 spaced statements; record strictly lower.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG03tal",
+          "at": "2026-11-24T00:46:53.509Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -129104,7 +129164,7 @@
         "owner": "customer_authority",
         "title": "customer_authority TS read tail native cutover (r8)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -129116,22 +129176,42 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG04cua",
-          "claimedAt": "2026-11-24T00:34:23.590Z",
-          "heartbeatAt": "2026-11-24T00:34:23.590Z",
-          "expiresAt": "2026-11-24T01:04:23.590Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-customer_authority/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d",
+            "owner": "customer_authority",
+            "before": 100,
+            "after": 94,
+            "note": "Notification snapshot projection and duplicate review evidence prefix deduped; byte-identical."
+          },
+          {
+            "command": "cargo check -p erpx-server-customer-authority",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          },
+          {
+            "command": "vitest customer authority (19) + tsc owner/tests-config",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to an owner native read; BEFORE=100 spaced statements; record strictly lower.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG04cua",
+          "at": "2026-11-24T00:46:54.633Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -129140,7 +129220,7 @@
         "owner": "workflow",
         "title": "workflow TS read tail native cutover (r14)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -129152,22 +129232,42 @@
         "resources": [
           "owner:workflow"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG05wor",
-          "claimedAt": "2026-11-24T00:34:23.765Z",
-          "heartbeatAt": "2026-11-24T00:34:23.765Z",
-          "expiresAt": "2026-11-24T01:04:23.765Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-workflow/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d",
+            "owner": "workflow",
+            "before": 87,
+            "after": 86,
+            "note": "replay receipt record-id SQL shared by finance receipts and payroll facts."
+          },
+          {
+            "command": "cargo check -p erpx-server-workflow",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          },
+          {
+            "command": "vitest workflow transport (26) + tsc workflow/tests-config",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to an owner native read; BEFORE=87 spaced statements; record strictly lower.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG05wor",
+          "at": "2026-11-24T00:46:53.861Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -129192,8 +129292,8 @@
           "runId": "run-20261123-i",
           "agentId": "wG06pro",
           "claimedAt": "2026-11-24T00:34:23.941Z",
-          "heartbeatAt": "2026-11-24T00:34:23.941Z",
-          "expiresAt": "2026-11-24T01:04:23.941Z",
+          "heartbeatAt": "2026-11-24T00:39:54.838Z",
+          "expiresAt": "2026-11-24T01:09:54.838Z",
           "generation": 161
         },
         "baseSha": null,
@@ -129212,7 +129312,7 @@
         "owner": "maintenance",
         "title": "maintenance TS read tail native cutover (r3)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -129224,22 +129324,42 @@
         "resources": [
           "owner:maintenance"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG07mai",
-          "claimedAt": "2026-11-24T00:34:24.135Z",
-          "heartbeatAt": "2026-11-24T00:34:24.135Z",
-          "expiresAt": "2026-11-24T01:04:24.135Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-maintenance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d",
+            "owner": "maintenance",
+            "before": 49,
+            "after": 48,
+            "note": "Work and Plan settlement source images share ownerSourceSql; byte-identical."
+          },
+          {
+            "command": "cargo check -p erpx-server-maintenance",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          },
+          {
+            "command": "vitest maintenance transport (28) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to an owner native read; BEFORE=49 spaced statements; record strictly lower.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG07mai",
+          "at": "2026-11-24T00:46:54.049Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -129264,8 +129384,8 @@
           "runId": "run-20261123-i",
           "agentId": "wG08fse",
           "claimedAt": "2026-11-24T00:34:24.328Z",
-          "heartbeatAt": "2026-11-24T00:34:24.328Z",
-          "expiresAt": "2026-11-24T01:04:24.328Z",
+          "heartbeatAt": "2026-11-24T00:39:54.838Z",
+          "expiresAt": "2026-11-24T01:09:54.838Z",
           "generation": 161
         },
         "baseSha": null,
@@ -129300,8 +129420,8 @@
           "runId": "run-20261123-i",
           "agentId": "wG09c360",
           "claimedAt": "2026-11-24T00:34:24.556Z",
-          "heartbeatAt": "2026-11-24T00:34:24.556Z",
-          "expiresAt": "2026-11-24T01:04:24.556Z",
+          "heartbeatAt": "2026-11-24T00:39:54.838Z",
+          "expiresAt": "2026-11-24T01:09:54.838Z",
           "generation": 161
         },
         "baseSha": null,
@@ -129336,8 +129456,8 @@
           "runId": "run-20261123-i",
           "agentId": "wG10pad",
           "claimedAt": "2026-11-24T00:34:24.756Z",
-          "heartbeatAt": "2026-11-24T00:34:24.756Z",
-          "expiresAt": "2026-11-24T01:04:24.756Z",
+          "heartbeatAt": "2026-11-24T00:39:54.838Z",
+          "expiresAt": "2026-11-24T01:09:54.838Z",
           "generation": 161
         },
         "baseSha": null,
@@ -129372,8 +129492,8 @@
           "runId": "run-20261123-i",
           "agentId": "wG11mne",
           "claimedAt": "2026-11-24T00:34:24.974Z",
-          "heartbeatAt": "2026-11-24T00:34:24.974Z",
-          "expiresAt": "2026-11-24T01:04:24.974Z",
+          "heartbeatAt": "2026-11-24T00:39:54.838Z",
+          "expiresAt": "2026-11-24T01:09:54.838Z",
           "generation": 161
         },
         "baseSha": null,
@@ -129408,8 +129528,8 @@
           "runId": "run-20261123-i",
           "agentId": "wG13com",
           "claimedAt": "2026-11-24T00:35:45.522Z",
-          "heartbeatAt": "2026-11-24T00:35:45.522Z",
-          "expiresAt": "2026-11-24T01:05:45.522Z",
+          "heartbeatAt": "2026-11-24T00:39:54.838Z",
+          "expiresAt": "2026-11-24T01:09:54.838Z",
           "generation": 161
         },
         "baseSha": null,
@@ -129444,8 +129564,8 @@
           "runId": "run-20261123-i",
           "agentId": "wG14mar",
           "claimedAt": "2026-11-24T00:36:04.446Z",
-          "heartbeatAt": "2026-11-24T00:36:04.446Z",
-          "expiresAt": "2026-11-24T01:06:04.446Z",
+          "heartbeatAt": "2026-11-24T00:39:54.838Z",
+          "expiresAt": "2026-11-24T01:09:54.838Z",
           "generation": 161
         },
         "baseSha": null,
@@ -129464,7 +129584,7 @@
         "owner": "organization",
         "title": "organization TS read tail native cutover (round 7)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -129476,22 +129596,42 @@
         "resources": [
           "owner:organization"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG15org",
-          "claimedAt": "2026-11-24T00:37:08.672Z",
-          "heartbeatAt": "2026-11-24T00:37:08.672Z",
-          "expiresAt": "2026-11-24T01:07:08.672Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-organization/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d",
+            "owner": "organization",
+            "before": 397,
+            "after": 396,
+            "note": "Finance sales and payroll payslip company display names share ORG_COMPANY_DISPLAY_NAME_SOURCE."
+          },
+          {
+            "command": "cargo check -p erpx-server-organization",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          },
+          {
+            "command": "vitest organization native tail (11) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: EXISTS(organization_nodes) predicate family or the company display-name pair in finance-sales-company/payroll-payslip-company; record a strictly lower spaced count (BEFORE=397).",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG15org",
+          "at": "2026-11-24T00:46:54.236Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -129500,7 +129640,7 @@
         "owner": "legal",
         "title": "legal TS read tail native cutover (round 5)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -129512,22 +129652,42 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG16leg",
-          "claimedAt": "2026-11-24T00:37:34.261Z",
-          "heartbeatAt": "2026-11-24T00:37:34.261Z",
-          "expiresAt": "2026-11-24T01:07:34.261Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d",
+            "owner": "legal",
+            "before": 317,
+            "after": 316,
+            "note": "Released-item predicate shared by both purchase guards."
+          },
+          {
+            "command": "cargo check -p erpx-server-legal",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          },
+          {
+            "command": "vitest legal units (196) + tsc legal",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local legal dedupe (avoid the knowledge.ts evidence guard until the out-of-scope Files oracle is resolved); record a strictly lower spaced count (BEFORE=317).",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG16leg",
+          "at": "2026-11-24T00:46:53.682Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -129536,7 +129696,7 @@
         "owner": "finance",
         "title": "finance TS read tail native cutover (round 5)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -129548,22 +129708,42 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG17fin",
-          "claimedAt": "2026-11-24T00:37:50.682Z",
-          "heartbeatAt": "2026-11-24T00:37:50.682Z",
-          "expiresAt": "2026-11-24T01:07:50.682Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d",
+            "owner": "finance",
+            "before": 2269,
+            "after": 2268,
+            "note": "Collection case by-id read shared by parent and case readers."
+          },
+          {
+            "command": "cargo check -p erpx-server-finance",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          },
+          {
+            "command": "vitest finance collections (18) + tsc finance",
+            "result": "passed",
+            "sourceSha": "ff6a21a7d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or use an already-mounted finance native read; no new composition mounts; record a strictly lower spaced count (BEFORE=2269).",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG17fin",
+          "at": "2026-11-24T00:46:54.446Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -129588,8 +129768,8 @@
           "runId": "run-20261123-i",
           "agentId": "wG18peo",
           "claimedAt": "2026-11-24T00:38:02.730Z",
-          "heartbeatAt": "2026-11-24T00:38:02.730Z",
-          "expiresAt": "2026-11-24T01:08:02.730Z",
+          "heartbeatAt": "2026-11-24T00:39:54.838Z",
+          "expiresAt": "2026-11-24T01:09:54.838Z",
           "generation": 161
         },
         "baseSha": null,
@@ -129624,8 +129804,8 @@
           "runId": "run-20261123-i",
           "agentId": "wG19qua",
           "claimedAt": "2026-11-24T00:38:16.312Z",
-          "heartbeatAt": "2026-11-24T00:38:16.312Z",
-          "expiresAt": "2026-11-24T01:08:16.312Z",
+          "heartbeatAt": "2026-11-24T00:39:54.838Z",
+          "expiresAt": "2026-11-24T01:09:54.838Z",
           "generation": 161
         },
         "baseSha": null,
@@ -129649,17 +129829,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
-        "in_progress": 30,
+        "in_progress": 21,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 365,
+        "blocked": 374,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T00:38:16.316Z",
+    "updatedAt": "2026-11-24T00:46:54.637Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
