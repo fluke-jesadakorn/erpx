@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11826,
+    "revision": 11829,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -176338,7 +176338,7 @@
         "owner": "quality",
         "title": "quality lineage terminal and inspection heads",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -176350,7 +176350,14 @@
         "resources": [
           "owner:quality"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4e03",
+          "claimedAt": "2026-11-24T12:17:15.937Z",
+          "heartbeatAt": "2026-11-24T12:17:15.937Z",
+          "expiresAt": "2026-11-24T12:47:15.937Z",
+          "generation": 169
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -177041,6 +177048,42 @@
         "nextAction": "jsonbAggImageHead (-2) and scopeRow (-2): 49->45.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.sales.read-tail-r27",
+        "goalId": "G4",
+        "owner": "sales",
+        "title": "sales ecommerce order scope generator",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-sales/src/**",
+          "tests/unit/sales/**",
+          "tests/integration/sales/**"
+        ],
+        "resources": [
+          "owner:sales"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4e04",
+          "claimedAt": "2026-11-24T12:17:16.137Z",
+          "heartbeatAt": "2026-11-24T12:17:16.137Z",
+          "expiresAt": "2026-11-24T12:47:16.137Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Collapse note/followup/notice order scope constants into one generator: 60->58.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -177049,11 +177092,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1664,
+      "totalPackets": 1665,
       "migratedPackets": 330,
       "statusCounts": {
-        "pending": 19,
-        "in_progress": 12,
+        "pending": 18,
+        "in_progress": 14,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -177063,7 +177106,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T12:16:49.591Z",
+    "updatedAt": "2026-11-24T12:17:16.145Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
