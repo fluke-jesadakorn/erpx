@@ -37,7 +37,7 @@ import { collaborationHomeSources as operations } from '@erpx/server-operations/
 import {handoverAcknowledgements} from '@erpx/server-operations/public/handover-acknowledgement-read';
 import {workSocialReadScope,workSocialPresentation} from '@erpx/server-collaboration/public/work-social-read-policy';
 import {withWorkSocialCommand} from '@erpx/server-collaboration/adapters/work-social-purchases';
-import {socialFollowPostExists,messagingTeamMemberExists,publishedCommentRead,socialPostDraftById,socialPostTopicExists,socialCommentTopicExists,socialCommentAncestorStep,socialPostDraftExists} from './read-tail-sql';
+import {socialFollowPostExists,messagingTeamMemberExists,publishedCommentRead,socialPostDraftById,socialPostTopicExists,socialCommentTopicExists,socialCommentAncestorStep,socialPostDraftExists,socialPostDraftFieldGuard} from './read-tail-sql';
 const draftVersionGuardSql = socialPostDraftExists('version=? AND published_post_id IS NULL');
 async function inward<T>(action: () => Promise<T>) {
     try {
@@ -69,7 +69,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
             }>();
         }, guardTeamAudience(key: string, value: "audience-team", id: string, companyId: string, userId: string) {
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM messaging_teams t JOIN messaging_team_members m ON m.team_id=t.id WHERE t.id=? AND t.company_id=? AND NOT t.organization_managed AND m.user_id=?)", [id, companyId, userId]);
-        }, draft(...args){return nativeSocialUploadReadRepository(db).draft(...args);}, publishedComment(...args){return nativeSocialUploadReadRepository(db).publishedComment(...args);}, editDraft(...args){return nativeSocialUploadReadRepository(db).draft(...args);}, async commentDraftExists(id: string) { return db.prepare("SELECT 1 FROM social_post_drafts WHERE id=? AND comment_parent_post_id IS NOT NULL").bind(id).first(); }, async richDraftExists(id: string) { return db.prepare("SELECT 1 FROM social_post_drafts WHERE id=? AND rich_content_json IS NOT NULL").bind(id).first(); }, guardDraftVersion(key: string, value: "draft-version", id: string, userId: string, expectedVersion: number) {
+        }, draft(...args){return nativeSocialUploadReadRepository(db).draft(...args);}, publishedComment(...args){return nativeSocialUploadReadRepository(db).publishedComment(...args);}, editDraft(...args){return nativeSocialUploadReadRepository(db).draft(...args);}, async commentDraftExists(id: string) { return db.prepare(socialPostDraftFieldGuard('comment_parent_post_id IS NOT NULL')).bind(id).first(); }, async richDraftExists(id: string) { return db.prepare(socialPostDraftFieldGuard('rich_content_json IS NOT NULL')).bind(id).first(); }, guardDraftVersion(key: string, value: "draft-version", id: string, userId: string, expectedVersion: number) {
             return assertion(db, key, value, draftVersionGuardSql, [id, userId, expectedVersion]);
         }, updateDraft(body: string, branch: string | null, department: string | null, value: "company" | "branch" | "department" | "participants" | "team" | "project" | null, audienceId: string | null, value2: string, value3: string, purpose: "update" | "plan" | "blocker" | "handover" | "announcement", value4: string, value5: string | null, value6: string | null, now: number, id: string) {
             return nativeOwnerWriteDescriptor(db, 'SH_DRAFT_UPDATE', [body, branch, department, value, audienceId, value2, value3, purpose, value4, value5, value6, now, id]);

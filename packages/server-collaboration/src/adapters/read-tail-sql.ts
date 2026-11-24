@@ -43,3 +43,7 @@ export const socialPostDraftExists=(tail:string)=>`EXISTS(SELECT 1 FROM social_p
  * publish and draft-policy readers. Only the trailing predicate varies; the fixed
  * `id=? AND company_id=?` prefix, bind order and lock semantics stay unchanged. */
 export const socialPostByIdGuard=(tail:string)=>`SELECT 1 FROM social_posts WHERE id=? AND company_id=? AND ${tail}`;
+/** Byte-identical Social draft-field existence guard shared by the retained comment
+ * and rich draft readers in social-home.ts. Only the trailing field predicate
+ * varies; the fixed `id=?` prefix, bind order and lock semantics stay unchanged. */
+export const socialPostDraftFieldGuard=(tail:string)=>`SELECT 1 FROM social_post_drafts WHERE id=? AND ${tail}`;
