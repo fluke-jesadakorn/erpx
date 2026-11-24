@@ -56,11 +56,12 @@ async function exposed<T>(action: () => Promise<T>) {
 const candidateSql = `SELECT d.id,d.event_id,d.company_id,d.user_id,d.delivered_at,d.read_at,d.archived_at,e.source_type,e.source_id,e.source_version,e.category,e.preview,NULL::jsonb AS native_field_item
   FROM inbox_deliveries d JOIN inbox_events e ON e.id=d.event_id
   WHERE d.company_id=? AND d.user_id=? AND d.archived_at IS NULL`;
+const inboxEventByKeySql = "SELECT id FROM inbox_events WHERE company_id=? AND event_key=?";
 function application(db: SqlDatabase) {
     const repository: InboxRepository = { async publishEvent(id: string, companyId: string, key: string, sourceType: string, sourceId: string, sourceVersion: number, value: string | null, category: InboxCategory, preview: string, now: number) {
             return await nativeInboxStatements(db, companyId).eventInsert([id, companyId, key, sourceType, sourceId, sourceVersion, value, category, preview, now]);
         }, async publishedEvent(companyId: string, key: string) {
-            return db.prepare("SELECT id FROM inbox_events WHERE company_id=? AND event_key=?")
+            return db.prepare(inboxEventByKeySql)
                 .bind(companyId, key).first<{
                 id: string;
             }>();
@@ -94,7 +95,7 @@ function application(db: SqlDatabase) {
                 user_id: string;
             }>();
         }, async noticeEvent(company_id: string, value: string) {
-            return db.prepare("SELECT id FROM inbox_events WHERE company_id=? AND event_key=?")
+            return db.prepare(inboxEventByKeySql)
                 .bind(company_id, value).first<{
                 id: string;
             }>();
