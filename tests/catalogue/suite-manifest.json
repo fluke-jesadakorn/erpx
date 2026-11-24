@@ -10068,6 +10068,48 @@
       ]
     },
     {
+      "lane": "integration",
+      "owner": "commerce",
+      "modules": [
+        "commercial"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Commerce residual native read plans must match retained TS and PG rows."
+      },
+      "apps": [
+        "account",
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-commerce",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ],
+      "id": "commerce.residual-read-parity-postgres.integration",
+      "files": [
+        "tests/integration/commerce/rust-commerce-residual-read-parity-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-commerce",
+        "targets": [
+          "commerce_residual_read_parity_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-commerce/Cargo.toml"
+      ]
+    },
+    {
       "id": "commerce.rust-commerce-currency-read.unit",
       "lane": "unit",
       "owner": "commerce",

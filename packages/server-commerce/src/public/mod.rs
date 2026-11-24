@@ -1,4 +1,7 @@
 pub mod native_commerce_read_sql;
+pub mod native_read;
+pub use crate::adapters::native_read::{BoundPlan, ReadScope, bind};
+pub use crate::public::native_read::{BindField, ReadPlan};
 pub mod order;
 pub mod order_http;
 pub mod quality_masters;
