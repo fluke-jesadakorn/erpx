@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7444,
+    "revision": 7446,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -116379,7 +116379,7 @@
         "owner": "finance",
         "title": "Mount finance journal batch-post + route/client cutover",
         "kind": "integration",
-        "status": "in_progress",
+        "status": "integrating",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116412,7 +116412,7 @@
         "checks": [],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Compose batch administration/target, mount POST /finance/journals/batch-post, add strict native-journal-batch client, switch workplace route native-only, delete postJournalBatch TS fallback.",
+        "nextAction": "Verifying composition and catalogue.",
         "handoff": {
           "runId": "run-20261123-h",
           "agentId": "wDG1fin",
@@ -127131,7 +127131,7 @@
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T00:07:22.761Z",
+    "updatedAt": "2026-11-24T00:07:34.492Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
