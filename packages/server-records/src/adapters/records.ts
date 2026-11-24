@@ -62,6 +62,16 @@ export { addPrincipalMentionSchema } from '@erpx/server-records/domain/records';
 const recordVersionExistsSql = "EXISTS(SELECT 1 FROM workspace_records WHERE module_id=? AND id=? AND version=? AND archived_at IS NULL)";
 // Shared owner-local workspace-record projection for list/get/page reads; identical SQL.
 const recordRowSelectSql = "SELECT module_id,id,section_id,title,description,status,fields_json,version,created_by,updated_at";
+// Retained record_context edges/count consumers share one parameterized family.
+// Each call emits byte-identical prior SQL; only the admitted literal is shared.
+const referenceEdgesSql = (scope: 'host' | 'target', shape: 'references' | 'backlinks' | 'count') => {
+    const projection = shape === 'references' ? 'target_module,target_id,kind,ordinal'
+        : shape === 'backlinks' ? 'host_module,host_id,kind' : 'COUNT(*) AS count';
+    const where = scope === 'host' ? 'host_module=? AND host_id=?' : 'target_module=? AND target_id=?';
+    const order = shape === 'references' ? ' ORDER BY ordinal'
+        : shape === 'backlinks' ? ' ORDER BY created_at DESC LIMIT 50' : '';
+    return `SELECT ${projection} FROM record_reference_edges WHERE ${where}${order}`;
+};
 function application(provided?: SqlDatabase,actor?:WorkContext) {
     let database = provided!;
     let control: SqlDatabase;
@@ -92,7 +102,7 @@ function application(provided?: SqlDatabase,actor?:WorkContext) {
         stageTransitionRecordHistory() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records command is unavailable.'); },
         guard9(key: string, value: "record-version", companyId: string, moduleId: string, id: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM workspace_records WHERE company_id=? AND module_id=? AND id=? AND version=? AND archived_at IS NULL)", [companyId, moduleId, id, version]); },
         readRecordContextEdgesbacklinksmentionssuggestionshistory(moduleId: string, id: string) {
-            return database.prepare(`SELECT target_module,target_id,kind,ordinal FROM record_reference_edges WHERE host_module=? AND host_id=? ORDER BY ordinal`).bind(moduleId, id).all<{
+            return database.prepare(referenceEdgesSql('host','references')).bind(moduleId, id).all<{
                 target_module: string;
                 target_id: string;
                 kind: string;
@@ -100,7 +110,7 @@ function application(provided?: SqlDatabase,actor?:WorkContext) {
             }>();
         },
         readRecordContextEdgesbacklinksmentionssuggestionshistory2(moduleId: string, id: string) {
-            return database.prepare(`SELECT host_module,host_id,kind FROM record_reference_edges WHERE target_module=? AND target_id=? ORDER BY created_at DESC LIMIT 50`).bind(moduleId, id).all<{
+            return database.prepare(referenceEdgesSql('target','backlinks')).bind(moduleId, id).all<{
                 host_module: string;
                 host_id: string;
                 kind: string;
@@ -124,7 +134,7 @@ function application(provided?: SqlDatabase,actor?:WorkContext) {
         readAddPrincipalMentionPrincipal(...args) { return RecordsIdentityAccessOwnedFacts(control).readAddPrincipalMentionPrincipal(...args); },
         stageAddPrincipalMentionEffect(moduleId: string, id: string, targetKind: "person", targetId: string, display_name: string, userId: string, now: number) { return nativeRecordsStatement('records_stmt_18', { companyId: actor?.companyId, actor, now: Date.now() }).bind(moduleId, id, targetKind, targetId, display_name, userId, now); },
         readAddReferenceCount(moduleId: string, id: string) {
-            return database.prepare(`SELECT COUNT(*) AS count FROM record_reference_edges WHERE host_module=? AND host_id=?`).bind(moduleId, id).first<{
+            return database.prepare(referenceEdgesSql('host','count')).bind(moduleId, id).first<{
                 count: number;
             }>();
         },
