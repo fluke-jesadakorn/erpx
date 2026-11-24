@@ -134,4 +134,26 @@ describe('crm purchase opportunity witness read family', () => {
     }
     expect(total).toBeLessThan(178);
   });
+
+  it('owns the r12 retained-customer finance guard once and stays below BEFORE=173', async () => {
+    const src = await readFile(new URL('../../../packages/server-crm/src/adapters/sales-package-obligations.ts', import.meta.url), 'utf8');
+    const line = src.split('\n').find(value => value.includes('const financeCustomerMissingSql=')) ?? '';
+    const body = line.slice(line.indexOf('`') + 1, line.lastIndexOf('`'));
+    const render = (company: string) => body.replace('${company}', company);
+    const preDedupe = (company: string) => `account.finance_party_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM (\${crmFinanceCustomerSources}) customer WHERE customer.id=account.finance_party_id AND customer.company_id=${company} AND customer.kind='customer')`;
+    expect(render('l.company_id')).toBe(preDedupe('l.company_id'));
+    expect(render('account.company_id')).toBe(preDedupe('account.company_id'));
+    expect(src.match(/const financeCustomerMissingSql=/g)).toHaveLength(1);
+    expect(src.match(/financeCustomerMissingSql\('/g)).toHaveLength(2);
+    expect(src.match(/account\.finance_party_id IS NOT NULL AND NOT EXISTS/g)).toHaveLength(1);
+    expect(src).toContain("OR(${financeCustomerMissingSql('l.company_id')})");
+    expect(src).toContain(",${financeCustomerMissingSql('account.company_id')}");
+    const owner = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+    let total = 0;
+    for (const rel of readdirSync(owner, { recursive: true })) {
+      if (!String(rel).endsWith('.ts')) continue;
+      total += readFileSync(resolve(owner, String(rel)), 'utf8').match(/SELECT /g)?.length ?? 0;
+    }
+    expect(total).toBeLessThan(173);
+  });
 });
