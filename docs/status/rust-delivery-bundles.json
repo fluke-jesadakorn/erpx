@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9627,
+    "revision": 9629,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -153079,7 +153079,7 @@
         "owner": "talent",
         "title": "talent TS read tail native cutover (r23)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -153091,22 +153091,37 @@
         "resources": [
           "owner:talent"
         ],
-        "claim": {
-          "runId": "run-20261123-k",
-          "agentId": "wGCLtal",
-          "claimedAt": "2026-11-24T05:34:17.907Z",
-          "heartbeatAt": "2026-11-24T05:34:17.907Z",
-          "expiresAt": "2026-11-24T06:04:17.907Z",
-          "generation": 163
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-talent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "c62e54ee2",
+            "owner": "talent",
+            "before": 61,
+            "after": 59,
+            "note": "Three company-scoped materialized CTEs share scopedMaterialized; r20-r22 helpers and locks untouched."
+          },
+          {
+            "command": "vitest talent r21-r23 + transport (28+4) + tsc talent",
+            "result": "passed",
+            "sourceSha": "c62e54ee2"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=61.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-k",
+          "agentId": "wGCLtal",
+          "at": "2026-11-24T05:41:28.915Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -153948,17 +153963,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 29,
+        "in_progress": 28,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 827,
+        "blocked": 828,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 163,
-    "updatedAt": "2026-11-24T05:39:53.159Z",
+    "updatedAt": "2026-11-24T05:41:28.938Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
