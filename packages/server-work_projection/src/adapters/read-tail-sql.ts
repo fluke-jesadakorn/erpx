@@ -19,9 +19,12 @@ export const workCacheRevisionsSql = (sourceTables?: string[]) => {
 /** Conflicting scheduled-appointment probe. Join source, extra predicate and scoped column vary; the shape is shared. */
 export const overlapProbe = (join: 'calendar_appointment_participants' | 'calendar_attendees', column: string, extra = '') =>
     `SELECT 1 FROM calendar_appointments a JOIN ${join} p ON p.appointment_id=a.id WHERE a.company_id=? AND a.status='scheduled' AND a.id!=? AND a.starts_at<? AND a.ends_at>?${extra} AND ${inList(column)} LIMIT 1`;
+/** Occurrence-exception reads over one canonical head. Selected columns and the predicate tail are the only variation between the point, moved-occurrence and reminder callers. */
+export const occurrenceExceptionsSql = (columns: string, tail: string) =>
+    `SELECT ${columns} FROM calendar_occurrence_exceptions WHERE appointment_id=? AND company_id=? AND ${tail}`;
 /** Point read of a single occurrence exception. Only the selected columns vary between fact units. */
 export const occurrenceExceptionPointSql = (columns: string) =>
-    `SELECT ${columns} FROM calendar_occurrence_exceptions WHERE appointment_id=? AND company_id=? AND occurrence_key=?`;
+    occurrenceExceptionsSql(columns, 'occurrence_key=?');
 /** Reminder attendee join over appointment/attendee. Selected columns and trailing predicate are the only variation between the configuration point read and the recipients list read. */
 export const reminderAttendeesSql = (columns: string, tail = '') =>
     `SELECT ${columns} FROM calendar_appointments a JOIN calendar_attendees t ON t.appointment_id=a.id AND t.company_id=a.company_id WHERE a.id=? AND a.company_id=?${tail}`;
