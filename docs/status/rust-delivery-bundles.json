@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12126,
+    "revision": 12128,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -180659,6 +180659,41 @@
         "nextAction": "customer_contact_notes detail read native kind (2 binds), registry 36->37: 44->43.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.ecommerce.read-tail-r24",
+        "goalId": "G4",
+        "owner": "ecommerce",
+        "title": "ecommerce scope, ordered list and probe reuse",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-ecommerce/src/**",
+          "tests/unit/ecommerce/**"
+        ],
+        "resources": [
+          "owner:ecommerce"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n15",
+          "claimedAt": "2026-11-24T13:40:43.516Z",
+          "heartbeatAt": "2026-11-24T13:40:43.516Z",
+          "expiresAt": "2026-11-24T14:10:43.516Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "CTE scope via ecommerceScopeRow (-1), readSource via ecommerceOrderedList (-1), row probe via ecommerceSelectOne (-1): 25->22.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -180667,11 +180702,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1734,
+      "totalPackets": 1735,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 7,
+        "in_progress": 8,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -180681,7 +180716,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:40:12.190Z",
+    "updatedAt": "2026-11-24T13:40:43.520Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
