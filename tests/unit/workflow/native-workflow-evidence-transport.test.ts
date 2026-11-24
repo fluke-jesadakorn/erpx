@@ -738,9 +738,8 @@ describe('workflow project worker command evidence image read tail (native read 
       ),
       'utf8',
     );
-    expect(source).toContain(
-      "'SELECT command_id,operation,record_id,actor_id,authority_json,result_json FROM command_receipts'",
-    );
+    expect(source).toContain("commandReceiptsProjectionSql(['command_id','operation','record_id','actor_id','authority_json','result_json'])");
+    expect(source).not.toContain("'SELECT command_id,operation,record_id,actor_id,authority_json,result_json FROM command_receipts'");
     expect(source).not.toContain('jsonb_build_object');
     expect(source).not.toContain('.prepare(');
   });

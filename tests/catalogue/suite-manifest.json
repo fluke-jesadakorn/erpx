@@ -3479,6 +3479,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "billing",
+      "modules": [
+        "billing"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Billing point read by id must stay one helper."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-billing"
+      ],
+      "id": "billing.read-tail-r29-dedupe.unit",
+      "files": [
+        "tests/unit/billing/billing-read-tail-r29-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "billing.rust-billing-commands.unit",
       "lane": "unit",
       "owner": "billing",
@@ -31981,6 +32008,60 @@
       "id": "finance.read-tail-r41-dedupe.unit",
       "files": [
         "tests/unit/finance/read-tail-r41-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Finance r42 families must stay canonical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-finance"
+      ],
+      "id": "finance.read-tail-r42-dedupe.unit",
+      "files": [
+        "tests/unit/finance/read-tail-r42-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Finance journal facts, books image and child guard must stay canonical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-finance"
+      ],
+      "id": "finance.read-tail-r43-dedupe.unit",
+      "files": [
+        "tests/unit/finance/read-tail-r43-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -116894,6 +116975,33 @@
       "id": "workflow.read-tail-r38-dedupe.unit",
       "files": [
         "tests/unit/workflow/read-tail-r38-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "workflow",
+      "modules": [
+        "workflow"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Workflow closed projections must stay one generator each."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-workflow"
+      ],
+      "id": "workflow.read-tail-r45-dedupe.unit",
+      "files": [
+        "tests/unit/workflow/read-tail-r45-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
