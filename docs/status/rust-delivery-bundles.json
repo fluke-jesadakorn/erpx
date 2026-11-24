@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8608,
+    "revision": 8610,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -141825,7 +141825,7 @@
         "owner": "planning",
         "title": "planning TS read tail native cutover (round 3)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -141837,22 +141837,34 @@
         "resources": [
           "owner:planning"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCSpln",
-          "claimedAt": "2026-11-24T02:30:09.962Z",
-          "heartbeatAt": "2026-11-24T02:30:09.962Z",
-          "expiresAt": "2026-11-24T03:00:09.962Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "planning byte-identical scan (non-blocked 17 statements)",
+            "result": "passed",
+            "sourceSha": "e7fc4eeb7",
+            "note": "no byte-identical SELECT groups in attachment-read-sources/package-obligations/capacity/purchase-sources; remaining duplicates are in blocked read-source files."
+          },
+          {
+            "command": "vitest planning capacity (5) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "e7fc4eeb7"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: 46 residual minus 23 in blocked read-source files; scan attachment-read-sources/package-obligations/capacity/purchase-sources. BEFORE=46.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with evidence.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCSpln",
+          "at": "2026-11-24T02:36:20.509Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with evidence."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -142298,17 +142310,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 34,
+        "in_progress": 33,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 597,
+        "blocked": 598,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:36:07.306Z",
+    "updatedAt": "2026-11-24T02:36:20.524Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
