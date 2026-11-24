@@ -85152,6 +85152,33 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Quality hold evidence head must share the evidence template."
+      },
+      "apps": [
+        "quality"
+      ],
+      "packages": [
+        "@erpx/server-quality"
+      ],
+      "id": "quality.read-tail-r25-dedupe.unit",
+      "files": [
+        "tests/unit/quality/read-tail-r25-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "quality",
+      "modules": [
+        "quality"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Quality return anchor and obligation arm must share one head."
       },
       "apps": [
