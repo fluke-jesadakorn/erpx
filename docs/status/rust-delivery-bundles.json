@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10538,
+    "revision": 10542,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -163707,7 +163707,7 @@
         "owner": "support",
         "title": "support SLA policy native read port",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -163719,7 +163719,14 @@
         "resources": [
           "owner:support"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMsup7",
+          "claimedAt": "2026-11-24T08:14:03.650Z",
+          "heartbeatAt": "2026-11-24T08:14:03.650Z",
+          "expiresAt": "2026-11-24T08:44:03.650Z",
+          "generation": 167
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -163736,7 +163743,7 @@
         "owner": "talent",
         "title": "talent existence guard native read port",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -163748,7 +163755,14 @@
         "resources": [
           "owner:talent"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMtal4",
+          "claimedAt": "2026-11-24T08:14:03.845Z",
+          "heartbeatAt": "2026-11-24T08:14:03.845Z",
+          "expiresAt": "2026-11-24T08:44:03.845Z",
+          "generation": 167
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -163765,7 +163779,7 @@
         "owner": "billing",
         "title": "billing advisory lock text family",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -163777,7 +163791,14 @@
         "resources": [
           "owner:billing"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMbil4",
+          "claimedAt": "2026-11-24T08:14:04.027Z",
+          "heartbeatAt": "2026-11-24T08:14:04.027Z",
+          "expiresAt": "2026-11-24T08:44:04.027Z",
+          "generation": 167
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -163794,7 +163815,7 @@
         "owner": "ecommerce",
         "title": "ecommerce read tail families (round 14)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -163806,7 +163827,14 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCecom2",
+          "claimedAt": "2026-11-24T08:14:04.205Z",
+          "heartbeatAt": "2026-11-24T08:14:04.205Z",
+          "expiresAt": "2026-11-24T08:44:04.205Z",
+          "generation": 167
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -163979,8 +164007,8 @@
       "totalPackets": 1409,
       "migratedPackets": 330,
       "statusCounts": {
-        "pending": 26,
-        "in_progress": 21,
+        "pending": 22,
+        "in_progress": 25,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -163990,7 +164018,7 @@
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:13:45.124Z",
+    "updatedAt": "2026-11-24T08:14:04.210Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
