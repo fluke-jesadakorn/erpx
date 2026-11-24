@@ -61,6 +61,10 @@ describe('Customer Authority read-tail r25 column/table projection family', () =
     expect(r24.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
     expect(r24).toContain('export const bindingFactProjection');
 
+    const r26 = src('customer-authority-read-tail-r26-sources.ts');
+    expect(r26.match(/\bSELECT\b/g) ?? []).toHaveLength(1);
+    expect(r26).toContain('export const accessBindingOrderProjection');
+
     // Both closed projection keys are preserved; no fact kind or lock changed.
     const caller = src('last-audit-owner-projection-sources.ts');
     expect(caller).toContain('customer_access_bindings: ownerColumnProjection(');
@@ -79,6 +83,7 @@ describe('Customer Authority read-tail r25 column/table projection family', () =
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(61);
-    expect(total).toBe(60);
+    // r26 further reduced the tail (60 -> 59); keep a bound, not a stale exact pin.
+    expect(total).toBeLessThan(60);
   });
 });
