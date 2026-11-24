@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10587,
+    "revision": 10589,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -163903,7 +163903,7 @@
         "owner": "billing",
         "title": "billing advisory lock text family",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -163915,22 +163915,37 @@
         "resources": [
           "owner:billing"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMbil4",
-          "claimedAt": "2026-11-24T08:14:04.027Z",
-          "heartbeatAt": "2026-11-24T08:15:48.647Z",
-          "expiresAt": "2026-11-24T08:45:48.647Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-billing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "31c8c212e",
+            "owner": "billing",
+            "before": 65,
+            "after": 63,
+            "note": "Advisory xact lock and unlock literals share two text constants; each call still executes with its own bind; FOR UPDATE and all other statements untouched."
+          },
+          {
+            "command": "vitest billing read-tail r17-r25 (28) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "31c8c212e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Share advisory xact lock and unlock literals as text constants; each call still executes. BEFORE=65.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; residual dedupe exhausted, native billing workspace cutover is lead-owned; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMbil4",
+          "at": "2026-11-24T08:21:44.139Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; residual dedupe exhausted, native billing workspace cutover is lead-owned; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -164470,17 +164485,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 24,
+        "in_progress": 23,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1042,
+        "blocked": 1043,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:20:10.350Z",
+    "updatedAt": "2026-11-24T08:21:44.147Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
