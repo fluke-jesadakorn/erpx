@@ -1,4 +1,5 @@
 import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
+import { ACCOUNT_SELECT_PREFIX } from './finance-read-tail-r30-sql';
 import { BANK_STATEMENT_VERSION_GUARD_SQL } from './finance-read-tail-r18-sql';
 import {financeSnapshotSources} from "@erpx/server-people_payroll/public/finance-snapshot-sources";
 import { OPEN_PERIOD_LIST_SQL } from './finance-read-tail-r15-sql';
@@ -58,7 +59,7 @@ export function payrollFinanceFacts(database: SqlDatabase) {
                 legal_name: string;
             }>();
         },
-        readCreatePaymentBatchBank(bankAccountId: string, companyId: string, currency: string) { return database.prepare("SELECT id FROM finance_accounts WHERE id=? AND company_id=? AND category='asset' AND currency=? AND status='active'").bind(bankAccountId, companyId, currency).first(); },
+        readCreatePaymentBatchBank(bankAccountId: string, companyId: string, currency: string) { return database.prepare(ACCOUNT_SELECT_PREFIX + "id=? AND company_id=? AND category='asset' AND currency=? AND status='active'").bind(bankAccountId, companyId, currency).first(); },
         guard185(commandId: string, value: "supplier-payment-reservation", sourceId: string) { return assertion(database, commandId, value, "NOT EXISTS(SELECT 1 FROM finance_supplier_instructions WHERE invoice_id=? AND status IN ('reserved','exported','unknown','confirmed'))", [sourceId]); },
         stageCreatePaymentBatchEffect(now: number, sourceId: string, companyId: string) { return financePayrollOwner(database, companyId).invoiceVersion({ now, sourceId, companyId }); },
         readConfirmPaymentBatchPosting(source_id: string, companyId: string) {
@@ -73,7 +74,7 @@ export function payrollFinanceFacts(database: SqlDatabase) {
                 account_id: string;
             }>();
         },
-        readConfirmPaymentBatchBankAccount(bank_account_id: string | null, companyId: string, chart_id: string, currency: string) { return database.prepare("SELECT id FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category='asset' AND status='active'").bind(bank_account_id, companyId, chart_id, currency).first(); },
+        readConfirmPaymentBatchBankAccount(bank_account_id: string | null, companyId: string, chart_id: string, currency: string) { return database.prepare(ACCOUNT_SELECT_PREFIX + "id=? AND company_id=? AND chart_id=? AND currency=? AND category='asset' AND status='active'").bind(bank_account_id, companyId, chart_id, currency).first(); },
         readConfirmPaymentBatchTransaction(bankTransactionId: string, companyId: string) {
             return database.prepare("SELECT t.id,t.version,t.amount_minor,t.currency,t.match_status,t.transaction_date,t.external_id,s.bank_account FROM finance_bank_transactions t JOIN finance_bank_statements s ON s.id=t.statement_id WHERE t.id=? AND t.company_id=?").bind(bankTransactionId, companyId).first<{
                 id: string;

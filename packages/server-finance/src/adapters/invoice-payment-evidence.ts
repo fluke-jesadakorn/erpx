@@ -1,4 +1,5 @@
 import {rejectNativeServiceInvoicePaymentEvidence} from './native-service-invoice-payment-evidence';
+import { INVOICE_EXISTS_PREFIX } from './finance-read-tail-r30-sql';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {getInvoice} from '@erpx/server-finance/public/finance-invoice-read';
@@ -27,5 +28,5 @@ export async function invoicePaymentOwner(db:SqlDatabase,actor:WorkContext,id:st
 export async function invoiceEvidenceGuard(db:SqlDatabase,actor:WorkContext,id:string,key:string){
   const authority=await expenseAuthoritySnapshot(db,actor.companyId);
   const invoice=await invoicePaymentOwner(db,actor,id,true);
-  return {invoice,guards:[authority.guard(key,"invoice-payment-authority"),assertion(db,key,"invoice-payment-version","EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND company_id=? AND version=? AND status IN ('posted','partially_paid'))",[id,actor.companyId,invoice.version])]};
+  return {invoice,guards:[authority.guard(key,"invoice-payment-authority"),assertion(db,key,"invoice-payment-version",INVOICE_EXISTS_PREFIX + " AND version=? AND status IN ('posted','partially_paid'))",[id,actor.companyId,invoice.version])]};
 }

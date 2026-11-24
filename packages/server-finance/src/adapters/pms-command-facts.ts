@@ -1,4 +1,5 @@
 import {financeOwnedSnapshotSources as pmsSnapshotSources} from "@erpx/server-pms/public/finance-owned-snapshot-sources";
+import { ACCOUNT_SELECT_PREFIX } from './finance-read-tail-r30-sql';
 import { nativePmsFinanceFacts } from '@erpx/server-collaboration/adapters/native-pms-finance-facts';
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -102,13 +103,13 @@ export function pmsFinanceFacts(db: SqlDatabase) {
             companyId: string;
             chartId: string;
             currency: string;
-        }) => db.prepare("SELECT id FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category='revenue' AND status='active'").bind(facts.account, facts.companyId, facts.chartId, facts.currency).first(),
+        }) => db.prepare(ACCOUNT_SELECT_PREFIX + "id=? AND company_id=? AND chart_id=? AND currency=? AND category='revenue' AND status='active'").bind(facts.account, facts.companyId, facts.chartId, facts.currency).first(),
         readFinanceAccounts4: (facts: {
             id: string;
             companyId: string;
             chartId: string;
             currency: string;
-        }) => db.prepare("SELECT id FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category='liability' AND status='active'").bind(facts.id, facts.companyId, facts.chartId, facts.currency).first(),
+        }) => db.prepare(ACCOUNT_SELECT_PREFIX + "id=? AND company_id=? AND chart_id=? AND currency=? AND category='liability' AND status='active'").bind(facts.id, facts.companyId, facts.chartId, facts.currency).first(),
         readFinancePeriods: (facts: {
             companyId: string;
             date: string;

@@ -1,4 +1,5 @@
 import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
+import { JOURNAL_SELECT_PREFIX } from './finance-read-tail-r30-sql';
 import { withFinancePurchasedRead, withFinancePurchasedCommand, withFinanceConfigurationCommand } from "@erpx/server-finance/adapters/purchase-boundary";
 import { FINANCE_ADVISORY_XACT_LOCK_SQL } from "./advisory-lock-dedupe-sql";
 import { OPEN_PERIOD_LIST_SQL } from './finance-read-tail-r15-sql';
@@ -27,7 +28,7 @@ const openingSql = `SELECT l.account_id AS "accountId",l.dimension_json AS dimen
  FROM finance_journal_lines l JOIN finance_journals j ON j.id=l.journal_id
  WHERE j.company_id=? AND j.chart_id=? AND j.status IN ('posted','reversed') AND j.entry_date<?
  GROUP BY l.account_id,l.dimension_json HAVING SUM(l.base_debit_minor-l.base_credit_minor)<>0 ORDER BY l.account_id,l.dimension_json`;
-const chartPostedSql = "SELECT 1 FROM finance_journals WHERE chart_id=? AND status IN ('posted','reversed')";
+const chartPostedSql = JOURNAL_SELECT_PREFIX + "s WHERE chart_id=? AND status IN ('posted','reversed')";
 async function opening(
   db: SqlDatabase,
   company: string,
@@ -79,7 +80,7 @@ lockPrimary:async(chartId)=>db
       .run(),
 sourcePostedSince:async(chartId,effectiveDate)=>db
           .prepare(
-            "SELECT 1 FROM finance_journals WHERE chart_id=? AND status IN ('posted','reversed') AND entry_date>=?",
+            JOURNAL_SELECT_PREFIX + "s WHERE chart_id=? AND status IN ('posted','reversed') AND entry_date>=?",
           )
           .bind(chartId, effectiveDate)
           .first(),

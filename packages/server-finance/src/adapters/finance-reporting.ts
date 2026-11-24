@@ -1,4 +1,5 @@
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
+import { ACCOUNT_SELECT_PREFIX } from './finance-read-tail-r30-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
 import { nativeFinanceReporting } from '@erpx/server-collaboration/adapters/native-finance-reporting';
 import {financeReportingCompanyFacts} from '@erpx/server-organization/public/finance-reporting-company-facts';
@@ -56,7 +57,7 @@ function nativeReporting(provided?:SqlDatabase) {
             start_date: string;
             end_date: string;
             state: string;
-        }>(), equityAccount: async (actor, input, currency) => !!await (await database()).prepare("SELECT id FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND category='equity' AND status='active' AND currency=?").bind(input.retainedEarningsAccountId, actor.companyId, input.chartId, currency).first(), closing: async (actor, id) => (await database()).prepare("SELECT * FROM finance_year_closings WHERE id=? AND company_id=?").bind(id, actor.companyId).first<Package>(), prepareJournal: async (actor, input, key) => { const p = await prepareJournal(await database(), actor, input, key, "posted"); journals.set(p.result.id, p); return { result: { id: p.result.id } }; }, prepareMoney: async (actor, input) => { preparedMoney = await snapshotMoney(await database(), actor, input); },
+        }>(), equityAccount: async (actor, input, currency) => !!await (await database()).prepare(ACCOUNT_SELECT_PREFIX + "id=? AND company_id=? AND chart_id=? AND category='equity' AND status='active' AND currency=?").bind(input.retainedEarningsAccountId, actor.companyId, input.chartId, currency).first(), closing: async (actor, id) => (await database()).prepare("SELECT * FROM finance_year_closings WHERE id=? AND company_id=?").bind(id, actor.companyId).first<Package>(), prepareJournal: async (actor, input, key) => { const p = await prepareJournal(await database(), actor, input, key, "posted"); journals.set(p.result.id, p); return { result: { id: p.result.id } }; }, prepareMoney: async (actor, input) => { preparedMoney = await snapshotMoney(await database(), actor, input); },
         commitStatement: async ({ actor, input, key, id, op, profile, sourceRevision, sourceFingerprint, snapshot, edition, now }) => {
             const write = await database();
             return executeCommand(write, actor, key, op, input, id, 1, { id, status: "draft", version: 1, edition, sourceFingerprint }, [

@@ -1,4 +1,5 @@
 import { hospitalityTaxDocuments } from '@erpx/server-collaboration/adapters/native-hospitality-tax-documents';
+import { INVOICE_EXISTS_PREFIX } from './finance-read-tail-r30-sql';
 import {financeOwnedSnapshotSources as pmsSnapshotSources} from "@erpx/server-pms/public/finance-owned-snapshot-sources";
 import {financeOwnedSnapshotSources as posSnapshotSources} from "@erpx/server-pos/public/finance-owned-snapshot-sources";
 import 'server-only';
@@ -29,11 +30,11 @@ function nativeTaxDocuments(){let pending:Promise<SqlDatabase>|undefined;const r
  documents:async(companyId,invoiceId)=>(await (await pending!).prepare('SELECT * FROM hospitality_tax_documents WHERE company_id=? AND invoice_id=? ORDER BY created_at DESC,id DESC').bind(companyId,invoiceId).all<Document>()).results,
  replay:async(actor,key,operation,recordId,command)=>replayCommand(await ready(actor),actor,key,operation,recordId,command),
  commitRecord:async(facts)=>{const {actor,key,operation,command,recordId,invoice,documentId,now,result}=facts;const db=await ready(actor);    return executeCommand(db,actor,key,operation,command,recordId,1,result,[
-      assertion(db,key,'invoice-current',`EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND company_id=? AND source_type=? AND currency=? AND total_minor=? AND tax_minor=? AND status IN ('posted','partially_paid','paid'))`,[invoice.id,actor.companyId,invoice.source_type,invoice.currency,invoice.total_minor,invoice.tax_minor]),
+      assertion(db,key,'invoice-current',`${INVOICE_EXISTS_PREFIX} AND source_type=? AND currency=? AND total_minor=? AND tax_minor=? AND status IN ('posted','partially_paid','paid'))`,[invoice.id,actor.companyId,invoice.source_type,invoice.currency,invoice.total_minor,invoice.tax_minor]),
       await hospitalityTaxDocuments(db, actor.companyId).record({ documentId, companyId: actor.companyId, invoiceId: invoice.id, sourceType: invoice.source_type, issuer: command.issuer, externalReference: command.externalReference, issuedOn: command.issuedOn, currency: invoice.currency, totalMinor: invoice.total_minor, taxMinor: invoice.tax_minor, documentTotalMinor: command.documentTotalMinor, documentTaxMinor: command.documentTaxMinor, userId: actor.userId, reason: command.reason, createdAt: now }),
     ]);},
  commitDecision:async(facts)=>{const {actor,key,operation,command,recordId,invoice,doc,next,now,state,result}=facts;const db=await ready(actor);  return executeCommand(db,actor,key,operation,command,recordId,next,result,[
-    assertion(db,key,'invoice-current',`EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND company_id=? AND source_type=? AND currency=? AND total_minor=? AND tax_minor=? AND status IN ('posted','partially_paid','paid'))`,[invoice.id,actor.companyId,invoice.source_type,invoice.currency,invoice.total_minor,invoice.tax_minor]),
+    assertion(db,key,'invoice-current',`${INVOICE_EXISTS_PREFIX} AND source_type=? AND currency=? AND total_minor=? AND tax_minor=? AND status IN ('posted','partially_paid','paid'))`,[invoice.id,actor.companyId,invoice.source_type,invoice.currency,invoice.total_minor,invoice.tax_minor]),
     assertion(db,key,'document-current',`EXISTS(SELECT 1 FROM hospitality_tax_documents WHERE id=? AND company_id=? AND invoice_id=? AND version=? AND state=? AND currency=? AND total_minor=? AND tax_minor=?)`,[doc.id,actor.companyId,invoice.id,doc.version,doc.state,invoice.currency,invoice.total_minor,invoice.tax_minor]),
     await hospitalityTaxDocuments(db, actor.companyId).decide({ state, next, userId: actor.userId, reason: command.action==='void'?command.reason:doc.reason, now, docId: doc.id, companyId: actor.companyId, version: doc.version, action: command.action }),
   ]);},

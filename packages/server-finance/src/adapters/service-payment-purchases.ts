@@ -1,4 +1,5 @@
 import "server-only";
+import { INVOICE_EXISTS_PREFIX } from './finance-read-tail-r30-sql';
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {holdingResources} from "@erpx/server-runtime/public/runtime";
@@ -20,7 +21,7 @@ export async function withLegacyPaymentCommand<Result>(actor:WorkContext,target:
  if(target){
   const database=(await holdingResources(actor.holdingId)).write;
   const query=target.kind==='invoice'
-   ?"SELECT EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND source_type='field_service') marker,EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND company_id=?) scoped"
+   ?"SELECT EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND source_type='field_service') marker," + INVOICE_EXISTS_PREFIX + ") scoped"
    :"SELECT erpx_finance_field_payment_owned(?) marker,EXISTS(SELECT 1 FROM finance_payments WHERE id=? AND company_id=?) scoped";
   const source=await database.prepare(query).bind(target.id,target.id,actor.companyId).first<{marker:boolean;scoped:boolean}>();
   if(!source||typeof source.marker!=='boolean'||typeof source.scoped!=='boolean')throw new ApiError(503,'PAYMENT_OWNER_UNAVAILABLE','Could not verify this payment.');

@@ -40,6 +40,7 @@ import { idCompanyStatusVersionGuard, aggByCompany } from '../../../packages/ser
 import { journalLineEvidenceSql } from '../../../packages/server-finance/src/adapters/finance-read-tail-r22-sql';
 import { bookRootUnionSql, peopleRunsCteSql, peoplePostingsCteSql, journalAggregateCtesSql, netPayableFactSql, payrollUnpostedFactSql, statutoryLiabilityFactSql, statutoryLateralSql, secondaryJournalFactSql } from '../../../packages/server-finance/src/adapters/finance-read-tail-r23-sql';
 import { packageObligationFactsSql, ASSET_DEPRECIATION_COUNT_SQL, ASSET_POLICY_EDITION_PENDING_SQL, ASSET_POLICY_RUN_PENDING_SQL, TAX_SOURCE_APPROVED_INVOICE_SQL, TAX_SOURCE_APPROVED_COMMERCE_RETURN_SQL, TAX_SOURCE_APPROVED_BILLING_CREDIT_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r24-sql';
+import { ACCOUNT_SELECT_PREFIX, INVOICE_EXISTS_PREFIX, JOURNAL_SELECT_PREFIX } from '../../../packages/server-finance/src/adapters/finance-read-tail-r30-sql';
 import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/people-payroll-final-owner-projections';
 import { workflowFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/workflow-final-owner-projections';
 import {
@@ -218,7 +219,8 @@ const POSTED_CHART_SQL = "SELECT 1 FROM finance_journals WHERE chart_id=? AND st
 describe('finance books posted-chart existence read dedupe', () => {
   it('keeps one byte-identical literal and two constant-backed reads', async () => {
     const text = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-books.ts', import.meta.url), 'utf8');
-    expect(text.split(`"${POSTED_CHART_SQL}"`).length - 1).toBe(1);
+    expect(text.split(`"${POSTED_CHART_SQL}"`).length - 1).toBe(0);
+    expect(text).toContain("JOURNAL_SELECT_PREFIX + \"s WHERE chart_id=? AND status IN ('posted','reversed')\"");
     expect(text.split('chartPostedSql,').length - 1).toBe(2);
   });
 });
@@ -1022,7 +1024,7 @@ describe('finance read-tail r24 byte-identical SQL families', () => {
     };
     walk(root);
     expect(total).toBeLessThan(2038);
-    expect(total).toBe(2027);
+    expect(total).toBe(1989);
   });
 });
 
@@ -1130,5 +1132,69 @@ describe('native VAT pending-correction count scalar port', () => {
     );
     expect(value).toBeNull();
     expect(Number(value ?? 0)).toBe(0);
+  });
+});
+
+describe('finance read-tail r30 byte-identical guard-prefix families', () => {
+  const PREFIXES = {
+    ACCOUNT_SELECT_PREFIX: 'SELECT id FROM finance_accounts WHERE ',
+    INVOICE_EXISTS_PREFIX: 'EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND company_id=?',
+    JOURNAL_SELECT_PREFIX: 'SELECT 1 FROM finance_journal',
+  };
+
+  it('exposes the three exact prefixes with no lock or suffix text', () => {
+    expect(ACCOUNT_SELECT_PREFIX).toBe(PREFIXES.ACCOUNT_SELECT_PREFIX);
+    expect(INVOICE_EXISTS_PREFIX).toBe(PREFIXES.INVOICE_EXISTS_PREFIX);
+    expect(JOURNAL_SELECT_PREFIX).toBe(PREFIXES.JOURNAL_SELECT_PREFIX);
+    for (const value of Object.values(PREFIXES)) expect(value).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+  });
+
+  it('leaves every row-lock suffix inline at its call site', async () => {
+    const pos = await readFile(new URL('../../../packages/server-finance/src/adapters/pos-core-facts.ts', import.meta.url), 'utf8');
+    expect(pos.split("AND (currency IS NULL OR currency=?) FOR SHARE").length - 1).toBe(1);
+    expect(pos.split("ORDER BY code,id FOR UPDATE").length - 1).toBe(1);
+  });
+
+  it('keeps the retained tax assertion guard pendingCorrectionsSql inline', async () => {
+    const tax = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    expect(tax).toContain('const pendingCorrectionsSql = "SELECT COUNT(*) FROM finance_vat_corrections');
+    expect(tax).toContain('`(${pendingCorrectionsSql})=0`');
+  });
+
+  it('backs every in-scope call site with a shared prefix and no inline family literal', async () => {
+    const files = [
+      'pms-command-facts.ts', 'finance-reporting.ts', 'payroll-owner-facts.ts',
+      'payroll-remittance-sources.ts', 'commerce-facts.ts', 'pos-core-facts.ts',
+      'refunds.ts', 'journal-planning.ts', 'finance.ts', 'finance-billing-corrections.ts',
+      'finance-business-contracts.ts', 'finance-invoice-lines.ts', 'finance-thai-documents.ts',
+      'hospitality-tax-documents.ts', 'invoice-payment-evidence.ts', 'service-payment-purchases.ts',
+      'document-purchases.ts', 'finance-books.ts', 'manufacturing-initial-stock-journal-sources.ts',
+      'pos-initial-stock-journal-sources.ts', 'service-initial-stock-journal-sources.ts',
+    ];
+    for (const file of files) {
+      const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+      expect(text).toContain('from \'./finance-read-tail-r30-sql\'');
+      expect(text.split(PREFIXES.ACCOUNT_SELECT_PREFIX).length - 1).toBe(0);
+      expect(text.split(PREFIXES.INVOICE_EXISTS_PREFIX).length - 1).toBe(0);
+      // no SQL literal starts with the journal prefix; suffix text after the
+      // interpolation belongs to EXISTS(...) subqueries and stays inline.
+      expect(text).not.toMatch(/["'`]SELECT 1 FROM finance_journal/s);
+      expect(text).toMatch(/ACCOUNT_SELECT_PREFIX|INVOICE_EXISTS_PREFIX|JOURNAL_SELECT_PREFIX/);
+    }
+  });
+
+  it('retirement:ts-statements stays strictly below the r30 BEFORE=2027 baseline', () => {
+    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(2027);
+    expect(total).toBe(1989);
   });
 });

@@ -1,4 +1,5 @@
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
+import { INVOICE_EXISTS_PREFIX } from './finance-read-tail-r30-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
 import { OPEN_PERIOD_LIST_SQL, APPROVED_SECONDARY_CHART_RULE_SQL } from './finance-read-tail-r15-sql';
 import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
@@ -153,7 +154,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
             return assertion(db, key, value, "EXISTS(SELECT 1 FROM finance_business_billing_runs WHERE id=? AND company_id=? AND version=?) AND NOT EXISTS(SELECT 1 FROM finance_business_billing_runs WHERE parent_run_id=?)", [id, companyId, version, id2]);
         }, guardParentInvoice(key: string, value: "billing-parent-invoice", invoice_id: string | number, companyId: string, original_invoice_version: string | number | null) {
             const db = read();
-            return assertion(db, key, value, "EXISTS(SELECT 1 FROM finance_invoices WHERE id=? AND company_id=? AND version=? AND status IN ('draft','voided') AND journal_id IS NULL AND posted_at IS NULL)", [
+            return assertion(db, key, value, INVOICE_EXISTS_PREFIX + " AND version=? AND status IN ('draft','voided') AND journal_id IS NULL AND posted_at IS NULL)", [
                 invoice_id,
                 companyId,
                 original_invoice_version,
