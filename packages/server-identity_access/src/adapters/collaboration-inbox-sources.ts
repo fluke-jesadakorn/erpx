@@ -1,5 +1,5 @@
 import {inboxAudiencePeopleJoins} from '@erpx/server-people_payroll/public/collaboration-inbox-people';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';export function collaborationInboxSources(db:SqlDatabase){return {async broadcastPermission(role:string,companyId:string,value:"inbox.notice.broadcast"){return db.prepare("SELECT 1 WHERE iam_role_allows(?,?,?)")
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import {roleAllowsSql} from './iam-probe-sql';export function collaborationInboxSources(db:SqlDatabase){return {async broadcastPermission(role:string,companyId:string,value:"inbox.notice.broadcast"){return db.prepare(roleAllowsSql)
         .bind(role,companyId,value).first();},async audienceRecipients(companyId:string,now:number,now2:number,kind:"company" | "branch" | "department",kind2:"company" | "branch" | "department",id:string,id2:string,kind3:"company" | "branch" | "department",id3:string,id4:string){return db.prepare(`SELECT DISTINCT a.user_id FROM assignments a
         ${inboxAudiencePeopleJoins}
         WHERE a.company_id=? AND a.revoked_at IS NULL AND iam_assignment_active(a.id,?)

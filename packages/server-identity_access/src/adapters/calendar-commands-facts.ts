@@ -1,5 +1,6 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import { samePersonSql } from "./iam-probe-sql";
 export function calendarCommandsIdentityAccessFacts(db: SqlDatabase) {
     return { read6: (facts: {
             value1: string;
@@ -10,7 +11,7 @@ export function calendarCommandsIdentityAccessFacts(db: SqlDatabase) {
             value1: string | null;
             value2: string;
             value3: string;
-        }) => db.prepare("SELECT 1 WHERE iam_same_person(?,?,?)").bind(facts.value1, facts.value2, facts.value3).first<Record<string, unknown>>(),
+        }) => db.prepare(samePersonSql).bind(facts.value1, facts.value2, facts.value3).first<Record<string, unknown>>(),
         read28: (facts: {
             value1: string;
             value2: string[];
