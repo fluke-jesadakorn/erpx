@@ -23,14 +23,14 @@ import {workSocialNativePostPredicate,workSocialUnresolvedPostPredicate,operatio
 import {sourceAccessSql} from '@erpx/server-collaboration/public/social-source-policy';
 
 import{units}from '@erpx/server-collaboration/adapters/work-social-unit-state';
-import {workforceActorScopeColumns,jsonbTextIds} from './read-tail-sql';
+import {workforceActorScopeExists,jsonbTextIds} from './read-tail-sql';
 type Reader=Pick<StaffActor,'companyId'|'userId'>&Partial<StaffActor>;
 type ReadScope={prefix:string;where:string;args:SqlValue[]};
 export const actorKey=(actor:StaffActor)=>JSON.stringify([actor.companyId,actor.branchId,actor.departmentId,actor.userId,actor.assignmentId,actor.role,actor.authority??null,actor.iam??null]);
 export const clock=packageClockSql;
 export function selected(actor:Reader):actor is StaffActor{return typeof actor.assignmentId==='string'&&typeof actor.role==='string'&&'branchId' in actor&&'departmentId' in actor;}
 export function actorScope(actor:Reader){
- if(selected(actor)){const current=currentAssignmentReadScope(actor,'workforce_actor_scope');return {prefix:`WITH social_purchase_actor AS MATERIALIZED(SELECT ?::text user_id,?::text assignment_id,?::text role,?::text company_id,${clock} now_ms WHERE EXISTS(SELECT 1 FROM ${workforceActorScopeColumns} workforce_actor_scope WHERE ${current.where})) `,args:[actor.userId,actor.assignmentId,actor.role,actor.companyId,actor.companyId,actor.branchId,actor.departmentId,...current.args] as SqlValue[]};}
+ if(selected(actor)){const current=currentAssignmentReadScope(actor,'workforce_actor_scope');return {prefix:`WITH social_purchase_actor AS MATERIALIZED(SELECT ?::text user_id,?::text assignment_id,?::text role,?::text company_id,${clock} now_ms WHERE ${workforceActorScopeExists(current.where)}) `,args:[actor.userId,actor.assignmentId,actor.role,actor.companyId,actor.companyId,actor.branchId,actor.departmentId,...current.args] as SqlValue[]};}
  // Recipient visibility probes keep their original existential current account
  // policy. No replacement acting role or queued authority is selected here.
  return {prefix:`WITH social_purchase_actor AS MATERIALIZED(SELECT g.user_id,g.id assignment_id,g.role,g.company_id,${clock} now_ms FROM assignments g WHERE g.user_id=? AND g.company_id=? AND (?::text IS NULL OR g.id=?) AND iam_assignment_active(g.id,${clock}) AND iam_principal_active(g.user_id,g.company_id,${clock})) `,args:[actor.userId,actor.companyId,actor.assignmentId??null,actor.assignmentId??null] as SqlValue[]};

@@ -11,3 +11,6 @@ export const workSocialCommentsAgg=`(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id)
 export const workSocialSourcesAgg=`(SELECT jsonb_agg(to_jsonb(s) ORDER BY s.post_id,s.ordinal) FROM social_post_sources s JOIN posts p ON p.id=s.post_id)`;
 export const requestedSourcesJsonb=`(SELECT kind,id FROM jsonb_to_recordset(?::jsonb) AS r(kind text,id text))`;
 export const jsonbTextIds=`(SELECT jsonb_array_elements_text(?::jsonb))`;
+export const workforceActorScopeExists=(where:string)=>`EXISTS(SELECT 1 FROM ${workforceActorScopeColumns} workforce_actor_scope WHERE ${where})`;
+export const messagingRoomMemberExists=`EXISTS(SELECT 1 FROM messaging_room_members m WHERE m.room_id=r.id AND m.user_id=?)`;
+export const messagingRoomTeamId=`(SELECT team_id FROM messaging_rooms WHERE id=?)`;
