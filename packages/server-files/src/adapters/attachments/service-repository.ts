@@ -17,6 +17,7 @@ import {SANITIZATION_ATTESTED_HEAD_SQL} from "../read-tail-r40-source-sql";
 import {LEDGER_OBJECT_KEY_PROJECTION_HEAD_SQL} from "../read-tail-r42-source-sql";
 import {ATTACHMENT_STAR_ID_HEAD_SQL} from "../read-tail-r44-source-sql";
 import {ATTACHMENT_EVENTS_WHERE_HEAD_SQL,ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL} from "../read-tail-r45-source-sql";
+import {SET_DRAFT_BOUND_COUNT_SQL} from "../read-tail-r46-source-sql";
 const setByIdSql = ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL + "id=? AND company_id=?";
 export const usedStorageSql = "SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')";
 export const pendingStorageSql = "SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?";
@@ -193,7 +194,7 @@ export function repository(db: SqlDatabase) {
         readAttachmentLinks17: (facts: {
             setId: string;
             companyId: string;
-        }) => { return db.prepare("SELECT count(*) AS count FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.set_id=? AND s.company_id=? AND l.state IN ('draft','bound')").bind(facts.setId, facts.companyId).first("count"); },
+        }) => { return db.prepare(SET_DRAFT_BOUND_COUNT_SQL(true)).bind(facts.setId, facts.companyId).first("count"); },
         readAttachmentStorageLedger18: (facts: {
             companyId: string;
         }) => { return db.prepare(usedStorageSql).bind(facts.companyId).first("coalesce"); },
@@ -499,7 +500,7 @@ export function repository(db: SqlDatabase) {
         readAttachmentLinks60: (facts: {
             setId: string;
             companyId: string;
-        }) => { return db.prepare("SELECT count(*) FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.set_id=? AND s.company_id=? AND l.state IN ('draft','bound')").bind(facts.setId, facts.companyId).first("count"); },
+        }) => { return db.prepare(SET_DRAFT_BOUND_COUNT_SQL(false)).bind(facts.setId, facts.companyId).first("count"); },
         stepAttachmentLinks61: (facts: {
             id: string;
             setId: string;

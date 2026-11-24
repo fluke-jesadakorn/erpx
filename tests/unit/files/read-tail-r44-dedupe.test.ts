@@ -28,6 +28,12 @@ const F2 = '${socialDraftImageExistsSql}upload_intents u ON u.id=a.upload_id JOI
 /** r45 folded two service-repository heads into the r45 helper. */
 const H5 = 'SELECT 1 FROM attachment_events WHERE ';
 const H6 = 'SELECT * FROM attachment_sets WHERE ';
+/** r46 folded two closed-union heads; these are rendered back only so this
+ * r44 oracle still compares against the pinned pre-r46 baseline. */
+const R46_P1 = "SELECT 1 FROM attachment_orphan_preservation_events e WHERE e.preservation_id=p.id AND e.event_kind='preserved'";
+const R46_P2 = "SELECT 1 FROM attachment_orphan_preservation_events e WHERE e.preservation_id=p.id AND e.event_kind='restored'";
+const R46_C1 = "SELECT count(*) AS count FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.set_id=? AND s.company_id=? AND l.state IN ('draft','bound')";
+const R46_C2 = "SELECT count(*) FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.set_id=? AND s.company_id=? AND l.state IN ('draft','bound')";
 
 const TARGETS = [
   'adapters/attachments/service.ts',
@@ -41,7 +47,7 @@ const TARGETS = [
 
 const stripR44Import = (text: string) => text
   .split('\n')
-  .filter(line => !line.includes('read-tail-r44-source-sql') && !line.includes('read-tail-r45-source-sql'))
+  .filter(line => !line.includes('read-tail-r44-source-sql') && !line.includes('read-tail-r45-source-sql') && !line.includes('read-tail-r46-source-sql'))
   .join('\n');
 /** Reconstruct the pre-r44 bytes: quoted splices and template/bare references
  * are rendered back to their original literals without touching tails. */
@@ -54,7 +60,11 @@ const render = (text: string) => text
   .replace(F2, H4 + 'upload_intents u ON u.id=a.upload_id JOIN (${socialDraftFilesReadSql}) d ON d.id=a.owner_id\n')
   .replaceAll('ATTACHMENT_EVENTS_WHERE_HEAD_SQL + "', '"' + H5)
   .replaceAll('ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL + "', '"' + H6)
-  .replaceAll('${ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL}', H6);
+  .replaceAll('${ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL}', H6)
+  .replaceAll("${ORPHAN_PRESERVATION_EVENT_HEAD_SQL('preserved')}", R46_P1)
+  .replaceAll("${ORPHAN_PRESERVATION_EVENT_HEAD_SQL('restored')}", R46_P2)
+  .replaceAll('db.prepare(SET_DRAFT_BOUND_COUNT_SQL(true))', `db.prepare("${R46_C1}")`)
+  .replaceAll('db.prepare(SET_DRAFT_BOUND_COUNT_SQL(false))', `db.prepare("${R46_C2}")`);
 
 const tsFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
   const path = resolve(dir, entry.name);
@@ -141,8 +151,9 @@ describe('Files read-tail r44 byte-oracle dedupe', () => {
     // r43 left 246: the upload_intents EXISTS head folds 3 sites into one
     // (-2), while the attachment star-id and scan OR-EXISTS heads each fold
     // two sites into one (-1 each). Three heads live in the r44 helper.
-    expect(literal).toBe(239);
-    expect(total).toBe(240);
+    // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
+    expect(literal).toBe(237);
+    expect(total).toBe(238);
     expect(literal).toBeLessThan(246);
     expect(total).toBeLessThan(247);
   });

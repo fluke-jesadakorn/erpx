@@ -19,6 +19,7 @@ import { orphanReconciliationSql } from '../read-tail-r26-source-sql';
 import { STORAGE_LEDGER_PRESENCE_SQL } from '../read-tail-r29-source-sql';
 import { ledgerBytesSumSql } from '../read-tail-r31-source-sql';
 import { LEDGER_OBJECT_KEY_PROJECTION_HEAD_SQL } from '../read-tail-r42-source-sql';
+import { ORPHAN_PRESERVATION_EVENT_HEAD_SQL } from '../read-tail-r46-source-sql';
 function application(db: SqlDatabase) {
     const database = db, repository: AttachmentMigrationRepository<SqlStatement> = { readBackfillSpecializedAttachmentsMessaging() { return attachmentMigrationcollaboration(database).readBackfillSpecializedAttachmentsMessaging(); },
         readBackfillSpecializedAttachmentsDocuments() { return attachmentMigrationlegal(database).readBackfillSpecializedAttachmentsDocuments(); },
@@ -135,8 +136,8 @@ function application(db: SqlDatabase) {
         readReconcileAttachmentStorageEffect6() { return database.prepare(ORPHAN_PRESERVATION_PRESENT_SQL).first("present"); },
         readReconcileAttachmentStoragePreserved() {
             return database.prepare(`SELECT p.* FROM attachment_orphan_preservations p
-      WHERE EXISTS(SELECT 1 FROM attachment_orphan_preservation_events e WHERE e.preservation_id=p.id AND e.event_kind='preserved')
-        AND NOT EXISTS(SELECT 1 FROM attachment_orphan_preservation_events e WHERE e.preservation_id=p.id AND e.event_kind='restored')`).all<{
+      WHERE EXISTS(${ORPHAN_PRESERVATION_EVENT_HEAD_SQL('preserved')})
+        AND NOT EXISTS(${ORPHAN_PRESERVATION_EVENT_HEAD_SQL('restored')})`).all<{
                 id: string;
                 object_key: string;
                 object_sha256: string;

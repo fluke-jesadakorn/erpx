@@ -127,8 +127,9 @@ describe('Files read-tail r38 parameterized family', () => {
     walk(srcRoot);
     // r42 left 248; r43 lowers 248->246 (two SELECT-bearing shared heads folded).
     // r44 lowers 246->242 (three more shared heads folded).
-    expect(literal).toBe(239);
-    expect(total).toBe(240);
+    // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
+    expect(literal).toBe(237);
+    expect(total).toBe(238);
     expect(literal).toBeLessThan(255);
     expect(total).toBeLessThan(256);
   });

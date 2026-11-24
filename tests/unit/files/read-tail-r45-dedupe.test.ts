@@ -12,17 +12,24 @@ import { SANITIZATION_ATTESTED_HEAD_SQL } from '../../../packages/server-files/s
 
 const rootDir = resolve(__dirname, '../../..');
 const srcRoot = resolve(rootDir, 'packages/server-files/src');
+const BASE = 'fc31f7947cc7df1f47f0690708f2b2ea0dfeae09';
 const SR = 'adapters/attachments/service-repository.ts';
 const HOME = 'adapters/collaboration-home-sources.ts';
 const src = (rel: string) => readFileSync(resolve(srcRoot, rel), 'utf8');
 const git = (...a: string[]) => execFileSync('git', a, { cwd: rootDir, encoding: 'utf8' });
-const before = (rel: string) => git('show', `HEAD:packages/server-files/src/${rel}`);
+const before = (rel: string) => git('show', `${BASE}:packages/server-files/src/${rel}`);
 const count = (text: string, needle: string) => text.split(needle).length - 1;
 
 /** Verbatim byte oracles: the exact 38/36/40-byte heads lifted by r45. */
 const H1 = 'SELECT 1 FROM attachment_events WHERE ';
 const H2 = 'SELECT * FROM attachment_sets WHERE ';
 const H3 = 'EXISTS(SELECT 1 FROM attachments a JOIN ';
+/** r46 folded two closed-union heads; these are rendered back only so this
+ * r45 oracle still compares against pre-r46 HEAD bytes. */
+const P1 = "SELECT 1 FROM attachment_orphan_preservation_events e WHERE e.preservation_id=p.id AND e.event_kind='preserved'";
+const P2 = "SELECT 1 FROM attachment_orphan_preservation_events e WHERE e.preservation_id=p.id AND e.event_kind='restored'";
+const C1 = "SELECT count(*) AS count FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.set_id=? AND s.company_id=? AND l.state IN ('draft','bound')";
+const C2 = "SELECT count(*) FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.set_id=? AND s.company_id=? AND l.state IN ('draft','bound')";
 
 /** The single r45 family-2 site: guardPublishImage's own inline literal. The
  * other three collaboration-home sites already used socialDraftImageExistsSql
@@ -32,14 +39,18 @@ const F2_SITE = '${socialDraftImageExistsSql}upload_intents u ON u.id=a.upload_i
 
 const stripImport = (text: string) => text
   .split('\n')
-  .filter(line => !line.includes('read-tail-r45-source-sql'))
+  .filter(line => !line.includes('read-tail-r45-source-sql') && !line.includes('read-tail-r46-source-sql'))
   .join('\n');
-/** Render the two r45 heads back to their original inline literals. */
+/** Render the r45 heads (and the later r46 substitutions) back to literals. */
 const render = (text: string) => stripImport(text)
   .replaceAll('ATTACHMENT_EVENTS_WHERE_HEAD_SQL + "', '"' + H1)
   .replaceAll('ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL + "', '"' + H2)
   .replaceAll('${ATTACHMENT_SETS_STAR_WHERE_HEAD_SQL}', H2)
-  .replace(F2_SITE, H3 + 'upload_intents u ON u.id=a.upload_id JOIN (${socialDraftFilesReadSql}) d ON d.id=a.owner_id\n');
+  .replace(F2_SITE, H3 + 'upload_intents u ON u.id=a.upload_id JOIN (${socialDraftFilesReadSql}) d ON d.id=a.owner_id\n')
+  .replaceAll("${ORPHAN_PRESERVATION_EVENT_HEAD_SQL('preserved')}", P1)
+  .replaceAll("${ORPHAN_PRESERVATION_EVENT_HEAD_SQL('restored')}", P2)
+  .replaceAll('db.prepare(SET_DRAFT_BOUND_COUNT_SQL(true))', `db.prepare("${C1}")`)
+  .replaceAll('db.prepare(SET_DRAFT_BOUND_COUNT_SQL(false))', `db.prepare("${C2}")`);
 
 const tsFiles = (dir: string): string[] => readdirSync(dir, { withFileTypes: true }).flatMap(entry => {
   const path = resolve(dir, entry.name);
@@ -134,8 +145,9 @@ describe('Files read-tail r45 byte-oracle dedupe', () => {
     }
     // Three heads fold two sites into one each (-3): unaliased attachment_events,
     // attachment_sets star and the guardPublishImage EXISTS prefix.
-    expect(literal).toBe(239);
-    expect(total).toBe(240);
+    // r46 folds two closed-union heads (orphan-preservation event, draft/bound count): 239->237.
+    expect(literal).toBe(237);
+    expect(total).toBe(238);
     expect(literal).toBeLessThan(242);
     expect(total).toBeLessThan(243);
   });
