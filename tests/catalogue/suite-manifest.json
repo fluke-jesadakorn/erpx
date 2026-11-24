@@ -2450,6 +2450,31 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Benefits final fact projection select must stay one generator."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-benefits"
+      ],
+      "id": "benefits.read-tail-r18-dedupe.unit",
+      "files": [
+        "tests/unit/benefits/read-tail-r18-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "benefits",
+      "modules": [
+        "benefits"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Benefits scope CTE prefix must exist once and stay byte-identical."
       },
       "apps": [
@@ -59093,6 +59118,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "organization",
+      "modules": [
+        "organization"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Organization column alias families must stay byte-identical."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-organization"
+      ],
+      "id": "organization.read-tail-r26-dedupe.unit",
+      "files": [
+        "tests/unit/organization/read-tail-r26-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "lane": "integration",
       "owner": "organization",
       "modules": [
@@ -72902,6 +72952,31 @@
       "id": "procurement.read-tail-r24-dedupe.unit",
       "files": [
         "tests/unit/procurement/read-tail-r24-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "procurement",
+      "modules": [
+        "procurement"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Procurement source scope and bill receipt witness families must stay byte-identical."
+      },
+      "apps": "supply",
+      "packages": [
+        "@erpx/server-procurement"
+      ],
+      "id": "procurement.read-tail-r25-dedupe.unit",
+      "files": [
+        "tests/unit/procurement/read-tail-r25-dedupe.test.ts"
       ],
       "framework": "vitest"
     },

@@ -11,6 +11,10 @@ import {projectPurchaseControls} from "@erpx/server-projects/adapters/purchases"
 import {projectTaskPurchaseAccess} from "@erpx/server-projects/adapters/task-purchases";
 
 const sourceKinds="('project','staff_project','project_milestone','project_work_log','project_actual_time','project_cost_allocation','project_handoff')";
+/** Byte-identical native-source identity probe shared by the records/staff/inbox
+ * read scope and the workspace-record read. Only the source alias and id predicate
+ * vary; the joined native source relation stays as in both former inline copies. */
+const nativeSourceIdentity = (alias: string, predicate: string) => `SELECT 1 FROM (${nativeSources}) ${alias} WHERE ${predicate}`;
 
 /** Fixed Evaluation reference aliases retain the ordinary Project/Task source
  * authority. The consumer still proves the employee's actual participation. */
@@ -23,7 +27,7 @@ export async function projectSourceReadScope(database:SqlDatabase,actor:WorkCont
   return {where:'TRUE',args:[] as unknown[]};
  }
  const id=surface==='records'?'workspace_records.id':surface==='staff'?'staff_notifications.record_id':'e.source_id',company=surface==='records'?'workspace_records.company_id':surface==='staff'?'staff_notifications.company_id':'e.company_id';
- const native=`EXISTS(SELECT 1 FROM (${nativeSources}) project_source_identity WHERE project_source_identity.id=${id})`,kind=surface==='staff'?'staff_notifications.record_type':'e.source_type';
+ const native=`EXISTS(${nativeSourceIdentity('project_source_identity',`project_source_identity.id=${id}`)})`,kind=surface==='staff'?'staff_notifications.record_type':'e.source_type';
  const relevant=surface==='records'?native:`(${kind} IN ${sourceKinds} OR ${kind} IN ('task','staff_task','staff_task_alert') AND EXISTS(SELECT 1 FROM staff_tasks owned_task WHERE owned_task.id=${id} AND owned_task.project_id IS NOT NULL))`;
  const visible=visibleSource(actor,id,company);
  const controls=surface==='records'?await projectPurchaseControls(database,actor):undefined;
@@ -33,7 +37,7 @@ export async function projectSourceReadScope(database:SqlDatabase,actor:WorkCont
 export async function requireProjectWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,moduleId:string,id:string){
  if(await projectsPackageEnforcementMode()==='disabled')return;
  if(moduleId==='projects'){const controls=await projectPurchaseControls(database,actor);if(controls&&!controls['projects.wbs'].history)throw new ApiError(403,'PACKAGE_REQUIRED','Projects history is unavailable.');}
- const exists=await database.prepare(`SELECT 1 FROM (${nativeSources}) native WHERE id=?`).bind(id).first();
+ const exists=await database.prepare(nativeSourceIdentity('native','id=?')).bind(id).first();
  if(!exists)return;
  const mode=await projectsPackageEnforcementMode();if(mode==='shadow'){await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:'projects.wbs'});return;}
  const visible=visibleSource(actor,'record.id','record.company_id');

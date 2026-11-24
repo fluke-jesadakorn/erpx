@@ -679,3 +679,40 @@ it('keeps one owner-local fixed SQL definition for the Projects settlement-sourc
    expect(count(`\${tableRowsSql}${table}`)).toBe(1);
  }
 });
+
+it('keeps one byte-identical alias-parameterized family for the Projects closed root-owner projections',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const {finalRootOwnerProjectionSources}=await import('../../../packages/server-projects/src/adapters/final-root-owner-projection-sources');
+ expect(finalRootOwnerProjectionSources.staff_project_members).toBe('SELECT "project_id","user_id","added_by","created_at" FROM staff_project_members');
+ expect(finalRootOwnerProjectionSources.staff_projects).toBe('SELECT "id","company_id","branch_id","department_id","title","description","owner_user_id","version","created_at","updated_at","lifecycle_status" FROM staff_projects');
+ const source=await readFile(new URL('../../../packages/server-projects/src/adapters/final-root-owner-projection-sources.ts',import.meta.url),'utf8');
+ const count=(token:string)=>source.split(token).length-1;
+ expect(count('const quotedProjection =')).toBe(1);
+ expect(count('quotedProjection(')).toBe(2);
+ expect(count('SELECT "project_id"')).toBe(0);
+ expect(count('SELECT "id"')).toBe(0);
+});
+it('keeps one byte-identical native-source identity probe for the Projects record readers',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const source=await readFile(new URL('../../../packages/server-projects/src/adapters/record-purchases.ts',import.meta.url),'utf8');
+ const count=(token:string)=>source.split(token).length-1;
+ expect(count('const nativeSourceIdentity =')).toBe(1);
+ expect(count('nativeSourceIdentity(')).toBe(2);
+ expect(source).not.toContain('EXISTS(SELECT 1 FROM (${nativeSources}) project_source_identity WHERE project_source_identity.id=${id})');
+ expect(source).not.toContain('database.prepare(`SELECT 1 FROM (${nativeSources}) native WHERE id=?`)');
+});
+it('retirement:ts-statements stays strictly below the r17 BEFORE=134 baseline',async()=>{
+ const {readFileSync,readdirSync}=await import('node:fs');
+ const {resolve}=await import('node:path');
+ const root=resolve(__dirname,'../../../packages/server-projects/src');
+ let total=0;
+ const walk=(dir:string)=>{
+  for(const entry of readdirSync(dir,{withFileTypes:true})){
+   const path=resolve(dir,entry.name);
+   if(entry.isDirectory())walk(path);
+   else if(entry.name.endsWith('.ts'))total+=(readFileSync(path,'utf8').match(/SELECT /g)??[]).length;
+  }
+ };
+ walk(root);
+ expect(total).toBeLessThan(134);
+});
