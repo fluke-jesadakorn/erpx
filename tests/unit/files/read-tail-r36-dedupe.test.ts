@@ -65,7 +65,12 @@ describe('Files read-tail r36 parameterized family', () => {
     // Only the Field owner adapter may be a modified tracked src file; the new
     // r36 helper is untracked until the lead integrates. Robust to clean tree.
     const changed = git('diff', '--name-only', '--', 'packages/server-files/src').trim().split('\n').filter(Boolean);
-    expect(changed.every(p => p === 'packages/server-files/src/adapters/field-file-writer-owner.ts' || p === 'packages/server-files/src/adapters/attachments/service-repository.ts')).toBe(true);
+    expect(changed.every(p => [
+      'packages/server-files/src/adapters/field-file-writer-owner.ts',
+      'packages/server-files/src/adapters/attachments/service-repository.ts',
+      'packages/server-files/src/adapters/app-attachment-sources.ts',
+      'packages/server-files/src/adapters/messaging-file-settlements.ts',
+    ].includes(p))).toBe(true);
   });
 
   test('retirement:ts-statements is strictly below the r35 BEFORE=260 baseline', () => {
@@ -83,9 +88,9 @@ describe('Files read-tail r36 parameterized family', () => {
       }
     };
     walk(srcRoot);
-    // r36 left 258; r37 lowers 258->257 (two link heads -> one helper).
-    expect(literal).toBe(257);
-    expect(total).toBe(258);
+    // r37 left 257; r38 lowers 257->255 (three attachment_events heads -> one helper).
+    expect(literal).toBe(255);
+    expect(total).toBe(256);
     expect(literal).toBeLessThan(260);
     expect(total).toBeLessThan(261);
   });

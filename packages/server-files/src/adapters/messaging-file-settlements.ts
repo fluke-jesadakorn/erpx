@@ -1,6 +1,7 @@
 import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {scansAggSql} from './read-tail-dedupe-sql';
+import {ATTACHMENT_EVENT_EVENT_HEAD_SQL} from './read-tail-r38-source-sql';
 /** Original immutable Files withdrawal witness; raw software withdrawal never
  * filters this source by purchase, current UI visibility, or the reader's role. */
 export const messagingFileWithdrawalSources=`SELECT l.id link_id,s.id set_id,l.attachment_id source_id,s.company_id,s.target_id room_id,s.component_ref file_id,l.created_by,l.withdrawn_by,l.withdrawn_at,l.withdrawal_reason
@@ -8,7 +9,7 @@ export const messagingFileWithdrawalSources=`SELECT l.id link_id,s.id set_id,l.a
  JOIN attachments source ON source.id=l.attachment_id AND source.company_id=s.company_id
  WHERE s.target_type='messaging_room' AND s.component_kind='message' AND s.purpose_key='message_attachment' AND l.state='withdrawn'
  AND s.state='draft' AND l.created_by=s.created_by AND l.withdrawn_by=l.created_by AND l.withdrawn_at IS NOT NULL
- AND EXISTS(SELECT 1 FROM attachment_events event WHERE event.company_id=s.company_id AND event.link_id=l.id AND event.set_id=s.id AND event.attachment_id=l.attachment_id AND event.actor_id=l.withdrawn_by AND event.action='link.withdrawn' AND event.created_at=l.withdrawn_at AND event.details_json::jsonb->>'reason'=l.withdrawal_reason)`;
+ AND EXISTS(${ATTACHMENT_EVENT_EVENT_HEAD_SQL}company_id=s.company_id AND event.link_id=l.id AND event.set_id=s.id AND event.attachment_id=l.attachment_id AND event.actor_id=l.withdrawn_by AND event.action='link.withdrawn' AND event.created_at=l.withdrawn_at AND event.details_json::jsonb->>'reason'=l.withdrawal_reason)`;
 /** Generic Files can stage original conversation evidence before the native
  * message uploader creates its row. Keep that actual intake visible to raw
  * withdrawal even when it is absent from every Messages/Work projection. */

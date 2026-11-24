@@ -12,6 +12,7 @@ import {SELECT_ATTACHMENT_ID_SQL} from "../read-tail-r27-source-sql";
 import {LINK_SET_JOIN_SQL} from "../read-tail-r29-source-sql";
 import {attachmentPublicationByIdSql} from "../read-tail-r31-source-sql";
 import {ATTACHMENT_LINK_PROJECTION_HEAD_SQL} from "../read-tail-r37-source-sql";
+import {ATTACHMENT_EVENT_EVENT_HEAD_SQL} from "../read-tail-r38-source-sql";
 const setByIdSql = "SELECT * FROM attachment_sets WHERE id=? AND company_id=?";
 export const usedStorageSql = "SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')";
 export const pendingStorageSql = "SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?";
@@ -30,7 +31,7 @@ const changedCreatedAtSql = "(SELECT max(changed.created_at) FROM attachment_eve
  * read and its count assertion; only the trailing predicate differs. Each site
  * still prepares its own statement with its own binds. */
 const setCreatedCompatibilitySql = (value: string) =>
-  `EXISTS(SELECT 1 FROM attachment_events event WHERE event.set_id=candidate.id AND event.company_id=candidate.company_id AND event.action='set.created' AND COALESCE((event.details_json::jsonb->>'compatibilityAdapter')::boolean,false)=${value})`;
+  `EXISTS(${ATTACHMENT_EVENT_EVENT_HEAD_SQL}set_id=candidate.id AND event.company_id=candidate.company_id AND event.action='set.created' AND COALESCE((event.details_json::jsonb->>'compatibilityAdapter')::boolean,false)=${value})`;
 const sanitizationAttestedSql = `SELECT 1 FROM attachment_events attested WHERE attested.set_id=? AND attested.company_id=? AND attested.action='sanitization.attested'
         AND attested.created_at>=COALESCE(${changedCreatedAtSql},0)
         ORDER BY attested.created_at DESC LIMIT 1`;

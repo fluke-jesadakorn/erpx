@@ -64,11 +64,11 @@ describe('Files read-tail r33 parameterized family', () => {
       }
     };
     walk(srcRoot);
-    // r34 lowers the tail (264 -> 262), r35 lowers it (262 -> 260) and r36
-    // lowers it again (260 -> 258): the two Field set-owner preflights now
-    // delegate to the byte-identical r36 helper.
-    expect(literal).toBe(257);
-    expect(total).toBe(258);
+    // r34 lowers the tail (264 -> 262), r35 lowers it (262 -> 260), r36
+    // lowers it again (260 -> 258) and r38 lowers 257 -> 255: three
+    // attachment_events witnesses now delegate to the r38 head helper.
+    expect(literal).toBe(255);
+    expect(total).toBe(256);
     expect(literal).toBeLessThan(266);
     expect(total).toBeLessThan(267);
   });

@@ -2,6 +2,7 @@ import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {LINK_SET_ID_SELECT_SQL} from "./read-tail-dedupe-sql";
 import {reconciliationReadySql} from "./read-tail-r30-source-sql";
+import {ATTACHMENT_EVENT_EVENT_HEAD_SQL} from "./read-tail-r38-source-sql";
 export type AppReservedUpload = { declared_bytes: number; media_type: string; attachment_set_id: string; owner_type: string; purpose: string; component_kind: "record" | "action" | "line" | "event" | "message" | "publication"; component_ref: string | null; purpose_key: string; expected_target_version: number; compatibility_adapter: boolean };
 /** Endpoint adapters read owner facts on their already authorized supplied database. */
 export function appAttachmentSources(db: SqlDatabase) { return {
@@ -18,7 +19,7 @@ export function appAttachmentSources(db: SqlDatabase) { return {
            LIMIT 1`).bind(setId, companyId).first()),
   universalReservation: (id: string, userId: string, companyId: string) => db.prepare(`SELECT u.declared_bytes,u.media_type,u.attachment_set_id,u.owner_type,u.purpose,
            s.component_kind,s.component_ref,s.purpose_key,s.expected_target_version,
-           EXISTS(SELECT 1 FROM attachment_events event WHERE event.set_id=s.id AND event.company_id=s.company_id
+           EXISTS(${ATTACHMENT_EVENT_EVENT_HEAD_SQL}set_id=s.id AND event.company_id=s.company_id
              AND event.action='set.created' AND COALESCE((event.details_json::jsonb->>'compatibilityAdapter')::boolean,false)=true) compatibility_adapter
          FROM upload_intents u
          JOIN attachment_sets s ON s.id=u.attachment_set_id
