@@ -145,6 +145,7 @@
     "./adapters/source-purchases": "./src/adapters/source-purchases.ts",
     "./adapters/finance-group-ownership": "./src/adapters/finance-group-ownership.ts",
     "./adapters/finance-due-drafts": "./src/adapters/finance-due-drafts.ts",
+    "./adapters/native-finance-due-draft": "./src/adapters/native-finance-due-draft.ts",
     "./adapters/attachments-policy-facts": "./src/adapters/attachments-policy-facts.ts",
     "./adapters/refunds": "./src/adapters/refunds.ts",
     "./adapters/assets-posting-rate": "./src/adapters/assets-posting-rate.ts",
@@ -563,8 +564,7 @@
     "./domain/finance-group-editions": "./src/domain/finance-group-editions.ts",
     "./domain/withholding": "./src/domain/withholding.ts",
     "./public/field-outbox-predicate": "./src/public/field-outbox-predicate.generated.ts",
-    "./public/native-field-work": "./src/public/native-field-work.ts",
-    "./public/refund-notifications": "./src/public/refund-notifications.ts"
+    "./public/native-field-work": "./src/public/native-field-work.ts"
   },
   "scripts": {
     "typecheck": "tsc --noEmit --project tsconfig.json",
