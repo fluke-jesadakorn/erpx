@@ -1,4 +1,5 @@
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
+import { PP_RD19_HR_ENGAGEMENT_VERSION_EXISTS_SQL } from './pp-read-tail-r19-sources';
 import {projectWorkerNativeCommands,requireProjectWorkerNativeCommand,requireProjectWorkerUnit} from '@erpx/server-people_payroll/adapters/project-worker-startup-binding';
 import {withPeoplePurchasedCommand} from "@erpx/server-people_payroll/adapters/people-purchases";
 import { requirePermission } from "@erpx/server-identity_access/public/iam-permissions";
@@ -33,7 +34,7 @@ function application(provided?: SqlDatabase) {
         readSaveDirectoryPersonAccount(...args) { return peopleDirectoryIdentityFacts(database).readSaveDirectoryPersonAccount(...args); },
         guard7(...args) { return peopleDirectoryIdentityFacts(database).guard7(...args); },
         guard8(commandId: string, value: "engagement-version", engagement: string, value2: number) {
-            return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND version=?)", [engagement, value2]);
+            return assertion(database, commandId, value, PP_RD19_HR_ENGAGEMENT_VERSION_EXISTS_SQL, [engagement, value2]);
         },
         guard9(commandId: string, value: "email", companyId: string, email: string, id: string) {
             return assertion(database, commandId, value, "NOT EXISTS(SELECT 1 FROM hr_people WHERE company_id=? AND lower(email)=? AND id!=? AND merged_into_id IS NULL)", [companyId, email, id]);

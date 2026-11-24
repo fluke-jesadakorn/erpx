@@ -5,7 +5,7 @@ const identityaccessFinalSources=identityaccessFinalOwnerProjections();
 import type { ClearanceKind } from "@erpx/feature-people_payroll/lib/retirement";
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
+import { ppRd19InList as inList } from './pp-read-tail-r19-sources';
 export function calendarLifecyclePeoplePayrollFacts(db: SqlDatabase) {
     return { read1: (facts: {
             value1: string;

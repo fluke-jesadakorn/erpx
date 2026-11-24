@@ -1,4 +1,5 @@
 import { lastAuditOwnerProjectionSources as organizationLastAuditProjectionSources } from "@erpx/server-organization/public/last-audit-owner-projection-sources";
+import { PP_RD19_ACTIVE_ENGAGEMENT_EXISTS_SQL } from './pp-read-tail-r19-sources';
 import { hospitalityOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as operationsProjectionSources } from "@erpx/server-operations/public/hospitality-owner-projection-sources";
 import { hospitalityOwnerProjectionSources as organizationProjectionSources } from "@erpx/server-organization/public/hospitality-owner-projection-sources";
@@ -75,7 +76,7 @@ export function nativeExpenseRoutingPorts(db: SqlDatabase): ExpenseRoutingPorts 
     levels: companyId => activeStaffLevelRanks(db, companyId),
     staffPeople: companyId => staffPeople(db, companyId),
     reportingChain,
-    engagementGuard: staff => ({ native: { query: "EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND version=? AND status='active')", args: [staff.engagement_id, staff.engagement_version] } }),
+    engagementGuard: staff => ({ native: { query: PP_RD19_ACTIVE_ENGAGEMENT_EXISTS_SQL, args: [staff.engagement_id, staff.engagement_version] } }),
     roleUsers: (scope, role) => expenseRoleUsers(db, scope, role),
     identities: (companyId, users) => personIdentityIds(db, companyId, users),
     roster: companyId => reportingRosterFacts(db, companyId),

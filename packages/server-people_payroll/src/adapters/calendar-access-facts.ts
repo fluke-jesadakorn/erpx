@@ -1,7 +1,8 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type { CalendarPerson } from "@erpx/feature-work_projection/lib/calendar";
-const idList = (ids: string[]) => JSON.stringify(ids), inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
+import { ppRd19InList as inList } from './pp-read-tail-r19-sources';
+const idList = (ids: string[]) => JSON.stringify(ids);
 export function calendarAccessPeoplePayrollFacts(db: SqlDatabase) {
     return { people: (input: {
             companyId: string;

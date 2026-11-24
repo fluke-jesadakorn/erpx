@@ -1,7 +1,7 @@
 import {workforcePurchasedHistorySql} from "@erpx/server-people_payroll/adapters/workforce-purchases";
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
+import { ppRd19InList as inList } from './pp-read-tail-r19-sources';
 import {participantSql} from '@erpx/server-workflow/public/approval-participant-projection';
 export function calendarLeavePeoplePayrollFacts(db: SqlDatabase) {
     return { read1: async(facts: {

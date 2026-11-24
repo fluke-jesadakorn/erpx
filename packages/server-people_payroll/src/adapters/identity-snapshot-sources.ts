@@ -1,10 +1,11 @@
 import 'server-only';
 import {PP_RD18_HR_PEOPLE_FROM_SQL, PP_RD18_HR_ENGAGEMENTS_E_JOIN_SQL, PP_RD18_HR_ENGAGEMENTS_E_FROM_SQL} from './pp-read-tail-r18-sources';
+import {PP_RD19_HR_PEOPLE_P_FROM_SQL} from './pp-read-tail-r19-sources';
 import {PP_RD16_HR_PEOPLE_P_JOIN_SQL} from './pp-read-tail-r16-sources';
 /** Closed explicit-column owner projections for the supplied IAM statement snapshot.
  * No caller-supplied table, SQL, predicate or alias is accepted. */
 export function identitySnapshotSources(){return {
-  "account_access_hr_people_p_from": "FROM (SELECT \"id\", \"user_id\", \"company_id\", \"legal_name\", \"preferred_name\", \"email\", \"phone\", \"country_code\", \"status\", \"version\", \"created_by\", \"created_at\", \"updated_at\", \"merged_into_id\", \"work_email\", \"work_phone\" FROM hr_people) p",
+  "account_access_hr_people_p_from": PP_RD19_HR_PEOPLE_P_FROM_SQL,
   "account_access_hr_engagements_e_from": PP_RD18_HR_ENGAGEMENTS_E_FROM_SQL,
   "account_access_hr_people_from": PP_RD18_HR_PEOPLE_FROM_SQL,
   "directory_operations_people_applied_packages_ap_join": "JOIN (SELECT \"id\", \"company_id\", \"person_id\", \"engagement_id\", \"position_id\", \"package_id\", \"package_revision\", \"definition\", \"source_kind\", \"scope\", \"case_id\", \"operation_id\", \"authorizing_assignment_id\", \"valid_from\", \"valid_until\", \"ended_at\", \"created_at\" FROM people_applied_packages) ap",
@@ -19,7 +20,7 @@ export function identitySnapshotSources(){return {
   "legal_people_source_hr_people_p_join": PP_RD16_HR_PEOPLE_P_JOIN_SQL,
   "operations_operations_exceptions_facts_hr_people_p_join": PP_RD16_HR_PEOPLE_P_JOIN_SQL,
   "operations_operations_exceptions_facts_hr_engagements_h_join": "JOIN (SELECT \"id\", \"person_id\", \"company_id\", \"branch_id\", \"department_id\", \"worker_type\", \"employment_type\", \"status\", \"start_date\", \"end_date\", \"manager_person_id\", \"job_title\", \"currency\", \"version\", \"created_by\", \"created_at\", \"updated_at\", \"pay_group_id\", \"level_id\", \"position_id\", \"self_service_top_level\" FROM hr_engagements) h",
-  "operations_staff_policy_facts_hr_people_p_from": "FROM (SELECT \"id\", \"user_id\", \"company_id\", \"legal_name\", \"preferred_name\", \"email\", \"phone\", \"country_code\", \"status\", \"version\", \"created_by\", \"created_at\", \"updated_at\", \"merged_into_id\", \"work_email\", \"work_phone\" FROM hr_people) p",
+  "operations_staff_policy_facts_hr_people_p_from": PP_RD19_HR_PEOPLE_P_FROM_SQL,
   "operations_staff_policy_facts_hr_engagements_e_join": PP_RD18_HR_ENGAGEMENTS_E_JOIN_SQL,
   "payroll_owner_facts_hr_engagements_from": "FROM (SELECT \"id\", \"person_id\", \"company_id\", \"branch_id\", \"department_id\", \"worker_type\", \"employment_type\", \"status\", \"start_date\", \"end_date\", \"manager_person_id\", \"job_title\", \"currency\", \"version\", \"created_by\", \"created_at\", \"updated_at\", \"pay_group_id\", \"level_id\", \"position_id\", \"self_service_top_level\" FROM hr_engagements) hr_engagements",
   "payroll_owner_facts_hr_payroll_advances_a_from": "FROM (SELECT \"id\", \"company_id\", \"engagement_id\", \"person_id\", \"status\", \"version\", \"amount_minor\", \"installment_count\", \"first_deduction_period\", \"currency\", \"reason\", \"requested_by\", \"approved_by\", \"review_reason\", \"created_at\", \"reviewed_at\", \"updated_at\", \"recovery_id\" FROM hr_payroll_advances) a",
@@ -52,7 +53,7 @@ export function identitySnapshotSources(){return {
   "retirement_clearance_facts_hr_people_p_join": PP_RD16_HR_PEOPLE_P_JOIN_SQL,
   "user_management_hr_people_from": PP_RD18_HR_PEOPLE_FROM_SQL,
   "user_management_hr_engagements_e_from": PP_RD18_HR_ENGAGEMENTS_E_FROM_SQL,
-  "user_management_hr_people_p_from": "FROM (SELECT \"id\", \"user_id\", \"company_id\", \"legal_name\", \"preferred_name\", \"email\", \"phone\", \"country_code\", \"status\", \"version\", \"created_by\", \"created_at\", \"updated_at\", \"merged_into_id\", \"work_email\", \"work_phone\" FROM hr_people) p",
+  "user_management_hr_people_p_from": PP_RD19_HR_PEOPLE_P_FROM_SQL,
   "user_management_people_lifecycle_cases_lc_from": "FROM (SELECT \"id\", \"company_id\", \"person_id\", \"engagement_id\", \"kind\", \"status\", \"version\", \"effective_at\", \"package_id\", \"package_revision\", \"attempts\", \"next_attempt_at\", \"last_error\", \"definition\", \"review_snapshot\", \"authorizing_assignment_id\", \"created_by\", \"updated_at\", \"departure_reason\", \"workflow\" FROM people_lifecycle_cases) lc",
   "user_management_people_package_revisions_pr_join": "JOIN (SELECT \"company_id\", \"package_id\", \"revision\", \"definition\", \"created_by\", \"created_at\" FROM people_package_revisions) pr",
   "user_management_people_applied_packages_ap_from": "FROM (SELECT \"id\", \"company_id\", \"person_id\", \"engagement_id\", \"position_id\", \"package_id\", \"package_revision\", \"definition\", \"source_kind\", \"scope\", \"case_id\", \"operation_id\", \"authorizing_assignment_id\", \"valid_from\", \"valid_until\", \"ended_at\", \"created_at\" FROM people_applied_packages) ap",

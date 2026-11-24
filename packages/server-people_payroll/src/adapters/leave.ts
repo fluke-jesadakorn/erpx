@@ -1,4 +1,5 @@
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
+import { PP_RD19_HR_ENGAGEMENT_VERSION_EXISTS_SQL } from './pp-read-tail-r19-sources';
 import{nativeLeaveReadRepository,getLeave}from '@erpx/server-people_payroll/adapters/leave-read';
 export{getLeave};
 import { withWorkforcePurchasedCommand } from "@erpx/server-people_payroll/adapters/workforce-purchases";
@@ -37,7 +38,7 @@ function application(provided?: SqlDatabase) {
             return assertion(database, key, value, `EXISTS(SELECT 1 FROM leave_requests WHERE id=? AND version=? AND state IN (${states.map(() => "?").join(",")}))`, [id, version, ...states]);
         },
         guard7(key: string, value: "placement", engagement_id: string, engagement_version: number) {
-            return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_engagements WHERE id=? AND version=?)", [engagement_id, engagement_version]);
+            return assertion(database, key, value, PP_RD19_HR_ENGAGEMENT_VERSION_EXISTS_SQL, [engagement_id, engagement_version]);
         },
         stageSubmitLeaveEffect(startDate: string, days: number, handoverNote: string, state: "draft" | "pending_approval", person_id: string, engagement_id: string, value: string, department_id: string | null, userId: string, key: string, now: number, id: string) {
             return nativePpStatement('pp_leave_stmt_1')

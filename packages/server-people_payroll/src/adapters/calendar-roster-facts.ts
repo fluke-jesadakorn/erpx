@@ -2,7 +2,7 @@ import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { peoplePackageEnforcementMode } from "@erpx/server-commercial/public/purchase-command-boundary";
 import { packageClockSql, purchasedCapabilityPredicate } from "@erpx/server-commercial/public/purchased-capability-sql";
-const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
+import { ppRd19InList as inList } from './pp-read-tail-r19-sources';
 async function purchasedRosterSql() {
     const mode = await peoplePackageEnforcementMode();
     return mode === "enforced" ? {
