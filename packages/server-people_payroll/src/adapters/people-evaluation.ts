@@ -1,6 +1,7 @@
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
 import { ppRd31StatusGuard } from './pp-read-tail-r31-sources';
+import { ppRd32TwoColProjection } from './pp-read-tail-r32-sources';
 import { PP_RD23_EVAL_ASSESSMENT_VERSION_GUARD } from './pp-read-tail-r23-sources';
 import { PP_RD22_ENGAGEMENT_VERSION_GUARD } from './pp-read-tail-r22-sources';
 import { ppRd21IdVersionStatusGuard } from './pp-read-tail-r21-sources';
@@ -82,7 +83,7 @@ function application(provided?: SqlDatabase) {
         guard27(key: string, value: "period-overlap", id: string, cycleId: string, periodEnd: string, periodStart: string) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_evaluation_assessments WHERE engagement_id=? AND cycle_id=? AND period_start<=? AND period_end>=?)", [id, cycleId, periodEnd, periodStart]); },
         stageCreateEvaluationAssessmentEffect3(id: string, companyId: string, id2: string, cycleId: string, id3: string, version: number, periodStart: string, periodEnd: string, value: string, userId: string, reason: string, now: number, now2: number) { return nativePpStatement('people_eval_stmt_4').bind(id, companyId, id2, cycleId, id3, version, periodStart, periodEnd, value, userId, reason, now, now2); },
         readSaveEvaluationAssessmentEvidence(assessmentId: string, companyId: string) {
-            return database.prepare("SELECT id,observed_on FROM hr_evaluation_evidence WHERE assessment_id=? AND company_id=?").bind(assessmentId, companyId).all<{
+            return database.prepare(ppRd32TwoColProjection('id,observed_on', 'hr_evaluation_evidence', 'assessment_id', 'company_id')).bind(assessmentId, companyId).all<{
                 id: string;
                 observed_on: string;
             }>();
@@ -128,7 +129,7 @@ function application(provided?: SqlDatabase) {
         guard68(key: string, value: "basis-version", engagementId: string, expectedVersion: number) { return assertion(database, key, value, "COALESCE((SELECT max(version) FROM hr_evaluation_pay_basis WHERE engagement_id=?),0)=?", [engagementId, expectedVersion]); },
         stageConfirmEvaluationPayBasisEffect2(engagementId: string, companyId: string, value: number, effectiveFrom: string, value2: string, userId: string, now: number) { return nativePpStatement('people_eval_stmt_9').bind(engagementId, companyId, value, effectiveFrom, value2, userId, now); },
         readCreateEvaluationCompensationDraftE(id: string, companyId: string) {
-            return database.prepare("SELECT pay_group_id,status FROM hr_engagements WHERE id=? AND company_id=?").bind(id, companyId).first<{
+            return database.prepare(ppRd32TwoColProjection('pay_group_id,status', 'hr_engagements', 'id', 'company_id')).bind(id, companyId).first<{
                 pay_group_id: string | null;
                 status: string;
             }>();

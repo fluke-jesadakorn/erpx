@@ -1,6 +1,7 @@
 import { PP_RD23_HR_COMP_REVISIONS_SQL, PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL, PP_RD23_HR_PAY_GROUPS_ACTIVE_CURRENCY_GUARD, PP_RD23_HR_TIME_ENTRIES_OVERTIME_SQL, PP_RD23_OVERTIME_PAYROLL_HANDOFFS_SQL, PP_RD23_POSTED_PAYROLL_RUN_GUARD } from './pp-read-tail-r23-sources';
 import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
 import { ppRd31StatusGuard } from './pp-read-tail-r31-sources';
+import { ppRd32TwoColProjection } from './pp-read-tail-r32-sources';
 import { ppRd26IdCompanyVersionStatusGuard, ppRd26CommandReceiptPriorSql, ppRd26RunIdGuard } from './pp-read-tail-r26-sources';
 import { ppRd27IdByIdCompanySql } from './pp-read-tail-r27-sources';
 import { PP_RD28_ADVANCE_REPAYMENTS_SQL } from './pp-read-tail-r28-sources';
@@ -343,7 +344,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
         async readPayrollPostingOptionsChartsperiodsmappingsgroups4(companyId: string) { return nativePeoplePayrollReadAll<Record<string, unknown>>(PEOPLE_PAYROLL_RD_PAYROLL_OPTIONS_GROUPS, [companyId], database); },
         readPayrollPostingOptionsAccounts(...args) { return payrollFinanceFacts(database).readPayrollPostingOptionsAccounts(...args); },
         readResolvePayrollPostRun(runId: string, companyId: string) {
-            return database.prepare("SELECT pay_group_id,period_end FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId, companyId).first<{
+            return database.prepare(ppRd32TwoColProjection('pay_group_id,period_end', 'hr_payroll_runs', 'id', 'company_id')).bind(runId, companyId).first<{
                 pay_group_id: string;
                 period_end: string;
             }>();

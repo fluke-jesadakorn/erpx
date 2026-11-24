@@ -1,5 +1,6 @@
 import { ppRd21IdCompanyStatusVersionGuard } from './pp-read-tail-r21-sources';
 import { ppRd26RunIdGuard } from './pp-read-tail-r26-sources';
+import { ppRd32TwoColProjection } from './pp-read-tail-r32-sources';
 import { withPayrollPurchasedCommand, withPayrollPurchasedRead } from "@erpx/server-people_payroll/adapters/payroll-purchases";
 import { nativePeopleBatchA } from '@erpx/server-collaboration/adapters/native-people-batch-a';
 import "server-only";
@@ -32,7 +33,7 @@ function application(provided?: SqlDatabase) {
         slip(id: string, companyId: string, value: string[], broad: boolean) { return database.prepare(`SELECT s.* FROM hr_issued_payslips s JOIN hr_people p ON p.id=s.person_id AND p.company_id=s.company_id WHERE s.id=? AND s.company_id=? ${broad ? "" : "AND s.recipient_user_id=? AND p.user_id=? AND p.merged_into_id IS NULL"}`).bind(id, companyId, ...value).first<Slip>(); },
         payment(companyId: string, run_id: string, person_id: string) { return database.prepare("SELECT i.status,i.settled_at,b.status batch_status FROM hr_payment_batch_items i JOIN hr_payment_batches b ON b.id=i.batch_id WHERE b.company_id=? AND b.source_type='payroll' AND b.source_id=? AND i.person_id=? AND b.status!='cancelled' ORDER BY b.created_at DESC LIMIT 1").bind(companyId, run_id, person_id).first<Row>(); },
         exportBytes(id: string, companyId: string) {
-            return database.prepare("SELECT export_html,export_sha256 FROM hr_issued_payslips WHERE id=? AND company_id=?").bind(id, companyId).first<{
+            return database.prepare(ppRd32TwoColProjection('export_html,export_sha256', 'hr_issued_payslips', 'id', 'company_id')).bind(id, companyId).first<{
                 export_html: string;
                 export_sha256: string;
             }>();

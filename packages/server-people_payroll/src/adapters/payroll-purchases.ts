@@ -1,5 +1,6 @@
 import "server-only";
 import {PP_RD15_COMMAND_RECEIPT_PRIOR_SQL} from './pp-read-tail-r15-sources';
+import {ppRd32TwoColProjection} from './pp-read-tail-r32-sources';
 import { randomUUID } from "node:crypto";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { iamMutationGuards } from "@erpx/server-identity_access/public/iam-store";
@@ -97,7 +98,7 @@ export async function withPayrollPaymentCommand<Result>(actor: WorkContext, batc
     const source = await transaction.prepare("SELECT source_type,source_id FROM hr_payment_batches WHERE id=? AND company_id=? FOR SHARE").bind(batchId, actor.companyId).first<{source_type:string;source_id:string}>();
     const result = source?.source_type === "payroll" ? await withPayrollPurchasedCommand(actor, command, run, transaction) : await run(transaction);
     await flushFinanceDeferredEffects(transaction);
-    const current = await transaction.prepare("SELECT source_type,source_id FROM hr_payment_batches WHERE id=? AND company_id=?").bind(batchId, actor.companyId).first();
+    const current = await transaction.prepare(ppRd32TwoColProjection('source_type,source_id', 'hr_payment_batches', 'id', 'company_id')).bind(batchId, actor.companyId).first();
     if (JSON.stringify(source) !== JSON.stringify(current)) throw new ApiError(409, "PAYMENT_SOURCE_CHANGED", "The payment owner changed. Refresh the original obligation.");
     return result;
   });

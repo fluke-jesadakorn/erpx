@@ -4,6 +4,7 @@ import { PP_RD29_LIFECYCLE_CASE_FOR_ENGAGEMENT_SQL } from './pp-read-tail-r29-so
 import { ppRd27IdVersionStatusInGuard } from './pp-read-tail-r27-sources';
 import { PP_RD24_PEOPLE_PERSON_USER_SAME_SQL, PP_RD24_PEOPLE_PERSON_USER_OK_SQL } from './pp-read-tail-r24-sources';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
+import { ppRd32TwoColProjection } from './pp-read-tail-r32-sources';
 import { nativePpStatement, nativePpQuery } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import {projectWorkerNativeCommands,requireProjectWorkerNativeCommand,requireProjectWorkerUnit} from '@erpx/server-people_payroll/adapters/project-worker-startup-binding';
 import {filterPeopleLifecycleWork} from "@erpx/server-people_payroll/adapters/record-purchases";
@@ -158,7 +159,7 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
             }>();
         },
         readPreviewPackageCurrent(companyId: string, id: string) {
-            return database.prepare("SELECT version,definition FROM people_access_packages WHERE company_id=? AND id=?")
+            return database.prepare(ppRd32TwoColProjection('version,definition', 'people_access_packages', 'company_id', 'id'))
                 .bind(companyId, id)
                 .first();
         },
@@ -212,7 +213,7 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
         },
         readSaveLifecycleEffect2(...args) { return peopleLifecycleIdentityAccessFacts(database, client).readSaveLifecycleEffect2(...args); },
         readSaveLifecycleBinding(companyId: string, positionId: string) {
-            return database.prepare("SELECT package_id,revision FROM people_position_packages WHERE company_id=? AND position_id=?")
+            return database.prepare(ppRd32TwoColProjection('package_id,revision', 'people_position_packages', 'company_id', 'position_id'))
                 .bind(companyId, positionId)
                 .first<{
                 package_id: string;

@@ -1,4 +1,5 @@
 import 'server-only';
+import {ppRd32TwoColProjection} from './pp-read-tail-r32-sources';
 import {createHash,randomUUID} from 'node:crypto';
 import type {ExpensePurchaseControls} from '@erpx/feature-people_payroll/lib/expense-purchases';
 export type {ExpensePurchaseControls} from '@erpx/feature-people_payroll/lib/expense-purchases';
@@ -105,7 +106,7 @@ export async function expenseDocumentFlow(database:SqlDatabase,actor:StaffActor,
 }
 export async function withExpenseFlowAssignment<Result>(database:SqlDatabase,actor:Actor,id:string,command:{key:string;stepKey:string;saveDefault:boolean},run:(transaction:SqlDatabase)=>Promise<Result>){
  return withExpensePurchasedCommand(database,actor,{key:command.key,purpose:async transaction=>{
-  const row=await transaction.prepare('SELECT status,workflow_stage FROM finance_expenses WHERE company_id=? AND id=?').bind(actor.companyId,id).first<{status:string;workflow_stage:string}>();
+  const row=await transaction.prepare(ppRd32TwoColProjection('status,workflow_stage', 'finance_expenses', 'company_id', 'id')).bind(actor.companyId,id).first<{status:string;workflow_stage:string}>();
   return command.saveDefault||command.stepKey==='draft'||row?.status==='draft'||row?.status==='rejected'?'new-work':'settle-existing';
  }},run);
 }

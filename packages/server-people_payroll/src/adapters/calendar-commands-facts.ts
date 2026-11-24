@@ -1,4 +1,5 @@
 import {nativeCalendarRetirementNotification} from "./native-calendar-retirement-notification";
+import {ppRd32TwoColProjection} from './pp-read-tail-r32-sources';
 import { nativePeopleBatchB } from '@erpx/server-collaboration/adapters/native-people-batch-b';
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import {peoplePayrollFinalOwnerProjections as organizationFinalOwnerProjections} from "@erpx/server-organization/public/people-payroll-final-owner-projections";
@@ -58,7 +59,7 @@ export function calendarCommandsPeoplePayrollFacts(db: SqlDatabase, actor?: Work
         read25: (facts: {
             value1: string;
             value2: string;
-        }) => db.prepare("SELECT assignee_id,responsibility FROM people_preparation_tasks WHERE id=? AND company_id=?").bind(facts.value1, facts.value2).first<{
+        }) => db.prepare(ppRd32TwoColProjection('assignee_id,responsibility', 'people_preparation_tasks', 'id', 'company_id')).bind(facts.value1, facts.value2).first<{
             assignee_id: string | null;
             responsibility: string;
         }>(),
