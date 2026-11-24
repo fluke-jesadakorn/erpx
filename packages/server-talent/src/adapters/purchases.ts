@@ -1,5 +1,5 @@
 import "server-only";
-import {talentActorScopeCte} from './talent-scope-sql';
+import {talentActorScopeSelect} from './talent-scope-sql';
 import { nativeClearCommandAssertions } from '@erpx/server-collaboration/adapters/native-command-assertions';
 import {randomUUID} from "node:crypto";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -34,7 +34,7 @@ export function talentOwnerSourceReadLocks(database:SqlDatabase,companyId:string
 export function hireHandoffPayGroupSourceLocks(database:SqlDatabase){return talentOwnerSourceTableLocks(database,true);}
 export function hireHandoffPayGroupSourceImage(database:SqlDatabase,actor:WorkContext,handoffId:string){return talentOwnerSourceImage(database,actor,{kind:"handoff",id:handoffId});}
 export async function requireTalentCurrentAuthority(database:SqlDatabase,actor:WorkContext,permissions:readonly string[],key:string){
- for(const permission of permissions){if(!await database.prepare(`SELECT ${assignmentReadSql("talent_scope",permission)} allowed FROM ${talentActorScopeCte} talent_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<boolean>("allowed"))throw new ApiError(403,"TALENT_ACCESS_CHANGED","Choose a current authorized Recruitment work role.");}
+ for(const permission of permissions){if(!await database.prepare(talentActorScopeSelect("talent_scope",`${assignmentReadSql("talent_scope",permission)} allowed`)).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<boolean>("allowed"))throw new ApiError(403,"TALENT_ACCESS_CHANGED","Choose a current authorized Recruitment work role.");}
  await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await nativeClearCommandAssertions(database, actor.companyId, key)]);
 }
 export async function talentPurchaseControls(actor:WorkContext,provided?:SqlDatabase){const mode=await talentPackageEnforcementMode();if(mode==="disabled")return undefined;const database=provided??(await holdingResources(actor.holdingId)).write;await requireTalentCurrentAuthority(database,actor,["records.read","records.review"],`talent-controls:${randomUUID()}`);const purchases=await readPurchasedAccesses(database,mode,actor.companyId,capabilities);return Object.fromEntries(Object.entries(purchases).map(([capability,access])=>[capability,{newWork:access.newWork,settleExisting:access.settleExisting,history:access.history,revision:access.revision}]));}

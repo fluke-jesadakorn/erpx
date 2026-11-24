@@ -1,5 +1,5 @@
 import "server-only";
-import {talentActorScopeCte,talentClockCte} from './talent-scope-sql';
+import {talentActorScopeSelect,talentClockCte} from './talent-scope-sql';
 import {hasModuleAccess} from "@erpx/catalogue/module-access";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -11,7 +11,7 @@ import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purch
 const metrics={"open-requisitions":"recruit.positions","application-stage-counts":"recruit.applications"} as const;
 export async function talentMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){
  const mode=await talentPackageEnforcementMode(),access=await readPurchasedAccesses(database,mode,actor.companyId,["recruit.positions","recruit.applications"]);if(mode!=="enforced")return {"open-requisitions":true,"application-stage-counts":true};
- const current=hasModuleAccess(actor.modules,"talent")&&hasPermission(actor,"records.read")&&hasPermission(actor,"records.review")&&!!await database.prepare(`SELECT ${assignmentReadSql("talent_metric_scope","records.read")} AND ${assignmentReadSql("talent_metric_scope","records.review")} allowed FROM ${talentActorScopeCte} talent_metric_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<boolean>("allowed");
+ const current=hasModuleAccess(actor.modules,"talent")&&hasPermission(actor,"records.read")&&hasPermission(actor,"records.review")&&!!await database.prepare(talentActorScopeSelect("talent_metric_scope",`${assignmentReadSql("talent_metric_scope","records.read")} AND ${assignmentReadSql("talent_metric_scope","records.review")} allowed`)).bind(actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<boolean>("allowed");
  return {"open-requisitions":current&&access["recruit.positions"].history,"application-stage-counts":current&&access["recruit.applications"].history};
 }
 /** Aggregate and source-page SQL share the original rows, actual Company
