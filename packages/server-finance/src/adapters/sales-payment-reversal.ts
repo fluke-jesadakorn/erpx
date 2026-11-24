@@ -17,6 +17,7 @@ import {financeSourceDocumentReadLeases} from '@erpx/server-finance/adapters/doc
 import {withFinancePurchasedCommand} from '@erpx/server-finance/adapters/purchase-boundary';
 import {financeSalesReceiptOriginalSources} from '@erpx/server-finance/adapters/sales-receipt-sources';
 import {financePaymentReversalSources} from '@erpx/server-finance/adapters/supplier-payment-correction-sources';
+import {ORIGINAL_PAYMENT_REVERSAL_GUARD} from './finance-read-tail-r41-sql';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/adapters/finance-transactions';
 
 type Source={invoice_id:string;image:string;status:string;created_by:string};
@@ -26,7 +27,7 @@ type Source={invoice_id:string;image:string;status:string;created_by:string};
 async function source(database:SqlDatabase,actor:WorkContext,id:string){
  return database.prepare(`SELECT original.invoice_id,original.status,original.created_by,original.image
  FROM (${financeSalesReceiptOriginalSources}) original JOIN (${commerceFinanceRecordSources.sales.invoice}) owned ON owned.id=original.invoice_id AND owned.company_id=original.company_id
- WHERE original.id=? AND original.company_id=? AND (original.status='settled' OR EXISTS(SELECT 1 FROM (${financePaymentReversalSources}) reversal WHERE reversal.id=original.id AND reversal.company_id=original.company_id))`)
+ WHERE original.id=? AND original.company_id=? ${ORIGINAL_PAYMENT_REVERSAL_GUARD}`)
  .bind(id,actor.companyId).first<Source>();
 }
 async function authority(database:SqlDatabase,actor:WorkContext){

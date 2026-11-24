@@ -18,7 +18,7 @@ import { assertProductionModuleEnabled, scheduledFeaturePredicate } from "@erpx/
 import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {financeSourceDocumentReadLeases} from '@erpx/server-finance/adapters/document-purchases';
 import {financeSalesReceiptOriginalSources} from '@erpx/server-finance/adapters/sales-receipt-sources';
-import {financePaymentReversalSources} from '@erpx/server-finance/adapters/supplier-payment-correction-sources';
+import {ORIGINAL_PAYMENT_REVERSAL_GUARD} from './finance-read-tail-r41-sql';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/adapters/finance-transactions';
 import type {SalesPostingSetupProductScope} from '@erpx/server-finance/adapters/sales-posting-setup';
 import { clearWorkflowCommandAssertions } from "@erpx/server-workflow/public/command-assertion-effects";
@@ -27,7 +27,7 @@ const sales='finance.sales-posting';
 async function receiptSource(database:SqlDatabase,actor:WorkContext,id:string,issue:boolean){
  return database.prepare(`SELECT receipt.id,receipt.payment_id,to_jsonb(receipt)::text image,
  EXISTS(SELECT 1 FROM (${financeSalesReceiptOriginalSources}) original JOIN (${commerceFinanceRecordSources.sales.invoice}) owned ON owned.id=original.invoice_id AND owned.company_id=original.company_id
- WHERE original.id=receipt.payment_id AND original.company_id=receipt.company_id AND (original.status='settled' OR EXISTS(SELECT 1 FROM (${financePaymentReversalSources}) reversal WHERE reversal.id=original.id AND reversal.company_id=original.company_id))) sales
+ WHERE original.id=receipt.payment_id AND original.company_id=receipt.company_id ${ORIGINAL_PAYMENT_REVERSAL_GUARD}) sales
  FROM finance_customer_receipts receipt WHERE receipt.${issue?'payment_id':'id'}=? AND receipt.company_id=?`).bind(id,actor.companyId).first<{id:string;payment_id:string;image:string;sales:boolean}>();
 }
 async function current(database:SqlDatabase,actor:WorkContext,issue:boolean,salesSource:boolean){
@@ -82,7 +82,7 @@ export async function salesCustomerReceiptProductEntry(database:SqlDatabase,scop
  AND ${assignmentReadSql('receipt_scope','finance.read')}
  AND ${scheduledFeaturePredicate('receipt_scope.company_id','finance')} AND ${scheduledFeaturePredicate('receipt_scope.company_id','sales')}
  AND ${purchasedCapabilityPredicate('receipt_scope.company_id',sales,'history','receipt_entry_clock.now_ms')}
- AND (original.status='settled' OR EXISTS(SELECT 1 FROM (${financePaymentReversalSources}) reversal WHERE reversal.id=original.id AND reversal.company_id=original.company_id))`)
+ ${ORIGINAL_PAYMENT_REVERSAL_GUARD}`)
  .bind(scope.companyId,scope.branchId,scope.departmentId,receiptId,scope.branchId,scope.branchId,scope.departmentId,scope.departmentId,scope.assignmentId,scope.userId,scope.role,scope.assignmentVersion,scope.assignmentId,scope.userId,scope.role).first();
  return row?{capability:sales,purchasePurpose:'history' as const}:null;
 }

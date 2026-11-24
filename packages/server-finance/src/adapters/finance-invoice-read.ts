@@ -4,6 +4,7 @@ import { requireFinanceDocumentHistory } from "@erpx/server-finance/adapters/doc
 import { OPEN_PERIOD_LIST_SQL } from './finance-read-tail-r15-sql';
 import { BANK_TRANSACTION_STATEMENT_SQL } from './finance-read-tail-r34-sql';
 import { CHART_EXISTS_BY_COMPANY_SQL } from './finance-read-tail-r36-sql';
+import { APPROVED_SECONDARY_CHART_CORRELATED_GUARD } from './finance-read-tail-r41-sql';
 import { PERIOD_EXISTS_BY_ID_SQL } from './finance-read-tail-r37-sql';
 import { PERIOD_DATES_SQL } from './finance-read-tail-r18-sql';
 import { salesInvoiceLines } from "@erpx/server-finance/adapters/sales-lines";
@@ -196,7 +197,7 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
             const transactionArgs = [...statementArgs, query?.view ?? '', query?.q ?? '', query?.q ?? ''];
             const paged = !!query && query.print !== '1';
             const [accounts, statements, transactions, payments, selectedTransaction] = await Promise.all([
-                !query || query.new === '1' ? write.prepare("SELECT a.id,a.chart_id,a.code,a.name,a.currency,c.base_currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.company_id=? AND a.category='asset' AND a.control_kind IN ('none','bank') AND a.status='active' AND c.status='active' AND NOT EXISTS(SELECT 1 FROM finance_book_rules r WHERE r.company_id=a.company_id AND r.secondary_chart_id=a.chart_id AND r.status='approved') ORDER BY CASE WHEN a.control_kind='bank' THEN 0 ELSE 1 END,a.code,a.id").bind(actor.companyId).all<FinanceRow>() : { results: [] as FinanceRow[] },
+                !query || query.new === '1' ? write.prepare(`SELECT a.id,a.chart_id,a.code,a.name,a.currency,c.base_currency FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.company_id=? AND a.category='asset' AND a.control_kind IN ('none','bank') AND a.status='active' AND c.status='active' AND ${APPROVED_SECONDARY_CHART_CORRELATED_GUARD} ORDER BY CASE WHEN a.control_kind='bank' THEN 0 ELSE 1 END,a.code,a.id`).bind(actor.companyId).all<FinanceRow>() : { results: [] as FinanceRow[] },
                 paged ? readListPage<FinanceRow & {
                     id: string;
                     page_key: string;

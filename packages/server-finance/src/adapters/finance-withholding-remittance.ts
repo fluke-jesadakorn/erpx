@@ -1,4 +1,5 @@
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
+import { withholdingRemittedGuardSql } from './finance-read-tail-r41-sql';
 import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
 import { FINANCE_ADVISORY_XACT_LOCK_SQL } from "./advisory-lock-dedupe-sql";
@@ -28,7 +29,7 @@ function sourceGuards(db: SqlDatabase, actor: WorkContext, key: string, source: 
         ...source.sources.flatMap((row, index) => [
             assertion(db, key, `monthly-source-${index}`, "EXISTS(SELECT 1 FROM finance_withholding_assessments a JOIN finance_payments p ON p.id=a.payment_id JOIN finance_journals j ON j.id=p.journal_id WHERE a.id=? AND a.company_id=? AND a.status='consumed' AND a.version=? AND a.source_fingerprint=? AND a.tax_minor=? AND p.id=? AND p.version=? AND p.status='settled' AND j.id=? AND j.status='posted')", [row.assessmentId, actor.companyId, row.assessmentVersion, row.sourceFingerprint, row.taxMinor, row.paymentId, row.paymentVersion, row.paymentJournalId]),
             assertion(db, key, `monthly-document-${index}`, "EXISTS(SELECT 1 FROM finance_issued_thai_documents d WHERE d.id=? AND d.export_sha256=? AND NOT EXISTS(SELECT 1 FROM finance_thai_document_events e WHERE e.document_id=d.id AND e.action IN ('cancelled','superseded')))", [row.documentId, row.documentSha256]),
-            assertion(db, key, `monthly-remitted-${index}`, "EXISTS(SELECT 1 FROM finance_withholding_remittance_items i JOIN finance_withholding_remittances r ON r.id=i.remittance_id WHERE i.assessment_id=? AND r.status='confirmed')::integer=?", [row.assessmentId, Number(row.alreadyRemitted)]),
+            assertion(db, key, `monthly-remitted-${index}`, `EXISTS(${withholdingRemittedGuardSql('?')})::integer=?`, [row.assessmentId, Number(row.alreadyRemitted)]),
         ]),
     ];
 }
@@ -51,7 +52,7 @@ export async function withholdingPackageExport(actor: WorkContext, id: string) {
 function monthlySource(db: SqlDatabase) {
     return createWithholdingMonthSource({ error: (...args) => new ApiError(...args), monthlyRows: async (actor, month, formKind) => (await db.prepare(`SELECT a.id,a.version,a.payment_id,a.payment_date,a.tax_minor,a.income_minor,a.source_fingerprint,a.source_snapshot_json,p.version payment_version,p.journal_id,j.entry_date confirmed_date,
   (SELECT d.id FROM finance_issued_thai_documents d WHERE d.assessment_id=a.id AND NOT EXISTS(SELECT 1 FROM finance_thai_document_events e WHERE e.document_id=d.id AND e.action IN ('cancelled','superseded')) ORDER BY d.edition DESC LIMIT 1) document_id,
-  EXISTS(SELECT 1 FROM finance_withholding_remittance_items i JOIN finance_withholding_remittances r ON r.id=i.remittance_id WHERE i.assessment_id=a.id AND r.status='confirmed') already_remitted
+  EXISTS(${withholdingRemittedGuardSql('a.id')}) already_remitted
   FROM finance_withholding_assessments a JOIN finance_payments p ON p.id=a.payment_id AND p.company_id=a.company_id JOIN finance_journals j ON j.id=p.journal_id
   WHERE a.company_id=? AND substring(j.entry_date,1,7)=? AND a.form_kind=? AND a.status='consumed' AND p.status='settled' AND a.tax_minor>0 AND j.status='posted' ORDER BY j.entry_date,a.id`).bind(actor.companyId, month, formKind).all<Row>()).results, certificate: async (actor, id) => db.prepare("SELECT snapshot_json,document_number,export_sha256 FROM finance_issued_thai_documents WHERE id=? AND company_id=?").bind(id, actor.companyId).first<{
             snapshot_json: string;

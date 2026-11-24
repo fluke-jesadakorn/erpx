@@ -1,5 +1,6 @@
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { APPROVED_SECONDARY_CHART_RULE_SQL } from './finance-read-tail-r15-sql';
+import { APPROVED_SECONDARY_CHART_CORRELATED_GUARD } from './finance-read-tail-r41-sql';
 import { OPEN_PERIOD_LIST_ASC_SQL } from './finance-read-tail-r34-sql';
 import { nativeFinanceInstruments } from '@erpx/server-collaboration/adapters/native-finance-instruments';
 import "server-only";
@@ -224,7 +225,7 @@ function nativeInstruments(ownedTransaction?:SqlDatabase,readDatabase?:SqlDataba
       .all<Row>(),
     write
       .prepare(
-        "SELECT a.id,a.chart_id,a.code,a.name,a.currency,a.category,a.control_kind,c.name chart_name FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.company_id=? AND a.status='active' AND c.status='active' AND NOT EXISTS(SELECT 1 FROM finance_book_rules r WHERE r.company_id=a.company_id AND r.secondary_chart_id=a.chart_id AND r.status='approved') ORDER BY a.chart_id,a.code",
+        `SELECT a.id,a.chart_id,a.code,a.name,a.currency,a.category,a.control_kind,c.name chart_name FROM finance_accounts a JOIN finance_charts c ON c.id=a.chart_id WHERE a.company_id=? AND a.status='active' AND c.status='active' AND ${APPROVED_SECONDARY_CHART_CORRELATED_GUARD} ORDER BY a.chart_id,a.code`,
       )
       .bind(actor.companyId)
       .all<Row>(),
