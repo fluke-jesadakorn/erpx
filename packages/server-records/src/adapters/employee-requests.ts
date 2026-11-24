@@ -11,6 +11,7 @@ import { z } from "zod";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { activeStaff, notification } from "@erpx/server-operations/public/staff-policy";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import { ownerVersionExistsSql } from './read-tail-sql';
 import { prepareAttachmentBinding } from "@erpx/server-files/public/attachments/service";
 import { resourceRequestRoute, expenseRoute, spendingStepCandidates, expenseAuthoritySnapshot } from "@erpx/server-people_payroll/public/expense-routing";
 import {departmentRoute,departmentStepEligible} from '@erpx/server-organization/public/department-authority-reads';
@@ -35,7 +36,7 @@ export type { SavedApproval } from '@erpx/server-records/domain/employee-request
 function application(provided?: SqlDatabase, actor?: WorkContext) {
     let database = provided!;
     const repository: EmployeeRequestsRepository<SqlStatement> = { guard1(key: string, value: "request-version", id: string, company_id: string, version: number, state: string, evidence_version: number) {
-            return assertion(database, key, value, "EXISTS(SELECT 1 FROM employee_requests WHERE id=? AND company_id=? AND version=? AND state=? AND evidence_version=?)", [id, company_id, version, state, evidence_version]);
+            return assertion(database, key, value, ownerVersionExistsSql('employee_requests', ' AND state=? AND evidence_version=?'), [id, company_id, version, state, evidence_version]);
         },
         readReadRequestForOverrideRow(...args){return nativeEmployeeRequestReadRepository(database).readReadRequestForOverrideRow(...args);},
         readReadEmployeeRequestRow(...args){return nativeEmployeeRequestReadRepository(database).readReadEmployeeRequestRow(...args);},
