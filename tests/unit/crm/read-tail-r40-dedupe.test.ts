@@ -114,7 +114,7 @@ describe('crm read-tail r40 byte-identical tail composition', () => {
     expect(i).not.toContain('`SELECT g.id,g.contact_id');
 
     const l = src('leads.ts');
-    expect(l.match(/crmScopedDescListSql\(/g)).toHaveLength(1);
+    expect(l.match(/crmScopedDescListSql\(/g)).toHaveLength(2);
     expect(l.match(/crmDistinctOwnerSql\(/g)).toHaveLength(1);
     expect(l).toContain("import { crmScopedDescListSql, crmDistinctOwnerSql } from './read-tail-r40-sql';");
     expect(l).toContain("crmSingleKeySourceSql('DISTINCT user_id owner_id',identity_accessProjectionSources.assignments,'assignments')");
@@ -123,7 +123,7 @@ describe('crm read-tail r40 byte-identical tail composition', () => {
 
     const a = src('analytics.ts');
     expect(a.match(/crmDistinctOwnerSql\(/g)).toHaveLength(1);
-    expect(a).toContain("import {crmDistinctOwnerSql} from './read-tail-r40-sql';");
+    expect(a).toContain("import {crmDistinctOwnerSql,crmScopedDescListSql} from './read-tail-r40-sql';");
     expect(a).not.toContain('`SELECT DISTINCT l.owner_id');
 
     const m = src('metric-purchases.ts');
@@ -171,8 +171,8 @@ describe('crm read-tail r40 byte-identical tail composition', () => {
     ] as const) expect(src(file)).toContain(token);
   });
 
-  test('retirement:ts-statements drops from the r39 AFTER=99 to 95', () => {
-    expect(totalSelects()).toBe(95);
-    expect(totalSelects()).toBeLessThan(99);
+  test('retirement:ts-statements drops from the r39 AFTER=99 to 91 after r41 reuse', () => {
+    expect(totalSelects()).toBe(91);
+    expect(totalSelects()).toBeLessThan(95);
   });
 });

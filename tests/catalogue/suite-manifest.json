@@ -15979,6 +15979,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "crm",
+      "modules": [
+        "crm"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "CRM scoped lists and opportunity-lead heads must stay byte-identical."
+      },
+      "apps": [
+        "sales"
+      ],
+      "packages": [
+        "@erpx/server-crm"
+      ],
+      "id": "crm.read-tail-r41-dedupe.unit",
+      "files": [
+        "tests/unit/crm/read-tail-r41-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "crm.rust-crm-account-http.integration",
       "lane": "integration",
       "owner": "crm",
