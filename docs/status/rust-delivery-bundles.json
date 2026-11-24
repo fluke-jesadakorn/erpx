@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12536,
+    "revision": 12538,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -184625,7 +184625,7 @@
         "owner": "operations",
         "title": "operations read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -184636,22 +184636,37 @@
         "resources": [
           "owner:operations"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n108",
-          "claimedAt": "2026-11-24T17:10:40.395Z",
-          "heartbeatAt": "2026-11-24T17:15:31.032Z",
-          "expiresAt": "2026-11-24T17:45:31.032Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-operations/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "54cf220f9",
+            "owner": "operations",
+            "before": 84,
+            "after": 82,
+            "note": "childJsonSql merge (-1) and iam_roles EXISTS through operationsTableExists (-1); signatures and binds unchanged. Locks/receipts/native untouched."
+          },
+          {
+            "command": "vitest operations (18+5) + scoped tsc + byte oracles",
+            "result": "passed",
+            "sourceSha": "54cf220f9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Task-delegation JSONB and remaining table-exists extras: 84->82/83. BEFORE=84.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n108",
+          "at": "2026-11-24T17:20:39.905Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185100,17 +185115,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 20,
+        "in_progress": 19,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1457,
+        "blocked": 1458,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 171,
-    "updatedAt": "2026-11-24T17:19:38.758Z",
+    "updatedAt": "2026-11-24T17:20:39.912Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
