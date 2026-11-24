@@ -30,6 +30,13 @@ import {
 import { COMMERCE_BRANCH_LABEL_SQL, COMMERCE_FLOW_PARENT_SQL, COMMERCE_FULFILLMENT_ORDER_ID_SQL } from '../../../packages/server-commerce/src/adapters/projection-source-dedupe-sql';
 import { COMMERCE_STOCK_PRODUCT_FOR_UPDATE_SQL, COMMERCE_STOCK_WAREHOUSE_FOR_UPDATE_SQL } from '../../../packages/server-commerce/src/adapters/stock-source-dedupe-sql';
 import { COMMERCE_POSTING_MAPPING_STATE_SQL } from '../../../packages/server-commerce/src/adapters/settings-dedupe-sql';
+import {
+  COMMERCE_SCHEMA_READY_SQL,
+  COMMERCE_SETTLEMENT_BY_ORDER_SQL,
+} from '../../../packages/server-commerce/src/adapters/read-tail-r15-dedupe-sql';
+import { ecommerceCommerceSettlementSources } from '@erpx/server-commerce/public/ecommerce-package-sources';
+import { salesCommerceSettlementSources } from '@erpx/server-commerce/public/sales-package-sources';
+import { ecommerceNativeOrderRoots } from '@erpx/server-ecommerce/public/package-sources';
 import { commercialOwnerProjectionSources } from '@erpx/server-inventory/public/commercial-owner-projection-sources';
 import { commercialOwnerProjectionSources as financeProjectionSources } from '@erpx/server-finance/public/commercial-owner-projection-sources';
 
@@ -414,5 +421,56 @@ describe('commerce read-tail r14 projection guard / adapter pair dedupe', () => 
     expect(attachment.split('EXISTS(SELECT 1 FROM commerce_returns r WHERE r.id=child.return_id AND r.order_id=o.id AND r.company_id=o.company_id)').length - 1).toBe(1); // shared const only
     expect(attachment.split('FULFILLMENT_LINE_PARENT_GUARD').length - 1).toBe(3); // const + 2 rows() calls
     expect(attachment.split('RETURN_LINE_PARENT_GUARD').length - 1).toBe(3); // const + 2 rows() calls
+  });
+});
+
+describe('commerce read-tail r15 settlement / schema-ready dedupe', () => {
+  const orderIds = `SELECT native.id FROM (${salesCommerceSettlementSources.orders}) native JOIN (${ecommerceNativeOrderRoots}) root ON root.order_id=native.id AND root.company_id=native.company_id`;
+
+  it('renders byte-identical settlement by-order SQL for both columns', () => {
+    expect(COMMERCE_SETTLEMENT_BY_ORDER_SQL('SRC', 'IDS')).toBe(
+      'SELECT native.* FROM (SRC) native WHERE native.order_id IN (IDS)',
+    );
+    expect(COMMERCE_SETTLEMENT_BY_ORDER_SQL('SRC', 'IDS', 'id')).toBe(
+      'SELECT native.* FROM (SRC) native WHERE native.id IN (IDS)',
+    );
+    const s = salesCommerceSettlementSources;
+    const e = ecommerceCommerceSettlementSources;
+    expect(e.orders).toBe(COMMERCE_SETTLEMENT_BY_ORDER_SQL(s.orders, orderIds, 'id'));
+    expect(e.lines).toBe(COMMERCE_SETTLEMENT_BY_ORDER_SQL(s.lines, orderIds));
+    expect(e.deliveries).toBe(COMMERCE_SETTLEMENT_BY_ORDER_SQL(s.deliveries, orderIds));
+    expect(e.deliveryLines).toBe(COMMERCE_SETTLEMENT_BY_ORDER_SQL(s.deliveryLines, orderIds));
+    expect(e.returns).toBe(COMMERCE_SETTLEMENT_BY_ORDER_SQL(s.returns, orderIds));
+  });
+
+  it('renders byte-identical owner-local schema-ready SQL', () => {
+    expect(COMMERCE_SCHEMA_READY_SQL('commerce_mfg_existing_posting_confirmations')).toBe(
+      "SELECT to_regclass('commerce_mfg_existing_posting_confirmations') IS NOT NULL ready",
+    );
+    expect(COMMERCE_SCHEMA_READY_SQL('billing_test_finance_documents')).toBe(
+      "SELECT to_regclass('billing_test_finance_documents') IS NOT NULL ready",
+    );
+  });
+
+  it('keeps one literal per shared helper and leaves no inline duplicates or locks changed', async () => {
+    const shared = await readFile(adapters('read-tail-r15-dedupe-sql.ts'), 'utf8');
+    expect(shared.split('SELECT').length - 1).toBe(2);
+
+    const sources = await readFile(adapters('ecommerce-package-sources.ts'), 'utf8');
+    // The four remaining literals are the distinct return/goods/invoice families.
+    expect(sources.split('SELECT native.* FROM (${').length - 1).toBe(4);
+    expect(sources.split('native.order_id IN (${orderIds})').length - 1).toBe(0);
+    expect(sources.split('native.id IN (${orderIds})').length - 1).toBe(0);
+    expect(sources.split('COMMERCE_SETTLEMENT_BY_ORDER_SQL').length - 1).toBe(6); // import + five call sites
+    expect(sources).not.toContain('LOCK TABLE');
+
+    const mfg = await readFile(adapters('manufacturing-existing-posting-setup.ts'), 'utf8');
+    expect(mfg.split("SELECT to_regclass('commerce_mfg_existing_posting_confirmations') IS NOT NULL ready").length - 1).toBe(0);
+    expect(mfg.split("COMMERCE_SCHEMA_READY_SQL('commerce_mfg_existing_posting_confirmations')").length - 1).toBe(1);
+    expect(mfg.split('LOCK TABLE commerce_mfg_existing_posting_confirmations IN SHARE ROW EXCLUSIVE MODE').length - 1).toBe(1);
+
+    const billing = await readFile(adapters('billing-test-finance-ready.ts'), 'utf8');
+    expect(billing.split("SELECT to_regclass('billing_test_finance_documents') IS NOT NULL ready").length - 1).toBe(0);
+    expect(billing.split("COMMERCE_SCHEMA_READY_SQL('billing_test_finance_documents')").length - 1).toBe(1);
   });
 });
