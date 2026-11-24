@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10380,
+    "revision": 10390,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -161556,7 +161556,7 @@
         "owner": "collaboration",
         "title": "collaboration TS read tail native cutover (r25)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -161568,22 +161568,37 @@
         "resources": [
           "owner:collaboration"
         ],
-        "claim": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMcol3",
-          "claimedAt": "2026-11-24T07:25:04.849Z",
-          "heartbeatAt": "2026-11-24T07:25:04.849Z",
-          "expiresAt": "2026-11-24T07:55:04.849Z",
-          "generation": 166
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "89a6489a7",
+            "owner": "collaboration",
+            "before": 406,
+            "after": 405,
+            "note": "Comment and rich draft field guards share socialPostDraftFieldGuard; r11-r24 and locks untouched."
+          },
+          {
+            "command": "vitest collaboration r25 (5) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "89a6489a7"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=406.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMcol3",
+          "at": "2026-11-24T07:41:22.413Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -161844,7 +161859,7 @@
         "owner": "manage_erpx",
         "title": "manage_erpx TS read tail native cutover (r9)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -161856,22 +161871,22 @@
         "resources": [
           "owner:manage_erpx"
         ],
-        "claim": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMmng2",
-          "claimedAt": "2026-11-24T07:25:06.265Z",
-          "heartbeatAt": "2026-11-24T07:25:06.265Z",
-          "expiresAt": "2026-11-24T07:55:06.265Z",
-          "generation": 166
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=28.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with evidence; claim released",
+        "handoff": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMmng2",
+          "at": "2026-11-24T07:41:24.297Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with evidence; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -162185,7 +162200,7 @@
         "owner": "customer_authority",
         "title": "customer_authority TS read tail native cutover (round 28)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -162197,22 +162212,37 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "claim": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMca5",
-          "claimedAt": "2026-11-24T07:32:27.992Z",
-          "heartbeatAt": "2026-11-24T07:32:27.992Z",
-          "expiresAt": "2026-11-24T08:02:27.992Z",
-          "generation": 166
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-customer_authority/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "89a6489a7",
+            "owner": "customer_authority",
+            "before": 58,
+            "after": 57,
+            "note": "Aliased and wrapped release gate reads share releaseGateRead; r21-r27, locks and native kinds untouched."
+          },
+          {
+            "command": "vitest customer_authority (75) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "89a6489a7"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=58.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMca5",
+          "at": "2026-11-24T07:41:23.248Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -162474,6 +162504,78 @@
         "nextAction": "Next: sale-child detail family keyed by sale_id (11 reads), locks inline. BEFORE=234.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.collaboration.read-tail-r26",
+        "goalId": "G4",
+        "owner": "collaboration",
+        "title": "collaboration TS read tail native cutover (r26)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "tests/unit/collaboration/**",
+          "tests/integration/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "claim": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMcol4",
+          "claimedAt": "2026-11-24T07:41:25.081Z",
+          "heartbeatAt": "2026-11-24T07:41:25.081Z",
+          "expiresAt": "2026-11-24T08:11:25.081Z",
+          "generation": 166
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=405.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.customer_authority.read-tail-r29",
+        "goalId": "G4",
+        "owner": "customer_authority",
+        "title": "customer_authority TS read tail native cutover (r29)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-customer_authority/src/**",
+          "tests/unit/customer_authority/**",
+          "tests/integration/customer_authority/**"
+        ],
+        "resources": [
+          "owner:customer_authority"
+        ],
+        "claim": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMca6",
+          "claimedAt": "2026-11-24T07:41:25.801Z",
+          "heartbeatAt": "2026-11-24T07:41:25.801Z",
+          "expiresAt": "2026-11-24T08:11:25.801Z",
+          "generation": 166
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=57.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -162482,21 +162584,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1377,
+      "totalPackets": 1379,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 29,
+        "in_progress": 28,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 999,
+        "blocked": 1002,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 166,
-    "updatedAt": "2026-11-24T07:40:53.361Z",
+    "updatedAt": "2026-11-24T07:41:25.813Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
