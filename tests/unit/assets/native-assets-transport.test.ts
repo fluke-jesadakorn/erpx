@@ -312,21 +312,24 @@ it('shares one parameterized asset descriptor SQL across the policy and remainin
  expect(operational).toContain('assetAttachmentDescriptorSql(moduleTarget.table,moduleTarget.branch,moduleTarget.department ?? "NULL::text","version")');
  expect(operational).toContain('import {assetAttachmentDescriptorSql} from "./attachments-policy-facts"');
 });
-it('shares two canonical source-probe projections across the Assets record-purchase reads (48->46)',async()=>{
+it('shares one canonical source-probe projection across the Assets record-purchase reads (46->44)',async()=>{
  const {readFile}=await import('node:fs/promises');
  const adapter=await readFile(new URL('../../../packages/server-assets/src/adapters/record-purchases.ts',import.meta.url),'utf8');
  const count=(text:string,needle:string)=>text.split(needle).length-1;
- expect(adapter).toContain('const assetSourceVisibleSql=(table:string,alias:string,idValue:string,tail="")=>');
- expect(adapter).toContain('const assetSourceReadSql=(from:string,idColumn:string,tail="")=>');
- // Each canonical helper owns one read projection; its comment adds no KPI token.
- expect(count(adapter,'EXISTS(SELECT 1 FROM ${table} ${alias} WHERE ${alias}.id=${idValue}${tail})')).toBe(1);
- expect(count(adapter,'SELECT 1 FROM ${from} WHERE ${idColumn}=?${tail}')).toBe(1);
- // No duplicate raw source-probe literal remains at any of the four call sites.
- expect(count(adapter,'SELECT 1 FROM ${definition.table}')).toBe(0);
+ // The canonical probe owns the single read token; its comment adds no KPI token.
+ expect(adapter.match(/SELECT/g)).toHaveLength(2);
+ expect(adapter).toContain('const assetSourceProbeSql=(from:string,where:string)=>');
+ expect(count(adapter,'SELECT 1 FROM ${from} WHERE ${where}')).toBe(1);
+ expect(adapter).toContain('assetSourceVisibleSql=(table:string,alias:string,idValue:string,tail="")=>`EXISTS(${assetSourceProbeSql(');
+ expect(adapter).toContain('assetSourceReadSql=(from:string,idColumn:string,tail="")=>assetSourceProbeSql(from,');
+ // No duplicate raw source-probe literal remains at any of the three call sites.
+ expect(count(adapter,'SELECT 1 FROM ${table} ${alias}')).toBe(0);
+ expect(count(adapter,'SELECT 1 FROM ${from} WHERE ${idColumn}')).toBe(0);
  expect(adapter).toContain('visible=assetSourceVisibleSql(definition.table,alias,id,` AND ${alias}.company_id=${company} AND ${scope.where}`)');
  expect(adapter).toContain('${assetSourceVisibleSql(definition.table,"actual_asset_source",id)}');
  expect(adapter).toContain('database.prepare(assetSourceReadSql(definition.table,"id"))');
  expect(adapter).toContain('database.prepare(assetSourceReadSql(`${definition.table} asset_record_source`,"id",` AND ${scope.where}`))');
+ expect(adapter).toContain('${assetSourceProbeSql("asset_source_clock",purchasedCapabilityPredicate(');
 });
 it('shares one canonical aggregate projection across the Assets executive breakdowns (45->44)',async()=>{
  const {readFile}=await import('node:fs/promises');

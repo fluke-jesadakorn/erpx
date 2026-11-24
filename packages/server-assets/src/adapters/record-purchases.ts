@@ -10,20 +10,21 @@ import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commerc
 
 export type AssetSourceKind="asset"|"maintenance_work"|"maintenance_plan";
 const definitions={asset:{table:"operational_assets",module:"assets",capability:"assets.register"},maintenance_work:{table:"maintenance_work_orders",module:"maintenance",capability:"assets.maintenance"},maintenance_plan:{table:"maintenance_preventive_plans",module:"maintenance",capability:"assets.preventive"}} as const;
-/** Canonical owner-local fixed projections for Assets source probes. The
- * workspace read-scope visibility checks and the record-source rechecks share
- * one visibility/read literal each, so the TS read tail carries no duplicate
- * statement. Callers pass only owner-owned table, alias, scope and fixed column
- * names; no SQL or relation name is accepted from a request. */
-const assetSourceVisibleSql=(table:string,alias:string,idValue:string,tail="")=>`EXISTS(SELECT 1 FROM ${table} ${alias} WHERE ${alias}.id=${idValue}${tail})`;
-const assetSourceReadSql=(from:string,idColumn:string,tail="")=>`SELECT 1 FROM ${from} WHERE ${idColumn}=?${tail}`;
+/** Canonical owner-local fixed projection for Assets source probes. Visibility
+ * checks, record-source rechecks and the clock purchase probe share one literal
+ * so the TS read tail carries no duplicate statement. Callers pass only
+ * owner-owned relation, alias, column and predicate fragments; no SQL or
+ * relation name is accepted from a request. */
+const assetSourceProbeSql=(from:string,where:string)=>`SELECT 1 FROM ${from} WHERE ${where}`;
+const assetSourceVisibleSql=(table:string,alias:string,idValue:string,tail="")=>`EXISTS(${assetSourceProbeSql(`${table} ${alias}`,`${alias}.id=${idValue}${tail}`)})`;
+const assetSourceReadSql=(from:string,idColumn:string,tail="")=>assetSourceProbeSql(from,`${idColumn}=?${tail}`);
 /** Fixed owner kinds select the actual source table. Project/Learning worker
  * references and generic records do not acquire an Assets purchase rule. */
 export async function assetSourcePredicate(database:SqlDatabase,actor:WorkContext,alias:string,kind:AssetSourceKind,purchased=true){
  const mode=await assetsPackageEnforcementMode();if(mode==="disabled")return {where:"TRUE",args:[] as (string|number|null)[]};const definition=definitions[kind];
  if(!hasPermission(actor,"records.read")||!hasModuleAccess(actor.modules,definition.module))return {where:"FALSE",args:[] as (string|number|null)[]};
  if(mode==="shadow")await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:definition.capability});
- const purchase=mode==="enforced"&&purchased?`EXISTS(WITH asset_source_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms) SELECT 1 FROM asset_source_clock WHERE ${purchasedCapabilityPredicate(`${alias}.company_id`,definition.capability,"history","asset_source_clock.now_ms")})`:"TRUE";
+ const purchase=mode==="enforced"&&purchased?`EXISTS(WITH asset_source_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms) ${assetSourceProbeSql("asset_source_clock",purchasedCapabilityPredicate(`${alias}.company_id`,definition.capability,"history","asset_source_clock.now_ms"))})`:"TRUE";
  return {where:`${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?) AND ${assignmentReadSql(alias,"records.read")} AND ${purchase}`,args:[actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId,actor.assignmentId,actor.userId,actor.role]};
 }
 export async function assetSourceReadScope(database:SqlDatabase,actor:WorkContext,surface:"records"|"staff"|"inbox"){
