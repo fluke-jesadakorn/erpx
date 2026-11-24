@@ -63682,6 +63682,33 @@
       }
     },
     {
+      "lane": "unit",
+      "owner": "platform_administration",
+      "modules": [
+        "platform_administration"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Platform owner-write no-op statements must exist once and preserve the native write batch shape."
+      },
+      "apps": [
+        "admin"
+      ],
+      "packages": [
+        "@erpx/server-platform_administration"
+      ],
+      "id": "platform_administration.native-owner-write-noop-dedupe.unit",
+      "files": [
+        "tests/unit/platform_administration/native-owner-write-noop-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "platform_administration.native-platform-administration-transport.unit",
       "lane": "unit",
       "owner": "platform_administration",
