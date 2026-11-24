@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9808,
+    "revision": 9810,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -154820,7 +154820,7 @@
         "owner": "workflow",
         "title": "workflow TS read tail native cutover (r39)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -154832,28 +154832,21 @@
         "resources": [
           "owner:workflow"
         ],
-        "claim": {
-          "runId": "run-20261123-l",
-          "agentId": "wGCOwor",
-          "claimedAt": "2026-11-24T05:56:20.464Z",
-          "heartbeatAt": "2026-11-24T05:56:24.357Z",
-          "expiresAt": "2026-11-24T06:26:24.357Z",
-          "generation": 164
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=54.",
+        "blocker": "released with work preserved",
+        "nextAction": "BLOCKED at 54: 52 distinct literals, 0 exact duplicates; all repeated spans trace to r24-r38 helpers. Candidate MAX(col) family would re-dedupe r32 guard and is rejected. Further reduction needs a native read-port cutover with its own scoped plan.",
         "handoff": {
-          "runId": "run-20261123-k",
+          "runId": "run-20261123-l",
           "agentId": "wGCOwor",
-          "at": "2026-11-24T05:56:18.484Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired at 05:55Z; WIP reviewed in shared checkout; release claims and continue under new generation.",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=54."
+          "at": "2026-11-24T05:59:21.917Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "BLOCKED at 54: 52 distinct literals, 0 exact duplicates; all repeated spans trace to r24-r38 helpers. Candidate MAX(col) family would re-dedupe r32 guard and is rejected. Further reduction needs a native read-port cutover with its own scoped plan."
         },
         "scopeRefinementRequired": false
       },
@@ -156036,17 +156029,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
-        "in_progress": 24,
+        "in_progress": 23,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 869,
+        "blocked": 870,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 164,
-    "updatedAt": "2026-11-24T05:58:15.660Z",
+    "updatedAt": "2026-11-24T05:59:21.923Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
