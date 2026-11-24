@@ -5,7 +5,7 @@ import type {Row} from '@erpx/server-work_projection/domain/calendar/reminders';
 import {calendarManualSourceReadLocks,requireCalendarReminderRecordAuthority} from '@erpx/server-work_projection/adapters/calendar/purchases';
 import {calendarReminderConfiguration,requireCalendarReminderBinding,appointmentVersionSql,type CalendarReminderAuthorization} from '@erpx/server-work_projection/adapters/calendar/reminder-authority';
 import {occurrenceResponseSql} from '@erpx/server-work_projection/adapters/calendar-availability-facts';
-import {occurrenceExceptionPointSql} from '@erpx/server-work_projection/adapters/read-tail-sql';
+import {occurrenceExceptionPointSql,reminderAttendeePointSql} from '@erpx/server-work_projection/adapters/read-tail-sql';
 import {appsPackageEnforcementMode,checkPurchasedCapability,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
@@ -20,7 +20,7 @@ export async function withCalendarReminderDelivery(owner:SqlDatabase,row:Row,occ
  if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,'CALENDAR_REMINDER_UNIT_REQUIRED','Calendar reminders require their complete owned Holding transaction.');
  try{return await owner.transaction(async database=>{
   await calendarManualSourceReadLocks(database,row.company_id);
-  const source=await database.prepare('SELECT a.version,a.status,a.title,a.starts_at,a.ends_at,a.timezone,t.reminder_minutes,t.response FROM calendar_appointments a JOIN calendar_attendees t ON t.appointment_id=a.id AND t.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND t.user_id=?').bind(row.id,row.company_id,row.user_id).first<{version:number;status:string;title:string;starts_at:number;ends_at:number;timezone:string;reminder_minutes:number|null;response:string}>();
+  const source=await database.prepare(reminderAttendeePointSql('a.version,a.status,a.title,a.starts_at,a.ends_at,a.timezone,t.reminder_minutes,t.response')).bind(row.id,row.company_id,row.user_id).first<{version:number;status:string;title:string;starts_at:number;ends_at:number;timezone:string;reminder_minutes:number|null;response:string}>();
   if(!source||source.status!=='scheduled'||source.reminder_minutes===null||source.response==='declined')return false;
   if(source.version!==row.version||source.title!==row.title||source.starts_at!==row.starts_at||source.ends_at!==row.ends_at||source.timezone!==row.timezone||source.reminder_minutes!==row.reminder_minutes)throw new ApiError(409,'CALENDAR_REMINDER_SOURCE_CHANGED','The candidate reminder configuration changed.');
   const image=await calendarReminderConfiguration(database,row.company_id,row.id,row.user_id),authorization=await database.prepare('SELECT * FROM calendar_reminder_execution_authorizations WHERE appointment_id=? AND company_id=? AND recipient_id=? ORDER BY source_version DESC,created_at DESC,command_id DESC LIMIT 1').bind(row.id,row.company_id,row.user_id).first<CalendarReminderAuthorization>();
