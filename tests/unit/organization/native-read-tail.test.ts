@@ -147,6 +147,13 @@ describe('Organization owner-local read tail', () => {
     expect(ORG_COMPANY_DISPLAY_NAME_SOURCE).toBe("SELECT display_name FROM organization_nodes WHERE id=? AND kind='company'");
   });
 
+  it('shares one canonical authority-seats projection fragment across the IAM and workflow consumers', async () => {
+    const {identityVerifiedContextProjections} = await import('@erpx/server-organization/adapters/identity-access-verified-context-projections');
+    const projections = identityVerifiedContextProjections();
+    expect(projections.iam_store_authority_seats_s_from).toBe(projections.workflow_approvals_facts_authority_seats_s_from);
+    expect(projections.iam_store_authority_seats_s_from).toBe('FROM (SELECT "company_id","kind","scope_id","version","position_id","person_id","effective_at" FROM authority_seats) s');
+  });
+
   it('shares one canonical active-branch source across the collaboration home and beta readers', async () => {
     const {ORG_ACTIVE_BRANCHES_SOURCE} = await import('../../../packages/server-organization/src/adapters/org-sources');
     const {collaborationHomeSources} = await import('@erpx/server-organization/adapters/collaboration-home-sources');
