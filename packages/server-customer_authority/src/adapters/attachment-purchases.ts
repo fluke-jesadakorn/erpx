@@ -15,11 +15,11 @@ import {workContextGuards} from '@erpx/server-workflow/public/command-guards';
 import {commerceCompleteOwnerSourceReadLocks} from '@erpx/server-commerce/public/owner-source-locks';
 import {finalRootOwnerProjectionSources as commerce} from '@erpx/server-commerce/public/final-root-owner-projection-sources';
 import {portalReleaseAssertionSql,portalReleaseGateSql} from './portal-release-gate';
+import {portalPurchaseBindingSource} from './portal-purchase-binding-source';
 import {customerPortalSourceReadLocks} from '@erpx/server-customer_authority/adapters/portal-source-locks';
 import {financeDeferredEffectStatements} from '@erpx/server-finance/public/finance-transactions';
 export type PortalAttachmentPurchase={companyId:string;capability:'sales.portal';purpose:CapabilityPurpose;actor:WorkContext;targetId:string;external:boolean;witness:string};
-const sourceQuery=(external:boolean)=>`SELECT jsonb_build_array(to_jsonb(b)-'version'-'updated_at',o.id,o.company_id,o.branch_id,o.department_id,o.kind,o.party_id,o.version,o.state${external?',i.binding_id,i.user_id,i.email,i.bound_at':''})::text
- FROM customer_access_bindings b JOIN (${commerce.commerce_orders}) o ON o.id=b.order_id AND o.company_id=b.company_id AND o.party_id=b.customer_id AND o.kind IN ('sales','quote') ${external?"AND o.state IN ('confirmed','converted','partially_fulfilled','fulfilled')":''}
+const sourceQuery=(external:boolean)=>`${portalPurchaseBindingSource(`jsonb_build_array(to_jsonb(b)-'version'-'updated_at',o.id,o.company_id,o.branch_id,o.department_id,o.kind,o.party_id,o.version,o.state${external?',i.binding_id,i.user_id,i.email,i.bound_at':''})::text`)} ${external?"AND o.state IN ('confirmed','converted','partially_fulfilled','fulfilled')":''}
  ${external?'JOIN customer_access_identities i ON i.binding_id=b.id AND i.user_id=? AND i.email=?':''}
  WHERE b.id=? AND b.company_id=? ${external?"AND b.status='approved' AND b.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND b.email=?":'AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)'}`;
 const sourceArgs=(scope:Pick<PortalAttachmentPurchase,'external'|'actor'|'targetId'|'companyId'>)=>scope.external?[scope.actor.userId,scope.actor.email.toLowerCase(),scope.targetId,scope.companyId,scope.actor.email.toLowerCase()]:[scope.targetId,scope.companyId,scope.actor.branchId,scope.actor.branchId,scope.actor.departmentId,scope.actor.departmentId];

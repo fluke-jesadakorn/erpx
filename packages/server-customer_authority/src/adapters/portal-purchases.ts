@@ -2,10 +2,10 @@ import 'server-only';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {requireQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {commerceCompleteOwnerSourceReadLocks} from '@erpx/server-commerce/public/owner-source-locks';
-import {finalRootOwnerProjectionSources as commerce} from '@erpx/server-commerce/public/final-root-owner-projection-sources';
 import {commercePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccesses,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {portalReleaseGateSql} from './portal-release-gate';
+import {portalPurchaseBindingSource} from './portal-purchase-binding-source';
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
@@ -13,10 +13,9 @@ import {financialConstraintError} from '@erpx/server-workflow/public/command-gua
 import {customerPortalSourceReadLocks} from '@erpx/server-customer_authority/adapters/portal-source-locks';
 type BindingSource={id:string;company_id:string;branch_id:string;department_id:string|null;created_by:string;version:number;source_state:string;identity:string;image:string};
 async function source(database:SqlDatabase,actor:WorkContext,id:string){
- const row=await database.prepare(`SELECT b.id,b.company_id,o.branch_id,o.department_id,b.created_by,b.version,o.state source_state,
+ const row=await database.prepare(`${portalPurchaseBindingSource(`b.id,b.company_id,o.branch_id,o.department_id,b.created_by,b.version,o.state source_state,
  jsonb_build_array(b.id,b.company_id,b.order_id,b.customer_id,b.email,o.id,o.company_id,o.branch_id,o.department_id,o.kind,o.party_id,o.state)::text identity,
- jsonb_build_array(to_jsonb(b),o.id,o.company_id,o.branch_id,o.department_id,o.kind,o.party_id,o.state)::text image
- FROM customer_access_bindings b JOIN (${commerce.commerce_orders}) o ON o.id=b.order_id AND o.company_id=b.company_id AND o.party_id=b.customer_id AND o.kind IN ('quote','sales') WHERE b.id=? AND b.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)`).bind(id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).first<BindingSource>();
+ jsonb_build_array(to_jsonb(b),o.id,o.company_id,o.branch_id,o.department_id,o.kind,o.party_id,o.state)::text image`, "'quote','sales'")} WHERE b.id=? AND b.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)`).bind(id,actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId).first<BindingSource>();
  if(!row)throw new ApiError(404,'CUSTOMER_ACCESS_NOT_FOUND','Customer access request not found in this scope.');return row;
 }
 async function current(database:SqlDatabase,actor:WorkContext,review=false){

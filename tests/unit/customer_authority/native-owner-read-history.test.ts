@@ -14,6 +14,8 @@ import {
   nativeOwnerReadStatement,
 } from '../../../packages/server-customer_authority/src/adapters/native-owner-read';
 import { readExecutiveMetricProjection } from '../../../packages/server-customer_authority/src/adapters/executive-metric-projections';
+import { portalPurchaseBindingSource } from '../../../packages/server-customer_authority/src/adapters/portal-purchase-binding-source';
+import { finalRootOwnerProjectionSources as commerce } from '../../../packages/server-commerce/src/public/final-root-owner-projection-sources';
 
 const key = 'ERPX_NATIVE_CUSTOMER_AUTHORITY_READ_CONFIG';
 const config = () => JSON.stringify({
@@ -328,5 +330,64 @@ describe('customer authority portal/access binding source dedupe', () => {
     expect(accessSrc).not.toContain('SELECT b.id,b.company_id,o.branch_id,o.department_id,b.version');
     expect(factsSrc).toContain('db.prepare(`${portalBindingSource()}');
     expect(factsSrc).not.toContain('SELECT b.company_id,o.branch_id,o.department_id,b.version');
+  });
+});
+
+describe('customer authority portal purchase binding read core dedupe', () => {
+  const helper = () => new URL('../../../packages/server-customer_authority/src/adapters/portal-purchase-binding-source.ts', import.meta.url);
+  const portal = () => new URL('../../../packages/server-customer_authority/src/adapters/portal-purchases.ts', import.meta.url);
+  const attach = () => new URL('../../../packages/server-customer_authority/src/adapters/attachment-purchases.ts', import.meta.url);
+  const read = () => new URL('../../../packages/server-customer_authority/src/adapters/attachment-read.ts', import.meta.url);
+
+  it('keeps one byte-identical binding/order core shared by purchase source and both attachment witnesses', async () => {
+    const src = await readFile(helper(), 'utf8');
+    expect(src).toContain("export const portalPurchaseBindingSource = (projection: string, kinds = \"'sales','quote'\") => `SELECT ${projection}");
+    expect(src).toContain('FROM customer_access_bindings b JOIN (${commerce.commerce_orders}) o ON o.id=b.order_id AND o.company_id=b.company_id AND o.party_id=b.customer_id AND o.kind IN (${kinds})');
+    expect(src.match(/SELECT/g)).toHaveLength(1);
+  });
+
+  it('reproduces the exact portal purchase source SQL', () => {
+    const before = `SELECT b.id,b.company_id,o.branch_id,o.department_id,b.created_by,b.version,o.state source_state,
+ jsonb_build_array(b.id,b.company_id,b.order_id,b.customer_id,b.email,o.id,o.company_id,o.branch_id,o.department_id,o.kind,o.party_id,o.state)::text identity,
+ jsonb_build_array(to_jsonb(b),o.id,o.company_id,o.branch_id,o.department_id,o.kind,o.party_id,o.state)::text image
+ FROM customer_access_bindings b JOIN (${commerce.commerce_orders}) o ON o.id=b.order_id AND o.company_id=b.company_id AND o.party_id=b.customer_id AND o.kind IN ('quote','sales') WHERE b.id=? AND b.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)`;
+    const after = `${portalPurchaseBindingSource(`b.id,b.company_id,o.branch_id,o.department_id,b.created_by,b.version,o.state source_state,
+ jsonb_build_array(b.id,b.company_id,b.order_id,b.customer_id,b.email,o.id,o.company_id,o.branch_id,o.department_id,o.kind,o.party_id,o.state)::text identity,
+ jsonb_build_array(to_jsonb(b),o.id,o.company_id,o.branch_id,o.department_id,o.kind,o.party_id,o.state)::text image`, "'quote','sales'")} WHERE b.id=? AND b.company_id=? AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)`;
+    expect(after).toBe(before);
+  });
+
+  it('reproduces the exact attachment purchase witness SQL for both scopes', () => {
+    const before = (external: boolean) => `SELECT jsonb_build_array(to_jsonb(b)-'version'-'updated_at',o.id,o.company_id,o.branch_id,o.department_id,o.kind,o.party_id,o.version,o.state${external?',i.binding_id,i.user_id,i.email,i.bound_at':''})::text
+ FROM customer_access_bindings b JOIN (${commerce.commerce_orders}) o ON o.id=b.order_id AND o.company_id=b.company_id AND o.party_id=b.customer_id AND o.kind IN ('sales','quote') ${external?"AND o.state IN ('confirmed','converted','partially_fulfilled','fulfilled')":''}
+ ${external?'JOIN customer_access_identities i ON i.binding_id=b.id AND i.user_id=? AND i.email=?':''}
+ WHERE b.id=? AND b.company_id=? ${external?"AND b.status='approved' AND b.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND b.email=?":'AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)'}`;
+    const after = (external: boolean) => `${portalPurchaseBindingSource(`jsonb_build_array(to_jsonb(b)-'version'-'updated_at',o.id,o.company_id,o.branch_id,o.department_id,o.kind,o.party_id,o.version,o.state${external?',i.binding_id,i.user_id,i.email,i.bound_at':''})::text`)} ${external?"AND o.state IN ('confirmed','converted','partially_fulfilled','fulfilled')":''}
+ ${external?'JOIN customer_access_identities i ON i.binding_id=b.id AND i.user_id=? AND i.email=?':''}
+ WHERE b.id=? AND b.company_id=? ${external?"AND b.status='approved' AND b.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND b.email=?":'AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)'}`;
+    for (const external of [true, false]) expect(after(external)).toBe(before(external));
+  });
+
+  it('reproduces the exact attachment read witness SQL', () => {
+    const before = `SELECT jsonb_build_object('binding',to_jsonb(b),'order',to_jsonb(o),
+ 'identities',(SELECT jsonb_agg(to_jsonb(i) ORDER BY i.user_id) FROM customer_access_identities i WHERE i.binding_id=b.id))::text image
+ FROM customer_access_bindings b JOIN (${commerce.commerce_orders}) o ON o.id=b.order_id AND o.company_id=b.company_id AND o.party_id=b.customer_id AND o.kind IN ('sales','quote')
+ WHERE b.id=? AND b.company_id=?`;
+    const after = `${portalPurchaseBindingSource(`jsonb_build_object('binding',to_jsonb(b),'order',to_jsonb(o),
+ 'identities',(SELECT jsonb_agg(to_jsonb(i) ORDER BY i.user_id) FROM customer_access_identities i WHERE i.binding_id=b.id))::text image`)}
+ WHERE b.id=? AND b.company_id=?`;
+    expect(after).toBe(before);
+  });
+
+  it('routes all three readers through the shared core', async () => {
+    const portalSrc = await readFile(portal(), 'utf8');
+    const attachSrc = await readFile(attach(), 'utf8');
+    const readSrc = await readFile(read(), 'utf8');
+    expect(portalSrc).toContain('${portalPurchaseBindingSource(');
+    expect(attachSrc).toContain('${portalPurchaseBindingSource(');
+    expect(readSrc).toContain('${portalPurchaseBindingSource(');
+    expect(portalSrc).not.toContain('o.party_id=b.customer_id AND o.kind IN (');
+    expect(attachSrc).not.toContain('o.party_id=b.customer_id AND o.kind IN (');
+    expect(readSrc).not.toContain('o.party_id=b.customer_id AND o.kind IN (');
   });
 });

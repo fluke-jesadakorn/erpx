@@ -7,18 +7,17 @@ import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/qu
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import {companyPurchaseReadLocks} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {commerceCompleteOwnerSourceReadLocks} from '@erpx/server-commerce/public/owner-source-locks';
-import {finalRootOwnerProjectionSources as commerce} from '@erpx/server-commerce/public/final-root-owner-projection-sources';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {isTransactionalSqlDatabase,type SqlDatabase,type StoredFile} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {attachmentReadSource,attachmentPrivateReadSourceLocks,assertAttachmentReadRoute,attachmentReadChanged,requirePrivateAttachmentReaderCurrent,bufferedAttachmentRead,type AttachmentReadRoute,type AttachmentReadSource} from '@erpx/server-files/public/private-attachment-reads';
 import {customerPortalSourceReadLocks} from '@erpx/server-customer_authority/adapters/portal-source-locks';
 import {bindingIdentityCurrentSql} from '@erpx/server-customer_authority/adapters/attachment-withdraw-proof';
+import {portalPurchaseBindingSource} from './portal-purchase-binding-source';
 
 export async function portalAttachmentSourceWitness(database:SqlDatabase,actor:WorkContext,id:string){
- return database.prepare(`SELECT jsonb_build_object('binding',to_jsonb(b),'order',to_jsonb(o),
- 'identities',(SELECT jsonb_agg(to_jsonb(i) ORDER BY i.user_id) FROM customer_access_identities i WHERE i.binding_id=b.id))::text image
- FROM customer_access_bindings b JOIN (${commerce.commerce_orders}) o ON o.id=b.order_id AND o.company_id=b.company_id AND o.party_id=b.customer_id AND o.kind IN ('sales','quote')
+ return database.prepare(`${portalPurchaseBindingSource(`jsonb_build_object('binding',to_jsonb(b),'order',to_jsonb(o),
+ 'identities',(SELECT jsonb_agg(to_jsonb(i) ORDER BY i.user_id) FROM customer_access_identities i WHERE i.binding_id=b.id))::text image`)}
  WHERE b.id=? AND b.company_id=?`).bind(id,actor.companyId).first<string>('image');
 }
 /** Verified external customers keep binding/identity/expiry policy; scoped
