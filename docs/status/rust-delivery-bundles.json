@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8556,
+    "revision": 8558,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -141605,6 +141605,42 @@
         "nextAction": "Scout: spaced organization_nodes projection groups in identity-snapshot-sources: alias n FROM 11x (-10 cross-file with learning/collab), JOIN c 7x (-6), FROM b 6x (-5), JOIN n 6x (-5), JOIN b 5x (-4); distinct from compact r15/r16 constants. BEFORE=372.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.collaboration.read-tail-r11",
+        "goalId": "G4",
+        "owner": "collaboration",
+        "title": "collaboration TS read tail native cutover (round 11)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "tests/unit/collaboration/**",
+          "tests/integration/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCRcol",
+          "claimedAt": "2026-11-24T02:29:22.763Z",
+          "heartbeatAt": "2026-11-24T02:29:22.763Z",
+          "expiresAt": "2026-11-24T02:59:22.764Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Scout: social_task_origins EXISTS 4x (-3), messaging_room_members jsonb_agg 3x (-2), social_follows post EXISTS 3x (-2), messaging_team_members EXISTS 3x (-2), legacy/native CTE union 3x (-2). Read-only, binds unchanged. BEFORE=454.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -141613,11 +141649,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 963,
+      "totalPackets": 964,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 32,
+        "in_progress": 33,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -141627,7 +141663,7 @@
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:29:09.256Z",
+    "updatedAt": "2026-11-24T02:29:22.771Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
