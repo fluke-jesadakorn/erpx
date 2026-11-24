@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12399,
+    "revision": 12409,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183755,6 +183755,181 @@
         "nextAction": "Attachment list V2/V1 builders (-2) and accounting-category chart guard (-2): 1228->1224. BEFORE=1228.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.learning.read-tail-r18",
+        "goalId": "G4",
+        "owner": "learning",
+        "title": "learning next read slice",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-learning/src/**",
+          "tests/unit/learning/**"
+        ],
+        "resources": [
+          "owner:learning"
+        ],
+        "claim": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n80",
+          "claimedAt": "2026-11-24T16:03:45.542Z",
+          "heartbeatAt": "2026-11-24T16:03:45.542Z",
+          "expiresAt": "2026-11-24T16:33:45.542Z",
+          "generation": 170
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Reuse existsRowProbe, imageChildFrame, scopeRow (-3): 39->36, or -1 if prior-round reuse excluded; report evidence. BEFORE=39.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.agent.read-tail-r24",
+        "goalId": "G4",
+        "owner": "agent",
+        "title": "agent next read slice",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-agent/src/**",
+          "tests/unit/agent/**"
+        ],
+        "resources": [
+          "owner:agent"
+        ],
+        "claim": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n81",
+          "claimedAt": "2026-11-24T16:03:58.079Z",
+          "heartbeatAt": "2026-11-24T16:03:58.079Z",
+          "expiresAt": "2026-11-24T16:33:58.079Z",
+          "generation": 170
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Assistant quota duplicate (-2) and records-quota union count (-1): 53->50; comparator head only if closed union. BEFORE=53.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.workflow.read-tail-r48",
+        "goalId": "G4",
+        "owner": "workflow",
+        "title": "workflow next read slice",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/**",
+          "tests/unit/workflow/**"
+        ],
+        "resources": [
+          "owner:workflow"
+        ],
+        "claim": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n82",
+          "claimedAt": "2026-11-24T16:04:10.613Z",
+          "heartbeatAt": "2026-11-24T16:04:10.613Z",
+          "expiresAt": "2026-11-24T16:34:10.613Z",
+          "generation": 170
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Approver union projection (-1), flow-route version guard (-1), settlement sources union (-2 if closed): 37->33. BEFORE=37.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.platform_administration.read-tail-r16",
+        "goalId": "G4",
+        "owner": "platform_administration",
+        "title": "platform_administration next read slice",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-platform_administration/src/**",
+          "tests/unit/platform_administration/**"
+        ],
+        "resources": [
+          "owner:platform_administration"
+        ],
+        "claim": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n83",
+          "claimedAt": "2026-11-24T16:04:23.160Z",
+          "heartbeatAt": "2026-11-24T16:04:23.160Z",
+          "expiresAt": "2026-11-24T16:34:23.160Z",
+          "generation": 170
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "releaseAcceptanceExistsSql reuse (-1) and projection-source head union (-2): 31->28/29. BEFORE=31.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.inventory.native-read-r49",
+        "goalId": "G4",
+        "owner": "inventory",
+        "title": "inventory next read slice",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "tests/unit/inventory/**"
+        ],
+        "resources": [
+          "owner:inventory"
+        ],
+        "claim": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n84",
+          "claimedAt": "2026-11-24T16:04:35.705Z",
+          "heartbeatAt": "2026-11-24T16:04:35.705Z",
+          "expiresAt": "2026-11-24T16:34:35.705Z",
+          "generation": 170
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Native read ports for commerce-facts order reservations/lot balance (-2) and transit lookups (-5) with registry + parity tests; no mount change. BEFORE=314.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -183763,11 +183938,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1798,
+      "totalPackets": 1803,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 13,
+        "in_progress": 18,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -183777,7 +183952,7 @@
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:00:04.580Z",
+    "updatedAt": "2026-11-24T16:04:35.708Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
