@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11133,
+    "revision": 11142,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -166502,17 +166502,32 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-finance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "92eb4c66f",
+            "owner": "finance",
+            "before": 1965,
+            "after": 1951,
+            "note": "Thirteen byte-identical families (parent_run_id, party, billing run, contracts, dimension values, refunds, accruals, engines, planning, pos-core, supplier receipt) share finance-read-tail-r38-sql; locks, tax and r15-r37 untouched."
+          },
+          {
+            "command": "vitest finance native read plan (100) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "92eb4c66f"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=1965.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMfina",
-          "at": "2026-11-24T10:09:57.716Z",
+          "runId": "run-20261124-b",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T10:12:17.860Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=1965."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -169794,17 +169809,32 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-collaboration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "3f2a1f186",
+            "owner": "collaboration",
+            "before": 399,
+            "after": 398,
+            "note": "Social post revisions jsonb_agg projections share socialPostRevisionsAgg; locks and notification helpers untouched."
+          },
+          {
+            "command": "vitest collaboration r16-r28 (62) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "3f2a1f186"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
-        "nextAction": "Next: safe byte-identical/parameterized head or fragment family; if none, report blocked. BEFORE=399.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMcol8",
-          "at": "2026-11-24T10:09:57.716Z",
+          "runId": "run-20261124-b",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T10:12:16.062Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
-          "nextAction": "Next: safe byte-identical/parameterized head or fragment family; if none, report blocked. BEFORE=399."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -170792,17 +170822,32 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "2636b6cf5",
+            "owner": "legal",
+            "before": 216,
+            "after": 212,
+            "note": "Five legal envelope signer reads share legalEnvelopeSignerReadHead; corpus/citation, advisory locks, FOR UPDATE and r9-r42 untouched."
+          },
+          {
+            "command": "vitest legal r43 (6) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "2636b6cf5"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
-        "nextAction": "Next: safe byte-identical/parameterized head or fragment family; if none, report blocked. BEFORE=216.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMlegg",
-          "at": "2026-11-24T10:09:57.716Z",
+          "runId": "run-20261124-b",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T10:12:16.923Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired at 10:08Z during long parallel migration; WIP reviewed in working tree; previous run stopped and generation 168 continues with re-claimed tasks",
-          "nextAction": "Next: safe byte-identical/parameterized head or fragment family; if none, report blocked. BEFORE=216."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       }
@@ -170827,7 +170872,7 @@
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T10:11:53.038Z",
+    "updatedAt": "2026-11-24T10:12:17.866Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
