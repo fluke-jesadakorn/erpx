@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8250,
+    "revision": 8253,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -121476,7 +121476,7 @@
         "owner": "manufacturing",
         "title": "manufacturing TS read tail native cutover (round 3)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -121488,14 +121488,7 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGBLman",
-          "claimedAt": "2026-11-24T01:47:52.746Z",
-          "heartbeatAt": "2026-11-24T01:48:55.159Z",
-          "expiresAt": "2026-11-24T02:18:55.159Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -121518,15 +121511,29 @@
             "command": "vitest native-manufacturing-bom-transport (17) + tests-config tsc",
             "result": "passed",
             "sourceSha": "8e7e5aeee"
+          },
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-manufacturing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "624795d2c",
+            "owner": "manufacturing",
+            "before": 148,
+            "after": 138,
+            "note": "Clock CTE, scoped purchase rows, posted jsonb aggs, report actor prefix shared; text-only."
+          },
+          {
+            "command": "vitest manufacturing BOM (23) + tsc manufacturing/tests-config",
+            "result": "passed",
+            "sourceSha": "624795d2c"
           }
         ],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "handoff",
         "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-g",
-          "agentId": "wBDman",
-          "at": "2026-11-23T22:22:12.352Z",
+          "runId": "run-20261123-i",
+          "agentId": "wGBLman",
+          "at": "2026-11-24T01:58:19.238Z",
           "previousStatus": "in_progress",
           "reason": "handoff",
           "nextAction": "Integrated; claim released"
@@ -122547,7 +122554,7 @@
         "owner": "manufacturing",
         "title": "manufacturing TS read tail native cutover (round 4)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -122559,7 +122566,14 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCcman",
+          "claimedAt": "2026-11-24T01:58:19.416Z",
+          "heartbeatAt": "2026-11-24T01:58:19.416Z",
+          "expiresAt": "2026-11-24T02:28:19.416Z",
+          "generation": 161
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -122585,7 +122599,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Integrated; claim released; records/procurement tsc mismatch to owner",
         "handoff": {
           "runId": "run-20261123-g",
@@ -137812,7 +137826,7 @@
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:57:52.892Z",
+    "updatedAt": "2026-11-24T01:58:19.421Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
