@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9019,
+    "revision": 9021,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -141605,10 +141605,10 @@
         ],
         "claim": {
           "runId": "run-20261123-j",
-          "agentId": "wGCHpms",
-          "claimedAt": "2026-11-24T03:57:23.326Z",
-          "heartbeatAt": "2026-11-24T04:09:43.499Z",
-          "expiresAt": "2026-11-24T04:39:43.499Z",
+          "agentId": "wGCHpms2",
+          "claimedAt": "2026-11-24T04:10:25.594Z",
+          "heartbeatAt": "2026-11-24T04:10:25.594Z",
+          "expiresAt": "2026-11-24T04:40:25.594Z",
           "generation": 162
         },
         "baseSha": null,
@@ -141619,11 +141619,11 @@
         "blocker": null,
         "nextAction": "Next: safe byte-identical dedupe/native read; if none, report blocked. BEFORE=501.",
         "handoff": {
-          "runId": "run-20261123-i",
+          "runId": "run-20261123-j",
           "agentId": "wGCHpms",
-          "at": "2026-11-24T03:57:20.238Z",
+          "at": "2026-11-24T04:10:25.398Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long cargo queue; WIP reviewed, all owner claims preserved and re-issued.",
+          "reason": "released with work preserved",
           "nextAction": "Next: safe byte-identical dedupe/native read; if none, report blocked. BEFORE=501."
         },
         "scopeRefinementRequired": false
@@ -147030,7 +147030,7 @@
       }
     },
     "lastCoordinatorGeneration": 162,
-    "updatedAt": "2026-11-24T04:09:47.178Z",
+    "updatedAt": "2026-11-24T04:10:25.601Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
