@@ -56,3 +56,8 @@ export const socialAgentReplyStateGuard=(tail:string)=>`EXISTS(SELECT 1 FROM soc
  * predicate vary; the fixed `id=? AND company_id=? AND owner_id=?` prefix, bind
  * order and lock semantics stay unchanged. */
 export const messagingOwnerGuard=(table:string,tail:string)=>`EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND owner_id=?${tail})`;
+/** Byte-identical AI-phase image projection shared by the raw and redacted
+ * readers in work-social-purchases.ts. Only the per-field `-ARRAY[...]`
+ * redaction suffixes vary; the query heads, bind order and lock semantics
+ * stay unchanged. */
+export const socialAiPhaseImageSql=(draft:string,usage:string,reply:string)=>`SELECT jsonb_build_object('draft',(SELECT to_jsonb(d)${draft} FROM social_ai_drafts d WHERE d.id=?),'usage',(SELECT to_jsonb(u)${usage} FROM social_ai_usage u WHERE u.id=?),'reply',(SELECT to_jsonb(r)${reply} FROM social_agent_replies r WHERE r.id=?))::text image`;

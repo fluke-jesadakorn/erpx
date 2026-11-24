@@ -23,7 +23,7 @@ import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-fea
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
-import {requestedSourcesJsonb,workSocialPostsAgg,workSocialCommentsAgg,workSocialSourcesAgg,socialPurchaseActorFeature,socialPostByIdPredicate,socialAgentReplyLeaseIdentity,socialPostPublishReceipt,socialPostByIdGuard} from './read-tail-sql';
+import {requestedSourcesJsonb,workSocialPostsAgg,workSocialCommentsAgg,workSocialSourcesAgg,socialPurchaseActorFeature,socialPostByIdPredicate,socialAgentReplyLeaseIdentity,socialPostPublishReceipt,socialPostByIdGuard,socialAiPhaseImageSql} from './read-tail-sql';
 
 import {executeCommand,replayCommand} from '@erpx/server-workflow/public/commands';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
@@ -117,8 +117,8 @@ export function withOperationsHandoverAcknowledgement<Result>(owner:SqlDatabase,
 export async function withWorkSocialAiPhase<Result>(owner:SqlDatabase,actor:StaffActor,phase:import("@erpx/server-collaboration/domain/social-ai-phase").SocialAiPhase,run:(database:SqlDatabase)=>Promise<Result>):Promise<Result>{
  const {disabled}=await socialOwnerModes();if(disabled)return run(owner);
  const key=`social-ai:${phase.reservationId}:${phase.phase}`;
- const aiRows=(database:SqlDatabase)=>database.prepare(`SELECT jsonb_build_object('draft',(SELECT to_jsonb(d) FROM social_ai_drafts d WHERE d.id=?),'usage',(SELECT to_jsonb(u) FROM social_ai_usage u WHERE u.id=?),'reply',(SELECT to_jsonb(r) FROM social_agent_replies r WHERE r.id=?))::text image`).bind(phase.reservationId,phase.reservationId,phase.reply?.id??null).first<string>('image');
- const identity=(database:SqlDatabase)=>database.prepare(`SELECT jsonb_build_object('draft',(SELECT to_jsonb(d)-ARRAY['state','result_json'] FROM social_ai_drafts d WHERE d.id=?),'usage',(SELECT to_jsonb(u)-ARRAY['state','input_tokens','output_tokens','lease_until'] FROM social_ai_usage u WHERE u.id=?),'reply',(SELECT to_jsonb(r)-ARRAY['state','error','error_code','lease_until','updated_at'] FROM social_agent_replies r WHERE r.id=?))::text image`).bind(phase.reservationId,phase.reservationId,phase.reply?.id??null).first<string>('image');
+ const aiRows=(database:SqlDatabase)=>database.prepare(socialAiPhaseImageSql('', '', '')).bind(phase.reservationId,phase.reservationId,phase.reply?.id??null).first<string>('image');
+ const identity=(database:SqlDatabase)=>database.prepare(socialAiPhaseImageSql("-ARRAY['state','result_json']", "-ARRAY['state','input_tokens','output_tokens','lease_until']", "-ARRAY['state','error','error_code','lease_until','updated_at']")).bind(phase.reservationId,phase.reservationId,phase.reply?.id??null).first<string>('image');
  const pending=async(database:SqlDatabase)=>{
   const row=await database.prepare(`SELECT d.actor_id,d.post_id,d.source_hash,d.actor_json,d.state draft_state,u.company_id,u.actor_id usage_actor,u.state usage_state FROM social_ai_drafts d JOIN social_ai_usage u ON u.id=d.id WHERE d.id=?`).bind(phase.reservationId).first<{actor_id:string;post_id:string;source_hash:string;actor_json:string|null;draft_state:string;company_id:string;usage_actor:string;usage_state:string}>();
   if(phase.phase==='reserve'){if(row)throw new ApiError(409,'AI_REQUEST_EXISTS','This original reservation already exists.');}

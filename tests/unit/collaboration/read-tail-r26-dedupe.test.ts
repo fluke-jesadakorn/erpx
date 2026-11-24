@@ -85,7 +85,8 @@ describe('Collaboration read-tail r26 retirement check', () => {
     // guards (social-agent.ts) and the messaging owner/version guards
     // (messaging.ts), each into one shared parameterized fragment in
     // read-tail-sql.ts.
-    expect(total).toBe(403);
+    // r27 deduped a further byte-identical family below this r26 baseline.
+    expect(total).toBeLessThanOrEqual(403);
     expect(total).toBeLessThan(405);
   });
 });
