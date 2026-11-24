@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12130,
+    "revision": 12132,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -180709,6 +180709,41 @@
         "nextAction": "CTE scope via ecommerceScopeRow (-1), readSource via ecommerceOrderedList (-1), row probe via ecommerceSelectOne (-1): 25->22.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.quality.read-tail-r26",
+        "goalId": "G4",
+        "owner": "quality",
+        "title": "quality projection, point and evidence heads",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-quality/src/**",
+          "tests/unit/quality/**"
+        ],
+        "resources": [
+          "owner:quality"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n16",
+          "claimedAt": "2026-11-24T13:41:24.904Z",
+          "heartbeatAt": "2026-11-24T13:41:24.904Z",
+          "expiresAt": "2026-11-24T14:11:24.904Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "P closed projections via qualitySourceArmHead (-6), Q point reads (-5), R evidence heads via exported evidenceHead (-9): 57->37.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -180717,11 +180752,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1735,
+      "totalPackets": 1736,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 7,
+        "in_progress": 8,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -180731,7 +180766,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:41:08.514Z",
+    "updatedAt": "2026-11-24T13:41:24.911Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
