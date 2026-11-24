@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7531,
+    "revision": 7539,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -127084,7 +127084,7 @@
         "owner": "support",
         "title": "support TS read tail native cutover (round 13)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -127096,22 +127096,42 @@
         "resources": [
           "owner:support"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wE21sup",
-          "claimedAt": "2026-11-24T00:04:11.909Z",
-          "heartbeatAt": "2026-11-24T00:24:45.880Z",
-          "expiresAt": "2026-11-24T00:54:45.880Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "402e98d86",
+            "owner": "support",
+            "before": 130,
+            "after": 120,
+            "note": "Ten package-obligation portal reads via three support command-plan kinds; lock fences retained."
+          },
+          {
+            "command": "cargo check -p erpx-server-support + lib (90)",
+            "result": "passed",
+            "sourceSha": "402e98d86"
+          },
+          {
+            "command": "vitest support units (115) + tsc support/tests-config",
+            "result": "passed",
+            "sourceSha": "402e98d86"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: package-obligation/portal read family (10 SELECTs) or another owner-local support read into the command-plan; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wE21sup",
+          "at": "2026-11-24T00:25:43.934Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -127120,7 +127140,7 @@
         "owner": "billing",
         "title": "billing TS read tail native cutover (round 11)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -127132,22 +127152,42 @@
         "resources": [
           "owner:billing"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wE31bil",
-          "claimedAt": "2026-11-24T00:04:34.172Z",
-          "heartbeatAt": "2026-11-24T00:24:45.880Z",
-          "expiresAt": "2026-11-24T00:54:45.880Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-billing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "402e98d86",
+            "owner": "billing",
+            "before": 97,
+            "after": 95,
+            "note": "active/retained target enrollment share ACTIVE_TARGET_ENROLLMENT owner statement."
+          },
+          {
+            "command": "cargo check -p erpx-server-billing + lib (40) + unit targets (53)",
+            "result": "passed",
+            "sourceSha": "402e98d86"
+          },
+          {
+            "command": "vitest billing units (102) + tsc billing",
+            "result": "passed",
+            "sourceSha": "402e98d86"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: 2-copy enrollment (platform_usage ended_at IS NULL) or selected/assigned price family; keep commercial FOR UPDATE, scan-source, app-finance untouched; record a strictly lower count.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wE31bil",
+          "at": "2026-11-24T00:25:43.498Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -128269,6 +128309,78 @@
         "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to a mounted native read; record a strictly lower spaced count.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.billing.read-tail-r12",
+        "goalId": "G4",
+        "owner": "billing",
+        "title": "billing TS read tail native cutover (r12)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-billing/src/**",
+          "tests/unit/billing/**",
+          "tests/integration/billing/**"
+        ],
+        "resources": [
+          "owner:billing"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wF24bil",
+          "claimedAt": "2026-11-24T00:25:44.168Z",
+          "heartbeatAt": "2026-11-24T00:25:44.168Z",
+          "expiresAt": "2026-11-24T00:55:44.168Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or use the native read; record a strictly lower spaced count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.support.read-tail-r14",
+        "goalId": "G4",
+        "owner": "support",
+        "title": "support TS read tail native cutover (r14)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wF25sup",
+          "claimedAt": "2026-11-24T00:25:44.464Z",
+          "heartbeatAt": "2026-11-24T00:25:44.464Z",
+          "expiresAt": "2026-11-24T00:55:44.464Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or use the native read; record a strictly lower spaced count.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -128277,7 +128389,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 713,
+      "totalPackets": 715,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
@@ -128285,13 +128397,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 347,
+        "blocked": 349,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T00:25:29.975Z",
+    "updatedAt": "2026-11-24T00:25:44.467Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
