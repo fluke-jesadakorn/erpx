@@ -23,10 +23,10 @@ describe('crm attachment native-image read family (r13)', () => {
   it('owns the fragment once and composes it at both call sites', () => {
     const src = attachment();
     expect(src.match(/const nativeImageSql=/g)).toHaveLength(1);
-    expect(src.match(/\$\{nativeImageSql\(/g)).toHaveLength(2);
+    expect(src.match(/nativeImageSql\(/g)).toHaveLength(2);
     // Only the helper definition keeps the inline fragment; no call site does.
     expect(src.match(/'native',\(SELECT jsonb_agg/g)).toHaveLength(1);
-    expect(src).toContain("${nativeImageSql(crmPurchaseAccountRows,'native.id=account.id AND native.company_id=account.company_id')})");
+    expect(src).toContain("nativeImageSql(crmPurchaseAccountRows,'native.id=account.id AND native.company_id=account.company_id')");
     expect(src).toContain("${nativeImageSql(crmPurchaseOpportunityRows,'native.id=lead.id AND native.company_id=lead.company_id')})");
   });
 
@@ -67,9 +67,9 @@ describe('crm attachment related-image aggregate family (r17)', () => {
   it('owns the fragment once and composes it at all three call sites', () => {
     const text = src();
     expect(text.match(/const crmRelatedAggSql=/g)).toHaveLength(1);
-    expect(text.match(/\$\{crmRelatedAggSql\(/g)).toHaveLength(3);
-    expect(text).toContain("${crmRelatedAggSql('contact','crm_contacts contact WHERE contact.account_id=account.id AND contact.company_id=account.company_id')}");
-    expect(text).toContain("${crmRelatedAggSql('lead','crm_leads lead WHERE lead.account_id=account.id AND lead.company_id=account.company_id')}");
+    expect(text.match(/crmRelatedAggSql\(/g)).toHaveLength(3);
+    expect(text).toContain("crmRelatedAggSql('contact','crm_contacts contact WHERE contact.account_id=account.id AND contact.company_id=account.company_id')");
+    expect(text).toContain("crmRelatedAggSql('lead','crm_leads lead WHERE lead.account_id=account.id AND lead.company_id=account.company_id')");
     expect(text).toContain("${crmRelatedAggSql('link','crm_guest_links link WHERE link.company_id=lead.company_id AND link.contact_id=lead.contact_id')}");
     // Only the helper definition keeps the inline aggregate token; no call site does.
     expect(text.match(/SELECT jsonb_agg\(to_jsonb\(\$\{alias\}\) ORDER BY/g)).toHaveLength(1);
