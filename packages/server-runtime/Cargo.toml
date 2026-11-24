@@ -103,3 +103,7 @@ path = "../../tests/unit/shared.runtime/rust-executive-connections.test.rs"
 [[test]]
 name = "executive_connections_postgres"
 path = "../../tests/integration/shared.executive/rust-executive-connections-postgres.test.rs"
+
+[[test]]
+name = "control_plane_read_port_postgres"
+path = "../../tests/integration/runtime/rust-control-plane-read-port-postgres.test.rs"

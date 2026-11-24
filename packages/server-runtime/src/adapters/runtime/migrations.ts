@@ -59,7 +59,7 @@ export async function inspectMigrations(
 }
 
 async function refreshCoverage(client: PoolClient, track: string) {
-  if (track === 'holding-write' && (await client.query("SELECT to_regprocedure('ensure_work_cache_coverage()') present")).rows[0].present)
+  if (track === 'holding-write' && (await client.query("SELECT to_regprocedure('ensure_work_cache_coverage()') IS NOT NULL present")).rows[0].present)
     await client.query('SELECT ensure_work_cache_coverage()');
 }
 

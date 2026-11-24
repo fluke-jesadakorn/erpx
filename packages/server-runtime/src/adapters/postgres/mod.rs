@@ -1,5 +1,6 @@
 pub(crate) mod attestation;
 pub(crate) mod config;
+pub(crate) mod control_plane;
 pub(crate) mod development_lease;
 pub(crate) mod jobs;
 pub(crate) mod migrations;

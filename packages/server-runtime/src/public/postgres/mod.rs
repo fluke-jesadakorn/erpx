@@ -1,4 +1,5 @@
 //! Infrastructure adapter API. Portable owner cores define their own ports.
+pub mod control_plane;
 pub use crate::adapters::postgres::PersistenceError;
 pub use crate::adapters::postgres::attestation::{
     WorkerAttestationRequest, WorkerDatabaseAttestation, attest_worker_database,
