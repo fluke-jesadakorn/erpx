@@ -26,12 +26,16 @@ describe('Projects read-tail r26 package-actual proof guard family dedupe', () =
 
   test('both call sites compose the helper and keep their outer predicates unchanged', () => {
     const obligations = src('package-obligations.ts');
-    expect(obligations).toContain("projectPackageActualProof('work_log','l','minutes',' ','\\n ')");
-    expect(obligations).toContain("projectPackageActualProof('cost_allocation','c','amount_minor','\\n ',' ')");
+    // r36 folds both call sites into eventFactArm; the guard tuple now lives in
+    // its closed args and the helper delegates with the same byte-exact params.
+    expect(obligations).toContain("actualKind:'work_log',measure:'minutes',kindGap:' ',idGap:'\\n '");
+    expect(obligations).toContain("actualKind:'cost_allocation',measure:'amount_minor',kindGap:'\\n ',idGap:' '");
+    expect(obligations).toContain('${projectPackageActualProof(a.actualKind,a.alias,a.measure,a.kindGap,a.idGap)}');
     expect(obligations).not.toContain("NOT EXISTS(SELECT 1 FROM staff_project_package_actuals actual WHERE actual.source_kind='work_log'");
     expect(obligations).not.toContain("NOT EXISTS(SELECT 1 FROM staff_project_package_actuals actual WHERE actual.source_kind='cost_allocation'");
-    expect(obligations).toContain("OR (l.state='approved' AND ");
-    expect(obligations).toContain("OR (scope.is_base AND c.state='approved' AND ");
+    expect(obligations).toContain("scopeGuard:'',relation:'staff_project_work_logs',whereScope:'scope.is_base AND '");
+    expect(obligations).toContain("scopeGuard:'scope.is_base AND ',relation:'staff_project_cost_allocations',whereScope:''");
+    expect(obligations).toContain("OR (${a.scopeGuard}${a.alias}.state='approved' AND ");
     expect(locksUntouched()).toBe(true);
   });
 
@@ -73,7 +77,7 @@ describe('Projects read-tail r26 package-actual proof guard family dedupe', () =
     };
     walk(srcRoot);
     expect(total).toBeLessThan(119);
-    expect(total).toBe(95); // r35 point-read family merge (projectIdSql -> projectPointReadHead): 96->95 // r27 member EXISTS 118->117; r28 viewer head 117->115; r29 image head 115->113; r30 visible-project-rows head 113->112; r31 receipt-event proof 112->111; r31 owner-or-member column 111->110; r32 purchase-source head 110->108; r33 point-read head and owner-or-member reuse 108->105. r34 staff_tasks point 4->1 (-3) and staff_projects by-ref 7->1 (-6): 105->96
+    expect(total).toBe(93); // r36 package-actual source + event-fact arms: 95->93 // r35 point-read family merge (projectIdSql -> projectPointReadHead): 96->95 // r27 member EXISTS 118->117; r28 viewer head 117->115; r29 image head 115->113; r30 visible-project-rows head 113->112; r31 receipt-event proof 112->111; r31 owner-or-member column 111->110; r32 purchase-source head 110->108; r33 point-read head and owner-or-member reuse 108->105. r34 staff_tasks point 4->1 (-3) and staff_projects by-ref 7->1 (-6): 105->96
   });
 });
 

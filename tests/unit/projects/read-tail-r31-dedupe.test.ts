@@ -57,8 +57,11 @@ describe('Projects read-tail r31 receipt-event and owner-or-member dedupe', () =
   test('both call sites compose the helpers and keep their outer SQL unchanged', () => {
     const obl = src('package-obligations.ts');
     expect(obl).toContain('export const projectReceiptEventProof=');
-    expect(obl).toContain("${projectReceiptEventProof('staff_project_work_log_events','l','project.actual-time.','work_log_id','work_log_version')}");
-    expect(obl).toContain("${projectReceiptEventProof('staff_project_cost_allocation_events','c','project.cost-allocation.','allocation_id','allocation_version')}");
+    // r36 folds both call sites into eventFactArm; the receipt-event tuple now
+    // lives in its closed args and the helper delegates with the same params.
+    expect(obl).toContain("table:'staff_project_work_log_events',op:'project.actual-time.',fkId:'work_log_id',fkVer:'work_log_version'");
+    expect(obl).toContain("table:'staff_project_cost_allocation_events',op:'project.cost-allocation.',fkId:'allocation_id',fkVer:'allocation_version'");
+    expect(obl).toContain('${projectReceiptEventProof(a.table,a.alias,a.op,a.fkId,a.fkVer)}');
     expect(obl).not.toContain('SELECT 1 FROM staff_project_work_log_events event JOIN');
     expect(obl).not.toContain('SELECT 1 FROM staff_project_cost_allocation_events event JOIN');
 
@@ -117,7 +120,7 @@ describe('Projects read-tail r31 receipt-event and owner-or-member dedupe', () =
     };
     walk(srcRoot);
     expect(total).toBeLessThan(112);
-    expect(total).toBe(95); // r35 point-read family merge (projectIdSql -> projectPointReadHead): 96->95 // r30 left 112; r31 receipt-event proof 112->111; owner-or-member column 111->110; r32 purchase-source head 110->108; r33 point-read head and owner-or-member reuse 108->105. r34 staff_tasks point 4->1 (-3) and staff_projects by-ref 7->1 (-6): 105->96
+    expect(total).toBe(93); // r36 package-actual source + event-fact arms: 95->93 // r35 point-read family merge (projectIdSql -> projectPointReadHead): 96->95 // r30 left 112; r31 receipt-event proof 112->111; owner-or-member column 111->110; r32 purchase-source head 110->108; r33 point-read head and owner-or-member reuse 108->105. r34 staff_tasks point 4->1 (-3) and staff_projects by-ref 7->1 (-6): 105->96
   });
 });
 

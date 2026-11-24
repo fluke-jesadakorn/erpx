@@ -38,6 +38,21 @@ export const projectPackageActualProof=(kind:string,alias:string,measure:string,
  * and bind order stay exactly as in the former inline copies. */
 export const projectReceiptEventProof=(table:string,alias:string,op:string,fkId:string,fkVer:string)=>
   `(SELECT 1 FROM ${table} event JOIN command_receipts command ON command.record_id=${alias}.id\n AND command.operation='${op}'||CASE WHEN ${alias}.state='approved' THEN 'approve' ELSE 'reject' END\n AND command.actor_id=event.actor_id AND command.authority_json::jsonb->>'companyId'=${alias}.company_id\n AND command.result_json::jsonb->>'id'=${alias}.id AND command.result_json::jsonb->>'version'=${alias}.version::text\n AND command.result_json::jsonb->>'state'=${alias}.state WHERE event.${fkId}=${alias}.id AND event.${fkVer}=${alias}.version AND event.action=${alias}.state)`;
+/** Byte-identical package-actual source witness shared by the work-log and
+ * cost-allocation arms of the package-actual fact read. Only the source
+ * relation, row alias and measure column vary; no binds and no whitespace gaps. */
+export const packageActualSourceProof=(relation:string,alias:string,measure:string)=>
+  `NOT EXISTS(SELECT 1 FROM ${relation} ${alias} WHERE ${alias}.id=a.source_id AND ${alias}.project_id=a.project_id AND ${alias}.company_id=a.company_id AND ${alias}.version=a.source_version AND ${alias}.state='approved' AND ${alias}.${measure}=a.${measure})`;
+type EventFactArmArgs={kind:string;alias:string;state:string;table:string;op:string;fkId:string;fkVer:string;
+  actualKind:string;measure:string;kindGap:string;idGap:string;scopeGuard:string;relation:string;whereScope:string};
+/** Byte-identical closed work-log/cost-allocation UNION arm. The first emitted
+ * line carries no leading space (the call site supplies it); every other gap,
+ * alias, literal and whitespace position stays exactly as in the former pairs. */
+export const eventFactArm=(a:EventFactArmArgs)=>
+  `UNION ALL SELECT '${a.kind}',${a.alias}.id,${a.alias}.version,${a.alias}.state,p.id IS NULL OR ${a.alias}.state='${a.state}' OR NOT EXISTS
+ ${projectReceiptEventProof(a.table,a.alias,a.op,a.fkId,a.fkVer)}
+ OR (${a.scopeGuard}${a.alias}.state='approved' AND ${projectPackageActualProof(a.actualKind,a.alias,a.measure,a.kindGap,a.idGap)})
+ FROM ${a.relation} ${a.alias} CROSS JOIN scope LEFT JOIN projects p ON p.id=${a.alias}.project_id WHERE ${a.whereScope}${a.alias}.company_id=scope.company_id`;
 export const projectPackageSettlementSources={
  projects:projectRowsSql,members:`${tableRowsSql}staff_project_members`,milestones:`${tableRowsSql}staff_project_milestones`,
  workLogs:`${tableRowsSql}staff_project_work_logs`,costs:`${tableRowsSql}staff_project_cost_allocations`,actuals:`${tableRowsSql}staff_project_package_actuals`,handoffs:`${tableRowsSql}staff_project_handoffs`,
@@ -71,17 +86,11 @@ export async function projectPackageObligations(owner:PostgresDatabase,database:
  UNION ALL SELECT 'routine-schedule',s.id,s.version,s.state,p.id IS NULL OR s.state='active' OR s.company_id IS DISTINCT FROM t.company_id
  FROM (${operations.schedules}) s JOIN (${operations.templates}) t ON t.id=s.template_id CROSS JOIN scope LEFT JOIN projects p ON p.id=t.project_id
  WHERE scope.is_base AND s.company_id=scope.company_id AND t.project_id IS NOT NULL
- UNION ALL SELECT 'work-log',l.id,l.version,l.state,p.id IS NULL OR l.state='submitted' OR NOT EXISTS
- ${projectReceiptEventProof('staff_project_work_log_events','l','project.actual-time.','work_log_id','work_log_version')}
- OR (l.state='approved' AND ${projectPackageActualProof('work_log','l','minutes',' ','\n ')})
- FROM staff_project_work_logs l CROSS JOIN scope LEFT JOIN projects p ON p.id=l.project_id WHERE scope.is_base AND l.company_id=scope.company_id
- UNION ALL SELECT 'cost-allocation',c.id,c.version,c.state,p.id IS NULL OR c.state='draft' OR NOT EXISTS
- ${projectReceiptEventProof('staff_project_cost_allocation_events','c','project.cost-allocation.','allocation_id','allocation_version')}
- OR (scope.is_base AND c.state='approved' AND ${projectPackageActualProof('cost_allocation','c','amount_minor','\n ',' ')})
- FROM staff_project_cost_allocations c CROSS JOIN scope LEFT JOIN projects p ON p.id=c.project_id WHERE c.company_id=scope.company_id
+ ${eventFactArm({kind:'work-log',alias:'l',state:'submitted',table:'staff_project_work_log_events',op:'project.actual-time.',fkId:'work_log_id',fkVer:'work_log_version',actualKind:'work_log',measure:'minutes',kindGap:' ',idGap:'\n ',scopeGuard:'',relation:'staff_project_work_logs',whereScope:'scope.is_base AND '})}
+ ${eventFactArm({kind:'cost-allocation',alias:'c',state:'draft',table:'staff_project_cost_allocation_events',op:'project.cost-allocation.',fkId:'allocation_id',fkVer:'allocation_version',actualKind:'cost_allocation',measure:'amount_minor',kindGap:'\n ',idGap:' ',scopeGuard:'scope.is_base AND ',relation:'staff_project_cost_allocations',whereScope:''})}
  UNION ALL SELECT 'package-actual',a.id,a.source_version,a.source_kind,p.id IS NULL OR m.id IS NULL OR m.project_id<>a.project_id OR m.company_id<>a.company_id
- OR (a.source_kind='work_log' AND NOT EXISTS(SELECT 1 FROM staff_project_work_logs l WHERE l.id=a.source_id AND l.project_id=a.project_id AND l.company_id=a.company_id AND l.version=a.source_version AND l.state='approved' AND l.minutes=a.minutes))
- OR (a.source_kind='cost_allocation' AND NOT EXISTS(SELECT 1 FROM staff_project_cost_allocations c WHERE c.id=a.source_id AND c.project_id=a.project_id AND c.company_id=a.company_id AND c.version=a.source_version AND c.state='approved' AND c.amount_minor=a.amount_minor))
+ OR (a.source_kind='work_log' AND ${packageActualSourceProof('staff_project_work_logs','l','minutes')})
+ OR (a.source_kind='cost_allocation' AND ${packageActualSourceProof('staff_project_cost_allocations','c','amount_minor')})
  FROM staff_project_package_actuals a CROSS JOIN scope LEFT JOIN projects p ON p.id=a.project_id LEFT JOIN staff_project_milestones m ON m.id=a.milestone_id
  WHERE a.company_id=scope.company_id AND (scope.is_base OR a.source_kind='cost_allocation')
  UNION ALL SELECT 'handoff',h.id,h.version,h.status,p.id IS NULL OR h.status='pending' OR (h.status='accepted' AND NOT EXISTS(SELECT 1 FROM accepted proof WHERE proof.id=h.id))
