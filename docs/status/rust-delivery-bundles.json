@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10322,
+    "revision": 10324,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -161301,7 +161301,7 @@
         "owner": "planning",
         "title": "planning TS read tail native cutover (r13)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -161313,22 +161313,37 @@
         "resources": [
           "owner:planning"
         ],
-        "claim": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMpln4",
-          "claimedAt": "2026-11-24T07:25:04.366Z",
-          "heartbeatAt": "2026-11-24T07:25:04.366Z",
-          "expiresAt": "2026-11-24T07:55:04.366Z",
-          "generation": 166
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-planning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b0bc2b8da",
+            "owner": "planning",
+            "before": 29,
+            "after": 27,
+            "note": "Scenario, recommendation and capacity package fact branches share planningPackageFactRows; r4-r12, locks and native consumers untouched."
+          },
+          {
+            "command": "vitest planning r5-r13 (47) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "b0bc2b8da"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=29.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMpln4",
+          "at": "2026-11-24T07:25:44.617Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -161738,17 +161753,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
-        "in_progress": 31,
+        "in_progress": 30,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 984,
+        "blocked": 985,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 166,
-    "updatedAt": "2026-11-24T07:25:20.440Z",
+    "updatedAt": "2026-11-24T07:25:44.631Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
