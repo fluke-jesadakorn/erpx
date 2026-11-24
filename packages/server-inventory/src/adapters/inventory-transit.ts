@@ -2,7 +2,7 @@ import {requireTransferPurchasedRead,transferSourceAccess} from "@erpx/server-in
 import {inventoryTransitAuthorityColumns} from '@erpx/server-identity_access/public/inventory-authority-projections';
 import {inventoryReadProjection as inventorycommerceProjection} from '@erpx/server-commerce/public/inventory-read-projections';
 import 'server-only';
-import {noLaterLedgerMovementSql,noLotBalanceSql,pendingLossSumSql,transitLossDecisionPendingSql} from './read-tail-sql';
+import {childLineRowsSql,noLaterLedgerMovementSql,noLotBalanceSql,pendingLossSumSql,transitLossDecisionPendingSql} from './read-tail-sql';
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {TransferRow as Row} from "@erpx/server-inventory/public/inventory-transfers";
@@ -35,14 +35,14 @@ async transitEvents(id:string){return db.prepare('SELECT e.*,(SELECT r.kind FROM
 /** Retired: transit creation executes in the native Rust command route. */
 prepareTransit(){throw new ApiError(503,'NATIVE_INVENTORY_TRANSIT_UNAVAILABLE','The native transport command is unavailable.');},
 prepareTransitLine(){throw new ApiError(503,'NATIVE_INVENTORY_TRANSIT_UNAVAILABLE','The native transport command is unavailable.');},
-async transferLots(id:string | number | null){return db.prepare('SELECT * FROM inventory_transfer_lot_allocations WHERE transfer_line_id=? ORDER BY id').bind(id).all<Row>();},
+async transferLots(id:string | number | null){return db.prepare(childLineRowsSql('inventory_transfer_lot_allocations','transfer_line_id')).bind(id).all<Row>();},
 prepareTransitLot(){throw new ApiError(503,'NATIVE_INVENTORY_TRANSIT_UNAVAILABLE','The native transport command is unavailable.');},
 guardTransitVersion(key:string,value:"transit-version",id:string | number | null,company_id:string | number | null,v:number,status:string | number | null){return assertion(db,key,value,'EXISTS(SELECT 1 FROM inventory_transit WHERE id=? AND company_id=? AND version=? AND status=?)',[id,company_id,v,status]);},
 async approvedTransfer(transfer_id:string | number | null,companyId:string){return db.prepare("SELECT id,version FROM inventory_transfers WHERE id=? AND company_id=? AND status='posted' AND delivery_mode='transit'").bind(transfer_id,companyId).first<{id:string;version:number}>();},
 async sourceTransfer(transfer_id:string | number | null){return db.prepare('SELECT * FROM inventory_transfers WHERE id=?').bind(transfer_id).first<Row>();},
 async dispatchLines(id:string){return db.prepare('SELECT l.*,s.source_version,s.source_quantity_milli,s.source_value_minor,s.product_version FROM inventory_transit_lines l JOIN inventory_transfer_lines s ON s.id=l.source_line_id WHERE l.transit_id=? ORDER BY l.id').bind(id).all<Row>();},
 guardApprovedTransfer(key:string,value:"approved-source",transfer_id:string | number | null,companyId:string,approved_by:string | number | null){return assertion(db,key,value,"EXISTS(SELECT 1 FROM inventory_transfers WHERE id=? AND company_id=? AND status='posted' AND delivery_mode='transit' AND approved_by=?)",[transfer_id,companyId,approved_by]);},
-async dispatchLots(id:string | number | null){return db.prepare('SELECT * FROM inventory_transit_lots WHERE transit_line_id=? ORDER BY id').bind(id).all<Row>();},
+async dispatchLots(id:string | number | null){return db.prepare(childLineRowsSql('inventory_transit_lots','transit_line_id')).bind(id).all<Row>();},
 guardDispatchDate(key:string,value:string,source_warehouse_id:string | number | null,product_id:string | number | null,date:string){return assertion(db,key,value,noLaterLedgerMovementSql,[source_warehouse_id,product_id,date]);},
 guardDispatchLot(key:string,value:string,lot_id:string | number | null,source_warehouse_id:string | number | null,quantity_milli:string | number | null){return assertion(db,key,value,"EXISTS(SELECT 1 FROM inventory_lot_balances WHERE lot_id=? AND warehouse_id=? AND quantity_milli>=?)",[lot_id,source_warehouse_id,quantity_milli]);},
 async selectableTransitLots(id:string | number | null){return db.prepare(`SELECT tl.*,${pendingLossSumSql('le.quantity_milli', 'FROM inventory_transit_lot_events le JOIN inventory_transit_events e ON e.id=le.event_id', "le.transit_lot_id=tl.id AND e.kind='loss_requested' AND "+transitLossDecisionPendingSql('r','e.id'))} pending_loss_milli FROM inventory_transit_lots tl WHERE tl.transit_line_id=? ORDER BY tl.id`).bind(id).all<Row>();},

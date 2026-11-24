@@ -175,3 +175,9 @@ export const evidencePositionRowsSql = (rows: string, alias: string, conditions:
  *  statement. r11-r28 helpers above are left untouched. */
 export const recordIdExistsSql = (table: string) =>
   `SELECT 1 FROM ${table} WHERE id=?`;
+/** r30: parameterized child-line row selector. The transfer lot-allocation and
+ *  transit-lot reads share the same projection, single line-FK predicate and id
+ *  order; only the backing table and its FK column vary. Every caller keeps its
+ *  own bind and independent statement. r11-r29 helpers above are left untouched. */
+export const childLineRowsSql = (table: string, lineFk: string) =>
+  `SELECT * FROM ${table} WHERE ${lineFk}=? ORDER BY id`;
