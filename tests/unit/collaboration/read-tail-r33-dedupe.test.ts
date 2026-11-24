@@ -92,7 +92,7 @@ describe('Collaboration read-tail r33 lock/notification isolation', () => {
 });
 
 describe('Collaboration read-tail r33 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 375, below the r33 BEFORE=381 baseline', () => {
+  test('retirement:ts-statements is pinned at 371 after r34, below the r33 BEFORE=381 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -104,9 +104,10 @@ describe('Collaboration read-tail r33 KPI pins', () => {
     walk(srcRoot);
     // r33 deduped four heads: access-guarded room-by-id 2->1 (-1), agent-reply
     // identity 2->1 (-1), attachment owner-version guard 2->1 (-1) and
-    // command-receipt id 4->1 (-3). Net -6 SELECT tokens: 381 -> 375.
+    // command-receipt id 4->1 (-3). Net -6 SELECT tokens: 381 -> 375. r34
+    // dedupes five task-origin guards into one head for -4 more: 375 -> 371.
     // No lock statement or notification helper was modified.
-    expect(total).toBe(375);
-    expect(total).toBeLessThan(381);
+    expect(total).toBe(371);
+    expect(total).toBeLessThan(375);
   });
 });

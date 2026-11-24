@@ -2,6 +2,12 @@
 export const socialTaskOriginPostExists=`EXISTS(SELECT 1 FROM social_task_origins origin WHERE origin.task_id=t.id AND origin.post_id=post.id)`;
 export const socialTaskOriginByTask=`SELECT post_id FROM social_task_origins WHERE task_id=?`;
 export const socialTaskOriginByPost=`SELECT task_id FROM social_task_origins WHERE post_id=?`;
+/** Byte-identical Task-origin existence guard shared by the queued read sources,
+ * Task read policy and purchase source readers. Only the quantifier, origin alias
+ * and joined tail vary; the fixed task-origin existence head, bind order and
+ * lock semantics stay unchanged. The r14 socialTaskOriginPostExists helper
+ * stays retained. */
+export const socialTaskOriginGuard=(quantifier:string,alias:string,tail:string)=>`${quantifier}SELECT 1 FROM social_task_origins ${alias}${tail}`;
 export const messagingRoomMembersAgg=`(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM messaging_room_members m WHERE m.room_id=r.id)`;
 export const socialFollowPostExists=(targetType:string,targetId:string)=>`EXISTS(SELECT 1 FROM social_follows f WHERE f.principal_id=? AND f.target_type=${targetType} AND f.target_id=${targetId})`;
 export const messagingTeamMemberExists=`EXISTS(SELECT 1 FROM messaging_team_members m WHERE m.team_id=t.id AND m.user_id=?)`;

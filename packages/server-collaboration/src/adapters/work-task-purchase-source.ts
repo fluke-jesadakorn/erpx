@@ -2,7 +2,7 @@ import 'server-only';
 import {workOperationsSettlementSources} from '@erpx/server-operations/public/work-package-obligation-sources';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {workSocialNativePostPredicate} from '@erpx/server-collaboration/adapters/work-social-source';
-import {socialTaskOriginPostExists,workSocialPostsAgg,workSocialCommentsAgg,workSocialSourcesAgg,socialPostRevisionsAgg} from './read-tail-sql';
+import {socialTaskOriginPostExists,socialTaskOriginGuard,workSocialPostsAgg,workSocialCommentsAgg,workSocialSourcesAgg,socialPostRevisionsAgg} from './read-tail-sql';
 export function workTaskSocialSourceLocks(database:SqlDatabase){return database.prepare('LOCK TABLE social_posts,social_comments,social_post_sources,social_post_revisions,social_task_origins IN SHARE ROW EXCLUSIVE MODE');}
 /** Original team audience membership is a source of private conversation
  * authority. Its lease must precede a consumer's first Holding snapshot. */
@@ -21,7 +21,7 @@ export async function workTaskSocialPurchaseSource(database:SqlDatabase,companyI
 }
 
 /** Fixed native task alias for the owner list statement, before LIMIT. */
-export function workTaskSocialPurchasePredicate(){return `EXISTS(SELECT 1 FROM social_task_origins origin JOIN social_posts post ON post.id=origin.post_id AND post.company_id=t.company_id WHERE origin.task_id=t.id AND ${workSocialNativePostPredicate('post')})`;}
+export function workTaskSocialPurchasePredicate(){return socialTaskOriginGuard('EXISTS(','origin',' JOIN social_posts post ON post.id=origin.post_id AND post.company_id=t.company_id WHERE origin.task_id=t.id AND '+workSocialNativePostPredicate('post')+')');}
 
 /** Closed existing-task source facts for private evidence consumers. Origins
  * without a live same-Company post remain in the witness rather than silently
