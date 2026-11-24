@@ -61,6 +61,6 @@ describe('erpx_json_each value generator family (r37)', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(56);
-    expect(total).toBe(55);
+    expect(total).toBeLessThanOrEqual(54);
   });
 });

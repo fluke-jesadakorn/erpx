@@ -14,6 +14,9 @@ const orderFulfilledExistsSql = `WHEN d.state='fulfilled' AND EXISTS(SELECT 1 ${
 const flowRoutesByCompanySql = "SELECT * FROM flow_routes WHERE company_id=?";
 /** Byte-identical span shared by the flow-defaults revision read and the route-version guard; emitted SQL is unchanged. */
 const flowDefaultsMaxRevisionSql = "SELECT COALESCE(MAX(revision),0)";
+/** Byte-identical generator family for company-scoped flow-event history reads; callers choose the projection and optional record filter, emitted SQL and bind order are unchanged. */
+const flowEventsHistorySql = (columns: string, extraWhere = ''): string =>
+    `SELECT ${columns} FROM flow_events WHERE company_id=?${extraWhere} ORDER BY created_at,id`;
 const flowAdvanceSql=JSON.parse(readFileSync(join(dirname(fileURLToPath(import.meta.url)),'../flow-advance-sql.json'),'utf8')) as Record<string,string>;
 function flowAdvanceStatement(kind:FlowKind):string{const sql=flowAdvanceSql[kind];if(!sql)throw new Error(`FLOW_ADVANCE_SQL_MISSING:${kind}`);return sql;}
 
@@ -100,7 +103,7 @@ export function nativeFlowPlanningPorts(database: SqlDatabase): FlowPlanningPort
             branch_id: string | null;
             department_id: string | null;
         }>(); },
-        readSharedFlowReferencesRoutesdefaultsevents3(companyId: string) { return database.prepare("SELECT kind,record_id,action,actor_name,created_at,reason,step_key FROM flow_events WHERE company_id=? ORDER BY created_at,id").bind(companyId).all<FlowHistoryRow>(); },
+        readSharedFlowReferencesRoutesdefaultsevents3(companyId: string) { return database.prepare(flowEventsHistorySql('kind,record_id,action,actor_name,created_at,reason,step_key')).bind(companyId).all<FlowHistoryRow>(); },
         readReadFlowRoute(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string) { return database.prepare(`${flowRoutesByCompanySql} AND kind=? AND record_id=?`).bind(companyId, kind, id).first<Route>(); },
         readReadFlowDefaultsRevision(companyId: string) { return database.prepare(`${flowDefaultsMaxRevisionSql} revision FROM flow_defaults WHERE company_id=?`).bind(companyId).first<{
             revision: number;
@@ -108,7 +111,7 @@ export function nativeFlowPlanningPorts(database: SqlDatabase): FlowPlanningPort
         readReadFlowDefaults(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", branch_id: string | null, department_id: string | null, defaultsRevision: number) { return database.prepare(`SELECT revision,step_key,primary_user_id FROM flow_defaults WHERE company_id=? AND kind=? AND (branch_id IS NULL OR branch_id=?) AND (department_id IS NULL OR department_id=?) AND revision<=? ORDER BY CASE WHEN department_id IS NOT NULL THEN 3 WHEN branch_id IS NOT NULL THEN 2 ELSE 1 END DESC,revision DESC`).bind(companyId, kind, branch_id, department_id, defaultsRevision).all<DefaultRow>(); },
         readReadFlowPeople(companyId: string, now: number, now2: number) { return people_payroll_flow_routing(database).readReadFlowPeople(companyId, now, now2); },
         readReadFlowMembers(companyId: string, now: number, now2: number) { return identity_access_flow_routing(database).readReadFlowMembers(companyId, now, now2); },
-        readReadFlowHistoryRows(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string) { return database.prepare("SELECT action,actor_name,created_at,reason,step_key FROM flow_events WHERE company_id=? AND kind=? AND record_id=? ORDER BY created_at,id").bind(companyId, kind, id).all<{
+        readReadFlowHistoryRows(companyId: string, kind: "expense" | "leave" | "staff_task" | "request" | "stock_count" | "transfer" | "order" | "invoice" | "journal" | "payroll" | "record", id: string) { return database.prepare(flowEventsHistorySql('action,actor_name,created_at,reason,step_key', ' AND kind=? AND record_id=?')).bind(companyId, kind, id).all<{
             action: string;
             actor_name: string;
             created_at: number;
