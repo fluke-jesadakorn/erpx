@@ -1,5 +1,6 @@
 import { PP_RD23_HR_COMP_REVISIONS_SQL, PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL, PP_RD23_HR_PAY_GROUPS_ACTIVE_CURRENCY_GUARD, PP_RD23_HR_TIME_ENTRIES_OVERTIME_SQL, PP_RD23_OVERTIME_PAYROLL_HANDOFFS_SQL, PP_RD23_POSTED_PAYROLL_RUN_GUARD } from './pp-read-tail-r23-sources';
 import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
+import { ppRd31StatusGuard } from './pp-read-tail-r31-sources';
 import { ppRd26IdCompanyVersionStatusGuard, ppRd26CommandReceiptPriorSql, ppRd26RunIdGuard } from './pp-read-tail-r26-sources';
 import { ppRd27IdByIdCompanySql } from './pp-read-tail-r27-sources';
 import { PP_RD28_ADVANCE_REPAYMENTS_SQL } from './pp-read-tail-r28-sources';
@@ -323,7 +324,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
             }>();
         },
         guard90(key: string, value: "engagement", engagementId: string, companyId: string, currency: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.id=? AND e.company_id=? AND e.currency=? AND e.status IN ('active','suspended') AND p.status='active')", [engagementId, companyId, currency]); },
-        guard91(key: string, value: "no-pending-advance", engagementId: string) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_payroll_advances WHERE engagement_id=? AND status='pending')", [engagementId]); },
+        guard91(key: string, value: "no-pending-advance", engagementId: string) { return assertion(database, key, value, ppRd31StatusGuard(true, 'hr_payroll_advances', 'engagement_id', 'pending'), [engagementId]); },
         stageRequestPayrollAdvanceEffect(id: string, companyId: string, id2: string, person_id: string, amountMinor: number, installmentCount: number, firstDeductionPeriod: string, currency: string, reason: string, userId: string, now: number, now2: number) { return nativePpStatement('people_payroll_stmt_22').bind(id, companyId, id2, person_id, amountMinor, installmentCount, firstDeductionPeriod, currency, reason, userId, now, now2); },
         stageRequestPayrollAdvanceEffect2(value: string, id: string, companyId: string, userId: string, value2: 1, value3: string, now: number) { return nativePpStatement('people_payroll_stmt_23').bind(value, id, companyId, userId, value2, value3, now); },
         stageRequestPayrollAdvanceEffect3(...args) { return payrollIdentityFacts(database, actor).stageRequestPayrollAdvanceEffect3(...args); },
@@ -519,7 +520,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
             }>();
         },
         guard191(commandId: string, value: "batch-retry-version", batchId: string, companyId: string, expectedVersion: number) { return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_payment_batches WHERE id=? AND company_id=? AND source_type='payroll' AND status='partially_settled' AND version=?)", [batchId, companyId, expectedVersion]); },
-        guard192(commandId: string, value: "batch-retry-items", batchId: string) { return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_payment_batch_items WHERE batch_id=? AND status='failed')", [batchId]); },
+        guard192(commandId: string, value: "batch-retry-items", batchId: string) { return assertion(database, commandId, value, ppRd31StatusGuard(false, 'hr_payment_batch_items', 'batch_id', 'failed'), [batchId]); },
         stagePreparePaymentRetryEffect(userId: string, now: number, batchId: string, companyId: string, expectedVersion: number) { return nativePpStatement('people_payroll_stmt_39').bind(userId, now, batchId, companyId, expectedVersion); },
         readApprovePaymentBatchBatch(batchId: string, companyId: string) {
             return database.prepare("SELECT status,version,source_type,created_by,retry_requested_by FROM hr_payment_batches WHERE id=? AND company_id=?").bind(batchId, companyId).first<{

@@ -1,5 +1,6 @@
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
+import { ppRd31StatusGuard } from './pp-read-tail-r31-sources';
 import { PP_RD23_EVAL_ASSESSMENT_VERSION_GUARD } from './pp-read-tail-r23-sources';
 import { PP_RD22_ENGAGEMENT_VERSION_GUARD } from './pp-read-tail-r22-sources';
 import { ppRd21IdVersionStatusGuard } from './pp-read-tail-r21-sources';
@@ -102,7 +103,7 @@ function application(provided?: SqlDatabase) {
         guard43(key: string, value: "assessment-version", assessmentId: string, expectedVersion: number, status: string) { return assertion(database, key, value, PP_RD23_EVAL_ASSESSMENT_VERSION_GUARD, [assessmentId, expectedVersion, status]); },
         stageTransitionEvaluationAssessmentEffect3(id: string) { return database.prepare("SELECT id FROM hr_evaluation_definitions WHERE id=? FOR SHARE").bind(id); },
         guard45(key: string, value: "cycle-open", cycle_id: string, version: number) { return assertion(database, key, value, PP_RD19_EVAL_DEF_OPEN_EXISTS_SQL, [cycle_id, version]); },
-        guard46(key: string, value: "no-pay-draft", assessmentId: string) { return assertion(database, key, value, "NOT EXISTS(SELECT 1 FROM hr_evaluation_compensation_drafts WHERE assessment_id=? AND status='draft')", [assessmentId]); },
+        guard46(key: string, value: "no-pay-draft", assessmentId: string) { return assertion(database, key, value, ppRd31StatusGuard(true, 'hr_evaluation_compensation_drafts', 'assessment_id', 'draft'), [assessmentId]); },
         stageTransitionEvaluationAssessmentEffect4(value: string, userId: string, value2: string | null, value3: string, reason: string, now: number, assessmentId: string) { return nativePpStatement('people_eval_stmt_6').bind(value, userId, value2, value3, reason, now, assessmentId); },
         readEvaluationDetailEvidence(assessmentId: string, companyId: string) { return database.prepare("SELECT id,source_type,source_id,description,observed_on,created_by,created_at FROM hr_evaluation_evidence WHERE assessment_id=? AND company_id=? ORDER BY created_at,id").bind(assessmentId, companyId).all<Row>(); },
         readEvaluationDetailHistory(assessmentId: string, companyId: string) { return database.prepare("SELECT version,status,content_json,actor_id,reason,created_at,period_start,period_end,role_id,role_version FROM hr_evaluation_assessment_history WHERE id=? AND company_id=? ORDER BY version DESC").bind(assessmentId, companyId).all<Row>(); },
@@ -174,7 +175,7 @@ function application(provided?: SqlDatabase) {
         guard100(key: string, value: "engagement-version", id: string, version: number) { return assertion(database, key, value, PP_RD19_HR_ENGAGEMENT_VERSION_EXISTS_SQL, [id, version]); },
         stageCancelEvaluationCompensationEffect2(draftId: string) { return database.prepare("SELECT id FROM hr_evaluation_compensation_drafts WHERE id=? FOR UPDATE").bind(draftId); },
         guard102(key: string, value: "pay-draft-version", draftId: string, expectedVersion: number) { return assertion(database, key, value, ppRd21IdVersionStatusGuard('hr_evaluation_compensation_drafts', 'draft'), [draftId, expectedVersion]); },
-        guard103(key: string, value: "unapproved-pay", value2: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM hr_compensation_revisions WHERE id=? AND status='draft')", [value2]); },
+        guard103(key: string, value: "unapproved-pay", value2: string) { return assertion(database, key, value, ppRd31StatusGuard(false, 'hr_compensation_revisions', 'id', 'draft'), [value2]); },
         stageCancelEvaluationCompensationEffect3(now: number, compensation_id: unknown) { return nativePpStatement('people_eval_stmt_15').bind(now, compensation_id); },
         stageCancelEvaluationCompensationEffect4(reason: string, now: number, draftId: string) { return nativePpStatement('people_eval_stmt_16').bind(reason, now, draftId); } };
     return createPeopleEvaluationApplication({ repository, clock: { now: Date.now }, ids: { newId: () => crypto.randomUUID() }, authorize: requirePermission, prepare: async (holding) => {
