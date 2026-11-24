@@ -2,6 +2,7 @@ import { PP_RD23_HR_COMP_REVISIONS_SQL, PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL,
 import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
 import { ppRd31StatusGuard } from './pp-read-tail-r31-sources';
 import { ppRd32TwoColProjection } from './pp-read-tail-r32-sources';
+import { ppRd33FourColByIdCompany } from './pp-read-tail-r33-sources';
 import { ppRd26IdCompanyVersionStatusGuard, ppRd26CommandReceiptPriorSql, ppRd26RunIdGuard } from './pp-read-tail-r26-sources';
 import { ppRd27IdByIdCompanySql } from './pp-read-tail-r27-sources';
 import { PP_RD28_ADVANCE_REPAYMENTS_SQL } from './pp-read-tail-r28-sources';
@@ -508,7 +509,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
         stageCreatePaymentBatchEffect(...args) { return payrollFinanceFacts(database).stageCreatePaymentBatchEffect(...args); },
         stageCreatePaymentBatchEffect2(value: string, batchId: string, engagement_id: string | null, person_id: string | null, value2: string, value3: string, net_minor: number, currency: string) { return nativePpStatement('people_payroll_stmt_38').bind(value, batchId, engagement_id, person_id, value2, value3, net_minor, currency); },
         readPreparePaymentRetryBatch(batchId: string, companyId: string) {
-            return database.prepare("SELECT source_type,source_id,status,version FROM hr_payment_batches WHERE id=? AND company_id=?").bind(batchId, companyId).first<{
+            return database.prepare(ppRd33FourColByIdCompany('source_type,source_id,status,version', 'hr_payment_batches')).bind(batchId, companyId).first<{
                 source_type: string;
                 source_id: string;
                 status: string;

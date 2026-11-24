@@ -1,5 +1,6 @@
 import { PP_RD23_HR_PAY_GROUPS_ACTIVE_CURRENCY_GUARD } from './pp-read-tail-r23-sources';
 import { PP_RD22_ACTIVE_PERSON_VERSION_GUARD } from './pp-read-tail-r22-sources';
+import { ppRd33FourColByIdCompany } from './pp-read-tail-r33-sources';
 import { nativePeopleHandoffs } from "@erpx/server-collaboration/adapters/native-people-handoffs";
 import {withTalentPurchasedRead,withTalentHirePurchasedCommand,withTalentPrivacyPurchasedCommand} from "@erpx/server-talent/public/purchases";
 import "server-only";
@@ -36,7 +37,7 @@ function application(provided?:SqlDatabase) {
             status: string;
             merged_into_id: string | null;
         }>(); },
-        readConsumeHireHandoffPerson(reconcilePersonId: string, companyId: string) { return database.prepare("SELECT id,version,status,merged_into_id FROM hr_people WHERE id=? AND company_id=?").bind(reconcilePersonId, companyId).first<{
+        readConsumeHireHandoffPerson(reconcilePersonId: string, companyId: string) { return database.prepare(ppRd33FourColByIdCompany('id,version,status,merged_into_id', 'hr_people')).bind(reconcilePersonId, companyId).first<{
             id: string;
             version: number;
             status: string;

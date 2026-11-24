@@ -1,4 +1,5 @@
 import { PP_RD23_RECOVERY_FIRST_PERIOD_GUARD } from './pp-read-tail-r23-sources';
+import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { ppRd26IdCompanyVersionStatusGuard } from './pp-read-tail-r26-sources';
 import { ppRd27IdCompanyVersionStatusLiteralGuard } from './pp-read-tail-r27-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
@@ -28,7 +29,7 @@ function application(provided?: SqlDatabase) {
     const repository: PayrollRecoveryRepository<SqlStatement> = { readCurrentPermissionEffect(...args) { return payrollRecoveryGrant(database).readCurrentPermissionEffect(...args); },
         guard2(...args) { return payrollRecoveryGrant(database).guard2(...args); },
         stageEventEffect(value: string, id: string, companyId: string, action: string, userId: string, version: number, value2: string, key: string, now: number) { return nativePpStatement('pp_payroll_recoveries_stmt_1').bind(value, id, companyId, action, userId, version, value2, key, now); },
-        readGetRowRow(id: string, companyId: string) { return database.prepare('SELECT * FROM hr_payroll_recoveries WHERE id=? AND company_id=?').bind(id, companyId).first<Row>(); },
+        readGetRowRow(id: string, companyId: string) { return database.prepare(ppRd25ByIdCompany('hr_payroll_recoveries')).bind(id, companyId).first<Row>(); },
         readRequestPayrollRecoveryEmployee(engagement_id: unknown, companyId: string) {
             return database.prepare("SELECT e.person_id,p.user_id,p.legal_name FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.id=? AND e.company_id=? AND e.status='active' AND p.status='active' AND p.user_id IS NOT NULL").bind(engagement_id, companyId).first<{
                 person_id: string;

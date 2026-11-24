@@ -1,5 +1,6 @@
 import 'server-only';
 import { PP_RD23_PROJECT_WORKER_ENGAGEMENT_SQL } from './pp-read-tail-r23-sources';
+import { ppRd33FourColByIdCompany } from './pp-read-tail-r33-sources';
 import {projectWorkerCommandEvidenceImage} from '@erpx/server-workflow/public/project-worker-startup-evidence';
 import {randomUUID} from 'node:crypto';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
@@ -30,7 +31,7 @@ export async function prepareProjectWorkerJob(database:SqlDatabase,target:{id:st
  for(const capability of projectWorkerCapabilities)await checkPurchasedCapability(database,'enforced',{companyId:source.company_id,capability,purpose:'settle-existing'});
  const key=`project-worker-job:${randomUUID()}`,boundaries=projectWorkerCapabilities.map((capability,index)=>({key:`${key}:${index}`,boundary:purchaseCommandBoundary(database,'enforced',`${key}:${index}`,{companyId:source.company_id,capability,purpose:'settle-existing'})!}));await database.batch(boundaries.flatMap(item=>item.boundary.before));
  return {async finish(){
-  const after=await database.prepare('SELECT status,version,definition,review_snapshot FROM people_lifecycle_cases WHERE id=? AND company_id=?').bind(source.id,source.company_id).first<{status:string;version:number;definition:unknown;review_snapshot:unknown}>(),engagement=await database.prepare(PP_RD23_PROJECT_WORKER_ENGAGEMENT_SQL).bind(source.engagement_id,source.person_id,source.company_id).first<Record<string,unknown>>(),position=beforeOrg.positions.find(row=>row.id===definition.positionId);
+  const after=await database.prepare(ppRd33FourColByIdCompany('status,version,definition,review_snapshot', 'people_lifecycle_cases')).bind(source.id,source.company_id).first<{status:string;version:number;definition:unknown;review_snapshot:unknown}>(),engagement=await database.prepare(PP_RD23_PROJECT_WORKER_ENGAGEMENT_SQL).bind(source.engagement_id,source.person_id,source.company_id).first<Record<string,unknown>>(),position=beforeOrg.positions.find(row=>row.id===definition.positionId);
   if(!after||after.status!=='completed'||Number(after.version)!==Number(source.version)+1||!engagement||engagement.status!=='active'||Number(engagement.version)!==Number(beforeEngagement.version)+1||!position||engagement.position_id!==position.id||engagement.level_id!==position.level_id||engagement.manager_person_id!==(definition.managerPersonId??null))throw changed();
   const expected=await projectWorkerPersonImage(database,source.company_id,source.person_id),expectedEvidence=await projectWorkerCommandEvidenceImage(database,source.company_id,source.id),expectedApplied=await projectWorkerAppliedEvidenceImage(database,source.company_id,source.id);
   await database.batch(boundaries.flatMap(item=>[...item.boundary.after,clearWorkflowCommandAssertions(database, item.key)]));await flushFinanceDeferredEffects(database);

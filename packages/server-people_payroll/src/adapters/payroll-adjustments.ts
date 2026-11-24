@@ -1,4 +1,5 @@
 import { PP_RD22_ACTIVE_PERSON_VERSION_GUARD } from './pp-read-tail-r22-sources';
+import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { ppRd27IdCompanyEngagementApprovedVersionGuard } from './pp-read-tail-r27-sources';
 import { ppRd21IdCompanyStatusVersionGuard } from './pp-read-tail-r21-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
@@ -62,7 +63,7 @@ function application(provided?: SqlDatabase) {
                 input_snapshot_json: string;
             }>();
         },
-        readPayrollAdjustmentPanelRun(runId: string, companyId: string) { return database.prepare('SELECT * FROM hr_payroll_runs WHERE id=? AND company_id=?').bind(runId, companyId).first<Row>(); },
+        readPayrollAdjustmentPanelRun(runId: string, companyId: string) { return database.prepare(ppRd25ByIdCompany('hr_payroll_runs')).bind(runId, companyId).first<Row>(); },
         readPayrollAdjustmentPanelAdjustments(runId: string, companyId: string) { return database.prepare('SELECT r.id,r.status,r.pay_date,r.version,a.source_ref FROM hr_payroll_runs r JOIN hr_payroll_adjustments a ON a.run_id=r.id WHERE a.original_run_id=? AND a.company_id=? ORDER BY r.created_at,r.id').bind(runId, companyId).all<Row>(); },
         readPayrollAdjustmentPanelSource(runId: string, companyId: string) { return database.prepare('SELECT a.*,v.taxable_arrears_minor,v.non_taxable_arrears_minor,v.social_security_wage_minor,v.time_entries_json,v.reason,v.evidence_ref FROM hr_payroll_adjustments a JOIN hr_payroll_adjustment_revisions v ON v.run_id=a.run_id AND v.revision=a.source_revision WHERE a.run_id=? AND a.company_id=?').bind(runId, companyId).first<Row>(); },
         readPayrollAdjustmentPanelRevisions(runId: string) { return database.prepare('SELECT revision,taxable_arrears_minor,non_taxable_arrears_minor,time_entries_json,reason,created_at FROM hr_payroll_adjustment_revisions WHERE run_id=? ORDER BY revision').bind(runId).all<Row>(); },

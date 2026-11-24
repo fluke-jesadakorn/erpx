@@ -5,6 +5,7 @@ import { ppRd27IdVersionStatusInGuard } from './pp-read-tail-r27-sources';
 import { PP_RD24_PEOPLE_PERSON_USER_SAME_SQL, PP_RD24_PEOPLE_PERSON_USER_OK_SQL } from './pp-read-tail-r24-sources';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { ppRd32TwoColProjection } from './pp-read-tail-r32-sources';
+import { ppRd33StarByTwoPredicates } from './pp-read-tail-r33-sources';
 import { nativePpStatement, nativePpQuery } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import {projectWorkerNativeCommands,requireProjectWorkerNativeCommand,requireProjectWorkerUnit} from '@erpx/server-people_payroll/adapters/project-worker-startup-binding';
 import {filterPeopleLifecycleWork} from "@erpx/server-people_payroll/adapters/record-purchases";
@@ -283,7 +284,7 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
                 .bind(value, companyId, id, title, value2, now, privileged);
         },
         readCancelLifecycleRow(companyId: string, id: string) {
-            return database.prepare("SELECT * FROM people_lifecycle_cases WHERE company_id=? AND id=?")
+            return database.prepare(ppRd33StarByTwoPredicates('people_lifecycle_cases', 'company_id', 'id'))
                 .bind(companyId, id)
                 .first<LifecycleCase>();
         },
