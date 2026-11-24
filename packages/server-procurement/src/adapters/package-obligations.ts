@@ -9,6 +9,7 @@ import {recordAttachmentVersionSteps,recordAttachmentVersionSourceReadLocks} fro
 import {tableRead} from './read-tail-r19';
 import {jsonbAggBy} from './read-tail-r21';
 import {billReceiptBinding} from './read-tail-r23';
+import {attachmentVersionWitness} from './read-tail-r28';
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
 export async function lockSupplyProcurementPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){
@@ -36,10 +37,7 @@ export async function supplyProcurementPackageObligations(owner:PostgresDatabase
  SELECT 'rfq' kind,r.id,(${procurementCommandSourceImage("rfq","r")})::text fact,r.status NOT IN ('ordered','cancelled') OR NOT EXISTS
  (SELECT 1 FROM procurement_rfq_events event JOIN command_receipts command ON event.id='rfq-event-'||command.command_id
   WHERE event.rfq_id=r.id AND event.version<=r.version AND command.authority_json::jsonb->>'companyId'=r.company_id
-  AND EXISTS(WITH RECURSIVE versions(version) AS(SELECT event.version UNION SELECT binding.next_version FROM versions
-   JOIN (${recordAttachmentVersionSteps}) binding ON binding.previous_version=versions.version AND binding.company_id=r.company_id
-   AND binding.target_type='procurement_rfq' AND binding.target_id=r.id WHERE binding.next_version<=r.version)
-   SELECT 1 FROM versions WHERE version=r.version)
+${attachmentVersionWitness(recordAttachmentVersionSteps,"r","procurement_rfq")}
   AND command.actor_id=event.actor_id AND ((r.status='cancelled' AND command.record_id=r.id AND event.action='cancel' AND command.operation='procurement.rfq.cancel') OR
    (r.status='ordered' AND command.record_id=r.order_id AND event.action='order-created' AND command.operation='commerce.order.create' AND command.result_json::jsonb->>'id'=r.order_id)))
  OR (r.status='ordered' AND NOT EXISTS(SELECT 1 FROM orders original JOIN procurement_rfq_offers offer ON offer.id=r.selected_offer_id AND offer.rfq_id=r.id
@@ -74,10 +72,7 @@ export async function supplyProcurementPackageObligations(owner:PostgresDatabase
   WHERE binding.match_id=bill.id AND (parent.id IS NULL OR parent.party_id IS DISTINCT FROM bill.supplier_id OR parent.currency IS DISTINCT FROM bill.currency))
  OR NOT EXISTS(SELECT 1 FROM procurement_bill_match_events event JOIN command_receipts command ON event.id='bill-event-'||command.command_id
   WHERE event.match_id=bill.id AND event.version<=bill.version AND command.authority_json::jsonb->>'companyId'=bill.company_id AND command.actor_id=event.actor_id
-  AND EXISTS(WITH RECURSIVE versions(version) AS(SELECT event.version UNION SELECT binding.next_version FROM versions
-   JOIN (${recordAttachmentVersionSteps}) binding ON binding.previous_version=versions.version AND binding.company_id=bill.company_id
-   AND binding.target_type='supplier_bill_match' AND binding.target_id=bill.id WHERE binding.next_version<=bill.version)
-   SELECT 1 FROM versions WHERE version=bill.version)
+${attachmentVersionWitness(recordAttachmentVersionSteps,"bill","supplier_bill_match")}
   AND ((bill.status='returned' AND command.record_id=bill.id AND event.action IN ('return','return-ap-draft') AND command.operation='procurement.bill.return') OR (bill.status='posted' AND command.record_id=bill.invoice_id AND event.action='posted' AND command.operation='finance.invoice.post')))
  OR (bill.status='posted' AND bill.invoice_id IS NULL)
  FROM procurement_bill_matches bill CROSS JOIN scope LEFT JOIN orders original ON original.id=bill.order_id WHERE bill.company_id=scope.company_id
