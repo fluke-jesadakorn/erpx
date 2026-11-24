@@ -3,7 +3,7 @@ import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {supplierBillSourcePredicate} from "@erpx/server-procurement/adapters/record-purchases";
-const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
+import {inList} from './read-tail-sql';
 export function calendarSupplierBillsProcurementFacts(db: SqlDatabase,actor?:WorkContext) { return { read1: async (facts: {
         value1: string;
         value2: string | null;

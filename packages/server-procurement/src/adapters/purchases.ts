@@ -1,5 +1,6 @@
 import {commerceCompleteOwnerSourceReadLocks} from "@erpx/server-commerce/public/owner-source-locks";
-import {procurementCommandSourceImage} from "@erpx/server-procurement/adapters/command-source";
+import {procurementCommandSourceImage,rfqLinesAgg,rfqOffersAgg,rfqOfferLinesAgg} from "@erpx/server-procurement/adapters/command-source";
+import {workforceActorScopeColumns,commandReplayGuard} from './read-tail-sql';
 import "server-only";
 import {randomUUID} from "node:crypto";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -31,7 +32,7 @@ async function source(database:SqlDatabase,actor:WorkContext,target:Target,lock=
 async function current(database:SqlDatabase,actor:WorkContext,permissions:readonly string[],record:Source|null,key:string){
  const scope=record??{company_id:actor.companyId,branch_id:actor.branchId,department_id:actor.departmentId};
  for(const permission of permissions){
-  const allowed=await database.prepare(`SELECT ${assignmentReadSql("procurement_scope",permission)} allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) procurement_scope`)
+  const allowed=await database.prepare(`SELECT ${assignmentReadSql("procurement_scope",permission)} allowed FROM ${workforceActorScopeColumns} procurement_scope`)
    .bind(actor.assignmentId,actor.userId,actor.role,scope.company_id,scope.branch_id,scope.department_id).first<{allowed:boolean}>();
   if(!allowed?.allowed)throw new ApiError(403,"PROCUREMENT_ACCESS_CHANGED","Choose a current authorized purchasing work role.");
  }
@@ -64,7 +65,7 @@ export async function withProcurementPurchasedCommand<Result>(actor:WorkContext,
  try{return await owner.transaction(async database=>{
   const companyLocks=companyPurchaseReadLocks(database,actor.companyId);
   await database.batch([companyLocks[0],...commerceCompleteOwnerSourceReadLocks(database),...companyLocks.slice(1)]);
-  const receipt=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(command.key,command.operation,actor.userId,actor.companyId).first();
+  const receipt=await database.prepare(commandReplayGuard).bind(command.key,command.operation,actor.userId,actor.companyId).first();
   const scope={companyId:actor.companyId,capability,purpose:receipt?"history" as const:command.purpose};
   await checkPurchasedCapability(database,mode,scope);
   const before=await source(database,actor,command.target,true);
@@ -95,7 +96,7 @@ export async function prepareRfqPurchaseHandoff(database:SqlDatabase,actor:WorkC
  deferCommerceOwnerCheck(database,actor,async()=>{
   await current(database,actor,["commerce.read","commerce.purchase"],before,boundaryKey);
   try{const observed=await database.batch([
-   assertion(database,boundaryKey,"rfq-handoff-source",`EXISTS(SELECT 1 FROM procurement_rfqs r JOIN commerce_orders o ON o.id=r.order_id AND o.company_id=r.company_id AND o.kind='purchase' WHERE r.id=? AND o.id=? AND jsonb_build_object('record',to_jsonb(r)-'updated_at','lines',(SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM procurement_rfq_lines line WHERE line.rfq_id=r.id),'offers',(SELECT jsonb_agg(to_jsonb(offer) ORDER BY offer.id) FROM procurement_rfq_offers offer WHERE offer.rfq_id=r.id),'offerLines',(SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM procurement_rfq_offer_lines line JOIN procurement_rfq_offers offer ON offer.id=line.offer_id WHERE offer.rfq_id=r.id))=?::jsonb)`,[rfqId,orderId,JSON.stringify({record:expected,lines:sourceImage.lines,offers:sourceImage.offers,offerLines:sourceImage.offerLines})]),
+   assertion(database,boundaryKey,"rfq-handoff-source",`EXISTS(SELECT 1 FROM procurement_rfqs r JOIN commerce_orders o ON o.id=r.order_id AND o.company_id=r.company_id AND o.kind='purchase' WHERE r.id=? AND o.id=? AND jsonb_build_object('record',to_jsonb(r)-'updated_at','lines',${rfqLinesAgg},'offers',${rfqOffersAgg},'offerLines',${rfqOfferLinesAgg})=?::jsonb)`,[rfqId,orderId,JSON.stringify({record:expected,lines:sourceImage.lines,offers:sourceImage.offers,offerLines:sourceImage.offerLines})]),
    ...boundary.after,clearWorkflowCommandAssertions(database, boundaryKey)
   ]);boundary.observe?.(observed);}catch(error){throw sourceFailure(error)??error;}
  });

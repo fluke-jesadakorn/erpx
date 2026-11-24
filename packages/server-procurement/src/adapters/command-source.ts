@@ -2,12 +2,15 @@ import "server-only";
 import {supplyCommerceSettlementSources as commerce} from "@erpx/server-commerce/public/supply-package-sources";
 /** The full child image, including immutable evidence, must survive deferred
  * effects. Guarding only the parent's version misses inserted source children. */
+export const rfqLinesAgg = `(SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM procurement_rfq_lines line WHERE line.rfq_id=r.id)`;
+export const rfqOffersAgg = `(SELECT jsonb_agg(to_jsonb(offer) ORDER BY offer.id) FROM procurement_rfq_offers offer WHERE offer.rfq_id=r.id)`;
+export const rfqOfferLinesAgg = `(SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM procurement_rfq_offer_lines line JOIN procurement_rfq_offers offer ON offer.id=line.offer_id WHERE offer.rfq_id=r.id)`;
 export function procurementCommandSourceImage(kind:"rfq"|"purchase",alias:string){
  if(alias!=="r")throw Error("PROCUREMENT_SOURCE_ALIAS_REQUIRED");
  if(kind==="rfq")return `jsonb_build_object('record',to_jsonb(r),
- 'lines',(SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM procurement_rfq_lines line WHERE line.rfq_id=r.id),
- 'offers',(SELECT jsonb_agg(to_jsonb(offer) ORDER BY offer.id) FROM procurement_rfq_offers offer WHERE offer.rfq_id=r.id),
- 'offerLines',(SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM procurement_rfq_offer_lines line JOIN procurement_rfq_offers offer ON offer.id=line.offer_id WHERE offer.rfq_id=r.id),
+ 'lines',${rfqLinesAgg},
+ 'offers',${rfqOffersAgg},
+ 'offerLines',${rfqOfferLinesAgg},
  'events',(SELECT jsonb_agg(to_jsonb(event) ORDER BY event.id) FROM procurement_rfq_events event WHERE event.rfq_id=r.id),
  'handoffs',(SELECT jsonb_agg(to_jsonb(binding) ORDER BY binding.request_id,binding.order_id) FROM procurement_request_orders binding WHERE binding.rfq_id=r.id))`;
  return `jsonb_build_object('record',to_jsonb(r),
