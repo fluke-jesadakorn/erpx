@@ -1,5 +1,5 @@
 import 'server-only';
-import {singleCountLineMarkerSql} from './read-tail-sql';
+import {singleCountLineMarkerSql,countCreateMarkedRowsSql} from './read-tail-sql';
 export const initialPhysicalStockCapabilities=['sales.orders','inventory.stock-core','finance.sales-posting'] as const;
 export const initialPhysicalStockMarker='_initialPhysicalStockCount';
 export type InitialPhysicalStockProof={kind:'initial-physical-stock-count';countId:string;companyId:string;warehouseId:string;branchId:string;productId:string;countCommandId:string;goodsSetupCommandId:string;goodsSetupRequestHash:string;chartId:string;inventoryAccountId:string;varianceAccountId:string;currency:string};
@@ -17,4 +17,4 @@ export const initialPhysicalStockCountSourceRows=`SELECT c.id,c.company_id,c.bra
  AND line.snapshot_quantity_milli=0 AND line.snapshot_value_minor=0 AND line.snapshot_version=0 AND c.quality_hold_id IS NULL
  AND ${singleCountLineMarkerSql}`;
 
-export const initialPhysicalStockMarkedRows=`SELECT record_id id,authority_json::jsonb->>'companyId' company_id FROM command_receipts WHERE operation='inventory.count.create' AND jsonb_exists(result_json::jsonb,'${initialPhysicalStockMarker}')`;
+export const initialPhysicalStockMarkedRows=countCreateMarkedRowsSql(initialPhysicalStockMarker);

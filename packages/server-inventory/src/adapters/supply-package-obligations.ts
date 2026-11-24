@@ -10,6 +10,7 @@ import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgre
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {qualityPurchaseSourceRows,qualityPurchaseSourceReadLocks} from "@erpx/server-quality/public/purchase-sources";
+import {allInitialPhysicalStockMarkedRowsSql} from './read-tail-sql';
 
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
@@ -50,7 +51,7 @@ export async function supplyInventoryPackageObligations(owner:PostgresDatabase,d
  assertSupplyInventoryPackageObligationSources(owner,database,input.companyId);
  if(input.moduleId!=="inventory"||!["supply","supply-quality","supply-advanced"].includes(input.packageId)||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error("SUPPLY_INVENTORY_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
  const facts=(await database.prepare(`WITH scope AS(SELECT ?::text company_id,?::boolean full,?::boolean quality_addon,?::boolean advanced_addon),counts AS MATERIALIZED(
- SELECT count.* FROM inventory_counts count,scope WHERE count.company_id=scope.company_id AND NOT EXISTS(SELECT 1 FROM (${initialPhysicalStockMarkedRows} UNION ALL ${manufacturingInitialPhysicalStockMarkedRows} UNION ALL ${posInitialPhysicalStockMarkedRows} UNION ALL ${serviceInitialPhysicalStockMarkedRows}) initial_marker WHERE initial_marker.id=count.id) AND (scope.full OR scope.quality_addon AND EXISTS(SELECT 1 FROM (${qualityPurchaseSourceRows}) quality_source WHERE quality_source.id=count.quality_hold_id AND quality_source.company_id=count.company_id AND quality_source.kind='advanced')) AND NOT EXISTS(
+ SELECT count.* FROM inventory_counts count,scope WHERE count.company_id=scope.company_id AND NOT EXISTS(${allInitialPhysicalStockMarkedRowsSql(initialPhysicalStockMarkedRows,manufacturingInitialPhysicalStockMarkedRows,posInitialPhysicalStockMarkedRows,serviceInitialPhysicalStockMarkedRows)} initial_marker WHERE initial_marker.id=count.id) AND (scope.full OR scope.quality_addon AND EXISTS(SELECT 1 FROM (${qualityPurchaseSourceRows}) quality_source WHERE quality_source.id=count.quality_hold_id AND quality_source.company_id=count.company_id AND quality_source.kind='advanced')) AND NOT EXISTS(
  SELECT 1 FROM (${qualityPurchaseSourceRows}) source WHERE source.id=count.quality_hold_id AND source.company_id=count.company_id AND source.kind='customer-return'))
  SELECT 'count' kind,c.id,jsonb_build_array(to_jsonb(c),
  (SELECT jsonb_agg(to_jsonb(line) ORDER BY line.id) FROM inventory_count_lines line WHERE line.count_id=c.id),

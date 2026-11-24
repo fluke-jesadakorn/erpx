@@ -21,3 +21,10 @@ export const singleCountLineMarkerSql='(SELECT count(*) FROM inventory_count_lin
  * Only the literal text is shared; every caller prepares its own statement. */
 export const posInitialPhysicalSchemaReadySql="SELECT to_regclass('inventory_pos_initial_physical_sources') IS NOT NULL ready";
 export const mfgInitialPhysicalSchemaReadySql="SELECT to_regclass('inventory_mfg_initial_physical_sources') IS NOT NULL ready";
+/** r13: byte-identical read-tail fragments. Only the literal text is shared;
+ * every consumer issues its own statement with its own rows, binds and scope. */
+export const countMarkedExistsSql=(rows:string)=>`SELECT 1 FROM (${rows}) marker WHERE id=?`;
+export const countSourceProofSql=(rows:string)=>`SELECT source_proof::text proof FROM (${rows}) source WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)`;
+export const countCreateMarkedRowsSql=(marker:string)=>`SELECT record_id id,authority_json::jsonb->>'companyId' company_id FROM command_receipts WHERE operation='inventory.count.create' AND jsonb_exists(result_json::jsonb,'${marker}')`;
+export const countMarkedJournalSql=(rows:string)=>`SELECT c.company_id,c.journal_id id FROM inventory_counts c JOIN (${rows}) marker ON marker.id=c.id WHERE c.journal_id IS NOT NULL`;
+export const allInitialPhysicalStockMarkedRowsSql=(...rows:string[])=>`SELECT 1 FROM (${rows.join(' UNION ALL ')})`;

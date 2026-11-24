@@ -1,5 +1,5 @@
 import 'server-only';
-import {serviceInitialPhysicalNativeRowSql} from './read-tail-sql';
+import {serviceInitialPhysicalNativeRowSql,countMarkedExistsSql,countSourceProofSql} from './read-tail-sql';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {requireQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {requirePermission} from '@erpx/server-identity_access/public/iam-permissions';
@@ -30,8 +30,8 @@ export async function serviceCountPersistedMarker(database:SqlDatabase,id:string
  const found=await database.prepare(`SELECT EXISTS(SELECT 1 FROM command_receipts r WHERE r.operation='inventory.count.create' AND r.record_id=? AND (r.result_json IS NULL OR jsonb_typeof(r.result_json::jsonb)<>'object' OR jsonb_exists(r.result_json::jsonb,'_serviceInitialPhysicalStockCount'))) OR EXISTS(SELECT 1 FROM inventory_service_initial_physical_sources WHERE count_id=?) AS marked`).bind(id,id).first<{marked:boolean}>();
  return found?.marked===true;
 }
-export async function serviceInitialPhysicalStockCountMarked(database:SqlDatabase,id:string){return !!await database.prepare(`SELECT 1 FROM (${serviceInitialPhysicalStockMarkedRows}) marker WHERE id=?`).bind(id).first();}
-export async function serviceInitialPhysicalStockCountSource(database:SqlDatabase,scope:{companyId:string;branchId:string|null},id:string){return database.prepare(`SELECT source_proof::text proof FROM (${serviceInitialPhysicalStockCountSourceRows}) source WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)`).bind(id,scope.companyId,scope.branchId,scope.branchId).first<string>('proof');}
+export async function serviceInitialPhysicalStockCountMarked(database:SqlDatabase,id:string){return !!await database.prepare(countMarkedExistsSql(serviceInitialPhysicalStockMarkedRows)).bind(id).first();}
+export async function serviceInitialPhysicalStockCountSource(database:SqlDatabase,scope:{companyId:string;branchId:string|null},id:string){return database.prepare(countSourceProofSql(serviceInitialPhysicalStockCountSourceRows)).bind(id,scope.companyId,scope.branchId,scope.branchId).first<string>('proof');}
 export function serviceInitialPhysicalStockSourceLeases(database:SqlDatabase){return [database.prepare('LOCK TABLE command_receipts IN SHARE ROW EXCLUSIVE MODE'),database.prepare('LOCK TABLE inventory_ledger,inventory_counts,inventory_count_lines,inventory_count_lot_lines,inventory_count_decisions,inventory_adjustment_moves,inventory_lots,inventory_lot_balances,inventory_lot_moves,inventory_order_reservations,inventory_quality_holds IN SHARE ROW EXCLUSIVE MODE'),...serviceInitialPhysicalStockCommerceLocks(database),...initialPhysicalStockCountFinanceLeases(database)];}
 export async function requireServiceInitialPhysicalStockAuthority(database:SqlDatabase,actor:WorkContext,permission='inventory.read'){
  if(actor.departmentId)throw new ApiError(403,'INVENTORY_SCOPE_REQUIRED','Use a current Company or Branch Stock assignment.');

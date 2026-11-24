@@ -1,5 +1,5 @@
 import 'server-only';
-import {singleCountLineMarkerSql} from './read-tail-sql';
+import {singleCountLineMarkerSql,countCreateMarkedRowsSql} from './read-tail-sql';
 import {servicePartsPostingSourceRows} from '@erpx/server-commerce/public/service-parts-posting-proof';
 export const serviceInitialPhysicalStockCapabilities=['service.orders','service.parts-assets','finance.service-invoice'] as const;
 export const serviceInitialPhysicalStockMarker='_serviceInitialPhysicalStockCount';
@@ -19,7 +19,7 @@ export const serviceInitialPhysicalStockCountSourceRows=`SELECT c.id,c.company_i
  AND line.snapshot_quantity_milli=0 AND line.snapshot_value_minor=0 AND line.snapshot_version=0 AND c.quality_hold_id IS NULL
  AND ${singleCountLineMarkerSql}`;
 
-export const serviceInitialPhysicalStockMarkedRows=`SELECT record_id id,authority_json::jsonb->>'companyId' company_id FROM command_receipts WHERE operation='inventory.count.create' AND jsonb_exists(result_json::jsonb,'${serviceInitialPhysicalStockMarker}')`;
+export const serviceInitialPhysicalStockMarkedRows=countCreateMarkedRowsSql(serviceInitialPhysicalStockMarker);
 /** Full private receipt/native lineage, with absence witnesses. No1062 relation is queried. */
 export const serviceInitialPhysicalStockSourceImages=`SELECT c.id,c.company_id,c.journal_id,
  jsonb_build_object('count',to_jsonb(c),'lines',(SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id) FROM inventory_count_lines l WHERE l.count_id=c.id),

@@ -15,6 +15,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {qualityDisposalCountRows} from "@erpx/server-inventory/adapters/quality-count-purchases";
 import {requireCountPurchasedRead} from "@erpx/server-inventory/adapters/count-purchases";
+import {allInitialPhysicalStockMarkedRowsSql} from './read-tail-sql';
 
 /** Filter actual physical-count identities before the consumer limit. Other
  * Inventory records, shared Stock facts and durable deliveries retain owners. */
@@ -33,10 +34,10 @@ export async function countSourceReadScope(database:SqlDatabase,actor:WorkContex
  const id=surface==="staff"?"staff_notifications.record_id":surface==="inbox"?"e.source_id":"workspace_records.id";
  const company=surface==="staff"?"staff_notifications.company_id":surface==="inbox"?"e.company_id":"workspace_records.company_id";
  const relevant=surface==="records"?`(module_id='inventory' AND EXISTS(SELECT 1 FROM inventory_counts native_count WHERE native_count.id=${id}))`:`${surface==="staff"?"staff_notifications.record_type":"e.source_type"} IN ('stock_count','inventory_stock_count')`;
- const initialMarked=`EXISTS(SELECT 1 FROM (${initialPhysicalStockMarkedRows} UNION ALL ${manufacturingInitialPhysicalStockMarkedRows} UNION ALL ${posInitialPhysicalStockMarkedRows} UNION ALL ${serviceInitialPhysicalStockMarkedRows}) initial_marker WHERE initial_marker.id=${id})`;
+ const initialMarked=`EXISTS(${allInitialPhysicalStockMarkedRowsSql(initialPhysicalStockMarkedRows,manufacturingInitialPhysicalStockMarkedRows,posInitialPhysicalStockMarkedRows,serviceInitialPhysicalStockMarkedRows)} initial_marker WHERE initial_marker.id=${id})`;
  if(actor.departmentId||!hasPermission(actor,'inventory.read'))return {where:mode==='enforced'?`NOT (${relevant})`:`(NOT (${relevant}) OR NOT (${initialMarked}))`,args:[]};
  const predicate=countSourcePurchasePredicate('count_source.id','count_source.company_id','history','count_source_clock.now_ms');
- const allowed=mode==='enforced'?predicate:`(NOT EXISTS(SELECT 1 FROM (${initialPhysicalStockMarkedRows} UNION ALL ${manufacturingInitialPhysicalStockMarkedRows} UNION ALL ${posInitialPhysicalStockMarkedRows} UNION ALL ${serviceInitialPhysicalStockMarkedRows}) marker WHERE marker.id=count_source.id) OR ${predicate})`;
+ const allowed=mode==='enforced'?predicate:`(NOT EXISTS(${allInitialPhysicalStockMarkedRowsSql(initialPhysicalStockMarkedRows,manufacturingInitialPhysicalStockMarkedRows,posInitialPhysicalStockMarkedRows,serviceInitialPhysicalStockMarkedRows)} marker WHERE marker.id=count_source.id) OR ${predicate})`;
  const visible=`EXISTS(WITH count_source_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms) SELECT 1 FROM (SELECT id,company_id,branch_id,NULL::text department_id FROM inventory_counts) count_source CROSS JOIN count_source_clock WHERE count_source.id=${id} AND count_source.company_id=${company} AND (?::text IS NULL OR count_source.branch_id=?) AND ${assignmentReadSql("count_source","inventory.read")} AND ${allowed})`;
  return {where:mode==='enforced'?`(NOT (${relevant}) OR ${visible})`:`(NOT (${relevant}) OR NOT (${initialMarked}) OR ${visible})`,args:[actor.branchId,actor.branchId,actor.assignmentId,actor.userId,actor.role]};
 }

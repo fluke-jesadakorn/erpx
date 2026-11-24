@@ -1,5 +1,5 @@
 import 'server-only';
-import {singleCountLineMarkerSql} from './read-tail-sql';
+import {singleCountLineMarkerSql,countCreateMarkedRowsSql} from './read-tail-sql';
 import {manufacturingPostingSetupReceiptRows,manufacturingExistingPostingMarker} from '@erpx/server-commerce/public/manufacturing-existing-posting-proof';
 export const manufacturingInitialPhysicalStockCapabilities=['manufacturing.materials','manufacturing.costs','inventory.stock-core','finance.production-costing'] as const;
 export const manufacturingInitialPhysicalStockMarker='_manufacturingInitialPhysicalStockCount';
@@ -19,7 +19,7 @@ export const manufacturingInitialPhysicalStockCountSourceRows=`SELECT c.id,c.com
  AND line.snapshot_quantity_milli=0 AND line.snapshot_value_minor=0 AND line.snapshot_version=0 AND c.quality_hold_id IS NULL
  AND ${singleCountLineMarkerSql}`;
 
-export const manufacturingInitialPhysicalStockMarkedRows=`SELECT record_id id,authority_json::jsonb->>'companyId' company_id FROM command_receipts WHERE operation='inventory.count.create' AND jsonb_exists(result_json::jsonb,'${manufacturingInitialPhysicalStockMarker}')`;
+export const manufacturingInitialPhysicalStockMarkedRows=countCreateMarkedRowsSql(manufacturingInitialPhysicalStockMarker);
 
 /** Full private receipt/native lineage, with absence witnesses. No1059 relation is queried. */
 export const manufacturingInitialPhysicalStockSourceImages=`SELECT c.id,c.company_id,c.journal_id,
