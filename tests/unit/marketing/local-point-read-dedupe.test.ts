@@ -64,7 +64,7 @@ describe('marketing owner-local point read dedupe', () => {
     const repo = await readFile(adapter('marketing.ts'), 'utf8');
     const operational = await readFile(adapter('attachments-operational-facts.ts'), 'utf8');
     const policy = await readFile(adapter('attachments-policy-facts.ts'), 'utf8');
-    expect(repo).toContain("marketingLocalPointReadSql('asset'))\n      .bind(id, a.companyId)");
+    expect(repo).toContain("marketingLocalPointReadSql('asset'))\n        .bind(id, a.companyId)");
     expect(repo).toContain("marketingLocalPointReadSql('candidate',lock),\n    )\n    .bind(id, a.companyId)");
     expect(repo).toContain("marketingLocalPointReadSql('history'),\n        )\n        .bind(id)");
     expect(operational).toContain("attachmentOwnerFactReadSql('asset')).bind(facts.targetId,facts.companyId)");
