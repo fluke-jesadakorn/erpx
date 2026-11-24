@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7595,
+    "revision": 7597,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -128620,7 +128620,7 @@
         "owner": "work_projection",
         "title": "work_projection TS read tail native cutover (round 4)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -128632,22 +128632,42 @@
         "resources": [
           "owner:work_projection"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wF28wpr",
-          "claimedAt": "2026-11-24T00:29:54.021Z",
-          "heartbeatAt": "2026-11-24T00:31:22.515Z",
-          "expiresAt": "2026-11-24T01:01:22.515Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-work_projection/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a77827c12",
+            "owner": "work_projection",
+            "before": 107,
+            "after": 106,
+            "note": "Page layout save/saveReceipt share one inert SELECT 1 noop."
+          },
+          {
+            "command": "vitest work services (14)",
+            "result": "passed",
+            "sourceSha": "a77827c12"
+          },
+          {
+            "command": "tsc work_projection",
+            "result": "passed",
+            "sourceSha": "a77827c12"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: page-layouts duplicate inert SELECT 1 noop (2->1) and calendar-commands-facts; record a strictly lower spaced count (BEFORE=107).",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wF28wpr",
+          "at": "2026-11-24T00:34:38.993Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -129237,17 +129257,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
-        "in_progress": 31,
+        "in_progress": 30,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 357,
+        "blocked": 358,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T00:34:24.978Z",
+    "updatedAt": "2026-11-24T00:34:38.996Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
