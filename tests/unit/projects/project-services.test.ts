@@ -624,6 +624,20 @@ it('keeps one fixed Projects executive-evidence projection for the search and by
  expect(source.match(/\$\{milestoneEvidenceSelect\}/g)).toHaveLength(2);
  expect(source.match(/\$\{dependencyEvidenceSelect\}/g)).toHaveLength(2);
 });
+it('keeps one byte-identical literal per Projects actual-evidence and blocker family',async()=>{
+ const {readFile}=await import('node:fs/promises');
+ const source=await readFile(new URL('../../../packages/server-projects/src/adapters/executive-main-evidence-sources.ts',import.meta.url),'utf8');
+ const count=(token:string)=>source.split(token).length-1;
+ expect(count('const projectActualHoursEvidenceFrom =')).toBe(1);
+ expect(count('projectActualHoursEvidenceFrom(projectSource.sql)')).toBe(2);
+ expect(count('const projectPostedCostEvidenceHead =')).toBe(1);
+ expect(count('${projectPostedCostEvidenceHead}')).toBe(2);
+ expect(count('const projectDependencyBlockerLateral =')).toBe(1);
+ expect(count('projectDependencyBlockerLateral(projectSource.sql)')).toBe(2);
+ expect(count('SELECT l.id,l.project_id,p.title project_title,l.work_date::text work_date')).toBe(1);
+ expect(count("SELECT a.id,a.project_id,p.title project_title,j.entry_date::text entry_date")).toBe(1);
+ expect(count("SELECT jsonb_agg(jsonb_build_object('id',pr.id")).toBe(1);
+});
 it('keeps one owner-local fixed SQL definition for the Projects collaboration-home read family',async()=>{
  const {readFile}=await import('node:fs/promises');
  const source=await readFile(new URL('../../../packages/server-projects/src/adapters/collaboration-home-sources.ts',import.meta.url),'utf8');

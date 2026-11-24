@@ -21,6 +21,22 @@ const milestoneEvidenceSelect =
 const dependencyEvidenceSelect =
     `SELECT m.id,m.project_id,p.title project_title,m.title,m.due_at,m.state,m.version,
       COALESCE(blockers.items,'[]'::jsonb)::text blockers_json`;
+/** Byte-identical work-log evidence source shared by the paged search and by-id readers. */
+const projectActualHoursEvidenceFrom = (sourceSql: string) => `SELECT l.id,l.project_id,p.title project_title,l.work_date::text work_date,l.work_date::text sort_date,
+        l.minutes,l.user_id,l.state,l.version
+      FROM staff_project_work_logs l JOIN (${sourceSql}) p ON p.id=l.project_id AND p.company_id=l.company_id`;
+/** Byte-identical posted-cost projection head shared by the paged search and by-id readers. */
+const projectPostedCostEvidenceHead = `SELECT a.id,a.project_id,p.title project_title,j.entry_date::text entry_date,j.entry_date::text sort_date,
+        j.id journal_id,j.journal_number,j.currency,`;
+/** Byte-identical blocker lateral shared by the milestone search and by-id readers. */
+const projectDependencyBlockerLateral = (sourceSql: string) => `FROM staff_project_milestones m JOIN (${sourceSql}) p ON p.id=m.project_id AND p.company_id=m.company_id
+    LEFT JOIN LATERAL (
+      SELECT jsonb_agg(jsonb_build_object('id',pr.id,'title',pr.title,'state',pr.state,'version',pr.version) ORDER BY pr.due_at,pr.title) items
+      FROM staff_project_milestone_dependencies dependency
+      JOIN staff_project_milestones pr ON pr.id=dependency.predecessor_milestone_id AND pr.company_id=dependency.company_id AND pr.project_id=dependency.project_id
+      WHERE dependency.company_id=p.company_id AND dependency.project_id=p.id AND dependency.successor_milestone_id=m.id AND pr.state<>'completed'
+    ) blockers ON true
+    `;
 export function executiveMainEvidenceSources(db: SqlDatabase) {
     return { async factsSearchProjectMilestoneEvidence(actor: WorkContext, input: {
             filters: {
@@ -104,14 +120,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 values.push(cursor.dueAt, cursor.id);
             }
             const rows = (await db.prepare(`${dependencyEvidenceSelect}
-    FROM staff_project_milestones m JOIN (${projectSource.sql}) p ON p.id=m.project_id AND p.company_id=m.company_id
-    LEFT JOIN LATERAL (
-      SELECT jsonb_agg(jsonb_build_object('id',pr.id,'title',pr.title,'state',pr.state,'version',pr.version) ORDER BY pr.due_at,pr.title) items
-      FROM staff_project_milestone_dependencies dependency
-      JOIN staff_project_milestones pr ON pr.id=dependency.predecessor_milestone_id AND pr.company_id=dependency.company_id AND pr.project_id=dependency.project_id
-      WHERE dependency.company_id=p.company_id AND dependency.project_id=p.id AND dependency.successor_milestone_id=m.id AND pr.state<>'completed'
-    ) blockers ON true
-    WHERE ${conditions.join(" AND ")} ORDER BY m.due_at,m.id LIMIT ?`)
+    ${projectDependencyBlockerLateral(projectSource.sql)}WHERE ${conditions.join(" AND ")} ORDER BY m.due_at,m.id LIMIT ?`)
                 .bind(...projectSource.args,...values, input.limit + 1).all<ProjectDependencyEvidenceRow>()).results;
             return { rows };
         }, async factsReadProjectDependencyEvidence(actor: WorkContext, filters: {
@@ -124,14 +133,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
             const projectSource=await projectMetricSource(db,actor,"project-dependency-blockers");
             const cohort = projectDependencyBlockerCohort(actor, filters);
             const row = await db.prepare(`${dependencyEvidenceSelect}
-    FROM staff_project_milestones m JOIN (${projectSource.sql}) p ON p.id=m.project_id AND p.company_id=m.company_id
-    LEFT JOIN LATERAL (
-      SELECT jsonb_agg(jsonb_build_object('id',pr.id,'title',pr.title,'state',pr.state,'version',pr.version) ORDER BY pr.due_at,pr.title) items
-      FROM staff_project_milestone_dependencies dependency
-      JOIN staff_project_milestones pr ON pr.id=dependency.predecessor_milestone_id AND pr.company_id=dependency.company_id AND pr.project_id=dependency.project_id
-      WHERE dependency.company_id=p.company_id AND dependency.project_id=p.id AND dependency.successor_milestone_id=m.id AND pr.state<>'completed'
-    ) blockers ON true
-    WHERE ${cohort.sql} AND m.id=? LIMIT 1`)
+    ${projectDependencyBlockerLateral(projectSource.sql)}WHERE ${cohort.sql} AND m.id=? LIMIT 1`)
                 .bind(...projectSource.args,...cohort.values, id).first<ProjectDependencyEvidenceRow>();
             return { row };
         }, async factsSearchProjectActualEvidence(metric: "project-actual-hours" | "project-posted-cost", input: {
@@ -167,9 +169,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 }
                 dateColumn = "l.work_date::text";
                 idColumn = "l.id";
-                sql = `SELECT l.id,l.project_id,p.title project_title,l.work_date::text work_date,l.work_date::text sort_date,
-        l.minutes,l.user_id,l.state,l.version
-      FROM staff_project_work_logs l JOIN (${projectSource.sql}) p ON p.id=l.project_id AND p.company_id=l.company_id`;
+                sql = projectActualHoursEvidenceFrom(projectSource.sql);
             }
             else {
                 conditions.push("a.state='approved'", "j.status='posted'", "ac.category IN ('expense','other_expense')", "j.currency=?", "j.entry_date BETWEEN ? AND ?");
@@ -180,8 +180,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 }
                 dateColumn = "j.entry_date::text";
                 idColumn = "a.id";
-                sql = `SELECT a.id,a.project_id,p.title project_title,j.entry_date::text entry_date,j.entry_date::text sort_date,
-        j.id journal_id,j.journal_number,j.currency,ac.code account_code,ac.name account_name,
+                sql = `${projectPostedCostEvidenceHead}ac.code account_code,ac.name account_name,
         a.amount_minor::text amount_minor,a.state,a.version
       FROM staff_project_cost_allocations a JOIN (${projectSource.sql}) p ON p.id=a.project_id AND p.company_id=a.company_id
       JOIN (${financeProjectionSources.finance_journal_lines}) l ON l.id=a.journal_line_id JOIN (${financeProjectionSources.finance_journals}) j ON j.id=l.journal_id
@@ -205,16 +204,13 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
             const scope = projectActualScope();
             let row: ProjectActualEvidenceRow | null;
             if (metric === "project-actual-hours") {
-                row = await db.prepare(`SELECT l.id,l.project_id,p.title project_title,l.work_date::text work_date,l.work_date::text sort_date,
-        l.minutes,l.user_id,l.state,l.version
-      FROM staff_project_work_logs l JOIN (${projectSource.sql}) p ON p.id=l.project_id AND p.company_id=l.company_id
+                row = await db.prepare(`${projectActualHoursEvidenceFrom(projectSource.sql)}
       WHERE ${scope} AND l.id=? AND l.state='approved' AND l.work_date BETWEEN ? AND ?
         AND (iam_same_person(p.owner_user_id,?,p.company_id) OR iam_same_person(l.user_id,?,p.company_id)) LIMIT 1`)
                     .bind(...projectSource.args,actor.companyId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId, actor.userId, actor.userId, id, filters.from, filters.to, actor.userId, actor.userId).first<ProjectActualEvidenceRow>();
             }
             else {
-                row = await db.prepare(`SELECT a.id,a.project_id,p.title project_title,j.entry_date::text entry_date,j.entry_date::text sort_date,
-        j.id journal_id,j.journal_number,j.currency,l.id journal_line_id,ac.code account_code,ac.name account_name,
+                row = await db.prepare(`${projectPostedCostEvidenceHead}l.id journal_line_id,ac.code account_code,ac.name account_name,
         a.amount_minor::text amount_minor,a.state,a.version
       FROM staff_project_cost_allocations a JOIN (${projectSource.sql}) p ON p.id=a.project_id AND p.company_id=a.company_id
       JOIN (${financeProjectionSources.finance_journal_lines}) l ON l.id=a.journal_line_id JOIN (${financeProjectionSources.finance_journals}) j ON j.id=l.journal_id
