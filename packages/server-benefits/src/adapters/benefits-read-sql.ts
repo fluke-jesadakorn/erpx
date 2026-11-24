@@ -14,3 +14,6 @@ export const benefitElectionFactPrefix = "UNION ALL SELECT 'election',e.id,e.ver
  * the Benefits and People package-settlement fact projections; generated SQL
  * is unchanged. */
 export const benefitReleasedElectionHandoffPrefix = " OR win.id IS NULL OR win.company_id IS DISTINCT FROM e.company_id OR win.version<e.window_version\n OR (e.status='released' AND (e.released_by IS NULL OR NOT EXISTS(SELECT 1 FROM benefit_payroll_inputs handoff";
+/** Byte-identical owner-local scope CTE prefix shared by the Benefits and People
+ * package-settlement fact queries; generated SQL is unchanged. */
+export const benefitScopePrefix = "WITH scope AS(SELECT ?::text company_id,";

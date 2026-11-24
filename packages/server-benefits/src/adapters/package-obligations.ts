@@ -4,7 +4,7 @@ import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgre
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {benefitEligibilitySettlementLocks,benefitEligibilitySettlementSources as learning} from "@erpx/server-learning/public/benefit-source-facts";
-import {benefitPayrollInputOwnerPredicate,benefitElectionFactPrefix,benefitReleasedElectionHandoffPrefix} from "@erpx/server-benefits/adapters/benefits-read-sql";
+import {benefitPayrollInputOwnerPredicate,benefitElectionFactPrefix,benefitReleasedElectionHandoffPrefix,benefitScopePrefix} from "@erpx/server-benefits/adapters/benefits-read-sql";
 
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
@@ -34,7 +34,7 @@ export const benefitPackageSettlementSources={
 export async function benefitPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
  assertBenefitPackageObligationSources(owner,database,input.companyId);
  if(input.moduleId!=="benefits"||input.packageId!=="people-benefits"||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error("BENEFIT_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
- const facts=(await database.prepare(`WITH scope AS(SELECT ?::text company_id,to_char(to_timestamp(?::bigint/1000.0) AT TIME ZONE 'UTC','YYYY-MM-DD') today),
+ const facts=(await database.prepare(`${benefitScopePrefix}to_char(to_timestamp(?::bigint/1000.0) AT TIME ZONE 'UTC','YYYY-MM-DD') today),
  plans AS MATERIALIZED(SELECT p.* FROM (${benefitPackageSettlementSources.plans}) p,scope WHERE p.company_id=scope.company_id),
  windows AS MATERIALIZED(SELECT w.* FROM (${benefitPackageSettlementSources.windows}) w,scope WHERE w.company_id=scope.company_id),
  elections AS MATERIALIZED(SELECT e.* FROM (${benefitPackageSettlementSources.elections}) e,scope WHERE e.company_id=scope.company_id),

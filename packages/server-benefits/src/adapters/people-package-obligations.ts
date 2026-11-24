@@ -4,7 +4,7 @@ import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgre
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {assertPeoplePackageObligationSources,peoplePackageSettlementSources as people} from "@erpx/server-people_payroll/public/package-obligations";
-import {benefitPayrollInputOwnerPredicate,benefitElectionFactPrefix,benefitReleasedElectionHandoffPrefix} from "@erpx/server-benefits/adapters/benefits-read-sql";
+import {benefitPayrollInputOwnerPredicate,benefitElectionFactPrefix,benefitReleasedElectionHandoffPrefix,benefitScopePrefix} from "@erpx/server-benefits/adapters/benefits-read-sql";
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
 export async function lockPeopleBenefitsPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.prepare("LOCK TABLE benefit_plans,benefit_plan_events,benefit_dependents,benefit_dependent_events,benefit_enrollment_windows,benefit_window_events,benefit_elections,benefit_election_events,benefit_payroll_inputs IN SHARE MODE").run();sources.set(database,companyId);}
 /** Benefits owns reviewed elections and immutable Payroll deliveries. Its
@@ -14,7 +14,7 @@ export async function lockPeopleBenefitsPackageObligationSources(owner:PostgresD
 export async function peopleBenefitsPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
  owner.assertActiveTransaction(database);if(sources.get(database)!==input.companyId)throw Error("PEOPLE_BENEFITS_PACKAGE_OBLIGATION_SOURCE_REQUIRED");assertPeoplePackageObligationSources(owner,database,input.companyId);
  if(input.moduleId!=="benefits"||!["people","people-workforce"].includes(input.packageId)||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error("PEOPLE_BENEFITS_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
- const facts=(await database.prepare(`WITH scope AS(SELECT ?::text company_id,?::boolean is_base,to_char(to_timestamp(?::bigint/1000.0) AT TIME ZONE 'UTC','YYYY-MM-DD') today),
+ const facts=(await database.prepare(`${benefitScopePrefix}?::boolean is_base,to_char(to_timestamp(?::bigint/1000.0) AT TIME ZONE 'UTC','YYYY-MM-DD') today),
  facts AS(
  SELECT 'plan' kind,p.id,p.version,p.status state,to_jsonb(p) image,p.status='draft' pending FROM benefit_plans p,scope WHERE p.company_id=scope.company_id
  UNION ALL SELECT 'window',w.id,w.version,w.status,to_jsonb(w),w.status IN ('draft','open') FROM benefit_enrollment_windows w,scope WHERE w.company_id=scope.company_id
