@@ -34,6 +34,8 @@
 //! alert workspace read and the ticket-recipient read, where the actor id or
 //! ticket id leads the owner-scope binds and the eligibility/reviewer-count
 //! predicates stay fixed native SQL over the closed Identity/People projections.
+//! It finally plans the Support-detail customer-contact-notes read over the
+//! closed Sales column projection, scoped by order id and company id.
 //! Reads carry no receipt/audit/outbox ledger: the caller executes them on the
 //! same unit as the surrounding command. No SQL is ever accepted from the wire
 //! and no TypeScript SQL remains for these kinds.
@@ -499,6 +501,19 @@ const READ_TICKET_RECIPIENTS: NativeSupportReadStatement = NativeSupportReadStat
     bind_count: 6,
 };
 
+/// Native successor of the TypeScript Support-detail customer-contact-notes
+/// read. The caller binds `[order_id, company_id]` and receives the active
+/// notes on that order, newest occurrence first, over the closed Sales column
+/// projection. No lock, advisory or audit ledger is attached to this read.
+pub const RD_CUSTOMER_CONTACT_NOTES: &str = "support_rd_customer_contact_notes";
+const SQL_CUSTOMER_CONTACT_NOTES: &str =
+    "SELECT id,version,channel,occurred_at,body FROM (SELECT \"id\",\"company_id\",\"customer_id\",\"order_id\",\"channel\",\"occurred_at\",\"body\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\" FROM customer_contact_notes) customer_contact_notes WHERE order_id=? AND company_id=? AND status='active' ORDER BY occurred_at DESC";
+const READ_CUSTOMER_CONTACT_NOTES: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_CUSTOMER_CONTACT_NOTES,
+    sql: SQL_CUSTOMER_CONTACT_NOTES,
+    bind_count: 2,
+};
+
 const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SERVICE_COVERAGE_HISTORY,
     READ_SERVICE_TEAM_COVERAGE,
@@ -536,6 +551,7 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_EVIDENCE_ITEMS,
     READ_SLA_ALERTS,
     READ_TICKET_RECIPIENTS,
+    READ_CUSTOMER_CONTACT_NOTES,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -694,6 +710,7 @@ mod tests {
             (RD_EVIDENCE_ITEMS, SQL_EVIDENCE_ITEMS, 1usize),
             (RD_SLA_ALERTS, SQL_SLA_ALERTS, 6usize),
             (RD_TICKET_RECIPIENTS, SQL_TICKET_RECIPIENTS, 6usize),
+            (RD_CUSTOMER_CONTACT_NOTES, SQL_CUSTOMER_CONTACT_NOTES, 2usize),
         ];
         for (kind, sql, binds) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -709,12 +726,12 @@ mod tests {
                     sql.contains("support_ticket_events") || sql.contains("support_incident_events") ||
                     sql.contains("support_incident_tickets") || sql.contains("support_tickets") ||
                     sql.contains("support_incidents") || sql.contains("support_sla_policies") ||
-                    sql.contains("attachment_links"),
-                "owner read must stay on owner-local Support tables or closed Files projections: {sql}"
+                    sql.contains("attachment_links") || sql.contains("customer_contact_notes"),
+                "owner read must stay on owner-local Support tables, closed Files projections or the closed Sales contact-notes projection: {sql}"
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 36);
+        assert_eq!(STATEMENTS.len(), 37);
     }
 
     #[test]
@@ -787,6 +804,8 @@ mod tests {
         assert_eq!(alerts.bind_count, 6);
         let recipients = read_statement(RD_TICKET_RECIPIENTS).expect("ticket recipients read");
         assert_eq!(recipients.bind_count, 6);
+        let notes = read_statement(RD_CUSTOMER_CONTACT_NOTES).expect("customer contact notes read");
+        assert_eq!(notes.bind_count, 2);
     }
 
     #[test]
@@ -871,5 +890,19 @@ mod tests {
         assert!(image.sql.starts_with("SELECT "));
         assert!(!image.sql.contains(';'));
         assert!(read_statement("support_rd_ticket_portal_ticket_image_select").is_none());
+    }
+
+    #[test]
+    fn customer_contact_notes_read_renders_the_retired_owner_literal_byte_for_byte() {
+        let notes = read_statement(RD_CUSTOMER_CONTACT_NOTES).expect("customer contact notes read");
+        assert_eq!(
+            notes.sql,
+            "SELECT id,version,channel,occurred_at,body FROM (SELECT \"id\",\"company_id\",\"customer_id\",\"order_id\",\"channel\",\"occurred_at\",\"body\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\" FROM customer_contact_notes) customer_contact_notes WHERE order_id=? AND company_id=? AND status='active' ORDER BY occurred_at DESC"
+        );
+        assert_eq!(notes.bind_count, 2);
+        assert_eq!(notes.sql.matches('?').count(), 2);
+        assert!(notes.sql.starts_with("SELECT "));
+        assert!(!notes.sql.contains(';'));
+        assert!(read_statement("support_rd_customer_contact_notes_select").is_none());
     }
 }

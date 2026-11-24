@@ -16,7 +16,7 @@ describe('Sales native Support read cutover', () => {
     expect(load).toHaveBeenCalledExactlyOnceWith(incoming, 'acme');
   });
 
-  it('keeps the Sales customer view on the native reader and removes the TypeScript workspace/recipient SQL', async () => {
+  it('keeps the Sales customer view on the native reader and removes the TypeScript workspace/recipient/notes SQL', async () => {
     const { readFile } = await import('node:fs/promises');
     const source = await readFile(new URL('../../../packages/feature-sales/src/components/customers/customer-views.tsx', import.meta.url), 'utf8');
     expect(source).toContain('createNativeSupportReader');
@@ -27,6 +27,6 @@ describe('Sales native Support read cutover', () => {
     expect(barrel).not.toContain('supportWorkspace,');
     expect(barrel).not.toContain('supportRecipients,');
     const adapter = await readFile(new URL('../../../packages/server-support/src/adapters/support.ts', import.meta.url), 'utf8');
-    expect(adapter.match(/SELECT/g)).toHaveLength(1);
+    expect(adapter.match(/SELECT/g) ?? []).toHaveLength(0);
   });
 });

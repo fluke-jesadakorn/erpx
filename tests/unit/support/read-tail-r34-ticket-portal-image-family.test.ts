@@ -40,12 +40,12 @@ describe('Support read-tail r34 ticket-portal ticket-image native kind', () => {
         expect(bridge.match(/SUPPORT_RD_TICKET_PORTAL_TICKET_IMAGE/g) ?? []).toHaveLength(2);
     });
 
-    test('the Rust registry owns the retired literal verbatim at 35->36 kinds', () => {
+    test('the Rust registry owns the retired literal verbatim at 36->37 kinds', () => {
         expect(registry).toContain(`RD_TICKET_PORTAL_TICKET_IMAGE: &str = "${kind}"`);
         expect(registry).toContain(`"${retiredSelect}"`);
         expect(registry).toContain('kind: RD_TICKET_PORTAL_TICKET_IMAGE,');
         expect(registry).toContain('    READ_TICKET_PORTAL_TICKET_IMAGE,\n');
-        expect(registry).toContain('assert_eq!(STATEMENTS.len(), 36);');
+        expect(registry).toContain('assert_eq!(STATEMENTS.len(), 37);');
         expect(registry).toContain('                RD_TICKET_PORTAL_TICKET_IMAGE,\n                SQL_TICKET_PORTAL_TICKET_IMAGE,\n                1usize,');
         expect(registry).toContain('ticket_portal_ticket_image_read_renders_the_retired_owner_literal_byte_for_byte');
     });
@@ -69,7 +69,7 @@ describe('Support read-tail r34 ticket-portal ticket-image native kind', () => {
     });
 
     test('retirement:ts-statements is strictly below the r34 BEFORE=45 baseline', () => {
-        expect(selectCount()).toBe(44);
-        expect(selectCount()).toBeLessThan(45);
+        expect(selectCount()).toBe(43);
+        expect(selectCount()).toBeLessThan(44);
     });
 });

@@ -53,6 +53,7 @@ export const SUPPORT_RD_SALES_CUSTOMER_SOURCE_CASES = 'support_rd_sales_customer
 export const SUPPORT_RD_EVIDENCE_ITEMS = 'support_rd_evidence_items';
 export const SUPPORT_RD_SLA_ALERTS = 'support_rd_sla_alerts';
 export const SUPPORT_RD_TICKET_RECIPIENTS = 'support_rd_ticket_recipients';
+export const SUPPORT_RD_CUSTOMER_CONTACT_NOTES = 'support_rd_customer_contact_notes';
 
 /** Fixed arity of every registered kind, mirrored from the Rust read registry.
  * The command-plan route re-validates it; rejecting a mismatch here avoids an
@@ -94,6 +95,7 @@ const BIND_COUNTS: Readonly<Record<string, number>> = {
   [SUPPORT_RD_EVIDENCE_ITEMS]: 1,
   [SUPPORT_RD_SLA_ALERTS]: 6,
   [SUPPORT_RD_TICKET_RECIPIENTS]: 6,
+  [SUPPORT_RD_CUSTOMER_CONTACT_NOTES]: 2,
 };
 
 const unavailable = (): never => {
