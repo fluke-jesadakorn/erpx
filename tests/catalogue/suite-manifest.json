@@ -49986,7 +49986,7 @@
       },
       "ci": {
         "critical": true,
-        "reason": "Learning executive metric label projections must stay one helper."
+        "reason": "Learning assignment existence probe head must stay one helper."
       },
       "apps": [
         "learn"

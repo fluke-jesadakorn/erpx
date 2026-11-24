@@ -11,7 +11,7 @@ import {isTransactionalSqlDatabase,type SqlDatabase,type StoredFile} from '@erpx
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {attachmentDeniedReadAudits} from '@erpx/server-files/public/attachment-denied-read-audits';
 import {attachmentReadSource,attachmentPrivateReadSourceLocks,assertAttachmentReadRoute,requirePrivateAttachmentReaderCurrent,bufferedAttachmentRead,type AttachmentReadRoute,type AttachmentReadSource} from '@erpx/server-files/public/private-attachment-reads';
-import {actorScopeProbe} from './learning-read-sql';
+import {actorScopeProbe,learningAssignmentsExistsProbe} from './learning-read-sql';
 
 export function isLearningAttachmentReadTarget(target:string){return target==='learning_course'||target==='learning_assignment';}
 const identity=(actor:WorkContext)=>JSON.stringify(actor);
@@ -24,7 +24,7 @@ function image(database:SqlDatabase,companyId:string,type:string,id:string){
  FROM learning_certificates certificate LEFT JOIN learning_certificate_revocations revocation ON revocation.certificate_id=certificate.id
  WHERE certificate.assignment_id=assignment.id AND certificate.company_id=assignment.company_id)) ORDER BY assignment.id)
  FROM learning_assignments assignment WHERE assignment.course_id=course.id AND assignment.company_id=course.company_id AND (?::text='learning_course' OR assignment.id=?)))::text image
- FROM learning_courses course WHERE course.company_id=? AND (?::text='learning_course' AND course.id=? OR ?::text='learning_assignment' AND EXISTS(SELECT 1 FROM learning_assignments selected WHERE selected.id=? AND selected.course_id=course.id AND selected.company_id=course.company_id))`).bind(type,id,companyId,type,id,type,id).first<string>('image');
+ FROM learning_courses course WHERE course.company_id=? AND (?::text='learning_course' AND course.id=? OR ?::text='learning_assignment' AND ${learningAssignmentsExistsProbe('selected','selected.id=? AND selected.course_id=course.id AND selected.company_id=course.company_id')})`).bind(type,id,companyId,type,id,type,id).first<string>('image');
 }
 /** Learners keep their original self/material access and certificate identity.
  * No full People package, HR module or extra document-manager role is added. */

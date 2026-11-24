@@ -51,3 +51,9 @@ export const sourceLiteral = (table: string) => `SELECT * FROM ${table}`;
  * pre-dedupe bytes. */
 export const metricLabelProjection = (label: string, source: string) =>
   `SELECT ${label} label,count(*)::text value FROM ${source} GROUP BY 1 ORDER BY 1`;
+
+/** r8b — cross-file learning_assignments existence probe. The head is
+ * byte-identical at both callers; only the alias and conditions vary, so each
+ * rendered query keeps its exact pre-dedupe bytes. */
+export const learningAssignmentsExistsProbe = (alias: string, conditions: string) =>
+  `EXISTS(SELECT 1 FROM learning_assignments ${alias} WHERE ${conditions})`;

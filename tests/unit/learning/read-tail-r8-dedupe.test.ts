@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'vitest';
 import { readFileSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { metricLabelProjection } from '../../../packages/server-learning/src/adapters/learning-read-sql';
+import { learningAssignmentsExistsProbe, metricLabelProjection } from '../../../packages/server-learning/src/adapters/learning-read-sql';
 
 const srcRoot = resolve(__dirname, '../../../packages/server-learning/src');
 const src = (name: string) => readFileSync(resolve(srcRoot, 'adapters', name), 'utf8');
@@ -56,8 +56,28 @@ describe('Learning read-tail r8 byte-identical family', () => {
   });
 });
 
+describe('Learning read-tail r8b assignments existence probe family', () => {
+  // Pre-dedupe literals copied verbatim from HEAD. Byte-identity oracles only, never live sources.
+  const preAttachmentRead = "EXISTS(SELECT 1 FROM learning_assignments selected WHERE selected.id=? AND selected.course_id=course.id AND selected.company_id=course.company_id)";
+  const preSensitiveFacts = "EXISTS(SELECT 1 FROM learning_assignments a WHERE a.course_id=c.id AND a.company_id=c.company_id AND a.learner_id=? AND a.status!='cancelled')";
+
+  test('renders both cross-file probe heads byte-for-byte', () => {
+    expect(learningAssignmentsExistsProbe('selected', 'selected.id=? AND selected.course_id=course.id AND selected.company_id=course.company_id')).toBe(preAttachmentRead);
+    expect(learningAssignmentsExistsProbe('a', "a.course_id=c.id AND a.company_id=c.company_id AND a.learner_id=? AND a.status!='cancelled'")).toBe(preSensitiveFacts);
+    readOnly(learningAssignmentsExistsProbe('a', "a.course_id=c.id AND a.company_id=c.company_id AND a.learner_id=? AND a.status!='cancelled'"));
+  });
+
+  test('the shared probe is defined once and composed at both callers', () => {
+    expect(src('learning-read-sql.ts').match(/export const learningAssignmentsExistsProbe =/g) ?? []).toHaveLength(1);
+    expect(src('attachment-read.ts').match(/learningAssignmentsExistsProbe\(/g) ?? []).toHaveLength(1);
+    expect(src('attachments-sensitive-facts.ts').match(/learningAssignmentsExistsProbe\(/g) ?? []).toHaveLength(1);
+    expect(src('attachment-read.ts')).not.toContain(preAttachmentRead);
+    expect(src('attachments-sensitive-facts.ts')).not.toContain(preSensitiveFacts);
+  });
+});
+
 describe('Learning read-tail r8 retirement check', () => {
-  test('retirement:ts-statements is strictly lower than the BEFORE=72 baseline', () => {
+  test('retirement:ts-statements is strictly lower than the BEFORE=71 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -67,6 +87,6 @@ describe('Learning read-tail r8 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBeLessThan(72);
+    expect(total).toBeLessThan(71);
   });
 });
