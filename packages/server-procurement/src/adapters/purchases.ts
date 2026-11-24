@@ -1,10 +1,10 @@
 import {commerceCompleteOwnerSourceReadLocks} from "@erpx/server-commerce/public/owner-source-locks";
 import {procurementCommandSourceImage,rfqLinesAgg,rfqOffersAgg,rfqOfferLinesAgg} from "@erpx/server-procurement/adapters/command-source";
-import {workforceActorScopeColumns,commandReplayGuard} from './read-tail-sql';
+import {commandReplayGuard} from './read-tail-sql';
+import {assignmentScopeProbe} from './read-tail-r30';
 import "server-only";
 import {randomUUID} from "node:crypto";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/public/command-guards';
@@ -32,7 +32,7 @@ async function source(database:SqlDatabase,actor:WorkContext,target:Target,lock=
 async function current(database:SqlDatabase,actor:WorkContext,permissions:readonly string[],record:Source|null,key:string){
  const scope=record??{company_id:actor.companyId,branch_id:actor.branchId,department_id:actor.departmentId};
  for(const permission of permissions){
-  const allowed=await database.prepare(`SELECT ${assignmentReadSql("procurement_scope",permission)} allowed FROM ${workforceActorScopeColumns} procurement_scope`)
+  const allowed=await database.prepare(assignmentScopeProbe("procurement_scope",permission))
    .bind(actor.assignmentId,actor.userId,actor.role,scope.company_id,scope.branch_id,scope.department_id).first<{allowed:boolean}>();
   if(!allowed?.allowed)throw new ApiError(403,"PROCUREMENT_ACCESS_CHANGED","Choose a current authorized purchasing work role.");
  }

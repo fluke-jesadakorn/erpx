@@ -24,6 +24,7 @@ import type {RfqRow as Row,RfqOrderInput} from "@erpx/server-procurement/domain/
 import {rfqActionSchema} from "@erpx/server-procurement/domain/rfqs";
 import {procurementPurchaseAccess,requireProcurementPurchasedRead,withProcurementPurchasedCommand,prepareRfqPurchaseHandoff} from "@erpx/server-procurement/adapters/purchases";
 import {branchDepartmentScope,pointRead,orderedRead} from './read-tail-sql';
+import {versionStatusScopeGuard,activeMasterLookup} from './read-tail-r30';
 import {pointVersionGuard} from './read-tail-r19';
 import {eligiblePurchaseCount,memberScopeExclusion} from './read-tail-r24';
 import {settingsRead} from './read-tail-r27';
@@ -33,7 +34,7 @@ type Authority=SqlStatement[];
 const scope=branchDepartmentScope("r");
 const currencyRead=settingsRead("currency",commercePlatformSources.commerce_settings);
 const args=(a:WorkContext)=>[a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId];
-function guard(db:SqlDatabase,a:WorkContext,r:Row,key:string,version:number){return assertion(db,key,'rfq-version',`EXISTS(SELECT 1 FROM procurement_rfqs r WHERE r.id=? AND r.version=? AND r.status=? AND ${scope})`,[r.id,version,r.status,...args(a)]);}
+function guard(db:SqlDatabase,a:WorkContext,r:Row,key:string,version:number){return assertion(db,key,'rfq-version',versionStatusScopeGuard("procurement_rfqs","r",scope),[r.id,version,r.status,...args(a)]);}
 function event(db:SqlDatabase,a:WorkContext,id:string,key:string,version:number,action:string,evidence:string,offer:string|null,now:number){return nativeProcurementStatement('procurement_stmt_11', { now: Date.now() }).bind(`rfq-event-${key}`,id,version,action,a.userId,evidence,offer,now);}
 function application(a:WorkContext,provided?:SqlDatabase){
  let resource:Promise<SqlDatabase>|null=null;const database=()=>provided?Promise.resolve(provided):resource??=holdingResources(a.holdingId).then(x=>x.write);
@@ -48,9 +49,9 @@ function application(a:WorkContext,provided?:SqlDatabase){
  write.prepare(orderedRead('*','procurement_rfq_events','rfq_id=?','version DESC')).bind(id).all<Row>()]);return {lines:lines.results,offers:offers.results,offerLines:offerLines.results,events:events.results};},
  workspace:async()=>{const write=await database();const [rfqs,products,warehouses,suppliers,config]=await Promise.all([
  write.prepare(`SELECT r.* FROM procurement_rfqs r WHERE ${scope} ORDER BY r.updated_at DESC LIMIT 100`).bind(...args(a)).all<Row>(),
- write.prepare(`SELECT id,sku,name,unit FROM (${commercePlatformSources.commerce_products}) commerce_products WHERE company_id=? AND status='active' ORDER BY sku`).bind(a.companyId).all<Row>(),
- write.prepare(`SELECT id,name,branch_id FROM (${commercePlatformSources.commerce_warehouses}) commerce_warehouses WHERE company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?) ORDER BY name`).bind(a.companyId,a.branchId,a.branchId).all<Row>(),
- write.prepare(`SELECT id,name FROM (${financePlatformSources.finance_parties}) finance_parties WHERE company_id=? AND kind='supplier' AND status='active' ORDER BY name`).bind(a.companyId).all<Row>(),
+ write.prepare(activeMasterLookup('id,sku,name,unit',`${commercePlatformSources.commerce_products}`,'commerce_products','sku')).bind(a.companyId).all<Row>(),
+ write.prepare(activeMasterLookup('id,name,branch_id',`${commercePlatformSources.commerce_warehouses}`,'commerce_warehouses','name',''," AND (?::text IS NULL OR branch_id=?)")).bind(a.companyId,a.branchId,a.branchId).all<Row>(),
+ write.prepare(activeMasterLookup('id,name',`${financePlatformSources.finance_parties}`,'finance_parties','name'," AND kind='supplier'")).bind(a.companyId).all<Row>(),
  write.prepare(currencyRead).bind(a.companyId).first<Row>()]);return {rfqs:rfqs.results,products:products.results,warehouses:warehouses.results,suppliers:suppliers.results,currency:String(config?.currency??'')};},
  sourceState:async(id)=>(await database()).prepare(pointRead('state,evidence_version,items_json,approval_json',`(${recordsPlatformSources.employee_requests}) employee_requests`)).bind(id,a.companyId).first<Row>(),
  quotationSource:async(id)=>requestQuotationSource(await database(),a,id),currentQuotationSource:async(id)=>{try{return await requestQuotationSource(await database(),a,id);}catch(error){if(error instanceof ApiError&&[403,404,409].includes(error.status))return null;throw error;}},

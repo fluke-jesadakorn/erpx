@@ -2,7 +2,6 @@ import "server-only";
 import {receiptImage} from './read-tail-r19';
 import {randomUUID} from "node:crypto";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
@@ -13,14 +12,15 @@ import {commercePackageEnforcementMode,checkPurchasedCapability,readPurchasedAcc
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
 import {supplierBillSchema,requestedBillReceipts} from "@erpx/server-procurement/domain/supplier-bills";
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
-import {workforceActorScopeColumns,commandReplayGuard,branchDepartmentScope} from './read-tail-sql';
+import {commandReplayGuard,branchDepartmentScope} from './read-tail-sql';
+import {assignmentScopeProbe} from './read-tail-r30';
 import {billReceiptBinding} from './read-tail-r23';
 import {foreignBillReceiptWitness} from './read-tail-r25';
 
 const capability="supply.purchasing",foundations=[capability,"supply.receiving","finance.inventory-valuation"] as const;
 export type SupplierBillPurchase={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 async function authority(database:SqlDatabase,actor:WorkContext,permissions:readonly string[],key:string){
- for(const permission of permissions){const row=await database.prepare(`SELECT ${assignmentReadSql("bill_scope",permission)} allowed FROM ${workforceActorScopeColumns} bill_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();if(!row?.allowed)throw new ApiError(403,"SUPPLIER_BILL_ACCESS_CHANGED","Choose a current authorized supplier-invoice work role.");}
+ for(const permission of permissions){const row=await database.prepare(assignmentScopeProbe("bill_scope",permission)).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();if(!row?.allowed)throw new ApiError(403,"SUPPLIER_BILL_ACCESS_CHANGED","Choose a current authorized supplier-invoice work role.");}
  await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearWorkflowCommandAssertions(database, key)]);
 }
 export async function supplierBillPurchaseAccess(database:SqlDatabase,actor:WorkContext){const mode=await commercePackageEnforcementMode();if(mode==="disabled")return undefined;await authority(database,actor,["finance.read"],`bill-read:${randomUUID()}`);return readPurchasedAccess(database,mode,{companyId:actor.companyId,capability});}

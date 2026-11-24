@@ -10,13 +10,14 @@ import {BusinessRuleError} from "@erpx/server-shared/index";
 import {createPurchaseProgressApplication} from "@erpx/server-procurement/application/request-progress";
 import {nativeProcurementReadAll,PROCUREMENT_RD_REQUEST_ALLOCATIONS,PROCUREMENT_RD_PROGRESS_REQUEST_RFQS} from "./native-procurement-read";
 import {requestOrderLink} from './read-tail-r19';
+import {orderScopedAggregate} from './read-tail-r30';
 import type {ProgressRow,PurchaseProgressRequest} from "@erpx/server-procurement/domain/request-progress";
 export type {PurchaseProgressState,PurchaseProgressStep,PurchaseRequestProgress} from "@erpx/server-procurement/domain/request-progress";
 async function facts(db:SqlDatabase,actor:WorkContext,request:PurchaseProgressRequest){
   const rfqs = (await nativeProcurementReadAll<ProgressRow>(PROCUREMENT_RD_PROGRESS_REQUEST_RFQS,[request.id,actor.companyId],db)).results;
-  const orders=(await db.prepare(`SELECT DISTINCT o.id,o.number,o.state,o.created_at FROM (${commercePlatformSources.commerce_orders}) o WHERE o.company_id=? AND o.kind='purchase' AND (o.id=? OR ${requestOrderLink("l","o")}) ORDER BY o.created_at DESC,o.id DESC`).bind(actor.companyId,request.purchase_order_id,request.id).all<ProgressRow>()).results;
-  const quantities=await db.prepare(`SELECT COALESCE(SUM(l.quantity_milli),0) ordered_milli,COALESCE(SUM(l.fulfilled_milli),0) received_milli FROM (${commercePlatformSources.commerce_order_lines}) l JOIN (${commercePlatformSources.commerce_orders}) o ON o.id=l.order_id WHERE o.company_id=? AND (o.id=? OR ${requestOrderLink("link","o")})`).bind(actor.companyId,request.purchase_order_id,request.id).first<ProgressRow>();
-  const receipts=await db.prepare(`SELECT COUNT(*) receipt_count FROM (${commercePlatformSources.commerce_fulfillments}) f JOIN (${commercePlatformSources.commerce_orders}) o ON o.id=f.order_id WHERE o.company_id=? AND (o.id=? OR ${requestOrderLink("link","o")})`).bind(actor.companyId,request.purchase_order_id,request.id).first<ProgressRow>();
+  const orders=(await db.prepare(orderScopedAggregate('DISTINCT o.id,o.number,o.state,o.created_at',`(${commercePlatformSources.commerce_orders}) o`,requestOrderLink("l","o"),'o'," AND o.kind='purchase'",' ORDER BY o.created_at DESC,o.id DESC')).bind(actor.companyId,request.purchase_order_id,request.id).all<ProgressRow>()).results;
+  const quantities=await db.prepare(orderScopedAggregate('COALESCE(SUM(l.quantity_milli),0) ordered_milli,COALESCE(SUM(l.fulfilled_milli),0) received_milli',`(${commercePlatformSources.commerce_order_lines}) l JOIN (${commercePlatformSources.commerce_orders}) o ON o.id=l.order_id`,requestOrderLink("link","o"),'o')).bind(actor.companyId,request.purchase_order_id,request.id).first<ProgressRow>();
+  const receipts=await db.prepare(orderScopedAggregate('COUNT(*) receipt_count',`(${commercePlatformSources.commerce_fulfillments}) f JOIN (${commercePlatformSources.commerce_orders}) o ON o.id=f.order_id`,requestOrderLink("link","o"),'o')).bind(actor.companyId,request.purchase_order_id,request.id).first<ProgressRow>();
   const bills=await db
         .prepare(
           `SELECT COUNT(*) bill_count,

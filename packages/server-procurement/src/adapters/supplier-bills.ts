@@ -34,6 +34,7 @@ import {memberScopeExclusion} from './read-tail-r24';
 import {fulfillmentLinesBy} from './read-tail-r26';
 import {policyVersionGuard} from './read-tail-r29';
 import {settingsRead} from './read-tail-r27';
+import {versionStatusScopeGuard} from './read-tail-r30';
 export {supplierBillSchema,supplierBillDecisionSchema,supplierInvoicePolicySchema,matchedBillLines} from "@erpx/server-procurement/domain/supplier-bills";
 const scope=branchDepartmentScope("m");
 const args=(actor:WorkContext)=>[actor.companyId,actor.branchId,actor.branchId,actor.departmentId,actor.departmentId];
@@ -178,7 +179,7 @@ async function commit<Result>(write:SqlDatabase,actor:WorkContext,m:BillMutation
  nativeProcurementStatement('procurement_stmt_8', { now: Date.now() }).bind(`supplier-policy-${key}`,actor.companyId,m.version,m.previous,input.matchingMode,actor.userId,input.reason,now),
  ],{companyId:actor.companyId,branchId:null,departmentId:null});}
  const {input,bill,returnDraft,variance,status}=m;
- const steps:SqlStatement[]=[assertion(write,key,'bill-review',`EXISTS(SELECT 1 FROM procurement_bill_matches m WHERE m.id=? AND m.version=? AND m.status=? AND ${scope})`,[id,input.expectedVersion,bill.status,...args(actor)])];
+ const steps:SqlStatement[]=[assertion(write,key,'bill-review',versionStatusScopeGuard("procurement_bill_matches","m",scope),[id,input.expectedVersion,bill.status,...args(actor)])];
  if(input.action==='approve'&&variance)steps.push(assertion(write,key,'variance-account',`EXISTS(${expenseAccountBy(financePlatformSources.finance_accounts,financePlatformSources.finance_charts,"1")})`,[input.varianceAccountId!,actor.companyId,bill.chart_id]));
  if(returnDraft)steps.push(...await stageSupplierBillDraftVoid(write,actor.companyId,{invoiceId:String(bill.invoice_id),invoiceVersion:Number(bill.invoice_version),matchId:id},key,now),stageSupplierBillReceiptLinks(write,id,null));
  if(status==='returned')steps.push(nativeProcurementStatement('procurement_stmt_9', { now: Date.now() }).bind(id));
