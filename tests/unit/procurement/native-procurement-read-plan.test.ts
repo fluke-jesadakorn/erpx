@@ -26,6 +26,9 @@ import {
   PROCUREMENT_RD_RFQ_BY_ORDER,
   PROCUREMENT_RD_BILL_BY_INVOICE,
   PROCUREMENT_RD_LATEST_BILL_BY_FULFILLMENT,
+  PROCUREMENT_RD_PROMISE_HISTORY_BY_ORDER,
+  PROCUREMENT_RD_PROMISE_SCHEDULE_BY_ORDER,
+  PROCUREMENT_RD_OPEN_PROMISE_LINES_BY_ORDER,
 } from '../../../packages/server-procurement/src/adapters/native-procurement-read';
 import { procurementInvoiceMatchForFinance } from '../../../packages/server-procurement/src/adapters/finance-entrypoint-queries';
 import { requestQuotation } from '../../../packages/server-procurement/src/adapters/people-app-entrypoint-facts';
@@ -59,6 +62,9 @@ const planned = {
   [PROCUREMENT_RD_RFQ_BY_ORDER]: 'SELECT id FROM procurement_rfqs WHERE order_id=? AND company_id=?',
   [PROCUREMENT_RD_BILL_BY_INVOICE]: 'SELECT * FROM procurement_bill_matches WHERE invoice_id=? AND company_id=?',
   [PROCUREMENT_RD_LATEST_BILL_BY_FULFILLMENT]: "SELECT id,status FROM procurement_bill_matches WHERE fulfillment_id=? ORDER BY (status<>'returned') DESC,created_at DESC,id DESC LIMIT 1",
+  [PROCUREMENT_RD_PROMISE_HISTORY_BY_ORDER]: 'SELECT * FROM procurement_delivery_promises WHERE order_id=? ORDER BY order_version DESC',
+  [PROCUREMENT_RD_PROMISE_SCHEDULE_BY_ORDER]: 'SELECT l.* FROM procurement_delivery_promise_lines l JOIN procurement_delivery_promises h ON h.id=l.promise_id WHERE h.order_id=? ORDER BY h.order_version DESC,l.promised_date,l.ordinal',
+  [PROCUREMENT_RD_OPEN_PROMISE_LINES_BY_ORDER]: 'SELECT p.* FROM procurement_open_promise_lines p JOIN procurement_delivery_promises h ON h.id=p.promise_id WHERE h.order_id=? ORDER BY p.promised_date,p.ordinal',
 };
 const stubFetch = (payload: unknown, status = 200) => {
   const fetchMock = vi.fn(async () => ({
@@ -127,7 +133,10 @@ describe('native Procurement caller-unit read plan', () => {
     expect(PROCUREMENT_RD_RFQ_BY_ORDER).toBe('procurement_rd_rfq_by_order');
     expect(PROCUREMENT_RD_BILL_BY_INVOICE).toBe('procurement_rd_bill_by_invoice');
     expect(PROCUREMENT_RD_LATEST_BILL_BY_FULFILLMENT).toBe('procurement_rd_latest_bill_by_fulfillment');
-    for (const kind of [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE, PROCUREMENT_RD_REQUEST_QUOTATION, PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH, PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL, PROCUREMENT_RD_BILL_MATCH_RECEIPTS, PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT, PROCUREMENT_RD_REQUEST_ALLOCATIONS, PROCUREMENT_RD_REQUEST_ORDER_LINK, PROCUREMENT_RD_BILL_MATCH_VARIANCE, PROCUREMENT_RD_BILL_MATCH_RECEIPT_HISTORY, PROCUREMENT_RD_INVOICE_POLICY_MATCHING_REQUIRED, PROCUREMENT_RD_RECORD_BILL_MATCH_EXISTS, PROCUREMENT_RD_RECORD_RFQ_EXISTS, PROCUREMENT_RD_BILL_MATCH_EVENTS, PROCUREMENT_RD_BILL_MATCH_LINES_FOR_INVOICE, PROCUREMENT_RD_POSTED_BILL_MATCH_FOR_INVOICE, PROCUREMENT_RD_EMPLOYEE_REQUEST_ORDERED_QUOTATION, PROCUREMENT_RD_HANDOFF_APPROVED_QUOTATION, PROCUREMENT_RD_PROGRESS_REQUEST_RFQS, PROCUREMENT_RD_RFQ_BY_ORDER, PROCUREMENT_RD_BILL_BY_INVOICE, PROCUREMENT_RD_LATEST_BILL_BY_FULFILLMENT]) {
+    expect(PROCUREMENT_RD_PROMISE_HISTORY_BY_ORDER).toBe('procurement_rd_promise_history_by_order');
+    expect(PROCUREMENT_RD_PROMISE_SCHEDULE_BY_ORDER).toBe('procurement_rd_promise_schedule_by_order');
+    expect(PROCUREMENT_RD_OPEN_PROMISE_LINES_BY_ORDER).toBe('procurement_rd_open_promise_lines_by_order');
+    for (const kind of [PROCUREMENT_RD_INVOICE_MATCH_FOR_FINANCE, PROCUREMENT_RD_REQUEST_QUOTATION, PROCUREMENT_RD_OPERATIONAL_ATTACHMENT_BILL_MATCH, PROCUREMENT_RD_DOCUMENT_POSTING_MATCHED_BILL, PROCUREMENT_RD_BILL_MATCH_RECEIPTS, PROCUREMENT_RD_ACTIVE_QUOTATION_COUNT, PROCUREMENT_RD_REQUEST_ALLOCATIONS, PROCUREMENT_RD_REQUEST_ORDER_LINK, PROCUREMENT_RD_BILL_MATCH_VARIANCE, PROCUREMENT_RD_BILL_MATCH_RECEIPT_HISTORY, PROCUREMENT_RD_INVOICE_POLICY_MATCHING_REQUIRED, PROCUREMENT_RD_RECORD_BILL_MATCH_EXISTS, PROCUREMENT_RD_RECORD_RFQ_EXISTS, PROCUREMENT_RD_BILL_MATCH_EVENTS, PROCUREMENT_RD_BILL_MATCH_LINES_FOR_INVOICE, PROCUREMENT_RD_POSTED_BILL_MATCH_FOR_INVOICE, PROCUREMENT_RD_EMPLOYEE_REQUEST_ORDERED_QUOTATION, PROCUREMENT_RD_HANDOFF_APPROVED_QUOTATION, PROCUREMENT_RD_PROGRESS_REQUEST_RFQS, PROCUREMENT_RD_RFQ_BY_ORDER, PROCUREMENT_RD_BILL_BY_INVOICE, PROCUREMENT_RD_LATEST_BILL_BY_FULFILLMENT, PROCUREMENT_RD_PROMISE_HISTORY_BY_ORDER, PROCUREMENT_RD_PROMISE_SCHEDULE_BY_ORDER, PROCUREMENT_RD_OPEN_PROMISE_LINES_BY_ORDER]) {
       expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
     }
   });
@@ -535,6 +544,38 @@ describe('native Procurement caller-unit read plan', () => {
     expect(bills).not.toContain("SELECT id,status FROM procurement_bill_matches WHERE fulfillment_id=? ORDER BY (status<>'returned') DESC,created_at DESC,id DESC LIMIT 1");
     expect(bills).toContain('PROCUREMENT_RD_BILL_BY_INVOICE');
     expect(bills).toContain('PROCUREMENT_RD_LATEST_BILL_BY_FULFILLMENT');
+  });
+
+  it('plans the three supplier-promise detail reads and retires their TypeScript literals', async () => {
+    const cases = [
+      [PROCUREMENT_RD_PROMISE_HISTORY_BY_ORDER, ['order-1'], [{ id: 'promise-1' }]],
+      [PROCUREMENT_RD_PROMISE_SCHEDULE_BY_ORDER, ['order-1'], [{ id: 'line-1' }]],
+      [PROCUREMENT_RD_OPEN_PROMISE_LINES_BY_ORDER, ['order-1'], [{ id: 'open-1' }]],
+    ] as const;
+    for (const [kind, values, rows] of cases) {
+      const fetchMock = stubFetch({ data: { statements: [{ sql: planned[kind], values }] } });
+      const { db, prepared, bound } = fakeDb([...rows]);
+      const result = await nativeProcurementReadAll<Record<string, unknown>>(kind, values, db as never);
+      expect(result.results).toEqual([...rows]);
+      expect(prepared).toEqual([planned[kind]]);
+      expect(bound).toEqual([[...values]]);
+      const [, init] = fetchMock.mock.calls[0] as unknown as [URL, RequestInit];
+      const body = JSON.parse(init.body as string) as { kind: string; values: unknown[] };
+      expect(body.kind).toBe(kind);
+      expect(body.values).toEqual([...values]);
+      expect(JSON.stringify(body)).not.toContain('SELECT');
+    }
+
+    const promises = readFileSync(
+      new URL('../../../packages/server-procurement/src/adapters/supplier-promises.ts', import.meta.url),
+      'utf8',
+    );
+    expect(promises).not.toContain('SELECT * FROM procurement_delivery_promises WHERE order_id=? ORDER BY order_version DESC');
+    expect(promises).not.toContain('SELECT l.* FROM procurement_delivery_promise_lines l JOIN procurement_delivery_promises h ON h.id=l.promise_id WHERE h.order_id=? ORDER BY h.order_version DESC,l.promised_date,l.ordinal');
+    expect(promises).not.toContain('SELECT p.* FROM procurement_open_promise_lines p JOIN procurement_delivery_promises h ON h.id=p.promise_id WHERE h.order_id=? ORDER BY p.promised_date,p.ordinal');
+    expect(promises).toContain('PROCUREMENT_RD_PROMISE_HISTORY_BY_ORDER');
+    expect(promises).toContain('PROCUREMENT_RD_PROMISE_SCHEDULE_BY_ORDER');
+    expect(promises).toContain('PROCUREMENT_RD_OPEN_PROMISE_LINES_BY_ORDER');
   });
 
   it('fails closed when the native transport is not configured', async () => {

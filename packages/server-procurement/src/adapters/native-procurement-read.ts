@@ -39,6 +39,9 @@ export const PROCUREMENT_RD_PROGRESS_REQUEST_RFQS = 'procurement_rd_progress_req
 export const PROCUREMENT_RD_RFQ_BY_ORDER = 'procurement_rd_rfq_by_order';
 export const PROCUREMENT_RD_BILL_BY_INVOICE = 'procurement_rd_bill_by_invoice';
 export const PROCUREMENT_RD_LATEST_BILL_BY_FULFILLMENT = 'procurement_rd_latest_bill_by_fulfillment';
+export const PROCUREMENT_RD_PROMISE_HISTORY_BY_ORDER = 'procurement_rd_promise_history_by_order';
+export const PROCUREMENT_RD_PROMISE_SCHEDULE_BY_ORDER = 'procurement_rd_promise_schedule_by_order';
+export const PROCUREMENT_RD_OPEN_PROMISE_LINES_BY_ORDER = 'procurement_rd_open_promise_lines_by_order';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'PROCUREMENT_NATIVE_READ_UNAVAILABLE', 'The native Procurement read service is unavailable.');

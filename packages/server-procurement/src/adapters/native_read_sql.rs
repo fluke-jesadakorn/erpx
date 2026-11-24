@@ -315,6 +315,43 @@ const READ_LATEST_BILL_BY_FULFILLMENT: NativeReadStatement = NativeReadStatement
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `supplier-promises` `detail` promise
+/// history literal. The owner plans this exact statement; the caller executes
+/// it on its open unit with the same `[orderId]` bind.
+pub const RD_PROMISE_HISTORY_BY_ORDER: &str = "procurement_rd_promise_history_by_order";
+const SQL_PROMISE_HISTORY_BY_ORDER: &str =
+    "SELECT * FROM procurement_delivery_promises WHERE order_id=? ORDER BY order_version DESC";
+const READ_PROMISE_HISTORY_BY_ORDER: NativeReadStatement = NativeReadStatement {
+    kind: RD_PROMISE_HISTORY_BY_ORDER,
+    sql: SQL_PROMISE_HISTORY_BY_ORDER,
+    bind_count: 1,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript `supplier-promises` `detail` promise
+/// schedule literal. Same owner literal and `[orderId]` bind.
+pub const RD_PROMISE_SCHEDULE_BY_ORDER: &str = "procurement_rd_promise_schedule_by_order";
+const SQL_PROMISE_SCHEDULE_BY_ORDER: &str =
+    "SELECT l.* FROM procurement_delivery_promise_lines l JOIN procurement_delivery_promises h ON h.id=l.promise_id WHERE h.order_id=? ORDER BY h.order_version DESC,l.promised_date,l.ordinal";
+const READ_PROMISE_SCHEDULE_BY_ORDER: NativeReadStatement = NativeReadStatement {
+    kind: RD_PROMISE_SCHEDULE_BY_ORDER,
+    sql: SQL_PROMISE_SCHEDULE_BY_ORDER,
+    bind_count: 1,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript `supplier-promises` `detail` open promise
+/// lines literal. Same owner literal and `[orderId]` bind.
+pub const RD_OPEN_PROMISE_LINES_BY_ORDER: &str = "procurement_rd_open_promise_lines_by_order";
+const SQL_OPEN_PROMISE_LINES_BY_ORDER: &str =
+    "SELECT p.* FROM procurement_open_promise_lines p JOIN procurement_delivery_promises h ON h.id=p.promise_id WHERE h.order_id=? ORDER BY p.promised_date,p.ordinal";
+const READ_OPEN_PROMISE_LINES_BY_ORDER: NativeReadStatement = NativeReadStatement {
+    kind: RD_OPEN_PROMISE_LINES_BY_ORDER,
+    sql: SQL_OPEN_PROMISE_LINES_BY_ORDER,
+    bind_count: 1,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_INVOICE_MATCH_FOR_FINANCE,
     READ_REQUEST_QUOTATION,
@@ -338,6 +375,9 @@ const READS: &[NativeReadStatement] = &[
     READ_RFQ_BY_ORDER,
     READ_BILL_BY_INVOICE,
     READ_LATEST_BILL_BY_FULFILLMENT,
+    READ_PROMISE_HISTORY_BY_ORDER,
+    READ_PROMISE_SCHEDULE_BY_ORDER,
+    READ_OPEN_PROMISE_LINES_BY_ORDER,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -378,6 +418,9 @@ mod tests {
         assert!(is_read(RD_RFQ_BY_ORDER));
         assert!(is_read(RD_BILL_BY_INVOICE));
         assert!(is_read(RD_LATEST_BILL_BY_FULFILLMENT));
+        assert!(is_read(RD_PROMISE_HISTORY_BY_ORDER));
+        assert!(is_read(RD_PROMISE_SCHEDULE_BY_ORDER));
+        assert!(is_read(RD_OPEN_PROMISE_LINES_BY_ORDER));
         assert!(!is_read("procurement_stmt_1"));
         assert!(read_statement("not_a_native_read").is_none());
     }
@@ -478,6 +521,21 @@ mod tests {
                 RD_LATEST_BILL_BY_FULFILLMENT,
                 1usize,
                 "procurement_bill_matches",
+            ),
+            (
+                RD_PROMISE_HISTORY_BY_ORDER,
+                1usize,
+                "procurement_delivery_promises",
+            ),
+            (
+                RD_PROMISE_SCHEDULE_BY_ORDER,
+                1usize,
+                "procurement_delivery_promise_lines",
+            ),
+            (
+                RD_OPEN_PROMISE_LINES_BY_ORDER,
+                1usize,
+                "procurement_open_promise_lines",
             ),
         ] {
             let read = read_statement(kind).expect("read kind");
@@ -763,6 +821,48 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 1);
         assert_eq!(read.scope, "holding");
         assert!(is_read(RD_LATEST_BILL_BY_FULFILLMENT));
+        assert!(!is_read("procurement_stmt_1"));
+    }
+
+    #[test]
+    fn promise_history_by_order_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_PROMISE_HISTORY_BY_ORDER).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT * FROM procurement_delivery_promises WHERE order_id=? ORDER BY order_version DESC"
+        );
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_PROMISE_HISTORY_BY_ORDER));
+        assert!(!is_read("procurement_stmt_1"));
+    }
+
+    #[test]
+    fn promise_schedule_by_order_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_PROMISE_SCHEDULE_BY_ORDER).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT l.* FROM procurement_delivery_promise_lines l JOIN procurement_delivery_promises h ON h.id=l.promise_id WHERE h.order_id=? ORDER BY h.order_version DESC,l.promised_date,l.ordinal"
+        );
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_PROMISE_SCHEDULE_BY_ORDER));
+        assert!(!is_read("procurement_stmt_1"));
+    }
+
+    #[test]
+    fn open_promise_lines_by_order_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_OPEN_PROMISE_LINES_BY_ORDER).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT p.* FROM procurement_open_promise_lines p JOIN procurement_delivery_promises h ON h.id=p.promise_id WHERE h.order_id=? ORDER BY p.promised_date,p.ordinal"
+        );
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_OPEN_PROMISE_LINES_BY_ORDER));
         assert!(!is_read("procurement_stmt_1"));
     }
 }

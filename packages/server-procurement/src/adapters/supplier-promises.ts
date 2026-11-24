@@ -10,6 +10,7 @@ import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {getOrder} from '@erpx/server-commerce/public/commerce-order-read';
 import {stageSupplierPromiseOrderVersion} from "@erpx/server-commerce/public/supplier-promise-version";
 import {nativeSupplierPromiseNotification} from "./native-supplier-promise-notification";
+import {nativeProcurementReadAll,PROCUREMENT_RD_PROMISE_HISTORY_BY_ORDER,PROCUREMENT_RD_PROMISE_SCHEDULE_BY_ORDER,PROCUREMENT_RD_OPEN_PROMISE_LINES_BY_ORDER} from "./native-procurement-read";
 import {prepareAttachmentBinding} from "@erpx/server-files/public/attachments/service";
 import {attachmentPurposeFacts} from "@erpx/server-files/public/attachment-purpose-facts";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
@@ -30,9 +31,9 @@ function application(a:WorkContext,provided?:SqlDatabase){
  order:async(id)=>{return (await database()).prepare(`SELECT o.*,p.name supplier_name FROM (${commercePlatformSources.commerce_orders}) o JOIN (${financePlatformSources.finance_parties}) p ON p.id=o.party_id WHERE o.id=? AND o.kind='purchase' AND ${scope}`).bind(id,...scopeArgs(a)).first<Row>();},sourceLines:async(id)=>(await getOrder(a,id,provided)).lines,
  detail:async(id)=>{const write=await database();const [lines,history,schedule]=await Promise.all([
  write.prepare(`SELECT l.*,p.sku FROM (${commercePlatformSources.commerce_order_lines}) l JOIN (${commercePlatformSources.commerce_products}) p ON p.id=l.product_id WHERE l.order_id=? ORDER BY l.ordinal`).bind(id).all<Row>(),
- write.prepare('SELECT * FROM procurement_delivery_promises WHERE order_id=? ORDER BY order_version DESC').bind(id).all<Row>(),
- write.prepare('SELECT l.* FROM procurement_delivery_promise_lines l JOIN procurement_delivery_promises h ON h.id=l.promise_id WHERE h.order_id=? ORDER BY h.order_version DESC,l.promised_date,l.ordinal').bind(id).all<Row>()]);
- const open=(await write.prepare('SELECT p.* FROM procurement_open_promise_lines p JOIN procurement_delivery_promises h ON h.id=p.promise_id WHERE h.order_id=? ORDER BY p.promised_date,p.ordinal').bind(id).all<Row>()).results;
+ nativeProcurementReadAll<Row>(PROCUREMENT_RD_PROMISE_HISTORY_BY_ORDER,[id],write),
+ nativeProcurementReadAll<Row>(PROCUREMENT_RD_PROMISE_SCHEDULE_BY_ORDER,[id],write)]);
+ const open=(await nativeProcurementReadAll<Row>(PROCUREMENT_RD_OPEN_PROMISE_LINES_BY_ORDER,[id],write)).results;
 return {lines:lines.results,history:history.results,schedule:schedule.results,open};},
  evidenceSets:async(ids)=>attachmentPurposeFacts(await database(),a.companyId,ids),
  prepareEvidence:async(id,promiseId,input,key)=>prepareAttachmentBinding(await database(),a,{attachmentSetIds:input.attachmentSetIds,bindingContract:{targetType:'purchase_order',bindingType:'supplier_promise',contexts:[{purposeKey:'supplier_promise',componentKind:'action',componentRef:'supplier-promise'}]},targetId:id,expectedTargetVersion:input.expectedVersion,commandId:key,bindingId:promiseId}),
