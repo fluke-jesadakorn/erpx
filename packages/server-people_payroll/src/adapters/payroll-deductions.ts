@@ -1,10 +1,11 @@
 import "server-only";
+import { ppRd35PayrollItemsByRun } from './pp-read-tail-r35-sources';
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import { payrollDeductions } from '@erpx/server-collaboration/adapters/native-payroll-deductions';
-import {BusinessRuleError} from '@erpx/server-shared/index';import {createPayrollDeductionApplication,type PayrollDeductionMutation,type PayrollDeductionItem} from '@erpx/server-people_payroll/application/payroll-deductions';export async function preparePayrollDeductionConsumption(write:SqlDatabase,actor:WorkContext,runId:string,journalId:string,receivableAccountId:string|undefined,key:string){try{return await createPayrollDeductionApplication({clock:{now:Date.now},items:async runId=>(await write.prepare('SELECT id,engagement_id,input_snapshot_json,result_json FROM hr_payroll_items WHERE run_id=? ORDER BY id').bind(runId).all<PayrollDeductionItem>()).results,stage:async (m:PayrollDeductionMutation)=>{const{actor,runId,journalId,receivableAccountId,key,now,installments}=m; const guards:SqlStatement[]=[
+import {BusinessRuleError} from '@erpx/server-shared/index';import {createPayrollDeductionApplication,type PayrollDeductionMutation,type PayrollDeductionItem} from '@erpx/server-people_payroll/application/payroll-deductions';export async function preparePayrollDeductionConsumption(write:SqlDatabase,actor:WorkContext,runId:string,journalId:string,receivableAccountId:string|undefined,key:string){try{return await createPayrollDeductionApplication({clock:{now:Date.now},items:async runId=>(await write.prepare(ppRd35PayrollItemsByRun('id,engagement_id,input_snapshot_json,result_json', ' ORDER BY id')).bind(runId).all<PayrollDeductionItem>()).results,stage:async (m:PayrollDeductionMutation)=>{const{actor,runId,journalId,receivableAccountId,key,now,installments}=m; const guards:SqlStatement[]=[
   write.prepare(`SELECT a.id FROM hr_payroll_advances a WHERE a.id IN (SELECT advance_id FROM hr_payroll_advance_repayments WHERE id IN (${installments.map(()=>'?').join(',')})) ORDER BY a.id FOR UPDATE`).bind(...installments.map(row=>row.id)),
   write.prepare(`SELECT id FROM hr_payroll_advance_repayments WHERE id IN (${installments.map(()=>'?').join(',')}) ORDER BY id FOR UPDATE`).bind(...installments.map(row=>row.id)),
  ];

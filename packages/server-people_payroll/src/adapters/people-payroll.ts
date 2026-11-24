@@ -4,6 +4,7 @@ import { ppRd31StatusGuard } from './pp-read-tail-r31-sources';
 import { ppRd32TwoColProjection } from './pp-read-tail-r32-sources';
 import { ppRd33FourColByIdCompany } from './pp-read-tail-r33-sources';
 import { ppRd34ActivePayGroupProjection } from './pp-read-tail-r34-sources';
+import { ppRd35PayrollItemsByRun } from './pp-read-tail-r35-sources';
 import { ppRd26IdCompanyVersionStatusGuard, ppRd26CommandReceiptPriorSql, ppRd26RunIdGuard } from './pp-read-tail-r26-sources';
 import { ppRd27IdByIdCompanySql } from './pp-read-tail-r27-sources';
 import { PP_RD28_ADVANCE_REPAYMENTS_SQL } from './pp-read-tail-r28-sources';
@@ -408,7 +409,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
     WHERE r.id=? AND r.company_id=? GROUP BY r.id`).bind(runId, companyId).first<Record<string, string | number | null>>();
         },
         readPreparePayrollAccrualItems(runId: string) {
-            return database.prepare("SELECT id,worker_type,gross_minor,deductions_minor,employer_cost_minor,net_minor,input_snapshot_json,result_json FROM hr_payroll_items WHERE run_id=? ORDER BY id").bind(runId).all<PayrollPostingItem & {
+            return database.prepare(ppRd35PayrollItemsByRun('id,worker_type,gross_minor,deductions_minor,employer_cost_minor,net_minor,input_snapshot_json,result_json', ' ORDER BY id')).bind(runId).all<PayrollPostingItem & {
                 worker_type: string;
             }>();
         },

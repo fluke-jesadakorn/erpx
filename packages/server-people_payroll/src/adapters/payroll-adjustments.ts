@@ -1,5 +1,6 @@
 import { PP_RD22_ACTIVE_PERSON_VERSION_GUARD } from './pp-read-tail-r22-sources';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
+import { ppRd35PayrollItemsByRun } from './pp-read-tail-r35-sources';
 import { ppRd27IdCompanyEngagementApprovedVersionGuard } from './pp-read-tail-r27-sources';
 import { ppRd21IdCompanyStatusVersionGuard } from './pp-read-tail-r21-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
@@ -59,7 +60,7 @@ function application(provided?: SqlDatabase) {
         stageCalculatePayrollAdjustmentRunEffect3(value: string, digest: string, now: number, id: string) { return nativePpStatement('pp_payroll_adjustments_stmt_9').bind(value, digest, now, id); },
         stageCalculatePayrollAdjustmentRunEffect4(value: string, id: string, engagementId: string, value2: string, value3: string, gross: number, deductions: number, employer: number, net: number, now: number) { return nativePpStatement('pp_payroll_adjustments_stmt_10').bind(value, id, engagementId, value2, value3, gross, deductions, employer, net, now); },
         readPayrollAdjustmentSourceFreshRow(id: string) {
-            return database.prepare("SELECT input_snapshot_json FROM hr_payroll_items WHERE run_id=?").bind(id).first<{
+            return database.prepare(ppRd35PayrollItemsByRun('input_snapshot_json')).bind(id).first<{
                 input_snapshot_json: string;
             }>();
         },

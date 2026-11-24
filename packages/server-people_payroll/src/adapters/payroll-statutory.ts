@@ -1,5 +1,6 @@
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { ppRd34ActivePayGroupProjection } from './pp-read-tail-r34-sources';
+import { ppRd35PayrollItemsByRun } from './pp-read-tail-r35-sources';
 import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
 import { ppRd27IdCompanyEngagementApprovedVersionGuard } from './pp-read-tail-r27-sources';
 import { payrollStatutory } from '@erpx/server-collaboration/adapters/native-payroll-statutory';
@@ -55,7 +56,7 @@ function application(provided?: SqlDatabase) {
             country_pack_id: string | null;
             currency: string;
         }>(); },
-        items(runId: string) { return database.prepare("SELECT gross_minor,deductions_minor,net_minor,result_json FROM hr_payroll_items WHERE run_id=?").bind(runId).all<{
+        items(runId: string) { return database.prepare(ppRd35PayrollItemsByRun('gross_minor,deductions_minor,net_minor,result_json')).bind(runId).all<{
             gross_minor: number;
             deductions_minor: number;
             net_minor: number;
