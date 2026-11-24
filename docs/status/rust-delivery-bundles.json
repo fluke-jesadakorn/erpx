@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12461,
+    "revision": 12463,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183119,7 +183119,7 @@
         "owner": "crm",
         "title": "crm TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183130,28 +183130,36 @@
         "resources": [
           "owner:crm"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n92",
-          "claimedAt": "2026-11-24T16:09:12.523Z",
-          "heartbeatAt": "2026-11-24T16:11:53.559Z",
-          "expiresAt": "2026-11-24T16:41:53.559Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-crm/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "50570be7a",
+            "owner": "crm",
+            "before": 95,
+            "after": 91,
+            "note": "Three ordered-list sites reuse r40 crmScopedDescListSql; record-purchases crm-work reuses r37 crmSalesOpportunitySql. Four SHA oracles pass; binds unchanged; locks/receipts/native untouched."
+          },
+          {
+            "command": "vitest crm (137 targeted; 231 owner) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "50570be7a"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Ordered-list tail reuse (-3), opportunity-lead join anchor (-1): 95->91. BEFORE=95.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261124-d",
-          "agentId": "lead-opencode",
-          "at": "2026-11-24T16:09:12.396Z",
+          "agentId": "wH4n92",
+          "at": "2026-11-24T16:22:17.737Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Ordered-list tail reuse (-3), opportunity-lead join anchor (-1): 95->91. BEFORE=95."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -184212,17 +184220,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 11,
+        "in_progress": 10,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1445,
+        "blocked": 1446,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:21:33.026Z",
+    "updatedAt": "2026-11-24T16:22:17.742Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
