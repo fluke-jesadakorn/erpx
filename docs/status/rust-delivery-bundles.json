@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9078,
+    "revision": 9080,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -136864,7 +136864,7 @@
         "owner": "records",
         "title": "records record_context native read port",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -136876,28 +136876,37 @@
         "resources": [
           "owner:records"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGBRrec",
-          "claimedAt": "2026-11-24T03:57:20.914Z",
-          "heartbeatAt": "2026-11-24T04:26:55.017Z",
-          "expiresAt": "2026-11-24T04:56:55.017Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-records --tests --locked",
+            "result": "passed",
+            "sourceSha": "7fc4f2edc"
+          },
+          {
+            "command": "cargo test records 17 targets / 106 tests passed (live PG; ERPX_BUN_BIN set)",
+            "result": "passed",
+            "sourceSha": "7fc4f2edc"
+          },
+          {
+            "command": "cargo test record_context_parity_postgres 1/1",
+            "result": "passed",
+            "sourceSha": "7fc4f2edc"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Build native record_context read port + router in owner crate with PG parity test; no composition edits. Unblocks retire.records.read-tail-r13.",
+        "blocker": "handoff",
+        "nextAction": "Port complete; cutover queued.",
         "handoff": {
-          "runId": "run-20261123-i",
+          "runId": "run-20261123-j",
           "agentId": "wGBRrec",
-          "at": "2026-11-24T03:57:20.238Z",
+          "at": "2026-11-24T04:41:20.610Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long cargo queue; WIP reviewed, all owner claims preserved and re-issued.",
-          "nextAction": "Build native record_context read port + router in owner crate with PG parity test; no composition edits. Unblocks retire.records.read-tail-r13."
+          "reason": "handoff",
+          "nextAction": "Port complete; cutover queued."
         },
         "scopeRefinementRequired": false
       },
@@ -147478,17 +147487,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 12,
+        "in_progress": 11,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 712,
+        "blocked": 713,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 162,
-    "updatedAt": "2026-11-24T04:37:52.076Z",
+    "updatedAt": "2026-11-24T04:41:20.613Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
