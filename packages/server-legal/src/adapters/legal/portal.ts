@@ -20,6 +20,7 @@ import {legalPortalActor,type PortalActor} from "@erpx/server-legal/domain/porta
 import {createLegalPortalApplication,type LegalPortalWrite,type LegalPortalUnit,type LegalPortalRepository,type LegalPortalShare,type LegalPortalShareFacts} from "@erpx/server-legal/application/portal";
 import { legalPortalWrites } from '@erpx/server-collaboration/adapters/native-legal-portal-writes';
 import {legalSettingsEnabledSql,legalDocumentByIdSql,legalDestructionActiveSql} from '../legal-read-tail-r9-sources';
+import {legalPointByIdSql} from '../legal-read-tail-r32-sources';
 export type {PortalActor} from "@erpx/server-legal/domain/portal";
 /** Shared read of a portal idempotency receipt by key and actor; both upload
  * repository methods assert the same authority-bound row. */
@@ -33,14 +34,14 @@ share:facts=>shareRecord(db,facts),
 uploadRecoveryShare:facts=>shareRecord(db,facts,true),
 uploadRecoverySource:facts=>legalPortalRepository(db).recoverySource(facts),
 retentionFrozen:(facts:{item_id:string;})=>db.prepare(legalDestructionActiveSql).bind(facts.item_id).first(),
-documentSummary:(facts:{document_id:string;})=>db.prepare("SELECT id,name,body,version,checksum,media_type FROM legal_documents WHERE id=?").bind(facts.document_id).first(),
+documentSummary:(facts:{document_id:string;})=>db.prepare(legalPointByIdSql("id,name,body,version,checksum,media_type","legal_documents")).bind(facts.document_id).first(),
 comments:(facts:{item_id:string;document_id:string;})=>db.prepare("SELECT body,created_at,created_by FROM legal_comments WHERE item_id=? AND document_id=? AND visibility='external' ORDER BY created_at LIMIT 100").bind(facts.item_id,facts.document_id).all(),
 envelopes:(facts:{item_id:string;document_id:string;actorId:string;})=>db.prepare("SELECT e.id,e.state,e.consent,e.expires_at,s.state signer_state,s.viewed_at FROM legal_envelopes e JOIN legal_signers s ON s.envelope_id=e.id WHERE e.item_id=? AND e.document_id=? AND s.user_id=? ORDER BY e.created_at DESC LIMIT 10").bind(facts.item_id,facts.document_id,facts.actorId).all(),
 viewRead:facts=>(async()=>{await (await nw.accessEvent({...facts,action:facts.fact4})).run();return {results:[]};})(),
 billing:(facts:{item_id:string;actorId:string;})=>db.prepare("SELECT id,title,state,data,version FROM legal_counsel_entries WHERE item_id=? AND created_by=? ORDER BY updated_at DESC LIMIT 100").bind(facts.item_id,facts.actorId).all<{id:string;title:string;state:string;data:unknown;version:number}>(),
 document:(facts:{document_id:string;})=>db.prepare(legalDocumentByIdSql).bind(facts.document_id).first<DocumentVersion>(),
 downloadRead:facts=>(async()=>{await (await nw.accessEvent({companyId:facts.companyId,identifier:facts.identifier,item_id:facts.item_id,document_id:facts.id,actorId:facts.actorId,action:facts.fact4,now:facts.now})).run();return {results:[]};})(),
-receipt:(facts:{key:string;})=>db.prepare("SELECT * FROM legal_portal_receipts WHERE id=?").bind(facts.key).first<{ user_id: string; request_hash: string; result_json: string }>(),
+receipt:(facts:{key:string;})=>db.prepare(legalPointByIdSql("*","legal_portal_receipts")).bind(facts.key).first<{ user_id: string; request_hash: string; result_json: string }>(),
 enabled:(facts:{company_id:string;})=>db.prepare(legalSettingsEnabledSql).bind(facts.company_id).first(),
 acceptShare:facts=>(async()=>{await (await nw.acceptShare(facts)).run();return {results:[]};})(),
 externalComment:facts=>(async()=>{await (await nw.externalComment(facts)).run();return {results:[]};})(),
@@ -67,7 +68,7 @@ advanceUploadItem:async facts=>stage(await nw.advanceUploadItem({companyId:facts
 bindEvent:async facts=>stage(await legalNative.bindEvent(facts)),
 uploadEvent:facts=>(async()=>{await (await nw.uploadEvent(facts)).run();return {results:[]};})(),
 uploadCommandReceipt:facts=>(async()=>{await (await nw.receipt(facts)).run();return {results:[]};})(),
-item:(facts:{itemId:string;})=>db.prepare("SELECT company_id,branch_id,department_id,version FROM legal_items WHERE id=?").bind(facts.itemId).first<{
+item:(facts:{itemId:string;})=>db.prepare(legalPointByIdSql("company_id,branch_id,department_id,version","legal_items")).bind(facts.itemId).first<{
       company_id: string;
       branch_id: string | null;
       department_id: string | null;

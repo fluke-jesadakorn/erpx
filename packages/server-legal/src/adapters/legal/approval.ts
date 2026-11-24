@@ -22,6 +22,7 @@ import { legalApprovalStatements } from '@erpx/server-collaboration/adapters/nat
 import {legalMembershipExistsSql} from '../legal-members-read-sources';
 import {legalSignerAccessPrefix,legalSignerAccessSuffix} from '../legal-signer-access-sources';
 import {legalByIdAndItemSql} from '../legal-read-tail-r27-sources';
+import {legalPointByIdSql} from '../legal-read-tail-r32-sources';
 function application(db:SqlDatabase,a:WorkContext){const workflow=legalApprovalFacts(db),nativeWrites=new WeakMap<LegalWrite,SqlStatement>(),nativeApproval=legalApprovalStatements(db,a.companyId,a.userId);const stage=(statement:SqlStatement):LegalWrite=>{const write:LegalWrite={owner:"legal"};nativeWrites.set(write,statement);return write;};
 return createLegalApprovalApplication({actor:a,access:(id,p)=>access(db,a,id,p),eligible:(id,item,p)=>eligible(db,a,id,item,p),samePerson:id=>samePerson(a,id),hash:value=>createHash("sha256").update(value).digest("hex"),clock:{now:()=>Date.now()},identifiers:{next:()=>crypto.randomUUID()},error:(status,code,message)=>new ApiError(status,code,message),repository:{
 routeSteps:facts=>workflow.routeSteps(facts),
@@ -39,7 +40,7 @@ routeSnapshot:(facts:{itemId:string;instanceId:string;})=>db.prepare("SELECT * F
         signers: string;
         source_hash: string;
       }>(),
-documentAuthor:(facts:{document_id:string;})=>db.prepare("SELECT created_by FROM legal_documents WHERE id=?").bind(facts.document_id).first<{ created_by: string }>(),
+documentAuthor:(facts:{document_id:string;})=>db.prepare(legalPointByIdSql("created_by","legal_documents")).bind(facts.document_id).first<{ created_by: string }>(),
 advanceRoute:facts=>stage(workflow.advanceRoute(facts)),
 replaceReviewer:facts=>stage(workflow.replaceReviewer(facts)),
 recordReroute:facts=>stage(workflow.recordReroute(facts)),
