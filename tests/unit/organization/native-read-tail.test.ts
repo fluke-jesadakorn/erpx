@@ -220,6 +220,7 @@ describe('Organization owner-local read tail', () => {
     const {collaborationNotificationSnapshotSources} = await import('../../../packages/server-organization/src/adapters/collaboration-notification-snapshot-sources');
     const id = identitySnapshotSources();
     const cn = collaborationNotificationSnapshotSources();
+    const projection = spaced.ORG_NODES_SPACED_CLAUSE('FROM','organization_nodes');
     const keys = [
       'access_diagnosis_organization_nodes_from',
       'authorization_organization_nodes_from',
@@ -227,13 +228,13 @@ describe('Organization owner-local read tail', () => {
       'user_management_organization_nodes_from',
       'workflow_role_facts_organization_nodes_from',
     ] as const;
-    for (const key of keys) expect(id[key]).toBe(spaced.ORG_NODES_PROJECTION);
+    for (const key of keys) expect(id[key]).toBe(projection);
     for (const key of [
       'organization_channels_organization_nodes_from',
       'organization_node_channels_organization_nodes_from',
       'people_roster_facts_organization_nodes_from',
-    ] as const) expect(cn[key]).toBe(spaced.ORG_NODES_PROJECTION);
-    expect(spaced.ORG_NODES_PROJECTION).toBe('FROM (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) organization_nodes');
+    ] as const) expect(cn[key]).toBe(projection);
+    expect(projection).toBe('FROM (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) organization_nodes');
   });
 
   it('shares one canonical alias=l staff_levels projection across the people/payroll final-owner source map', async () => {
@@ -286,6 +287,8 @@ describe('Organization owner-local read tail', () => {
     const id = identitySnapshotSources();
     const lt = learningTalentSnapshotSources();
     const cn = collaborationNotificationSnapshotSources();
+    const nFromClause = c.ORG_NODES_SPACED_CLAUSE('FROM','n');
+    const bFromClause = c.ORG_NODES_SPACED_CLAUSE('FROM','b');
 
     const nFrom = [
       'access_diagnosis_organization_nodes_n_from',
@@ -297,22 +300,22 @@ describe('Organization owner-local read tail', () => {
       'work_role_selection_facts_organization_nodes_n_from',
       'workflow_command_authority_organization_nodes_n_from',
     ] as const;
-    for (const key of nFrom) expect(id[key]).toBe(c.ORG_NODES_SPACED_N_FROM);
-    expect(lt.learning_adapters_executive_metric_projections_organization_nodes_n_from).toBe(c.ORG_NODES_SPACED_N_FROM);
-    expect(lt.talent_adapters_executive_metric_projections_organization_nodes_n_from).toBe(c.ORG_NODES_SPACED_N_FROM);
-    expect(cn.organization_channels_organization_nodes_n_from).toBe(c.ORG_NODES_SPACED_N_FROM);
+    for (const key of nFrom) expect(id[key]).toBe(nFromClause);
+    expect(lt.learning_adapters_executive_metric_projections_organization_nodes_n_from).toBe(nFromClause);
+    expect(lt.talent_adapters_executive_metric_projections_organization_nodes_n_from).toBe(nFromClause);
+    expect(cn.organization_channels_organization_nodes_n_from).toBe(nFromClause);
 
     const groups: Array<[Record<string,string>, readonly string[], string]> = [
       [id, ['authorization_organization_nodes_c_join','directory_projection_facts_organization_nodes_c_join','executive_authority_source_organization_nodes_c_join','executive_connection_facts_organization_nodes_c_join','executive_report_sources_organization_nodes_c_join','organization_change_assignment_organization_nodes_c_join','profile_membership_organization_nodes_c_join'], c.ORG_NODES_SPACED_C_JOIN],
-      [id, ['access_diagnosis_organization_nodes_b_from','authorization_organization_nodes_b_from','executive_authority_source_organization_nodes_b_from','executive_report_sources_organization_nodes_b_from','work_role_selection_facts_organization_nodes_b_from','workflow_command_authority_organization_nodes_b_from'], c.ORG_NODES_SPACED_B_FROM],
+      [id, ['access_diagnosis_organization_nodes_b_from','authorization_organization_nodes_b_from','executive_authority_source_organization_nodes_b_from','executive_report_sources_organization_nodes_b_from','work_role_selection_facts_organization_nodes_b_from','workflow_command_authority_organization_nodes_b_from'], bFromClause],
       [id, ['authorization_organization_nodes_n_join','executive_main_evidence_sources_organization_nodes_n_join','executive_report_sources_organization_nodes_n_join','finance_delegation_organization_nodes_n_join','gpo_rules_organization_nodes_n_join','iam_my_access_organization_nodes_n_join'], c.ORG_NODES_SPACED_N_JOIN],
       [id, ['authorization_organization_nodes_b_join','executive_main_evidence_sources_organization_nodes_b_join','executive_metric_projections_organization_nodes_b_join','executive_report_sources_organization_nodes_b_join','iam_api_organization_nodes_b_join'], c.ORG_NODES_SPACED_B_JOIN],
     ];
     for (const [map, keys, value] of groups) for (const key of keys) expect(map[key]).toBe(value);
 
-    expect(c.ORG_NODES_SPACED_N_FROM).toBe('FROM (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) n');
+    expect(nFromClause).toBe('FROM (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) n');
     expect(c.ORG_NODES_SPACED_C_JOIN).toBe('JOIN (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) c');
-    expect(c.ORG_NODES_SPACED_B_FROM).toBe('FROM (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) b');
+    expect(bFromClause).toBe('FROM (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) b');
     expect(c.ORG_NODES_SPACED_N_JOIN).toBe('JOIN (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) n');
     expect(c.ORG_NODES_SPACED_B_JOIN).toBe('JOIN (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) b');
   });
@@ -322,13 +325,14 @@ describe('Organization owner-local read tail', () => {
     const shared = await import('../../../packages/server-organization/src/adapters/organization-read-tail-sources');
     const {identitySnapshotSources} = await import('../../../packages/server-organization/src/adapters/identity-snapshot-sources');
     const id = identitySnapshotSources();
+    const cFromClause = spaced.ORG_NODES_SPACED_CLAUSE('FROM','c');
 
     const cFrom = [
       'payroll_cancellation_grant_organization_nodes_c_from',
       'work_role_selection_facts_organization_nodes_c_from',
       'workflow_command_authority_organization_nodes_c_from',
     ] as const;
-    for (const key of cFrom) expect(id[key]).toBe(spaced.ORG_NODES_SPACED_C_FROM);
+    for (const key of cFrom) expect(id[key]).toBe(cFromClause);
 
     const lJoin = [
       'executive_report_sources_staff_levels_l_join',
@@ -337,7 +341,7 @@ describe('Organization owner-local read tail', () => {
     ] as const;
     for (const key of lJoin) expect(id[key]).toBe(shared.STAFF_LEVELS_L_JOIN);
 
-    expect(spaced.ORG_NODES_SPACED_C_FROM).toBe('FROM (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) c');
+    expect(cFromClause).toBe('FROM (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) c');
     expect(shared.STAFF_LEVELS_L_JOIN).toBe('JOIN (SELECT "id", "company_id", "code", "name", "rank", "active", "version", "created_at", "updated_at", "level_number" FROM staff_levels) l');
     expect(shared.NODE_BRANCH_ACTIVE_EXISTS).toBe("EXISTS(SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active')");
     expect(shared.NODE_BRANCH_ACTIVE).toBe("SELECT 1 FROM organization_nodes WHERE id=? AND company_id=? AND kind='branch' AND status='active'");

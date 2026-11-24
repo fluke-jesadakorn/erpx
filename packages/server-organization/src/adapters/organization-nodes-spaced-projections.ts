@@ -1,22 +1,12 @@
 import 'server-only';
 /** Spaced-column `organization_nodes` projections shared by the owner snapshot source maps.
  * Text only: callers keep their own scope/authority filters and supplied statements. */
-export const ORG_NODES_SPACED_N_FROM =
-  'FROM (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) n';
 export const ORG_NODES_SPACED_C_JOIN =
   'JOIN (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) c';
-export const ORG_NODES_SPACED_C_FROM =
-  'FROM (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) c';
-export const ORG_NODES_SPACED_B_FROM =
-  'FROM (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) b';
 export const ORG_NODES_SPACED_N_JOIN =
   'JOIN (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) n';
 export const ORG_NODES_SPACED_B_JOIN =
   'JOIN (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) b';
-/** Canonical alias=`organization_nodes` owning node projection shared by the snapshot source maps.
- * Text only: callers keep their own scope/authority filters and supplied statements. */
-export const ORG_NODES_PROJECTION =
-  'FROM (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) organization_nodes';
 /** Alias-parameterized spaced projections for the remaining source-map entries.
  * Each renders byte-identical SQL to the literal it replaces; only the SQL alias
  * (and FROM/JOIN keyword) varies, and both are owner-supplied literals, never
