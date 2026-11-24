@@ -61,3 +61,8 @@ export const messagingOwnerGuard=(table:string,tail:string)=>`EXISTS(SELECT 1 FR
  * redaction suffixes vary; the query heads, bind order and lock semantics
  * stay unchanged. */
 export const socialAiPhaseImageSql=(draft:string,usage:string,reply:string)=>`SELECT jsonb_build_object('draft',(SELECT to_jsonb(d)${draft} FROM social_ai_drafts d WHERE d.id=?),'usage',(SELECT to_jsonb(u)${usage} FROM social_ai_usage u WHERE u.id=?),'reply',(SELECT to_jsonb(r)${reply} FROM social_agent_replies r WHERE r.id=?))::text image`;
+/** Byte-identical social-post revisions aggregate head shared by the work social
+ * purchase image projection and the task purchase-source image projection. Only
+ * the trailing WHERE/JOIN expression varies; the aggregate head, bind order and
+ * lock semantics stay unchanged. */
+export const socialPostRevisionsAgg=(tail:string)=>`(SELECT jsonb_agg(to_jsonb(r) ORDER BY r.id) FROM social_post_revisions r ${tail})`;

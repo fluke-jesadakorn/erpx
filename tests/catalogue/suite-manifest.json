@@ -5475,6 +5475,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "collaboration",
+      "modules": [
+        "collaboration"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Social post revisions aggregate must stay one helper."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-collaboration"
+      ],
+      "id": "collaboration.read-tail-r28-dedupe.unit",
+      "files": [
+        "tests/unit/collaboration/read-tail-r28-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "collaboration.rust-collaboration-pg-postgres.integration",
       "lane": "integration",
       "owner": "collaboration",
@@ -53086,6 +53113,33 @@
       "id": "legal.read-tail-r42-dedupe.unit",
       "files": [
         "tests/unit/legal/read-tail-r42-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "legal",
+      "modules": [
+        "legal"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Legal envelope signer read head must stay one helper."
+      },
+      "apps": [
+        "legal-portal"
+      ],
+      "packages": [
+        "@erpx/server-legal"
+      ],
+      "id": "legal.read-tail-r43-dedupe.unit",
+      "files": [
+        "tests/unit/legal/read-tail-r43-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
