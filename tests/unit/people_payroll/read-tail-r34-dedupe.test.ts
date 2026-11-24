@@ -61,6 +61,6 @@ describe('People Payroll read-tail r34 active pay group projection family dedupe
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1393);
-    expect(total).toBe(1344);
+    expect(total).toBe(1306);
   });
 });

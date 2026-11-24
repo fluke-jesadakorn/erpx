@@ -106,7 +106,7 @@ export async function withPayrollPaymentCommand<Result>(actor: WorkContext, batc
 export async function withPayrollPaymentRead<Result>(actor: WorkContext, batchId: string, run: (database?: SqlDatabase) => Promise<Result>) {
   if (await peoplePackageEnforcementMode() === "disabled") return run();
   const database = (await holdingResources(actor.holdingId)).write;
-  const source = await database.prepare("SELECT source_type FROM hr_payment_batches WHERE id=? AND company_id=?").bind(batchId, actor.companyId).first<{ source_type: string }>();
+  const source = await database.prepare(ppRd32TwoColProjection("source_type","hr_payment_batches","id","company_id")).bind(batchId, actor.companyId).first<{ source_type: string }>();
   return source?.source_type === "payroll" ? withPayrollPurchasedRead(actor, run, database) : run();
 }
 

@@ -1,3 +1,4 @@
+import {ppRd32TwoColProjection} from './pp-read-tail-r32-sources';
 import "server-only";
 import {PP_RD15_COMMAND_RECEIPT_PRIOR_SQL} from './pp-read-tail-r15-sources';
 import {PP_RD29_IAM_ROLE_ACTIVE_SQL} from './pp-read-tail-r29-sources';
@@ -107,7 +108,7 @@ export {current as requirePeopleCurrentAuthority};
 export async function withPeoplePreparationTransaction<Result>(owner:SqlDatabase,actor:WorkContext,input:{id:string;action:"task.plan"|"task.complete"},key:string,run:(database:SqlDatabase)=>Promise<Result>){
  return peopleOwnerTransaction(owner,actor,async database=>{
   if(await peoplePackageEnforcementMode()==="disabled")return run(database);
-  const task=await database.prepare("SELECT case_id,clearance_type,privileged FROM people_preparation_tasks WHERE id=? AND company_id=?").bind(input.id,actor.companyId).first<{case_id:string|null;clearance_type:import("@erpx/feature-people_payroll/lib/retirement").ClearanceKind|null;privileged:boolean}>();
+  const task=await database.prepare(ppRd32TwoColProjection("case_id,clearance_type,privileged","people_preparation_tasks","id","company_id")).bind(input.id,actor.companyId).first<{case_id:string|null;clearance_type:import("@erpx/feature-people_payroll/lib/retirement").ClearanceKind|null;privileged:boolean}>();
   if(!task)throw new ApiError(404,"PEOPLE_SOURCE_NOT_FOUND","The original preparation task was not found in this Company.");
   const {clearancePermissions}=await import("@erpx/feature-people_payroll/lib/retirement");
   const permission=task.clearance_type?(input.action==="task.plan"&&hasPermission(actor,"people.manage")?"people.manage":clearancePermissions[task.clearance_type]??undefined):task.privileged||input.action==="task.plan"&&!hasPermission(actor,"organization.manage")?"iam.directory.manage":input.action==="task.plan"?"organization.manage":hasPermission(actor,"iam.directory.manage")?"iam.directory.manage":undefined;

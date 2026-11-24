@@ -58,7 +58,7 @@ function originalNativeExpenseDrafts(write: SqlDatabase) {
       try { return await activeStaff(write, actor.companyId, claimant); }
       catch (error) { if (error instanceof ApiError) return null; throw error; }
     },
-    latestEngagement: (actor, personId) => write.prepare("SELECT branch_id,department_id FROM hr_engagements WHERE person_id=? AND company_id=? ORDER BY start_date DESC LIMIT 1").bind(personId, actor.companyId).first<{ branch_id: string | null; department_id: string | null }>(),
+    latestEngagement: (actor, personId) => write.prepare(ppRd36TwoPredTail("branch_id,department_id","hr_engagements","person_id","company_id"," ORDER BY start_date DESC LIMIT 1")).bind(personId, actor.companyId).first<{ branch_id: string | null; department_id: string | null }>(),
     canManagePeople,
     money: decimalToMinor,
     async prepareDraft(actor, key, input, facts, capturedAuthority) {

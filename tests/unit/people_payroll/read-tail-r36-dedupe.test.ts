@@ -63,14 +63,14 @@ describe('People Payroll read-tail r36 four-family dedupe', () => {
     for (const [name, , call] of all) expect(src(name), name).toContain(call);
     for (const [name, symbol] of all) expect(uses(name, `${symbol}\\(`)).toBeGreaterThan(0);
     const expectedCounts: Record<string, number> = {
-      'hire-handoff-pay-group.ts': 1, 'payroll-statutory.ts': 2, 'people-roster.ts': 2,
-      'people-payroll.ts': 5, 'people-lifecycle.ts': 4, 'workflow-projection-source.ts': 1,
+      'hire-handoff-pay-group.ts': 1, 'payroll-statutory.ts': 2, 'people-roster.ts': 4,
+      'people-payroll.ts': 6, 'people-lifecycle.ts': 4, 'workflow-projection-source.ts': 1,
       'payroll-readiness.ts': 2, 'expense-ai-purchases.ts': 1,
       'work-report-candidates.ts': 1, 'technology-provisioning-projection.ts': 1,
       'people-templates.ts': 1, 'technology-provisioning-facts.ts': 1,
-      'people-iam-purchases.ts': 5, 'leave-self-service.ts': 1,
+      'people-iam-purchases.ts': 5, 'leave-self-service.ts': 2,
       'people-evaluation-ai.ts': 1, 'people-evaluation-read.ts': 1,
-      'project-worker-startup-state.ts': 1, 'expense-drafts.ts': 1,
+      'project-worker-startup-state.ts': 1, 'expense-drafts.ts': 2,
       'calendar-commands-facts.ts': 1, 'retirement-clearance.ts': 1,
       'payroll-adjustments.ts': 1,
     };
@@ -105,6 +105,6 @@ describe('People Payroll read-tail r36 four-family dedupe', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1387);
-    expect(total).toBe(1344);
+    expect(total).toBe(1306);
   });
 });

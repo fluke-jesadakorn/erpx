@@ -1,3 +1,4 @@
+import {ppRd32TwoColProjection} from './pp-read-tail-r32-sources';
 import {performanceSourceReadLocks} from '@erpx/server-people_payroll/adapters/performance-purchases';
 import {companyPurchaseReadLocks} from '@erpx/server-commercial/public/purchase-command-boundary';
 import "server-only";
@@ -29,7 +30,7 @@ export async function peopleAttachmentPurchaseScope(database:SqlDatabase,actor:W
  if(!target(policy.targetType)||await peoplePackageEnforcementMode()==="disabled")return null;
  const row=await database.prepare(source(policy.targetType)).bind(targetId,actor.companyId).first<{image:string}>();if(!row)throw new ApiError(404,"PEOPLE_ATTACHMENT_SOURCE_CHANGED","The actual People file source is no longer available.");
  let permission:string|undefined=policy.targetType==="hr_person"&&!hasPermission(actor,"people.documents.manage")?undefined:"people.documents.manage";
- if(policy.targetType==="people_clearance_task"){const task=await database.prepare("SELECT clearance_type FROM people_preparation_tasks WHERE id=? AND company_id=?").bind(targetId,actor.companyId).first<{clearance_type:ClearanceKind}>();permission=task?clearancePermissions[task.clearance_type]??undefined:undefined;}
+ if(policy.targetType==="people_clearance_task"){const task=await database.prepare(ppRd32TwoColProjection("clearance_type","people_preparation_tasks","id","company_id")).bind(targetId,actor.companyId).first<{clearance_type:ClearanceKind}>();permission=task?clearancePermissions[task.clearance_type]??undefined:undefined;}
  return {companyId:actor.companyId,capability:capabilities[policy.targetType],purpose:"settle-existing",actor,targetType:policy.targetType,targetId,sourceImage:row.image,permission};
 }
 export async function authorizePeopleAttachmentPurchase(database:SqlDatabase,actor:WorkContext,type:string,operation:AttachmentOperation){

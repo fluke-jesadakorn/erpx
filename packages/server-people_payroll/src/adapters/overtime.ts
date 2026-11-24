@@ -1,3 +1,4 @@
+import {ppRd32TwoColProjection} from './pp-read-tail-r32-sources';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import{nativeOvertimeReadRepository}from '@erpx/server-people_payroll/adapters/overtime-read';
@@ -28,7 +29,7 @@ export type OvertimeDetail=Awaited<ReturnType<typeof getOvertime>>;
 function serviceContext(actor: WorkContext, provided?: SqlDatabase,providedOwned=false): OvertimePorts<SqlStatement> {
     let database = provided!;
     const repository: OvertimeRepository<SqlStatement> = { readOvertimeSetupEligibility(companyId: string, engagement_id: string) {
-            return database.prepare("SELECT eligible FROM overtime_eligibility WHERE company_id=? AND engagement_id=?").bind(companyId, engagement_id).first<{
+            return database.prepare(ppRd32TwoColProjection("eligible","overtime_eligibility","company_id","engagement_id")).bind(companyId, engagement_id).first<{
                 eligible: boolean;
             }>();
         },
@@ -45,7 +46,7 @@ function serviceContext(actor: WorkContext, provided?: SqlDatabase,providedOwned
         readPreviewOvertimeOverlap(companyId: string, engagement_id: string, excludeId: string | null, ends_at: number, starts_at: number) { return database.prepare(`SELECT id FROM overtime_requests WHERE company_id=? AND engagement_id=? AND id IS DISTINCT FROM ? AND state NOT IN ('draft','withdrawn','rejected') AND starts_at<? AND ends_at>? LIMIT 1`).bind(companyId, engagement_id, excludeId, ends_at, starts_at).first(); },
         readPreviewOvertimeEffect(rosterShiftId: string, companyId: string, engagement_id: string) { return database.prepare(`SELECT 1 FROM people_roster_shifts s JOIN people_roster_weeks w ON w.id=s.week_id JOIN people_roster_assignments a ON a.shift_id=s.id WHERE s.id=? AND w.company_id=? AND w.state='published' AND s.state='active' AND a.state='assigned' AND a.engagement_id=?`).bind(rosterShiftId, companyId, engagement_id).first(); },
         readPreviewOvertimeReviewers(companyId: string, userId: string) {
-            return database.prepare('SELECT legal_name FROM hr_people WHERE company_id=? AND user_id=?').bind(companyId, userId).first<{
+            return database.prepare(ppRd32TwoColProjection("legal_name","hr_people","company_id","user_id")).bind(companyId, userId).first<{
                 legal_name: string;
             }>();
         },
@@ -68,7 +69,7 @@ function serviceContext(actor: WorkContext, provided?: SqlDatabase,providedOwned
         stageCommandOvertimeEffect5(state: string, version: number, now: number, id: string) { return nativePpStatement('pp_overtime_stmt_6').bind(state, version, now, id); },
         readSetOvertimeEligibilityEffect(engagementId: string, companyId: string) { return database.prepare('SELECT id FROM hr_engagements WHERE id=? AND company_id=? FOR UPDATE').bind(engagementId, companyId).first(); },
         readSetOvertimeEligibilityCurrent(companyId: string, engagementId: string) {
-            return database.prepare('SELECT version FROM overtime_eligibility WHERE company_id=? AND engagement_id=?').bind(companyId, engagementId).first<{
+            return database.prepare(ppRd32TwoColProjection("version","overtime_eligibility","company_id","engagement_id")).bind(companyId, engagementId).first<{
                 version: number;
             }>();
         },

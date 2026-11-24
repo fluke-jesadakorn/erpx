@@ -1,1 +1,2 @@
-export const agentExpenseMonthlyCount=()=>"SELECT count(*) FROM expense_ai_usage WHERE company_id=? AND month=?";
+import {ppRd32TwoColProjection} from './pp-read-tail-r32-sources';
+export const agentExpenseMonthlyCount=()=>ppRd32TwoColProjection("count(*)","expense_ai_usage","company_id","month");

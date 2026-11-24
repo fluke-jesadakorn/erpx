@@ -1,3 +1,4 @@
+import {ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
 import { lastAuditOwnerProjectionSources as organizationLastAuditProjectionSources } from "@erpx/server-organization/public/last-audit-owner-projection-sources";
 import { PP_RD19_ACTIVE_ENGAGEMENT_EXISTS_SQL } from './pp-read-tail-r19-sources';
 import { hospitalityOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/hospitality-owner-projection-sources";
@@ -88,7 +89,7 @@ export function nativeExpenseRoutingPorts(db: SqlDatabase): ExpenseRoutingPorts 
     },
     departmentEligible: async (companyId, userId, snapshot) => (await import("@erpx/server-organization/public/department-authority-reads")).departmentStepEligible(db, companyId, userId, snapshot),
     spendingUsers: (scope, role) => spendingUsers(db, scope, role),
-    claim: instance => db.prepare("SELECT prepared_by,claimant_user_id,accounting_json FROM finance_expenses WHERE id=? AND company_id=? AND workflow_version=2").bind(instance.record_id, instance.company_id).first<{ prepared_by: string; claimant_user_id: string; accounting_json: string }>(),
+    claim: instance => db.prepare(ppRd36TwoPredTail("prepared_by,claimant_user_id,accounting_json","finance_expenses","id","company_id"," AND workflow_version=2")).bind(instance.record_id, instance.company_id).first<{ prepared_by: string; claimant_user_id: string; accounting_json: string }>(),
   };
 }
 function nativeExpenseRoute(plan: ExpenseRoutePlan): ApprovalRoute {

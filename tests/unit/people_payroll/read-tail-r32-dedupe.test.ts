@@ -40,10 +40,10 @@ describe('People Payroll read-tail r32 two-column projection family dedupe', () 
     }
     expect(uses('people-evaluation.ts', 'ppRd32TwoColProjection\\(')).toBe(2);
     expect(uses('workflow-approvals-facts.ts', 'ppRd32TwoColProjection\\(')).toBe(2);
-    expect(uses('payroll-purchases.ts', 'ppRd32TwoColProjection\\(')).toBe(1);
+    expect(uses('payroll-purchases.ts', 'ppRd32TwoColProjection\\(')).toBe(2);
     expect(uses('payroll-payslips.ts', 'ppRd32TwoColProjection\\(')).toBe(1);
     expect(uses('calendar-commands-facts.ts', 'ppRd32TwoColProjection\\(')).toBe(1);
-    expect(uses('people-payroll.ts', 'ppRd32TwoColProjection\\(')).toBe(1);
+    expect(uses('people-payroll.ts', 'ppRd32TwoColProjection\\(')).toBe(10);
     expect(uses('expense-purchases.ts', 'ppRd32TwoColProjection\\(')).toBe(1);
     expect(uses('people-lifecycle.ts', 'ppRd32TwoColProjection\\(')).toBe(2);
   });
@@ -74,6 +74,6 @@ describe('People Payroll read-tail r32 two-column projection family dedupe', () 
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(1409);
-    expect(total).toBe(1344);
+    expect(total).toBe(1306);
   });
 });

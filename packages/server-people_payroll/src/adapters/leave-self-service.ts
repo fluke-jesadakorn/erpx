@@ -1,3 +1,4 @@
+import {ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
 import {ppRd38SinglePredTail} from './pp-read-tail-r38-sources';
 import {ppRd36ThreePred} from './pp-read-tail-r36-sources';
 import { PP_RD23_HR_ENGAGEMENTS_ID_COMPANY_EXISTS, PP_RD23_LEAVE_TYPES_ID_COMPANY_EXISTS } from './pp-read-tail-r23-sources';
@@ -169,7 +170,7 @@ function serviceContext(provided?: SqlDatabase,providedOwned=false): LeaveSelfSe
         readAdministerLeaveEffect(leaveTypeId: string, companyId: string) { return database.prepare(PP_RD23_LEAVE_TYPES_ID_COMPANY_EXISTS).bind(leaveTypeId, companyId).first(); },
         readAdministerLeaveEffect2(engagementId: string, companyId: string) { return database.prepare(PP_RD23_HR_ENGAGEMENTS_ID_COMPANY_EXISTS).bind(engagementId, companyId).first(); },
         readAdministerLeaveEffect3(leaveTypeId: string, companyId: string) { return database.prepare(PP_RD23_LEAVE_TYPES_ID_COMPANY_EXISTS).bind(leaveTypeId, companyId).first(); },
-        readAdministerLeaveEffect4(calendarId: string, companyId: string) { return database.prepare('SELECT 1 FROM leave_holiday_calendars WHERE id=? AND company_id=? AND active=true').bind(calendarId, companyId).first(); },
+        readAdministerLeaveEffect4(calendarId: string, companyId: string) { return database.prepare(ppRd36TwoPredTail("1","leave_holiday_calendars","id","company_id"," AND active=true")).bind(calendarId, companyId).first(); },
         readAdministerLeaveEffect5(engagementId: string, companyId: string) { return database.prepare(PP_RD23_HR_ENGAGEMENTS_ID_COMPANY_EXISTS).bind(engagementId, companyId).first(); },
         stageAdministerLeaveEffect(id: string, companyId: string, code: string, name: string, description: string, tracked: boolean, evidenceAfterUnits: number | null, evidenceNote: string, value: string, userId: string, now: number, now2: number) {
             return nativePpStatement('leave_ss_stmt_6')

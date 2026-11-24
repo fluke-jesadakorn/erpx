@@ -1,3 +1,4 @@
+import {ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
 import { ppRd21IdVersionStatusGuard } from './pp-read-tail-r21-sources';
 import {peoplePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
@@ -21,7 +22,7 @@ export type { AiClaim, EvidenceDocument, EvidencePage } from "@erpx/server-peopl
 export function nativeExpenseAiClaim(db: SqlDatabase) {
   return createExpenseAiClaim({
     error: violation => new ApiError(violation.status, violation.code, violation.message),
-    claim: (companyId, id) => db.prepare("SELECT * FROM finance_expenses WHERE id=? AND company_id=? AND workflow_version=2").bind(id, companyId).first<AiClaim>(),
+    claim: (companyId, id) => db.prepare(ppRd36TwoPredTail("*","finance_expenses","id","company_id"," AND workflow_version=2")).bind(id, companyId).first<AiClaim>(),
   });
 }
 export async function aiClaim(db: SqlDatabase, companyId: string, id: string) {

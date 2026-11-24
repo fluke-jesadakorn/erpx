@@ -1,3 +1,4 @@
+import {ppRd32TwoColProjection} from './pp-read-tail-r32-sources';
 import {ppRd36SinglePred} from './pp-read-tail-r36-sources';
 import 'server-only';
 import {randomUUID} from 'node:crypto';
@@ -29,7 +30,7 @@ async function owner(actor:WorkContext){const database=(await holdingResources(a
 async function leases(database:SqlDatabase,companyId:string){const purchase=companyPurchaseReadLocks(database,companyId);await lockPackageSettlementSources(database);await database.batch([database.prepare('LOCK TABLE command_receipts,hr_command_receipts IN SHARE ROW EXCLUSIVE MODE'),...hireHandoffPayGroupSourceLocks(database)]);await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);await database.batch(purchase.slice(1));}
 function eligible(source:Source){return source.offer_status==='accepted'&&source.offer_version===source.source_offer_version&&source.candidate_status==='active'&&source.retention_until>=new Date().toISOString().slice(0,10)&&!!source.consent_evidence.trim()&&!!source.accepted_evidence?.trim();}
 async function source(database:SqlDatabase,actor:WorkContext,id:string){const row=await peopleHireHandoffFacts(database).readHireSourceRow(id,actor.companyId),image=await hireHandoffPayGroupSourceImage(database,actor,id);if(!row||!image||row.offer_status!=='accepted')throw new ApiError(404,'HIRE_HANDOFF_NOT_FOUND','The original accepted hire handoff is unavailable.');return {row,image};}
-const consumed=(database:SqlDatabase,actor:WorkContext,id:string)=>database.prepare('SELECT id FROM talent_hire_consumption_receipts WHERE handoff_id=? AND company_id=?').bind(id,actor.companyId).first();
+const consumed=(database:SqlDatabase,actor:WorkContext,id:string)=>database.prepare(ppRd32TwoColProjection("id","talent_hire_consumption_receipts","handoff_id","company_id")).bind(id,actor.companyId).first();
 const groups=(database:SqlDatabase,actor:WorkContext,currency:string)=>database.prepare("SELECT id FROM hr_pay_groups WHERE company_id=? AND currency=? AND status='active' ORDER BY id").bind(actor.companyId,currency).all<{id:string}>();
 /** Minimal display decision, never a Payroll settings or directory grant. */
 export async function canCreateHireHandoffPayGroup(actor:WorkContext,handoffId:string){

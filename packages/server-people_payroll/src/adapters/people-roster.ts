@@ -1,3 +1,4 @@
+import {ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
 import {ppRd36SinglePred, ppRd36ThreePred} from './pp-read-tail-r36-sources';
 import { PP_RD20_ROSTER_ASSIGN_BY_ID_SQL, PP_RD20_ROSTER_ASSIGN_BY_SHIFT_SQL } from './pp-read-tail-r20-sources';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
@@ -72,7 +73,7 @@ function context(database: SqlDatabase, purchase?: {actor: WorkContext; input: R
             },
             applyAssign(fact0: string, fact1: string, fact2: string, fact3: string) { return nativePpStatement('people_roster_stmt_1').bind(fact0, fact1, fact2, fact3).run(); },
             readNotice(fact0: string, fact1: string) {
-                return database.prepare("SELECT user_id FROM hr_people WHERE id=? AND company_id=? AND user_id IS NOT NULL").bind(fact0, fact1).first<{
+                return database.prepare(ppRd36TwoPredTail("user_id","hr_people","id","company_id"," AND user_id IS NOT NULL")).bind(fact0, fact1).first<{
                     user_id: string;
                 }>();
             },
@@ -130,7 +131,7 @@ function context(database: SqlDatabase, purchase?: {actor: WorkContext; input: R
             async readRosterData(fact0: string, fact1: string, fact2: boolean, fact3: string, fact4: string) { return (await database.prepare("SELECT * FROM people_roster_weeks WHERE company_id=? AND department_id=? AND (? OR state='published') AND week_start BETWEEN ?::date AND ?::date ORDER BY week_start").bind(fact0, fact1, fact2, fact3, fact4).all<RosterWeek>()).results; },
             async readRosterData2(fact0: string) { return (await database.prepare("SELECT * FROM people_roster_shifts WHERE week_id=ANY(?::text[]) ORDER BY starts_at,name,id").bind(fact0).all<RosterShift>()).results; },
             async readRosterData3(fact0: string) { return (await database.prepare(`SELECT a.*,p.legal_name person_name FROM people_roster_assignments a JOIN hr_people p ON p.id=a.person_id JOIN people_roster_shifts s ON s.id=a.shift_id WHERE s.week_id=ANY(?::text[]) AND a.state='assigned' ORDER BY p.legal_name`).bind(fact0).all<RosterAssignment>()).results; },
-            async readRosterData4(fact0: string, fact1: string) { return (await database.prepare("SELECT * FROM people_roster_templates WHERE company_id=? AND department_id=? ORDER BY start_time,name").bind(fact0, fact1).all<ShiftTemplate>()).results; },
+            async readRosterData4(fact0: string, fact1: string) { return (await database.prepare(ppRd36TwoPredTail("*","people_roster_templates","company_id","department_id"," ORDER BY start_time,name")).bind(fact0, fact1).all<ShiftTemplate>()).results; },
             async readRosterData5(fact0: string, fact1: string, fact2: boolean, fact3: string | null, fact4: string | null) {
                 return (await database.prepare(`SELECT r.*,p.legal_name requester_name,c.legal_name coworker_name FROM people_roster_requests r JOIN hr_people p ON p.id=r.requester_person_id LEFT JOIN hr_people c ON c.id=r.coworker_person_id
     WHERE r.company_id=? AND r.department_id=? AND (? OR r.requester_person_id=? OR r.coworker_person_id=?) ORDER BY r.created_at DESC LIMIT 200`).bind(fact0, fact1, fact2, fact3, fact4).all<RosterRequest>()).results;
