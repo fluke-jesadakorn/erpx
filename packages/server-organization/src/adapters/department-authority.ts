@@ -12,12 +12,13 @@ import { stageOrganizationSelfCeo } from '@erpx/server-people_payroll/public/org
 import {BusinessRuleError} from '@erpx/server-shared/index';
 import { createDepartmentAuthorityApplication } from '@erpx/server-organization/application/department-authority';
 import { nativeOrgStatement } from './native-organization-owner-write';
+import { authoritySeatHolderGuard } from './organization-read-tail-sources-r48';
 
 export {appointmentInput,departmentFlowInput} from '@erpx/server-organization/domain/department-authority';
 export type {FlowSelector} from '@erpx/server-organization/domain/department-authority';
 function powerGuard(db:SqlDatabase,key:string,actor:WorkContext,power:string){
   if(power==="owner")return assertion(db,key,"owner-appointment-power",`EXISTS(SELECT 1 FROM (${identity_accessPlatformSources.assignments}) assignments WHERE id=? AND user_id=? AND company_id=? AND role='holding_owner' AND scope_kind='holding' AND revoked_at IS NULL AND iam_assignment_active(id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint))`,[actor.assignmentId,actor.userId,actor.companyId]);
-  return assertion(db,key,"appointment-power",`EXISTS(SELECT 1 FROM authority_seats s JOIN (${people_payrollPlatformSources.hr_people}) p ON p.id=s.person_id AND p.company_id=s.company_id JOIN (${people_payrollPlatformSources.hr_engagements}) e ON e.person_id=p.id AND e.company_id=p.company_id AND e.status='active' WHERE s.company_id=? AND s.scope_id=? AND s.kind=? AND iam_same_person(p.user_id,?,s.company_id) AND s.effective_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND p.status='active' AND p.merged_into_id IS NULL)`,[actor.companyId,actor.companyId,power,actor.userId]);
+  return assertion(db,key,"appointment-power",authoritySeatHolderGuard(people_payrollPlatformSources.hr_people,people_payrollPlatformSources.hr_engagements,`scope_id=? AND s.kind=? AND iam_same_person(p.user_id,?,s.company_id) AND s.effective_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND p.status='active' AND p.merged_into_id IS NULL`),[actor.companyId,actor.companyId,power,actor.userId]);
 }
 
 function application(db:SqlDatabase,actor:WorkContext){return createDepartmentAuthorityApplication({...nativeDepartmentReadPorts(db,actor),replay:(key,operation,id,input)=>replayCommand(db,actor,key,operation,id,input),change:async(input,key,power,scopeId,selfCeo,effectiveAt,now)=>{const operation='authority.appointment.change',recordId=`${input.kind}:${scopeId}`,version=input.expectedVersion+1;
@@ -31,7 +32,7 @@ function application(db:SqlDatabase,actor:WorkContext){return createDepartmentAu
   ],{companyId:actor.companyId,branchId:null,departmentId:input.kind==="head"?scopeId:null});
  },publish:async(input,key,authority,now)=>{const operation='department.flow.publish',recordId=input.departmentId,version=input.expectedVersion+1;
   return executeCommand(db,actor,key,operation,input,recordId,version,{departmentId:recordId,version,steps:input.steps},[
-    assertion(db,key,"flow-publisher",`EXISTS(SELECT 1 FROM authority_seats s JOIN (${people_payrollPlatformSources.hr_people}) p ON p.id=s.person_id AND p.company_id=s.company_id JOIN (${people_payrollPlatformSources.hr_engagements}) e ON e.person_id=p.id AND e.company_id=p.company_id AND e.status='active' WHERE s.company_id=? AND s.kind=? AND s.scope_id=? AND iam_same_person(p.user_id,?,s.company_id) AND s.effective_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint)`,[actor.companyId,authority,authority==="head"?input.departmentId:actor.companyId,actor.userId]),
+    assertion(db,key,"flow-publisher",authoritySeatHolderGuard(people_payrollPlatformSources.hr_people,people_payrollPlatformSources.hr_engagements,`kind=? AND s.scope_id=? AND iam_same_person(p.user_id,?,s.company_id) AND s.effective_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint`),[actor.companyId,authority,authority==="head"?input.departmentId:actor.companyId,actor.userId]),
     assertion(db,key,"flow-version","(SELECT COALESCE(MAX(version),0) FROM department_flow_versions WHERE company_id=? AND department_id=?)=?",[actor.companyId,input.departmentId,input.expectedVersion]),
     await nativeOrgStatement(db,actor.companyId,'department_flow_version_insert',[`department-flow-${key}`,actor.companyId,input.departmentId,version,JSON.stringify(input.steps),actor.userId,input.reason,key,now],key,now),
   ],{companyId:actor.companyId,branchId:null,departmentId:input.departmentId});
