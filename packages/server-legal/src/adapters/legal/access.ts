@@ -13,6 +13,7 @@ import { legalEvent } from '@erpx/server-collaboration/adapters/native-legal-eve
 import {legalCompanyAdvisoryLockSql,legalFilesAdvisoryLockSql,legalDestructionActiveSql,legalSettingsEnabledSql} from '../legal-read-tail-r9-sources';
 import {legalItemSelectSql} from '../legal-read-tail-r16-sources';
 import {legalMemberEditExistsSql} from '../legal-read-tail-r25-sources';
+import {legalReleasedItemGuardSql,legalMemberEditPointSql,legalFactDataSql} from '../legal-read-tail-r38-sources';
 export const tables: Record<LegalKind, string> = {
   request: "legal_requests",
   matter: "legal_matters",
@@ -59,8 +60,8 @@ function application(db:SqlDatabase,a:WorkContext){
  return createLegalAccessApplication({actor:a,require:permission=>requirePermission(a,permission),error:(status,code,message)=>new ApiError(status,code,message),repository:{
   visible:id=>db.prepare(`${legalItemSelectSql}i.id=? AND ${scope.sql}`).bind(id,...scope.values).first<Omit<LegalItem,"data">>(),
   enabled:()=>enabled(db,a),
-  editor:async id=>Boolean(await db.prepare("SELECT 1 FROM legal_members WHERE item_id=? AND user_id=? AND access='edit'").bind(id,a.userId).first()),
-  data:(id,kind)=>db.prepare(`SELECT data FROM ${tables[kind]} WHERE item_id=?`).bind(id).first<{data:LegalItem["data"]}>(),
+  editor:async id=>Boolean(await db.prepare(legalMemberEditPointSql('?')).bind(id,a.userId).first()),
+  data:(id,kind)=>db.prepare(legalFactDataSql(tables[kind],'?')).bind(id).first<{data:LegalItem["data"]}>(),
   eligible:async(id,scope,permission)=>Boolean(await db.prepare("SELECT 1 WHERE legal_person_eligible(?,?,?,?,?)").bind(a.companyId,id,scope.branch_id,scope.department_id,permission).first()),
  }});
 }
@@ -107,7 +108,7 @@ export function guards(
       db,
       key,
       "legal-access",
-      `EXISTS(SELECT 1 FROM legal_items i WHERE i.id=? AND i.version=? AND ${v.sql}${edit ? " AND "+legalMemberEditExistsSql("em") : ""})`,
+      `EXISTS(${legalReleasedItemGuardSql('version')} AND ${v.sql}${edit ? " AND "+legalMemberEditExistsSql("em") : ""})`,
       [id, version, ...v.values, ...(edit ? [a.userId] : [])],
     ),
   ];

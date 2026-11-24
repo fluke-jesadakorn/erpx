@@ -115,6 +115,6 @@ describe('legal read-tail r36 arbitrary-key point-read family', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(231);
-    expect(total).toBeLessThanOrEqual(230);
+    expect(total).toBeLessThanOrEqual(226);
   });
 });
