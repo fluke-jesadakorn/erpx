@@ -4,12 +4,13 @@ import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgre
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {talentSettlementPlacements,talentSettlementPlacementReadLocks} from "@erpx/server-organization/public/talent-settlement-sources";
+import {existsGuardPrefix} from "./talent-read-tail-r27-sources";
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
 /** Owner-local EXISTS-row family over the same Recruitment source rows. The
- * FROM source and WHERE predicate are parameterized; the emitted SQL is
- * byte-identical to the former inline copies. */
-const existsRow=(source:string,where:string)=>`EXISTS(SELECT 1 FROM ${source} WHERE ${where})`;
+ * prefix is shared with the r27 version-guard family; the FROM source and WHERE
+ * predicate are parameterized and the emitted SQL stays byte-identical. */
+const existsRow=(source:string,where:string)=>`${existsGuardPrefix(source)}${where})`;
 const requisitions=`SELECT r.*,${existsRow(`(${talentSettlementPlacements}) branch`,`branch.id=r.branch_id AND branch.company_id=r.company_id AND branch.kind IN ('branch','headquarters')`)} AND (r.department_id IS NULL OR ${existsRow(`(${talentSettlementPlacements}) department`,`department.id=r.department_id AND department.company_id=r.company_id AND department.branch_id=r.branch_id AND department.kind='department'`)}) source_valid FROM talent_requisitions r`;
 const applications=`SELECT a.*,COALESCE(r.source_valid AND a.requisition_version<=r.version AND c.id IS NOT NULL,false) source_valid FROM talent_applications a LEFT JOIN (${requisitions}) r ON r.id=a.requisition_id AND r.company_id=a.company_id LEFT JOIN talent_candidates c ON c.id=a.candidate_id AND c.company_id=a.company_id`;
 const offerEventPrefix=`EXISTS(SELECT 1 FROM talent_offer_events event WHERE event.offer_id=o.id AND event.version`;

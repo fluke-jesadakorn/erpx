@@ -2,6 +2,7 @@ import { readFile, readdir } from 'node:fs/promises';
 import { describe, expect, it } from 'vitest';
 
 const file = new URL('../../../packages/server-talent/src/adapters/package-obligations.ts', import.meta.url);
+const prefixFile = new URL('../../../packages/server-talent/src/adapters/talent-read-tail-r27-sources.ts', import.meta.url);
 const srcDir = new URL('../../../packages/server-talent/src/', import.meta.url);
 
 // Exact pre-dedupe emitted EXISTS fragments (r23 baseline). Only the FROM
@@ -23,24 +24,29 @@ async function tsFiles(directory: URL): Promise<string[]> {
   return found;
 }
 
-function evaluate(text: string): (source: string, where: string) => string {
+function evaluate(text: string, prefixText: string): (source: string, where: string) => string {
+  const prefix = prefixText.match(/export const existsGuardPrefix = [\s\S]*?;\n/)![0].replace('export const', 'const').replace(/:\s*string/g, '');
   const helper = text.match(/const existsRow=[\s\S]*?;\n/)![0].replace(/:\s*string/g, '');
-  return new Function(helper + ' return existsRow;')();
+  return new Function(`${prefix}\n${helper}\nreturn existsRow;`)();
 }
 
 describe('talent read-tail r24 EXISTS-row family dedupe', () => {
-  it('declares the shared family once and routes all five lineages through it', async () => {
-    const text = await readFile(file, 'utf8');
+  it('declares the shared prefix once and routes all five lineages through it', async () => {
+    const [text, prefixText] = await Promise.all([readFile(file, 'utf8'), readFile(prefixFile, 'utf8')]);
+    expect(prefixText.split('export const existsGuardPrefix =').length - 1).toBe(1);
+    expect(prefixText.split('EXISTS(SELECT 1 FROM').length - 1).toBe(1);
     expect(text.split('const existsRow=').length - 1).toBe(1);
     expect(text.split('${existsRow(').length - 1).toBe(5);
-    // The two remaining literal EXISTS(SELECT 1 FROM strings are the helper
-    // body and the r19 offer-event prefix; no inline NOT EXISTS(SELECT remains.
-    expect(text.split('EXISTS(SELECT 1 FROM').length - 1).toBe(2);
+    expect(text).toContain('${existsGuardPrefix(source)}${where})');
+    // The remaining literal EXISTS(SELECT 1 FROM string is the r19 offer-event
+    // prefix; no inline NOT EXISTS(SELECT remains.
+    expect(text.split('EXISTS(SELECT 1 FROM').length - 1).toBe(1);
     expect(text.split('NOT EXISTS(SELECT 1 FROM').length - 1).toBe(0);
   });
 
   it('emits byte-identical EXISTS SQL for all five pinned lineages', async () => {
-    const f = evaluate(await readFile(file, 'utf8'));
+    const [text, prefixText] = await Promise.all([readFile(file, 'utf8'), readFile(prefixFile, 'utf8')]);
+    const f = evaluate(text, prefixText);
     expect(f('(SRC) branch', `branch.id=r.branch_id AND branch.company_id=r.company_id AND branch.kind IN ('branch','headquarters')`)).toBe(EXPECTED.branch);
     expect(f('(SRC) department', `department.id=r.department_id AND department.company_id=r.company_id AND department.branch_id=r.branch_id AND department.kind='department'`)).toBe(EXPECTED.department);
     expect(f('offers o', `o.application_id=a.id AND o.source_valid AND o.status IN ('declined','withdrawn') AND o.terminal_evidence`)).toBe(EXPECTED.offered);
@@ -61,10 +67,10 @@ describe('talent read-tail r24 EXISTS-row family dedupe', () => {
     expect(text).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|pg_advisory/i);
   });
 
-  it('lowers the talent owner SELECT KPI strictly below the r23 after=59', async () => {
+  it('lowers the talent owner SELECT KPI strictly below BEFORE=47', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(47);
-    expect(count).toBeLessThan(48);
+    expect(count).toBe(46);
+    expect(count).toBeLessThan(47);
   });
 });

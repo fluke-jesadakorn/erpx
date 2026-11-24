@@ -22,16 +22,19 @@ async function tsFiles(directory: URL): Promise<string[]> {
   return found;
 }
 function evaluate(text: string): (source: string, extra?: string) => string {
+  const prefix = text.match(/export const existsGuardPrefix = [\s\S]*?;\n/)![0].replace('export const', 'const').replace(/:\s*string/g, '');
   const helper = text.match(/export const existsVersionRow = [\s\S]*?version=\?\$\{extra\}\)`;\n/)![0]
     .replace('export const', 'const').replace(/:\s*string/g, '');
-  return new Function(`${helper}\nreturn existsVersionRow;`)();
+  return new Function(`${prefix}\n${helper}\nreturn existsVersionRow;`)();
 }
 
 describe('talent read-tail r27 version-guard family dedupe', () => {
   it('declares the shared family once and routes both guards through it', async () => {
     const [u, p, s] = await Promise.all([util, privacy, sensitive].map(f => readFile(f, 'utf8')));
+    expect(u.split('export const existsGuardPrefix =').length - 1).toBe(1);
     expect(u.split('const existsVersionRow =').length - 1).toBe(1);
     expect(u.split('EXISTS(SELECT 1 FROM').length - 1).toBe(1);
+    expect(u).toContain('${existsGuardPrefix(source)}id=? AND company_id=? AND version=?${extra})');
     expect(p.split('import {existsVersionRow}').length - 1).toBe(1);
     expect(p.split('existsVersionRow(').length - 1).toBe(1); // guard21 call
     expect(s.split('import {existsVersionRow}').length - 1).toBe(1);
@@ -55,10 +58,10 @@ describe('talent read-tail r27 version-guard family dedupe', () => {
     for (const text of [p, s]) expect(text).not.toMatch(/LOCK TABLE|FOR\s+UPDATE|FOR\s+SHARE|INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|pg_advisory/i);
   });
 
-  it('lowers the talent owner SELECT KPI strictly below the recorded 52 r26 baseline', async () => {
+  it('lowers the talent owner SELECT KPI strictly below BEFORE=47', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(47);
-    expect(count).toBeLessThan(48);
+    expect(count).toBe(46);
+    expect(count).toBeLessThan(47);
   });
 });
