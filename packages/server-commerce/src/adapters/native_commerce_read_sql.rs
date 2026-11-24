@@ -3,8 +3,8 @@
 //! `commerce/command-plan` route resolves the allow-listed kind here and returns
 //! the statement for the caller to prepare and execute on its own open unit.
 //!
-//! This family covers the small owner-local Commerce setup-existence reads on
-//! `commerce_warehouses` and `commerce_settings`. Reads carry no receipt/audit/
+//! This family covers small owner-local Commerce master/setup reads on
+//! `commerce_warehouses`, `commerce_products` and `commerce_settings`. Reads carry no receipt/audit/
 //! outbox ledger: the caller executes them on the same unit as the surrounding
 //! command. No SQL is ever accepted from the wire and no TypeScript SQL remains
 //! for these kinds.
@@ -62,11 +62,35 @@ const READ_SALES_EDITOR_WAREHOUSES: NativeCommerceReadStatement = NativeCommerce
     bind_count: 3,
 };
 
+/// Native successor of the TypeScript `posStartupMasterChoices` warehouse
+/// options read. The caller binds `[company_id, branch_id, branch_id]`.
+pub const RD_POS_STARTUP_WAREHOUSES: &str = "commerce_rd_pos_startup_warehouses";
+const SQL_POS_STARTUP_WAREHOUSES: &str =
+    "SELECT id,branch_id,code,name,status,version FROM commerce_warehouses WHERE company_id=? AND (?::text IS NULL OR branch_id=?) ORDER BY id";
+const READ_POS_STARTUP_WAREHOUSES: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_POS_STARTUP_WAREHOUSES,
+    sql: SQL_POS_STARTUP_WAREHOUSES,
+    bind_count: 3,
+};
+
+/// Native successor of the TypeScript `posStartupMasterChoices` product
+/// options read. The caller binds `[company_id]`.
+pub const RD_POS_STARTUP_PRODUCTS: &str = "commerce_rd_pos_startup_products";
+const SQL_POS_STARTUP_PRODUCTS: &str =
+    "SELECT id,sku,name,item_type,tracking_mode,unit,price_minor,tax_bps,status,version FROM commerce_products WHERE company_id=? ORDER BY id";
+const READ_POS_STARTUP_PRODUCTS: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_POS_STARTUP_PRODUCTS,
+    sql: SQL_POS_STARTUP_PRODUCTS,
+    bind_count: 1,
+};
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,
     READ_SALES_EDITOR_PRODUCTS,
     READ_SALES_EDITOR_WAREHOUSES,
+    READ_POS_STARTUP_WAREHOUSES,
+    READ_POS_STARTUP_PRODUCTS,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -85,6 +109,8 @@ mod tests {
             (RD_PMS_SETTINGS_EXISTS, SQL_PMS_SETTINGS_EXISTS, 1usize),
             (RD_SALES_EDITOR_PRODUCTS, SQL_SALES_EDITOR_PRODUCTS, 1usize),
             (RD_SALES_EDITOR_WAREHOUSES, SQL_SALES_EDITOR_WAREHOUSES, 3usize),
+            (RD_POS_STARTUP_WAREHOUSES, SQL_POS_STARTUP_WAREHOUSES, 3usize),
+            (RD_POS_STARTUP_PRODUCTS, SQL_POS_STARTUP_PRODUCTS, 1usize),
         ];
         for (kind, sql, bind_count) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -101,7 +127,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 4);
+        assert_eq!(STATEMENTS.len(), 6);
     }
 
     #[test]

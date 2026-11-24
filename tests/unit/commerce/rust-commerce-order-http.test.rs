@@ -879,4 +879,27 @@ async fn command_plan_route_returns_owner_fixed_sql_and_fails_closed() {
     )
     .await;
     assert_ne!(status, 200, "wrong bind count must fail closed");
+
+    for (kind, values, expected_sql, expected_len) in [
+        (
+            "commerce_rd_pos_startup_warehouses",
+            r#"["company-1","branch-1","branch-1"]"#,
+            "SELECT id,branch_id,code,name,status,version FROM commerce_warehouses WHERE company_id=? AND (?::text IS NULL OR branch_id=?) ORDER BY id",
+            3,
+        ),
+        (
+            "commerce_rd_pos_startup_products",
+            r#"["company-1"]"#,
+            "SELECT id,sku,name,item_type,tracking_mode,unit,price_minor,tax_bps,status,version FROM commerce_products WHERE company_id=? ORDER BY id",
+            1,
+        ),
+    ] {
+        let request = format!(r#"{{"kind":"{kind}","values":{values}}}"#);
+        let (status, response, _) = http(addr, post(path, "acme.example.test", None, &request)).await;
+        assert_eq!(status, 200, "{kind} must resolve on the command-plan route");
+        assert_eq!(response["data"]["statements"][0]["sql"], expected_sql);
+        assert_eq!(response["data"]["statements"][0]["values"].as_array().unwrap().len(), expected_len);
+    }
+    // Planned owner reads never reach the order backend.
+    assert!(seen.lock().unwrap().is_empty());
 }
