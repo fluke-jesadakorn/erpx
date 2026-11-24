@@ -1,12 +1,11 @@
 import "server-only";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
-import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {commercePackageEnforcementMode,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
-import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
+import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {requireTransferPurchasedRead} from "@erpx/server-inventory/adapters/transfer-purchases";
-import {nativeRecordExistsSql,branchScopeTupleSql,recordIdExistsSql} from './read-tail-sql';
+import {clockScopedPurchaseExistsSql,nativeRecordExistsSql,recordIdExistsSql} from './read-tail-sql';
 
 /** Filter actual warehouse-transfer identities before the consumer limit. Other
  * Inventory records, shared Stock facts and durable deliveries retain owners. */
@@ -22,7 +21,7 @@ export async function transferSourceReadScope(database:SqlDatabase,actor:WorkCon
  if(actor.departmentId||!hasPermission(actor,"inventory.read"))return {where:`NOT (${relevant})`,args:[]};
  const parent=`FROM inventory_transit d JOIN inventory_transfers t ON t.id=d.transfer_id AND t.company_id=d.company_id AND t.source_warehouse_id=d.source_warehouse_id AND t.target_warehouse_id=d.target_warehouse_id AND t.source_branch_id=d.source_branch_id AND t.target_branch_id=d.target_branch_id AND t.delivery_mode='transit'`;
  const sources=`SELECT id,company_id,source_branch_id branch_id,NULL::text department_id FROM inventory_transfers UNION ALL SELECT id,company_id,target_branch_id,NULL::text FROM inventory_transfers UNION ALL SELECT d.id,d.company_id,d.source_branch_id,NULL::text ${parent} UNION ALL SELECT d.id,d.company_id,d.target_branch_id,NULL::text ${parent}`;
- const visible=`EXISTS(WITH transfer_source_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms) SELECT 1 FROM (${sources}) transfer_source CROSS JOIN transfer_source_clock WHERE transfer_source.id=${id} AND transfer_source.company_id=${company} AND ${branchScopeTupleSql('transfer_source')} AND ${assignmentReadSql("transfer_source","inventory.read")} AND ${purchasedCapabilityPredicate("transfer_source.company_id","supply.transfers","history","transfer_source_clock.now_ms")})`;
+ const visible=clockScopedPurchaseExistsSql('transfer_source',sources,id,company,'inventory.read',purchasedCapabilityPredicate("transfer_source.company_id","supply.transfers","history","transfer_source_clock.now_ms"));
  return {where:`(NOT (${relevant}) OR ${visible})`,args:[actor.branchId,actor.branchId,actor.assignmentId,actor.userId,actor.role]};
 }
 export async function requireTransferWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,moduleId:string,id:string){

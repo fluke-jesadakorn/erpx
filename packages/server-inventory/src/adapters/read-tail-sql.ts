@@ -204,3 +204,13 @@ export const disposalCountsSql = (holds: string, tail = '') =>
  *  r11-r32 helpers above are left untouched. */
 export const scopedFieldSql = (field: string, table: string, key: string, scopeKey: string) =>
   `SELECT ${field} FROM ${table} WHERE ${key}=? AND ${scopeKey}=?`;
+/** r34: parameterized clock-scoped purchase existence envelope. The transfer
+ *  and landed-cost record-purchase guards share one byte-identical clock CTE,
+ *  two-key scope relation, branch/assignment authority and capability tail;
+ *  only the source rows, row alias, permission and capability predicate vary.
+ *  Every caller keeps its own binds and independent statement. Locks, count
+ *  sources, count adapters and the native registry stay untouched, and the
+ *  count-record-purchases count source is deliberately not folded in. r11-r33
+ *  helpers above are left unchanged. */
+export const clockScopedPurchaseExistsSql = (alias: string, rows: string, id: string, company: string, permission: string, capability: string) =>
+  `EXISTS(WITH ${alias}_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms) SELECT 1 FROM (${rows}) ${alias} CROSS JOIN ${alias}_clock WHERE ${alias}.id=${id} AND ${alias}.company_id=${company} AND ${branchScopeTupleSql(alias)} AND ${assignmentReadSql(alias, permission)} AND ${capability})`;
