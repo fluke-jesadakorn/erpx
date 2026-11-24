@@ -103,4 +103,18 @@ describe('Organization owner-local read tail', () => {
     expect(ORG_POSITIONS_SOURCE).toContain('FROM organization_positions');
   });
 
+  it('shares one canonical branch-Company source across the beta invitation readers', async () => {
+    const {ORG_BRANCH_COMPANY_SOURCE} = await import('../../../packages/server-organization/src/adapters/org-sources');
+    const {betaManagementOrganizationSources} = await import('@erpx/server-organization/adapters/beta-management-sources');
+    const {betaInvitationSources} = await import('@erpx/server-organization/adapters/beta-invitation-sources');
+    const seen: string[] = [];
+    const first = vi.fn(async () => ({company_id: 'company'}));
+    const bind = vi.fn(() => ({first}));
+    const handle = {prepare: vi.fn((sql: string) => {seen.push(sql); return {bind};})} as unknown as SqlDatabase;
+    await expect(betaManagementOrganizationSources(handle).branchCompany('branch')).resolves.toEqual({company_id: 'company'});
+    await expect(betaInvitationSources(handle).invitationBranch('branch')).resolves.toEqual({company_id: 'company'});
+    expect(seen).toEqual([ORG_BRANCH_COMPANY_SOURCE, ORG_BRANCH_COMPANY_SOURCE]);
+    expect(ORG_BRANCH_COMPANY_SOURCE).toBe("SELECT company_id FROM organization_nodes WHERE id=? AND kind='branch' AND status='active'");
+  });
+
 });
