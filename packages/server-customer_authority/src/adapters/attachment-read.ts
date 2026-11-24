@@ -13,6 +13,7 @@ import {isTransactionalSqlDatabase,type SqlDatabase,type StoredFile} from '@erpx
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {attachmentReadSource,attachmentPrivateReadSourceLocks,assertAttachmentReadRoute,attachmentReadChanged,requirePrivateAttachmentReaderCurrent,bufferedAttachmentRead,type AttachmentReadRoute,type AttachmentReadSource} from '@erpx/server-files/public/private-attachment-reads';
 import {customerPortalSourceReadLocks} from '@erpx/server-customer_authority/adapters/portal-source-locks';
+import {bindingIdentityCurrentSql} from '@erpx/server-customer_authority/adapters/attachment-withdraw-proof';
 
 export async function portalAttachmentSourceWitness(database:SqlDatabase,actor:WorkContext,id:string){
  return database.prepare(`SELECT jsonb_build_object('binding',to_jsonb(b),'order',to_jsonb(o),
@@ -37,7 +38,7 @@ export async function withPortalAttachmentContentRead<Result extends {object:Sto
   const before=await attachmentReadSource(database,actor.companyId,linkId);assertAttachmentReadRoute(selectedRoute,before);if(!before)throw attachmentReadChanged();
   const image=await portalAttachmentSourceWitness(database,actor,before.targetId);if(!image)throw new ApiError(404,'PORTAL_ATTACHMENT_TARGET_NOT_FOUND','The original Portal evidence owner is unavailable.');
   const external=actor.role==='external_customer'&&actor.assignmentId===`customer-portal:${before.targetId}`,current=currentAssignmentReadScope(actor,'workforce_actor_scope');
-  const initiallyCurrent=external?!!await database.prepare("SELECT 1 FROM customer_access_bindings binding JOIN customer_access_identities identity ON identity.binding_id=binding.id WHERE binding.id=? AND binding.company_id=? AND binding.status='approved' AND binding.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND identity.user_id=? AND identity.email=? AND binding.email=?").bind(before.targetId,actor.companyId,actor.userId,actor.email.toLowerCase(),actor.email.toLowerCase()).first():!!await database.prepare(`SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${current.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args).first();
+  const initiallyCurrent=external?!!await database.prepare(bindingIdentityCurrentSql).bind(before.targetId,actor.companyId,actor.userId,actor.email.toLowerCase(),actor.email.toLowerCase()).first():!!await database.prepare(`SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${current.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args).first();
   const invalidAuthority=initiallyCurrent?null:await privateFileDenialAuthorityWitness(database,actor);
   const check=async(authorizeSource:boolean)=>{
    await assertRequestAuthority?.();

@@ -1,4 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
+import { readFile } from 'node:fs/promises';
 vi.mock('server-only', () => ({}));
 import {
   CA_RD_ACCESS_EVENTS,
@@ -239,5 +240,22 @@ describe('executive identity-change-events metric owner read', () => {
     )).rejects.toMatchObject({ code: 'CUSTOMER_AUTHORITY_NATIVE_READ_UNAVAILABLE', status: 503 });
     vi.unstubAllGlobals();
     delete process.env[key];
+  });
+});
+
+describe('customer authority portal attachment binding-current read family', () => {
+  const adapter = (name: string) => new URL(`../../../packages/server-customer_authority/src/adapters/${name}`, import.meta.url);
+
+  it('keeps one fixed-SQL binding/identity literal shared by the read and withdraw fences', async () => {
+    const proof = await readFile(adapter('attachment-withdraw-proof.ts'), 'utf8');
+    const read = await readFile(adapter('attachment-read.ts'), 'utf8');
+    // One canonical declaration; the other surface reuses it by import so the
+    // private read and the Files withdraw proof cannot drift into separate SQL.
+    expect(proof).toContain('export const bindingIdentityCurrentSql = "SELECT 1 FROM customer_access_bindings binding JOIN customer_access_identities');
+    expect(proof.match(/binding\.email=\?"/g)).toHaveLength(1);
+    expect(read).not.toContain('binding.email=?');
+    expect(read).toContain("import {bindingIdentityCurrentSql} from '@erpx/server-customer_authority/adapters/attachment-withdraw-proof'");
+    expect(read).toContain('.prepare(bindingIdentityCurrentSql)');
+    expect(proof).toContain('.prepare(bindingIdentityCurrentSql)');
   });
 });
