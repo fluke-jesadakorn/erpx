@@ -4,7 +4,7 @@ import {legalCorePermission,type LegalPurchaseCapability} from '@erpx/server-leg
 import {legalReadScope,withLegalPurchasedCommand,inLegalOwnerUnit} from '@erpx/server-legal/adapters/purchases';
 import {parseItem} from '@erpx/server-legal/domain/model';
 import { finalRootOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/final-root-owner-projection-sources";
-import { legalManagerAvailableSql } from "../legal-read-tail-r9-sources";
+import { legalManagerAvailableSql, legalSettingsEnabledSql } from "../legal-read-tail-r9-sources";
 import { legalItemSelectSql } from "../legal-read-tail-r16-sources";
 import { finalRootOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/final-root-owner-projection-sources";
 import {nativeLegalHoldNotice} from "../native-legal-hold-notice";
@@ -137,7 +137,7 @@ requireEnabled:(key:string)=>stage(assertion(
           db,
           key,
           "legal-enabled",
-          "EXISTS(SELECT 1 FROM legal_settings WHERE company_id=? AND enabled)",
+          `EXISTS(${legalSettingsEnabledSql})`,
           [a.companyId],
         )),
 requireRequesterRouting:(key:string)=>stage(assertion(db,key,"legal-request-routing",`EXISTS(${legalManagerAvailableSql})`,[a.companyId,a.branchId,a.departmentId])),

@@ -20,9 +20,10 @@ import {createLegalAiApplication} from "@erpx/server-legal/application/jobs";
 import type {LegalWrite} from "@erpx/server-legal/application/service";
 import {legalWave3Statement} from "../native-legal-wave3";
 import {nativeLegalAuxiliaryRead} from "../native-legal-auxiliary";
+import {legalSettingsEnabledSql} from "../legal-read-tail-r9-sources";
 export {legalReminders} from "@erpx/server-legal/adapters/legal/reminders";
 /** Byte-identical AI-enabled guard; both generation checks prepare and run it. */
-const aiEnabledSql = "SELECT 1 FROM legal_settings WHERE company_id=? AND enabled AND ai_enabled";
+const aiEnabledSql = `${legalSettingsEnabledSql} AND ai_enabled`;
 function application(db:SqlDatabase,a?:WorkContext,env?:BetaEnvironment,generate=generateProviderJson){const actor=()=>{if(!a)throw new Error("LEGAL_AI_COMMAND_ACTOR_REQUIRED");return a;},authority=legalAiActorFacts(db),nativeWrites=new WeakMap<LegalWrite,SqlStatement>();const stage=(statement:SqlStatement):LegalWrite=>{const write:LegalWrite={owner:"legal"};nativeWrites.set(write,statement);return write;};return createLegalAiApplication({actor,clock:{now:()=>Date.now()},hash,error:(status,code,message)=>new ApiError(status,code,message),authority:a=>loadIamAuthority(db,a.companyId,a.userId,a.role,a.authority?.sessionId),ready:id=>legalCompanyCapabilityReady(db,id,"ai"),access:(a,id,p)=>access(db,a,id,p),evidence:{retrieve:(a,id,question)=>retrieveLegalAiEvidence(db,a,id,question),revalidate:(a,evidence)=>revalidateLegalAiEvidence(db,a,evidence),validate:validateLegalAiCitations},provider:async(companyId,jobId,branchId)=>{if(!env)throw new Error("LEGAL_AI_PROVIDER_ENVIRONMENT_REQUIRED");const provider=await resolveAiProvider(db,companyId,env,"text");return {model:provider.endpoint.model,generate:(messages,maxTokens)=>generate(withAiGatewayScope(provider.endpoint,jobId,"legal",branchId),messages,maxTokens),usage:async(outcome,input,output,branch)=>{await (await aiUsageStatement(db,jobId,provider.snapshot,"legal",outcome,input,output,branch)).run();}};},repository:{
 actorAssignment:facts=>authority.actorAssignment(facts),
 actorContext:facts=>authority.actorContext(facts),

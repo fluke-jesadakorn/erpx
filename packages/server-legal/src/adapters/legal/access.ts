@@ -10,7 +10,7 @@ import type { LegalItem, LegalKind } from "@erpx/server-legal/public/rules/model
 import { hasPermission } from "@erpx/feature-identity_access/lib/permissions";
 import { productionFeatureGuard } from "@erpx/server-pms/public/feature-availability";
 import { legalEvent } from '@erpx/server-collaboration/adapters/native-legal-event';
-import {legalCompanyAdvisoryLockSql,legalFilesAdvisoryLockSql,legalDestructionActiveSql} from '../legal-read-tail-r9-sources';
+import {legalCompanyAdvisoryLockSql,legalFilesAdvisoryLockSql,legalDestructionActiveSql,legalSettingsEnabledSql} from '../legal-read-tail-r9-sources';
 import {legalItemSelectSql} from '../legal-read-tail-r16-sources';
 export const tables: Record<LegalKind, string> = {
   request: "legal_requests",
@@ -49,7 +49,7 @@ export function visibility(a: WorkContext, alias = "i") {
 }
 export async function enabled(db: SqlDatabase, a: WorkContext) {
   return !!(await db
-    .prepare("SELECT 1 FROM legal_settings WHERE company_id=? AND enabled=true")
+    .prepare(`${legalSettingsEnabledSql}=true`)
     .bind(a.companyId)
     .first());
 }
@@ -99,7 +99,7 @@ export function guards(
       db,
       key,
       "legal-enabled",
-      "EXISTS(SELECT 1 FROM legal_settings WHERE company_id=? AND enabled=true)",
+      `EXISTS(${legalSettingsEnabledSql}=true)`,
       [a.companyId],
     ),
     assertion(
