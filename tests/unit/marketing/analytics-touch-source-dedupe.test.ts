@@ -31,7 +31,9 @@ describe('marketing analytics touch projection dedupe', () => {
 
   it('preserves the outer source selection and binds', async () => {
     const source = await readFile(adapter('analytics-sources.ts'), 'utf8');
-    expect(source).toContain('(${definitions[kind]}) marketing_report');
+    expect(source).toContain(
+      "marketingClockedReportFrameSql('marketing_report_clock','', 'marketing_report.*', definitions[kind], 'marketing_report')",
+    );
     expect(source).toContain('sql:legacy[kind],args:[] as unknown[]');
   });
 
@@ -68,11 +70,19 @@ describe('marketing materialized clock body dedupe', () => {
       const source = await readFile(adapter(name), 'utf8');
       expect(source).not.toContain('SELECT ${packageClockSql} now_ms');
       expect(source).not.toContain('packageClockSql,');
-      expect(source).toContain('marketingClockBody(');
+      expect(source).toContain('marketingClockedReportFrameSql(');
     }
-    expect(await readFile(adapter('analytics-sources.ts'), 'utf8')).toContain("MATERIALIZED${marketingClockBody('')}");
-    expect(await readFile(adapter('metric-purchases.ts'), 'utf8')).toContain("MATERIALIZED${marketingClockBody(' ')}");
-    expect(await readFile(adapter('record-purchases.ts'), 'utf8')).toContain("MATERIALIZED${marketingClockBody('')}");
+    // r41 moves the frame (including the clock body) into one helper; every
+    // caller still passes its exact gap, preserved byte-for-byte by the head.
+    expect(await readFile(adapter('analytics-sources.ts'), 'utf8')).toContain(
+      "marketingClockedReportFrameSql('marketing_report_clock','', ",
+    );
+    expect(await readFile(adapter('metric-purchases.ts'), 'utf8')).toContain(
+      "marketingClockedReportFrameSql('marketing_metric_clock',' ', ",
+    );
+    expect(await readFile(adapter('record-purchases.ts'), 'utf8')).toContain(
+      "marketingClockedReportFrameSql('marketing_clock','', ",
+    );
   });
 
   it('leaves native read mounts and locks untouched', async () => {

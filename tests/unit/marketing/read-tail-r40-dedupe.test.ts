@@ -170,7 +170,7 @@ describe('marketing projection-source and point-read head dedupe (r40)', () => {
     expect(await src('marketing.ts')).toContain('from "./native-marketing-read"');
   });
 
-  it('retirement:ts-statements KPI is 55 (strictly below BEFORE=61)', async () => {
-    expect(await selectTokens()).toBe(55);
+  it('retirement:ts-statements KPI is 49 (strictly below BEFORE=55)', async () => {
+    expect(await selectTokens()).toBe(49);
   });
 });

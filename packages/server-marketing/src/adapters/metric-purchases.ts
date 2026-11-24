@@ -6,7 +6,7 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {commercePackageEnforcementMode,readPurchasedAccesses} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
-import {marketingClockBody} from "./materialized-clock-body-sql";
+import {marketingClockedReportFrameSql} from "./marketing-clocked-report-frame";
 import {crmMarketingCandidateSources} from "@erpx/server-marketing/adapters/crm-purchase-sources";
 import {marketingModuleMemberSql} from "./module-membership";
 import {marketingCandidateSourceSql} from "./marketing-candidate-source";
@@ -20,5 +20,5 @@ export async function marketingMetricSource(database:SqlDatabase,actor:WorkConte
  if(id!=="marketing-lead-candidates"&&id!=="marketing-engagement-events")throw new ApiError(422,"METRIC_UNSUPPORTED","This Marketing metric has no original owner source.");
  if(!(await marketingMetricHistoryAccess(database,actor))[id])throw new ApiError(403,"METRIC_SOURCE_UNAVAILABLE","Original Marketing history and current source authority are required.");
  if(await commercePackageEnforcementMode()!=="enforced")return {sql:marketingCandidateSourceSql,args:[] as unknown[]};
- return {sql:`WITH marketing_metric_clock AS MATERIALIZED${marketingClockBody(' ')} SELECT marketing_metric_owned.* FROM (${crmMarketingCandidateSources}) marketing_metric_owned CROSS JOIN marketing_metric_clock WHERE ${assignmentReadSql("marketing_metric_owned","records.read")} AND ${purchasedCapabilityPredicate("marketing_metric_owned.company_id","sales.marketing","history","marketing_metric_clock.now_ms")} AND EXISTS(${marketingModuleMemberSql("selected")})`,args:[actor.assignmentId,actor.userId,actor.role,actor.assignmentId]};
+ return {sql:`${marketingClockedReportFrameSql('marketing_metric_clock',' ', 'marketing_metric_owned.*', crmMarketingCandidateSources, 'marketing_metric_owned')}${assignmentReadSql("marketing_metric_owned","records.read")} AND ${purchasedCapabilityPredicate("marketing_metric_owned.company_id","sales.marketing","history","marketing_metric_clock.now_ms")} AND EXISTS(${marketingModuleMemberSql("selected")})`,args:[actor.assignmentId,actor.userId,actor.role,actor.assignmentId]};
 }

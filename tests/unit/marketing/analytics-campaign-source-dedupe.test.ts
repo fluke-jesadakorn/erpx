@@ -35,7 +35,9 @@ describe('marketing analytics campaign projection dedupe', () => {
 
   it('preserves the outer source selection and binds', async () => {
     const source = await readFile(adapter('analytics-sources.ts'), 'utf8');
-    expect(source).toContain('(${definitions[kind]}) marketing_report');
+    expect(source).toContain(
+      "marketingClockedReportFrameSql('marketing_report_clock','', 'marketing_report.*', definitions[kind], 'marketing_report')",
+    );
     expect(source).toContain('sql:legacy[kind],args:[] as unknown[]');
   });
 });

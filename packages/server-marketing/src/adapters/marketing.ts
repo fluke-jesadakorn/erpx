@@ -21,6 +21,7 @@ import { marketingCampaigns, marketingCostSources } from "@erpx/server-marketing
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {marketingFormReadiness,marketingPresentationAssertions} from "@erpx/server-marketing/adapters/public-form";
 import {activeFormSql} from "./active-form-sql";
+import {marketingCompanyListSql} from "./marketing-company-list-sql";
 import {marketingLocalPointReadSql} from "./marketing-local-point-read-sql";
 import {
   MARKETING_RD_ASSET_LIST,
@@ -59,7 +60,7 @@ async assets(){
       if(nativeMarketingReadConfigured())return (await nativeMarketingReadAll<Row>(MARKETING_RD_ASSET_LIST,{companyId:a.companyId},write)).results;
       return (await write
         .prepare(
-          "SELECT * FROM marketing_assets WHERE company_id=? ORDER BY updated_at DESC",
+          marketingCompanyListSql('marketing_assets',''),
         )
         .bind(a.companyId)
         .all<Row>()).results;},
@@ -137,7 +138,7 @@ async history(id){return (await write
         .all<Row>()).results;},
 async workRows(){return (await write
         .prepare(
-          `SELECT * FROM marketing_lead_candidates WHERE company_id=? AND ${await marketingCandidateReadFilter('marketing_lead_candidates')} AND status='pending' AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?) ORDER BY updated_at DESC`,
+          marketingCompanyListSql('marketing_lead_candidates',` AND ${await marketingCandidateReadFilter('marketing_lead_candidates')} AND status='pending' AND (?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)`),
         )
         .bind(
           a.companyId,
