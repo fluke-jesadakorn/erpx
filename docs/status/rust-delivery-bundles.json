@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12015,
+    "revision": 12017,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -179356,7 +179356,7 @@
         "owner": "sales",
         "title": "sales scope tuple family",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -179368,22 +179368,37 @@
         "resources": [
           "owner:sales"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4k01",
-          "claimedAt": "2026-11-24T13:01:33.705Z",
-          "heartbeatAt": "2026-11-24T13:01:33.705Z",
-          "expiresAt": "2026-11-24T13:31:33.705Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-sales/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "8baeecbb8",
+            "owner": "sales",
+            "before": 56,
+            "after": 54,
+            "note": "Actor/company/scope tuple variants share scopeTuple; LOCK TABLE/authority/native untouched."
+          },
+          {
+            "command": "vitest sales (34) + scoped tsc + SHA oracle",
+            "result": "passed",
+            "sourceSha": "8baeecbb8"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "scopeTuple family (-2): 56->54.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4k01",
+          "at": "2026-11-24T13:07:45.673Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -179433,17 +179448,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 17,
+        "in_progress": 16,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1345,
+        "blocked": 1346,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:07:22.129Z",
+    "updatedAt": "2026-11-24T13:07:45.678Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
