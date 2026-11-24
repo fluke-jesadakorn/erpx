@@ -17,6 +17,7 @@ import {requestQuotationSource,requestVersionGuard} from '@erpx/server-records/p
 import {serviceAuthoritySnapshot} from "@erpx/server-support/public/service-access";
 import {prepareAttachmentBinding} from "@erpx/server-files/public/attachments/service";
 import {nativeRfqNotification} from "./native-rfq-notification";
+import {nativeProcurementReadFirst,PROCUREMENT_RD_RFQ_BY_ORDER} from "./native-procurement-read";
 import {BusinessRuleError} from "@erpx/server-shared/index";
 import {createRfqApplication,type RfqPorts,type RfqMutation} from "@erpx/server-procurement/application/rfqs";
 import type {RfqRow as Row,RfqOrderInput} from "@erpx/server-procurement/domain/rfqs";
@@ -55,7 +56,7 @@ function application(a:WorkContext,provided?:SqlDatabase){
  prepareSource:async(source,key)=>{const write=await database(),snapshot=await serviceAuthoritySnapshot(write,a.companyId);return [...snapshot(key),requestVersionGuard(write,key,source.request)];},
  prepareEvidence:async(id,offer,input,key)=>prepareAttachmentBinding(await database(),a,{attachmentSetIds:input.attachmentSetIds,bindingContract:{targetType:'procurement_rfq',bindingType:'procurement_rfq_offer',contexts:[{purposeKey:'supplier_quotation',componentKind:'action',componentRef:'supplier-offer'}]},targetId:id,expectedTargetVersion:input.expectedVersion,commandId:key,bindingId:offer}),
  commit:async(m,result)=>commit(await database(),a,m,result),
- linkedRfq:async(id)=>(await database()).prepare('SELECT id FROM procurement_rfqs WHERE order_id=? AND company_id=?').bind(id,a.companyId).first<Row>(),
+ linkedRfq:async(id)=>nativeProcurementReadFirst<Row>(PROCUREMENT_RD_RFQ_BY_ORDER,[id,a.companyId],await database()),
  stageHandoff:async(h)=>{const db=await database(),r=h.detail.rfq;
  await prepareRfqPurchaseHandoff(db,a,String(r.id),h.orderId,h.key,h.editing);
  const sourceGuard=r.request_id?[assertion(db,h.key,'rfq-source-evidence',`EXISTS(SELECT 1 FROM (${recordsPlatformSources.employee_requests}) e JOIN procurement_request_orders l ON l.request_id=e.id AND l.order_id=? AND l.rfq_id=? WHERE e.id=? AND e.company_id=? AND e.evidence_version=? AND e.items_json=? AND e.approval_json::jsonb->>'decision'='approved')`,[h.orderId,r.id,r.request_id,a.companyId,r.request_evidence_version,r.request_items_json])]:[];

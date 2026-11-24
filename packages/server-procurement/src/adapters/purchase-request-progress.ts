@@ -8,11 +8,11 @@ import {getEmployeeRequest} from '@erpx/server-records/public/employee-requests-
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {BusinessRuleError} from "@erpx/server-shared/index";
 import {createPurchaseProgressApplication} from "@erpx/server-procurement/application/request-progress";
-import {nativeProcurementReadAll,PROCUREMENT_RD_REQUEST_ALLOCATIONS} from "./native-procurement-read";
+import {nativeProcurementReadAll,PROCUREMENT_RD_REQUEST_ALLOCATIONS,PROCUREMENT_RD_PROGRESS_REQUEST_RFQS} from "./native-procurement-read";
 import type {ProgressRow,PurchaseProgressRequest} from "@erpx/server-procurement/domain/request-progress";
 export type {PurchaseProgressState,PurchaseProgressStep,PurchaseRequestProgress} from "@erpx/server-procurement/domain/request-progress";
 async function facts(db:SqlDatabase,actor:WorkContext,request:PurchaseProgressRequest){
-  const rfqs = (await db.prepare("SELECT id,status,order_id FROM procurement_rfqs WHERE request_id=? AND company_id=? AND status<>'cancelled' ORDER BY updated_at DESC,id DESC").bind(request.id,actor.companyId).all<ProgressRow>()).results;
+  const rfqs = (await nativeProcurementReadAll<ProgressRow>(PROCUREMENT_RD_PROGRESS_REQUEST_RFQS,[request.id,actor.companyId],db)).results;
   const orders=(await db.prepare(`SELECT DISTINCT o.id,o.number,o.state,o.created_at FROM (${commercePlatformSources.commerce_orders}) o WHERE o.company_id=? AND o.kind='purchase' AND (o.id=? OR EXISTS(SELECT 1 FROM procurement_request_orders l WHERE l.request_id=? AND l.order_id=o.id)) ORDER BY o.created_at DESC,o.id DESC`).bind(actor.companyId,request.purchase_order_id,request.id).all<ProgressRow>()).results;
   const quantities=await db.prepare(`SELECT COALESCE(SUM(l.quantity_milli),0) ordered_milli,COALESCE(SUM(l.fulfilled_milli),0) received_milli FROM (${commercePlatformSources.commerce_order_lines}) l JOIN (${commercePlatformSources.commerce_orders}) o ON o.id=l.order_id WHERE o.company_id=? AND (o.id=? OR EXISTS(SELECT 1 FROM procurement_request_orders link WHERE link.request_id=? AND link.order_id=o.id))`).bind(actor.companyId,request.purchase_order_id,request.id).first<ProgressRow>();
   const receipts=await db.prepare(`SELECT COUNT(*) receipt_count FROM (${commercePlatformSources.commerce_fulfillments}) f JOIN (${commercePlatformSources.commerce_orders}) o ON o.id=f.order_id WHERE o.company_id=? AND (o.id=? OR EXISTS(SELECT 1 FROM procurement_request_orders link WHERE link.request_id=? AND link.order_id=o.id))`).bind(actor.companyId,request.purchase_order_id,request.id).first<ProgressRow>();

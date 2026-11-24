@@ -264,6 +264,57 @@ const READ_HANDOFF_APPROVED_QUOTATION: NativeReadStatement = NativeReadStatement
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `purchase-request-progress` RFQ-list
+/// literal. The owner plans this exact statement; the caller executes it on its
+/// open unit with the same `[requestId, companyId]` binds.
+pub const RD_PROGRESS_REQUEST_RFQS: &str = "procurement_rd_progress_request_rfqs";
+const SQL_PROGRESS_REQUEST_RFQS: &str =
+    "SELECT id,status,order_id FROM procurement_rfqs WHERE request_id=? AND company_id=? AND status<>'cancelled' ORDER BY updated_at DESC,id DESC";
+const READ_PROGRESS_REQUEST_RFQS: NativeReadStatement = NativeReadStatement {
+    kind: RD_PROGRESS_REQUEST_RFQS,
+    sql: SQL_PROGRESS_REQUEST_RFQS,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript `rfqs` `linkedRfq` literal. Same owner
+/// literal and `[orderId, companyId]` binds.
+pub const RD_RFQ_BY_ORDER: &str = "procurement_rd_rfq_by_order";
+const SQL_RFQ_BY_ORDER: &str =
+    "SELECT id FROM procurement_rfqs WHERE order_id=? AND company_id=?";
+const READ_RFQ_BY_ORDER: NativeReadStatement = NativeReadStatement {
+    kind: RD_RFQ_BY_ORDER,
+    sql: SQL_RFQ_BY_ORDER,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript `supplier-bills` `billByInvoice` literal.
+/// The owner plans this exact statement; the caller executes it on its open unit
+/// with the same `[invoiceId, companyId]` binds.
+pub const RD_BILL_BY_INVOICE: &str = "procurement_rd_bill_by_invoice";
+const SQL_BILL_BY_INVOICE: &str =
+    "SELECT * FROM procurement_bill_matches WHERE invoice_id=? AND company_id=?";
+const READ_BILL_BY_INVOICE: NativeReadStatement = NativeReadStatement {
+    kind: RD_BILL_BY_INVOICE,
+    sql: SQL_BILL_BY_INVOICE,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript `supplier-bills` `workFacts`
+/// latest-by-fulfillment literal. The owner plans this exact statement; the
+/// caller executes it on its open unit with the same `[fulfillmentId]` bind.
+pub const RD_LATEST_BILL_BY_FULFILLMENT: &str = "procurement_rd_latest_bill_by_fulfillment";
+const SQL_LATEST_BILL_BY_FULFILLMENT: &str =
+    "SELECT id,status FROM procurement_bill_matches WHERE fulfillment_id=? ORDER BY (status<>'returned') DESC,created_at DESC,id DESC LIMIT 1";
+const READ_LATEST_BILL_BY_FULFILLMENT: NativeReadStatement = NativeReadStatement {
+    kind: RD_LATEST_BILL_BY_FULFILLMENT,
+    sql: SQL_LATEST_BILL_BY_FULFILLMENT,
+    bind_count: 1,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_INVOICE_MATCH_FOR_FINANCE,
     READ_REQUEST_QUOTATION,
@@ -283,6 +334,10 @@ const READS: &[NativeReadStatement] = &[
     READ_POSTED_BILL_MATCH_FOR_INVOICE,
     READ_EMPLOYEE_REQUEST_ORDERED_QUOTATION,
     READ_HANDOFF_APPROVED_QUOTATION,
+    READ_PROGRESS_REQUEST_RFQS,
+    READ_RFQ_BY_ORDER,
+    READ_BILL_BY_INVOICE,
+    READ_LATEST_BILL_BY_FULFILLMENT,
 ];
 
 /// Whether a kind is an allow-listed owner read (never a write command).
@@ -319,6 +374,10 @@ mod tests {
         assert!(is_read(RD_POSTED_BILL_MATCH_FOR_INVOICE));
         assert!(is_read(RD_EMPLOYEE_REQUEST_ORDERED_QUOTATION));
         assert!(is_read(RD_HANDOFF_APPROVED_QUOTATION));
+        assert!(is_read(RD_PROGRESS_REQUEST_RFQS));
+        assert!(is_read(RD_RFQ_BY_ORDER));
+        assert!(is_read(RD_BILL_BY_INVOICE));
+        assert!(is_read(RD_LATEST_BILL_BY_FULFILLMENT));
         assert!(!is_read("procurement_stmt_1"));
         assert!(read_statement("not_a_native_read").is_none());
     }
@@ -404,13 +463,35 @@ mod tests {
                 "procurement_rfqs",
             ),
             (RD_HANDOFF_APPROVED_QUOTATION, 2usize, "procurement_rfqs"),
+            (
+                RD_PROGRESS_REQUEST_RFQS,
+                2usize,
+                "procurement_rfqs",
+            ),
+            (RD_RFQ_BY_ORDER, 2usize, "procurement_rfqs"),
+            (
+                RD_BILL_BY_INVOICE,
+                2usize,
+                "procurement_bill_matches",
+            ),
+            (
+                RD_LATEST_BILL_BY_FULFILLMENT,
+                1usize,
+                "procurement_bill_matches",
+            ),
         ] {
             let read = read_statement(kind).expect("read kind");
             let upper = read.sql.to_ascii_uppercase();
             assert!(upper.starts_with("SELECT"));
-            assert!(!upper.contains("INSERT"));
-            assert!(!upper.contains("UPDATE"));
-            assert!(!upper.contains("DELETE"));
+            // Keyword tokens, not bare substrings: an `updated_at` column is a
+            // read projection, not an UPDATE statement.
+            let tokens: Vec<&str> = upper
+                .split(|c: char| !c.is_ascii_alphanumeric())
+                .filter(|token| !token.is_empty())
+                .collect();
+            for write in ["INSERT", "UPDATE", "DELETE"] {
+                assert!(!tokens.contains(&write), "read kind {kind} carries write keyword {write}");
+            }
             assert_eq!(read.bind_count, binds);
             assert_eq!(read.sql.matches('?').count(), binds);
             assert!(read.sql.contains(table));
@@ -632,6 +713,56 @@ mod tests {
         assert_eq!(read.sql.matches('?').count(), 2);
         assert_eq!(read.scope, "holding");
         assert!(is_read(RD_HANDOFF_APPROVED_QUOTATION));
+        assert!(!is_read("procurement_stmt_1"));
+    }
+
+    #[test]
+    fn progress_request_rfqs_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_PROGRESS_REQUEST_RFQS).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT id,status,order_id FROM procurement_rfqs WHERE request_id=? AND company_id=? AND status<>'cancelled' ORDER BY updated_at DESC,id DESC"
+        );
+        assert_eq!(read.bind_count, 2);
+        assert_eq!(read.sql.matches('?').count(), 2);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_PROGRESS_REQUEST_RFQS));
+        assert!(!is_read("procurement_stmt_1"));
+    }
+
+    #[test]
+    fn rfq_by_order_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_RFQ_BY_ORDER).expect("read kind");
+        assert_eq!(read.sql, "SELECT id FROM procurement_rfqs WHERE order_id=? AND company_id=?");
+        assert_eq!(read.bind_count, 2);
+        assert_eq!(read.sql.matches('?').count(), 2);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_RFQ_BY_ORDER));
+        assert!(!is_read("procurement_stmt_1"));
+    }
+
+    #[test]
+    fn bill_by_invoice_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_BILL_BY_INVOICE).expect("read kind");
+        assert_eq!(read.sql, "SELECT * FROM procurement_bill_matches WHERE invoice_id=? AND company_id=?");
+        assert_eq!(read.bind_count, 2);
+        assert_eq!(read.sql.matches('?').count(), 2);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_BILL_BY_INVOICE));
+        assert!(!is_read("procurement_stmt_1"));
+    }
+
+    #[test]
+    fn latest_bill_by_fulfillment_plan_matches_retired_typescript_literal() {
+        let read = read_statement(RD_LATEST_BILL_BY_FULFILLMENT).expect("read kind");
+        assert_eq!(
+            read.sql,
+            "SELECT id,status FROM procurement_bill_matches WHERE fulfillment_id=? ORDER BY (status<>'returned') DESC,created_at DESC,id DESC LIMIT 1"
+        );
+        assert_eq!(read.bind_count, 1);
+        assert_eq!(read.sql.matches('?').count(), 1);
+        assert_eq!(read.scope, "holding");
+        assert!(is_read(RD_LATEST_BILL_BY_FULFILLMENT));
         assert!(!is_read("procurement_stmt_1"));
     }
 }
