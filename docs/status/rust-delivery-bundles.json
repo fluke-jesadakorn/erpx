@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8640,
+    "revision": 8644,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -142667,6 +142667,78 @@
         "nextAction": "Next: remaining byte-identical groups in commerce-facts/attachment-read-sources/inventory-transit/production-command-sources; text-only, no registry parity witnesses. BEFORE=500 (committed basis).",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.projects.read-tail-r12",
+        "goalId": "G4",
+        "owner": "projects",
+        "title": "projects TS read tail native cutover (round r12)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-projects/src/**",
+          "tests/unit/projects/**",
+          "tests/integration/projects/**"
+        ],
+        "resources": [
+          "owner:projects"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCDpro",
+          "claimedAt": "2026-11-24T02:39:21.135Z",
+          "heartbeatAt": "2026-11-24T02:39:21.135Z",
+          "expiresAt": "2026-11-24T03:09:21.135Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=145.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.sales.read-tail-r9",
+        "goalId": "G4",
+        "owner": "sales",
+        "title": "sales TS read tail native cutover (round r9)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-sales/src/**",
+          "tests/unit/sales/**",
+          "tests/integration/sales/**"
+        ],
+        "resources": [
+          "owner:sales"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCEsal",
+          "claimedAt": "2026-11-24T02:39:21.655Z",
+          "heartbeatAt": "2026-11-24T02:39:21.655Z",
+          "expiresAt": "2026-11-24T03:09:21.655Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=104.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -142675,11 +142747,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 984,
+      "totalPackets": 986,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 32,
+        "in_progress": 34,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -142689,7 +142761,7 @@
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:38:21.355Z",
+    "updatedAt": "2026-11-24T02:39:21.669Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
