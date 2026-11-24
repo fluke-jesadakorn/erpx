@@ -1,5 +1,6 @@
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {storefrontBrandColumns,storefrontBrandJoin} from "@erpx/server-brand/public/front-brand-projection";
+import {activeNodeByIdCompanyKind} from "./organization-column-alias-families-r36";
 export function frontCompanyFacts(db:SqlDatabase){return {
 async companyBrand(companySlug:string){return db.prepare(
     "SELECT c.id,c.slug,c.display_name," + storefrontBrandColumns + " " +
@@ -26,6 +27,6 @@ async branchDepartment(companyId:string,value:string,value2:string){return db.pr
       "WHERE d.company_id=? AND d.kind='department' AND d.slug=? AND b.slug=? AND d.status='active'",
     ).bind(companyId, value, value2).first<{ slug: string; branch_slug: string }>();},
 async actorCompany(companyId:string,companyId2:string){return db.prepare(
-    "SELECT slug FROM organization_nodes WHERE id=? AND company_id=? AND kind='company' AND status='active'",
+    activeNodeByIdCompanyKind('slug','company'),
   ).bind(companyId, companyId2).first<{ slug: string }>();}
 };}

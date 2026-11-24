@@ -120,8 +120,9 @@ describe('Organization read-tail r35 retirement check', () => {
     };
     walk(srcRoot);
     // r35 cut one new family (8 literals -> 1 helper statement) below the
-    // task BEFORE=272; no other owner path is touched.
-    expect(space).toBe(265);
+    // task BEFORE=272. Later rounds cut further families, so use a ceiling
+    // like the r27-r34 tests; no other owner path is touched.
+    expect(space).toBeLessThanOrEqual(265);
     expect(space).toBeLessThan(272);
   });
 });
