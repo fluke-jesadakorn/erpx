@@ -232,4 +232,24 @@ describe('Marketing owner-local campaign read tail', () => {
     expect(workspace).not.toContain(projection);
     expect(workspace.match(/\$\{marketingCandidateFormRows\(\)\}/g)).toHaveLength(2);
   });
+
+  it('keeps one fixed owner projection for campaign-cost analytics rows', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
+    const helper = await readFile(new URL('analytics-cost-rows.ts', base), 'utf8');
+    const analytics = await readFile(new URL('analytics-sources.ts', base), 'utf8');
+
+    const projection = 'SELECT cost.*,NULL::text branch_id,NULL::text department_id FROM ${source}';
+    // The canonical helper owns the single campaign-cost projection; its
+    // comment must not smuggle an extra token into the retirement KPI.
+    expect(helper.match(/SELECT/g)).toHaveLength(1);
+    expect(helper).toContain('export const marketingAnalyticsCostRows');
+    expect(helper).toContain(projection);
+
+    expect(analytics).toContain('import {marketingAnalyticsCostRows} from \'./analytics-cost-rows\'');
+    expect(analytics).not.toContain('SELECT cost.*,NULL::text branch_id,NULL::text department_id FROM marketing_campaign_costs');
+    expect(analytics.match(/marketingAnalyticsCostRows\(/g)).toHaveLength(2);
+    expect(analytics).toContain("marketingAnalyticsCostRows('marketing_campaign_costs cost JOIN marketing_campaigns campaign ON campaign.id=cost.campaign_id AND campaign.company_id=cost.company_id')");
+    expect(analytics).toContain("marketingAnalyticsCostRows('marketing_campaign_costs cost')");
+  });
 });
