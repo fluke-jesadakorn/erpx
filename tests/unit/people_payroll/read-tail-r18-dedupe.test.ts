@@ -48,7 +48,7 @@ describe('People Payroll read-tail r18 byte-identical dedupe', () => {
     const identity = src('identity-snapshot-sources.ts');
     expect(identity).toContain('"account_access_hr_people_from": PP_RD18_HR_PEOPLE_FROM_SQL');
     expect(identity).toContain('"iam_store_hr_engagements_e_join": PP_RD18_HR_ENGAGEMENTS_E_JOIN_SQL');
-    expect(identity).toContain('"payroll_owner_facts_hr_engagements_from": "FROM (SELECT \\"id\\", \\"person_id\\"');
+    expect(identity).toContain('"payroll_owner_facts_hr_engagements_from": PP_RD20_HR_ENGAGEMENTS_FROM_SQL');
     expect(src('commercial-owner-projection-sources.ts')).toContain('hr_people: PP_RD18_HR_PEOPLE_PROJ_SQL');
     expect(src('platform-owner-projection-sources.ts')).toContain('hr_people: PP_RD18_HR_PEOPLE_PROJ_SQL');
   });

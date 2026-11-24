@@ -1,5 +1,6 @@
 import { ppRd21IdCompanyStatusVersionGuard } from './pp-read-tail-r21-sources';
 import { ppRd26RunIdGuard } from './pp-read-tail-r26-sources';
+import { ppRd46ByIdCompanyStatusIn } from './pp-read-tail-r46-sources';
 import { ppRd32TwoColProjection } from './pp-read-tail-r32-sources';
 import { withPayrollPurchasedCommand, withPayrollPurchasedRead } from "@erpx/server-people_payroll/adapters/payroll-purchases";
 import { nativePeopleBatchA } from '@erpx/server-collaboration/adapters/native-people-batch-a';
@@ -23,7 +24,7 @@ export { issuePayslipSchema } from '@erpx/server-people_payroll/domain/payroll-p
 export type { PayslipSnapshot } from '@erpx/server-people_payroll/domain/payroll-payslips';
 function application(provided?: SqlDatabase) {
     let database = provided!;
-    const repository: PayrollPayslipRepository<SqlStatement> = { issuableRun(runId: string, companyId: string) { return database.prepare("SELECT * FROM hr_payroll_runs WHERE id=? AND company_id=? AND status IN ('approved','posted')").bind(runId, companyId).first<Row>(); },
+    const repository: PayrollPayslipRepository<SqlStatement> = { issuableRun(runId: string, companyId: string) { return database.prepare(ppRd46ByIdCompanyStatusIn('*','hr_payroll_runs',"'approved','posted'")).bind(runId, companyId).first<Row>(); },
         issuableItems(companyId: string, runId: string) { return database.prepare("SELECT i.*,e.person_id,p.user_id recipient_user_id FROM hr_payroll_items i JOIN hr_engagements e ON e.id=i.engagement_id AND e.company_id=? JOIN hr_people p ON p.id=e.person_id AND p.company_id=e.company_id WHERE i.run_id=? AND i.worker_type='employee' AND i.status IN ('calculated','approved','posted') ORDER BY i.id").bind(companyId, runId).all<PayslipItem>(); },
         company(...args) { return companySource(database).company(...args); },
         guard4(commandId: string, value: string, id: string, runId: string, companyId: string, person_id: string, recipient_user_id: string | null, input_snapshot_json: string, result_json: string, net_minor: number) { return assertion(database, commandId, value, "EXISTS(SELECT 1 FROM hr_payroll_items i JOIN hr_engagements e ON e.id=i.engagement_id JOIN hr_people p ON p.id=e.person_id WHERE i.id=? AND i.run_id=? AND e.company_id=? AND e.person_id=? AND p.user_id IS NOT DISTINCT FROM ? AND i.input_snapshot_json=? AND i.result_json=? AND i.net_minor=?)", [id, runId, companyId, person_id, recipient_user_id, input_snapshot_json, result_json, net_minor]); },

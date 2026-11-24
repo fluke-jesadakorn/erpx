@@ -1,5 +1,6 @@
 import {ppRd38SinglePredTail} from './pp-read-tail-r38-sources';
 import {ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
+import {ppRd46ByIdCompanyStatusIn} from './pp-read-tail-r46-sources';
 import { PP_RD22_ACTIVE_PERSON_VERSION_GUARD } from './pp-read-tail-r22-sources';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
 import { ppRd35PayrollItemsByRun } from './pp-read-tail-r35-sources';
@@ -53,7 +54,7 @@ function application(provided?: SqlDatabase) {
         stageEditPayrollAdjustmentEffect3(runId: string) { return nativePpStatement('pp_payroll_adjustments_stmt_6').bind(runId); },
         stageEditPayrollAdjustmentEffect4(now: number, runId: string) { return nativePpStatement('pp_payroll_adjustments_stmt_7').bind(now, runId); },
         readPayrollAdjustmentInputsRow(id: string, company_id: string) { return database.prepare("SELECT a.*,v.id revision_id,v.taxable_arrears_minor,v.non_taxable_arrears_minor,v.social_security_wage_minor,v.time_entries_json,v.reason,v.evidence_ref FROM hr_payroll_adjustments a JOIN hr_payroll_adjustment_revisions v ON v.run_id=a.run_id AND v.revision=a.source_revision WHERE a.run_id=? AND a.company_id=? AND a.active").bind(id, company_id).first<Row>(); },
-        readPayrollAdjustmentInputsEngagement(engagement_id: unknown, company_id: string) { return database.prepare("SELECT id,version,person_id,worker_type,employment_type,start_date,end_date,job_title,branch_id,department_id FROM hr_engagements WHERE id=? AND company_id=? AND status IN ('active','ended')").bind(engagement_id, company_id).first<Row>(); },
+        readPayrollAdjustmentInputsEngagement(engagement_id: unknown, company_id: string) { return database.prepare(ppRd46ByIdCompanyStatusIn('id,version,person_id,worker_type,employment_type,start_date,end_date,job_title,branch_id,department_id','hr_engagements',"'active','ended'")).bind(engagement_id, company_id).first<Row>(); },
         readPayrollAdjustmentInputsPayee(value: unknown, company_id: string) { return database.prepare(PP_RD15_ACTIVE_PAYEE_SQL).bind(value, company_id).first<Row>(); },
         readPayrollAdjustmentInputsPriorAdjustments(original_item_id: unknown, id: string) { return database.prepare("SELECT a.run_id,i.result_json,r.input_digest FROM hr_payroll_adjustments a JOIN hr_payroll_runs r ON r.id=a.run_id JOIN hr_payroll_items i ON i.run_id=r.id WHERE a.original_item_id=? AND r.status='posted' AND r.id<>? ORDER BY r.pay_date,r.id").bind(original_item_id, id).all<Row>(); },
         stageCalculatePayrollAdjustmentRunEffect(id: string) { return database.prepare("SELECT id FROM hr_payroll_runs WHERE id=? FOR UPDATE").bind(id); },

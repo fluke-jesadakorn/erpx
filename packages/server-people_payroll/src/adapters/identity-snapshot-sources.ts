@@ -1,4 +1,5 @@
 import {ppRd44NamedSourceProjection} from './pp-read-tail-r44-sources';
+import {ppRd46NamedJoinSource} from './pp-read-tail-r46-sources';
 import { PP_RD20_HR_ENGAGEMENTS_FROM_SQL, PP_RD20_LIFECYCLE_CASES_C_FROM_SQL, PP_RD20_LIFECYCLE_CASES_C_JOIN_SQL, PP_RD20_APPLIED_PACKAGES_AP_FROM_SQL, PP_RD20_HR_PEOPLE_H_JOIN_SQL } from './pp-read-tail-r20-sources';
 import 'server-only';
 import {PP_RD18_HR_PEOPLE_FROM_SQL, PP_RD18_HR_ENGAGEMENTS_E_JOIN_SQL, PP_RD18_HR_ENGAGEMENTS_E_FROM_SQL} from './pp-read-tail-r18-sources';
@@ -45,7 +46,7 @@ export function identitySnapshotSources(){return {
   "people_lifecycle_worker_effects_people_lifecycle_cases_c_join": PP_RD20_LIFECYCLE_CASES_C_JOIN_SQL,
   "people_lifecycle_worker_effects_people_access_cutoffs_x_from": ppRd44NamedSourceProjection('"company_id", "person_id", "case_id", "effective_at", "cancelled_at", "restored_at"', 'people_access_cutoffs', 'x'),
   "people_lifecycle_worker_effects_people_lifecycle_cases_c_from": PP_RD20_LIFECYCLE_CASES_C_FROM_SQL,
-  "people_lifecycle_worker_effects_people_package_revisions_r_join": "JOIN (SELECT \"company_id\", \"package_id\", \"revision\", \"definition\", \"created_by\", \"created_at\" FROM people_package_revisions) r",
+  "people_lifecycle_worker_effects_people_package_revisions_r_join": ppRd46NamedJoinSource('"company_id", "package_id", "revision", "definition", "created_by", "created_at"','people_package_revisions','r'),
   "pms_command_facts_hr_people_h_join": PP_RD20_HR_PEOPLE_H_JOIN_SQL,
   "pms_source_recipients_hr_people_h_join": PP_RD20_HR_PEOPLE_H_JOIN_SQL,
   "position_gpo_hr_people_p_join": PP_RD16_HR_PEOPLE_P_JOIN_SQL,
