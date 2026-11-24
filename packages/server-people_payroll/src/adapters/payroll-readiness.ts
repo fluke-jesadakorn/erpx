@@ -1,4 +1,5 @@
 import {ppRd32TwoColProjection} from './pp-read-tail-r32-sources';
+import {ppRd43EmployeeEngagementProjection} from './pp-read-tail-r43-sources';
 import {ppRd37StatusGuard5} from './pp-read-tail-r37-sources';
 import {ppRd36SinglePred} from './pp-read-tail-r36-sources';
 import { PP_RD23_HR_COMP_REVISIONS_SQL, PP_RD23_HR_PAYROLL_COST_ASSIGNMENTS_SQL, PP_RD23_HR_PAY_GROUPS_IMAGE_SQL, PP_RD23_HR_TIME_ENTRIES_OVERTIME_SQL, PP_RD23_OVERTIME_PAYROLL_HANDOFFS_SQL } from './pp-read-tail-r23-sources';
@@ -37,10 +38,7 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
     let database = provided!;
     const purchase = (company: string, purpose: CapabilityPurpose) => mode === "enforced" ? `(SELECT ${purchasedCapabilityPredicate(company,"people.payroll",purpose,"payroll_purchase_clock.now_ms")} FROM (SELECT ${packageClockSql} now_ms) payroll_purchase_clock)` : "TRUE";
     const repository: PayrollReadinessRepository<SqlStatement> = { readCostEvidenceBlockersEngagements(company_id: string, pay_group_id: string, currency: string, period_end: string, period_start: string, scope_engagement_id: string | null, scope_engagement_id2: string | null) {
-            return database.prepare(`SELECT e.id,e.start_date,e.end_date,p.id person_id,p.legal_name FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id
-    WHERE e.company_id=? AND e.pay_group_id=? AND e.currency=? AND e.worker_type='employee' AND e.status IN ('active','ended')
-      AND p.status='active' AND p.merged_into_id IS NULL AND e.start_date<=? AND (e.end_date IS NULL OR e.end_date>=?)
-      AND (?::text IS NULL OR e.id=?) ORDER BY e.id`)
+            return database.prepare(ppRd43EmployeeEngagementProjection('e.id,e.start_date,e.end_date,p.id person_id,p.legal_name'))
                 .bind(company_id, pay_group_id, currency, period_end, period_start, scope_engagement_id, scope_engagement_id2)
                 .all<{
                 id: string;
@@ -78,7 +76,7 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
             return payrollItemSourceRows(database, id);
         },
         readSourceBlockersCurrent(company_id: string, pay_group_id: string, currency: string, period_end: string, period_start: string, scope_engagement_id: string | null, scope_engagement_id2: string | null) {
-            return database.prepare("SELECT e.id FROM hr_engagements e JOIN hr_people p ON p.id=e.person_id WHERE e.company_id=? AND e.pay_group_id=? AND e.currency=? AND e.worker_type='employee' AND e.status IN ('active','ended') AND p.status='active' AND p.merged_into_id IS NULL AND e.start_date<=? AND (e.end_date IS NULL OR e.end_date>=?) AND (?::text IS NULL OR e.id=?) ORDER BY e.id").bind(company_id, pay_group_id, currency, period_end, period_start, scope_engagement_id, scope_engagement_id2).all<{
+            return database.prepare(ppRd43EmployeeEngagementProjection('e.id')).bind(company_id, pay_group_id, currency, period_end, period_start, scope_engagement_id, scope_engagement_id2).all<{
                 id: string;
             }>();
         },

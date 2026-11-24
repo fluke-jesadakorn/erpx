@@ -1,4 +1,5 @@
 import {ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
+import {ppRd43DraftPaymentProjection} from './pp-read-tail-r43-sources';
 import { ppRd21IdVersionStatusGuard } from './pp-read-tail-r21-sources';
 import {peoplePackageEnforcementMode,checkPurchasedCapability,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
@@ -38,7 +39,7 @@ export function nativeExpenseAiAllowed(db: SqlDatabase) {
         .bind(actor.companyId, actor.assignmentId, actor.userId, actor.role, actor.authority?.assignmentVersion ?? null, actor.authority?.assignmentVersion ?? null, Date.now(), Date.now()).first());
     },
     async canDecide(actor, claim) { return (await approvalView(db, "expense", claim.id, actor)).canDecide; },
-    async draftPayment(actor, claim, paymentId) { return Boolean(await db.prepare("SELECT 1 FROM expense_payment_drafts WHERE id=? AND expense_id=? AND company_id=? AND status='draft'").bind(paymentId, claim.id, actor.companyId).first()); },
+    async draftPayment(actor, claim, paymentId) { return Boolean(await db.prepare(ppRd43DraftPaymentProjection('1')).bind(paymentId, claim.id, actor.companyId).first()); },
     async approvedPeople(actor, claim) { return (await db.prepare(`SELECT s.approver_user_id FROM (${workflowProjectionSources.approval_steps}) s JOIN (${workflowProjectionSources.approval_instances}) i ON i.id=s.instance_id WHERE i.record_type='expense' AND i.record_id=? AND i.company_id=? AND s.state='approved' AND i.cycle=(SELECT MAX(cycle) FROM (${workflowProjectionSources.approval_instances}) approval_instances WHERE record_type='expense' AND record_id=?)`)
       .bind(claim.id, actor.companyId, claim.id).all<{ approver_user_id: string }>()).results.map(row => row.approver_user_id); },
     treasury: claim => expenseRoleUsers(db, claim, "treasury"),
@@ -75,7 +76,7 @@ export async function expenseAiSource(
       evidenceSql = expenseEvidenceSql(); evidenceArgs = [id, paymentId, ...(attachmentsV2Readable() ? [companyId] : [])];
       return { async read() { return (await db.prepare(evidenceSql).bind(...evidenceArgs).first<{ manifest: string }>())!.manifest; } };
     },
-    payment: (companyId, id, paymentId) => db.prepare("SELECT * FROM expense_payment_drafts WHERE id=? AND expense_id=? AND company_id=? AND status='draft'").bind(paymentId, id, companyId).first<Record<string, string | number | null>>(),
+    payment: (companyId, id, paymentId) => db.prepare(ppRd43DraftPaymentProjection('*')).bind(paymentId, id, companyId).first<Record<string, string | number | null>>(),
     digest: sha256,
   })(companyId, id, paymentId);
   const { claim, payment } = source;

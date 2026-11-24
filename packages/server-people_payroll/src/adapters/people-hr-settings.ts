@@ -1,4 +1,5 @@
 import {peoplePurchaseControls} from "@erpx/server-people_payroll/adapters/people-purchases";
+import {ppRd43ActiveLeavePolicyProjection} from './pp-read-tail-r43-sources';
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError } from "@erpx/server-runtime/public/http";
@@ -48,7 +49,7 @@ function application() {
             timezone: string;
             calendar: string | null;
         }>(),
-        policies: (companyId: string) => write.prepare("SELECT id,name,version,effective_from FROM leave_policy_versions WHERE company_id=? AND status='active' ORDER BY name,version DESC").bind(companyId).all<{
+        policies: (companyId: string) => write.prepare(ppRd43ActiveLeavePolicyProjection('id,name,version,effective_from')).bind(companyId).all<{
             id: string;
             name: string;
             version: number;

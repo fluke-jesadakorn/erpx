@@ -1,4 +1,5 @@
 import {ppRd36NumberedTwoPred} from './pp-read-tail-r36-sources';
+import {ppRd43EffectiveCutoffProjection} from './pp-read-tail-r43-sources';
 import { nativePpQuery } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import { PP_RD24_PEOPLE_PERSON_USER_SAME_SQL, PP_RD24_PEOPLE_PERSON_USER_OK_SQL } from './pp-read-tail-r24-sources';
 import 'server-only';import type {PoolClient} from 'pg';import type {TechnologyStore} from '@erpx/server-identity_access/public/technology-contracts';import type {TechnologyData,AppliedPackageFact,ProvisionEngagement,ProvisionGrant,ProvisionOperation} from '@erpx/server-identity_access/public/technology-contracts';
@@ -19,7 +20,7 @@ engagement:async(facts)=>{const{engagementId,actor}=facts;return (await c.query<
         [engagementId, actor.companyId],
       )).rows[0];},
 accessCutoff:async(facts)=>{const{actor,e,observedNow}=facts;return (await c.query(
-        "SELECT 1 FROM people_access_cutoffs WHERE company_id=$1 AND person_id=$2 AND cancelled_at IS NULL AND restored_at IS NULL AND effective_at<=$3",
+        ppRd43EffectiveCutoffProjection('1'),
         [actor.companyId, e.person_id, observedNow],
       )).rowCount;},
 restorationPlacement:async(facts)=>{const{actor,e}=facts;return (await c.query(
@@ -112,7 +113,7 @@ lockedPlacement:async(facts)=>{const{plan,op}=facts;return (await c.query<{versi
             [plan.id, op.company_id],
           )).rows[0];},
 effectiveCutoff:async(facts)=>{const{op,plan,observedNow}=facts;return (await c.query<{at:number|null}>(
-            "SELECT max(effective_at) at FROM people_access_cutoffs WHERE company_id=$1 AND person_id=$2 AND cancelled_at IS NULL AND restored_at IS NULL AND effective_at<=$3",
+            ppRd43EffectiveCutoffProjection('max(effective_at) at'),
             [op.company_id, plan.personId, observedNow],
           )).rows[0];},
 restoredPlacement:async(facts)=>{const{op,plan,cutoff}=facts;return (await c.query(

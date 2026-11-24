@@ -1,9 +1,10 @@
 import "server-only";
 import { ppRd38SinglePredTail } from "./pp-read-tail-r38-sources";
+import { ppRd43ActiveLeavePolicyProjection } from "./pp-read-tail-r43-sources";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 
 export function activeLeavePolicySettings(db: SqlDatabase, companyId: string) {
-  return db.prepare("SELECT name,version,status FROM leave_policy_versions WHERE company_id=? AND status='active' ORDER BY name,version DESC")
+  return db.prepare(ppRd43ActiveLeavePolicyProjection('name,version,status'))
     .bind(companyId).all<{ name: string; version: number; status: string }>().then(result => result.results);
 }
 export function leavePolicySettingsHistory(db: SqlDatabase, companyId: string) {
