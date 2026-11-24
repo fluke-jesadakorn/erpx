@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8445,
+    "revision": 8451,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -140251,6 +140251,114 @@
         "nextAction": "Build owner-local native adapter/port for attachment descriptor reads using the existing attachment_descriptor owner port; PG parity test. No composition or Files consumer switch.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.runtime.control-plane-read-port",
+        "goalId": "G4",
+        "owner": "runtime",
+        "title": "runtime control plane native read port",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-runtime/src/**",
+          "tests/unit/runtime/**",
+          "tests/integration/runtime/**"
+        ],
+        "resources": [
+          "owner:runtime"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCurun",
+          "claimedAt": "2026-11-24T02:16:17.564Z",
+          "heartbeatAt": "2026-11-24T02:16:17.564Z",
+          "expiresAt": "2026-11-24T02:46:17.564Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Build owner-local native read port for migration receipt / runtime health / advisory lock reads in postgres.ts and migrations.ts, with PG parity tests; no composition or TS deletion yet.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.talent.offer-read-port",
+        "goalId": "G4",
+        "owner": "talent",
+        "title": "talent offer native read port",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-talent/src/**",
+          "tests/unit/talent/**",
+          "tests/integration/talent/**"
+        ],
+        "resources": [
+          "owner:talent"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCvtal",
+          "claimedAt": "2026-11-24T02:16:18.014Z",
+          "heartbeatAt": "2026-11-24T02:16:18.014Z",
+          "expiresAt": "2026-11-24T02:46:18.014Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Build owner-local native read port for talent offer/candidate read families that feed the remaining 72 TS SELECTs; PG parity test; no composition or TS deletion yet.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "migrate.assets.read-ports",
+        "goalId": "G4",
+        "owner": "assets",
+        "title": "assets native read ports",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-assets/src/**",
+          "tests/unit/assets/**",
+          "tests/integration/assets/**"
+        ],
+        "resources": [
+          "owner:assets"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCwas",
+          "claimedAt": "2026-11-24T02:16:18.579Z",
+          "heartbeatAt": "2026-11-24T02:16:18.579Z",
+          "expiresAt": "2026-11-24T02:46:18.579Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Build owner-local native read ports for field-service references and package-obligation source reads (32 TS SELECTs remaining); PG parity tests; no composition or TS deletion yet.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -140259,11 +140367,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 936,
+      "totalPackets": 939,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 30,
+        "in_progress": 33,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -140273,7 +140381,7 @@
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:15:56.873Z",
+    "updatedAt": "2026-11-24T02:16:18.587Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
