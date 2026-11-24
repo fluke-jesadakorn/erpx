@@ -66409,6 +66409,33 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Planning resource calendar point lookups must stay one builder."
+      },
+      "apps": [
+        "planning"
+      ],
+      "packages": [
+        "@erpx/server-planning"
+      ],
+      "id": "planning.read-tail-r10-dedupe.unit",
+      "files": [
+        "tests/unit/planning/read-tail-r10-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "planning",
+      "modules": [
+        "planning"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Planning resource EXISTS and allocated minutes guard families must stay byte-identical."
       },
       "apps": "planning",
