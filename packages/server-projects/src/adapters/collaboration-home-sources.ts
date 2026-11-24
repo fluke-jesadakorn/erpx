@@ -14,10 +14,11 @@ import {membersJsonSql} from '@erpx/server-projects/adapters/social-purchase-sou
 
 /** Owner-local fixed SQL for the Projects collaboration-home read family. The
  * selected-audience and home reads reuse the owner's shared membership,
- * actor-scope and members fragments; the clock CTE stays local. Every source
- * relation and bind order is unchanged. */
+ * actor-scope, members and id/title options fragments; the clock CTE stays
+ * local. Every source relation and bind order is unchanged. */
 const workforceActorScope = `CROSS JOIN ${projectAssignmentScopeSql('workforce_actor_scope')}`;
 const projectAudienceClock = `WITH project_audience_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms)`;
+const projectsIdTitleOptions = 'SELECT p.id,p.title FROM staff_projects p';
 
 function audienceScope(actor:StaffActor,enforced:boolean){
     const current=currentAssignmentReadScope(actor,'workforce_actor_scope');
@@ -36,7 +37,7 @@ export async function socialProjectAudienceOptions(db:SqlDatabase,actor:StaffAct
     if(mode==='shadow')await readPurchasedAccess(db,mode,{companyId:actor.companyId,capability:'projects.wbs'});
     const scope=audienceScope(actor,mode==='enforced');
     return (await db.prepare(`${projectAudienceClock}
-      SELECT p.id,p.title FROM staff_projects p CROSS JOIN project_audience_clock
+      ${projectsIdTitleOptions} CROSS JOIN project_audience_clock
       ${workforceActorScope}
       WHERE ${scope.where} ORDER BY p.title,p.id LIMIT 100`)
       .bind(...scope.args)
@@ -74,7 +75,7 @@ export function socialProjectAudienceReadPredicate(){
 
 export function collaborationHomeSources(db: SqlDatabase) {
     return { async projects(companyId: string, userId: string, userId2: string) {
-            return db.prepare(`SELECT p.id,p.title FROM staff_projects p WHERE p.company_id=?
+            return db.prepare(`${projectsIdTitleOptions} WHERE p.company_id=?
       AND ${projectMemberScopeSql}
       ORDER BY p.title,p.id LIMIT 100`)
                 .bind(companyId, userId, userId2).all<{

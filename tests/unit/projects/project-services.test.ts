@@ -656,6 +656,9 @@ it('keeps one shared definition per byte-identical Projects collaboration-home S
  expect(count('${projectAudienceClock}')).toBe(2);
  expect(count('${membersJsonSql}')).toBe(1);
  expect(count("projectAssignmentScopeSql('workforce_actor_scope')")).toBe(1);
+ expect(source).toContain("const projectsIdTitleOptions = 'SELECT p.id,p.title FROM staff_projects p';");
+ expect(count('SELECT p.id,p.title FROM staff_projects p')).toBe(1);
+ expect(count('${projectsIdTitleOptions}')).toBe(2);
 });
 it('keeps one byte-identical member-scope guard for the Projects assertion readers',async()=>{
  const {readFile}=await import('node:fs/promises');
@@ -716,7 +719,7 @@ it('keeps one byte-identical grouped metric projection family for the Projects e
  expect(count('SELECT min(${label}) label,(sum(l.minutes::numeric)*60000)::text value,count(*)::text count_value')).toBe(0);
  expect(count('SELECT min(${label}) label,sum(a.amount_minor::numeric)::text value,count(*)::text count_value')).toBe(0);
 });
-it('retirement:ts-statements stays strictly below the r18 BEFORE=132 baseline',async()=>{
+it('retirement:ts-statements stays strictly below the r22 BEFORE=126 baseline',async()=>{
  const {readFileSync,readdirSync}=await import('node:fs');
  const {resolve}=await import('node:path');
  const root=resolve(__dirname,'../../../packages/server-projects/src');
@@ -729,5 +732,6 @@ it('retirement:ts-statements stays strictly below the r18 BEFORE=132 baseline',a
   }
  };
  walk(root);
- expect(total).toBeLessThan(132);
+ expect(total).toBeLessThan(126);
+ expect(total).toBeLessThanOrEqual(125);
 });
