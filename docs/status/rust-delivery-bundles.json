@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9947,
+    "revision": 9949,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -156232,7 +156232,7 @@
         "owner": "benefits",
         "title": "benefits TS read tail native cutover (r20)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -156244,22 +156244,37 @@
         "resources": [
           "owner:benefits"
         ],
-        "claim": {
-          "runId": "run-20261123-l",
-          "agentId": "wGCRben",
-          "claimedAt": "2026-11-24T06:01:33.258Z",
-          "heartbeatAt": "2026-11-24T06:01:33.258Z",
-          "expiresAt": "2026-11-24T06:31:33.258Z",
-          "generation": 164
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-benefits/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "984d28e7c",
+            "owner": "benefits",
+            "before": 44,
+            "after": 43,
+            "note": "Sensitive attachment and payroll source guards share benefitOwnerExistsGuard; writes/locks untouched."
+          },
+          {
+            "command": "vitest benefits r20 + 14 files (113) + tsc benefits",
+            "result": "passed",
+            "sourceSha": "984d28e7c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=44.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCRben",
+          "at": "2026-11-24T06:24:08.339Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -157613,17 +157628,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
-        "in_progress": 22,
+        "in_progress": 21,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 905,
+        "blocked": 906,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 164,
-    "updatedAt": "2026-11-24T06:15:46.239Z",
+    "updatedAt": "2026-11-24T06:24:08.357Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
