@@ -69881,6 +69881,33 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Planning image source row head must stay one helper."
+      },
+      "apps": [
+        "projects"
+      ],
+      "packages": [
+        "@erpx/server-planning"
+      ],
+      "id": "planning.read-tail-r15-dedupe.unit",
+      "files": [
+        "tests/unit/planning/read-tail-r15-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "planning",
+      "modules": [
+        "planning"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Planning resource EXISTS and allocated minutes guard families must stay byte-identical."
       },
       "apps": "planning",
@@ -80189,6 +80216,33 @@
       "id": "projects.read-tail-r27-dedupe.unit",
       "files": [
         "tests/unit/projects/read-tail-r27-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "projects",
+      "modules": [
+        "projects"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Project assignment viewer select head must stay one helper."
+      },
+      "apps": [
+        "projects"
+      ],
+      "packages": [
+        "@erpx/server-projects"
+      ],
+      "id": "projects.read-tail-r28-dedupe.unit",
+      "files": [
+        "tests/unit/projects/read-tail-r28-dedupe.test.ts"
       ],
       "framework": "vitest"
     },

@@ -72,8 +72,8 @@ describe('Projects read-tail r27 member EXISTS family dedupe', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBeLessThan(118);
-    expect(total).toBe(117);
+    expect(total).toBeLessThan(117);
+    expect(total).toBe(115); // r28 assignment-viewer head family 117->115.
   });
 });
 

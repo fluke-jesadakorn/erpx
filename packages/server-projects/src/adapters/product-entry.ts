@@ -7,6 +7,7 @@ import {projectsPackageEnforcementMode,readPurchasedAccess} from '@erpx/server-c
 import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {projectsClockCte} from './clock-cte';
 import {projectIdSql} from './project-id-source';
+import {assignmentViewerSelect} from './read-tail-r28';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {ApiError} from '@erpx/server-runtime/public/http';
 /** Role candidate discovery uses current native owner policy; it never chooses
@@ -17,7 +18,7 @@ async function projectTaskProductRecord(database:SqlDatabase,scope:ProjectTaskEn
  // avoid the Projects / Operations / workflow module initialization cycle.
  const {projectTaskRecordPolicy}=await import('@erpx/server-operations/public/project-task-record-policy');
  const row=await database.prepare(`${projectsClockCte('project_entry_clock')},
- project_entry_viewer AS MATERIALIZED (SELECT g.id assignment_id,g.user_id,g.role,clock.now_ms FROM assignments g CROSS JOIN project_entry_clock clock
+ project_entry_viewer AS MATERIALIZED (${assignmentViewerSelect}clock.now_ms FROM assignments g CROSS JOIN project_entry_clock clock
  WHERE g.id=? AND g.user_id=? AND g.role=? AND g.company_id=? AND g.version=?
  AND iam_assignment_active(g.id,clock.now_ms) AND iam_principal_active(g.user_id,g.company_id,clock.now_ms)
  AND iam_role_allows(g.role,g.company_id,'records.read')
