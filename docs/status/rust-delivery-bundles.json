@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12395,
+    "revision": 12397,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183592,7 +183592,7 @@
         "owner": "sales",
         "title": "sales TS read tail next round",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183603,22 +183603,37 @@
         "resources": [
           "owner:sales"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n76",
-          "claimedAt": "2026-11-24T15:44:48.328Z",
-          "heartbeatAt": "2026-11-24T15:55:31.303Z",
-          "expiresAt": "2026-11-24T16:25:31.303Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-sales/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "2b9c57c9c",
+            "owner": "sales",
+            "before": 47,
+            "after": 46,
+            "note": "followupCustomerOrderTailRead delegates to followupCustomerOrderRead; 113-char shared head, positional where/order/join mapping; call sites untouched."
+          },
+          {
+            "command": "vitest sales (27) + scoped tsc + git diff --check",
+            "result": "passed",
+            "sourceSha": "2b9c57c9c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Followup customer-order head pair: fold tail generator into read generator (-1): 47->46. Refresh r31 pins. BEFORE=47.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n76",
+          "at": "2026-11-24T15:57:43.266Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -183737,17 +183752,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 15,
+        "in_progress": 14,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1433,
+        "blocked": 1434,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T15:55:31.306Z",
+    "updatedAt": "2026-11-24T15:57:43.269Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
