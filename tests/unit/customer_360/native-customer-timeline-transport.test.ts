@@ -290,4 +290,18 @@ describe('native Customer 360 timeline transport',()=>{
   expect(source.match(/customerVisiblePredicate\(serviceVisible, financeVisible, legalVisible\)/g)).toHaveLength(2);
   expect(source.match(/SELECT p\.id,p\.name,p\.code/g)).toHaveLength(1);
  });
+
+ it('shares one parameterized projection across the non-alias timeline event family',async()=>{
+  const read=async(path:string)=> (await import('node:fs/promises')).readFile(new URL(path,import.meta.url),'utf8');
+  const timeline=await read('../../../packages/server-customer_360/src/adapters/timeline.ts');
+  const scoped=await read('../../../packages/server-customer_360/src/adapters/customer-read-sources.ts');
+  // r6 eventSelect and r5 scopedRow stay authoritative and untouched.
+  expect(timeline.match(/const eventSelect=\(/g)).toHaveLength(1);
+  expect(scoped.match(/const scopedRow = \(/g)).toHaveLength(1);
+  // The five remaining event rows share one helper; no literal SELECT remains for them.
+  expect(timeline.match(/const eventRow=\(/g)).toHaveLength(1);
+  expect(timeline.match(/\$\{eventRow\(/g)).toHaveLength(5);
+  for(const prefix of ['fulfillment:','return:','contact:','invoice:','crm-activity:'])
+   expect(timeline).not.toContain(`SELECT '${prefix}'`);
+ });
 });
