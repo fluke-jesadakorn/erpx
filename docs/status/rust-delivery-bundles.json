@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7952,
+    "revision": 7954,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -133433,7 +133433,7 @@
         "owner": "maintenance",
         "title": "maintenance TS read tail native cutover (round 6)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -133445,22 +133445,34 @@
         "resources": [
           "owner:maintenance"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG85mai",
-          "claimedAt": "2026-11-24T01:21:40.142Z",
-          "heartbeatAt": "2026-11-24T01:23:27.967Z",
-          "expiresAt": "2026-11-24T01:53:27.967Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "maintenance byte-identical scan (3 methods; 29/23/0 populations)",
+            "result": "passed",
+            "sourceSha": "6103a37bf",
+            "note": "zero duplicates remain"
+          },
+          {
+            "command": "tsc maintenance + transport (28)",
+            "result": "passed",
+            "sourceSha": "6103a37bf"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: scan for another safe owner-local duplicate image; otherwise report blocked pending native port. BEFORE=46.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with evidence; no forced dedupe.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG85mai",
+          "at": "2026-11-24T01:28:19.158Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with evidence; no forced dedupe."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -133998,17 +134010,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
-        "in_progress": 30,
+        "in_progress": 29,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 443,
+        "blocked": 444,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:28:10.027Z",
+    "updatedAt": "2026-11-24T01:28:19.166Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
