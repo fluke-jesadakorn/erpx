@@ -30,3 +30,6 @@ export const attendeeScopeExistsSql = `EXISTS(SELECT 1 FROM calendar_attendees a
 /** Receipt point read by id. The column set and receipt table are the only variation. */
 export const receiptByIdSql = (columns: string, table: string) =>
     `SELECT ${columns} FROM ${table} WHERE id=?`;
+/** staff_daily_plans composite-key read. The selected column and trailing predicate are the only variation. */
+export const dailyPlanSql = (columns: string, extra = '') =>
+    `SELECT ${columns} FROM staff_daily_plans WHERE company_id=? AND user_id=? AND plan_date=?${extra}`;
