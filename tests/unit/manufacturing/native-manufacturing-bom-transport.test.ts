@@ -167,7 +167,7 @@ describe('Manufacturing finance-close read retirement',()=>{
     expect(paths.some(path=>path.includes('finance-close-source'))).toBe(false);
     const count=paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0);
     expect(count).toBeLessThan(148);
-    expect(count).toBe(138);
+    expect(count).toBe(137);
   });
 });
 describe('Manufacturing owner-local report-actor read dedupe',()=>{
@@ -317,5 +317,35 @@ describe('Manufacturing independent-QC guard dedupe',()=>{
   it('keeps the identical live statement on both guards with their own binds',()=>{
     expect(source).not.toMatch(/\.prepare\(("|')EXISTS\(SELECT 1 FROM manufacturing_order_events/);
     expect(source.split('assertion(db, key, value, independentQcGuardSql,')).toHaveLength(3);
+  });
+});
+describe('Manufacturing operation-event done guard dedupe',()=>{
+  const source=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/production-command-sources.ts',import.meta.url),'utf8');
+  const registry=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/public/native_command.rs',import.meta.url),'utf8');
+  const sql="AND NOT EXISTS(SELECT 1 FROM manufacturing_operation_events e WHERE e.order_id=? AND e.operation_id=op.id))";
+  it('keeps one fixed-SQL definition and interpolates it into both routing guards',()=>{
+    expect(source).toContain('const operationEventDoneGuardSql =');
+    expect(source.split(sql)).toHaveLength(2);
+    expect(source.split('${operationEventDoneGuardSql}')).toHaveLength(3);
+    for(const method of ['guardCompleteRouting','guardOperationSequence']){
+      const at=source.indexOf(method);
+      const body=source.slice(at,at+360);
+      expect(body).toContain('${operationEventDoneGuardSql}');
+    }
+  });
+  it('stays owner-local, outside the RD_* registry and free of fail-closed markers',()=>{
+    expect(sql).toContain('FROM manufacturing_operation_events');
+    expect(sql).not.toContain('JOIN');
+    expect(registry).not.toContain(sql);
+    expect(registry).not.toContain('operationEventDoneGuardSql');
+    for(const method of ['guardCompleteRouting','guardOperationSequence']){
+      const at=source.indexOf(method);
+      expect(source.slice(at,at+360)).not.toMatch(/503|UNAVAILABLE|fail closed/i);
+    }
+  });
+  it('keeps the live statement on both guards with their own binds',()=>{
+    expect(source.split('${operationEventDoneGuardSql}')).toHaveLength(3);
+    expect(source.slice(source.indexOf('guardCompleteRouting'),source.indexOf('guardCompleteRouting')+360)).toContain('[value2, id]');
+    expect(source.slice(source.indexOf('guardOperationSequence'),source.indexOf('guardOperationSequence')+360)).toContain('[value2, value3, id]');
   });
 });

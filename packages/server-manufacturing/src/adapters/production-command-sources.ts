@@ -34,6 +34,16 @@ const approvedSpecGuardSql =
 const independentQcGuardSql =
   "EXISTS(SELECT 1 FROM manufacturing_order_events WHERE order_id=? AND action='report' AND version=? AND actor_id<>?)";
 
+/** Owner-local fixed guard SQL: the completed-operation witness shared by the
+ * routing-completion and operation-sequence guards. Both guards execute the
+ * identical nested EXISTS on the caller's open production unit; one definition
+ * keeps them from drifting and removes the redundant TypeScript SQL. It stays a
+ * live statement inside its assertion on the same transaction and snapshot (no
+ * fail-closed live-read replacement) and is deliberately outside the RD_* read
+ * plan registry (an atomic witness, not a projection). */
+const operationEventDoneGuardSql =
+  "AND NOT EXISTS(SELECT 1 FROM manufacturing_operation_events e WHERE e.order_id=? AND e.operation_id=op.id))";
+
 export function productionCommandSources(db:SqlDatabase){return {async specification(value:(string | number)[],v:number|undefined){return db
     .prepare(
       `SELECT * FROM manufacturing_specifications WHERE id=? AND company_id=? ${v ? "AND version=?" : ""}`,
@@ -88,8 +98,7 @@ guardCurrentMaterialReservation(key:string,value:string,id:string | number | nul
           "EXISTS(SELECT 1 FROM manufacturing_material_reservations WHERE id=? AND consumed_milli=0 AND released_milli=0 AND expires_at>?)",
           [id, now],
         );},
-guardCompleteRouting(key:string,value:"completed-routing",value2:string,id:string){return assertion(db, key, value, `NOT EXISTS(SELECT 1 FROM manufacturing_specification_operations op WHERE op.specification_id=?
-      AND NOT EXISTS(SELECT 1 FROM manufacturing_operation_events e WHERE e.order_id=? AND e.operation_id=op.id))`, [value2, id]);},
+guardCompleteRouting(key:string,value:"completed-routing",value2:string,id:string){return assertion(db, key, value, `NOT EXISTS(SELECT 1 FROM manufacturing_specification_operations op WHERE op.specification_id=? ${operationEventDoneGuardSql}`, [value2, id]);},
  prepareOutputReport(value:number,value2:number,value3:number,value4:number,id:string){return ownerWrite('order.output-report',[value,value2,value3,value4,id],String(id));},
 async lastReportActor(id:string){return db
       .prepare(latestReportActorSelect)
@@ -102,8 +111,7 @@ guardIndependentFail(key:string,value:"independent-qc",id:string,expectedVersion
 async lastOutputReportActor(id:string){return db.prepare(latestReportActorSelect).bind(id).first<string>("actor_id");},
 async operation(operationId:string,specification_id:string | number | null){return db.prepare("SELECT * FROM manufacturing_specification_operations WHERE id=? AND specification_id=?")
       .bind(operationId, specification_id).first<Row>();},
-guardOperationSequence(key:string,value:"routing-sequence",value2:string,value3:number,id:string){return assertion(db, key, value, `NOT EXISTS(SELECT 1 FROM manufacturing_specification_operations op WHERE op.specification_id=? AND op.ordinal<?
-      AND NOT EXISTS(SELECT 1 FROM manufacturing_operation_events e WHERE e.order_id=? AND e.operation_id=op.id))`, [value2, value3, id]);},
+guardOperationSequence(key:string,value:"routing-sequence",value2:string,value3:number,id:string){return assertion(db, key, value, `NOT EXISTS(SELECT 1 FROM manufacturing_specification_operations op WHERE op.specification_id=? AND op.ordinal<? ${operationEventDoneGuardSql}`, [value2, value3, id]);},
  prepareOperationEvent(value:string,id:string,operationId:string,next:number,laborMinutes:number,machineMinutes:number,reason:string,userId:string,now:number){return ownerWrite('order.operation-event',[value,id,operationId,next,laborMinutes,machineMinutes,reason,userId,now],String(id));},
  prepareReservationRelease(id:string){return ownerWrite('order.reservation-release',[id],String(id));},
  prepareOrderTransition(status:string,now:number,id:string){return ownerWrite('order.transition',[status,now,id],String(id));},
