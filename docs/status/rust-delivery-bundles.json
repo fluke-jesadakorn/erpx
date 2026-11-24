@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10802,
+    "revision": 10806,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -166975,6 +166975,78 @@
         "nextAction": "Four fragment families: released item guard, member edit point, fact data read, metric count prefix. BEFORE=230.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.organization.read-tail-r39",
+        "goalId": "G4",
+        "owner": "organization",
+        "title": "organization node and scope guard families (round 39)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-organization/src/**",
+          "tests/unit/organization/**",
+          "tests/integration/organization/**"
+        ],
+        "resources": [
+          "owner:organization"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMorgb",
+          "claimedAt": "2026-11-24T09:01:33.204Z",
+          "heartbeatAt": "2026-11-24T09:01:33.204Z",
+          "expiresAt": "2026-11-24T09:31:33.204Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Four families: company node scope, staff level active guard, node change version guard, scope node branch exists. BEFORE=262.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.projects.read-tail-r25",
+        "goalId": "G4",
+        "owner": "projects",
+        "title": "projects evidence FROM/JOIN families (round 25)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-projects/src/**",
+          "tests/unit/projects/**",
+          "tests/integration/projects/**"
+        ],
+        "resources": [
+          "owner:projects"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMprj6",
+          "claimedAt": "2026-11-24T09:01:33.411Z",
+          "heartbeatAt": "2026-11-24T09:01:33.411Z",
+          "expiresAt": "2026-11-24T09:31:33.411Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Four families: milestone evidence chain, posted cost chain, actual hours source, owner-or-member scope. BEFORE=122.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -166983,11 +167055,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1467,
+      "totalPackets": 1469,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 16,
+        "in_progress": 18,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -166997,7 +167069,7 @@
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:00:26.940Z",
+    "updatedAt": "2026-11-24T09:01:33.416Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
