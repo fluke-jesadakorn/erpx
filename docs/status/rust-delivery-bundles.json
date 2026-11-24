@@ -9257,17 +9257,17 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12595,
+    "revision": 12597,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
-      "runId": "run-20261125-a",
+      "runId": "run-20261125-b",
       "agentId": "lead-opencode",
-      "startedAt": "2026-11-24T17:08:29.681Z",
-      "heartbeatAt": "2026-11-24T17:32:34.610Z",
-      "expiresAt": "2026-11-24T18:02:34.610Z",
-      "generation": 171,
-      "tokenHash": "98fdc44ca7a631939ed6a32e9fddab85f54c2018551b07af03f6a7764511add0"
+      "startedAt": "2026-11-24T19:56:46.702Z",
+      "heartbeatAt": "2026-11-24T19:56:46.888Z",
+      "expiresAt": "2026-11-24T20:26:46.888Z",
+      "generation": 172,
+      "tokenHash": "e8af9d3fd8f17bd9386d1ec1e506093d0ed8f1552baae8311e0f510e8d011c01"
     },
     "coordinationPolicy": {
       "singleCheckout": true,
@@ -158731,7 +158731,7 @@
         "owner": "customer_360",
         "title": "customer_360 TS read tail native cutover (r12)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -158743,27 +158743,20 @@
         "resources": [
           "owner:customer_360"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n121",
-          "claimedAt": "2026-11-24T17:19:07.376Z",
-          "heartbeatAt": "2026-11-24T17:32:34.610Z",
-          "expiresAt": "2026-11-24T18:02:34.610Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
         "nextAction": "Blocked with evidence; claim released",
         "handoff": {
-          "runId": "run-20261123-m",
-          "agentId": "wGCMc360",
-          "at": "2026-11-24T06:45:39.212Z",
-          "previousStatus": "blocked",
-          "reason": "handoff",
+          "runId": "run-20261125-a",
+          "agentId": "wH4n121",
+          "at": "2026-11-24T19:56:46.702Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
           "nextAction": "Blocked with evidence; claim released"
         },
         "scopeRefinementRequired": false
@@ -184680,7 +184673,7 @@
         "owner": "support",
         "title": "support read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -184691,22 +184684,22 @@
         "resources": [
           "owner:support"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n107",
-          "claimedAt": "2026-11-24T17:10:27.862Z",
-          "heartbeatAt": "2026-11-24T17:32:34.610Z",
-          "expiresAt": "2026-11-24T18:02:34.610Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
         "nextAction": "Service-access org-node native kinds (-2/-3) and team options (-1): 40->36/37. BEFORE=40.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n107",
+          "at": "2026-11-24T19:56:46.702Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
+          "nextAction": "Service-access org-node native kinds (-2/-3) and team options (-1): 40->36/37. BEFORE=40."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185015,7 +185008,7 @@
         "owner": "commerce",
         "title": "commerce read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -185026,22 +185019,22 @@
         "resources": [
           "owner:commerce"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n114",
-          "claimedAt": "2026-11-24T17:11:55.573Z",
-          "heartbeatAt": "2026-11-24T17:32:34.610Z",
-          "expiresAt": "2026-11-24T18:02:34.610Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
         "nextAction": "Product config native read kinds (6 plans) via native_commerce_read_sql registry: 454->448. BEFORE=454.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n114",
+          "at": "2026-11-24T19:56:46.702Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
+          "nextAction": "Product config native read kinds (6 plans) via native_commerce_read_sql registry: 454->448. BEFORE=454."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185100,7 +185093,7 @@
         "owner": "manage_erpx",
         "title": "manage_erpx read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -185111,22 +185104,22 @@
         "resources": [
           "owner:manage_erpx"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n116",
-          "claimedAt": "2026-11-24T17:12:20.618Z",
-          "heartbeatAt": "2026-11-24T17:32:34.610Z",
-          "expiresAt": "2026-11-24T18:02:34.610Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
         "nextAction": "beta_policy point native reader (-1): 23->22. BEFORE=23.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n116",
+          "at": "2026-11-24T19:56:46.702Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
+          "nextAction": "beta_policy point native reader (-1): 23->22. BEFORE=23."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185135,7 +185128,7 @@
         "owner": "platform_administration",
         "title": "platform_administration read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -185146,22 +185139,22 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n117",
-          "claimedAt": "2026-11-24T17:12:33.149Z",
-          "heartbeatAt": "2026-11-24T17:32:34.610Z",
-          "expiresAt": "2026-11-24T18:02:34.610Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
         "nextAction": "Engineering prior read via existing native mirror (-1): 28->27. BEFORE=28.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n117",
+          "at": "2026-11-24T19:56:46.702Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
+          "nextAction": "Engineering prior read via existing native mirror (-1): 28->27. BEFORE=28."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185320,7 +185313,7 @@
         "owner": "finance",
         "title": "finance read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -185331,22 +185324,22 @@
         "resources": [
           "owner:finance"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n122",
-          "claimedAt": "2026-11-24T17:28:28.118Z",
-          "heartbeatAt": "2026-11-24T17:32:34.610Z",
-          "expiresAt": "2026-11-24T18:02:34.610Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
         "nextAction": "Column-by-id point reads reuse/extend r49 tableByIdSql (-10): 1764->1754. BEFORE=1764.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n122",
+          "at": "2026-11-24T19:56:46.702Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
+          "nextAction": "Column-by-id point reads reuse/extend r49 tableByIdSql (-10): 1764->1754. BEFORE=1764."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185355,7 +185348,7 @@
         "owner": "people_payroll",
         "title": "people_payroll read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -185366,22 +185359,22 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n123",
-          "claimedAt": "2026-11-24T17:28:40.655Z",
-          "heartbeatAt": "2026-11-24T17:32:34.610Z",
-          "expiresAt": "2026-11-24T18:02:34.610Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
         "nextAction": "Native roster assignment, replay-prior and payee reads (-4): 1221->1217. BEFORE=1221.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n123",
+          "at": "2026-11-24T19:56:46.702Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
+          "nextAction": "Native roster assignment, replay-prior and payee reads (-4): 1221->1217. BEFORE=1221."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185390,7 +185383,7 @@
         "owner": "legal",
         "title": "legal read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -185401,22 +185394,22 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n124",
-          "claimedAt": "2026-11-24T17:28:53.171Z",
-          "heartbeatAt": "2026-11-24T17:32:34.610Z",
-          "expiresAt": "2026-11-24T18:02:34.610Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
         "nextAction": "Native laws view aux read (-3): 145->142. BEFORE=145.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n124",
+          "at": "2026-11-24T19:56:46.702Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
+          "nextAction": "Native laws view aux read (-3): 145->142. BEFORE=145."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185425,7 +185418,7 @@
         "owner": "pms",
         "title": "pms read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -185436,22 +185429,22 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n125",
-          "claimedAt": "2026-11-24T17:29:05.698Z",
-          "heartbeatAt": "2026-11-24T17:32:34.610Z",
-          "expiresAt": "2026-11-24T18:02:34.610Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
         "nextAction": "Native hotelSources (-6) and housekeeping command (-2): 283->277/275. BEFORE=283.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n125",
+          "at": "2026-11-24T19:56:46.702Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
+          "nextAction": "Native hotelSources (-6) and housekeeping command (-2): 283->277/275. BEFORE=283."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185460,7 +185453,7 @@
         "owner": "organization",
         "title": "organization read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -185471,22 +185464,22 @@
         "resources": [
           "owner:organization"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n126",
-          "claimedAt": "2026-11-24T17:29:18.245Z",
-          "heartbeatAt": "2026-11-24T17:32:34.610Z",
-          "expiresAt": "2026-11-24T18:02:34.610Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
         "nextAction": "Native levels and templates reads (-2): 226->224. BEFORE=226.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n126",
+          "at": "2026-11-24T19:56:46.702Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
+          "nextAction": "Native levels and templates reads (-2): 226->224. BEFORE=226."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185495,7 +185488,7 @@
         "owner": "operations",
         "title": "operations read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -185506,22 +185499,22 @@
         "resources": [
           "owner:operations"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n127",
-          "claimedAt": "2026-11-24T17:29:30.772Z",
-          "heartbeatAt": "2026-11-24T17:32:34.610Z",
-          "expiresAt": "2026-11-24T18:02:34.610Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
         "nextAction": "Native handover receipt (-2), staff_tasks detail/page (-1), replay (-1): 82->78. BEFORE=82.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n127",
+          "at": "2026-11-24T19:56:46.702Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
+          "nextAction": "Native handover receipt (-2), staff_tasks detail/page (-1), replay (-1): 82->78. BEFORE=82."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185530,7 +185523,7 @@
         "owner": "crm",
         "title": "crm read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -185541,22 +185534,22 @@
         "resources": [
           "owner:crm"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n128",
-          "claimedAt": "2026-11-24T17:29:43.318Z",
-          "heartbeatAt": "2026-11-24T17:32:34.610Z",
-          "expiresAt": "2026-11-24T18:02:34.610Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
         "nextAction": "Scalar subquery head (-5) at 6 sites: 78->73. BEFORE=78.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n128",
+          "at": "2026-11-24T19:56:46.702Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
+          "nextAction": "Scalar subquery head (-5) at 6 sites: 78->73. BEFORE=78."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185565,7 +185558,7 @@
         "owner": "collaboration",
         "title": "collaboration read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -185576,22 +185569,22 @@
         "resources": [
           "owner:collaboration"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n129",
-          "claimedAt": "2026-11-24T17:29:55.852Z",
-          "heartbeatAt": "2026-11-24T17:32:34.610Z",
-          "expiresAt": "2026-11-24T18:02:34.610Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
         "nextAction": "Draft-by-id reuse (-2), messaging team image (-2), social target image (-2): 350->344. BEFORE=350.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n129",
+          "at": "2026-11-24T19:56:46.702Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
+          "nextAction": "Draft-by-id reuse (-2), messaging team image (-2), social target image (-2): 350->344. BEFORE=350."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185600,7 +185593,7 @@
         "owner": "ecommerce",
         "title": "ecommerce read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -185611,22 +185604,22 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n130",
-          "claimedAt": "2026-11-24T17:30:08.372Z",
-          "heartbeatAt": "2026-11-24T17:32:34.610Z",
-          "expiresAt": "2026-11-24T18:02:34.610Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
         "nextAction": "Final scalar composition 5->1 with 14 KPI pins and 1 structural pin. BEFORE=5.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n130",
+          "at": "2026-11-24T19:56:46.702Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
+          "nextAction": "Final scalar composition 5->1 with 14 KPI pins and 1 structural pin. BEFORE=5."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185635,7 +185628,7 @@
         "owner": "quality",
         "title": "quality read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -185646,22 +185639,22 @@
         "resources": [
           "owner:quality"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n131",
-          "claimedAt": "2026-11-24T17:30:20.901Z",
-          "heartbeatAt": "2026-11-24T17:32:34.610Z",
-          "expiresAt": "2026-11-24T18:02:34.610Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
         "nextAction": "Hold/spec existence probes (-1) and CAS guard plan (-1): 33->31. BEFORE=33.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n131",
+          "at": "2026-11-24T19:56:46.702Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
+          "nextAction": "Hold/spec existence probes (-1) and CAS guard plan (-1): 33->31. BEFORE=33."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185670,7 +185663,7 @@
         "owner": "pos",
         "title": "pos read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -185681,22 +185674,22 @@
         "resources": [
           "owner:pos"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n132",
-          "claimedAt": "2026-11-24T17:30:33.430Z",
-          "heartbeatAt": "2026-11-24T17:32:34.610Z",
-          "expiresAt": "2026-11-24T18:02:34.610Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
         "nextAction": "Four lock-free stripe keyed kinds: 188->184. BEFORE=188.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n132",
+          "at": "2026-11-24T19:56:46.702Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
+          "nextAction": "Four lock-free stripe keyed kinds: 188->184. BEFORE=188."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185705,7 +185698,7 @@
         "owner": "billing",
         "title": "billing read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -185716,22 +185709,22 @@
         "resources": [
           "owner:billing"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n133",
-          "claimedAt": "2026-11-24T17:30:45.963Z",
-          "heartbeatAt": "2026-11-24T17:32:34.610Z",
-          "expiresAt": "2026-11-24T18:02:34.610Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
         "nextAction": "Native successful meter, target snapshot lock and advisory head: 16->13. BEFORE=16.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n133",
+          "at": "2026-11-24T19:56:46.702Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
+          "nextAction": "Native successful meter, target snapshot lock and advisory head: 16->13. BEFORE=16."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185740,7 +185733,7 @@
         "owner": "procurement",
         "title": "procurement read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -185751,22 +185744,22 @@
         "resources": [
           "owner:procurement"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n134",
-          "claimedAt": "2026-11-24T17:30:58.491Z",
-          "heartbeatAt": "2026-11-24T17:32:34.610Z",
-          "expiresAt": "2026-11-24T18:02:34.610Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
         "nextAction": "RFQ lines/events/get/offers kinds (-2/-3): 95->93/92. BEFORE=95.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n134",
+          "at": "2026-11-24T19:56:46.702Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
+          "nextAction": "RFQ lines/events/get/offers kinds (-2/-3): 95->93/92. BEFORE=95."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -185775,7 +185768,7 @@
         "owner": "identity_access",
         "title": "identity_access read slice",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -185786,22 +185779,22 @@
         "resources": [
           "owner:identity_access"
         ],
-        "claim": {
-          "runId": "run-20261125-a",
-          "agentId": "wH4n135",
-          "claimedAt": "2026-11-24T17:31:11.010Z",
-          "heartbeatAt": "2026-11-24T17:32:34.610Z",
-          "expiresAt": "2026-11-24T18:02:34.610Z",
-          "generation": 171
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
         "nextAction": "Authority facts native port (-1/-2): 448->447/446. BEFORE=448.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261125-a",
+          "agentId": "wH4n135",
+          "at": "2026-11-24T19:56:46.702Z",
+          "previousStatus": "in_progress",
+          "reason": "Recovery: Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
+          "nextAction": "Authority facts native port (-1/-2): 448->447/446. BEFORE=448."
+        },
         "scopeRefinementRequired": false
       }
     ],
@@ -185815,17 +185808,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 19,
+        "in_progress": 0,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1472,
+        "blocked": 1491,
         "deferred": 2,
         "done": 0
       }
     },
-    "lastCoordinatorGeneration": 171,
-    "updatedAt": "2026-11-24T17:32:34.613Z",
+    "lastCoordinatorGeneration": 172,
+    "updatedAt": "2026-11-24T19:56:46.891Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
@@ -185860,10 +185853,10 @@
       }
     },
     "lastRecovery": {
-      "previousRunId": "run-20261124-d",
-      "runId": "run-20261125-a",
-      "at": "2026-11-24T17:08:29.682Z",
-      "reason": "Lease expired during long integration session; reviewed WIP, previous coordinator stopped.",
+      "previousRunId": "run-20261125-a",
+      "runId": "run-20261125-b",
+      "at": "2026-11-24T19:56:46.703Z",
+      "reason": "Lease expired during provider rate-limit stall; reviewed WIP, previous coordinator stopped.",
       "wipReviewed": true,
       "previousRunStopped": true
     },
