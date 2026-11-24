@@ -34,13 +34,16 @@ export const benefitPackageSettlementSources={
  elections:settlementSource('benefit_election_events','e','election','benefit_elections'),
  inputs:"SELECT * FROM benefit_payroll_inputs",
 } as const;
+/** Byte-identical owner-local MATERIALIZED scope CTE projection shared by the
+ * plans/windows/elections settlement sources; generated SQL is unchanged. */
+export const materializedScopeCte=(alias:string,source:string)=>`SELECT ${alias}.* FROM (${source}) ${alias},scope WHERE ${alias}.company_id=scope.company_id`;
 export async function benefitPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
  assertBenefitPackageObligationSources(owner,database,input.companyId);
  if(input.moduleId!=="benefits"||input.packageId!=="people-benefits"||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error("BENEFIT_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
  const facts=(await database.prepare(`${benefitScopePrefix}to_char(to_timestamp(?::bigint/1000.0) AT TIME ZONE 'UTC','YYYY-MM-DD') today),
- plans AS MATERIALIZED(SELECT p.* FROM (${benefitPackageSettlementSources.plans}) p,scope WHERE p.company_id=scope.company_id),
- windows AS MATERIALIZED(SELECT w.* FROM (${benefitPackageSettlementSources.windows}) w,scope WHERE w.company_id=scope.company_id),
- elections AS MATERIALIZED(SELECT e.* FROM (${benefitPackageSettlementSources.elections}) e,scope WHERE e.company_id=scope.company_id),
+ plans AS MATERIALIZED(${materializedScopeCte('p',benefitPackageSettlementSources.plans)}),
+ windows AS MATERIALIZED(${materializedScopeCte('w',benefitPackageSettlementSources.windows)}),
+ elections AS MATERIALIZED(${materializedScopeCte('e',benefitPackageSettlementSources.elections)}),
  facts AS(
  SELECT 'plan' kind,p.id,p.version,p.status state,to_jsonb(p) image,p.status NOT IN ('retired','rejected') OR NOT p.terminal_proven pending FROM plans p
  ${benefitWindowFactPrefix}w.status NOT IN ('closed','cancelled') OR NOT w.terminal_proven FROM windows w

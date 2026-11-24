@@ -51,12 +51,15 @@ function sensitiveAttachmentRecordVersionStep(
     .prepare(`UPDATE ${table} SET version=version+1,updated_at=? WHERE id=? AND version=?`)
     .bind(now, targetId, expectedVersion);
 }
+/** Byte-identical owner-local sensitive-fact read projection shared by the
+ * dependent/election pair; generated SQL is unchanged. */
+export const sensitiveFactSelect=(alias:string,table:string,participants:()=>string)=>`SELECT ${alias}.company_id,${alias}.version,${alias}.status,e.branch_id,e.department_id,
+        CASE WHEN iam_same_person(p.user_id,?,${alias}.company_id) THEN 1 ELSE 0 END is_owner
+      FROM ${table} ${alias}
+      ${participants()}
+      WHERE ${alias}.id=? AND ${alias}.company_id=?`;
 export function SensitiveAttachmentBenefitsFacts(db:SqlDatabase){return {
-readBenefitDependents1:(facts:{userId:string;targetId:string;companyId:string;})=>db.prepare(`SELECT d.company_id,d.version,d.status,e.branch_id,e.department_id,
-        CASE WHEN iam_same_person(p.user_id,?,d.company_id) THEN 1 ELSE 0 END is_owner
-      FROM benefit_dependents d
-      ${benefitDependentParticipants()}
-      WHERE d.id=? AND d.company_id=?`).bind(facts.userId,facts.targetId,facts.companyId).first<{
+readBenefitDependents1:(facts:{userId:string;targetId:string;companyId:string;})=>db.prepare(sensitiveFactSelect('d','benefit_dependents',benefitDependentParticipants)).bind(facts.userId,facts.targetId,facts.companyId).first<{
       company_id: string;
       version: number;
       status: string;
@@ -64,11 +67,7 @@ readBenefitDependents1:(facts:{userId:string;targetId:string;companyId:string;})
       department_id: string | null;
       is_owner: number;
     }>(),
-readBenefitElections1:(facts:{userId:string;targetId:string;companyId:string;})=>db.prepare(`SELECT x.company_id,x.version,x.status,e.branch_id,e.department_id,
-        CASE WHEN iam_same_person(p.user_id,?,x.company_id) THEN 1 ELSE 0 END is_owner
-      FROM benefit_elections x
-      ${benefitElectionParticipants()}
-      WHERE x.id=? AND x.company_id=?`).bind(facts.userId,facts.targetId,facts.companyId).first<{
+readBenefitElections1:(facts:{userId:string;targetId:string;companyId:string;})=>db.prepare(sensitiveFactSelect('x','benefit_elections',benefitElectionParticipants)).bind(facts.userId,facts.targetId,facts.companyId).first<{
       company_id: string;
       version: number;
       status: string;
