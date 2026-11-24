@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11106,
+    "revision": 11108,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -169746,7 +169746,7 @@
         "owner": "billing",
         "title": "billing native workspace read cutover (round 26)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -169759,22 +169759,38 @@
         "resources": [
           "owner:billing"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMbil6",
-          "claimedAt": "2026-11-24T09:33:26.565Z",
-          "heartbeatAt": "2026-11-24T09:38:27.860Z",
-          "expiresAt": "2026-11-24T10:08:27.860Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-billing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d5907ba87",
+            "owner": "billing",
+            "before": 63,
+            "after": 60,
+            "note": "Deleted nativeBillingView/billingView SQL and barrel export; presentation/API GET now native-only and fail-closed. Advisory locks, FOR UPDATE and r15-r25 helpers untouched."
+          },
+          {
+            "command": "vitest billing unit (136) + native view suite",
+            "result": "passed",
+            "sourceSha": "d5907ba87",
+            "note": "Five .rs files are picked up by vitest and fail by design; all TS billing tests pass. Rust unchanged by this cutover."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Delete nativeBillingView/billingView TS SQL (3 literals in billing.ts), make billing-presentation and billing-api view native-authoritative/fail-closed, update unit oracles; migrate billingView test callers. BEFORE=63, expected 60.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMbil6",
+          "at": "2026-11-24T10:07:58.559Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -170673,17 +170689,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 23,
-        "in_progress": 22,
+        "in_progress": 21,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1165,
+        "blocked": 1166,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:57:12.119Z",
+    "updatedAt": "2026-11-24T10:07:58.564Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
