@@ -15,6 +15,7 @@ import {holdingResources} from '../../../../packages/server-runtime/src/public/r
 import {isTransactionalSqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {posStartupSourceReadLocks} from '@erpx/server-pos/adapters/startup-sources';
+import {nativePosKeyedSettingsPreparedStateStatement} from './native-pos-core-statement';
 import type {PosStartupWorkspace} from '@erpx/server-pos/domain/startup';
 const capabilities=['pos.sales','inventory.stock-core','finance.pos-posting'] as const;
 const empty=(companyId:string,unavailableReason:PosStartupWorkspace['unavailableReason']):PosStartupWorkspace=>({companyId,available:false,contextKey:null,documentCurrency:null,canCreateWarehouse:false,canCreateProduct:false,canPrepareInitialStock:false,canBootstrap:false,canConfigureCatalogue:false,canApproveAccounting:false,configured:null,settingsVersion:null,accountingPrepared:false,accountingApproved:false,bankAccounts:[],branches:[],warehouses:[],products:[],registers:[],unavailableReason});
@@ -38,7 +39,7 @@ export async function posStartupWorkspace(actor:WorkContext):Promise<PosStartupW
   const access=await readPurchasedAccesses(database,'enforced',actor.companyId,capabilities);if(!capabilities.every(capability=>access[capability].history))return empty(actor.companyId,'purchase-required');
   const [choices,nodes,settings,registers]=await Promise.all([
    posStartupMasterChoices(database,actor),financeStarterOrganizationNodes(database,actor.companyId),
-   database.prepare('SELECT version,accounting_prepared_by,accounting_approved_by FROM pos_settings WHERE company_id=?').bind(actor.companyId).first<{version:number;accounting_prepared_by:string|null;accounting_approved_by:string|null}>(),
+   nativePosKeyedSettingsPreparedStateStatement<{version:number;accounting_prepared_by:string|null;accounting_approved_by:string|null}>(database,actor.companyId),
    database.prepare('SELECT id,branch_id,warehouse_id,name,mode,active,version FROM pos_registers WHERE company_id=? AND (?::text IS NULL OR branch_id=?) ORDER BY id').bind(actor.companyId,actor.branchId,actor.branchId).all<{id:string;branch_id:string;warehouse_id:string;name:string;mode:string;active:boolean;version:number}>(),
   ]);
   const finance=choices.mapping?await posStartupMasterFinanceSource(database,actor.companyId,choices.mapping.chartId,choices.mapping.currency):null;

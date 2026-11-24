@@ -339,3 +339,63 @@ fn core_read_statements_execute_and_scope_on_postgres() {
             &[Some("shift-2")]).await.is_empty());
     });
 }
+
+// --- Round 29 keyed core settings/receipt/day-close/reversal family ---------
+// The retired inline TypeScript literals are reconstructed verbatim below so
+// the transport and integration oracles cannot drift from the runtime registry.
+use erpx_server_pos::public::core_keyed_reads as keyed_mounted;
+
+const KEYED_CORE_READ_KINDS: &[&str] = &[
+    "pos_core_keyed_settings",
+    "pos_core_keyed_settings_currency_accounts",
+    "pos_core_keyed_settings_prepared_state",
+    "pos_core_keyed_receipt_by_id",
+    "pos_core_keyed_sale_document",
+    "pos_core_keyed_prepared_day_close",
+    "pos_core_keyed_pending_reversal_request",
+    "pos_core_keyed_reversal_by_sale",
+];
+
+fn keyed_core_binds(kind: &str) -> usize {
+    match kind {
+        "pos_core_keyed_sale_document" => 2,
+        "pos_core_keyed_prepared_day_close" => 3,
+        _ => 1,
+    }
+}
+
+fn legacy_keyed_core_sql(kind: &str) -> Option<&'static str> {
+    Some(match kind {
+        "pos_core_keyed_settings" => "SELECT * FROM pos_settings WHERE company_id=?",
+        "pos_core_keyed_settings_currency_accounts" => "SELECT currency,accounts_json FROM pos_settings WHERE company_id=?",
+        "pos_core_keyed_settings_prepared_state" => "SELECT version,accounting_prepared_by,accounting_approved_by FROM pos_settings WHERE company_id=?",
+        "pos_core_keyed_receipt_by_id" => "SELECT * FROM pos_receipts WHERE id=?",
+        "pos_core_keyed_sale_document" => "SELECT snapshot_json::text FROM pos_sale_documents WHERE sale_id=? AND company_id=?",
+        "pos_core_keyed_prepared_day_close" => "SELECT id FROM pos_day_closes WHERE company_id=? AND branch_id=? AND business_date=? AND state='prepared'",
+        "pos_core_keyed_pending_reversal_request" => "SELECT id FROM pos_room_charge_reversal_requests WHERE sale_id=? AND state IN ('requested','pos_approved')",
+        "pos_core_keyed_reversal_by_sale" => "SELECT sale_id FROM pos_room_charge_reversals WHERE sale_id=?",
+        _ => return None,
+    })
+}
+
+#[test]
+fn keyed_core_kinds_are_mounted_and_match_the_owner_statements() {
+    assert_eq!(keyed_mounted::KINDS, KEYED_CORE_READ_KINDS);
+    for kind in KEYED_CORE_READ_KINDS {
+        assert!(keyed_mounted::supported(kind), "keyed core kind must be mounted: {kind}");
+        let sql = keyed_mounted::sql(kind).unwrap_or_else(|| panic!("missing SQL for mounted kind {kind}"));
+        assert!(sql.starts_with("SELECT "), "kind must be SELECT-only: {kind}");
+        assert_eq!(sql.matches('?').count(), keyed_core_binds(kind), "bind count drifted for {kind}");
+        for forbidden in [
+            "INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE", "FOR SHARE",
+            "FOR NO KEY UPDATE", "LOCK TABLE", "pg_advisory", "pms_sources", "pms_properties",
+        ] {
+            assert!(
+                !sql.contains(forbidden),
+                "kind must not mutate, lock or cross owners: {kind} contains {forbidden}"
+            );
+        }
+        assert_eq!(sql, legacy_keyed_core_sql(kind).unwrap(), "mounted SQL drifted for {kind}");
+    }
+    assert!(keyed_mounted::sql("pos_core_keyed_unlisted").is_none());
+}

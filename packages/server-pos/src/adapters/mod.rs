@@ -12,6 +12,7 @@ pub(crate) mod stripe_reads;
 pub(crate) mod attachment_read_sources;
 pub(crate) mod boundary_reads;
 pub(crate) mod core_reads;
+pub(crate) mod core_keyed_reads;
 pub(crate) mod obligation_reads;
 pub(crate) mod day_report_source;
 pub(crate) mod owner_writes;

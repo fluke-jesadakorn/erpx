@@ -16,6 +16,7 @@ pub mod stripe_reads;
 pub mod attachment_read_sources;
 pub mod boundary_reads;
 pub mod core_reads;
+pub mod core_keyed_reads;
 pub mod obligation_reads;
 pub mod day_receipt;
 pub mod day_report;

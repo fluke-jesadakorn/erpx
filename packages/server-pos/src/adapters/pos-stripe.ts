@@ -1,5 +1,5 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
-import { nativePosConnectionsStatement, nativePosPaymentByIdCompanyStatement, nativePosPaymentByIdPlainStatement, nativePosPaymentByIdStatement, nativePosPostingJournalStatement, nativePosSaleByIdStatement, nativePosStripeRoutesStatement } from './native-pos-core-statement';
+import { nativePosConnectionsStatement, nativePosKeyedSettingsCurrencyAccountsStatement, nativePosPaymentByIdCompanyStatement, nativePosPaymentByIdPlainStatement, nativePosPaymentByIdStatement, nativePosPostingJournalStatement, nativePosSaleByIdStatement, nativePosStripeRoutesStatement } from './native-pos-core-statement';
 import { nativePosSettlementBalanceRowStatement, nativePosSettlementBalanceStateStatement, nativePosSettlementPayoutJournalStatement, nativePosSettlementStateStatement, nativePosStripePaymentIdStatement, nativePosStripePaymentStatement, nativePosStripeRefundIdStatement, nativePosStripeRefundStatement } from './native-pos-stripe-reads';
 import{secret,stripeRequest}from '@erpx/server-pos/adapters/stripe-provider';
 import {posStripeBindingFacts} from "@erpx/server-runtime/public/pos-stripe-binding-facts";
@@ -195,7 +195,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
         }) => nativePosRun(db, String(facts.company_id ?? ''), 'stripe_writepossettlements2_192', [facts.fact0, facts.company_id, facts.account_id, facts.livemode, facts.btId, facts.amount, facts.fee, facts.fact7, facts.journal, facts.fact9]),
         readPosSettings1: (facts: {
             companyId: string;
-        }) => one(db, 'SELECT currency,accounts_json FROM pos_settings WHERE company_id=?', facts.companyId),
+        }) => nativePosKeyedSettingsCurrencyAccountsStatement(db, facts.companyId),
         writePosSettlements3: (facts: {
             fact0: `${string}-${string}-${string}-${string}-${string}`;
             company_id: string | number | boolean | null;

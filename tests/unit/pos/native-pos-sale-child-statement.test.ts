@@ -167,14 +167,17 @@ describe('native POS sale-child detail read bridge', () => {
     expect(core.match(/nativePos(LinesBySale|SucceededPaymentTotal|PendingPaymentId|RefundablePayments|PaymentIdBySale|FulfilledLines|FirstPaymentId|LinesTotal|OpenPaymentId)Statement\(db/g)).toHaveLength(9);
   });
 
-  it('keeps lock, PMS-fragment, document, reversal and refund-child reads inline', () => {
+  it('keeps lock, PMS-fragment and refund-child reads inline; document and reversal reads are native keyed core kinds', () => {
     const pos = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos.ts', import.meta.url), 'utf8');
     const core = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-core.ts', import.meta.url), 'utf8');
-    expect(pos).toContain('SELECT snapshot_json::text FROM pos_sale_documents WHERE sale_id=? AND company_id=?');
     expect(pos).toContain('${pmsProjectionSources.pms_sources}');
     expect(core).toContain('SELECT * FROM pos_sales WHERE id=? FOR UPDATE');
     expect(core).toContain("SELECT pg_advisory_xact_lock(hashtextextended('pos-daily:'||?,0))");
-    expect(core).toContain('SELECT sale_id FROM pos_room_charge_reversals WHERE sale_id=?');
     expect(core).toContain("SELECT rp.id FROM pos_refund_payments rp JOIN pos_payments p ON p.id=rp.payment_id WHERE p.sale_id=? AND rp.state<>'succeeded'");
+    expect(pos).not.toContain('SELECT snapshot_json::text FROM pos_sale_documents WHERE sale_id=? AND company_id=?');
+    expect(pos).toContain('nativePosKeyedSaleDocumentStatement');
+    expect(core).not.toContain('SELECT sale_id FROM pos_room_charge_reversals WHERE sale_id=?');
+    expect(core).toContain('nativePosKeyedReversalBySaleStatement');
+    expect(core).toContain('SELECT * FROM pos_room_charge_reversal_requests WHERE id=? FOR UPDATE');
   });
 });

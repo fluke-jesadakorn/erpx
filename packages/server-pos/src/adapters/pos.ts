@@ -1,5 +1,5 @@
 import { nativePosAll } from './native-owner-write';
-import { nativePosCashMovementsStatement, nativePosConnectionsStatement, nativePosRegisterByIdStatement, nativePosSalesEvidenceStatement, nativePosShiftsStatement, nativePosTablesStatement } from './native-pos-core-statement';
+import { nativePosCashMovementsStatement, nativePosConnectionsStatement, nativePosKeyedSaleDocumentStatement, nativePosRegisterByIdStatement, nativePosSalesEvidenceStatement, nativePosShiftsStatement, nativePosTablesStatement } from './native-pos-core-statement';
 import { nativePosSaleLinesStatement, nativePosSalePaymentsStatement } from './native-pos-sale-child';
 import { nativePosRegistersStatement, nativePosRegistersFrontStatement, nativePosSaleStatement, nativePosSettingsStatement } from './native-pos-registers-statement';
 import { roomChargeReversalWork } from "@erpx/server-pos/adapters/room-charge-reversal-queue";
@@ -144,7 +144,7 @@ function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
         readPosSaleDocuments1: (facts: {
             id: string | number | boolean | null;
             company: string;
-        }) => one(db, 'SELECT snapshot_json::text FROM pos_sale_documents WHERE sale_id=? AND company_id=?', facts.id, facts.company),
+        }) => nativePosKeyedSaleDocumentStatement(db, facts),
         readOrganizationNodes1: facts => PosReadOrganizationFacts(db).readOrganizationNodes1(facts),
         readFinanceBankTransactions2: facts => PosReadFinanceFacts(db).readFinanceBankTransactions2(facts),
         readOrganizationNodes2: facts => PosReadOrganizationFacts(db).readOrganizationNodes2(facts),

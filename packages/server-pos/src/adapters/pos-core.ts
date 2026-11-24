@@ -1,6 +1,6 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
 import { nativePosAuditChargeToRoomStatement, nativePosAuditKitchenStartStatement } from './native-pos-audit-reads';
-import { nativePosOpenShiftByIdStatement, nativePosOpenShiftByRegisterStatement, nativePosPaymentByIdPlainStatement, nativePosPostingJournalStatement, nativePosRegisterByIdStatement, nativePosRegisterByNameStatement, nativePosRegisterCatalogStatement, nativePosRegistersByKindStatement, nativePosRestaurantRegisterPropertyStatement, nativePosSaleByIdStatement, nativePosTableByNameStatement } from './native-pos-core-statement';
+import { nativePosKeyedPendingReversalStatement, nativePosKeyedPreparedDayCloseStatement, nativePosKeyedReceiptByIdStatement, nativePosKeyedReversalBySaleStatement, nativePosKeyedSettingsStatement, nativePosOpenShiftByIdStatement, nativePosOpenShiftByRegisterStatement, nativePosPaymentByIdPlainStatement, nativePosPostingJournalStatement, nativePosRegisterByIdStatement, nativePosRegisterByNameStatement, nativePosRegisterCatalogStatement, nativePosRegistersByKindStatement, nativePosRestaurantRegisterPropertyStatement, nativePosSaleByIdStatement, nativePosTableByNameStatement } from './native-pos-core-statement';
 import { nativePosFulfilledLinesStatement, nativePosFirstPaymentIdStatement, nativePosLinesBySaleStatement, nativePosLinesTotalStatement, nativePosOpenPaymentIdStatement, nativePosPaymentIdBySaleStatement, nativePosPendingPaymentIdStatement, nativePosRefundablePaymentsStatement, nativePosSucceededPaymentTotalStatement } from './native-pos-sale-child';
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
 import { hospitalityOwnerProjectionSources as pmsProjectionSources } from "@erpx/server-pms/public/hospitality-owner-projection-sources";
@@ -41,7 +41,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             for(const row of rows) await posGuestAccountInterface(db).assertDay(company,row.property_id,row.branch_id,date);
         },
         reversalRequest: id => one(db, 'SELECT * FROM pos_room_charge_reversal_requests WHERE id=? FOR UPDATE', id),
-        pendingReversal: saleId => one(db, "SELECT id FROM pos_room_charge_reversal_requests WHERE sale_id=? AND state IN ('requested','pos_approved')", saleId),
+        pendingReversal: saleId => nativePosKeyedPendingReversalStatement(db, saleId),
         saveReversalRequest: async row => { await nativePosRun(db, String(row.company_id ?? ''), 'core_savereversalrequest_41', [row.id, row.sale_id, row.company_id, row.branch_id, row.property_id, row.sale_version, row.property_version, row.amount_minor, row.reason, row.restock_line_ids_json, row.requested_by, row.created_at, row.created_at]); },
         reviewReversalRequest: async (id,state,user,reason,now) => { await nativePosRun(db, '', 'core_reviewreversalrequest_42', [state, state, user, state, user, state, user, reason, now, id]); },
         prepareAccounting: async (company,accounts,user) => { await nativePosRun(db, company, 'core_prepareaccounting_43', [JSON.stringify(accounts), user, company]); },
@@ -51,7 +51,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => one(db, 'SELECT * FROM pos_sales WHERE id=? FOR UPDATE', facts.saleId),
         readPosSettings1: (facts: {
             companyId: string;
-        }) => one(db, 'SELECT * FROM pos_settings WHERE company_id=?', facts.companyId),
+        }) => nativePosKeyedSettingsStatement(db, facts.companyId),
         readFinancePeriods1: facts => posCoreFinanceFacts(db).readFinancePeriods1(facts),
         readPosPostings1: (facts: {
             sourceKey: string;
@@ -165,7 +165,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => run(db, "SELECT pg_advisory_xact_lock(hashtextextended('pos-daily:'||?,0))", facts.companyId),
         readPosReceipts1: (facts: {
             key: string;
-        }) => one(db, 'SELECT * FROM pos_receipts WHERE id=?', facts.key),
+        }) => nativePosKeyedReceiptByIdStatement(db, facts.key),
         writeCommandAssertions1: facts => posCoreWorkflowFacts(db).writeCommandAssertions1(facts),
         writePosReceipts1: (facts: {
             key: string;
@@ -316,13 +316,13 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
             company_id: string | number | boolean | null;
             branch_id: string | number | boolean | null;
             business_date: string | number | boolean | null;
-        }) => one(db, "SELECT id FROM pos_day_closes WHERE company_id=? AND branch_id=? AND business_date=? AND state='prepared'", facts.company_id, facts.branch_id, facts.business_date),
+        }) => nativePosKeyedPreparedDayCloseStatement(db, facts),
         readPosAudit1: (facts: {
             id: string | number | boolean | null;
         }) => nativePosAuditChargeToRoomStatement(db, facts),
         readPosRoomChargeReversals1: (facts: {
             id: string | number | boolean | null;
-        }) => one(db, 'SELECT sale_id FROM pos_room_charge_reversals WHERE sale_id=?', facts.id),
+        }) => nativePosKeyedReversalBySaleStatement(db, facts.id),
         readPosPayments6: (facts: {
             id: string | number | boolean | null;
         }) => nativePosPaymentIdBySaleStatement(db, facts.id),

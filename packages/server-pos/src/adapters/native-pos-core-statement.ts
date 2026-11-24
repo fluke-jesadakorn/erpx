@@ -487,3 +487,112 @@ export async function nativePosOpenShiftByIdStatement<T = SqlValueRow>(
 ): Promise<T | null> {
   return nativePosOne<T>(db, '', 'pos_core_open_shift_by_id', [shiftId]);
 }
+
+/**
+ * Owner-issued settings row read. The SQL lives in the native POS owner registry
+ * (`erpx-server-pos::adapters::core_keyed_reads`, kind
+ * `pos_core_keyed_settings`); this bridge sends only the typed kind and Company
+ * value. Caller-transaction, lock-free; no local SQL, mirror or fallback. The
+ * row-locked settings reads stay inline in the callers.
+ */
+export async function nativePosKeyedSettingsStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  company: string,
+): Promise<T | null> {
+  return nativePosOne<T>(db, company, 'pos_core_keyed_settings', [company]);
+}
+
+/**
+ * Owner-issued settings currency/accounts row read. The SQL lives in the native
+ * POS owner registry (`erpx-server-pos::adapters::core_keyed_reads`, kind
+ * `pos_core_keyed_settings_currency_accounts`); byte-identical to the retired
+ * `pos-stripe.ts` literal. Caller-transaction, lock-free.
+ */
+export async function nativePosKeyedSettingsCurrencyAccountsStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  company: string,
+): Promise<T | null> {
+  return nativePosOne<T>(db, company, 'pos_core_keyed_settings_currency_accounts', [company]);
+}
+
+/**
+ * Owner-issued settings prepared-state row read. The SQL lives in the native
+ * POS owner registry (`erpx-server-pos::adapters::core_keyed_reads`, kind
+ * `pos_core_keyed_settings_prepared_state`); byte-identical to the retired
+ * `startup.ts` literal. Caller-transaction, lock-free; the companion register
+ * list read stays inline in startup.
+ */
+export async function nativePosKeyedSettingsPreparedStateStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  company: string,
+): Promise<T | null> {
+  return nativePosOne<T>(db, company, 'pos_core_keyed_settings_prepared_state', [company]);
+}
+
+/**
+ * Owner-issued receipt-by-id row read. The SQL lives in the native POS owner
+ * registry (`erpx-server-pos::adapters::core_keyed_reads`, kind
+ * `pos_core_keyed_receipt_by_id`); byte-identical to the retired `pos-core.ts`
+ * literal. Caller-transaction, lock-free.
+ */
+export async function nativePosKeyedReceiptByIdStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  key: string,
+): Promise<T | null> {
+  return nativePosOne<T>(db, '', 'pos_core_keyed_receipt_by_id', [key]);
+}
+
+/**
+ * Owner-issued sale-document snapshot read. The SQL lives in the native POS
+ * owner registry (`erpx-server-pos::adapters::core_keyed_reads`, kind
+ * `pos_core_keyed_sale_document`); byte-identical to the retired `pos.ts`
+ * literal. Caller-transaction, lock-free.
+ */
+export async function nativePosKeyedSaleDocumentStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  facts: { id: string | number | boolean | null; company: string },
+): Promise<T | null> {
+  return nativePosOne<T>(db, facts.company, 'pos_core_keyed_sale_document', [facts.id, facts.company]);
+}
+
+/**
+ * Owner-issued prepared-day-close id read. The SQL lives in the native POS
+ * owner registry (`erpx-server-pos::adapters::core_keyed_reads`, kind
+ * `pos_core_keyed_prepared_day_close`); byte-identical to the retired
+ * `pos-core.ts` literal. Caller-transaction, lock-free.
+ */
+export async function nativePosKeyedPreparedDayCloseStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  facts: { company_id: string | number | boolean | null; branch_id: string | number | boolean | null; business_date: string | number | boolean | null },
+): Promise<T | null> {
+  return nativePosOne<T>(db, String(facts.company_id ?? ''), 'pos_core_keyed_prepared_day_close', [
+    facts.company_id, facts.branch_id, facts.business_date,
+  ]);
+}
+
+/**
+ * Owner-issued pending-reversal-request id read. The SQL lives in the native
+ * POS owner registry (`erpx-server-pos::adapters::core_keyed_reads`, kind
+ * `pos_core_keyed_pending_reversal_request`); byte-identical to the retired
+ * `pos-core.ts` literal. Caller-transaction, lock-free.
+ */
+export async function nativePosKeyedPendingReversalStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  saleId: string | number | boolean | null,
+): Promise<T | null> {
+  return nativePosOne<T>(db, '', 'pos_core_keyed_pending_reversal_request', [saleId]);
+}
+
+/**
+ * Owner-issued room-charge-reversal-by-sale read. The SQL lives in the native
+ * POS owner registry (`erpx-server-pos::adapters::core_keyed_reads`, kind
+ * `pos_core_keyed_reversal_by_sale`); byte-identical to the retired `pos-core.ts`
+ * literal. Caller-transaction, lock-free. Row-locked reversal reads and PMS
+ * projection fragments stay inline in the callers.
+ */
+export async function nativePosKeyedReversalBySaleStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  saleId: string | number | boolean | null,
+): Promise<T | null> {
+  return nativePosOne<T>(db, '', 'pos_core_keyed_reversal_by_sale', [saleId]);
+}
