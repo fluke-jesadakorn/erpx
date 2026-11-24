@@ -86,7 +86,7 @@ describe('Procurement read-tail r44 byte-exact helpers', () => {
     expect(src('attachment-purchases.ts')).toContain('FOR SHARE');
   });
 
-  test('worktree SELECT count is 103 - 4 = 99', () => {
+  test('worktree SELECT count is 99 - 4 = 95 after r45', () => {
     const root = new URL('../../../packages/server-procurement/src/', import.meta.url);
     const files: URL[] = [];
     const walk = (dir: URL) => {
@@ -99,6 +99,6 @@ describe('Procurement read-tail r44 byte-exact helpers', () => {
     walk(root);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT /g) ?? []).length, 0);
     expect(total).toBeLessThan(103);
-    expect(total).toBe(99); // F1 removes 4 inline (-4 +1 helper = -3); F6 removes 2 (-2 +1 helper = -1).
+    expect(total).toBe(95); // r44: 103->99 (F1 -3, F6 -1); r45: RETURNED witness -3, two outer frames (-2 +1 helper = -1).
   });
 });
