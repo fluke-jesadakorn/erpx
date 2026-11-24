@@ -481,6 +481,7 @@ import {readFileSync} from 'node:fs';
 import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL,operationsApprovalImageSql,operationsActiveDelegationSql} from '../../../packages/server-operations/src/adapters/task-delegation-source';
 import {workforceActorScopeSql} from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
 import {OPERATIONS_TASK_START_APPROVER_SQL,OPERATIONS_TASK_COMPLETION_APPROVER_SQL} from '../../../packages/server-operations/src/adapters/task-approver-access-source';
+import {projectSourceProbe} from '../../../packages/server-operations/src/adapters/record-purchases';
 describe('Operations task delegation source dedupe',()=>{
  const fragment='(SELECT jsonb_agg(to_jsonb(delegation) ORDER BY delegation.id) FROM staff_task_delegations delegation WHERE delegation.task_id=t.id AND delegation.company_id=t.company_id)';
  test('the canonical projection owns a single byte-identical delegation read',()=>{
@@ -596,5 +597,23 @@ describe('Operations active-delegation clock window dedupe',()=>{
    expect(source).not.toContain('FROM staff_task_delegations sd WHERE sd.task_id=');
    expect(source).not.toContain('FROM staff_task_delegations delegation WHERE delegation.task_id=');
   }
+ });
+});
+
+describe('Operations project-source history probe dedupe',()=>{
+ const workWhere='(t.project_id IS NULL)',routineWhere='t.published=1 AND t.creator_user_id=?';
+ const workProbe=`SELECT 1 FROM staff_tasks t WHERE t.company_id=? AND t.project_id IS NOT NULL AND ${workWhere} LIMIT 1`;
+ const routineProbe=`SELECT 1 FROM routine_templates t WHERE t.company_id=? AND t.project_id IS NOT NULL AND ${routineWhere} LIMIT 1`;
+ test('the canonical probe renders both tables byte-identically',()=>{
+  expect(projectSourceProbe('staff_tasks',workWhere)).toBe(workProbe);
+  expect(projectSourceProbe('routine_templates',routineWhere)).toBe(routineProbe);
+  expect(projectSourceProbe('staff_tasks',workWhere).match(/SELECT /g)).toHaveLength(1);
+ });
+ test('both metric gates compose the canonical probe and keep no local literal',()=>{
+  const source=readFileSync(new URL('../../../packages/server-operations/src/adapters/record-purchases.ts',import.meta.url),'utf8');
+  expect(source).toContain("projectSourceProbe('staff_tasks',source.where)");
+  expect(source).toContain("projectSourceProbe('routine_templates',routineScope.where)");
+  expect(source).not.toContain('SELECT 1 FROM staff_tasks t WHERE t.company_id=? AND t.project_id IS NOT NULL AND');
+  expect(source).not.toContain('SELECT 1 FROM routine_templates t WHERE t.company_id=? AND t.project_id IS NOT NULL AND');
  });
 });

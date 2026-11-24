@@ -19,6 +19,11 @@ import {workTaskSocialReadScope} from '@erpx/server-collaboration/public/work-ta
 import {nativeHandbookReads} from '@erpx/feature-collaboration/lib/native-handbook-page';
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
 
+/** Canonical project-source history probe shared by the Work and routine
+ * metric gates. Both sites rendered the exact same bytes; only the source
+ * table and the caller's scope predicate vary. Binds and SQL are unchanged. */
+export const projectSourceProbe = (table: string, scopeWhere: string) => `SELECT 1 FROM ${table} t WHERE t.company_id=? AND t.project_id IS NOT NULL AND ${scopeWhere} LIMIT 1`;
+
 /**
  * Operations-owned policy fragment for records that point at a handbook
  * article. The native handbook service is the sole article reader; this
@@ -102,8 +107,8 @@ export async function workMetricHistoryAccess(database:SqlDatabase,actor:WorkCon
  const work=await readPurchasedAccesses(database,mode,actor.companyId,['work.actions','work.advanced-routines']),project=await readPurchasedAccess(database,projectMode,{companyId:actor.companyId,capability:'projects.tasks'});
  const current=authority(actor),live=mode==='disabled'&&projectMode==='disabled'||!!await database.prepare(workforceActorScopeSql(current.where)).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args).first();
  if(!live)return result(false,false);
- const source=await workTaskProjectionReadScope(database,actor),projectTask=project.history&&!!await database.prepare(`SELECT 1 FROM staff_tasks t WHERE t.company_id=? AND t.project_id IS NOT NULL AND ${source.where} LIMIT 1`).bind(actor.companyId,...source.args).first();
- const routineScope=await routineSourceReadScope(database,actor),projectRoutine=project.history&&!!await database.prepare(`SELECT 1 FROM routine_templates t WHERE t.company_id=? AND t.project_id IS NOT NULL AND ${routineScope.where} LIMIT 1`).bind(actor.companyId,...routineScope.args).first();
+ const source=await workTaskProjectionReadScope(database,actor),projectTask=project.history&&!!await database.prepare(projectSourceProbe('staff_tasks',source.where)).bind(actor.companyId,...source.args).first();
+ const routineScope=await routineSourceReadScope(database,actor),projectRoutine=project.history&&!!await database.prepare(projectSourceProbe('routine_templates',routineScope.where)).bind(actor.companyId,...routineScope.args).first();
  const tasks=live&&(work['work.actions'].history||projectTask),routines=live&&(work['work.actions'].history&&work['work.advanced-routines'].history||projectRoutine);
  return result(tasks,routines);
 }
