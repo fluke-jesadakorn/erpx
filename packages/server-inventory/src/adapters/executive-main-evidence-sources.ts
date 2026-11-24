@@ -3,20 +3,11 @@ import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { AvailableStockEvidenceRow, InventoryShortageEvidenceRow, InventoryMovementEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
-import { evidencePositionRowsSql, reservedWarehouseProductQtySql } from './read-tail-sql';
-const availableStockPositions = `WITH reservations AS (
-    ${reservedWarehouseProductQtySql}
-    FROM inventory_active_reservations GROUP BY warehouse_id,product_id
-  )
-  SELECT w.id warehouse_id,p.id product_id,p.sku,p.name product_name,p.unit,w.name warehouse_name,
-    s.quantity_milli::text on_hand_milli,COALESCE(r.quantity_milli,0)::text reserved_milli,
-    inventory_quarantined_quantity(w.id,p.id)::text quarantined_milli,
-    GREATEST(s.quantity_milli::numeric-GREATEST(COALESCE(r.quantity_milli,0),inventory_quarantined_quantity(w.id,p.id)::numeric),0)::text available_milli,
-    s.version stock_version
-  FROM commerce_stock s JOIN (${commerceProjectionSources.commerce_warehouses}) w ON w.id=s.warehouse_id AND w.company_id=? AND w.status='active'
+import { evidencePositionRowsSql, reservedWarehouseProductQtySql, stockPositionSourcesSql, inventoryMovementEvidenceRowsSql, executivePositionPointSql } from './read-tail-sql';
+const availableStockPositions = stockPositionSourcesSql(commerceProjectionSources.commerce_warehouses, ` AND w.status='active'
   JOIN (${commerceProjectionSources.commerce_products}) p ON p.id=s.product_id AND p.company_id=w.company_id AND p.status='active'
   LEFT JOIN reservations r ON r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id
-  WHERE (?::text IS NULL OR w.branch_id=?)`;
+  WHERE (?::text IS NULL OR w.branch_id=?)`);
 const inventoryShortagePositions = `WITH reservations AS (
     ${reservedWarehouseProductQtySql}
     FROM inventory_active_reservations GROUP BY warehouse_id,product_id
@@ -33,19 +24,10 @@ const inventoryShortagePositions = `WITH reservations AS (
   LEFT JOIN reservations r ON r.warehouse_id=w.id AND r.product_id=p.id
   WHERE policy.company_id=? AND policy.current_reorder_point_milli IS NOT NULL AND policy.retired_at IS NULL
     AND (?::text IS NULL OR w.branch_id=?)`;
-const stockedLocationPositions = `WITH reservations AS (
-    ${reservedWarehouseProductQtySql}
-    FROM inventory_active_reservations GROUP BY warehouse_id,product_id
-  )
-  SELECT w.id warehouse_id,p.id product_id,p.sku,p.name product_name,p.unit,w.name warehouse_name,
-    s.quantity_milli::text on_hand_milli,COALESCE(r.quantity_milli,0)::text reserved_milli,
-    inventory_quarantined_quantity(w.id,p.id)::text quarantined_milli,
-    GREATEST(s.quantity_milli::numeric-GREATEST(COALESCE(r.quantity_milli,0),inventory_quarantined_quantity(w.id,p.id)::numeric),0)::text available_milli,
-    s.version stock_version
-  FROM commerce_stock s JOIN (${commerceProjectionSources.commerce_warehouses}) w ON w.id=s.warehouse_id AND w.company_id=?
+const stockedLocationPositions = stockPositionSourcesSql(commerceProjectionSources.commerce_warehouses, `
   JOIN (${commerceProjectionSources.commerce_products}) p ON p.id=s.product_id AND p.company_id=w.company_id
   LEFT JOIN reservations r ON r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id
-  WHERE s.quantity_milli>0`;
+  WHERE s.quantity_milli>0`);
 export function executiveMainEvidenceSources(db: SqlDatabase) {
     return { async factsSearchAvailableStockEvidence(input: {
             filters: {
@@ -82,7 +64,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         }): Promise<{
             row: AvailableStockEvidenceRow | null;
         }> {
-            const row = await db.prepare(`SELECT * FROM (${availableStockPositions}) stock WHERE available_milli::numeric>0 AND warehouse_id=? AND product_id=?`)
+            const row = await db.prepare(executivePositionPointSql(availableStockPositions, 'available_milli::numeric>0'))
                 .bind(actor.companyId, actor.branchId, actor.branchId, ids.warehouseId, ids.productId).first<AvailableStockEvidenceRow>();
             return { row };
         }, async factsSearchInventoryShortageEvidence(input: {
@@ -159,7 +141,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         }): Promise<{
             row: AvailableStockEvidenceRow | null;
         }> {
-            const row = await db.prepare(`SELECT * FROM (${stockedLocationPositions}) stock WHERE on_hand_milli::numeric>0 AND warehouse_id=? AND product_id=?`)
+            const row = await db.prepare(executivePositionPointSql(stockedLocationPositions, 'on_hand_milli::numeric>0'))
                 .bind(actor.companyId, ids.warehouseId, ids.productId).first<AvailableStockEvidenceRow>();
             return { row };
         }, async factsSearchInventoryMovementEvidence(input: {
@@ -188,9 +170,8 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 conditions.push("(l.movement_date,l.id)<(?,?)");
                 values.push(cursor.movementDate, cursor.id);
             }
-            const rows = (await db.prepare(`SELECT l.id,l.source_type,l.source_id,l.source_number,l.movement_date,l.quantity_milli::text quantity_milli,p.unit,p.sku,p.name product_name,w.id warehouse_id,w.name warehouse_name
-    FROM inventory_ledger l JOIN (${commerceProjectionSources.commerce_warehouses}) w ON w.id=l.warehouse_id JOIN (${commerceProjectionSources.commerce_products}) p ON p.id=l.product_id AND p.company_id=w.company_id
-    WHERE ${conditions.join(" AND ")} ORDER BY l.movement_date DESC,l.id DESC LIMIT ?`).bind(...values, input.limit + 1).all<InventoryMovementEvidenceRow>()).results;
+            const rows = (await db.prepare(inventoryMovementEvidenceRowsSql(commerceProjectionSources.commerce_warehouses, commerceProjectionSources.commerce_products, `
+    WHERE ${conditions.join(" AND ")} ORDER BY l.movement_date DESC,l.id DESC LIMIT ?`)).bind(...values, input.limit + 1).all<InventoryMovementEvidenceRow>()).results;
             return { rows };
         }, async factsReadInventoryMovementEvidence(actor: WorkContext, filters: {
             from: string;
@@ -201,9 +182,8 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
         }): Promise<{
             row: InventoryMovementEvidenceRow | null;
         }> {
-            const row = await db.prepare(`SELECT l.id,l.source_type,l.source_id,l.source_number,l.movement_date,l.quantity_milli::text quantity_milli,p.unit,p.sku,p.name product_name,w.id warehouse_id,w.name warehouse_name
-    FROM inventory_ledger l JOIN (${commerceProjectionSources.commerce_warehouses}) w ON w.id=l.warehouse_id JOIN (${commerceProjectionSources.commerce_products}) p ON p.id=l.product_id AND p.company_id=w.company_id
-    WHERE w.company_id=? AND (?::text IS NULL OR w.branch_id=?) AND l.movement_date BETWEEN ? AND ? AND l.quantity_milli<>0 AND l.id=?`)
+            const row = await db.prepare(inventoryMovementEvidenceRowsSql(commerceProjectionSources.commerce_warehouses, commerceProjectionSources.commerce_products, `
+    WHERE w.company_id=? AND (?::text IS NULL OR w.branch_id=?) AND l.movement_date BETWEEN ? AND ? AND l.quantity_milli<>0 AND l.id=?`))
                 .bind(actor.companyId, actor.branchId, actor.branchId, filters.from, filters.to, ids.movementId).first<InventoryMovementEvidenceRow>();
             return { row };
         } };

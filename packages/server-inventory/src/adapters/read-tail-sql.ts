@@ -219,3 +219,41 @@ export const scopedFieldSql = (field: string, table: string, key: string, scopeK
  *  helpers above are left unchanged. */
 export const clockScopedPurchaseExistsSql = (alias: string, rows: string, id: string, company: string, permission: string, capability: string) =>
   `EXISTS(WITH ${alias}_clock AS MATERIALIZED (SELECT ${packageClockSql} now_ms) SELECT 1 FROM (${rows}) ${alias} CROSS JOIN ${alias}_clock WHERE ${alias}.id=${id} AND ${alias}.company_id=${company} AND ${branchScopeTupleSql(alias)} AND ${assignmentReadSql(alias, permission)} AND ${capability})`;
+/** r36: parameterized executive position source CTE and projection anchor. The
+ *  available-stock and stocked-location reads share one byte-identical reservation
+ *  CTE and projection through the warehouse scope; only the warehouse projection
+ *  rows and the trailing status/scope predicate vary. Every caller keeps its own
+ *  binds and independent statement. r11-r35 helpers above are left untouched. */
+export const stockPositionSourcesSql = (warehouses: string, tail: string) =>
+  `WITH reservations AS (
+    ${reservedWarehouseProductQtySql}
+    FROM inventory_active_reservations GROUP BY warehouse_id,product_id
+  )
+  SELECT w.id warehouse_id,p.id product_id,p.sku,p.name product_name,p.unit,w.name warehouse_name,
+    s.quantity_milli::text on_hand_milli,COALESCE(r.quantity_milli,0)::text reserved_milli,
+    inventory_quarantined_quantity(w.id,p.id)::text quarantined_milli,
+    GREATEST(s.quantity_milli::numeric-GREATEST(COALESCE(r.quantity_milli,0),inventory_quarantined_quantity(w.id,p.id)::numeric),0)::text available_milli,
+    s.version stock_version
+  FROM commerce_stock s JOIN (${warehouses}) w ON w.id=s.warehouse_id AND w.company_id=?${tail}`;
+/** r36: parameterized inventory-movement evidence row projection. The search
+ *  and point reads share one byte-identical projection/join anchor; only the
+ *  warehouse/product projection rows and the trailing predicate vary. Every
+ *  caller keeps its own binds and independent statement. r11-r35 helpers above
+ *  are left untouched. */
+export const inventoryMovementEvidenceRowsSql = (warehouses: string, products: string, tail: string) =>
+  `SELECT l.id,l.source_type,l.source_id,l.source_number,l.movement_date,l.quantity_milli::text quantity_milli,p.unit,p.sku,p.name product_name,w.id warehouse_id,w.name warehouse_name
+    FROM inventory_ledger l JOIN (${warehouses}) w ON w.id=l.warehouse_id JOIN (${products}) p ON p.id=l.product_id AND p.company_id=w.company_id${tail}`;
+/** r36: parameterized executive position point probe. The available-stock and
+ *  stocked-location point reads share one byte-identical wrapper; only the
+ *  source positions and the numeric availability predicate vary. Every caller
+ *  keeps its own binds and independent statement. r11-r35 helpers above are
+ *  left untouched. */
+export const executivePositionPointSql = (positions: string, condition: string) =>
+  `SELECT * FROM (${positions}) stock WHERE ${condition} AND warehouse_id=? AND product_id=?`;
+/** r36: parameterized maintenance-settlement stock source columns. The product
+ *  and warehouse source probes share one byte-identical two-column projection;
+ *  only the column and table vary. Every caller keeps its own bind shape. The
+ *  lot source, locks, count sources/adapters and native registry stay untouched.
+ *  r11-r35 helpers above are left unchanged. */
+export const stockSourceColumnsSql = (column: string, table: string) =>
+  `SELECT id,company_id,${column} FROM ${table}`;
