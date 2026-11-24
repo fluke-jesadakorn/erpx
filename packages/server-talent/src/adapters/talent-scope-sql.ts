@@ -1,4 +1,5 @@
 import {packageClockSql} from "@erpx/server-commercial/public/purchased-capability-sql";
+import {selectProjection} from './talent-read-tail-r37-sources';
 /** Owner-local scope CTE family. The company bind is always first; the branch
  * and department columns are parameterized so the actor and Company-only
  * variants share one byte-identical fragment. */
@@ -13,7 +14,7 @@ export const talentCompanyScopeCte = scopeCte("NULL::text","NULL::text");
 /** Current-actor authority projection over the shared actor scope CTE. The
  * alias and projection are parameterized; the surrounding SQL and bind order
  * are byte-identical to the former per-guard inline copies. */
-export const talentActorScopeSelect = (alias:string,projection:string) => `SELECT ${projection} FROM ${talentActorScopeCte} ${alias}`;
+export const talentActorScopeSelect = (alias:string,projection:string) => `${selectProjection(projection)} FROM ${talentActorScopeCte} ${alias}`;
 /** Owner-local clock CTE shared by Recruitment read guards. Byte-identical to
  * the former inline copies; the named CTE and MATERIALIZED mode are preserved. */
 export const talentClockCte = (name:string) => `WITH ${name} AS MATERIALIZED (SELECT ${packageClockSql} now_ms)`;

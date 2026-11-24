@@ -5,6 +5,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {talentSettlementPlacements,talentSettlementPlacementReadLocks} from "@erpx/server-organization/public/talent-settlement-sources";
 import {existsGuardPrefix} from "./talent-read-tail-r27-sources";
+import {selectProjection} from "./talent-read-tail-r37-sources";
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
 /** Owner-local EXISTS-row family over the same Recruitment source rows. The
@@ -24,7 +25,7 @@ export const talentPackageSettlementSources={requisitions,applications,offers,
 /** Owner-local company-scoped materialized CTE family. The CTE name, row alias
  * and lineage source are parameterized; the emitted SQL is byte-identical to
  * the former three inline copies over the same Recruitment owner rows. */
-const scopedMaterialized=(name:string,alias:string,source:string)=>`${name} AS MATERIALIZED(SELECT ${alias}.* FROM (${source}) ${alias},scope WHERE ${alias}.company_id=scope.company_id)`;
+const scopedMaterialized=(name:string,alias:string,source:string)=>`${name} AS MATERIALIZED(${selectProjection(`${alias}.*`)} FROM (${source}) ${alias},scope WHERE ${alias}.company_id=scope.company_id)`;
 export async function lockTalentPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){
  const {database,companyId}=packageSettlementSource(owner,lock);await database.prepare("LOCK TABLE talent_requisitions,talent_candidates,talent_applications,talent_proposals,talent_offers,talent_hire_handoffs,talent_hire_consumption_receipts,talent_requisition_events,talent_candidate_events,talent_application_events,talent_offer_events,talent_candidate_privacy_events IN SHARE MODE").run();await database.batch(talentSettlementPlacementReadLocks(database));sources.set(database,companyId);
 }

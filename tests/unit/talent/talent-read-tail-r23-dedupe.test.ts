@@ -18,7 +18,9 @@ async function tsFiles(directory: URL): Promise<string[]> {
 }
 function evaluate(text: string): string {
   const helper = text.match(/const scopedMaterialized=[\s\S]*?;\n/)![0].replace(/:\s*string/g, '');
-  const scopedMaterialized = new Function(helper + ' return scopedMaterialized;')();
+  // r37 universal head injected so the extracted helper can render standalone.
+  const head = 'const selectProjection = (projection) => `SELECT ${projection}`;';
+  const scopedMaterialized = new Function(head + helper + ' return scopedMaterialized;')();
   const start = text.indexOf('`WITH scope AS') + 1;
   const end = text.indexOf('\n', start);
   const tpl = text.slice(start, end);
@@ -32,8 +34,9 @@ describe('talent read-tail r23 scoped-materialized CTE family dedupe', () => {
     const text = await readFile(file, 'utf8');
     expect(text.split('const scopedMaterialized=').length - 1).toBe(1);
     expect(text.split('${scopedMaterialized(').length - 1).toBe(3);
-    // the only literal "AS MATERIALIZED(SELECT" is the shared helper body
-    expect(text.split('AS MATERIALIZED(SELECT').length - 1).toBe(1);
+    // the materialized head now renders through the r37 selectProjection head
+    expect(text.split('AS MATERIALIZED(${selectProjection(').length - 1).toBe(1);
+    expect(text).toContain("from \"./talent-read-tail-r37-sources\"");
   });
 
   it('emits byte-identical SQL for the company-scoped materialized CTEs', async () => {
@@ -55,7 +58,7 @@ describe('talent read-tail r23 scoped-materialized CTE family dedupe', () => {
   it('re-pins the talent owner SELECT KPI strictly below BEFORE=48 to 47', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(44);
-    expect(count).toBeLessThan(45);
+    expect(count).toBe(39);
+    expect(count).toBeLessThan(40);
   });
 });

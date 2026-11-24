@@ -25,7 +25,9 @@ async function tsFiles(directory: URL): Promise<string[]> {
 }
 function evaluate(text: string): (projection: string, fromTail: string, order: string) => string {
   const helper = text.match(/const evidenceSelect = [\s\S]*?LIMIT \?`;\n/)![0].replace(/:\s*string/g, '');
-  return new Function('source', `${helper}\nreturn evidenceSelect;`)({ sql: 'SRC' });
+  // r37 universal head injected so the extracted helper can render standalone.
+  const head = 'const selectProjection = (projection) => `SELECT ${projection}`;';
+  return new Function('source', `${head}\n${helper}\nreturn evidenceSelect;`)({ sql: 'SRC' });
 }
 
 describe('talent read-tail r26 evidence page family dedupe', () => {
@@ -33,8 +35,9 @@ describe('talent read-tail r26 evidence page family dedupe', () => {
     const text = await readFile(file, 'utf8');
     expect(text.split('const evidenceSelect =').length - 1).toBe(1);
     expect(text.split('evidenceSelect(').length - 1).toBe(2);
-    // the only literal "SELECT <projection> ... FROM (${source.sql})" prefix is the helper body
-    expect(text.split('SELECT ${projection}').length - 1).toBe(1);
+    // the page head now renders through the r37 selectProjection head
+    expect(text.split('${selectProjection(projection)}').length - 1).toBe(1);
+    expect(text).toContain("from './talent-read-tail-r37-sources'");
     expect(text).not.toMatch(/SELECT r\.id,r\.job_title,r\.target_start_date/);
     expect(text).not.toMatch(/SELECT a\.id,a\.requisition_id,a\.status/);
   });
@@ -66,7 +69,7 @@ describe('talent read-tail r26 evidence page family dedupe', () => {
   it('lowers the talent owner SELECT KPI strictly below the recorded 53 r25 baseline', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(44);
-    expect(count).toBeLessThan(45);
+    expect(count).toBe(39);
+    expect(count).toBeLessThan(40);
   });
 });

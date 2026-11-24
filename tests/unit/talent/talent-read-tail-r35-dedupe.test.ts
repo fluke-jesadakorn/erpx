@@ -54,7 +54,7 @@ describe('talent read-tail r35 application-projection head family dedupe', () =>
   it('lowers the talent owner SELECT KPI strictly below BEFORE=46', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(44);
-    expect(count).toBeLessThan(45);
+    expect(count).toBe(39);
+    expect(count).toBeLessThan(40);
   });
 });

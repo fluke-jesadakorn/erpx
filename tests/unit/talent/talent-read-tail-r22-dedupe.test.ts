@@ -23,7 +23,9 @@ async function tsFiles(directory: URL): Promise<string[]> {
 }
 function evaluate(helperText: string, text: string): string {
   const helper = helperText.match(/const talentSourceRows = [\s\S]*?;\n/)![0].replace(/:\s*string/g, '');
-  const talentSourceRows = new Function(helper + ' return talentSourceRows;')();
+  // r37 universal head injected so the extracted helper can render standalone.
+  const head = 'const selectProjection = (projection) => `SELECT ${projection}`;';
+  const talentSourceRows = new Function(head + helper + ' return talentSourceRows;')();
   const tpl = text.match(/const sources=`([\s\S]*?)`;/)![1];
   return new Function('talentSourceRows', 'return `' + tpl + '`;')(talentSourceRows);
 }
@@ -32,8 +34,9 @@ describe('talent read-tail r22 source-row family dedupe', () => {
   it('declares the shared family once and routes all five rows through it', async () => {
     const [u, t] = await Promise.all([util, file].map(f => readFile(f, 'utf8')));
     expect(u.split('const talentSourceRows =').length - 1).toBe(1);
-    // the only literal "SELECT <cols> FROM" prefix is the shared helper body
-    expect(u.split('SELECT ${cols} FROM ${from}').length - 1).toBe(1);
+    // the only literal head is now the r37 selectProjection delegation
+    expect(u.split('${selectProjection(cols)} FROM ${from}').length - 1).toBe(1);
+    expect(u).toContain("from './talent-read-tail-r37-sources'");
     expect(t.split('import {talentSourceRows}').length - 1).toBe(1);
     expect(t.split('${talentSourceRows(').length - 1).toBe(5);
     expect(t.split('SELECT ${cols} FROM ${from}').length - 1).toBe(0);
@@ -58,7 +61,7 @@ describe('talent read-tail r22 source-row family dedupe', () => {
   it('lowers the talent owner SELECT KPI strictly below BEFORE=48 to 47', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(44);
-    expect(count).toBeLessThan(45);
+    expect(count).toBe(39);
+    expect(count).toBeLessThan(40);
   });
 });

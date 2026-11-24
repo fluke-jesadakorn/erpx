@@ -21,15 +21,18 @@ async function tsFiles(directory: URL): Promise<string[]> {
 function evaluate(text: string): (cols: string, from: string) => string {
   const helper = text.match(/const talentSourceRows = [\s\S]*?;\n/)![0]
     .replace(/:\s*string/g, '');
-  return new Function(`${helper}\nreturn talentSourceRows;`)();
+  // r37 universal head injected so the extracted helper can render standalone.
+  const head = 'const selectProjection = (projection) => `SELECT ${projection}`;';
+  return new Function(`${head}\n${helper}\nreturn talentSourceRows;`)();
 }
 
 describe('talent read-tail r28 metric source-row family dedupe', () => {
   it('declares the shared family once and routes both source rows through it', async () => {
     const [u, t] = await Promise.all([util, file].map(f => readFile(f, 'utf8')));
     expect(u.split('const talentSourceRows =').length - 1).toBe(1);
-    // the only literal "SELECT <cols> FROM <from>" prefix is the shared helper body
-    expect(u.split('SELECT ${cols} FROM ${from}').length - 1).toBe(1);
+    // the only literal head is now the r37 selectProjection delegation
+    expect(u.split('${selectProjection(cols)} FROM ${from}').length - 1).toBe(1);
+    expect(u).toContain("from './talent-read-tail-r37-sources'");
     expect(t.split('import {talentSourceRows}').length - 1).toBe(1);
     expect(t.split('talentSourceRows(').length - 1).toBe(2); // two call sites
     expect(t.split('SELECT ${cols} FROM ${from}').length - 1).toBe(0);
@@ -57,7 +60,7 @@ describe('talent read-tail r28 metric source-row family dedupe', () => {
   it('re-pins the talent owner SELECT KPI strictly below BEFORE=48 to 47', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(44);
-    expect(count).toBeLessThan(45);
+    expect(count).toBe(39);
+    expect(count).toBeLessThan(40);
   });
 });

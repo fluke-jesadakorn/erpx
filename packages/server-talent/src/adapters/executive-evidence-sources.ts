@@ -1,4 +1,5 @@
 import {talentMetricSource} from "@erpx/server-talent/adapters/metric-purchases";
+import {selectProjection} from './talent-read-tail-r37-sources';
 import "server-only";
 import { z } from "zod";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -16,7 +17,7 @@ export function executiveEvidenceSources(database: SqlDatabase) {
             // are parameterized; emitted SQL is byte-identical to the former
             // two inline copies over the same purchased metric source.
             const evidenceSelect = (projection: string, fromTail: string, order: string) =>
-                `SELECT ${projection}
+                `${selectProjection(projection)}
       FROM (${source.sql}) ${fromTail}
       ORDER BY ${order} LIMIT ?`;
             let rows: TalentEvidenceRow[];

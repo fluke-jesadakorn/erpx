@@ -38,12 +38,14 @@ async function tsFiles(directory: URL): Promise<string[]> {
 function evaluateOwnerSources(text: string, helperText: string): (kind: string, file?: boolean) => string {
   const helper = helperText.match(/export const talentSourceImageSelect = [\s\S]*?;\n/)![0]
     .replace('export const', 'const').replace(/:\s*string/g, '');
+  // r37 universal head injected so the extracted helper can render standalone.
+  const head = 'const selectProjection = (projection) => `SELECT ${projection}`;';
   const scopeDecl = text.match(/const scope="[^"]*";/)![0];
   const start = text.indexOf('export function talentOwnerSourceQuery');
   const end = text.indexOf('\nexport function talentOwnerSourceArgs', start);
   const fn = text.slice(start, end).replace('export function', 'function')
     .replace(/:\s*TalentTarget\["kind"\]/g, '').replace(/:\s*string/g, '');
-  return new Function('talentHirePeopleSources', `${helper}\n${scopeDecl}\n${fn}\nreturn talentOwnerSourceQuery;`)('__PEOPLE_SRC__');
+  return new Function('talentHirePeopleSources', `${head}\n${helper}\n${scopeDecl}\n${fn}\nreturn talentOwnerSourceQuery;`)('__PEOPLE_SRC__');
 }
 
 describe('talent read-tail r25 source-image projection family dedupe', () => {
@@ -67,6 +69,8 @@ describe('talent read-tail r25 source-image projection family dedupe', () => {
       src('talent-read-tail-r25-sources.ts'), src('purchases.ts'),
     ]);
     expect(shared.match(/export const talentSourceImageSelect/g) ?? []).toHaveLength(1);
+    expect(shared).toContain('selectProjection(');
+    expect(shared).toContain("from './talent-read-tail-r37-sources'");
     expect(purchases.match(/\$\{talentSourceImageSelect\(/g) ?? []).toHaveLength(3);
     expect(purchases).toContain("import {talentSourceImageSelect} from './talent-read-tail-r25-sources'");
     expect(purchases).not.toMatch(/SELECT \$\{record\("(c|r)"\)\}::text image/);
@@ -91,7 +95,7 @@ describe('talent read-tail r25 source-image projection family dedupe', () => {
   it('lowers the talent owner SELECT KPI strictly below the recorded 55 r24 baseline', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(44);
-    expect(count).toBeLessThan(45);
+    expect(count).toBe(39);
+    expect(count).toBeLessThan(40);
   });
 });
