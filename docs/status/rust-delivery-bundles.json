@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8314,
+    "revision": 8321,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -123632,7 +123632,7 @@
         "owner": "inventory",
         "title": "inventory TS read tail native cutover (round 9)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -123644,28 +123644,21 @@
         "resources": [
           "owner:inventory"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wCB1inv",
-          "claimedAt": "2026-11-23T23:30:57.340Z",
-          "heartbeatAt": "2026-11-24T01:58:28.736Z",
-          "expiresAt": "2026-11-24T02:28:28.736Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to the native inventory registry; record a strictly lower count.",
+        "blocker": "handoff",
+        "nextAction": "Worker silent >40min; released for reassignment. Verified alternatives handed to r10.",
         "handoff": {
-          "runId": "run-20261123-h",
+          "runId": "run-20261123-i",
           "agentId": "wCB1inv",
-          "at": "2026-11-23T23:30:50.417Z",
+          "at": "2026-11-24T02:05:39.876Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired at 23:30 during active read-tail and composition mounts; WIP reviewed, slices integrated continuously",
-          "nextAction": "Pick the smallest remaining owner-local fixed-SQL family; dedupe or switch to the native inventory registry; record a strictly lower count."
+          "reason": "handoff",
+          "nextAction": "Worker silent >40min; released for reassignment. Verified alternatives handed to r10."
         },
         "scopeRefinementRequired": false
       },
@@ -137872,7 +137865,7 @@
         "owner": "projects",
         "title": "projects TS read tail native cutover (r11)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -137884,22 +137877,37 @@
         "resources": [
           "owner:projects"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCbpro",
-          "claimedAt": "2026-11-24T01:57:52.888Z",
-          "heartbeatAt": "2026-11-24T01:58:28.736Z",
-          "expiresAt": "2026-11-24T02:28:28.736Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-projects/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e880f5e3f",
+            "owner": "projects",
+            "before": 150,
+            "after": 145,
+            "note": "Six settlement table reads share 'SELECT * FROM ' prefix; byte-identical, staff_projects left untouched."
+          },
+          {
+            "command": "vitest projects (138) + tsc projects",
+            "result": "passed",
+            "sourceSha": "e880f5e3f"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=150.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCbpro",
+          "at": "2026-11-24T02:05:39.324Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -138190,7 +138198,7 @@
         "owner": "talent",
         "title": "talent TS read tail native cutover (round r19)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -138202,22 +138210,29 @@
         "resources": [
           "owner:talent"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCktal",
-          "claimedAt": "2026-11-24T01:58:52.288Z",
-          "heartbeatAt": "2026-11-24T01:58:52.288Z",
-          "expiresAt": "2026-11-24T02:28:52.288Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "talent byte-identical scan at 72",
+            "result": "passed",
+            "sourceSha": "1645b2ab6",
+            "note": "previous rounds consumed the remaining duplicates; no safe talent-local fragment left. Worker found verified inventory alternatives but paths belong to another owner."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe or native read; if none, report blocked. BEFORE=72.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with evidence.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCktal",
+          "at": "2026-11-24T02:05:39.723Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with evidence."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -138689,6 +138704,42 @@
         "nextAction": "Next: scan all legal adapters for another byte-identical family; avoid knowledge guard/trust/PDF/malware. BEFORE=282.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.inventory.read-tail-r10",
+        "goalId": "G4",
+        "owner": "inventory",
+        "title": "inventory TS read tail native cutover (round 10)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-inventory/src/**",
+          "tests/unit/inventory/**",
+          "tests/integration/inventory/**"
+        ],
+        "resources": [
+          "owner:inventory"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCzinv",
+          "claimedAt": "2026-11-24T02:05:40.224Z",
+          "heartbeatAt": "2026-11-24T02:05:40.224Z",
+          "expiresAt": "2026-11-24T02:35:40.224Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Verified full-SQL literals: initial_entry_clock assignments CTE 4x (-9), commerce_stock OR inventory_ledger EXISTS 3x (-14), inventory_ledger NOT EXISTS 5x (-4), jsonb_build_object 4x (-3), lot_balances NOT EXISTS 2x, service_initial_physical_sources 2x. Text-only constants; BEFORE=541 (measure HEAD).",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -138697,21 +138748,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 905,
+      "totalPackets": 906,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 33,
+        "in_progress": 31,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 526,
+        "blocked": 529,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:05:08.107Z",
+    "updatedAt": "2026-11-24T02:05:40.230Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
