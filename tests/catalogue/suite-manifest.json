@@ -429,6 +429,33 @@
       ]
     },
     {
+      "lane": "unit",
+      "owner": "agent",
+      "modules": [
+        "agent"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Agent quota unions and comparator heads must stay closed."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-agent"
+      ],
+      "id": "agent.read-tail-r24-dedupe.unit",
+      "files": [
+        "tests/unit/agent/read-tail-r24-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "agent.rust-agent-evidence-http.unit",
       "lane": "unit",
       "owner": "agent",
@@ -3664,6 +3691,33 @@
       "id": "billing.read-tail-r31-dedupe.unit",
       "files": [
         "tests/unit/billing/billing-read-tail-r31-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "billing",
+      "modules": [
+        "billing"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Billing projection, point-read and rollout guard heads must stay byte-identical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-billing"
+      ],
+      "id": "billing.read-tail-r36-dedupe.unit",
+      "files": [
+        "tests/unit/billing/read-tail-r36-dedupe.test.ts"
       ],
       "framework": "vitest"
     },

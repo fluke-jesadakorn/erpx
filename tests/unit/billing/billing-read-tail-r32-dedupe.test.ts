@@ -133,7 +133,7 @@ describe('billing read-tail r32 dedupe', () => {
     }
     expect(jobs).toContain("from './billing-read-tail-r29-sql'");
     expect(jobs.split('BILLING_INVOICE_BY_ID_SQL').length - 1).toBe(3);
-    expect(jobs.split('billingPointReadSql(').length - 1).toBe(7);
+    expect(jobs.split('billingPointReadSql(').length - 1).toBe(8);
     expect(target.split('billingPointReadSql(').length - 1).toBe(4);
     expect(billing.split('billingPointReadSql(').length - 1).toBe(9); // r35 effective-month guard + provider total
   });
@@ -160,8 +160,8 @@ describe('billing read-tail r32 dedupe', () => {
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(24);
-    expect(bare).toBe(24);
+    expect(spaced).toBe(16);
+    expect(bare).toBe(16);
     expect(spaced).toBeLessThan(48);
     expect(bare).toBeLessThan(48);
   });

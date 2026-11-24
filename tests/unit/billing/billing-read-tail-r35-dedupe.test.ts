@@ -182,7 +182,7 @@ describe('billing read-tail r35 dedupe of residual point and projection heads', 
       const text = await src(file);
       expect(text, file).toContain(`from '${from}'`);
     }
-    // The r16 UNION ALL rollout guard deliberately keeps its two SELECT 1 literals.
+    // r36 routes the r16 UNION ALL rollout guard's two SELECT 1 heads through r29.
     for (const file of ROUTES
       .filter(({ file }) => file !== 'billing-read-tail-r16-sql.ts' && file !== 'billing.ts')
       .map(({ file }) => file)) {
@@ -191,8 +191,8 @@ describe('billing read-tail r35 dedupe of residual point and projection heads', 
     // billing.ts keeps only its five protected statements (two FOR UPDATE, one
     // pg_advisory and two native commercial source reads).
     expect((await src('billing.ts')).split('SELECT ').length - 1).toBe(5);
-    expect((await src('billing-read-tail-r16-sql.ts')).split('SELECT').length - 1).toBe(2);
-    expect(await src('billing-read-tail-r16-sql.ts')).toContain(BILLING_ROLLOUT_ELIGIBILITY_SQL);
+    expect((await src('billing-read-tail-r16-sql.ts')).split('SELECT').length - 1).toBe(0);
+    expect(await src('billing-read-tail-r16-sql.ts')).toContain('BILLING_ROLLOUT_ELIGIBILITY_SQL');
     expect(BILLING_ROLLOUT_ELIGIBILITY_SQL.split('SELECT').length - 1).toBe(2);
     expect(await src('billing-read-tail-r15-sql.ts')).toContain('BILLING_INVOICE_BY_ID_SQL');
     expect(await src('billing-read-tail-r27-sql.ts')).toContain('billingMetricCountSql');
@@ -201,7 +201,7 @@ describe('billing read-tail r35 dedupe of residual point and projection heads', 
 
   it('keeps the prior per-file head call counts with the two new billing.ts heads', async () => {
     expect((await src('billing.ts')).split('billingPointReadSql(').length - 1).toBe(9);
-    expect((await src('billing-jobs.ts')).split('billingPointReadSql(').length - 1).toBe(7);
+    expect((await src('billing-jobs.ts')).split('billingPointReadSql(').length - 1).toBe(8);
     expect((await src('billing-target.ts')).split('billingPointReadSql(').length - 1).toBe(4);
   });
 
@@ -226,8 +226,8 @@ describe('billing read-tail r35 dedupe of residual point and projection heads', 
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(24);
-    expect(bare).toBe(24);
+    expect(spaced).toBe(16);
+    expect(bare).toBe(16);
     expect(spaced).toBeLessThan(36);
     expect(bare).toBeLessThan(36);
   });

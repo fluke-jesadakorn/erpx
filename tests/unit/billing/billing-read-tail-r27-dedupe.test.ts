@@ -85,6 +85,6 @@ describe('billing read-tail r27 metric count projection dedupe', () => {
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(59);
-    expect(count).toBe(24); // r35 routed the r15/r16/r19/r20/r23/r28/r31 and projection heads.
+    expect(count).toBe(16); // r36 routed the six residual heads and the r16 UNION ALL guard.
   });
 });

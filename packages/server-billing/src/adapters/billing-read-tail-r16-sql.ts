@@ -5,9 +5,9 @@ import {billingPointReadSql} from './billing-read-tail-r29-sql';
 
 /** Sandbox designation or effective approval permits rollout. The two guards are
  * identical in the command and target repositories; only the row alias differs. */
-export const BILLING_ROLLOUT_ELIGIBILITY_SQL = `SELECT 1 FROM billing_target_sandbox_holdings WHERE holding_id=$1
-     UNION ALL SELECT 1 FROM billing_target_rollout_approvals
-     WHERE holding_id=$1 AND effective_month<=$2 LIMIT 1`;
+export const BILLING_ROLLOUT_ELIGIBILITY_SQL = `${billingPointReadSql('1', 'billing_target_sandbox_holdings', `holding_id=$1
+     UNION ALL ${billingPointReadSql('1', `billing_target_rollout_approvals
+    `, 'holding_id=$1 AND effective_month<=$2 LIMIT 1')}`)}`;
 
 /** Legacy platform-usage enrollment overlapping the measured month. */
 export const BILLING_LEGACY_ENROLLMENT_OVERLAP_SQL = billingPointReadSql('1', 'billing_enrollments', `holding_id=$1 AND plan_id<>'platform_usage'

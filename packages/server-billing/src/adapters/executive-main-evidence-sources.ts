@@ -5,6 +5,7 @@ import { runtimeEnv } from "../../../../packages/server-runtime/src/public/runti
 import { type CommercialSubscriptionRow, type OverdueInvoiceEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
 import { billingEnrollmentSubscriptionSql } from './billing-read-tail-r33-sql';
 import { billingLegacySubscriptionSql } from './billing-read-tail-r32-sql';
+import { billingProjectionSql } from './billing-read-tail-r35-sql';
 function commercialSubscriptionSource() {
     return `WITH subscriptions AS (
 ${billingEnrollmentSubscriptionSql(
@@ -22,7 +23,7 @@ ${billingLegacySubscriptionSql(
  * enrollment point read and the legacy point read. Callers keep their own binds,
  * filters and result type; the CTE text itself is not duplicated. */
 function commercialSubscriptionSelect() {
-    return `${commercialSubscriptionSource()} SELECT source_kind,record_id,plan_name,status,started_at,effective_at,record_version FROM subscriptions`;
+    return `${commercialSubscriptionSource()} ${billingProjectionSql('source_kind,record_id,plan_name,status,started_at,effective_at,record_version','FROM subscriptions')}`;
 }
 function overdueInvoiceSource() {
     return `SELECT i.id,i.kind,i.status,i.total_satang,i.due_at,i.updated_at,p.month

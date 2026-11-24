@@ -41,8 +41,8 @@ describe('billing read-tail r28 storage-ledger parameterized family dedupe', () 
     // point read, source listing and the duplicate-object COUNT wrapper.
     expect(text).toContain('BILLING_PENDING_SCAN_COUNT_SQL');
     expect(text).toContain("billingPointReadSql('ready,created_at','billing_evidence_reconciliation_runs'");
-    expect(text).toContain('SELECT id,holding_id,object_key,size,sha256,source_state FROM billing_evidence ORDER BY id');
-    expect(text).toContain('(SELECT count(*)::bigint FROM (');
+    expect(text).toContain("billingProjectionSql('id,holding_id,object_key,size,sha256,source_state','FROM billing_evidence ORDER BY id')");
+    expect(text).toContain("billingProjectionSql('count(*)::bigint',");
   });
 
   it('keeps the shared helper read-only and leaves prior families untouched', async () => {
@@ -61,6 +61,6 @@ describe('billing read-tail r28 storage-ledger parameterized family dedupe', () 
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(59);
-    expect(count).toBe(24); // r35 routed the r15/r16/r19/r20/r23/r28/r31 and projection heads.
+    expect(count).toBe(16); // r36 routed the six residual heads and the r16 UNION ALL guard.
   });
 });

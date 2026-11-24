@@ -23,10 +23,10 @@ describe('billing read-tail r16 byte-identical SQL dedupe', () => {
       new URL('../../../packages/server-billing/src/adapters/billing-read-tail-r16-sql.ts', import.meta.url),
       'utf8',
     );
-    expect(shared.split('SELECT ').length - 1).toBe(2); // only the UNION ALL rollout guard stays inline
+    expect(shared.split('SELECT ').length - 1).toBe(0); // r36 routes the UNION ALL guard through r29
     for (const [name, actual, literal] of GROUPS) {
       expect(actual).toBe(literal);
-      expect(shared.split(literal).length - 1).toBe(name === 'BILLING_ROLLOUT_ELIGIBILITY_SQL' ? 1 : 0);
+      expect(shared.split(literal).length - 1).toBe(0);
       expect(shared).toContain(name);
     }
   });
@@ -50,7 +50,8 @@ describe('billing read-tail r16 byte-identical SQL dedupe', () => {
       new URL('../../../packages/server-billing/src/adapters/executive-main-evidence-sources.ts', import.meta.url),
       'utf8',
     );
-    expect(text.split(SUBSCRIPTION_SELECT).length - 1).toBe(1);
+    expect(text.split(SUBSCRIPTION_SELECT).length - 1).toBe(0); // r36 routes the tail through r35
+    expect(text).toContain("billingProjectionSql('source_kind,record_id,plan_name,status,started_at,effective_at,record_version','FROM subscriptions')");
     expect(text.split('${commercialSubscriptionSelect()}').length - 1).toBe(3);
   });
 });
