@@ -8,6 +8,10 @@ const identityChangeSource = `SELECT e.id,e.change_id,e.action,e.customer_versio
   JOIN customer_identity_changes c ON c.id=e.change_id
   JOIN (${financeProjectionSources.finance_parties}) p ON p.id=c.customer_id AND p.company_id=c.company_id AND p.kind='customer'
   WHERE c.company_id=? AND e.created_at>=? AND e.created_at<?`;
+const duplicateReviewEvidenceSource = `SELECT r.id,l.name left_name,l.code left_code,q.name right_name,q.code right_code,r.status,r.created_at,r.updated_at,r.version
+    FROM customer_duplicate_reviews r
+    JOIN (${financeProjectionSources.finance_parties}) l ON l.id=r.left_customer_id AND l.company_id=r.company_id AND l.kind='customer'
+    JOIN (${financeProjectionSources.finance_parties}) q ON q.id=r.right_customer_id AND q.company_id=r.company_id AND q.kind='customer'`;
 export function executiveMainEvidenceSources(db: SqlDatabase) {
     return { async factsSearchDuplicateReviewEvidence(cursor: {
             updatedAt: number;
@@ -35,20 +39,14 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 conditions.push("(r.updated_at<? OR (r.updated_at=? AND r.id>?))");
                 values.push(cursor.updatedAt, cursor.updatedAt, cursor.id);
             }
-            const rows = (await db.prepare(`SELECT r.id,l.name left_name,l.code left_code,q.name right_name,q.code right_code,r.status,r.created_at,r.updated_at,r.version
-    FROM customer_duplicate_reviews r
-    JOIN (${financeProjectionSources.finance_parties}) l ON l.id=r.left_customer_id AND l.company_id=r.company_id AND l.kind='customer'
-    JOIN (${financeProjectionSources.finance_parties}) q ON q.id=r.right_customer_id AND q.company_id=r.company_id AND q.kind='customer'
+            const rows = (await db.prepare(`${duplicateReviewEvidenceSource}
     WHERE ${conditions.join(" AND ")} ORDER BY r.updated_at DESC,r.id ASC LIMIT ?`)
                 .bind(...values, input.limit + 1).all<DuplicateReviewEvidenceRow>()).results;
             return { rows };
         }, async factsReadDuplicateReviewEvidence(actor: WorkContext, id: string): Promise<{
             row: DuplicateReviewEvidenceRow | null;
         }> {
-            const row = await db.prepare(`SELECT r.id,l.name left_name,l.code left_code,q.name right_name,q.code right_code,r.status,r.created_at,r.updated_at,r.version
-    FROM customer_duplicate_reviews r
-    JOIN (${financeProjectionSources.finance_parties}) l ON l.id=r.left_customer_id AND l.company_id=r.company_id AND l.kind='customer'
-    JOIN (${financeProjectionSources.finance_parties}) q ON q.id=r.right_customer_id AND q.company_id=r.company_id AND q.kind='customer'
+            const row = await db.prepare(`${duplicateReviewEvidenceSource}
     WHERE r.company_id=? AND r.status='pending' AND r.id=? LIMIT 1`).bind(actor.companyId, id).first<DuplicateReviewEvidenceRow>();
             return { row };
         }, async factsSearchIdentityChangeEvidence(cursor: {
