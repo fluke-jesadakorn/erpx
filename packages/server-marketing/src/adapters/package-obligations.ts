@@ -5,16 +5,15 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {packageSettlementSource,type PackageSettlementSourceLock} from '@erpx/server-commercial/public/package-settlement-sources';
 import {lockMarketingFilePackageObligationSources,marketingFilePackageObligationFacts} from '@erpx/server-files/public/marketing-package-obligation-sources';
 import {crmMarketingCandidateSources} from '@erpx/server-marketing/adapters/crm-purchase-sources';
+import {marketingPlainSourceSql} from './marketing-plain-source-sql';
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
 export async function lockMarketingPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.prepare('LOCK TABLE marketing_assets,marketing_asset_events,marketing_lead_candidates,marketing_engagement_events,marketing_campaigns,marketing_campaign_costs,marketing_touches,marketing_public_receipts,marketing_public_limits,command_receipts IN SHARE MODE').run();await lockMarketingFilePackageObligationSources(owner,lock);sources.set(database,companyId);}
 export function assertMarketingPackageObligationSources(owner:PostgresDatabase,database:SqlDatabase,companyId:string){owner.assertActiveTransaction(database);if(sources.get(database)!==companyId)throw Error('MARKETING_PACKAGE_OBLIGATION_SOURCE_REQUIRED');}
 /** Owner-local fixed settlement source projections. Each admitted variant emits
- * the original byte-identical statement; a caller picks a variant and never
- * supplies raw SQL or a relation name. */
-const settlementSourceRows=(source:'engagements'|'costs'|'touches'|'campaigns'):string=>{
- const table=source==='engagements'?'marketing_engagement_events':source==='costs'?'marketing_campaign_costs':source==='touches'?'marketing_touches':'marketing_campaigns';
- return `SELECT * FROM ${table}`;
-};
+ * the original byte-identical statement; the shared plain-source frame keeps the
+ * candidate reader and every settlement reader on one projection literal. A
+ * caller picks a variant and never supplies raw SQL or a relation name. */
+const settlementSourceRows=(source:'engagements'|'costs'|'touches'|'campaigns'):string=>marketingPlainSourceSql(source);
 /** Raw native sources retain invalid lineage instead of filtering it into zero. */
 export const marketingPackageSettlementSources={
  candidates:`SELECT c.*,valid.id IS NOT NULL AND EXISTS(SELECT 1 FROM marketing_assets form JOIN marketing_asset_events activated ON activated.asset_id=form.id AND activated.version=c.form_version AND activated.action='activate' AND activated.actor_id<>form.created_by JOIN command_receipts command ON activated.id='marketing-asset-event-'||command.command_id AND command.operation='marketing.asset.activate' AND command.record_id=form.id AND command.actor_id=activated.actor_id AND command.authority_json::jsonb->>'companyId'=c.company_id WHERE form.id=c.form_id AND form.company_id=c.company_id) source_valid FROM marketing_lead_candidates c LEFT JOIN (${crmMarketingCandidateSources}) valid ON valid.id=c.id AND valid.company_id=c.company_id`,
