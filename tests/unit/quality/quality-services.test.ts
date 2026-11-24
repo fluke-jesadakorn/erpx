@@ -99,6 +99,23 @@ describe('retired Quality stock new-work read branch',()=>{
   expect(purchases).not.toContain('current warehouse policy changed');
  });
 });
+describe('quality metric branch-label dedupe',()=>{
+ const source=(path:string)=>resolve(process.cwd(),path);
+ test('one fixed Organization node label SELECT guards both metric breakdowns',async()=>{
+  const {qualityBranchDisplayLabelSql,readExecutiveMetricProjection}=await import('@erpx/server-quality/adapters/executive-metric-projections');
+  expect(qualityBranchDisplayLabelSql.match(/SELECT n\.display_name/g)).toHaveLength(1);
+  expect(qualityBranchDisplayLabelSql).toContain('organization_nodes');
+  const text=readFileSync(source('packages/server-quality/src/adapters/executive-metric-projections.ts'),'utf8');
+  expect(text.match(/SELECT n\.display_name/g)??[]).toHaveLength(1);
+  expect(text.match(/qualityBranchDisplayLabelSql/g)??[]).toHaveLength(3);
+  const sql:string[]=[],db={prepare(statement:string){sql.push(statement);return {bind(){return {all:()=>({results:[]})};}};}};
+  const actor={companyId:'company',branchId:'branch'} as never,filters={from:'2026-01-01',to:'2026-01-31'} as never;
+  await readExecutiveMetricProjection(db as never,actor,'quality-holds',filters,'branch');
+  await readExecutiveMetricProjection(db as never,actor,'inspection-pass-rate',filters,'branch');
+  expect(sql).toHaveLength(2);
+  for(const statement of sql){expect(statement).toContain(qualityBranchDisplayLabelSql);expect(statement.match(/SELECT n\.display_name/g)?.length).toBe(1);}
+ });
+});
 describe('retired Quality dead read branch',()=>{
  const source=(path:string)=>resolve(process.cwd(),path);
  test('the active-spec and evidence-version reads are gone from the Quality application, adapter and public layers',()=>{

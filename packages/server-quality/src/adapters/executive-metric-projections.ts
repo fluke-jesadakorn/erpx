@@ -6,13 +6,17 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
+/** One fixed Organization node label read owned by Quality metric projections.
+ * Both the hold/release and inspection breakdowns compose this statement; no
+ * branch keeps its own duplicate SELECT. */
+export const qualityBranchDisplayLabelSql = `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=h.branch_id AND n.company_id=h.company_id),'Company-wide')`;
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const spec = specs[id];
     let sql = '', values: unknown[] = [];
     const referenceAtOverride: number | null = null;
     if (id === "quality-holds" || id === "quality-releases") {
         const releases = id === "quality-releases";
-        const label = breakdown === "branch" ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=h.branch_id AND n.company_id=h.company_id),'Company-wide')`
+        const label = breakdown === "branch" ? qualityBranchDisplayLabelSql
             : breakdown === "month" || releases && breakdown === "default" ? "to_char(to_timestamp(h.released_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')"
                 : breakdown === "status" ? "h.status" : releases ? "'Released'" : "h.status";
         sql = `SELECT ${label} label,count(*)::text value FROM inventory_quality_holds h WHERE h.company_id=? AND (?::text IS NULL OR h.branch_id=?) AND ${releases ? "h.status='released' AND h.released_at>=? AND h.released_at<?" : "h.status NOT IN ('released','cancelled','disposed')"} GROUP BY 1 ORDER BY 1`;
@@ -24,7 +28,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         const label = breakdown === "month"
             ? "to_char(to_timestamp(i.created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')"
             : breakdown === "branch"
-                ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=h.branch_id AND n.company_id=h.company_id),'Company-wide')`
+                ? qualityBranchDisplayLabelSql
                 : "'All finalized inspections'";
         sql = `SELECT ${label} label,
         count(*) FILTER (WHERE i.result='pass')::text numerator,count(*)::text denominator
