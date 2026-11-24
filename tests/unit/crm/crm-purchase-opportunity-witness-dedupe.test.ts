@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { crmCreatorLeadScopeSql } from '../../../packages/server-crm/src/adapters/read-tail-r24-sql';
 import { crmCurrentScopeAllowedSql } from '../../../packages/server-crm/src/adapters/read-tail-r30-sql';
 import { crmOwnedSourceRowSql } from '../../../packages/server-crm/src/adapters/read-tail-r34-sql';
-import { crmSalesOpportunitySql } from '../../../packages/server-crm/src/adapters/read-tail-r37-sql';
+import { crmSalesOpportunitySql, crmSingleKeySourceSql } from '../../../packages/server-crm/src/adapters/read-tail-r37-sql';
 
 const purchasesUrl = new URL('../../../packages/server-crm/src/adapters/purchases.ts', import.meta.url);
 const adapter = (name: string) => new URL(`../../../packages/server-crm/src/adapters/${name}`, import.meta.url);
@@ -37,7 +37,9 @@ describe('crm purchase opportunity witness read family', () => {
     const shared = await readFile(adapter('active-customer-parties.ts'), 'utf8');
     const identities = await readFile(adapter('identities.ts'), 'utf8');
     const leads = await readFile(adapter('leads.ts'), 'utf8');
-    expect(shared.match(/SELECT /g)).toHaveLength(1);
+    expect(shared.match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(shared).toContain('export const activeCustomerPartiesSql = crmSingleKeySourceSql(');
+    expect(shared).toContain("crmSingleKeySourceSql('id,name',financeProjectionSources.finance_parties,'finance_parties',\" AND kind='customer' AND status='active' ORDER BY name\")");
     expect(identities).not.toMatch(/SELECT id,name FROM/);
     expect(leads).not.toMatch(/SELECT id,name FROM/);
     expect(identities).toContain('write.prepare(activeCustomerPartiesSql)');
@@ -390,7 +392,7 @@ describe('crm read-tail r19 parameterized projection families', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r18 AFTER=158 baseline', () => {
-    expect(totalSelects()).toBeLessThanOrEqual(104);
+    expect(totalSelects()).toBeLessThanOrEqual(99);
     expect(totalSelects()).toBeLessThan(158);
   });
 });
@@ -436,7 +438,7 @@ describe('crm read-tail r20 parameterized history families', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r19 AFTER=153 baseline', () => {
-    expect(totalSelects()).toBeLessThanOrEqual(104);
+    expect(totalSelects()).toBeLessThanOrEqual(99);
     expect(totalSelects()).toBeLessThan(153);
   });
 });
@@ -457,10 +459,11 @@ describe('crm read-tail r21 parameterized branch option family', () => {
   it('renders both branch option lists byte-identically from one parameterized helper', () => {
     const purchases = src('purchases.ts');
     const line = purchases.split('\n').find(value => value.includes('export const crmBranchOptionsSql=')) ?? '';
-    const body = line.slice(line.indexOf('`') + 1, line.lastIndexOf('`'));
-    const render = (nameAlias: string, activeOnly: boolean) => body
-      .replace('${nameAlias}', nameAlias)
-      .replace('${activeOnly?" AND status=\'active\'":\'\'}', activeOnly ? " AND status='active'" : '');
+    expect(line).toContain("crmSingleKeySourceSql(`id,display_name${nameAlias}`,organizationProjectionSources.organization_nodes,'organization_nodes',");
+    expect(line).toContain("${activeOnly?\" AND status='active'\":''}");
+    const render = (nameAlias: string, activeOnly: boolean) => crmSingleKeySourceSql(
+      `id,display_name${nameAlias}`, ORG, 'organization_nodes',
+      ` AND kind IN ('branch','headquarters')${activeOnly ? " AND status='active'" : ''} AND (?::text IS NULL OR id=?) ORDER BY display_name`);
     expect(render(' name', false)).toBe(`SELECT id,display_name name FROM (${ORG}) organization_nodes WHERE company_id=? AND kind IN ('branch','headquarters') AND (?::text IS NULL OR id=?) ORDER BY display_name`);
     expect(render('', true)).toBe(`SELECT id,display_name FROM (${ORG}) organization_nodes WHERE company_id=? AND kind IN ('branch','headquarters') AND status='active' AND (?::text IS NULL OR id=?) ORDER BY display_name`);
   });
@@ -470,9 +473,10 @@ describe('crm read-tail r21 parameterized branch option family', () => {
     const analytics = src('analytics.ts');
     const leads = src('leads.ts');
     expect(purchases.match(/export const crmBranchOptionsSql=/g)).toHaveLength(1);
-    expect(purchases.match(/SELECT id,display_name/g)).toHaveLength(1);
+    expect(purchases.match(/SELECT id,display_name/g) ?? []).toHaveLength(0);
     expect(analytics.match(/SELECT id,display_name/g) ?? []).toHaveLength(0);
     expect(leads.match(/SELECT id,display_name/g) ?? []).toHaveLength(0);
+    expect(purchases).toContain('crmSingleKeySourceSql(');
     expect(analytics).toContain("crmBranchOptionsSql(' name',false)");
     expect(leads).toContain("crmBranchOptionsSql('',true)");
     // r8-r20 helpers and the owned CRM source lock stay in place.
@@ -482,7 +486,7 @@ describe('crm read-tail r21 parameterized branch option family', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r20 BEFORE=151 baseline', () => {
-    expect(totalSelects()).toBeLessThanOrEqual(104);
+    expect(totalSelects()).toBeLessThanOrEqual(99);
     expect(totalSelects()).toBeLessThan(151);
   });
 });
@@ -540,7 +544,7 @@ describe('crm read-tail r22 assignment-scope EXISTS family', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r21 BEFORE=150 baseline', () => {
-    expect(totalSelects()).toBeLessThanOrEqual(104);
+    expect(totalSelects()).toBeLessThanOrEqual(99);
     expect(totalSelects()).toBeLessThan(150);
   });
 });
@@ -579,7 +583,7 @@ describe('crm read-tail r23 reference-existence and account-scope families', () 
   });
 
   it('keeps the owner SELECT KPI strictly below the r22 BEFORE=146 baseline', () => {
-    expect(totalSelects()).toBeLessThanOrEqual(104);
+    expect(totalSelects()).toBeLessThanOrEqual(99);
     expect(totalSelects()).toBeLessThan(146);
   });
 });
@@ -637,7 +641,7 @@ describe('crm read-tail r24 creator EXISTS lead-scope family', () => {
   });
 
   it('keeps the owner SELECT KPI strictly below the r24 BEFORE=144 baseline', () => {
-    expect(totalSelects()).toBeLessThanOrEqual(104);
+    expect(totalSelects()).toBeLessThanOrEqual(99);
     expect(totalSelects()).toBeLessThan(144);
   });
 });

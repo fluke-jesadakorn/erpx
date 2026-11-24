@@ -1,3 +1,5 @@
+import {crmSingleKeySourceSql} from './read-tail-r37-sql';
+
 /** G4 / retire.crm.read-tail-r27 byte-identical read families.
  *
  * The renderers below reproduce the pre-dedupe inline SQL exactly. The
@@ -40,4 +42,4 @@ export const crmOpportunityOwnerGuardSql = (eligible: string) => crmOpportunityO
 /** Campaign option projection. Leads selects the name column; analytics aliases
  * code to name. Both render byte-identically from the same projection shape. */
 export const crmCampaignOptionsSql = (source: string, alias: string, aliasCode = false) =>
-  `SELECT id,code${aliasCode ? ' name' : ',name'} FROM (${source}) ${alias} WHERE company_id=? ORDER BY code`;
+  crmSingleKeySourceSql(`id,code${aliasCode ? ' name' : ',name'}`,source,alias,' ORDER BY code');

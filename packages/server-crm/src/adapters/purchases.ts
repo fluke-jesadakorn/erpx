@@ -29,7 +29,7 @@ import {crmLeadEligibleOwnerSql} from "./read-tail-r29-sql";
 import {crmCurrentScopeAllowedSql} from "./read-tail-r30-sql";
 import {crmOwnedSourceRowSql} from "./read-tail-r34-sql";
 import {crmAssignmentModuleExistsSql} from "./read-tail-r35-sql";
-import {crmSalesOpportunitySql} from "./read-tail-r37-sql";
+import {crmSalesOpportunitySql,crmSingleKeySourceSql} from "./read-tail-r37-sql";
 
 export type CRMPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type CRMPurchaseTarget={kind:"lead"|"activity"|"account"|"contact"|"guest-link";id:string};
@@ -65,7 +65,7 @@ export const crmClockCteSql=` AS MATERIALIZED(SELECT ${packageClockSql} now_ms)`
  * analytics options and the CRM workspace. Callers pass only the display-name
  * alias and whether the active-status filter applies; the rendered SQL stays
  * byte-identical to the retired inline literals. */
-export const crmBranchOptionsSql=(nameAlias:string,activeOnly:boolean)=>`SELECT id,display_name${nameAlias} FROM (${organizationProjectionSources.organization_nodes}) organization_nodes WHERE company_id=? AND kind IN ('branch','headquarters')${activeOnly?" AND status='active'":''} AND (?::text IS NULL OR id=?) ORDER BY display_name`;
+export const crmBranchOptionsSql=(nameAlias:string,activeOnly:boolean)=>crmSingleKeySourceSql(`id,display_name${nameAlias}`,organizationProjectionSources.organization_nodes,'organization_nodes',` AND kind IN ('branch','headquarters')${activeOnly?" AND status='active'":''} AND (?::text IS NULL OR id=?) ORDER BY display_name`);
 export const crmPurchaseAccountRows=`${crmPurchaseRowProjection('account','NULL::text branch_id','NULL::text department_id')}account.created_by,${accountIdentity} witness FROM crm_accounts account LEFT JOIN (${crmFinanceCustomerSources}) customer ON customer.id=account.finance_party_id AND customer.company_id=account.company_id AND customer.kind='customer' WHERE account.finance_party_id IS NULL OR customer.id IS NOT NULL`;
 export const crmPurchaseContactRows=`${crmPurchaseRowProjection('contact','NULL::text branch_id','NULL::text department_id')}account.created_by,${contactIdentity} witness FROM crm_contacts contact JOIN (${crmPurchaseAccountRows}) account ON account.id=contact.account_id AND account.company_id=contact.company_id`;
 export const crmPurchaseLeadRows=`${crmPurchaseRowProjection('lead','lead.branch_id','lead.department_id')}

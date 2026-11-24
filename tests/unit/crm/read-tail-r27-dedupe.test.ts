@@ -52,7 +52,8 @@ describe('crm read-tail r27 byte-identical read families', () => {
     for (const name of ['crmOpportunityOwnerAnchor', 'crmOpportunityOwnerReadSql', 'crmOpportunityOwnerGuardSql', 'crmCampaignOptionsSql']) {
       expect(helper.match(new RegExp(`${name} =`, 'g'))).toHaveLength(1);
     }
-    expect((helper.match(/SELECT /g) ?? []).length).toBe(2);
+    expect((helper.match(/SELECT /g) ?? []).length).toBe(1);
+    expect(helper).toContain('crmSingleKeySourceSql(');
     expect(src('attachments-policy-facts.ts')).toContain('crmOpportunityOwnerReadSql(ownerEligible)');
     expect(src('attachments-service-facts.ts')).toContain('crmOpportunityOwnerGuardSql(ownerEligible)');
     expect(src('leads.ts')).toContain("crmCampaignOptionsSql(marketingProjectionSources.marketing_campaigns,'marketing_campaigns')");
