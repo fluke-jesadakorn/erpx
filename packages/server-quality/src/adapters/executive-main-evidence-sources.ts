@@ -3,7 +3,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { getQualityHold } from "@erpx/server-quality/public/quality";
-import { holdEvidenceSource, inspectionEvidenceSource } from "./inspection-evidence-source-sql";
+import { holdEvidenceSource, inspectionEvidenceSource, evidenceHead } from "./inspection-evidence-source-sql";
 import { QualityInspectionRow } from '@erpx/server-runtime/public/executive/evidence-contract';
 export function executiveMainEvidenceSources(db: SqlDatabase) {
     return { async factsSearchQualityInspectionEvidence(input: {
@@ -87,10 +87,10 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
                 inspected_by: string;
             }) | null;
         }> {
-            const parent = await db.prepare(`SELECT i.hold_id FROM inventory_quality_inspections i
+            const parent = await db.prepare(evidenceHead(`i.hold_id`,` FROM inventory_quality_inspections i
     JOIN inventory_quality_holds h ON h.id=i.hold_id
     WHERE i.id=? AND h.company_id=? AND (?::text IS NULL OR h.branch_id=?)
-      AND i.created_at>=? AND i.created_at<?`)
+      AND i.created_at>=? AND i.created_at<?`,''))
                 .bind(recordId, actor.companyId, actor.branchId, actor.branchId, Date.parse(filters.from), Date.parse(filters.to) + 86400000)
                 .first<{
                 hold_id: string;

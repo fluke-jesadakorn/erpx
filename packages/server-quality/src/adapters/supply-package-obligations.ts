@@ -8,6 +8,7 @@ import {assertSupplyInventoryPackageObligationSources,supplyInventorySettlementS
 import {qualityPurchaseSourceRows,qualityPurchaseSourceReadLocks} from "@erpx/server-quality/adapters/purchase-sources";
 import {qualityPackageScopeCte} from "@erpx/server-quality/adapters/quality-scope-sql";
 import {qualityChildAggSql} from "./quality-child-agg-sql";
+import {evidenceHead} from "./inspection-evidence-source-sql";
 import {qualityReceiptGuardSql} from "./quality-receipt-guard-sql";
 
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
@@ -27,9 +28,9 @@ export async function supplyQualityPackageObligations(owner:PostgresDatabase,dat
  assertSupplyInventoryPackageObligationSources(owner,database,input.companyId);
  if(input.moduleId!=="quality"||!["supply","supply-quality"].includes(input.packageId)||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error("SUPPLY_QUALITY_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
  const facts=(await database.prepare(`WITH scope AS${qualityPackageScopeCte},holds AS MATERIALIZED(
- SELECT hold.*,source.kind source_kind,source.witness FROM inventory_quality_holds hold CROSS JOIN scope
+ ${evidenceHead(`hold.*,source.kind source_kind,source.witness`,` FROM inventory_quality_holds hold CROSS JOIN scope
  LEFT JOIN (${qualityPurchaseSourceRows}) source ON source.id=hold.id AND source.company_id=hold.company_id
- WHERE hold.company_id=scope.company_id AND source.kind IS DISTINCT FROM 'customer-return' AND (scope.full OR source.kind IS DISTINCT FROM 'receipt'))
+ WHERE hold.company_id=scope.company_id AND source.kind IS DISTINCT FROM 'customer-return' AND (scope.full OR source.kind IS DISTINCT FROM 'receipt')`,'')})
  ${qualityObligationFactArm(`'hold' kind,hold.id,jsonb_build_array(to_jsonb(hold),
  ${qualityChildAggSql('inventory_quality_inspections','inspection','hold_id','hold.id')},
  ${qualityChildAggSql('inventory_quality_cancellations','event','hold_id','hold.id')},

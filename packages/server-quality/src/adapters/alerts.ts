@@ -1,6 +1,7 @@
 import {qualitySourceAccess,requireQualityPurchasedRead} from "@erpx/server-quality/adapters/purchases";
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
 import { qualityAlertRecipientSql } from './quality-alert-recipient-sql';
+import { evidenceHead } from './inspection-evidence-source-sql';
 import "server-only";
 
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -31,16 +32,16 @@ function application(actor:WorkContext,provided?:SqlDatabase){let resource:Promi
 function repository(write:SqlDatabase,actor:WorkContext):QualityAlertRepository{return {async alerts(){return (
     await write
       .prepare(
-        `SELECT a.*,h.company_id,h.branch_id,h.status,h.version hold_version,p.name product_name,w.name warehouse_name,
+        evidenceHead(`a.*,h.company_id,h.branch_id,h.status,h.version hold_version,p.name product_name,w.name warehouse_name,
           CASE WHEN EXISTS(${qualityAlertRecipientSql('1', `
              AND m.user_id=?`)}) THEN 1 ELSE 0 END can_ack,
           (${qualityAlertRecipientSql('COUNT(DISTINCT m.user_id)')}) recipients
-         FROM inventory_quality_alerts a
+        `,` FROM inventory_quality_alerts a
          JOIN inventory_quality_holds h ON h.id=a.hold_id
          JOIN (${commerceProjectionSources.commerce_products}) p ON p.id=h.product_id
          JOIN (${commerceProjectionSources.commerce_warehouses}) w ON w.id=h.warehouse_id
          WHERE ${scope}
-         ORDER BY a.due_date,CASE WHEN a.phase='overdue' THEN 0 ELSE 1 END,a.id`,
+         ORDER BY a.due_date,CASE WHEN a.phase='overdue' THEN 0 ELSE 1 END,a.id`,''),
       )
       .bind(actor.userId, ...scopeArgs(actor))
       .all<Alert>()

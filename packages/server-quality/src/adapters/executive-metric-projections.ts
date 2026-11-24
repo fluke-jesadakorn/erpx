@@ -1,5 +1,5 @@
 import { commercialOwnerProjectionSources as organizationProjectionSources } from "@erpx/server-organization/public/commercial-owner-projection-sources";
-import { inspectionMetricSource } from "./inspection-evidence-source-sql";
+import { inspectionMetricSource, evidenceHead } from "./inspection-evidence-source-sql";
 import { readMetricSources } from '@erpx/server-runtime/public/executive/metric-sources';
 import "server-only";
 import { type Breakdown, type Filters, type MetricId } from "@erpx/feature-shared/lib/executive/canvas";
@@ -20,7 +20,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         const label = breakdown === "branch" ? qualityBranchDisplayLabelSql
             : breakdown === "month" || releases && breakdown === "default" ? "to_char(to_timestamp(h.released_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')"
                 : breakdown === "status" ? "h.status" : releases ? "'Released'" : "h.status";
-        sql = `SELECT ${label} label,count(*)::text value FROM inventory_quality_holds h WHERE h.company_id=? AND (?::text IS NULL OR h.branch_id=?) AND ${releases ? "h.status='released' AND h.released_at>=? AND h.released_at<?" : "h.status NOT IN ('released','cancelled','disposed')"} GROUP BY 1 ORDER BY 1`;
+        sql = evidenceHead(`${label} label,count(*)::text value`,` FROM inventory_quality_holds h WHERE h.company_id=? AND (?::text IS NULL OR h.branch_id=?) AND ${releases ? "h.status='released' AND h.released_at>=? AND h.released_at<?" : "h.status NOT IN ('released','cancelled','disposed')"} GROUP BY 1 ORDER BY 1`,'');
         values = releases
             ? [a.companyId, a.branchId, a.branchId, Date.parse(f.from), Date.parse(f.to) + 86400000]
             : [a.companyId, a.branchId, a.branchId];

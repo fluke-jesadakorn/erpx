@@ -4,13 +4,15 @@ import {ApiError} from "@erpx/server-runtime/public/http";
 import {commerceQualityOriginRows,commerceQualityHoldOrigin,commerceQualitySourceReadLocks} from "@erpx/server-commerce/public/quality-purchase-sources";
 import {qualityLineageSeedSql,qualityLineageStepSql} from "./quality-lineage-recursion-sql";
 import {qualityLineageTerminalSql} from "./quality-lineage-terminal-sql";
+import {qualitySourceRows} from "./quality-source-rows-sql";
+import {evidenceHead} from "./inspection-evidence-source-sql";
 export type QualitySource={id:string;company_id:string;branch_id:string;warehouse_id:string;product_id:string;lot_id:string|null;source_type:string|null;source_id:string|null;spec_id:string|null;spec_version:number|null;created_by:string;held_quantity_milli:number};
 export type QualityPurchaseSource={hold:QualitySource;kind:"advanced"|"receipt"|"customer-return";capabilities:readonly string[];stockCapability:"supply.stock"|"inventory.stock-core";financeCapability:"finance.inventory-valuation"|"finance.sales-posting";witness:string};
 const image=(row:QualitySource)=>JSON.stringify({id:row.id,company:row.company_id,branch:row.branch_id,warehouse:row.warehouse_id,product:row.product_id,lot:row.lot_id,sourceType:row.source_type,sourceId:row.source_id,spec:row.spec_id,specVersion:row.spec_version,creator:row.created_by,quantity:row.held_quantity_milli});
 /** A partial scrap's remaining hold inherits only through the posted original
  * Count, reciprocal hold/Count FKs and immutable disposition post evidence. */
 export async function qualityHoldPurchaseSource(database:SqlDatabase,scope:{companyId:string;branchId:string|null},id:string):Promise<QualityPurchaseSource>{
- const hold=await database.prepare("SELECT * FROM inventory_quality_holds WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)").bind(id,scope.companyId,scope.branchId,scope.branchId).first<QualitySource>();
+ const hold=await database.prepare(`${qualitySourceRows("inventory_quality_holds")} WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)`).bind(id,scope.companyId,scope.branchId,scope.branchId).first<QualitySource>();
  if(!hold)throw new ApiError(404,"QUALITY_HOLD_NOT_FOUND","Quality hold not found in the current workspace.");
  const root=await database.prepare(`WITH RECURSIVE lineage AS (
   ${qualityLineageSeedSql("h.*","inventory_quality_holds h")} WHERE h.id=? AND h.company_id=?
@@ -41,10 +43,10 @@ export const qualityPurchaseSourceRows=`WITH RECURSIVE lineage AS (
  UNION ALL ${qualityLineageStepSql("walk.hold_id,parent.id","walk")} JOIN inventory_quality_holds child ON child.id=walk.root_id ${lineageParents}
  WHERE walk.depth<64 AND child.id=parent.id||'-remaining-'||c.id AND child.source_id=parent.source_id||':remaining:'||c.id AND child.held_quantity_milli=parent.held_quantity_milli-parent.disposition_quantity_milli AND child.held_quantity_milli>0
  ), roots AS (${qualityLineageTerminalSql("DISTINCT ON(hold_id) hold_id,root_id","ORDER BY hold_id,depth DESC")})
- SELECT h.id,h.company_id,h.branch_id,h.warehouse_id,h.product_id,h.lot_id,root.id root_id,
+ ${evidenceHead(`h.id,h.company_id,h.branch_id,h.warehouse_id,h.product_id,h.lot_id,root.id root_id,
  COALESCE(origin.kind,'advanced') kind,CASE WHEN origin.kind='customer-return' THEN 'inventory.stock-core' ELSE 'supply.stock' END stock_capability,
  CASE WHEN origin.kind='customer-return' THEN 'finance.sales-posting' ELSE 'finance.inventory-valuation' END finance_capability,
  jsonb_build_array(${core("h")},${core("root")},to_jsonb(origin)) witness
- FROM roots JOIN inventory_quality_holds h ON h.id=roots.hold_id JOIN inventory_quality_holds root ON root.id=roots.root_id
+`,` FROM roots JOIN inventory_quality_holds h ON h.id=roots.hold_id JOIN inventory_quality_holds root ON root.id=roots.root_id
  LEFT JOIN (${commerceQualityOriginRows}) origin ON root.spec_id IS NULL AND origin.hold_id=root.id AND origin.company_id=root.company_id AND origin.branch_id=root.branch_id AND origin.warehouse_id=root.warehouse_id AND origin.product_id=root.product_id AND origin.lot_id IS NOT DISTINCT FROM root.lot_id AND origin.quantity_milli=root.held_quantity_milli
- AND ((origin.kind='receipt' AND root.source_type='goods_receipt') OR (origin.kind='customer-return' AND root.source_type='customer_return' AND origin.source_id=root.source_id AND origin.created_by=root.created_by))`;
+ AND ((origin.kind='receipt' AND root.source_type='goods_receipt') OR (origin.kind='customer-return' AND root.source_type='customer_return' AND origin.source_id=root.source_id AND origin.created_by=root.created_by))`,'')}`;

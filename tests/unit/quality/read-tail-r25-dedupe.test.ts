@@ -61,12 +61,12 @@ describe('quality hold-evidence full head dedupe (r25)', () => {
   test('the hold-evidence reader uses the shared head with no residual inline copy', () => {
     const exec = read('adapters/executive-main-evidence-sources.ts');
     expect(exec.match(/holdEvidenceSource\(/g)).toHaveLength(1);
-    expect(exec).toContain('import { holdEvidenceSource, inspectionEvidenceSource } from "./inspection-evidence-source-sql";');
+    expect(exec).toContain('import { holdEvidenceSource, inspectionEvidenceSource, evidenceHead } from "./inspection-evidence-source-sql";');
     expect(exec).not.toContain('commerceProjectionSources');
     expect(exec).not.toContain('SELECT h.id,h.id hold_id,');
     expect(exec).not.toContain('FROM inventory_quality_holds h\n    JOIN (${commerceProjectionSources.commerce_products})');
-    // the inspection parent lookup (r25 hold-source family) stays inline and byte-stable
-    expect(exec).toContain('SELECT i.hold_id FROM inventory_quality_inspections i');
+    // the inspection parent lookup routes through the r26 exported evidence head
+    expect(exec).toContain('evidenceHead(`i.hold_id`,');
   });
 });
 
@@ -105,6 +105,6 @@ describe('quality read-tail r25 dedupe retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(58);
-    expect(total).toBe(57);
+    expect(total).toBe(34);
   });
 });

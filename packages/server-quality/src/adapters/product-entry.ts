@@ -11,6 +11,8 @@ import {qualityClockCte} from "@erpx/server-quality/adapters/quality-scope-sql";
 import {salesQualityCountProductEntry} from "@erpx/server-inventory/public/quality-product-entry";
 import {qualityPurchaseSourceRows} from "@erpx/server-quality/adapters/purchase-sources";
 import {qualitySourcePurchasePredicate} from "@erpx/server-quality/adapters/record-purchases";
+import {qualitySourceArmHead} from "./quality-source-arm-head";
+import {evidenceHead} from "./inspection-evidence-source-sql";
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
@@ -23,7 +25,7 @@ export async function qualityProductSourceEntry(database:SqlDatabase,scope:Quali
  if(scope.departmentId||!Number.isSafeInteger(scope.assignmentVersion)||scope.assignmentVersion<1)return null;
  if(target.kind==="count")return salesQualityCountProductEntry(database,scope,target.id);
  const row=await database.prepare(`${qualityClockCte("quality_entry_clock")}
- SELECT quality_entry.kind FROM (SELECT s.*,NULL::text department_id FROM (${qualityPurchaseSourceRows}) s) quality_entry CROSS JOIN quality_entry_clock
+ ${evidenceHead(`quality_entry.kind`,` FROM (${qualitySourceArmHead(`s.*,NULL::text department_id`,`(${qualityPurchaseSourceRows}) s`)}) quality_entry CROSS JOIN quality_entry_clock`,'')}
  WHERE quality_entry.id=? AND quality_entry.company_id=? AND (?::text IS NULL OR quality_entry.branch_id=?)
  AND ${assignmentReadSql("quality_entry","quality.read")} AND EXISTS(SELECT 1 FROM assignments WHERE id=? AND version=?)
  AND ${scheduledFeaturePredicate("quality_entry.company_id","quality")}

@@ -100,7 +100,7 @@ describe('quality inspection evidence/metric head dedupe (r24)', () => {
     expect(evidence).not.toContain(`SELECT ${evidenceList}`);
     expect(evidence).not.toContain('SELECT i.id,i.hold_id,i.result,i.evidence,i.inspected_by');
     expect(metric).not.toContain('FROM inventory_quality_inspections i JOIN inventory_quality_holds h ON h.id=i.hold_id');
-    expect(metric).toContain('import { inspectionMetricSource } from "./inspection-evidence-source-sql"');
+    expect(metric).toContain('import { inspectionMetricSource, evidenceHead } from "./inspection-evidence-source-sql"');
     expect(read('adapters/inspection-evidence-source-sql.ts').match(/SELECT /g)).toHaveLength(1);
   });
 });
@@ -143,6 +143,6 @@ describe('quality read-tail r23 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(63);
-    expect(total).toBe(57);
+    expect(total).toBe(34);
   });
 });

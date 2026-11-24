@@ -8,7 +8,7 @@ const holdLabels = `\n    JOIN (${commerceProjectionSources.commerce_products}) 
 /** Single full-head template for the Executive Quality evidence/metric reads.
  * Callers own the projection, FROM relation and tail; spacing is emitted
  * byte-identically to the former inline copies. No read here acquires a lock. */
-const evidenceHead = (projection: string, from: string, tail: string) => `SELECT ${projection}${from}${tail}`;
+export const evidenceHead = (projection: string, from: string, tail: string) => `SELECT ${projection}${from}${tail}`;
 
 /** Inspection-to-hold evidence: holds join plus product and warehouse labels. */
 export const inspectionEvidenceSource = (projection: string) => evidenceHead(

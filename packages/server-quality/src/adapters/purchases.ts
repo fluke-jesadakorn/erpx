@@ -13,6 +13,8 @@ import {holdingResources} from "../../../../packages/server-runtime/src/public/r
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {qualityHoldPurchaseSource,qualityPurchaseSourceReadLocks,type QualityPurchaseSource} from "@erpx/server-quality/adapters/purchase-sources";
 import {qualityWorkScopeTuple} from "@erpx/server-quality/adapters/quality-work-scope-sql";
+import {qualitySourceArmHead} from "./quality-source-arm-head";
+import {evidenceHead} from "./inspection-evidence-source-sql";
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 type Actor=Pick<WorkContext,"userId"|"assignmentId"|"role"|"companyId"|"branchId"|"departmentId"|"authority"|"iam">;
 export type QualityPurchaseTarget={kind:"hold"|"spec"|"alert";id:string};
@@ -27,14 +29,14 @@ async function current(database:SqlDatabase,actor:Actor,key:string,permissions:r
  if(actor.departmentId)throw new ApiError(403,"QUALITY_ACCESS_CHANGED","Choose a current Company or Branch Quality assignment.");
  for(const permission of new Set(["quality.read",...permissions])){
   if(!hasPermission(actor,permission))throw new ApiError(403,"QUALITY_ACCESS_CHANGED","Choose a current authorized Quality assignment.");
-  const row=await database.prepare(`SELECT ${assignmentReadSql("quality_scope",permission)} allowed FROM ${qualityWorkScopeTuple("?::text company_id,?::text branch_id,NULL::text department_id","quality_scope")}`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId).first<{allowed:boolean}>();
+  const row=await database.prepare(evidenceHead(`${assignmentReadSql("quality_scope",permission)} allowed`,` FROM ${qualityWorkScopeTuple("?::text company_id,?::text branch_id,NULL::text department_id","quality_scope")}`,'')).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId).first<{allowed:boolean}>();
   if(!row?.allowed)throw new ApiError(403,"QUALITY_ACCESS_CHANGED","The original Quality assignment is no longer current.");
  }
  await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearWorkflowCommandAssertions(database, key)]);
 }
 async function targetSource(database:SqlDatabase,actor:Actor,target:QualityPurchaseTarget):Promise<{capabilities:readonly string[];witness:string;owner?:QualityPurchaseSource;productId:string}>{
  if(target.kind==="spec"){
-  const row=await database.prepare("SELECT id,company_id,product_id,created_by FROM inventory_quality_specs WHERE id=? AND company_id=?").bind(target.id,actor.companyId).first<{id:string;company_id:string;product_id:string;created_by:string}>();
+  const row=await database.prepare(qualitySourceArmHead("id,company_id,product_id,created_by","inventory_quality_specs"," WHERE id=? AND company_id=?")).bind(target.id,actor.companyId).first<{id:string;company_id:string;product_id:string;created_by:string}>();
   if(!row)throw new ApiError(404,"QUALITY_SPEC_NOT_FOUND","The original inspection specification is unavailable.");return {capabilities:["supply.quality"],witness:JSON.stringify(row),productId:row.product_id};
  }
  const id=target.kind==="alert"?await qualityAlertHoldId(database,target.id):target.id;
@@ -61,7 +63,7 @@ export async function withQualityPurchasedCommand<Result>(owner:SqlDatabase,acto
  if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,"QUALITY_TRANSACTION_REQUIRED","Quality requires its original owned Holding transaction.");
  try{return await owner.transaction(async database=>{
   const companyLocks=companyPurchaseReadLocks(database,actor.companyId);await database.batch([companyLocks[0],...qualityPurchaseSourceReadLocks(database),...companyLocks.slice(1)]);
-  const replay=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(command.key,command.operation,command.target.id,actor.userId,actor.companyId).first();
+  const replay=await database.prepare(evidenceHead('1'," FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?",'')).bind(command.key,command.operation,command.target.id,actor.userId,actor.companyId).first();
   const before=command.existing||replay?await targetSource(database,actor,command.target):null,purpose=replay?"history" as const:command.purpose;
   const required=before?.capabilities??["supply.quality"],extra=command.disposition&&before?.owner?.kind!=="customer-return"?["supply.counts"]:[],scopes=[...new Set([...required,...extra])].map(capability=>({companyId:actor.companyId,capability,purpose}));
   const key=`quality-purchase:${randomUUID()}`,boundaries=scopes.map((scope,index)=>({key:`${key}:${index}`,boundary:purchaseCommandBoundary(database,mode,`${key}:${index}`,scope)!}));
