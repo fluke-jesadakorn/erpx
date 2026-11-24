@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7816,
+    "revision": 7823,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -110450,14 +110450,14 @@
         "retainedLegacy": [],
         "blocker": "handoff",
         "handoff": {
-          "runId": "run-20261123-f",
-          "agentId": "wP01",
-          "at": "2026-11-23T19:24:42.920Z",
-          "previousStatus": "in_progress",
+          "runId": "run-20261123-i",
+          "agentId": "lead-supersede",
+          "at": "2026-11-24T01:13:57.470Z",
+          "previousStatus": "blocked",
           "reason": "handoff",
-          "nextAction": "Paused at 293; single-read queue exhausted"
+          "nextAction": "Superseded by files read-tail r1/r2; retained as removalTaskId owner."
         },
-        "nextAction": "Paused at 293; single-read queue exhausted",
+        "nextAction": "Superseded by files read-tail r1/r2; retained as removalTaskId owner.",
         "procedureRef": "executionPlan.sliceProcedure",
         "scopeRefinementRequired": false
       },
@@ -130995,7 +130995,7 @@
         "owner": "files",
         "title": "files TS read tail native cutover (r1)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -131007,22 +131007,42 @@
         "resources": [
           "owner:files"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG38fil",
-          "claimedAt": "2026-11-24T00:53:09.576Z",
-          "heartbeatAt": "2026-11-24T01:07:51.653Z",
-          "expiresAt": "2026-11-24T01:37:51.653Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b08403f50",
+            "owner": "files",
+            "before": 379,
+            "after": 378,
+            "note": "readAttachmentSets1/9 share setByIdSql; carves into retire.files.read-tail-followup (line-count basis)."
+          },
+          {
+            "command": "cargo check -p erpx-server-files",
+            "result": "passed",
+            "sourceSha": "b08403f50"
+          },
+          {
+            "command": "vitest files attachment transports (15) + tsc files",
+            "result": "passed",
+            "sourceSha": "b08403f50"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "New read-tail lane. Pick the smallest owner-local fixed-SQL dedupe group; BEFORE=379 spaced statements; record strictly lower.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG38fil",
+          "at": "2026-11-24T01:13:57.173Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -132194,6 +132214,43 @@
         "nextAction": "Next: storage_bytes pair in attachments-service-facts.ts:5 and legal-portal-storage-allowance.ts:3 (byte-identical) -> 37->36. BEFORE=37.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.files.read-tail-r2",
+        "goalId": "G4",
+        "owner": "files",
+        "title": "files TS read tail native cutover (round 2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "packages/server-files/package.json",
+          "tests/unit/files/**",
+          "tests/integration/files/**"
+        ],
+        "resources": [
+          "owner:files"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG68fil",
+          "claimedAt": "2026-11-24T01:13:57.659Z",
+          "heartbeatAt": "2026-11-24T01:13:57.659Z",
+          "expiresAt": "2026-11-24T01:43:57.659Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Delete the orphan commercial-owner-projection-sources adapter + public barrel + package.json export entries (no live consumers), or dedupe attachment-purpose/production-command pair. BEFORE=378.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -132202,7 +132259,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 786,
+      "totalPackets": 787,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -132210,13 +132267,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 410,
+        "blocked": 411,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:13:36.198Z",
+    "updatedAt": "2026-11-24T01:13:57.663Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
