@@ -1,4 +1,5 @@
 import "server-only";
+import {companyNodeByIdKind} from './organization-column-alias-families-r31';
 
 /** Canonical fixed SQL projections shared by the owner projection source maps.
  * Callers keep their own scope/authority filters and supplied transactions. */
@@ -16,8 +17,7 @@ export const ORG_NODE_DISPLAY_NAME_SOURCE =
   "SELECT display_name FROM organization_nodes WHERE id=?";
 /** Canonical Company-scoped display-name read shared by the finance/people owner facts.
  * Each caller keeps its own binding and supplied transaction. */
-export const ORG_COMPANY_DISPLAY_NAME_SOURCE =
-  "SELECT display_name FROM organization_nodes WHERE id=? AND kind='company'";
+export const ORG_COMPANY_DISPLAY_NAME_SOURCE = companyNodeByIdKind('display_name');
 /** Canonical active branch-list read shared by the collaboration home and beta management readers.
  * Each caller keeps its own binding and supplied transaction. */
 export const ORG_ACTIVE_BRANCHES_SOURCE =

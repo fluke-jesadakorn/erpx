@@ -1,3 +1,4 @@
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
-export async function engineeringCompanySource(db:SqlDatabase,companyId:string):Promise<boolean>{return !!await db.prepare("SELECT 1 FROM organization_nodes WHERE id=? AND kind='company'").bind(companyId).first();}
+import {companyNodeByIdKind} from './organization-column-alias-families-r31';
+export async function engineeringCompanySource(db:SqlDatabase,companyId:string):Promise<boolean>{return !!await db.prepare(companyNodeByIdKind('1')).bind(companyId).first();}
