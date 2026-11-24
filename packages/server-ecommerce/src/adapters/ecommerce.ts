@@ -51,6 +51,10 @@ const activeProjectionAssertion = (source: string, alias: string, predicate: str
  *  locks unchanged. */
 const readSource = (table: string, scope: string, order = '') =>
   `SELECT * FROM ${table} WHERE ${scope}${order ? ` ORDER BY ${order}` : ''}`;
+/** r13: one parameterized checkout-row read; the detail and lock callers
+ *  rebuild byte-identically. Text only: projection, binds and locks unchanged. */
+const checkoutRow = (projection: string, lock = '') =>
+  `SELECT ${projection} FROM ecommerce_checkouts x JOIN ecommerce_carts c ON c.id=x.cart_id JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=x.sales_order_id WHERE x.id=? AND ${cartScope}${lock}`;
 
 function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction: boolean): EcommerceRepository {
  let money: Awaited<ReturnType<typeof snapshotMoney>> | undefined;
@@ -256,7 +260,7 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
    if (detail) {
    return await write
       .prepare(
-        `SELECT x.*,c.channel_id,c.party_id,c.warehouse_id,c.branch_id,c.department_id,o.number,o.state order_state FROM ecommerce_checkouts x JOIN ecommerce_carts c ON c.id=x.cart_id JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=x.sales_order_id WHERE x.id=? AND ${cartScope}`,
+        checkoutRow("x.*,c.channel_id,c.party_id,c.warehouse_id,c.branch_id,c.department_id,o.number,o.state order_state"),
       )
       .bind(id,...scopeValues(a))
       .first<Row>();
@@ -264,7 +268,7 @@ function bindRepository(write: SqlDatabase, a: WorkContext, canStartTransaction:
    }
   return await write
     .prepare(
-      `SELECT x.*,c.branch_id,c.department_id,o.version current_order_version,o.state order_state FROM ecommerce_checkouts x JOIN ecommerce_carts c ON c.id=x.cart_id JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=x.sales_order_id WHERE x.id=? AND ${cartScope} FOR UPDATE OF x,c,o`,
+      checkoutRow("x.*,c.branch_id,c.department_id,o.version current_order_version,o.state order_state", " FOR UPDATE OF x,c,o"),
     )
     .bind(id,...scopeValues(a))
     .first<Row>();
