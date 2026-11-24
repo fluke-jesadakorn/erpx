@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8194,
+    "revision": 8200,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -135869,7 +135869,7 @@
         "owner": "people_payroll",
         "title": "people_payroll TS read tail native cutover (r15)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -135881,22 +135881,42 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGARpeo",
-          "claimedAt": "2026-11-24T01:38:48.186Z",
-          "heartbeatAt": "2026-11-24T01:48:55.159Z",
-          "expiresAt": "2026-11-24T02:18:55.159Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b2ca1c8a6",
+            "owner": "people_payroll",
+            "before": 1629,
+            "after": 1620,
+            "note": "Command receipt prior, active payee, final pay validity, people snapshot reads share four canonical constants; locks untouched."
+          },
+          {
+            "command": "vitest people payroll targeted (118 + 3)",
+            "result": "passed",
+            "sourceSha": "b2ca1c8a6"
+          },
+          {
+            "command": "tsc people payroll scoped + structure + catalogue",
+            "result": "passed",
+            "sourceSha": "b2ca1c8a6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe dedupe/native read; if none, report blocked. BEFORE=1629.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGARpeo",
+          "at": "2026-11-24T01:50:37.565Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -136186,7 +136206,7 @@
         "owner": "benefits",
         "title": "benefits TS read tail native cutover (new lane)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -136198,22 +136218,42 @@
         "resources": [
           "owner:benefits"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGAYben",
-          "claimedAt": "2026-11-24T01:41:31.993Z",
-          "heartbeatAt": "2026-11-24T01:48:55.159Z",
-          "expiresAt": "2026-11-24T02:18:55.159Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-benefits/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b2ca1c8a6",
+            "owner": "benefits",
+            "before": 80,
+            "after": 75,
+            "note": "Payroll query, active engagement scope, actual probe, actor scope shared; aliases/binds unchanged; package export added."
+          },
+          {
+            "command": "vitest benefits targeted (48)",
+            "result": "passed",
+            "sourceSha": "b2ca1c8a6"
+          },
+          {
+            "command": "tsc benefits",
+            "result": "passed",
+            "sourceSha": "b2ca1c8a6"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: smallest byte-identical fragment groups in record-purchases/purchases/attachment-read/attachment-purchases; BEFORE=80. Report blocked if none. wGAYben",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGAYben",
+          "at": "2026-11-24T01:50:38.104Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -137184,6 +137224,43 @@
         "nextAction": "Next: three identical holding_bindings projection prefixes in runtime.ts only after confirming no source-drawer/regex coupling, or another safe dedupe. BEFORE=64.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.benefits.read-tail-dedupe-2",
+        "goalId": "G4",
+        "owner": "benefits",
+        "title": "benefits TS read tail dedupe (round 2)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-benefits/src/**",
+          "packages/server-benefits/package.json",
+          "tests/unit/benefits/**",
+          "tests/integration/benefits/**"
+        ],
+        "resources": [
+          "owner:benefits"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGBTben",
+          "claimedAt": "2026-11-24T01:50:38.446Z",
+          "heartbeatAt": "2026-11-24T01:50:38.446Z",
+          "expiresAt": "2026-11-24T02:20:38.446Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: remaining benefits statement groups or native read kinds; if none, report blocked. BEFORE=75.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -137192,21 +137269,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 876,
+      "totalPackets": 877,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 33,
+        "in_progress": 32,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 497,
+        "blocked": 499,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:49:57.308Z",
+    "updatedAt": "2026-11-24T01:50:38.454Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
