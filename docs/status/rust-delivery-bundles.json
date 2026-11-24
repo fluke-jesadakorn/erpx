@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10958,
+    "revision": 10959,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -167477,7 +167477,7 @@
         "owner": "pos",
         "title": "POS core keyed lookups native port (round 29)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -167489,7 +167489,14 @@
         "resources": [
           "owner:pos"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMpos7",
+          "claimedAt": "2026-11-24T09:25:59.782Z",
+          "heartbeatAt": "2026-11-24T09:25:59.782Z",
+          "expiresAt": "2026-11-24T09:55:59.782Z",
+          "generation": 167
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -169024,8 +169031,8 @@
       "totalPackets": 1511,
       "migratedPackets": 330,
       "statusCounts": {
-        "pending": 25,
-        "in_progress": 22,
+        "pending": 24,
+        "in_progress": 23,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -169035,7 +169042,7 @@
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:25:42.304Z",
+    "updatedAt": "2026-11-24T09:25:59.789Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
