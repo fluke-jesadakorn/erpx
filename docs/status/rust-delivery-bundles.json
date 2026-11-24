@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11947,
+    "revision": 11949,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -178174,7 +178174,7 @@
         "owner": "inventory",
         "title": "inventory TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -178186,22 +178186,37 @@
         "resources": [
           "owner:inventory"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4g03",
-          "claimedAt": "2026-11-24T12:27:56.234Z",
-          "heartbeatAt": "2026-11-24T12:37:13.270Z",
-          "expiresAt": "2026-11-24T13:07:13.270Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-inventory/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "729f8d07f",
+            "owner": "inventory",
+            "before": 325,
+            "after": 321,
+            "note": "SourceImages, lot balance and count authority heads shared; locks/native/r11-r43 untouched."
+          },
+          {
+            "command": "vitest inventory r42-r44 (41) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "729f8d07f"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "SourceImages head (-3), lot-balance head (-1): 325->321. BEFORE=325.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4g03",
+          "at": "2026-11-24T12:43:54.614Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -178491,17 +178506,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 6,
+        "in_progress": 5,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1334,
+        "blocked": 1335,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T12:43:35.644Z",
+    "updatedAt": "2026-11-24T12:43:54.618Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
