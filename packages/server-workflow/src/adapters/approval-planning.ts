@@ -28,6 +28,7 @@ const peoplepayrollFinalSources=peoplepayrollFinalOwnerProjections();
 const approvalStepsApproverSql = `SELECT s.*,COALESCE(p.legal_name,s.approver_user_id) approver_name FROM approval_steps s LEFT ${peoplepayrollFinalSources.approvals_hr_people_p_join} ON p.user_id=s.approver_user_id AND p.company_id=? AND p.merged_into_id IS NULL WHERE s.instance_id`;
 const approvalDecisionHistorySql = `COALESCE(p.legal_name,d.actor_user_id) actor_name,(SELECT legal_name ${peoplepayrollFinalSources.approvals_hr_people_from} WHERE company_id=i.company_id AND iam_same_person(user_id,d.previous_approver_user_id,company_id) AND merged_into_id IS NULL LIMIT 1) previous_approver_name,(SELECT legal_name ${peoplepayrollFinalSources.approvals_hr_people_from} WHERE company_id=i.company_id AND iam_same_person(user_id,d.approver_user_id,company_id) AND merged_into_id IS NULL LIMIT 1) approver_name FROM approval_decisions d JOIN approval_instances i ON i.id=d.instance_id LEFT ${peoplepayrollFinalSources.approvals_hr_people_p_join} ON p.user_id=d.actor_user_id AND p.company_id=i.company_id AND p.merged_into_id IS NULL WHERE i.record_type=`;
 const pendingInstanceExistsSql = "EXISTS(SELECT 1 FROM approval_instances WHERE id=? AND version=? AND state='pending' AND current_step=?)";
+const jsonEachBindSql = "(SELECT value FROM erpx_json_each(?))";
 export { participantSql } from '@erpx/server-workflow/adapters/approval-participant-projection';
 export type { ApprovalKind } from '@erpx/server-workflow/domain/approvals';
 export type { ApprovalPhase } from '@erpx/server-workflow/domain/approvals';
@@ -225,12 +226,12 @@ export async function expenseApprovalReadBatch(db: SqlDatabase, actor: Pick<Staf
     const requested = new Set(ids);
     if (requested.size > 250) throw new Error("EXPENSE_BATCH_TOO_LARGE");
     const encoded = JSON.stringify([...requested]);
-    const instances = requested.size ? (await db.prepare("SELECT DISTINCT ON(record_id) * FROM approval_instances WHERE record_type='expense' AND company_id=? AND record_id IN(SELECT value FROM erpx_json_each(?)) ORDER BY record_id,insertion_order DESC").bind(actor.companyId,encoded).all<ApprovalInstance>()).results : [];
+    const instances = requested.size ? (await db.prepare(`SELECT DISTINCT ON(record_id) * FROM approval_instances WHERE record_type='expense' AND company_id=? AND record_id IN${jsonEachBindSql} ORDER BY record_id,insertion_order DESC`).bind(actor.companyId,encoded).all<ApprovalInstance>()).results : [];
     const current = new Map(instances.map(row => [row.record_id,row]));
     const stable = instances.filter(row => row.state !== "blocked");
     const [steps, history] = requested.size ? await Promise.all([
-        stable.length ? db.prepare(`${approvalStepsApproverSql} IN(SELECT value FROM erpx_json_each(?)) ORDER BY s.ordinal`).bind(actor.companyId,JSON.stringify(stable.map(row => row.id))).all<ApprovalStep>() : Promise.resolve({results:[] as ApprovalStep[]}),
-        db.prepare(`SELECT i.record_id batch_record_id,d.*,${approvalDecisionHistorySql}'expense' AND i.record_id IN(SELECT value FROM erpx_json_each(?)) AND i.company_id=? ORDER BY d.created_at,d.insertion_order`).bind(encoded,actor.companyId).all<ApprovalDecision & {batch_record_id:string}>(),
+        stable.length ? db.prepare(`${approvalStepsApproverSql} IN${jsonEachBindSql} ORDER BY s.ordinal`).bind(actor.companyId,JSON.stringify(stable.map(row => row.id))).all<ApprovalStep>() : Promise.resolve({results:[] as ApprovalStep[]}),
+        db.prepare(`SELECT i.record_id batch_record_id,d.*,${approvalDecisionHistorySql}'expense' AND i.record_id IN${jsonEachBindSql} AND i.company_id=? ORDER BY d.created_at,d.insertion_order`).bind(encoded,actor.companyId).all<ApprovalDecision & {batch_record_id:string}>(),
     ]) : [{results:[] as ApprovalStep[]},{results:[] as (ApprovalDecision & {batch_record_id:string})[]}];
     const stepsByInstance = new Map<string,ApprovalStep[]>(), historyByRecord = new Map<string,ApprovalDecision[]>();
     for (const step of steps.results) { const group=stepsByInstance.get(step.instance_id)??[]; group.push(step); stepsByInstance.set(step.instance_id,group); }
