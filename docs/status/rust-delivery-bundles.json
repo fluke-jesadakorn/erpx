@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12455,
+    "revision": 12457,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183424,7 +183424,7 @@
         "owner": "billing",
         "title": "billing TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183435,28 +183435,36 @@
         "resources": [
           "owner:billing"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n87",
-          "claimedAt": "2026-11-24T16:09:11.207Z",
-          "heartbeatAt": "2026-11-24T16:11:53.559Z",
-          "expiresAt": "2026-11-24T16:41:53.559Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-billing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "9f266baa8",
+            "owner": "billing",
+            "before": 24,
+            "after": 16,
+            "note": "Four r35 projection heads (-4), two r29 point reads (-2), r16 rollout UNION guard (-2). Bytes and / reuse proven; FOR UPDATE/advisory/native untouched."
+          },
+          {
+            "command": "vitest billing (24 files/196) + scoped tsc + SHA oracles",
+            "result": "passed",
+            "sourceSha": "9f266baa8"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Projection family (-4), point-read family (-2): 24->18; r16 guard excluded pending authorization. BEFORE=24.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261124-d",
-          "agentId": "wH4n69",
-          "at": "2026-11-24T16:09:11.078Z",
+          "agentId": "wH4n87",
+          "at": "2026-11-24T16:20:32.926Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Projection family (-4), point-read family (-2): 24->18; r16 guard excluded pending authorization. BEFORE=24."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -184181,17 +184189,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 14,
+        "in_progress": 13,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1442,
+        "blocked": 1443,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:19:55.226Z",
+    "updatedAt": "2026-11-24T16:20:32.933Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
