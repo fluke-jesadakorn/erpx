@@ -74,3 +74,18 @@ export const pendingLossSumSql = (metric: string, from: string, where: string) =
  * binds and independent statement. r11-r18 helpers above are left untouched. */
 export const stockMoveSumSql = (metric: string, moves: string, where: string) =>
   `COALESCE((SELECT sum(${metric}) FROM (${moves}) move WHERE ${where}),0)`;
+/** r20: the four initial-physical source markers are byte-identical across the
+ * count list and paged-list reads; only the four source-row fragments vary.
+ * Every caller prepares its own statement with its own binds. r11-r19 helpers
+ * above are left untouched. */
+export const countInitialPhysicalSourceMarkersSql = (initial: string, mfg: string, pos: string, service: string) =>
+  `EXISTS(SELECT 1 FROM (${initial}) actual_initial WHERE actual_initial.id=c.id AND actual_initial.company_id=c.company_id) initial_physical_source,` +
+  `EXISTS(SELECT 1 FROM (${mfg}) actual_mfg_initial WHERE actual_mfg_initial.id=c.id AND actual_mfg_initial.company_id=c.company_id) manufacturing_initial_physical_source,` +
+  `EXISTS(SELECT 1 FROM (${pos}) actual_pos_initial WHERE actual_pos_initial.id=c.id AND actual_pos_initial.company_id=c.company_id) pos_initial_physical_source,` +
+  `EXISTS(SELECT 1 FROM (${service}) actual_service_initial WHERE actual_service_initial.id=c.id AND actual_service_initial.company_id=c.company_id) service_initial_physical_source`;
+/** r20: the posted initial-physical stock source probe is byte-identical across
+ * the sales, manufacturing and POS package-obligation reads; only the source
+ * rows and the posted alias vary. Every caller keeps its own statement, scope
+ * and binds. */
+export const postedInitialPhysicalStockSourceSql = (source: string, posted: string) =>
+  `EXISTS(SELECT 1 FROM (${source}) source JOIN inventory_counts ${posted} ON ${posted}.id=source.id AND ${posted}.company_id=source.company_id AND ${posted}.status='posted' WHERE source.company_id=scope.company_id AND source.warehouse_id=stock.warehouse_id AND source.product_id=stock.product_id)`;
