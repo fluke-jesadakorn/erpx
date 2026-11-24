@@ -77146,7 +77146,7 @@
       ],
       "id": "runtime.read-tail-r5-dedupe.unit",
       "files": [
-        "tests/unit/runtime/read-tail-r5-dedupe.test.ts"
+        "tests/unit/shared.runtime/read-tail-r5-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -105991,7 +105991,7 @@
       "lane": "unit",
       "owner": "work_projection",
       "modules": [
-        "work_projection"
+        "operations"
       ],
       "fixture": "none",
       "requires": {
