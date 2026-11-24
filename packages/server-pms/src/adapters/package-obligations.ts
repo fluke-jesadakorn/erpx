@@ -3,6 +3,7 @@ import { createHash } from "node:crypto";
 import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postgres";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { packageSettlementSource, type PackageSettlementSourceLock } from "@erpx/server-commercial/public/package-settlement-sources";
+import { pmsPaymentIdentityUnionSql } from "./finance-record-sources";
 
 type Input = { companyId: string; packageId: string; packageVersion: number; moduleId: string; now: number };
 const sources = new WeakMap<SqlDatabase, string>();
@@ -24,7 +25,7 @@ export function assertPmsPackageObligationSources(owner: PostgresDatabase, datab
 export const pmsPackageSettlementSources = {
   properties: "SELECT id,company_id,branch_id,config_json FROM pms_properties",
   postings: "SELECT p.company_id,pp.property_id,pp.source_key,pp.journal_id FROM pms_postings pp JOIN pms_properties p ON p.id=pp.property_id UNION ALL SELECT company_id,property_id,id,opening_journal_id FROM pms_import_batches WHERE state='applied' AND opening_journal_id IS NOT NULL",
-  payments: "SELECT p.company_id,d.finance_id FROM pms_documents d JOIN pms_properties p ON p.id=d.property_id WHERE d.kind IN ('receipt','refund') AND d.finance_id IS NOT NULL UNION SELECT company_id,finance_payment_id FROM pms_transfer_requests WHERE finance_payment_id IS NOT NULL UNION SELECT p.company_id,b.finance_payment_id FROM pms_import_balances b JOIN pms_properties p ON p.id=b.property_id WHERE b.finance_payment_id IS NOT NULL",
+  payments: pmsPaymentIdentityUnionSql(false),
   stockMoves: "SELECT p.company_id,m.* FROM pms_stock_moves m JOIN pms_properties p ON p.id=m.property_id",
   roomCharges: "SELECT p.company_id,s.property_id,s.source_key FROM pms_sources s JOIN pms_properties p ON p.id=s.property_id WHERE s.source_key LIKE 'pos:%'",
   clearing: "SELECT p.company_id,c.account_id FROM pms_properties p CROSS JOIN LATERAL (VALUES (p.config_json::jsonb#>>'{accounts,edc}'),(p.config_json::jsonb#>>'{accounts,receivable}'),(p.config_json::jsonb#>>'{accounts,advance}'),(p.config_json::jsonb#>>'{accounts,deposit}'),(p.config_json::jsonb#>>'{onlineAccounting,refundPayable}'),(p.config_json::jsonb#>>'{onlineAccounting,unallocated}')) c(account_id) WHERE c.account_id IS NOT NULL AND c.account_id<>'' UNION SELECT company_id,clearing_account FROM pms_booking_payments WHERE clearing_account IS NOT NULL UNION SELECT company_id,clearing_account FROM pms_stripe_payments WHERE clearing_account IS NOT NULL",

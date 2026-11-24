@@ -1,9 +1,16 @@
 import "server-only";
+/** Closed Finance-payment identity union shared by the Hotel document reader and
+ * package settlement sources. Text only: callers keep their own scope/authority
+ * guards, binds and transaction. The sole variant is the optional `id` output
+ * alias on the document finance_id column; no table, predicate or SQL is caller-supplied. */
+export function pmsPaymentIdentityUnionSql(aliasDocumentId: boolean): string {
+  return `SELECT p.company_id,d.finance_id${aliasDocumentId ? ' id' : ''} FROM pms_documents d JOIN pms_properties p ON p.id=d.property_id WHERE d.kind IN ('receipt','refund') AND d.finance_id IS NOT NULL UNION SELECT company_id,finance_payment_id FROM pms_transfer_requests WHERE finance_payment_id IS NOT NULL UNION SELECT p.company_id,b.finance_payment_id FROM pms_import_balances b JOIN pms_properties p ON p.id=b.property_id WHERE b.finance_payment_id IS NOT NULL`;
+}
 /** Only actual Hotel document/posting identities reach the Finance reader. */
 export const pmsFinanceRecordSources = {
   invoice: "SELECT p.company_id,d.finance_id id FROM pms_documents d JOIN pms_properties p ON p.id=d.property_id WHERE d.kind='invoice' AND d.finance_id IS NOT NULL",
   journal: "SELECT p.company_id,d.journal_id id FROM pms_postings d JOIN pms_properties p ON p.id=d.property_id WHERE d.journal_id IS NOT NULL UNION SELECT company_id,opening_journal_id FROM pms_import_batches WHERE state='applied' AND opening_journal_id IS NOT NULL",
-  payment: "SELECT p.company_id,d.finance_id id FROM pms_documents d JOIN pms_properties p ON p.id=d.property_id WHERE d.kind IN ('receipt','refund') AND d.finance_id IS NOT NULL UNION SELECT company_id,finance_payment_id FROM pms_transfer_requests WHERE finance_payment_id IS NOT NULL UNION SELECT p.company_id,b.finance_payment_id FROM pms_import_balances b JOIN pms_properties p ON p.id=b.property_id WHERE b.finance_payment_id IS NOT NULL",
+  payment: pmsPaymentIdentityUnionSql(true),
 } as const;
 
 /** Query-free source leases for retained Finance document identities. */
