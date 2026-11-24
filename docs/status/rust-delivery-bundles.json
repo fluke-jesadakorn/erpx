@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8548,
+    "revision": 8552,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -140970,7 +140970,7 @@
         "owner": "legal",
         "title": "legal TS read tail native cutover (r15)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -140982,22 +140982,37 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGC4leg",
-          "claimedAt": "2026-11-24T02:22:28.242Z",
-          "heartbeatAt": "2026-11-24T02:27:42.633Z",
-          "expiresAt": "2026-11-24T02:57:42.633Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "20d10e386",
+            "owner": "legal",
+            "before": 280,
+            "after": 279,
+            "note": "Later-approval NOT EXISTS guard shared by documents and executed-copies assertions; locks untouched."
+          },
+          {
+            "command": "vitest legal application/command (117)",
+            "result": "passed",
+            "sourceSha": "20d10e386"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=280.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC4leg",
+          "at": "2026-11-24T02:28:45.052Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -141503,6 +141518,42 @@
         "nextAction": "Build owner-local native read ports for package-grants/purchase-command-boundary/projection reads (40 TS SELECTs), PG parity tests; no composition or TS deletion yet.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.legal.read-tail-r16",
+        "goalId": "G4",
+        "owner": "legal",
+        "title": "legal TS read tail native cutover (round 16)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-legal/src/**",
+          "tests/unit/legal/**",
+          "tests/integration/legal/**"
+        ],
+        "resources": [
+          "owner:legal"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCOleg",
+          "claimedAt": "2026-11-24T02:28:45.483Z",
+          "heartbeatAt": "2026-11-24T02:28:45.483Z",
+          "expiresAt": "2026-11-24T02:58:45.483Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: `SELECT i.* FROM legal_items i WHERE` in integrations.ts:15 + service.ts:50, or UNION ALL fragments in package-obligations; avoid knowledge/citations. BEFORE=279.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -141511,7 +141562,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 961,
+      "totalPackets": 962,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -141519,13 +141570,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 583,
+        "blocked": 584,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:28:25.264Z",
+    "updatedAt": "2026-11-24T02:28:45.497Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
