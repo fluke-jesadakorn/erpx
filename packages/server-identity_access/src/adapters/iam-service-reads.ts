@@ -1,4 +1,5 @@
 import 'server-only';
+import {idNameEmailByUserIdsSql} from './iam-probe-sql';
 import {createIamServiceReads} from '@erpx/server-identity_access/application/iam-service-reads';
 import {identitySnapshotSources as organizationSnapshotSources} from '@erpx/server-organization/public/identity-snapshot-sources';
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
@@ -62,7 +63,7 @@ function readService(database: PostgresDatabase) {
         },
         users: async (ids) => {
             const env = await control();
-            return (await env.CONTROL_DB.prepare(`SELECT id,name,email FROM "user" WHERE id IN (${ids.map(() => "?").join(",")})`)
+            return (await env.CONTROL_DB.prepare(idNameEmailByUserIdsSql(ids))
                 .bind(...ids)
                 .all<{
                 id: string;

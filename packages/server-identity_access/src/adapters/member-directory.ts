@@ -1,6 +1,7 @@
 import {identitySnapshotSources as organizationSnapshotSources} from '@erpx/server-organization/public/identity-snapshot-sources';
 const organizationSources=organizationSnapshotSources();
 import "server-only";
+import {idNameEmailByUserIdsSql} from './iam-probe-sql';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 
 /** Identity owns assignment validity and access scope, including its historical HR view. */
@@ -13,5 +14,5 @@ export async function companyDirectoryMemberIds(db: SqlDatabase, input: { compan
 /** A caller must supply only the account identifiers visible in its owner query. */
 export async function directoryAccounts(control: SqlDatabase, ids: string[]): Promise<{ id: string; name: string; email: string }[]> {
   if (!ids.length) return [];
-  return (await control.prepare(`SELECT id,name,email FROM "user" WHERE id IN (${ids.map(() => "?").join(",")})`).bind(...ids).all<{ id: string; name: string; email: string }>()).results;
+  return (await control.prepare(idNameEmailByUserIdsSql(ids)).bind(...ids).all<{ id: string; name: string; email: string }>()).results;
 }

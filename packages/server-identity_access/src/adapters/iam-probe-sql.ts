@@ -28,3 +28,8 @@ export const idNameByUserIdsSql = (ids: string[]) =>
  * and private session read adapters. Each caller owns its transaction; this
  * probe takes no lock and touches no lock statement. */
 export const verifiedUserEmailSql = 'SELECT email,"emailVerified" verified FROM "user" WHERE id=?';
+/** Byte-identical account id/name/email read shared by the IAM service reads
+ * port and the member directory adapter. Only the already-authorized id list
+ * is accepted from a caller; the projection SQL is fixed here. */
+export const idNameEmailByUserIdsSql = (ids: string[]) =>
+  `SELECT id,name,email FROM "user" WHERE id IN (${ids.map(() => "?").join(",")})`;
