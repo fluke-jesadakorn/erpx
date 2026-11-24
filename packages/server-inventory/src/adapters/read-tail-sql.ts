@@ -68,3 +68,9 @@ export const activeQualityHoldExistsSql = (source: string, predicate: string) =>
   `EXISTS(SELECT 1 ${source} WHERE ${predicate})`;
 export const pendingLossSumSql = (metric: string, from: string, where: string) =>
   `COALESCE((SELECT SUM(${metric}) ${from} WHERE ${where}),0)`;
+/** r19: parameterized settlement-move SUM. The delivery and return stock
+ * reconciliations repeat the same COALESCE(sum(...)) probe; only the metric,
+ * move source and scope predicate vary. Every caller keeps its own source,
+ * binds and independent statement. r11-r18 helpers above are left untouched. */
+export const stockMoveSumSql = (metric: string, moves: string, where: string) =>
+  `COALESCE((SELECT sum(${metric}) FROM (${moves}) move WHERE ${where}),0)`;
