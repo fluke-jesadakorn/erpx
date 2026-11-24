@@ -2608,6 +2608,31 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Benefits source existence probe wrapper must stay one builder."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-benefits"
+      ],
+      "id": "benefits.read-tail-r23-dedupe.unit",
+      "files": [
+        "tests/unit/benefits/read-tail-r23-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "benefits",
+      "modules": [
+        "benefits"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Benefits scope CTE prefix must exist once and stay byte-identical."
       },
       "apps": [
@@ -48920,6 +48945,31 @@
       "id": "learning.read-tail-r4-dedupe.unit",
       "files": [
         "tests/unit/learning/read-tail-r4-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "learning",
+      "modules": [
+        "learning"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Learning org node label projections must stay one helper."
+      },
+      "apps": "learn",
+      "packages": [
+        "@erpx/server-learning"
+      ],
+      "id": "learning.read-tail-r6-dedupe.unit",
+      "files": [
+        "tests/unit/learning/read-tail-r6-dedupe.test.ts"
       ],
       "framework": "vitest"
     },

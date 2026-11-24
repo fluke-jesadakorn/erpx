@@ -1,8 +1,13 @@
 import {learningMetricSource} from "@erpx/server-learning/adapters/metric-purchases";
 import {learningTalentSnapshotSources as organizationSnapshotSources} from '@erpx/server-organization/public/learning-talent-snapshot-sources';
 const organizationSources=organizationSnapshotSources();
-const branchLabel=`COALESCE((SELECT n.display_name ${organizationSources.learning_adapters_executive_metric_projections_organization_nodes_n_from} WHERE n.id=a.branch_id AND n.company_id=a.company_id),'Branch')`;
-const departmentLabel=`COALESCE((SELECT n.display_name ${organizationSources.learning_adapters_executive_metric_projections_organization_nodes_n_from} WHERE n.id=a.department_id AND n.company_id=a.company_id),'Unassigned')`;
+/* r6 read-tail family: the branch and department org-node labels share byte-identical
+ * framing and differ only by the scope field and fallback text. One parameterized
+ * source replaces the two inlined statements; r3/r4/r5 helpers, every lock
+ * statement and all other read families stay untouched. */
+const orgNodeLabel = (field: string, fallback: string) => `COALESCE((SELECT n.display_name ${organizationSources.learning_adapters_executive_metric_projections_organization_nodes_n_from} WHERE n.id=a.${field}_id AND n.company_id=a.company_id),'${fallback}')`;
+const branchLabel = orgNodeLabel('branch', 'Branch');
+const departmentLabel = orgNodeLabel('department', 'Unassigned');
 import { readMetricSources } from '@erpx/server-runtime/public/executive/metric-sources';
 import "server-only";
 import { type Breakdown, type Filters, type MetricId } from "@erpx/feature-shared/lib/executive/canvas";
