@@ -18,12 +18,12 @@ import type { SqlStatement } from '@erpx/server-runtime/public/runtime/types';
 import { type ReportRow, type ShareRow, saveSchema } from '@erpx/server-runtime/domain/executive/reports';
 import { createExecutiveReportApplication, type ExecutiveReportRepository } from '@erpx/server-runtime/application/executive/reports';
 import { BusinessRuleError } from '@erpx/server-shared/index';
-import { executiveReportSharesSql } from '../read-tail-sql';
+import { executiveReportRevisionsSql, executiveReportSharesSql } from '../read-tail-sql';
 const REPORT_LOCK_SQL = "SELECT id FROM executive_reports WHERE id=? FOR UPDATE";
 const REPORT_VERSION_GUARD_SQL = "EXISTS(SELECT 1 FROM executive_reports WHERE id=? AND owner_id=? AND version=?)";
 function application(database: SqlDatabase) {
     const repository: ExecutiveReportRepository<SqlStatement> = { ...peopleSources(database), ...identitySources(database), readReportAccessR(id: string, companyId: string) { return database.prepare("SELECT * FROM executive_reports WHERE id=? AND company_id=?").bind(id, companyId).first<ReportRow>(); }, readReportAccessShare(id: string, companyId: string, userId: string, now: number) { return database.prepare(executiveReportSharesSql('*', ' WHERE report_id=? AND company_id=? AND recipient_id=? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>?)')).bind(id, companyId, userId, now).first<ShareRow>(); }, readReportViewShares(id: string) { return database.prepare(executiveReportSharesSql('*', ' WHERE report_id=? AND revoked_at IS NULL ORDER BY created_at')).bind(id).all<ShareRow>(); }, readReportViewRevisions(id: string) {
-            return database.prepare("SELECT version,created_at FROM executive_report_revisions WHERE report_id=? ORDER BY version DESC LIMIT 30").bind(id).all<{
+            return database.prepare(executiveReportRevisionsSql('version,created_at', ' ORDER BY version DESC LIMIT 30')).bind(id).all<{
                 version: number;
                 created_at: number;
             }>();
@@ -32,7 +32,7 @@ function application(database: SqlDatabase) {
                 shared_definition: string | null;
             }>();
         }, stageCreateReportEffect(id: string, companyId: string, userId: string, value: string, value2: string, now: number, now2: number) { return nativeRuntimeStatement('runtime_stmt_1', { companyId: companyId, now: now, actor: undefined }).bind(id, companyId, userId, value, value2, now, now2); }, stageCreateReportEffect2(id: string, value: string, value2: string, userId: string, now: number) { return nativeRuntimeStatement('runtime_stmt_2', { companyId: '', now: now, actor: undefined }).bind(id, value, value2, userId, now); }, stageSaveReportEffect(id: string) { return database.prepare(REPORT_LOCK_SQL).bind(id); }, guard11(key: string, value: "report-version", id: string, expectedVersion: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM executive_reports WHERE id=? AND version=?)", [id, expectedVersion]); }, guard12(key: string, value: "report-share", id: string, version: number, now: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM executive_report_shares WHERE id=? AND version=? AND revoked_at IS NULL AND (expires_at IS NULL OR expires_at>?))", [id, version, now]); }, stageSaveReportEffect2(value: string, value2: string, version: number, now: number, id: string) { return nativeRuntimeStatement('runtime_stmt_3', { companyId: '', now: now, actor: undefined }).bind(value, value2, version, now, id); }, stageSaveReportEffect3(id: string, version: number, value: string, value2: string, userId: string, now: number) { return nativeRuntimeStatement('runtime_stmt_4', { companyId: '', now: now, actor: undefined }).bind(id, version, value, value2, userId, now); }, stageSaveReportEffect4(value: string, id: string) { return nativeRuntimeStatement('runtime_stmt_5', { companyId: '', now: Date.now(), actor: undefined }).bind(value, id); }, readRestoreReportR(id: string, version: number) {
-            return database.prepare("SELECT definition_json,filters_json FROM executive_report_revisions WHERE report_id=? AND version=?").bind(id, version).first<{
+            return database.prepare(executiveReportRevisionsSql('definition_json,filters_json', ' AND version=?')).bind(id, version).first<{
                 definition_json: string;
                 filters_json: string;
             }>();

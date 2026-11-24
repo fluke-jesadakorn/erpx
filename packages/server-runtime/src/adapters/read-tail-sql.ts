@@ -47,3 +47,14 @@ export const executiveExternalTokensSql = (columns: string, suffix = '') =>
  */
 export const executiveReportSharesSql = (columns: string, suffix = '') =>
   `SELECT ${columns} FROM executive_report_shares${suffix}`;
+
+/**
+ * Runtime-owned canonical SQL for the closed `executive_report_revisions`
+ * projection family. Report-view and restore surfaces project different
+ * column subsets and predicates of the same fixed read; one builder keeps the
+ * query text identical across every caller. No relation name or predicate
+ * comes from an untrusted caller. Control-plane lock, guard and migration
+ * statements are not part of this family.
+ */
+export const executiveReportRevisionsSql = (columns: string, suffix = '') =>
+  `SELECT ${columns} FROM executive_report_revisions WHERE report_id=?${suffix}`;
