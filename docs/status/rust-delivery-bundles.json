@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9115,
+    "revision": 9121,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -140261,10 +140261,10 @@
         ],
         "claim": {
           "runId": "run-20261123-j",
-          "agentId": "wGCilea",
-          "claimedAt": "2026-11-24T03:57:21.368Z",
-          "heartbeatAt": "2026-11-24T04:46:41.294Z",
-          "expiresAt": "2026-11-24T05:16:41.294Z",
+          "agentId": "wGCJlea",
+          "claimedAt": "2026-11-24T04:50:10.350Z",
+          "heartbeatAt": "2026-11-24T04:50:10.350Z",
+          "expiresAt": "2026-11-24T05:20:10.350Z",
           "generation": 162
         },
         "baseSha": null,
@@ -140275,11 +140275,11 @@
         "blocker": null,
         "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=86.",
         "handoff": {
-          "runId": "run-20261123-i",
+          "runId": "run-20261123-j",
           "agentId": "wGCilea",
-          "at": "2026-11-24T03:57:20.238Z",
+          "at": "2026-11-24T04:50:09.918Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long cargo queue; WIP reviewed, all owner claims preserved and re-issued.",
+          "reason": "released with work preserved",
           "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=86."
         },
         "scopeRefinementRequired": false
@@ -141676,10 +141676,10 @@
         ],
         "claim": {
           "runId": "run-20261123-j",
-          "agentId": "wGCGida",
-          "claimedAt": "2026-11-24T03:57:23.064Z",
-          "heartbeatAt": "2026-11-24T04:46:41.294Z",
-          "expiresAt": "2026-11-24T05:16:41.294Z",
+          "agentId": "wGCIida",
+          "claimedAt": "2026-11-24T04:50:10.205Z",
+          "heartbeatAt": "2026-11-24T04:50:10.205Z",
+          "expiresAt": "2026-11-24T05:20:10.205Z",
           "generation": 162
         },
         "baseSha": null,
@@ -141690,11 +141690,11 @@
         "blocker": null,
         "nextAction": "Next: safe byte-identical dedupe/native read; if none, report blocked. BEFORE=542.",
         "handoff": {
-          "runId": "run-20261123-i",
+          "runId": "run-20261123-j",
           "agentId": "wGCGida",
-          "at": "2026-11-24T03:57:20.238Z",
+          "at": "2026-11-24T04:50:10.060Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long cargo queue; WIP reviewed, all owner claims preserved and re-issued.",
+          "reason": "released with work preserved",
           "nextAction": "Next: safe byte-identical dedupe/native read; if none, report blocked. BEFORE=542."
         },
         "scopeRefinementRequired": false
@@ -143694,7 +143694,7 @@
         "owner": "agent",
         "title": "agent TS read tail native cutover (round 11)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -143706,28 +143706,36 @@
         "resources": [
           "owner:agent"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCCage",
-          "claimedAt": "2026-11-24T03:57:24.507Z",
-          "heartbeatAt": "2026-11-24T04:46:41.294Z",
-          "expiresAt": "2026-11-24T05:16:41.294Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-agent/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "7fc4f2edc",
+            "owner": "agent",
+            "before": 68,
+            "after": 67,
+            "note": "Private session projection shared by workspaceSessions and sessionRecord; translation guard untouched."
+          },
+          {
+            "command": "vitest agent quota dedupe (18) + tsc agent",
+            "result": "passed",
+            "sourceSha": "7fc4f2edc"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=68.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-i",
+          "runId": "run-20261123-j",
           "agentId": "wGCCage",
-          "at": "2026-11-24T03:57:20.238Z",
+          "at": "2026-11-24T04:50:09.786Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long cargo queue; WIP reviewed, all owner claims preserved and re-issued.",
-          "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=68."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -147884,17 +147892,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 14,
+        "in_progress": 13,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 718,
+        "blocked": 719,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 162,
-    "updatedAt": "2026-11-24T04:49:35.190Z",
+    "updatedAt": "2026-11-24T04:50:10.353Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
