@@ -62076,6 +62076,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "people_payroll",
+      "modules": [
+        "people_payroll"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Payroll r27 seven pure-read families must stay byte-identical."
+      },
+      "apps": "apps",
+      "packages": [
+        "@erpx/server-people_payroll"
+      ],
+      "id": "people_payroll.read-tail-r27-dedupe.unit",
+      "files": [
+        "tests/unit/people_payroll/read-tail-r27-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "people_payroll.retirement.integration",
       "lane": "integration",
       "owner": "people_payroll",
@@ -67577,6 +67602,31 @@
       "id": "pms.read-tail-r18-dedupe.unit",
       "files": [
         "tests/unit/pms/pms-read-tail-r18-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "pms",
+      "modules": [
+        "pms"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "PMS import batches and postings projections must stay byte-identical."
+      },
+      "apps": "booking",
+      "packages": [
+        "@erpx/server-pms"
+      ],
+      "id": "pms.read-tail-r19-dedupe.unit",
+      "files": [
+        "tests/unit/pms/pms-read-tail-r19-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
