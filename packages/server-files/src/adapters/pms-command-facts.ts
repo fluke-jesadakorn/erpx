@@ -1,11 +1,12 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
+import { attachmentSetPurposeSql } from "./read-tail-dedupe-sql";
 export function pmsFilesFacts(db: SqlDatabase) {
     return {
         readAttachmentSets: (facts: {
             companyId: string;
             attachmentSetIds: readonly string[];
-        }) => db.prepare(`SELECT id,purpose_key,component_kind,component_ref FROM attachment_sets WHERE company_id=? AND id IN (${facts.attachmentSetIds.map(() => "?").join(",")})`).bind(facts.companyId, ...facts.attachmentSetIds).all<{
+        }) => db.prepare(attachmentSetPurposeSql(facts.attachmentSetIds.map(() => "?").join(","))).bind(facts.companyId, ...facts.attachmentSetIds).all<{
             id: string;
             purpose_key: string;
             component_kind: string;

@@ -14,6 +14,7 @@ import {isTransactionalSqlDatabase,type SqlDatabase,type StoredFile} from '@erpx
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {attachmentReadSource,attachmentPrivateReadSourceLocks,assertAttachmentReadRoute,attachmentReadChanged,requirePrivateAttachmentReaderCurrent,bufferedAttachmentRead,type AttachmentReadRoute,type AttachmentReadSource} from '@erpx/server-files/adapters/private-attachment-reads';
 import {attachmentDeniedReadAudits} from '@erpx/server-files/adapters/attachment-denied-read-audits';
+import {workforceActorScopeSql} from './read-tail-dedupe-sql';
 export type EmployeeEvidenceAttachmentType='employee_request'|'expense_claim'|'leave_request'|'expense_payment'|'invoice_payment';
 export function isEmployeeEvidenceAttachmentType(kind:string):kind is EmployeeEvidenceAttachmentType{return ['employee_request','expense_claim','leave_request','expense_payment','invoice_payment'].includes(kind);}
 const identity=(actor:WorkContext)=>JSON.stringify([actor.holdingId,actor.companyId,actor.userId,actor.email,actor.assignmentId,actor.role,actor.branchId,actor.departmentId,actor.assignmentScope,actor.scope,actor.modules,actor.authority??null,actor.iam??null]);
@@ -34,7 +35,7 @@ export async function withEmployeeEvidenceAttachmentContentRead<Result extends {
   await database.batch([...leases(database,actor.companyId,kind),attachmentPrivateReadSourceLocks(database),...privateFileDenialAuthoritySourceLocks(database)]);
   await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);await database.batch(companyLocks.slice(1));
   const source=await attachmentReadSource(database,actor.companyId,linkId);assertAttachmentReadRoute(selected,source);if(!source)throw attachmentReadChanged();
-  const before=await image(database,actor.companyId,kind,source.targetId),current=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!!await database.prepare(`SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${current.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args).first();
+  const before=await image(database,actor.companyId,kind,source.targetId),current=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!!await database.prepare(workforceActorScopeSql(current.where)).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args).first();
   const invalidAuthority=initiallyCurrent?null:await privateFileDenialAuthorityWitness(database,actor);
   const check=async(authorizeSource:boolean)=>{
    if(identity(actor)!==context)throw attachmentReadChanged();if(authorizeSource||initiallyCurrent)await requirePrivateAttachmentReaderCurrent(database,actor);else if(await privateFileDenialAuthorityWitness(database,actor)!==invalidAuthority)throw attachmentReadChanged();

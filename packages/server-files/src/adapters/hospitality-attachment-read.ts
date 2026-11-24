@@ -13,6 +13,7 @@ import {isTransactionalSqlDatabase,type SqlDatabase,type StoredFile} from '@erpx
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {attachmentDeniedReadAudits} from '@erpx/server-files/adapters/attachment-denied-read-audits';
 import {attachmentReadSource,attachmentPrivateReadSourceLocks,assertAttachmentReadRoute,requirePrivateAttachmentReaderCurrent,bufferedAttachmentRead,type AttachmentReadRoute,type AttachmentReadSource} from '@erpx/server-files/adapters/private-attachment-reads';
+import {workforceActorScopeSql} from './read-tail-dedupe-sql';
 export function isHospitalityAttachmentReadTarget(target:string){return isPmsAttachmentReadTarget(target)||isPosAttachmentReadTarget(target);}
 function changed(){return new ApiError(409,'HOSPITALITY_FILE_READ_CHANGED','The original hotel or POS evidence source changed during its private read.');}
 const identity=(actor:WorkContext)=>JSON.stringify([actor.holdingId,actor.companyId,actor.userId,actor.email,actor.assignmentId,actor.role,actor.branchId,actor.departmentId,actor.assignmentScope,actor.scope,actor.modules,actor.authority??null,actor.iam??null]);
@@ -38,7 +39,7 @@ export async function withHospitalityAttachmentContentRead<Result extends {objec
   await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);await database.batch(purchase.slice(1));
   const source=await attachmentReadSource(database,actor.companyId,linkId);assertAttachmentReadRoute(selected,source);if(!source)throw changed();
   const before=await image(database,actor,source);if(!before)throw new ApiError(404,'ATTACHMENT_TARGET_NOT_FOUND','The original hotel or POS owner is unavailable.');
-  const currentScope=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!!await database.prepare(`SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${currentScope.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...currentScope.args).first();
+  const currentScope=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!!await database.prepare(workforceActorScopeSql(currentScope.where)).bind(actor.companyId,actor.branchId,actor.departmentId,...currentScope.args).first();
   const deniedAuthority=initiallyCurrent?null:await privateFileDenialAuthorityWitness(database,actor),checkpoint=new Set((await attachmentDeniedReadAudits(database,actor,linkId)).map(event=>event.id));
   const check=async(authorizeSource:boolean,denial=false)=>{
    if(identity(actor)!==context)throw changed();
