@@ -8,6 +8,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
+import { projectionLookup } from './projection-lookup';
 /** Canonical owner-local breakdown projection shared by the Work/Plan count
  * and asset-downtime sum reads. Both callers pass only fixed owner metric
  * fragments and a closed row alias, never request-authored SQL; the count
@@ -22,7 +23,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     const referenceAtOverride: number | null = null;
     if (id === "open-work-orders" || id === "blocked-maintenance") {
         const blocked = id === "blocked-maintenance";
-        const orgLabel = (col: string, fallback: string) => `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=w.${col} AND n.company_id=w.company_id),'${fallback}')`;
+        const orgLabel = (col: string, fallback: string) => `COALESCE(${projectionLookup("n.display_name",organizationProjectionSources.organization_nodes,"n",`n.id=w.${col} AND n.company_id=w.company_id`)},'${fallback}')`;
         const label = breakdown === "branch" ? orgLabel("branch_id", "Company-wide")
             : breakdown === "department" ? orgLabel("department_id", "Unassigned")
                 : blocked ? "'Blocked'" : "w.status";

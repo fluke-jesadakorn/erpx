@@ -2,6 +2,7 @@ import type {WorkContext} from "@erpx/server-identity_access/public/authorizatio
 import {assetSourcePredicate} from "@erpx/server-assets/public/record-purchases";
 import { finalRootOwnerProjectionSources as people_payrollProjectionSources } from "@erpx/server-people_payroll/public/final-root-owner-projection-sources";
 import {maintenanceOwnerName} from "./maintenance-owner-name";
+import {projectionLookup} from "./projection-lookup";
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
@@ -41,7 +42,7 @@ export function calendarMaintenanceMaintenanceFacts(db: SqlDatabase,actor?:WorkC
   SELECT s.*,${maintenanceOwnerName('s')} owner_name
   FROM scheduled s WHERE s.company_id=? AND (?::text IS NULL OR s.branch_id=?) AND (?::text IS NULL OR s.department_id=?) AND ${inList('coalesce(s.department_id,s.branch_id)')}
   AND s.due_at>=? AND s.due_at<? AND (?='team' OR s.owner_id=? OR s.created_by=?)
-  AND (?::text IS NULL OR s.owner_id IN (SELECT user_id FROM (${people_payrollProjectionSources.hr_people}) hr_people WHERE id=? AND company_id=s.company_id))
+  AND (?::text IS NULL OR s.owner_id IN ${projectionLookup("user_id",people_payrollProjectionSources.hr_people,"hr_people","id=? AND company_id=s.company_id")})
   AND (?='' OR s.title ILIKE '%'||?||'%') AND ((s.source_kind='maintenance_work' AND ${work.where}) OR (s.source_kind='maintenance_plan' AND ${plan.where})) ORDER BY s.due_at,s.id LIMIT ?`).bind(facts.value1, facts.value2, facts.value2, facts.value3, facts.value3, facts.value4, facts.value5, facts.value6, facts.value7, facts.value8, facts.value8, facts.value9, facts.value9, facts.value10, facts.value10,...work.args,...plan.args, facts.value11).all<{
                 id: string;
                 source_kind: string;

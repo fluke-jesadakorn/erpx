@@ -5,6 +5,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
 import {assertAssetPackageObligationSources,assetPackageSettlementSources as assets} from "@erpx/server-assets/public/package-obligations";
 import {maintenanceSettlementConsumptions,maintenanceSettlementInventoryReadLocks} from "@erpx/server-inventory/public/maintenance-settlement-sources";
+import {projectionLookup} from "./projection-lookup";
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
 /** Canonical owner-local Work/Plan source image for Maintenance package settlement.
  * Both callers share this one fixed statement so the TS read tail carries no
@@ -38,7 +39,7 @@ export async function maintenancePackageObligations(owner:PostgresDatabase,datab
  const facts=(await database.prepare(`WITH scope AS(SELECT ?::text company_id,?::text package_id),work AS MATERIALIZED(${scopedSourceCte("work",work,workScopeExtra)}),plans AS MATERIALIZED(${scopedSourceCte("plan",plans,"scope.package_id<>'assets-parts-costs'")})
  SELECT 'work' kind,work.id,work.version,work.status state,NOT work.source_valid OR work.status NOT IN ('completed','cancelled') OR work.downtime_started_at IS NOT NULL AND work.downtime_ended_at IS NULL pending FROM work
  UNION ALL SELECT 'preventive-plan',plan.id,plan.version,plan.status,NOT plan.source_valid OR plan.status<>'cancelled' FROM plans plan
- UNION ALL SELECT 'occurrence',occurrence.id,occurrence.plan_version,'ambiguous-source',true FROM maintenance_preventive_occurrences occurrence JOIN plans plan ON plan.id=occurrence.plan_id LEFT JOIN (${work}) generated ON generated.id=occurrence.work_order_id AND generated.company_id=plan.company_id WHERE generated.id IS NULL OR generated.asset_id<>plan.asset_id OR occurrence.plan_version>plan.version OR NOT generated.source_valid OR occurrence.source_asset_version>(SELECT version FROM (${assets.assets}) actual WHERE actual.id=plan.asset_id AND actual.company_id=plan.company_id)
+ UNION ALL SELECT 'occurrence',occurrence.id,occurrence.plan_version,'ambiguous-source',true FROM maintenance_preventive_occurrences occurrence JOIN plans plan ON plan.id=occurrence.plan_id LEFT JOIN (${work}) generated ON generated.id=occurrence.work_order_id AND generated.company_id=plan.company_id WHERE generated.id IS NULL OR generated.asset_id<>plan.asset_id OR occurrence.plan_version>plan.version OR NOT generated.source_valid OR occurrence.source_asset_version>${projectionLookup("version",assets.assets,"actual","actual.id=plan.asset_id AND actual.company_id=plan.company_id")}
  ORDER BY kind,id`).bind(input.companyId,input.packageId).all<{kind:string;id:string;version:number;state:string;pending:boolean}>()).results;
  return {companyId:input.companyId,packageId:input.packageId,moduleId:"maintenance",observedAt:input.now,revision:createHash("sha256").update(JSON.stringify({companyId:input.companyId,packageId:input.packageId,packageVersion:input.packageVersion,facts})).digest("hex"),outstanding:facts.filter(fact=>fact.pending).length};
 }

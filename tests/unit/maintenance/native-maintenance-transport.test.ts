@@ -520,8 +520,9 @@ describe('Maintenance package settlement source fixed SQL',()=>{
   // r3 removed one raw statement literal (13 -> 12); r9 shared the occurrence
   // and work-event full-row literals through settlementEventRows (12 -> 11);
   // r10 shared the two upstream-source EXISTS witnesses (11 -> 10); r15 shared
-  // the two MATERIALIZED scoped CTEs through scopedSourceCte (10 -> 9).
-  expect(source.match(/SELECT/g)).toHaveLength(9);
+  // the two MATERIALIZED scoped CTEs through scopedSourceCte (10 -> 9); r16
+  // moved the asset-version lookup into projectionLookup (9 -> 8).
+  expect(source.match(/SELECT/g)).toHaveLength(8);
   expect(count(source,'SELECT work.*,COALESCE')).toBe(0);
   expect(count(source,'SELECT plan.*,COALESCE')).toBe(0);
   expect(source).toContain('ownerSourceSql("maintenance_work_orders","work")');
@@ -570,8 +571,8 @@ describe('Maintenance settlement event row fixed SQL',()=>{
   expect(source.match(/const settlementEventRows=\(table:"maintenance_preventive_occurrences"\|"maintenance_work_events"\)=>`SELECT \* FROM \$\{table\}`/g)).toHaveLength(1);
   expect(source.match(/SELECT \* FROM/g)).toHaveLength(1);
   // r10 shared the two upstream-source EXISTS witnesses (11 -> 10); r15 shared
-  // the two MATERIALIZED scoped CTEs through scopedSourceCte (10 -> 9).
-  expect(source.match(/SELECT/g)).toHaveLength(9);
+  // the two MATERIALIZED scoped CTEs through scopedSourceCte (10 -> 9).; r16 moved the asset-version lookup into projectionLookup (9 -> 8).
+  expect(source.match(/SELECT/g)).toHaveLength(8);
   expect(source).not.toContain('occurrences:"SELECT * FROM maintenance_preventive_occurrences"');
   expect(source).not.toContain('workEvents:"SELECT * FROM maintenance_work_events"');
   expect(source).toContain('settlementEventRows("maintenance_preventive_occurrences")');
@@ -595,7 +596,8 @@ describe('Maintenance upstream source witness fixed SQL',()=>{
    const source=await readFile(new URL(file,import.meta.url),'utf8');
    expect(source.match(/const workSourceExists=\(source:string,alias:string,column:string\)=>`EXISTS\(SELECT 1 FROM \$\{source\} \$\{alias\} WHERE \$\{alias\}\.\$\{column\}=work\.id\)`/g)).toHaveLength(1);
    expect(source.match(/EXISTS\(SELECT 1 FROM/g)).toHaveLength(1);
-   expect(source.match(/SELECT/g)).toHaveLength(9);
+   // r16 moved the asset-version lookup into projectionLookup (9 -> 8).
+   expect(source.match(/SELECT/g)).toHaveLength(8);
    expect(source).toContain('`EXISTS(SELECT 1 FROM ${source} ${alias} WHERE ${alias}.${column}=work.id)`');
    expect(source).not.toContain('EXISTS(SELECT 1 FROM maintenance_preventive_occurrences occurrence');
    expect(source).not.toContain('EXISTS(SELECT 1 FROM (${maintenanceSettlementConsumptions}) part');
@@ -650,13 +652,14 @@ describe('Maintenance breakdown projection fixed SQL',()=>{
    const source=await readFile(new URL(file,import.meta.url),'utf8');
    expect(source.match(/const breakdownProjection = \(alias: string, label: string, value: string, from: string, where: string\) =>/g)).toHaveLength(1);
    expect(source.match(/`SELECT \$\{label\} label,\$\{value\} value FROM \$\{from\} \$\{alias\} WHERE \$\{where\} GROUP BY 1 ORDER BY 1`/g)).toHaveLength(1);
-   // r2 left one orgLabel image; r11 shared the two outer breakdown SELECTs (8 -> 7).
-   expect(source.match(/SELECT/g)).toHaveLength(7);
+   // r2 left one orgLabel image; r11 shared the two outer breakdown SELECTs
+   // (8 -> 7); r16 moved the orgLabel lookup into projectionLookup (7 -> 6).
+   expect(source.match(/SELECT/g)).toHaveLength(6);
    expect(source).toContain('breakdownProjection("w", label, "count(*)::text", `(${source.sql})`');
    expect(source).toContain('breakdownProjection("s", label, "sum(segment_end-segment_start)::text", "monthly_segments", "segment_end>segment_start")');
    expect(source).not.toContain('label,count(*)::text value FROM (${source.sql}) w WHERE');
    expect(source).not.toContain('label,sum(segment_end-segment_start)::text value FROM monthly_segments s');
-   expect(source).toContain('COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=w.${col}');
+   expect(source).toContain('COALESCE(${projectionLookup("n.display_name",organizationProjectionSources.organization_nodes,"n",`n.id=w.${col} AND n.company_id=w.company_id`)}');
    expect(source).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|LOCK\s+TABLE/i);
   });
  });
@@ -705,7 +708,7 @@ describe('Maintenance record-image fixed SQL',()=>{
   }
  });
 
- it('retirement:ts-statements stays strictly below the r14 BEFORE=38 baseline',async()=>{
+ it('retirement:ts-statements stays strictly below the r15 BEFORE=37 baseline',async()=>{
   const {readdirSync,readFileSync}=await import('node:fs');
   const {resolve}=await import('node:path');
   let total=0;
@@ -718,8 +721,8 @@ describe('Maintenance record-image fixed SQL',()=>{
    }
   };
   walk(srcRoot);
-  expect(total).toBe(37);
-  expect(total).toBeLessThan(38);
+  expect(total).toBe(35);
+  expect(total).toBeLessThan(37);
  });
 });
 
@@ -773,7 +776,7 @@ describe('Maintenance scheduled-source fixed SQL',()=>{
   it('single-sources the scheduled projection and keeps both composed branches byte-identical',async()=>{
    const {readFileSync}=await import('node:fs');
    const helper=readFileSync(new URL(`${dir}calendar-maintenance-facts.ts`,import.meta.url),'utf8');
-   expect(helper.match(/SELECT/g)).toHaveLength(4);
+   expect(helper.match(/SELECT/g)).toHaveLength(3);
    // r14 removed the two inline scheduled-branch literals; the inList read remains.
    expect(helper).not.toContain("SELECT p.id,'maintenance_plan' source_kind");
    expect(helper).not.toContain("UNION ALL SELECT w.id,'maintenance_work'");
@@ -792,5 +795,52 @@ describe('Maintenance scheduled-source fixed SQL',()=>{
   FROM maintenance_work_orders w WHERE w.status NOT IN ('completed','cancelled') AND w.scheduled_at IS NOT NULL`;
    expect(scheduledSourceSql('p','maintenance_plan','p.next_due_at due_at','maintenance_preventive_plans',"p.status='active'")).toBe(prePlan);
    expect(scheduledSourceSql('w','maintenance_work','w.scheduled_at','maintenance_work_orders',"w.status NOT IN ('completed','cancelled') AND w.scheduled_at IS NOT NULL")).toBe(preWork);
+  });
+ });
+
+
+/** Fixed-SQL read-tail oracle for the Maintenance scalar projection lookup
+ * family (r16). The Calendar owner-membership witness, the executive metric
+ * label and the package-obligation asset-version read share one owner-local
+ * `(SELECT <select> FROM (<source>) <alias> WHERE <where>)` skeleton. Every
+ * composed string stays byte-identical to its pre-dedupe literal, no duplicate
+ * TS query literal remains and every owner lock is untouched. r3-r15 families
+ * stay unchanged. */
+describe('Maintenance projection lookup fixed SQL',()=>{
+  const dir='../../../packages/server-maintenance/src/adapters/';
+  it('single-sources the scalar projection lookup and keeps all three composed lookups byte-identical',async()=>{
+   const {readFileSync}=await import('node:fs');
+   const helper=readFileSync(new URL(`${dir}projection-lookup.ts`,import.meta.url),'utf8');
+   const calendar=readFileSync(new URL(`${dir}calendar-maintenance-facts.ts`,import.meta.url),'utf8');
+   const executive=readFileSync(new URL(`${dir}executive-metric-projections.ts`,import.meta.url),'utf8');
+   const packageSources=readFileSync(new URL(`${dir}package-obligations.ts`,import.meta.url),'utf8');
+   expect(helper.match(/export const projectionLookup = \(select: string, source: string, alias: string, where: string\): string =>/g)).toHaveLength(1);
+   expect(helper.match(/SELECT/g)).toHaveLength(1);
+   expect(helper).not.toMatch(/LOCK\s+TABLE/);
+   expect(calendar).toContain('projectionLookup("user_id",people_payrollProjectionSources.hr_people,"hr_people","id=? AND company_id=s.company_id")');
+   expect(executive).toContain('projectionLookup("n.display_name",organizationProjectionSources.organization_nodes,"n",');
+   expect(packageSources).toContain('projectionLookup("version",assets.assets,"actual","actual.id=plan.asset_id AND actual.company_id=plan.company_id")');
+   expect(calendar).not.toContain('s.owner_id IN (SELECT user_id FROM (${people_payrollProjectionSources.hr_people})');
+   expect(executive).not.toContain('COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n');
+   expect(packageSources).not.toContain('(SELECT version FROM (${assets.assets}) actual');
+   // Locks untouched.
+   expect(calendar).not.toContain('LOCK TABLE');
+   expect(readFileSync(new URL(`${dir}purchase-sources.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans,maintenance_preventive_occurrences IN SHARE ROW EXCLUSIVE MODE');
+   expect(readFileSync(new URL(`${dir}finance-record-sources.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE operational_inventory_consumptions,maintenance_work_orders,operational_assets IN SHARE MODE');
+   expect(readFileSync(new URL(`${dir}asset-settlement-refs.ts`,import.meta.url),'utf8')).toContain('LOCK TABLE maintenance_work_orders,maintenance_preventive_plans IN SHARE MODE');
+   expect(packageSources).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
+
+   const {projectionLookup}=await import('../../../packages/server-maintenance/src/adapters/projection-lookup');
+   const {finalRootOwnerProjectionSources:pp}=await import('../../../packages/server-people_payroll/src/public/final-root-owner-projection-sources');
+   const {finalRootOwnerProjectionSources:org}=await import('../../../packages/server-organization/src/public/final-root-owner-projection-sources');
+   const {assetPackageSettlementSources:as}=await import('../../../packages/server-assets/src/public/package-obligations');
+   // Pre-r16 literals rebuilt verbatim.
+   expect(projectionLookup('user_id',pp.hr_people,'hr_people','id=? AND company_id=s.company_id')).toBe(
+     `(SELECT user_id FROM (${pp.hr_people}) hr_people WHERE id=? AND company_id=s.company_id)`);
+   expect(`COALESCE(${projectionLookup('n.display_name',org.organization_nodes,'n','n.id=w.branch_id AND n.company_id=w.company_id')},'Company-wide')`).toBe(
+     `COALESCE((SELECT n.display_name FROM (${org.organization_nodes}) n WHERE n.id=w.branch_id AND n.company_id=w.company_id),'Company-wide')`);
+   expect(`occurrence.source_asset_version>${projectionLookup('version',as.assets,'actual','actual.id=plan.asset_id AND actual.company_id=plan.company_id')}`).toBe(
+     `occurrence.source_asset_version>(SELECT version FROM (${as.assets}) actual WHERE actual.id=plan.asset_id AND actual.company_id=plan.company_id)`);
+   expect(projectionLookup('x','t','a','a.id=?')).toBe('(SELECT x FROM (t) a WHERE a.id=?)');
   });
  });
