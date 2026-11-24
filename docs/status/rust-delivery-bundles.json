@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10619,
+    "revision": 10622,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -160837,7 +160837,7 @@
         "owner": "procurement",
         "title": "procurement TS read tail native cutover (round 30)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -160849,28 +160849,36 @@
         "resources": [
           "owner:procurement"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMpro3",
-          "claimedAt": "2026-11-24T07:54:21.696Z",
-          "heartbeatAt": "2026-11-24T08:15:48.647Z",
-          "expiresAt": "2026-11-24T08:45:48.647Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-procurement/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "595eae178",
+            "owner": "procurement",
+            "before": 131,
+            "after": 125,
+            "note": "IAM scope probes, version/status guards, RFQ master lookups and request-progress aggregates share four helpers; locks, command_receipts and r19-r29 untouched."
+          },
+          {
+            "command": "vitest procurement r19-r30 (59) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "595eae178"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=131.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-n",
+          "runId": "run-20261124-a",
           "agentId": "wGCMpro3",
-          "at": "2026-11-24T07:53:21.211Z",
+          "at": "2026-11-24T08:25:29.304Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long worker integration; WIP reviewed by lead; all live claims re-claimed with the same agents under a new generation",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=131."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -164050,7 +164058,7 @@
         "owner": "procurement",
         "title": "procurement read tail families (round 31)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -164062,7 +164070,14 @@
         "resources": [
           "owner:procurement"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMpro4",
+          "claimedAt": "2026-11-24T08:25:29.674Z",
+          "heartbeatAt": "2026-11-24T08:25:29.674Z",
+          "expiresAt": "2026-11-24T08:55:29.674Z",
+          "generation": 167
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -164784,18 +164799,18 @@
       "totalPackets": 1424,
       "migratedPackets": 330,
       "statusCounts": {
-        "pending": 20,
+        "pending": 19,
         "in_progress": 20,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1052,
+        "blocked": 1053,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:24:44.803Z",
+    "updatedAt": "2026-11-24T08:25:29.681Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
