@@ -1,4 +1,5 @@
 import { ACTIVE_ACCOUNT_CATEGORY_PROBE_SQL } from './finance-read-tail-r40-sql';
+import { accountChartGuardSql } from './finance-read-tail-r46-sql';
 import {financeOwnedSnapshotSources as commerceSnapshotSources} from "@erpx/server-commerce/public/finance-owned-snapshot-sources";
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
@@ -18,5 +19,5 @@ readFinanceJournalLines1:(facts:{debit_account_id:string | number | null;debit_a
     WHERE f.invoice_id=? AND o.company_id=? AND j.chart_id=?
       AND (?::text IS NULL OR o.branch_id=?) AND (?::text IS NULL OR o.department_id=?)
     ORDER BY f.id,fl.id`).bind(facts.debit_account_id,facts.debit_account_id2,facts.id,facts.companyId,facts.chartId,facts.branchId,facts.branchId2,facts.departmentId,facts.departmentId2).all<Row>(),
-guardRule2:(facts:{key:string;guardId:string;values:string[];})=>assertion(db,facts.key,facts.guardId,"EXISTS(SELECT 1 FROM finance_accounts WHERE id=? AND company_id=? AND chart_id=? AND currency=? AND category=? AND status='active')",facts.values)
+guardRule2:(facts:{key:string;guardId:string;values:string[];})=>assertion(db,facts.key,facts.guardId,accountChartGuardSql(" AND currency=? AND category=? AND status='active'"),facts.values)
 };}

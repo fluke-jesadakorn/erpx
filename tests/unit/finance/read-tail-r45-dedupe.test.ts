@@ -105,7 +105,7 @@ describe('Finance read-tail r45 protected families and retirement', () => {
     expect(read('finance-read-tail-r44-sql.ts')).toContain('AI_USAGE_MONTH_SQL');
   });
 
-  test('retirement:ts-statements reaches the r45 target of 1860', () => {
+  test('retirement:ts-statements stays at or below the r45 target of 1860', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -115,8 +115,8 @@ describe('Finance read-tail r45 protected families and retirement', () => {
       }
     };
     walk(srcRoot);
-    // 13 inline SELECTs collapse into five r45 helpers: -8 (1868 -> 1860).
-    expect(total).toBe(1860);
+    // 13 inline SELECTs collapse into five r45 helpers: -8 (1868 -> 1860); r46 removes nine more (-> 1851).
+    expect(total).toBe(1851);
     expect(total).toBeLessThanOrEqual(1860);
     expect(total).toBeLessThan(1868);
   });
