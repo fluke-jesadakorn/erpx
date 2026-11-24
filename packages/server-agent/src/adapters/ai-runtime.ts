@@ -1,4 +1,4 @@
-import { nativeOwnerWrite } from './native-owner-write';
+import { nativeOwnerWrite, nativeOwnerWriteNoopSql } from './native-owner-write';
 import 'server-only';
 import { aiGatewayBootstrapSources } from '@erpx/server-manage_erpx/public/ai-gateway-sources';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
@@ -400,6 +400,6 @@ export async function aiUsageStatement(
   return nativeOwnerWrite('ag_provider_usage_insert',[
     id,snapshot.companyId,snapshot.connectionId,snapshot.revision,snapshot.model,feature,status,
     inputTokens,outputTokens,Date.now(),branchId,fundingSource,
-  ],`ag-usage:${id}`,{companyId:snapshot.companyId},()=>db.prepare("SELECT 1"));
+  ],`ag-usage:${id}`,{companyId:snapshot.companyId},()=>db.prepare(nativeOwnerWriteNoopSql));
 }
 export type { AiConnectionView, AiProviderOverview, AiProviderSnapshot } from '@erpx/server-agent/domain/providers';

@@ -15,7 +15,7 @@ import {sha256} from "@erpx/server-runtime/public/crypto";
 
 
 import {BusinessRuleError} from '@erpx/server-shared/index';
-import {nativeOwnerWrite} from './native-owner-write';
+import {nativeOwnerWrite,nativeOwnerWriteNoopSql} from './native-owner-write';
 import {createAgentGovernanceApplication,createAssistantGovernanceGuards,type AgentGovernanceRepository} from '@erpx/server-agent/application/governance';
 import type {AssistantGovernance} from '@erpx/server-agent/domain/governance';
 export type {AssistantGovernance} from '@erpx/server-agent/domain/governance';
@@ -79,13 +79,13 @@ async workspacePoolHistory(companyId:string){return (await db.prepare("SELECT r.
 async workspaceSessions(companyId:string,userId:string,value:0 | 1){return (await db.prepare("SELECT s.id,s.user_id,s.assignment_id,s.conversation_key,s.generation,s.created_at,c.* FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id WHERE s.company_id=? AND (s.user_id=? OR ?) ORDER BY c.updated_at DESC LIMIT 100").bind(companyId,userId,value).all<Row>()).results;},
 async latestPrivateSession(companyId:string,userId:string,assignmentId:string,scopeKey:string,conversationKey:string){return db.prepare("SELECT s.id,s.generation,c.status,c.expires_at FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id WHERE s.company_id=? AND s.user_id=? AND s.assignment_id=? AND s.scope_key=? AND s.conversation_key=? ORDER BY s.generation DESC LIMIT 1")
     .bind(companyId,userId,assignmentId,scopeKey,conversationKey).first<{id:string;generation:number;status:string;expires_at:number}>();},
-async preparePrivateSession(id:string,companyId:string,userId:string,assignmentId:string,scopeKey:string,conversationKey:string,assignmentId2:string | null,now:number,generation:number){return nativeOwnerWrite('ag_private_session_insert',[id,companyId,userId,assignmentId,scopeKey,conversationKey,assignmentId2,now,now,generation],`ag-session:${id}`,{companyId,now},()=>db.prepare("SELECT 1"));},
-async preparePrivateSessionControls(id:string,value:number,now:number){return nativeOwnerWrite('ag_session_controls_insert',[id,value,now,now],`ag-session-controls:${id}`,{now},()=>db.prepare("SELECT 1"));},
+async preparePrivateSession(id:string,companyId:string,userId:string,assignmentId:string,scopeKey:string,conversationKey:string,assignmentId2:string | null,now:number,generation:number){return nativeOwnerWrite('ag_private_session_insert',[id,companyId,userId,assignmentId,scopeKey,conversationKey,assignmentId2,now,now,generation],`ag-session:${id}`,{companyId,now},()=>db.prepare(nativeOwnerWriteNoopSql));},
+async preparePrivateSessionControls(id:string,value:number,now:number){return nativeOwnerWrite('ag_session_controls_insert',[id,value,now,now],`ag-session-controls:${id}`,{now},()=>db.prepare(nativeOwnerWriteNoopSql));},
 async recordInvocation(value:string,sessionId:string,turnId:string,companyId:string,userId:string,agentVersionId:string | null,value2:string,value3:string,value4:string,value5:string,outcome:"succeeded" | "failed",value6:number | null,value7:number | null,value8:string | null,now:number,value9:string){
     await nativeOwnerWrite('ag_invocation_evidence_insert',[
       value,sessionId,turnId,companyId,userId,agentVersionId,value2,value3,value4,value5,
       outcome,value6,value7,value8,now,value9,
-    ],`ag-invocation:${turnId}`,{companyId,now},()=>db.prepare("SELECT 1"));
+    ],`ag-invocation:${turnId}`,{companyId,now},()=>db.prepare(nativeOwnerWriteNoopSql));
   },
 async invocationRecord(companyId:string,id:string){return db.prepare('SELECT id,turn_id,company_id,user_id,agent_version_id,question_digest,sources_digest,outcome,input_tokens,output_tokens,error,created_at FROM ai_invocation_evidence WHERE company_id=? AND id=?').bind(companyId,id).first<Row>();},
 async sessionRecord(companyId:string,id:string,userId:string,value:0 | 1){return db.prepare('SELECT s.id,s.user_id,s.assignment_id,s.conversation_key,s.generation,s.created_at,c.* FROM ai_private_sessions s JOIN ai_private_session_controls c ON c.session_id=s.id WHERE s.company_id=? AND s.id=? AND (s.user_id=? OR ?)').bind(companyId,id,userId,value).first<Row>();},async batch(effects){await db.batch(effects);}};}

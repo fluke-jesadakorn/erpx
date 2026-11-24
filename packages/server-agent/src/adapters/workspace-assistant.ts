@@ -1,5 +1,6 @@
 import { nativeOwnerWrite, nativeOwnerWriteNoopSql } from './native-owner-write';
 import { agentAssistantRateGuardSql } from './operations-guided-intake-facts';
+import { assistantQuotaSql } from './assistant-quota-sql';
 import {agentFinanceDatedUsage} from '@erpx/server-finance/public/agent-ai-usage-projection';
 import {agentSocialMonthlyCount} from '@erpx/server-collaboration/public/agent-ai-usage-projection';
 import {agentExpenseMonthlyCount} from '@erpx/server-people_payroll/public/agent-ai-usage-projection';
@@ -51,7 +52,7 @@ async conversationTurns(companyId:string,userId:string,assignmentId:string,value
     .bind(companyId,userId,assignmentId,value,key,sessionId).all<Row>()).results;},
 async previousTurn(id:string){return db.prepare("SELECT * FROM ai_workspace_turns WHERE id=?").bind(id).first<Row&{user_id:string;assignment_id:string;scope_key:string;company_id:string}>();},
 guardRate(id:string,companyId:string,value:number){return assertion(db,id,"assistant-rate",agentAssistantRateGuardSql,[companyId,value]);},
-guardQuota(id:string,companyId:string,value:number,value2:string){return assertion(db,id,"assistant-quota",`(SELECT count(*) FROM (SELECT company_id,created_at FROM ai_workspace_turns UNION ALL ${agentExecutiveDatedUsage()} UNION ALL ${agentFinanceDatedUsage()}) ai_calls WHERE company_id=? AND created_at>=?)+(${agentSocialMonthlyCount()})+(${agentExpenseMonthlyCount()})+(${agentRequestMonthlyCount()})<${financeAiCompanyAllowanceSql}`,[companyId,value,companyId,value2,companyId,value2,companyId,value2,companyId]);},
+guardQuota(id:string,companyId:string,value:number,value2:string){return assertion(db,id,"assistant-quota",`${assistantQuotaSql()}`,[companyId,value,companyId,value2,companyId,value2,companyId,value2,companyId]);},
 async prepareTurn(id:string,companyId:string,userId:string,assignmentId:string,value:string,conversationKey:string,question:string,value2:string,now:number,sessionId:string){return nativeOwnerWrite('ag_workspace_turn_insert',[id,companyId,userId,assignmentId,value,conversationKey,question,value2,now,now,sessionId],`ag-turn:${id}`,{companyId,now},()=>db.prepare(nativeOwnerWriteNoopSql));},
 clearReservationAssertions(id:string,companyId:string){return clearAgentBootstrapAssertion(db,id,companyId);},
 async prepareAnswer(value:string,sourcesJson:string,now:number,id:string){return nativeOwnerWrite('ag_workspace_turn_ready',[value,sourcesJson,now,id],`ag-turn-ready:${id}`,{now},()=>db.prepare(nativeOwnerWriteNoopSql));},
