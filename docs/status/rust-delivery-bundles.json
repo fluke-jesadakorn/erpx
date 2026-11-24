@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8497,
+    "revision": 8505,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -140098,7 +140098,7 @@
         "owner": "sales",
         "title": "sales TS read tail native cutover (r6)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -140110,22 +140110,37 @@
         "resources": [
           "owner:sales"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGClsal",
-          "claimedAt": "2026-11-24T02:13:02.648Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-sales/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "57f7251d9",
+            "owner": "sales",
+            "before": 116,
+            "after": 111,
+            "note": "Currency, notes join, owner name, actor scope, clock fragments shared; lock files untouched."
+          },
+          {
+            "command": "vitest sales targeted (123) + tsc sales",
+            "result": "passed",
+            "sourceSha": "57f7251d9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Fresh reassignment after silent worker; find byte-identical SELECT groups, text-only. BEFORE measured at HEAD (sales 116 / agent 78).",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGClsal",
+          "at": "2026-11-24T02:23:15.893Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -140273,7 +140288,7 @@
         "owner": "workflow",
         "title": "workflow TS read tail native cutover (round 23)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -140285,22 +140300,37 @@
         "resources": [
           "owner:workflow"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCowor",
-          "claimedAt": "2026-11-24T02:14:17.866Z",
-          "heartbeatAt": "2026-11-24T02:21:45.586Z",
-          "expiresAt": "2026-11-24T02:51:45.586Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-workflow/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "57f7251d9",
+            "owner": "workflow",
+            "before": 74,
+            "after": 72,
+            "note": "101-byte pending-instance EXISTS span shared across three assertion guards; byte-identical SQL/binds."
+          },
+          {
+            "command": "vitest workflow transport (30) + tsc workflow",
+            "result": "passed",
+            "sourceSha": "57f7251d9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: scan remaining 74 SELECTs for another span; keep assertion/flow semantics. BEFORE=74.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCowor",
+          "at": "2026-11-24T02:23:16.974Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -140879,6 +140909,78 @@
         "nextAction": "Next: remaining marketing_assets WHERE id=? point reads or native read; if none, report blocked. BEFORE=83.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.sales.read-tail-r7",
+        "goalId": "G4",
+        "owner": "sales",
+        "title": "sales TS read tail native cutover (r7)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-sales/src/**",
+          "tests/unit/sales/**",
+          "tests/integration/sales/**"
+        ],
+        "resources": [
+          "owner:sales"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCCsal",
+          "claimedAt": "2026-11-24T02:23:17.696Z",
+          "heartbeatAt": "2026-11-24T02:23:17.696Z",
+          "expiresAt": "2026-11-24T02:53:17.696Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=111.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.workflow.read-tail-r24",
+        "goalId": "G4",
+        "owner": "workflow",
+        "title": "workflow TS read tail native cutover (r24)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/**",
+          "tests/unit/workflow/**",
+          "tests/integration/workflow/**"
+        ],
+        "resources": [
+          "owner:workflow"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCDwor",
+          "claimedAt": "2026-11-24T02:23:18.296Z",
+          "heartbeatAt": "2026-11-24T02:23:18.296Z",
+          "expiresAt": "2026-11-24T02:53:18.296Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=72.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -140887,7 +140989,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 949,
+      "totalPackets": 951,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -140895,13 +140997,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 570,
+        "blocked": 572,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:22:56.361Z",
+    "updatedAt": "2026-11-24T02:23:18.307Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
