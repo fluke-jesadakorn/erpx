@@ -9,10 +9,11 @@ import {packageClockSql,purchasedCapabilityPredicate} from "@erpx/server-commerc
 import {salesFollowupMetricHistoryAccess,salesFollowupMetricSource} from "@erpx/server-sales/public/metric-purchases";
 import {actorScopeSql,crmPurchaseOpportunityRows,crmAssignmentModuleExists} from "@erpx/server-crm/adapters/purchases";
 import {crmCurrentScopeAllowedSql} from './read-tail-r30-sql';
+import {crmAssignmentModuleExistsSql} from './read-tail-r35-sql';
 const rows=`SELECT lead.* FROM crm_leads lead JOIN (${crmPurchaseOpportunityRows}) actual ON actual.id=lead.id AND actual.company_id=lead.company_id`;
 export async function crmMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){
  const mode=await commercePackageEnforcementMode(),access=await readPurchasedAccesses(database,mode,actor.companyId,["sales.crm"]),followups=await salesFollowupMetricHistoryAccess(database,actor);if(mode!=="enforced")return {"opportunity-pipeline":true,...followups};
- const current=actor.modules.includes("crm")&&hasPermission(actor,"commerce.read")&&!!await database.prepare(crmCurrentScopeAllowedSql(assignmentReadSql("crm_metric_scope","commerce.read"),actorScopeSql,"crm_metric_scope",` AND EXISTS(SELECT 1 FROM assignments WHERE id=? AND (jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array('crm'::text)))`)).bind(actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.companyId,actor.branchId,actor.departmentId).first<boolean>("allowed");
+ const current=actor.modules.includes("crm")&&hasPermission(actor,"commerce.read")&&!!await database.prepare(crmCurrentScopeAllowedSql(assignmentReadSql("crm_metric_scope","commerce.read"),actorScopeSql,"crm_metric_scope",` AND ${crmAssignmentModuleExistsSql('', "'crm'::text)))")}`)).bind(actor.assignmentId,actor.userId,actor.role,actor.assignmentId,actor.companyId,actor.branchId,actor.departmentId).first<boolean>("allowed");
  return {"opportunity-pipeline":current&&access["sales.crm"].history,...followups};
 }
 export async function crmMetricSource(database:SqlDatabase,actor:WorkContext,id:string){

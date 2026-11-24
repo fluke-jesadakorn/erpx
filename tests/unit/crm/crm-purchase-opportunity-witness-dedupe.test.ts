@@ -74,7 +74,7 @@ describe('crm purchase opportunity witness read family', () => {
     const metric = await readFile(adapter('metric-purchases.ts'), 'utf8');
     const analytics = await readFile(adapter('analytics-purchases.ts'), 'utf8');
     const prefix = 'EXISTS(SELECT 1 FROM assignments selected WHERE selected.id=? AND (jsonb_array_length(selected.modules_json::jsonb)=0 OR selected.modules_json::jsonb @> jsonb_build_array(';
-    expect(purchases.split('export const crmAssignmentModuleExists=`' + prefix + '`;').length - 1).toBe(1);
+    expect(purchases.split("export const crmAssignmentModuleExists=crmAssignmentModuleExistsSql('selected','');").length - 1).toBe(1);
     expect(metric).not.toContain(prefix);
     expect(analytics).not.toContain(prefix);
     expect(metric.match(/\$\{crmAssignmentModuleExists\}/g)).toHaveLength(1);

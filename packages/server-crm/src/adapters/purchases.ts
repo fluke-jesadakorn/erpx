@@ -27,6 +27,7 @@ import {crmPurchaseRowProjection} from "./read-tail-r25-sql";
 import {crmCaseEventReadSql,crmOpportunityProbeSql} from "./read-tail-r28-sql";
 import {crmLeadEligibleOwnerSql} from "./read-tail-r29-sql";
 import {crmOwnedSourceRowSql} from "./read-tail-r34-sql";
+import {crmAssignmentModuleExistsSql} from "./read-tail-r35-sql";
 
 export type CRMPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type CRMPurchaseTarget={kind:"lead"|"activity"|"account"|"contact"|"guest-link";id:string};
@@ -54,7 +55,7 @@ export const crmAssignmentScopeExistsSql=(columns:string,alias:string,permission
 const crmSourceExistsSql=(source:string,alias:string,tail='')=>`SELECT 1 FROM (${source}) ${alias} WHERE id=? AND company_id=?${tail}`;
 export const crmMarketingCandidateRows=`SELECT * FROM (${crmMarketingCandidateSources}) candidate WHERE id=? AND company_id=?`;
 export const crmLeadActivityExists=`SELECT 1 FROM crm_lead_activities c JOIN crm_leads l ON l.id=c.lead_id AND l.company_id=c.company_id WHERE c.id=`;
-export const crmAssignmentModuleExists=`EXISTS(SELECT 1 FROM assignments selected WHERE selected.id=? AND (jsonb_array_length(selected.modules_json::jsonb)=0 OR selected.modules_json::jsonb @> jsonb_build_array(`;
+export const crmAssignmentModuleExists=crmAssignmentModuleExistsSql('selected','');
 export const crmLeadVersionProjection=`SELECT v.id,v.lead_id,l.title,l.status lead_status,l.version lead_version,`;
 export const crmObligationScopeSql=`WITH scope AS(SELECT ?::text company_id),`;
 export const crmClockCteSql=` AS MATERIALIZED(SELECT ${packageClockSql} now_ms)`;

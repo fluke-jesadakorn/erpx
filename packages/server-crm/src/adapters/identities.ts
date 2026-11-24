@@ -20,6 +20,7 @@ import {crmIdentityCommand} from "@erpx/server-crm/domain/identities";
 import {requireCRMPurchasedRead,crmReferenceHistory,crmReferencePurchaseControls,withCRMPurchasedCommand,crmNativeReadFilter,type CRMPurchaseTarget} from "@erpx/server-crm/adapters/purchases";
 import {crmCreatorLeadScopeSql} from "./read-tail-r24-sql";
 import {crmGuestLinkReservationSourceSql} from "./read-tail-r26-sql";
+import {crmContactAccountReadSql} from "./read-tail-r35-sql";
 /** G4 r24: the creator (created_by) lead-scope guards render through the one
  * owner helper; every rendered string stays byte-identical to the prior text. */
 const contactScopeSql=crmCreatorLeadScopeSql('acc','l','l.contact_id=c.id','');
@@ -29,7 +30,7 @@ const ports:CRMIdentityPorts={canGuestReview:hasPermission(a,'commerce.approve')
 replay:async(key,operation,id,input)=>replayCommand(await database(),a,key,operation,id,input),
 async identities(){const write=await database(); const [accounts,contacts,customers]=await Promise.all([
   write.prepare(`SELECT a.id,a.kind,a.name,a.finance_party_id,a.review_evidence,a.version,p.name finance_customer_name FROM crm_accounts a LEFT JOIN (${financeProjectionSources.finance_parties}) p ON p.id=a.finance_party_id AND p.company_id=a.company_id WHERE a.company_id=? AND ${await crmNativeReadFilter('account','a')} AND ${accountOrContactLeadScopeSql('account_id','a.id','a.company_id')} ORDER BY a.updated_at DESC LIMIT 200`).bind(a.companyId,a.branchId,a.userId,a.branchId,a.departmentId,a.departmentId).all<Row>(),
-  write.prepare(`SELECT c.id,c.account_id,c.name,c.detail,c.version FROM crm_contacts c JOIN crm_accounts a ON a.id=c.account_id WHERE c.company_id=? AND ${await crmNativeReadFilter('contact','c')} AND ${accountOrContactLeadScopeSql('contact_id','c.id','c.company_id')} ORDER BY c.updated_at DESC LIMIT 300`).bind(a.companyId,a.branchId,a.userId,a.branchId,a.departmentId,a.departmentId).all<Row>(),
+  write.prepare(crmContactAccountReadSql('c.id,c.account_id,c.name,c.detail,c.version','a',`WHERE c.company_id=? AND ${await crmNativeReadFilter('contact','c')} AND ${accountOrContactLeadScopeSql('contact_id','c.id','c.company_id')} ORDER BY c.updated_at DESC LIMIT 300`)).bind(a.companyId,a.branchId,a.userId,a.branchId,a.departmentId,a.departmentId).all<Row>(),
   write.prepare(activeCustomerPartiesSql).bind(a.companyId).all<Row>()
  ]);
  const guestLinks=hasPermission(a,'pms.read')&&await crmReferenceHistory(write,a,'pms.reservations')?(await write.prepare(`SELECT g.id,g.contact_id,g.guest_id,g.property_id,g.sharing_state,g.sharing_evidence,g.version,p.name property_name
@@ -38,7 +39,7 @@ async identities(){const write=await database(); const [accounts,contacts,custom
   WHERE g.company_id=? AND ${await crmNativeReadFilter('guest-link','g')} AND (?::text IS NULL OR p.branch_id=?) AND ${contactScopeSql} ORDER BY g.created_at DESC LIMIT 200`)
   .bind(a.companyId,a.branchId,a.branchId,a.branchId,a.userId,a.branchId,a.departmentId,a.departmentId).all<Row>()).results:[];
  return {accounts:accounts.results,contacts:contacts.results,customers:customers.results,guestLinks};},
-async contact(contactId){const write=await database();return await write.prepare(`SELECT c.id,c.name,c.account_id FROM crm_contacts c JOIN crm_accounts acc ON acc.id=c.account_id WHERE c.id=? AND c.company_id=? AND ${contactScopeSql}`).bind(contactId,a.companyId,a.branchId,a.userId,a.branchId,a.departmentId,a.departmentId).first<Row>();},
+async contact(contactId){const write=await database();return await write.prepare(crmContactAccountReadSql('c.id,c.name,c.account_id','acc',`WHERE c.id=? AND c.company_id=? AND ${contactScopeSql}`)).bind(contactId,a.companyId,a.branchId,a.userId,a.branchId,a.departmentId,a.departmentId).first<Row>();},
 async stays(contactId){const write=await database();return (await write.prepare(crmGuestLinkReservationSourceSql(`g.guest_id,r.id reservation_id,r.data_json::jsonb->>'state' reservation_state,
   s.id stay_id,s.data_json::jsonb->>'state' stay_state,s.data_json::jsonb->>'arrival' arrival,
   s.data_json::jsonb->>'departure' departure,p.id property_id`,pmsProjectionSources.pms_properties,pmsProjectionSources.pms_records,`\n  LEFT JOIN (${pmsProjectionSources.pms_records}) s ON s.property_id=p.id AND s.kind='stay' AND s.data_json::jsonb->>'reservationId'=r.id`,' ORDER BY r.updated_at DESC,s.id LIMIT 201','\n  ')).bind(contactId,a.companyId,a.branchId,a.branchId).all<Row>()).results;},commit:async(mutation,result)=>commit(await database(),a,mutation,result),
