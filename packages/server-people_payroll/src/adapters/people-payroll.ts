@@ -1,4 +1,5 @@
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
+import {PP_RD15_ACTIVE_PAYEE_SQL} from './pp-read-tail-r15-sources';
 import { nativePeoplePayrollReadAll, PEOPLE_PAYROLL_RD_PAYROLL_OPTIONS_GROUPS } from './native-people-payroll-read';
 import {hireHandoffPayGroupSchema,type HireHandoffPayGroupResult} from '@erpx/server-people_payroll/domain/hire-handoff-pay-group';
 import {withHireHandoffPayGroupCommand,hireHandoffPayGroupEnvelope} from '@erpx/server-people_payroll/adapters/hire-handoff-pay-group';
@@ -220,7 +221,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
         stageTransitionCountryPackEffect(status: "superseded" | "active" | "validated", proof: string, userId: string, now: number, packId: string) { return nativePpStatement('people_payroll_stmt_18').bind(status, proof, userId, now, packId); },
         stageTransitionCountryPackEffect2(...args) { return payrollWorkflowFacts(database).stageTransitionCountryPackEffect2(...args); },
         readCalculateItemPayee(person_id: string, company_id: string) {
-            return database.prepare("SELECT id,version,legal_name,preferred_name FROM hr_people WHERE id=? AND company_id=? AND status='active' AND merged_into_id IS NULL").bind(person_id, company_id).first<{
+            return database.prepare(PP_RD15_ACTIVE_PAYEE_SQL).bind(person_id, company_id).first<{
                 id: string;
                 version: number;
                 legal_name: string;

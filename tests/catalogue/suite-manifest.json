@@ -60774,6 +60774,33 @@
       }
     },
     {
+      "lane": "unit",
+      "owner": "people_payroll",
+      "modules": [
+        "people_payroll"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "People payroll read-tail r15 literals must exist once and stay byte-identical."
+      },
+      "apps": [
+        "people"
+      ],
+      "packages": [
+        "@erpx/server-people_payroll"
+      ],
+      "id": "people_payroll.read-tail-r15-dedupe.unit",
+      "files": [
+        "tests/unit/people_payroll/read-tail-r15-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "people_payroll.retirement.integration",
       "lane": "integration",
       "owner": "people_payroll",

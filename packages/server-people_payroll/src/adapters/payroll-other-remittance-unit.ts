@@ -1,4 +1,5 @@
 import 'server-only';
+import {PP_RD15_COMMAND_RECEIPT_PRIOR_SQL} from './pp-read-tail-r15-sources';
 import {createHash,randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {requirePermission} from '@erpx/server-identity_access/public/iam-permissions';
@@ -41,7 +42,7 @@ export async function withPayrollOtherRemittanceUnit<Result>(actor:WorkContext,r
  const owner=(await holdingResources(actor.holdingId)).write;if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,'PAYROLL_TRANSACTION_REQUIRED','Payroll liability settlement requires its original Holding PostgreSQL transaction.');
  try{return await owner.transaction(async database=>{
   await leases(database,actor.companyId,command.kind!=='read');const current=await authority(database,actor,command.kind),operation=command.kind==='bank-import'?'finance.bank.import':command.kind==='bank-ignore'?'payroll.liability.bank-evidence.ignore':'payroll.liability.remit';
-  const prior=command.key?await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(command.key,operation,actor.userId,actor.companyId).first():null,purpose=command.kind==='read'||prior?'history' as const:'settle-existing' as const;
+  const prior=command.key?await database.prepare(PP_RD15_COMMAND_RECEIPT_PRIOR_SQL).bind(command.key,operation,actor.userId,actor.companyId).first():null,purpose=command.kind==='read'||prior?'history' as const:'settle-existing' as const;
   await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability:'people.payroll',purpose});
   const boundaryKey=`payroll-other:${randomUUID()}`,boundary=command.kind==='read'?null:purchaseCommandBoundary(database,'enforced',boundaryKey,{companyId:actor.companyId,capability:'people.payroll',purpose})!;
   if(boundary)await database.batch(boundary.before);

@@ -1,4 +1,5 @@
 import 'server-only';
+import {PP_RD15_COMMAND_RECEIPT_PRIOR_SQL} from './pp-read-tail-r15-sources';
 import {lockPackageSettlementSources} from '@erpx/server-commercial/public/package-locks';
 import {financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {randomUUID} from 'node:crypto';
@@ -38,7 +39,7 @@ export async function withPerformancePurchasedCommand<Result>(actor:WorkContext,
  const mode=await peoplePackageEnforcementMode();if(mode==='disabled')return run(undefined,actor);const owner=(await holdingResources(actor.holdingId)).write;if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,'PERFORMANCE_TRANSACTION_REQUIRED','Evaluation requires its original Holding transaction.');
  try{return await owner.transaction(async database=>{
   const locks=companyPurchaseReadLocks(database,actor.companyId);await lockPackageSettlementSources(database);await referenceSourceLeases(database);await database.batch(performanceSourceReadLocks(database));await lockQueuedCommandAuthority(database);await database.batch(locks.slice(1));
-  const current=await captureJobAuthority(database,actor),context=JSON.stringify(current),prior=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(command.key,command.operation,actor.userId,actor.companyId).first(),purpose=prior?'history' as const:typeof command.purpose==='function'?await command.purpose(database):command.purpose,scope={companyId:actor.companyId,capability:'people.performance',purpose},key=`performance-purchase:${randomUUID()}`;
+  const current=await captureJobAuthority(database,actor),context=JSON.stringify(current),prior=await database.prepare(PP_RD15_COMMAND_RECEIPT_PRIOR_SQL).bind(command.key,command.operation,actor.userId,actor.companyId).first(),purpose=prior?'history' as const:typeof command.purpose==='function'?await command.purpose(database):command.purpose,scope={companyId:actor.companyId,capability:'people.performance',purpose},key=`performance-purchase:${randomUUID()}`;
   await checkPurchasedCapability(database,mode,scope);await requirePeopleCurrentAuthority(database,current,key);const boundary=purchaseCommandBoundary(database,mode,key,scope)!;await database.batch(boundary.before);const reference=await referenceSourceImage(database,current),result=await run(database,current),witness=await performanceSourceImage(database,current.companyId);
   await flushFinanceDeferredEffects(database);if(JSON.stringify(current)!==context)throw new ApiError(409,'PERFORMANCE_SOURCE_CHANGED','The selected Evaluation context changed before completion.');await requirePeopleCurrentAuthority(database,current,key);
   // Retained cycle closure must still describe the same stored frozen cycle

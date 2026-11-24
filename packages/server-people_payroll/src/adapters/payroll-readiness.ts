@@ -1,4 +1,5 @@
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
+import {PP_RD15_ACTIVE_PAYEE_SQL} from './pp-read-tail-r15-sources';
 import { payrollItemSourceRows } from './payroll-item-source-read';
 import { withPayrollPurchasedCommand, withPayrollPurchasedRead, withPayrollJobsPurchasedTransaction } from "@erpx/server-people_payroll/adapters/payroll-purchases";
 import { peoplePackageEnforcementMode, type PackageEnforcementMode } from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -80,7 +81,7 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
             }>();
         },
         readSourceBlockersEngagement(engagementId: string, company_id: string) { return database.prepare("SELECT e.id,e.version,e.person_id,e.worker_type,e.employment_type,e.start_date,e.end_date,e.job_title,e.branch_id,e.department_id FROM hr_engagements e WHERE e.id=? AND e.company_id=?").bind(engagementId, company_id).first(); },
-        readSourceBlockersPayee(value: string, company_id: string) { return database.prepare("SELECT id,version,legal_name,preferred_name FROM hr_people WHERE id=? AND company_id=? AND status='active' AND merged_into_id IS NULL").bind(value, company_id).first(); },
+        readSourceBlockersPayee(value: string, company_id: string) { return database.prepare(PP_RD15_ACTIVE_PAYEE_SQL).bind(value, company_id).first(); },
         readSourceBlockersCompensation(engagementId: string, period_end: string, period_start: string) { return database.prepare("SELECT * FROM hr_compensation_revisions WHERE engagement_id=? AND status IN ('active','approved') AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from DESC LIMIT 1").bind(engagementId, period_end, period_start).first(); },
         readSourceBlockersEntries(engagementId: string, period_start: string, period_end: string) { return database.prepare("SELECT id,version,work_date,regular_hours,overtime_hours,cost_assignment_id,cost_branch_id,cost_department_id FROM hr_time_entries WHERE engagement_id=? AND work_date BETWEEN ? AND ? AND status='approved' ORDER BY id").bind(engagementId, period_start, period_end).all(); },
         readSourceBlockersCostAssignments(engagementId: string, company_id: string, activeEnd: string, activeStart: string) { return database.prepare("SELECT id,effective_from,effective_to,branch_id,department_id,evidence_status,version FROM hr_payroll_cost_assignments WHERE engagement_id=? AND company_id=? AND status='active' AND effective_from<=? AND (effective_to IS NULL OR effective_to>=?) ORDER BY effective_from,id").bind(engagementId, company_id, activeEnd, activeStart).all(); },

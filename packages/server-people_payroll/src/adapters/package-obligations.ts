@@ -1,3 +1,4 @@
+import {PP_RD15_PEOPLE_SNAPSHOT_SQL} from './pp-read-tail-r15-sources';
 import {finalPayCancellationTerminalRows,finalPayCancellationTerminalSourceReadLocks} from '@erpx/server-people_payroll/adapters/final-pay-cancellation-terminal-sources';
 import {workerPlacementMarkedRows as projectWorkerPlacementMarkedRows} from '@erpx/server-people_payroll/adapters/project-worker-startup-source-sql';
 import "server-only";
@@ -11,7 +12,7 @@ const sources=new WeakMap<SqlDatabase,string>();
 /** Closed raw owner relations for the Benefits/Finance observers. None is a
  * purchase-filtered Work projection or an authority decision. */
 export const peoplePackageSettlementSources={
- people:"SELECT id,company_id,user_id,status,version,merged_into_id FROM hr_people",
+ people:PP_RD15_PEOPLE_SNAPSHOT_SQL,
  engagements:"SELECT * FROM hr_engagements",compensation:"SELECT * FROM hr_compensation_revisions",
  runs:"SELECT * FROM hr_payroll_runs",items:"SELECT * FROM hr_payroll_items",postings:"SELECT * FROM hr_payroll_postings",
  batches:"SELECT * FROM hr_payment_batches",batchItems:"SELECT * FROM hr_payment_batch_items",

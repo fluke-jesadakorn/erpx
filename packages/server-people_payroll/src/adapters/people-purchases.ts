@@ -1,4 +1,5 @@
 import "server-only";
+import {PP_RD15_COMMAND_RECEIPT_PRIOR_SQL} from './pp-read-tail-r15-sources';
 import {randomUUID} from "node:crypto";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
@@ -48,7 +49,7 @@ export async function withPeoplePurchasedCommand<Result>(actor:WorkContext,comma
  const execute=async(database:SqlDatabase)=>{
   const composition=compositions.get(database);if(!composition||composition.companyId&&composition.companyId!==actor.companyId)throw new ApiError(503,"PEOPLE_COMPOSITION_REQUIRED","People requires the complete owned Holding transaction.");
   await database.batch(companyPurchaseReadLocks(database,actor.companyId));
-  const replay=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(command.key,command.operation,actor.userId,actor.companyId).first();
+  const replay=await database.prepare(PP_RD15_COMMAND_RECEIPT_PRIOR_SQL).bind(command.key,command.operation,actor.userId,actor.companyId).first();
   const scope={companyId:actor.companyId,capability:command.capability,purpose:replay?"history" as const:command.purpose},key=`people-purchase:${randomUUID()}`,boundary=purchaseCommandBoundary(database,mode,key,scope)!;
   const before=command.target?await source(database,command.target):null;
   if(command.target&&(!before||before.company_id!==actor.companyId))throw new ApiError(404,"PEOPLE_SOURCE_NOT_FOUND","The People source was not found in this Company.");
