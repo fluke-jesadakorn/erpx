@@ -19,12 +19,13 @@ import { legalAttachmentAvailableSql } from '../legal-read-tail-r47-sources';
 import { legalDisposedGuardSql } from '../legal-read-tail-r39-sources';
 import { legalCorpusSourceCleanHead } from '../legal-read-tail-r48-sources';
 import { legalLawStateGuardSql } from '../legal-read-tail-r51-sources';
+import { legalPointByIdKeyAndCompanySql } from '../legal-read-tail-r53-sources';
 export {legalChunkSchema} from "@erpx/server-legal/domain/law-corpus";
 export {fetchOfficialLawSource} from "@erpx/server-legal/adapters/legal/law-source-provider";
 export {drainLegalSourceChecks} from "@erpx/server-legal/adapters/legal/law-source-worker";
 export function officialLawUrl(value:string){return canonicalUrl(value,(status,code,message)=>new ApiError(status,code,message));}
 export function bangkokSourceCheckDate(now=Date.now()){return checkDate(now);}
-const reviewTables={law:{table:"legal_law_revisions",column:"rule_id"},document:{table:"legal_text_reviews",column:"item_id"}};
+const reviewTables={law:{table:"legal_law_revisions",column:"rule_id"},document:{table:"legal_text_reviews",column:"item_id"}} as const;
 function application(db:SqlDatabase,a:WorkContext){const nativeCorpus=legalLawCorpus(db,a.companyId,a.userId);const fileFacts=legalCorpusSourceFacts(db),nativeWrites=new WeakMap<LegalWrite,SqlStatement>();const stage=(statement:SqlStatement):LegalWrite=>{const write:LegalWrite={owner:"legal"};nativeWrites.set(write,statement);return write;};function viewScope(ruleId?:string){
   const v = visibility(a), clause = `${v.sql}${ruleId ? " AND i.id=?" : ""}`, args = [...v.values, ...(ruleId ? [ruleId] : [])];
   const select = async (table: string, itemColumn: string, fields = "c.*") => (await db.prepare(`SELECT ${fields},i.title record_title FROM ${table} c JOIN legal_items i ON i.id=c.${itemColumn} WHERE ${clause} ORDER BY c.created_at DESC,c.id DESC LIMIT 200`).bind(...args).all()).results;
@@ -43,9 +44,9 @@ async bindSourceCheck(facts){return stage(await nativeCorpus.bindSourceCheck(fac
 async importDocumentText(facts){return stage(await nativeCorpus.importDocumentText(facts));},
 approvedRevision:(facts:{revisionId:string;id:string;companyId:string;})=>db.prepare(legalLawStateGuardSql('legal_law_revisions','approved')).bind(facts.revisionId,facts.id,facts.companyId).first(),
 async proposeApplicability(facts){return stage(await nativeCorpus.proposeApplicability(facts));},
-applicability:(facts:{applicabilityId:string;id:string;companyId:string;})=>db.prepare("SELECT id,version,state,created_by FROM legal_law_applicability WHERE id=? AND rule_id=? AND company_id=?").bind(facts.applicabilityId,facts.id,facts.companyId).first<ReviewRow>(),
+applicability:(facts:{applicabilityId:string;id:string;companyId:string;})=>db.prepare(legalPointByIdKeyAndCompanySql('id,version,state,created_by','legal_law_applicability','rule_id')).bind(facts.applicabilityId,facts.id,facts.companyId).first<ReviewRow>(),
 async approveApplicability(facts){return stage(await nativeCorpus.approveApplicability(facts));},
-review:(facts:{id:string;id2:string;companyId:string;reviewKind:"law"|"document";})=>db.prepare(`SELECT * FROM ${reviewTables[facts.reviewKind].table} WHERE id=? AND ${reviewTables[facts.reviewKind].column}=? AND company_id=?`).bind(facts.id,facts.id2,facts.companyId).first<ReviewRow>(),
+review:(facts:{id:string;id2:string;companyId:string;reviewKind:"law"|"document";})=>db.prepare(legalPointByIdKeyAndCompanySql('*',reviewTables[facts.reviewKind].table,reviewTables[facts.reviewKind].column)).bind(facts.id,facts.id2,facts.companyId).first<ReviewRow>(),
 decideReview:(facts:{fact0:"approved" | "retired";actorId:string;now:number;reason:string;id:string;reviewKind:"law"|"document";})=>stage(db.prepare(`UPDATE ${reviewTables[facts.reviewKind].table} SET state=?,reviewed_by=?,reviewed_at=?,review_reason=?,version=version+1 WHERE id=?`).bind(facts.fact0,facts.actorId,facts.now,facts.reason,facts.id)),
 async reviewSourceCheck(facts){return stage(await nativeCorpus.reviewSourceCheck(facts));},
 async advanceRecord(facts){return stage(await nativeCorpus.advanceRecord({now:facts.now,id:facts.id}));},

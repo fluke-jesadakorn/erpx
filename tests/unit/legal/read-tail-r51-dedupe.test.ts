@@ -94,7 +94,7 @@ describe('legal read-tail r51 law state guard reuse', () => {
     for (const symbol of symbols) expect([r9, ...helpers].join('\n')).toContain(`export const ${symbol}`);
   });
 
-  it('retirement:ts-statements stays strictly below the recorded BEFORE=188 / AFTER=186', async () => {
+  it('retirement:ts-statements stays strictly below the recorded BEFORE=188 / AFTER=173', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -105,6 +105,6 @@ describe('legal read-tail r51 law state guard reuse', () => {
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(188);
-    expect(total).toBeLessThan(186);
+    expect(total).toBeLessThanOrEqual(173);
   });
 });

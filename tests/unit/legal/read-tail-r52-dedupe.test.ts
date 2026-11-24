@@ -143,7 +143,7 @@ describe('legal read-tail r52 ordered, point and destruction guard delegation', 
     for (const symbol of symbols) expect(texts.join('\n')).toContain(`export const ${symbol}`);
   });
 
-  it('retirement:ts-statements is pinned at BEFORE=186 -> AFTER=178', async () => {
+  it('retirement:ts-statements is pinned at BEFORE=186 -> AFTER=173', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -154,6 +154,6 @@ describe('legal read-tail r52 ordered, point and destruction guard delegation', 
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(186);
-    expect(total).toBe(178);
+    expect(total).toBe(173);
   });
 });
