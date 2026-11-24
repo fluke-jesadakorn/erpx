@@ -94,8 +94,9 @@ describe('Planning read-tail r19 capacity projection/FROM head', () => {
     };
     walk(srcRoot);
     // r19 folds the capacity operations projection/FROM head into the r17
-    // builder (20 -> 19) while keeping the emitted SQL byte-identical.
-    expect(total).toBe(19);
-    expect(total).toBeLessThan(20);
+    // builder (20 -> 19) while keeping the emitted SQL byte-identical; r20
+    // folds the production-resources guard into the r7 EXISTS builder (19 -> 18).
+    expect(total).toBe(18);
+    expect(total).toBeLessThan(19);
   });
 });

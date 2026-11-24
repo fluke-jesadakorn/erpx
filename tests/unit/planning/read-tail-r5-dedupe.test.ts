@@ -44,9 +44,9 @@ describe('Planning read-tail r5 byte-identical guard family dedupe', () => {
     expect(helper.match(/export const planningAllocatedMinutes =/g) ?? []).toHaveLength(1);
   });
 
-  test('one shared helper owns both SELECT literals and no lock text entered it', () => {
+  test('one shared helper owns the remaining SELECT literal and no lock text entered it', () => {
     const helper = src('planning-guard-sql.ts');
-    expect(selectCount(helper)).toBe(2);
+    expect(selectCount(helper)).toBe(1);
     expect(helper).not.toMatch(/LOCK TABLE|FOR UPDATE|FOR SHARE|pg_advisory/i);
   });
 
