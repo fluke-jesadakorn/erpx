@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11941,
+    "revision": 11943,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -178267,7 +178267,7 @@
         "owner": "pms",
         "title": "pms TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -178279,22 +178279,37 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4g06",
-          "claimedAt": "2026-11-24T12:28:34.458Z",
-          "heartbeatAt": "2026-11-24T12:37:13.270Z",
-          "expiresAt": "2026-11-24T13:07:13.270Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pms/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e30655411",
+            "owner": "pms",
+            "before": 317,
+            "after": 313,
+            "note": "Guest-account receivable/advance/deposit sums and journal identity/source-image unions share closed helpers; locks/registry untouched."
+          },
+          {
+            "command": "vitest pms r38/r39 (96) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "e30655411"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "home sums closed union (-2), journal union (-2): 317->313. BEFORE=317.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4g06",
+          "at": "2026-11-24T12:42:35.567Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -178446,17 +178461,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 9,
+        "in_progress": 8,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1331,
+        "blocked": 1332,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T12:42:05.077Z",
+    "updatedAt": "2026-11-24T12:42:35.571Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
