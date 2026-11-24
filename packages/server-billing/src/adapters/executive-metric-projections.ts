@@ -5,6 +5,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
+import { BILLING_PLAN_NAME_LATERAL_SQL } from './billing-read-tail-r18-sql';
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const spec = specs[id];
     let sql = '', values: unknown[] = [];
@@ -14,7 +15,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         sql = `WITH subscriptions AS (
         SELECT e.id,COALESCE(p.name,e.plan_id) plan,CASE WHEN e.pending_end THEN 'ending' ELSE 'active' END status
         FROM billing_enrollments e
-        LEFT JOIN LATERAL (SELECT name FROM billing_plans WHERE id=e.plan_id ORDER BY revision DESC LIMIT 1) p ON TRUE
+        ${BILLING_PLAN_NAME_LATERAL_SQL}
         WHERE e.holding_id=? AND e.started_at<=? AND e.ended_at IS NULL
           AND (e.pending_end=FALSE OR e.effective_at IS NULL OR e.effective_at>?)
         UNION ALL
