@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11303,
+    "revision": 11307,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -171225,7 +171225,7 @@
         "owner": "quality",
         "title": "quality TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -171237,22 +171237,37 @@
         "resources": [
           "owner:quality"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCUquf",
-          "claimedAt": "2026-11-24T10:16:13.530Z",
-          "heartbeatAt": "2026-11-24T10:20:25.536Z",
-          "expiresAt": "2026-11-24T10:50:25.536Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-quality/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "b914a774c",
+            "owner": "quality",
+            "before": 72,
+            "after": 70,
+            "note": "Hold, alert and spec source arms share qualitySourceUnionSql; locks, descriptor cutover and r1-r19 untouched."
+          },
+          {
+            "command": "vitest quality (69) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "b914a774c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Global scout found 33 families/37 statements; apply the safe quality-owner ones only. Locks/descriptor excluded. BEFORE=72.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCUquf",
+          "at": "2026-11-24T10:32:54.921Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -171261,7 +171276,7 @@
         "owner": "organization",
         "title": "organization TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -171273,22 +171288,37 @@
         "resources": [
           "owner:organization"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMorge",
-          "claimedAt": "2026-11-24T10:16:13.673Z",
-          "heartbeatAt": "2026-11-24T10:20:25.536Z",
-          "expiresAt": "2026-11-24T10:50:25.536Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-organization/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ee7dfa84a",
+            "owner": "organization",
+            "before": 249,
+            "after": 244,
+            "note": "Active company nodes, branch optional id, latest department flow and change rows share four helpers; locks, spaced JOINs and r17-r41 untouched."
+          },
+          {
+            "command": "vitest organization r42 (4) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "ee7dfa84a"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Four families: active company nodes (-2), branch optional id, latest department flow, change rows by predicate. Locks/spaced JOINs untouched. BEFORE=249.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMorge",
+          "at": "2026-11-24T10:32:54.330Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -172947,17 +172977,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 28,
+        "in_progress": 26,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1208,
+        "blocked": 1210,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T10:31:37.483Z",
+    "updatedAt": "2026-11-24T10:32:54.926Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
