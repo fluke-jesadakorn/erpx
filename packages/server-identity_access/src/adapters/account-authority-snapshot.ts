@@ -6,6 +6,7 @@ import type { WorkspaceGrantFact } from '@erpx/server-identity_access/domain/aut
 import type { ConnectionRow } from '@erpx/server-identity_access/domain/directories';
 import { identitySnapshotSources } from '@erpx/server-organization/public/identity-snapshot-sources';
 const organizationSources=identitySnapshotSources();
+import {scopeBranchExistsSql} from './read-tail-family-r35';
 export type AccountAuthoritySnapshot = {
     revoked: boolean;
     stale: ConnectionRow | null;
@@ -42,8 +43,7 @@ export async function accountAuthoritySnapshot(write: SqlDatabase, companyId: st
             AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
             AND a.valid_from<=q.observed_now AND a.valid_until>q.observed_now
             AND (a.scope_kind='holding' OR (n.company_id=a.company_id AND n.status='active'
-                AND (n.branch_id IS NULL OR EXISTS(SELECT 1 ${organizationSources.authorization_organization_nodes_b_from}
-                    WHERE b.id=n.branch_id AND b.company_id=a.company_id AND b.status='active'))))
+                AND (n.branch_id IS NULL OR EXISTS(${scopeBranchExistsSql(organizationSources.authorization_organization_nodes_b_from,'a-multiline')}))))
     ) SELECT gate.revoked,gate.stale,COALESCE((SELECT jsonb_agg(to_jsonb(g) ORDER BY g.role,g.id) FROM grants g),'[]'::jsonb) grants,
         COALESCE((SELECT jsonb_agg(jsonb_build_object('id',r.id,'name',r.name,'companyId',r.company_id,
             'revision',r.published_revision,'builtIn',r.built_in,'permissions',v.permissions_json::jsonb,

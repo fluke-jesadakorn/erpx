@@ -7,16 +7,18 @@ import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { type PreviewAssignmentRow } from '@erpx/server-runtime/public/executive/report-contract';
 import {activeWorkContextAssignmentSql} from './read-tail-family-r27';
+import {iamMemberVersionProbeSql} from './read-tail-family-r34';
+import {scopeBranchExistsSql} from './read-tail-family-r35';
 const targetGuard = `EXISTS(SELECT 1 FROM assignments g ${organizationSources.executive_report_sources_organization_nodes_c_join} ON c.id=g.company_id AND c.kind='company' AND c.status='active'
     ${peoplepayrollSources.executive_report_sources_hr_people_p_join} ON p.company_id=g.company_id AND p.user_id=g.user_id
     ${peoplepayrollSources.executive_report_sources_hr_engagements_e_join} ON e.company_id=p.company_id AND e.person_id=p.id ${organizationSources.executive_report_sources_staff_levels_l_join} ON l.company_id=e.company_id AND l.id=e.level_id
     WHERE g.id=? AND g.company_id=? AND g.user_id=? AND g.role=? AND g.version=? AND g.scope_kind=? AND g.scope_node_id IS NOT DISTINCT FROM ?
       AND g.revoked_at IS NULL AND g.valid_from<=? AND g.valid_until>? AND iam_assignment_active(g.id,?) AND iam_principal_active(g.user_id,g.company_id,?)
       AND (g.scope_kind='holding' OR EXISTS(SELECT 1 ${organizationSources.executive_report_sources_organization_nodes_n_from} WHERE n.id=g.scope_node_id AND n.company_id=g.company_id AND n.status='active'
-        AND (n.branch_id IS NULL OR EXISTS(SELECT 1 ${organizationSources.executive_report_sources_organization_nodes_b_from} WHERE b.id=n.branch_id AND b.company_id=g.company_id AND b.status='active'))))
+        AND (n.branch_id IS NULL OR EXISTS(${scopeBranchExistsSql(organizationSources.executive_report_sources_organization_nodes_b_from,'g')}))))
       AND l.active=1 AND l.level_number IN (1,2) AND e.status='active' AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')
       AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD'))
-      AND COALESCE((SELECT m.version FROM iam_members m WHERE m.company_id=g.company_id AND m.user_id=g.user_id),0)=?
+      AND COALESCE((${iamMemberVersionProbeSql('report')}),0)=?
       AND EXISTS(SELECT 1 FROM iam_roles r JOIN iam_role_revisions rv ON rv.company_id=r.company_id AND rv.role_id=r.id AND rv.revision=r.published_revision
         WHERE r.id=g.role AND r.company_id IN ('*',g.company_id) AND r.status='active' AND r.published_revision=? AND rv.scopes_json @> jsonb_build_array(?::text)
           AND rv.permissions_json @> '["executive.access","executive.report.create","executive.report.edit","executive.report.share"]'::jsonb))`;

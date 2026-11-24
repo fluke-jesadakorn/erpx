@@ -1,6 +1,7 @@
 import 'server-only';
 import {idNameEmailByUserIdsSql,sessionByUserSql} from './iam-probe-sql';
 import {auditFeedSql,newestPageSql} from './read-tail-family-r27';
+import {iamServiceNodeSubquerySql} from './read-tail-family-r34';
 import {createIamServiceReads} from '@erpx/server-identity_access/application/iam-service-reads';
 import {identitySnapshotSources as organizationSnapshotSources} from '@erpx/server-organization/public/identity-snapshot-sources';
 import {identitySnapshotSources as peoplepayrollSnapshotSources} from '@erpx/server-people_payroll/public/identity-snapshot-sources';
@@ -34,7 +35,7 @@ function readService(database: PostgresDatabase) {
             .all<Record<string, unknown>>()).results, assignments: async (actor, self) => {
             const table = actor.platform ? "platform_assignments" : "assignments";
             return (await db
-                .prepare(`SELECT a.*,${actor.platform ? "'platform' AS company_id,'platform' AS scope_kind,NULL AS scope_node_id,NULL AS branch_id," : ""} m.status identity_status,m.login_policy,m.person_id,m.connection_id,m.version identity_version,mp.group_id,mapping_group.name group_name,mp.connection_id mapping_connection_id,i.enabled directory_enabled,i.observed_at,c.status connection_status FROM ${table} a LEFT JOIN iam_members m ON m.user_id=a.user_id AND m.company_id=? LEFT JOIN iam_identities i ON i.id=m.identity_id LEFT JOIN iam_connections c ON c.id=m.connection_id LEFT JOIN iam_mappings mp ON a.source='directory' AND mp.id=a.source_id AND mp.company_id=${actor.platform ? "'platform'" : "a.company_id"} LEFT JOIN iam_groups mapping_group ON mapping_group.connection_id=mp.connection_id AND mapping_group.external_id=mp.group_id WHERE ${actor.platform ? "true" : "a.company_id=?"} AND (?::text IS NULL OR a.user_id=?) ${!actor.platform && actor.scopeKind !== "holding" ? `AND (a.scope_node_id=? OR a.scope_node_id IN (SELECT id ${organizationSources.iam_service_organization_nodes_from} WHERE branch_id=? AND company_id=?))` : ""} ORDER BY a.user_id,a.role`)
+                .prepare(`SELECT a.*,${actor.platform ? "'platform' AS company_id,'platform' AS scope_kind,NULL AS scope_node_id,NULL AS branch_id," : ""} m.status identity_status,m.login_policy,m.person_id,m.connection_id,m.version identity_version,mp.group_id,mapping_group.name group_name,mp.connection_id mapping_connection_id,i.enabled directory_enabled,i.observed_at,c.status connection_status FROM ${table} a LEFT JOIN iam_members m ON m.user_id=a.user_id AND m.company_id=? LEFT JOIN iam_identities i ON i.id=m.identity_id LEFT JOIN iam_connections c ON c.id=m.connection_id LEFT JOIN iam_mappings mp ON a.source='directory' AND mp.id=a.source_id AND mp.company_id=${actor.platform ? "'platform'" : "a.company_id"} LEFT JOIN iam_groups mapping_group ON mapping_group.connection_id=mp.connection_id AND mapping_group.external_id=mp.group_id WHERE ${actor.platform ? "true" : "a.company_id=?"} AND (?::text IS NULL OR a.user_id=?) ${!actor.platform && actor.scopeKind !== "holding" ? `AND (a.scope_node_id=? OR a.scope_node_id IN (${iamServiceNodeSubquerySql(organizationSources.iam_service_organization_nodes_from,'branch-first')}))` : ""} ORDER BY a.user_id,a.role`)
                 .bind(actor.companyId, ...(actor.platform ? [] : [actor.companyId]), self ? actor.userId : null, self ? actor.userId : null, ...(!actor.platform && actor.scopeKind !== "holding"
                 ? [actor.scopeNodeId, actor.scopeNodeId, actor.companyId]
                 : []))
@@ -108,7 +109,7 @@ function readService(database: PostgresDatabase) {
         },
         mappings: async (actor) => {
             return (await db
-                .prepare(`SELECT * FROM iam_mappings WHERE company_id=? ${["holding", "platform"].includes(actor.scopeKind) ? "" : `AND (scope_node_id=? OR scope_node_id IN (SELECT id ${organizationSources.iam_service_organization_nodes_from} WHERE branch_id=? AND company_id=?))`} ORDER BY id`)
+                .prepare(`SELECT * FROM iam_mappings WHERE company_id=? ${["holding", "platform"].includes(actor.scopeKind) ? "" : `AND (scope_node_id=? OR scope_node_id IN (${iamServiceNodeSubquerySql(organizationSources.iam_service_organization_nodes_from,'branch-first')}))`} ORDER BY id`)
                 .bind(actor.companyId, ...(["holding", "platform"].includes(actor.scopeKind)
                 ? []
                 : [actor.scopeNodeId, actor.scopeNodeId, actor.companyId]))
@@ -122,7 +123,7 @@ function readService(database: PostgresDatabase) {
         },
         reviews: async (actor) => {
             return (await db
-                .prepare(`SELECT * FROM iam_reviews WHERE company_id=? AND (? OR created_by=? OR (? AND kind IN ('assignment.grant','invitation.authorize','mapping.activate','policy.grant') AND (payload->>'scopeNodeId'=? OR ${actor.platform ? "false AND ?::text IS NULL AND ?::text IS NULL" : `payload->>'scopeNodeId' IN (SELECT id ${organizationSources.iam_service_organization_nodes_from} WHERE company_id=? AND branch_id=?)`}))) ORDER BY created_at DESC LIMIT 100`)
+                .prepare(`SELECT * FROM iam_reviews WHERE company_id=? AND (? OR created_by=? OR (? AND kind IN ('assignment.grant','invitation.authorize','mapping.activate','policy.grant') AND (payload->>'scopeNodeId'=? OR ${actor.platform ? "false AND ?::text IS NULL AND ?::text IS NULL" : `payload->>'scopeNodeId' IN (${iamServiceNodeSubquerySql(organizationSources.iam_service_organization_nodes_from,'company-first')})`}))) ORDER BY created_at DESC LIMIT 100`)
                 .bind(actor.companyId, hasPermission(actor, iamPermission(actor, "iam.review")) &&
                 ["holding", "platform"].includes(actor.scopeKind), actor.userId, hasPermission(actor, iamPermission(actor, "iam.review")), actor.scopeNodeId, actor.companyId, actor.scopeNodeId)
                 .all()).results;

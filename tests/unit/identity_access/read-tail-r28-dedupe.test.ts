@@ -96,7 +96,7 @@ describe('Identity access read-tail r28 seven parameterized families', () => {
     // Lock statements keep their byte identity.
     expect(hash('adapters/product-sso-store.ts')).toBe('967b754535bb65e0196bf47fa0c0292c65b30276291e137c926d22579a3f3441');
     expect(hash('adapters/payroll-cancellation-grant.ts')).toBe('eae4d8d3f2eacc4839676d3fcf7cd2da7edc3bb5a6a875e71b2787cf9e26e5ee');
-    expect(hash('adapters/workflow-command-authority.ts')).toBe('945f3fec7af9c5846ccdca30180ce0bbfe701d77d63dfd74411b08cc02979ce9');
+    expect(hash('adapters/workflow-command-authority.ts')).toBe('53f6e57083e1e11f61ffc21d55293733894582b081ff17d6bba2661835e662d8');
     expect(read('adapters/iam-migrations.ts')).toContain('SELECT * FROM iam_connections WHERE id=$1 AND company_id=$2 AND status=\'active\' AND last_sync_at>$3 FOR SHARE');
     // Session authority families keep their byte identity.
     expect(hash('adapters/iam-probe-sql.ts')).toBe('e0984c3774b38a3229fe848061482e46efd984f26e86152ce9973c3c49104101');

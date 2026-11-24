@@ -1,6 +1,7 @@
 import {identitySnapshotSources as organizationSnapshotSources} from '@erpx/server-organization/public/identity-snapshot-sources';
 import {assignmentActiveProbeSql} from './read-tail-family-r29';
 import {activeWorkContextProbeSql} from './read-tail-family-r33';
+import {scopeBranchExistsSql} from './read-tail-family-r35';
 const organizationSources=organizationSnapshotSources();
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import type {CommandActor} from "@erpx/server-workflow/public/commands-contract";
@@ -17,7 +18,7 @@ function workflowWorkContextGuards(db:SqlDatabase,actor:CommandActor,id:string):
          AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=?) OR (a.scope_kind='department' AND a.scope_node_id=?))
          AND EXISTS(SELECT 1 ${organizationSources.workflow_command_authority_organization_nodes_c_from} WHERE c.id=a.company_id AND c.status='active')
          AND (a.scope_kind='holding' OR EXISTS(SELECT 1 ${organizationSources.workflow_command_authority_organization_nodes_n_from} WHERE n.id=a.scope_node_id AND n.company_id=a.company_id AND n.status='active'
-           AND (n.branch_id IS NULL OR EXISTS(SELECT 1 ${organizationSources.workflow_command_authority_organization_nodes_b_from} WHERE b.id=n.branch_id AND b.company_id=a.company_id AND b.status='active')))))`,
+           AND (n.branch_id IS NULL OR EXISTS(${scopeBranchExistsSql(organizationSources.workflow_command_authority_organization_nodes_b_from,'a')})))))`,
          [actor.assignmentId,actor.authority.assignmentVersion,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId]),
       ]:[]);
 }

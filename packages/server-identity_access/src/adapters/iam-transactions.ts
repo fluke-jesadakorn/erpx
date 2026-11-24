@@ -1,5 +1,6 @@
 import 'server-only';
 import { assignmentActiveQuerySql, memberForShareSql, revokedSessionProbeSql } from "./iam-probe-sql";
+import { iamRoleAllowsAliasSql } from "./read-tail-family-r35";
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
 import {createHash} from 'node:crypto';
 import type {PoolClient} from 'pg';
@@ -29,7 +30,7 @@ export async function iamCommand<T>(db:PostgresDatabase,actor:IamActor,key:strin
     ).rows[0],active:async(assignmentId,now)=>Boolean((await client.query(assignmentActiveQuerySql, [
           assignmentId,
           now,
-        ])).rows[0].ok),allowed:async(role,companyId,permission)=>Boolean((await client.query("SELECT iam_role_allows($1,$2,$3) ok", [
+        ])).rows[0].ok),allowed:async(role,companyId,permission)=>Boolean((await client.query(iamRoleAllowsAliasSql('ok'), [
           role,
           companyId,
           permission,

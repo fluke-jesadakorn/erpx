@@ -42856,6 +42856,60 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Identity workflow role, service node and member version heads must stay closed."
+      },
+      "apps": [
+        "account"
+      ],
+      "packages": [
+        "@erpx/server-identity_access"
+      ],
+      "id": "identity_access.read-tail-r34-dedupe.unit",
+      "files": [
+        "tests/unit/identity_access/read-tail-r34-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "identity_access",
+      "modules": [
+        "identity_access"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Identity scope branch, HR seat and role alias heads must stay closed."
+      },
+      "apps": [
+        "account"
+      ],
+      "packages": [
+        "@erpx/server-identity_access"
+      ],
+      "id": "identity_access.read-tail-r35-dedupe.unit",
+      "files": [
+        "tests/unit/identity_access/read-tail-r35-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "identity_access.remembered-workspace.e2e",
       "lane": "e2e",
       "owner": "identity_access",

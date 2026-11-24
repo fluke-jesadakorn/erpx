@@ -2,6 +2,7 @@ import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-
 import { samePersonQuerySql } from "./iam-probe-sql";
 import { iamMembersPairSql } from "./read-tail-family-r32";
 import { userAttributeByIdExtendedSql } from "./identity-user-projection-family-r21";
+import { iamRoleAllowsAliasSql } from "./read-tail-family-r35";
 import { grantTransaction } from '@erpx/server-identity_access/adapters/iam-grant-transaction';
 import {preparePeopleLifecycleIamReview} from "@erpx/server-people_payroll/public/iam-purchases";
 import {identitySnapshotSources as organizationSnapshotSources} from '@erpx/server-organization/public/identity-snapshot-sources';
@@ -112,7 +113,7 @@ proposerCurrentAuthority: async (facts) => {
         },
 proposerHasPermission: async (facts) => {
             const { original, required } = facts;
-            return (await c.query("SELECT iam_role_allows($1,$2,$3) allowed", [
+            return (await c.query(iamRoleAllowsAliasSql('allowed'), [
                 original.role,
                 actor.companyId,
                 iamPermission(actor, required),

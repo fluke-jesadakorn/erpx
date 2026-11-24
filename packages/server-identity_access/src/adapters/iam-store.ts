@@ -6,6 +6,7 @@ const peoplepayrollSources=peoplepayrollSnapshotSources();
 import { createIamAuthority, type IamAuthorityMember } from "@erpx/server-identity_access/application/authority";
 import { iamDb } from "@erpx/server-identity_access/public/iam-db";
 import { publishedRoleSql } from "./iam-probe-sql";
+import { iamMemberVersionProbeSql } from "./read-tail-family-r34";
 import "server-only";
 import type { PermissionActor, RoleRevision } from "@erpx/feature-identity_access/lib/iam";
 import type { SqlDatabase, SqlStatement } from "@erpx/server-runtime/public/runtime/types";
@@ -165,7 +166,7 @@ export function iamMutationGuards(db: SqlDatabase, actor: PermissionActor & {
  AND iam_assignment_active(?::text,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
  AND NOT EXISTS(SELECT 1 FROM iam_members m LEFT JOIN iam_identities i ON i.id=m.identity_id LEFT JOIN iam_connections c ON c.id=m.connection_id WHERE m.company_id=?::text AND m.user_id=?::text AND (m.status!='active' OR (?::integer IS NOT NULL AND m.version!=?::bigint) OR (m.login_policy='directory' AND (i.enabled IS DISTINCT FROM true OR c.status IS DISTINCT FROM 'active' OR i.observed_at<=floor(extract(epoch FROM clock_timestamp())*1000)::bigint-300000))))
  AND (?::bigint IS NULL OR ?::bigint>floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
- AND (?::integer IS NULL OR COALESCE((SELECT version FROM iam_members WHERE company_id=?::text AND user_id=?::text),0)=?::bigint)
+ AND (?::integer IS NULL OR COALESCE((${iamMemberVersionProbeSql('cast')}),0)=?::bigint)
  AND EXISTS(SELECT 1 FROM iam_roles WHERE id=?::text AND company_id IN ('*',?::text) AND status='active' AND (?::integer IS NULL OR published_revision=?::bigint))
 `,[actor.authority?.sessionId ?? null,actor.companyId,actor.userId,iam?.queuedAssignmentVersion ?? null,actor.assignmentId,iam?.queuedAssignmentVersion ?? null,actor.assignmentId,actor.companyId,actor.userId,iam?.identityVersion ?? null,iam?.identityVersion ?? null,iam?.emergencyUntil ?? null,iam?.emergencyUntil ?? null,iam?.identityVersion ?? null,actor.companyId,actor.userId,iam?.identityVersion ?? null,actor.role,actor.companyId,iam?.roleRevision ?? null,iam?.roleRevision ?? null]),
         ...(iam?.hrAppointmentVersion === undefined ? [] : [assertion(db,key,"hr-appointment-current",` EXISTS(

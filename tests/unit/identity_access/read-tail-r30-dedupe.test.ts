@@ -89,10 +89,10 @@ describe('Identity access read-tail r30 probe families', () => {
     const helper = read('adapters/read-tail-family-r30.ts');
     expect(helper).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
     expect(hash('adapters/product-sso-store.ts')).toBe('967b754535bb65e0196bf47fa0c0292c65b30276291e137c926d22579a3f3441');
-    expect(hash('adapters/workflow-command-authority.ts')).toBe('945f3fec7af9c5846ccdca30180ce0bbfe701d77d63dfd74411b08cc02979ce9');
+    expect(hash('adapters/workflow-command-authority.ts')).toBe('53f6e57083e1e11f61ffc21d55293733894582b081ff17d6bba2661835e662d8');
     expect(hash('adapters/payroll-cancellation-grant.ts')).toBe('eae4d8d3f2eacc4839676d3fcf7cd2da7edc3bb5a6a875e71b2787cf9e26e5ee');
     expect(hash('adapters/legacy-module-access.ts')).toBe('b90209698ed4adfbd08ae9de45e5619e2f5a9ebffdf4c92a10a065dc4bc5a01e');
-    expect(hash('adapters/iam-transactions.ts')).toBe('70923db932b36cebd425f6aa6c860892cb03ed75bc41fb40ea2193e7884de3b7');
+    expect(hash('adapters/iam-transactions.ts')).toBe('ba2ca1aa3d1a6ea08f20c1647e5ff0bd506e667f14b6ccd07409eb06db3174e3');
     expect(hash('adapters/native-session.ts')).toBe('1c390e8f6c47b25da718120ef5f6546103b1f8bbbfa837406ff7be462d1a51c1');
     expect(hash('adapters/iam-probe-sql.ts')).toBe('e0984c3774b38a3229fe848061482e46efd984f26e86152ce9973c3c49104101');
     expect(hash('adapters/active-role-probe-family-r25.ts')).toBe('aea7ee49d4c93ac3c904b5f8190119a277ad43921a21a70903cfdf5c0455d448');
@@ -109,7 +109,7 @@ describe('Identity access read-tail r30 probe families', () => {
 });
 
 describe('Identity access read-tail r30 retirement check', () => {
-  test('retirement:ts-statements is strictly below BEFORE=472 (r33 lowered 472 to 468)', () => {
+  test('retirement:ts-statements is strictly below BEFORE=472 (r33 lowered 472 to 468; r34 to 459; r35 to 454)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -120,6 +120,6 @@ describe('Identity access read-tail r30 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(472);
-    expect(total).toBe(468);
+    expect(total).toBe(454);
   });
 });
