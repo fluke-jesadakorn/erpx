@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10692,
+    "revision": 10696,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -165115,7 +165115,7 @@
         "owner": "identity_access",
         "title": "identity TS read tail native cutover (round 21)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -165127,22 +165127,37 @@
         "resources": [
           "owner:identity_access"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMida6",
-          "claimedAt": "2026-11-24T08:27:25.339Z",
-          "heartbeatAt": "2026-11-24T08:34:53.537Z",
-          "expiresAt": "2026-11-24T09:04:53.537Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "311653af5",
+            "owner": "identity_access",
+            "before": 525,
+            "after": 522,
+            "note": "Four extended user attribute projections share one helper separate from r18 union; FOR UPDATE site, locks and r2-r20 untouched."
+          },
+          {
+            "command": "vitest identity r18-r21 (16) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "311653af5"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=525.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMida6",
+          "at": "2026-11-24T08:37:27.666Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -165627,6 +165642,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=351.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.identity_access.read-tail-r22",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "title": "identity TS read tail native cutover (round 22)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "tests/unit/identity_access/**",
+          "tests/integration/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMida7",
+          "claimedAt": "2026-11-24T08:37:28.039Z",
+          "heartbeatAt": "2026-11-24T08:37:28.039Z",
+          "expiresAt": "2026-11-24T09:07:28.039Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=522.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -165635,7 +165686,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1440,
+      "totalPackets": 1441,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
@@ -165643,13 +165694,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1071,
+        "blocked": 1072,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:35:52.543Z",
+    "updatedAt": "2026-11-24T08:37:28.044Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
