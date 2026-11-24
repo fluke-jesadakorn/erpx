@@ -18,6 +18,7 @@ import {planningPurchaseScenarioRows,planningPurchaseRecommendationRows,planning
 import {manufacturingWarehouseSources,manufacturingProductSources,manufacturingCommerceSourceReadLocks} from "@erpx/server-commerce/public/manufacturing-purchase-sources";
 import {manufacturingOperationAggSql,manufacturingSpecificationLineAggSql,manufacturingSpecificationProductsAggSql,manufacturingActorScopeRows} from "./manufacturing-read-sql-fragments";
 import {manufacturingPurchaseRecordSelect} from "./manufacturing-read-tail-r16-sql";
+import {manufacturingPurchaseRecordBranchSelect} from "./manufacturing-read-tail-r18-sql";
 export type ManufacturingPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 /** Owner-local fixed read: one command receipt on the caller transaction. This
  * idempotency/replay witness is identical in the purchased-command and
@@ -130,10 +131,10 @@ export async function withManufacturingPurchasedCommand<Result>(owner:SqlDatabas
 }
 
 /** Only actual native identities participate in shared source surfaces. */
-export const manufacturingPurchaseRecordRows=`SELECT 'specification'::text kind,'manufacturing_spec'::text record_type,'manufacturing'::text module_id,'manufacturing.bom'::text capability,id,company_id,branch_id,advanced,witness FROM (${manufacturingPurchaseSpecificationRows}) spec
- UNION ALL SELECT 'order','manufacturing_order','manufacturing','manufacturing.execution',id,company_id,branch_id,advanced,witness FROM (${manufacturingPurchaseOrderRows}) production
- UNION ALL SELECT 'scenario','planning_scenario','planning','planning.basic',id,company_id,branch_id,advanced,source_witness FROM (${planningRows(planningPurchaseScenarioRows)}) scenario
- UNION ALL SELECT 'recommendation','planning_recommendation','planning','planning.basic',id,company_id,branch_id,advanced,source_witness FROM (${planningRows(planningPurchaseRecommendationRows)}) recommendation`;
+export const manufacturingPurchaseRecordRows=`${manufacturingPurchaseRecordBranchSelect("'specification'::text kind","'manufacturing_spec'::text record_type","'manufacturing'::text module_id","'manufacturing.bom'::text capability","witness",manufacturingPurchaseSpecificationRows,"spec")}
+ UNION ALL ${manufacturingPurchaseRecordBranchSelect("'order'","'manufacturing_order'","'manufacturing'","'manufacturing.execution'","witness",manufacturingPurchaseOrderRows,"production")}
+ UNION ALL ${manufacturingPurchaseRecordBranchSelect("'scenario'","'planning_scenario'","'planning'","'planning.basic'","source_witness",planningRows(planningPurchaseScenarioRows),"scenario")}
+ UNION ALL ${manufacturingPurchaseRecordBranchSelect("'recommendation'","'planning_recommendation'","'planning'","'planning.basic'","source_witness",planningRows(planningPurchaseRecommendationRows),"recommendation")}`;
 
 /** One current Company purchase snapshot and one native identity query serve an
  * entire owner landing/queue. The number of IAM/grant reads never grows with
