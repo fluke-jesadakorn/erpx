@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12134,
+    "revision": 12136,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -180539,7 +180539,7 @@
         "owner": "people_payroll",
         "title": "people_payroll TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -180551,22 +180551,37 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n11",
-          "claimedAt": "2026-11-24T13:33:45.194Z",
-          "heartbeatAt": "2026-11-24T13:37:42.857Z",
-          "expiresAt": "2026-11-24T14:07:42.857Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "a92e883d9",
+            "owner": "people_payroll",
+            "before": 1265,
+            "after": 1261,
+            "note": "Owner file probes, by-id status-IN projections and named JOIN sources shared; locks/advisory/native/cross-owner untouched."
+          },
+          {
+            "command": "vitest payroll read-tail (135) + scoped tsc + 7/7 byte oracle",
+            "result": "passed",
+            "sourceSha": "a92e883d9"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Owner file probe (-2), by-id status-IN projections (-1), named JOIN projection (-1): 1265->1261. BEFORE=1265.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n11",
+          "at": "2026-11-24T13:42:52.005Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -180791,17 +180806,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 9,
+        "in_progress": 8,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1378,
+        "blocked": 1379,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:42:31.536Z",
+    "updatedAt": "2026-11-24T13:42:52.012Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
