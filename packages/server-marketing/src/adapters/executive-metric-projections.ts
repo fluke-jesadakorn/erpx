@@ -7,6 +7,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
+import {marketingMetricBreakdownSql} from './executive-metric-breakdown-sql';
 /** Owner-local fixed label projections shared by both executive breakdowns; the composed SQL and bind values are unchanged. */
 const branchLabel = `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=c.branch_id AND n.company_id=c.company_id),'Branch')`;
 const departmentLabel = `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=c.department_id AND n.company_id=c.company_id),'Unassigned')`;
@@ -21,7 +22,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
                 : breakdown === "branch" ? branchLabel
                     : breakdown === "department" ? departmentLabel
                         : "c.status";
-        sql = `SELECT ${label} label,count(*)::text value FROM (${purchased.sql}) c WHERE ${scopedAlias("c")} GROUP BY 1 ORDER BY 1`;
+        sql = marketingMetricBreakdownSql('candidates', purchased.sql, label, scopedAlias('c'));
         values = [...purchased.args,...scopeArgs];
     }
     if (id === "marketing-engagement-events") {
@@ -29,7 +30,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
             : breakdown === "branch" ? branchLabel
                 : breakdown === "department" ? departmentLabel
                     : "to_char(to_timestamp(e.created_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')";
-        sql = `SELECT ${label} label,count(*)::text value FROM marketing_engagement_events e JOIN (${purchased.sql}) c ON c.id=e.candidate_id WHERE ${scopedAlias("c")} AND e.created_at>=? AND e.created_at<? GROUP BY 1 ORDER BY 1`;
+        sql = marketingMetricBreakdownSql('engagements', purchased.sql, label, scopedAlias('c'));
         values = [...purchased.args,...scopeArgs, Date.parse(f.from), Date.parse(f.to) + 86400000];
     }
     const raw = (await sourceDb.prepare(sql).bind(...values).all<RawMetricRow>()).results;

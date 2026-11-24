@@ -55057,6 +55057,31 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "manufacturing",
+      "modules": [
+        "manufacturing"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Manufacturing attachment image projections must stay one helper."
+      },
+      "apps": "manufacturing",
+      "packages": [
+        "@erpx/server-manufacturing"
+      ],
+      "id": "manufacturing.read-tail-r21-dedupe.unit",
+      "files": [
+        "tests/unit/manufacturing/read-tail-r21-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "manufacturing.rust-manufacturing-bom-http.unit",
       "lane": "unit",
       "owner": "manufacturing",
@@ -55688,6 +55713,31 @@
         "@erpx/server-workflow",
         "@erpx/ui"
       ]
+    },
+    {
+      "lane": "unit",
+      "owner": "marketing",
+      "modules": [
+        "marketing"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Marketing executive metric breakdown projections must stay one helper."
+      },
+      "apps": "marketing",
+      "packages": [
+        "@erpx/server-marketing"
+      ],
+      "id": "marketing.executive-metric-breakdown-dedupe.unit",
+      "files": [
+        "tests/unit/marketing/executive-metric-breakdown-dedupe.test.ts"
+      ],
+      "framework": "vitest"
     },
     {
       "lane": "unit",
