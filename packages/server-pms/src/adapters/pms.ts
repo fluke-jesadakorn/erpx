@@ -3,6 +3,7 @@ import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
 import { PMS_STRIPE_REFUND_COLUMNS_SQL } from "./pms-read-tail-r22-sql";
 import { PMS_RECORDS_PROJECTION_PREFIX_SQL } from "./pms-read-tail-r24-sql";
 import { PMS_IDS_JSONB_MEMBER_SQL } from "./pms-read-tail-r26-sql";
+import { pmsBookingPaymentIdProbeSql } from "./pms-read-tail-r29-sql";
 import { roomChargeReversalWork } from "@erpx/server-pos/public/room-charge-reversal-queue";
 import { withPmsPurchasedCommand } from "@erpx/server-pms/adapters/purchase-boundary";
 import { readPurchasedAccesses, pmsPackageEnforcementMode, type PurchasedAccess } from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -384,17 +385,17 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
         updateFinanceBankTransactions: facts => finance.updateFinanceBankTransactions(facts),
         readPmsBookingPayments: (facts: {
             id: string;
-        }) => db.prepare("SELECT id FROM pms_booking_payments WHERE property_id=? AND status='payment_pending' LIMIT 1").bind(facts.id).first(),
+        }) => db.prepare(pmsBookingPaymentIdProbeSql('property_id', 'payment_pending')).bind(facts.id).first(),
         readPmsBookingAllocations: (facts: {
             id: string;
             toGuestAccountId: string;
         }) => db.prepare('SELECT id FROM pms_booking_allocations WHERE guest_account_id IN (?,?) LIMIT 1').bind(facts.id, facts.toGuestAccountId).first(),
         readPmsBookingPayments2: (facts: {
             reservationId: string;
-        }) => db.prepare("SELECT id FROM pms_booking_payments WHERE reservation_id=? AND status='payment_pending' LIMIT 1").bind(facts.reservationId).first(),
+        }) => db.prepare(pmsBookingPaymentIdProbeSql('reservation_id', 'payment_pending')).bind(facts.reservationId).first(),
         readPmsBookingPayments3: (facts: {
             reservationId: string;
-        }) => db.prepare("SELECT id FROM pms_booking_payments WHERE reservation_id=? AND status='confirmed' LIMIT 1").bind(facts.reservationId).first(),
+        }) => db.prepare(pmsBookingPaymentIdProbeSql('reservation_id', 'confirmed')).bind(facts.reservationId).first(),
         readAttachmentPublications: facts => files.readAttachmentPublications(facts),
         readPosConnections3: facts => pos.readPosConnections3(facts),
         updatePmsBookingEmails: (facts: {

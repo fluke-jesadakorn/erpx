@@ -45,7 +45,7 @@ describe('pms read-tail r20 byte-identical owner-projection dedupe', () => {
       expect(sql).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
     }
     const hospitality = await src(CALL_SITES[1]);
-    expect(hospitality).toContain('pms_postings: "SELECT \\"id\\",\\"property_id\\",\\"source_key\\",\\"record_id\\",\\"journal_id\\",\\"business_date\\" FROM pms_postings"');
+    expect(hospitality).toContain('pms_postings: PMS_POSTINGS_PROJECTION_SQL');
     expect(hospitality).toContain('pms_sources: "SELECT \\"property_id\\",\\"source_key\\",\\"record_id\\" FROM pms_sources"');
     expect(await src('adapters/pms-stripe.ts')).toContain('FOR UPDATE');
   });
@@ -54,7 +54,7 @@ describe('pms read-tail r20 byte-identical owner-projection dedupe', () => {
     let count = 0;
     for (const file of await tsFiles(dir)) count += (await readFile(file, 'utf8')).split('SELECT ').length - 1;
     // r21 deduped the 4x parameterized recipient cross-join fragment below r20 after=477.
-    expect(count).toBe(404);
+    expect(count).toBe(361);
     expect(count).toBeLessThan(481);
   });
 });

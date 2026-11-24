@@ -8,6 +8,8 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
+/** Closed branch label shared by the occupancy and guest-account-balance metrics. No caller SQL is accepted. */
+const EXEC_BRANCH_LABEL_SQL = `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=p.branch_id AND n.company_id=p.company_id),'Unassigned branch')`;
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     await requirePmsMetricPurchase(sourceDb, a, id);
     const spec = specs[id];
@@ -19,7 +21,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     }
     if (id === "hotel-occupancy") {
         const label = breakdown === "month" ? "substring(r.data_json::jsonb->>'date',1,7)"
-            : breakdown === "branch" ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=p.branch_id AND n.company_id=p.company_id),'Unassigned branch')`
+            : breakdown === "branch" ? EXEC_BRANCH_LABEL_SQL
                 : breakdown === "property" ? "p.name" : "'Hotel occupancy'";
         const capacity = "(r.data_json::jsonb->'roomMetrics'->>'capacity')";
         const sold = "(r.data_json::jsonb->'roomMetrics'->>'sold')";
@@ -86,7 +88,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
     }
     if (id === "hotel-guest-account-balance") {
         const label = breakdown === "branch"
-            ? `COALESCE((SELECT n.display_name FROM (${organizationProjectionSources.organization_nodes}) n WHERE n.id=p.branch_id AND n.company_id=p.company_id),'Unassigned branch')`
+            ? EXEC_BRANCH_LABEL_SQL
             : breakdown === "property" ? "p.name" : "'Open guest account balances'";
         sql = `SELECT ${label} label,
         COALESCE(sum(l.debit_minor::numeric-l.credit_minor::numeric),0)::text value

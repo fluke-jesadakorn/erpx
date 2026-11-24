@@ -1009,12 +1009,15 @@ mod booking_refunds {
         > {
             Box::pin(async move {
                 let state = state(&self.store);
-                let request = state.requests.get(request_id)?.clone();
-                let payment = state.payments.get(&request.payment_id)?;
+                let Some(request) = state.requests.get(request_id).cloned() else {
+                    return Ok(None);
+                };
+                let Some(payment) = state.payments.get(&request.payment_id) else {
+                    return Ok(None);
+                };
                 if payment.company_id != company_id {
                     return Ok(None);
                 }
-                drop(state);
                 Ok(Some(erpx_server_pms::public::refund::PmsRefundRequestContext {
                     property_id: payment.property_id.clone(),
                     account_id: payment.account_id.clone(),
