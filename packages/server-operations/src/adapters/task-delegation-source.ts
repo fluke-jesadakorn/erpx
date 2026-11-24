@@ -27,7 +27,8 @@ export const operationsApprovalImageSql = (
   decisions: string,
 ) => `'${key}',(SELECT jsonb_agg(jsonb_build_object('instance',to_jsonb(${alias}),'steps',(SELECT jsonb_agg(to_jsonb(step) ORDER BY step.id) FROM (${steps})${sep}step WHERE step.instance_id=${alias}.id),'decisions',(SELECT jsonb_agg(to_jsonb(decision) ORDER BY decision.id) FROM (${decisions})${sep}decision WHERE decision.instance_id=${alias}.id)) ORDER BY ${alias}.id) FROM (${instances})${sep}${alias} WHERE ${alias}.record_id=t.id AND ${alias}.company_id=t.company_id)`;
 /** Canonical active-delegation clock window shared by Operations task readers.
- *  Select/alias/source/clock/tail parameterized so each caller renders byte-identical SQL. */
+ *  Select/alias/source/clock/tail parameterized so each caller renders byte-identical SQL;
+ *  `pad` varies the clause separator for the multi-line handover rendering. */
 export const operationsActiveDelegationSql = (
   select: string,
   alias: string,
@@ -36,4 +37,5 @@ export const operationsActiveDelegationSql = (
   clock: string,
   tail = '',
   sep = ' ',
-) => `SELECT ${select} FROM staff_task_delegations ${alias} WHERE ${alias}.task_id=${task} AND ${alias}.company_id=${company}${sep}AND ${alias}.status='active' AND ${alias}.starts_at<=${clock} AND ${alias}.expires_at>${clock}${tail}`;
+  pad = ' AND ',
+) => `SELECT ${select} FROM staff_task_delegations ${alias} WHERE ${alias}.task_id=${task}${pad}${alias}.company_id=${company}${sep}AND ${alias}.status='active'${pad}${alias}.starts_at<=${clock}${pad}${alias}.expires_at>${clock}${tail}`;

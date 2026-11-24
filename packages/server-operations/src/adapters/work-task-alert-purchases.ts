@@ -21,6 +21,7 @@ import {socialPmsSourceReadLocks} from '@erpx/server-pms/public/social-source-fa
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 import {nativeOperationsReadFirst,OPERATIONS_RD_WORK_TASK_ALERT_SOURCE,OPERATIONS_RD_WORK_TASK_ALERT_IMAGE} from './native-operations-read';
+import {operationsJoinSourceExists} from './join-source-exists';
 
 /** Canonical Work-alert recipient viewer column projection, shared by the read
  * scope and the recipient lookup so the two fragments cannot drift. The clock
@@ -35,7 +36,7 @@ function purchased(socialRequired:string){return `${purchasedCapabilityPredicate
 export async function workTaskAlertReadScope(now:number,deadline=now+86400000){
  if(await appsPackageEnforcementMode()!=='enforced')return {prefix:'',where:'TRUE',args:[]};
  if(!Number.isSafeInteger(now))throw new ApiError(422,'WORK_ALERT_CLOCK_REQUIRED','A current scheduled task clock is required.');
- const social=await workTaskSocialQueuedSourceScope({deadline}),recipient=`(iam_same_person(work_alert_viewer.user_id,t.assignee_user_id,t.company_id) OR iam_same_person(work_alert_viewer.user_id,d.delegate_user_id,t.company_id) OR (t.due_at<${now} AND iam_same_person(work_alert_viewer.user_id,t.creator_user_id,t.company_id)) OR EXISTS(SELECT 1 FROM (${approval.instances}) pending_instance JOIN (${approval.steps}) pending_step ON pending_step.instance_id=pending_instance.id AND pending_step.state='pending' WHERE pending_instance.company_id=t.company_id AND pending_instance.record_id=t.id AND pending_instance.state='pending' AND iam_same_person(pending_step.approver_user_id,work_alert_viewer.user_id,t.company_id)))`;
+ const social=await workTaskSocialQueuedSourceScope({deadline}),recipient=`(iam_same_person(work_alert_viewer.user_id,t.assignee_user_id,t.company_id) OR iam_same_person(work_alert_viewer.user_id,d.delegate_user_id,t.company_id) OR (t.due_at<${now} AND iam_same_person(work_alert_viewer.user_id,t.creator_user_id,t.company_id)) OR ${operationsJoinSourceExists(approval.instances,'pending_instance',approval.steps,'pending_step',`pending_step.instance_id=pending_instance.id AND pending_step.state='pending'`,`pending_instance.company_id=t.company_id AND pending_instance.record_id=t.id AND pending_instance.state='pending' AND iam_same_person(pending_step.approver_user_id,work_alert_viewer.user_id,t.company_id)`)})`;
  return {prefix:social.prefix,args:social.args,where:`(t.project_id IS NOT NULL OR EXISTS(${operationsClockProbe("work_alert_clock")} WHERE ${purchased(social.socialRequired)} AND EXISTS(SELECT 1 FROM assignments assignment ${workAlertViewerColumns}work_alert_clock.now_ms) work_alert_viewer WHERE assignment.company_id=t.company_id AND ${recipient} AND ${authority('work_alert_viewer',social.where)})))`};
 }
 /** Owner-planned queued task image. The native registry owns the composed

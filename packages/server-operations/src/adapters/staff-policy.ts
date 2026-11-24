@@ -14,6 +14,8 @@ import { StaffPolicyIdentityAccessFacts } from '@erpx/server-identity_access/pub
 import { StaffPolicyOrganizationFacts } from '@erpx/server-organization/public/operations-staff-policy-facts';
 import { nativeSystemNotificationStatement } from '@erpx/server-collaboration/adapters/native-system-notification';
 import {operationsOwnerVersionExists} from './identity-policy-version-guard';
+import {operationsProjectSourceExists} from './project-source-exists';
+import {operationsJoinSourceExists} from './join-source-exists';
 export type { StaffActor } from '@erpx/server-operations/domain/staff-policy';
 export type { RecordScope } from '@erpx/server-operations/domain/staff-policy';
 export type { StaffPerson } from '@erpx/server-operations/domain/staff-policy';
@@ -26,8 +28,8 @@ const staffSelect = (datePredicate: string) => `SELECT p.id person_id,p.user_id,
   LEFT JOIN (${organizationProjectionSources.organization_positions}) pos ON pos.id=e.position_id AND pos.company_id=e.company_id AND pos.active=1
   WHERE p.company_id=? AND p.status='active' AND p.merged_into_id IS NULL AND p.user_id IS NOT NULL
   AND e.status='active' ${datePredicate}
-  AND EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) a WHERE a.user_id=p.user_id AND a.company_id=p.company_id
-    AND a.revoked_at IS NULL AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND a.valid_from<=? AND a.valid_until>?)`;
+  AND ${operationsProjectSourceExists(identity_accessProjectionSources.assignments,'a',`a.user_id=p.user_id AND a.company_id=p.company_id
+    AND a.revoked_at IS NULL AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND a.valid_from<=? AND a.valid_until>?`)}`;
 export const activeStaffSelect = staffSelect("AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD'))");
 function application(provided?: SqlDatabase) {
     let database = provided!;
@@ -54,7 +56,7 @@ function application(provided?: SqlDatabase) {
     return createStaffPolicyApplication({repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, prepare: async (holding) => {
             if (!provided)
                 database = (await nativeHoldingResources(holding)).write;
-        }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, routeChecks: (people, companyId, head) => [...(head ? [{ query: `EXISTS(SELECT 1 FROM (${organizationProjectionSources.department_heads}) h JOIN (${organizationProjectionSources.organization_nodes}) n ON n.id=h.department_id WHERE h.department_id=? AND h.company_id=? AND h.version=? AND n.status='active')`, args: [head.departmentId, companyId, head.version] }] : []), ...people.map(person => ({ query: operationsOwnerVersionExists(`(${people_payrollProjectionSources.hr_engagements}) hr_engagements`,` AND status='active'`), args: [person.engagement_id, companyId, person.engagement_version] }))]});
+        }, production: process.env.NODE_ENV === 'production', batch: effects => database.batch(effects), policyRead: (key, read) => nativePolicyRead(database, key, read), policyNow: nativePolicyNow, routeChecks: (people, companyId, head) => [...(head ? [{ query: `${operationsJoinSourceExists(organizationProjectionSources.department_heads,'h',organizationProjectionSources.organization_nodes,'n','n.id=h.department_id',`h.department_id=? AND h.company_id=? AND h.version=? AND n.status='active'`)}`, args: [head.departmentId, companyId, head.version] }] : []), ...people.map(person => ({ query: operationsOwnerVersionExists(`(${people_payrollProjectionSources.hr_engagements}) hr_engagements`,` AND status='active'`), args: [person.engagement_id, companyId, person.engagement_version] }))]});
 }
 async function invoke<Result>(run: () => Promise<Result>) {
     try {
