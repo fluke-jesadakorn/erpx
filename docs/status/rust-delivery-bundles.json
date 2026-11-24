@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11808,
+    "revision": 11810,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -176417,7 +176417,7 @@
         "owner": "records",
         "title": "records search references fold",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -176429,22 +176429,37 @@
         "resources": [
           "owner:records"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4c05",
-          "claimedAt": "2026-11-24T12:03:56.012Z",
-          "heartbeatAt": "2026-11-24T12:10:08.408Z",
-          "expiresAt": "2026-11-24T12:40:08.408Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-records/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "082eb59cb",
+            "owner": "records",
+            "before": 25,
+            "after": 24,
+            "note": "Search references SELECT reuses recordContextDetailSql with clock outside; binds/newline preserved; locks/ports untouched."
+          },
+          {
+            "command": "vitest records r16-r27 (45) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "082eb59cb"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Fold search references SELECT into recordContextDetailSql: 25->24.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4c05",
+          "at": "2026-11-24T12:13:46.513Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -176926,17 +176941,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 20,
-        "in_progress": 19,
+        "in_progress": 18,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1293,
+        "blocked": 1294,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T12:13:21.855Z",
+    "updatedAt": "2026-11-24T12:13:46.522Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
