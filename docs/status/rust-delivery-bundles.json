@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10696,
+    "revision": 10700,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -165361,7 +165361,7 @@
         "owner": "learning",
         "title": "learning TS read tail native cutover (round 8)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -165373,22 +165373,37 @@
         "resources": [
           "owner:learning"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMlrn3",
-          "claimedAt": "2026-11-24T08:33:08.191Z",
-          "heartbeatAt": "2026-11-24T08:34:53.537Z",
-          "expiresAt": "2026-11-24T09:04:53.537Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-learning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "6420a370e",
+            "owner": "learning",
+            "before": 71,
+            "after": 70,
+            "note": "Cross file assignment existence probe head shared by attachment reads; 7 LOCK TABLE statements and native boundaries untouched."
+          },
+          {
+            "command": "vitest learning r8 (32) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "6420a370e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Learn assignments existence probe head is the next candidate; verify byte identity. BEFORE=71.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMlrn3",
+          "at": "2026-11-24T08:37:45.712Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -165678,6 +165693,42 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=522.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.learning.read-tail-r9",
+        "goalId": "G4",
+        "owner": "learning",
+        "title": "learning TS read tail native cutover (round 9)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-learning/src/**",
+          "tests/unit/learning/**",
+          "tests/integration/learning/**"
+        ],
+        "resources": [
+          "owner:learning"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMlrn4",
+          "claimedAt": "2026-11-24T08:37:46.062Z",
+          "heartbeatAt": "2026-11-24T08:37:46.062Z",
+          "expiresAt": "2026-11-24T09:07:46.062Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=70.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -165686,7 +165737,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1441,
+      "totalPackets": 1442,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
@@ -165694,13 +165745,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1072,
+        "blocked": 1073,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:37:28.044Z",
+    "updatedAt": "2026-11-24T08:37:46.066Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
