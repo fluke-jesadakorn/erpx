@@ -1,7 +1,8 @@
 import { inventoryExecutiveOwnerProjections as commerceProjectionSources } from "@erpx/server-commerce/public/inventory-executive-owner-projections";
+import {reservedStockAggSql} from './read-tail-sql';
 import "server-only";
 export const commerceInventoryPageSources={stock:(branchArgs:Array<string|null>)=>({ sql: `SELECT s.*,s.warehouse_id||':'||s.product_id AS id,p.sku||':'||w.name AS page_key,
-      COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r WHERE r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id),0) reserved_milli,
+      ${reservedStockAggSql('r.warehouse_id=s.warehouse_id AND r.product_id=s.product_id')} reserved_milli,
       inventory_quarantined_quantity(s.warehouse_id,s.product_id) quarantined_milli,
       CASE WHEN inventory_quarantined_quantity(s.warehouse_id,s.product_id)>0 THEN 1 ELSE 0 END quality_held,
       COALESCE((SELECT SUM(tl.quantity_milli-tl.received_milli-tl.lost_milli) FROM inventory_transit t JOIN inventory_transit_lines tl ON tl.transit_id=t.id WHERE t.status='in_transit' AND t.target_warehouse_id=s.warehouse_id AND tl.product_id=s.product_id),0) in_transit_milli,

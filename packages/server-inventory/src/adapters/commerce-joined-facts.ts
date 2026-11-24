@@ -2,6 +2,7 @@ import { inventoryExecutiveOwnerProjections as commerceProjectionSources } from 
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import {reservedStockAggSql} from './read-tail-sql';
 import type {Row} from "@erpx/server-commerce/public/commerce-contracts";
 export function commerceInventoryJoinedFacts(db:SqlDatabase){return {
 readCommerceReturnLotAllocations1: (facts: {
@@ -17,5 +18,5 @@ guardRule2: (facts: {
             key: string;
             guardId: string;
             values: (string | number | null)[];
-        }) => assertion(db, facts.key, facts.guardId, `EXISTS(SELECT 1 FROM (${commerceProjectionSources.commerce_order_lines}) l WHERE l.id=? AND l.quantity_milli-l.fulfilled_milli-COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r WHERE r.order_line_id=l.id),0)>=?)`, facts.values)
+        }) => assertion(db, facts.key, facts.guardId, `EXISTS(SELECT 1 FROM (${commerceProjectionSources.commerce_order_lines}) l WHERE l.id=? AND l.quantity_milli-l.fulfilled_milli-${reservedStockAggSql('r.order_line_id=l.id')}>=?)`, facts.values)
 };}

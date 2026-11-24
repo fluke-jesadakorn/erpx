@@ -48,3 +48,14 @@ export const terminalReceiptMatchSql = (rows: string, kind: string, id: string, 
   `EXISTS(SELECT 1 FROM (${rows}) terminal WHERE terminal.kind='${kind}' AND terminal.id=${id} AND terminal.company_id=${company} AND terminal.status=${status} AND terminal.version=${version})`;
 export const transitLossDecisionPendingSql = (alias: string, id: string) =>
   `NOT EXISTS(SELECT 1 FROM inventory_transit_events ${alias} WHERE ${alias}.proposal_id=${id})`;
+/** r17: remaining parameterized aggregate/EXISTS families. The active-reservation
+ * SUM, the quality-hold quality_held guard and the initial-count image probe are
+ * each byte-identical across their consumers; only the scope predicate, the hold
+ * source and the image source vary. Every caller keeps its own binds and its own
+ * independent statement. r11-r16 helpers above are left untouched. */
+export const reservedStockAggSql = (predicate: string) =>
+  `COALESCE((SELECT SUM(r.quantity_milli) FROM inventory_active_reservations r WHERE ${predicate}),0)`;
+export const qualityHeldExistsSql = (holds: string, predicate: string) =>
+  `CASE WHEN EXISTS(SELECT 1 FROM (${holds}) h WHERE ${predicate}) THEN 1 ELSE 0 END quality_held`;
+export const initialPhysicalCountImageSql = (images: string) =>
+  `SELECT image FROM (${images}) source WHERE id=? AND company_id=? AND EXISTS(SELECT 1 FROM inventory_counts c WHERE c.id=source.id AND (?::text IS NULL OR c.branch_id=?))`;
