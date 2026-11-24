@@ -120,7 +120,7 @@ INSERT INTO operational_inventory_consumptions VALUES ('cons-1','company','work-
 /// Retained cross-owner fragments still match their TypeScript authorities.
 #[test]
 fn cross_owner_fragments_match_typescript_authority() {
-    assert!(TS_PROBE.contains("SELECT 1 FROM ${from} WHERE ${where}"));
+    assert!(TS_PROBE.contains("assetProjectionFromSql(\"1\",` ${from}`,` WHERE ${where}`)"));
     assert!(TS_PKG.contains("${assetSourceExistsSql(placements"));
     assert!(TS_PLACEMENTS.contains(placements!()));
     assert!(TS_FINANCIAL.contains(financial!()));

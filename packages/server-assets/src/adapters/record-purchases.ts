@@ -1,4 +1,5 @@
 import "server-only";
+import {assetProjectionFromSql} from "./asset-scope-tuple";
 import {hasModuleAccess} from "@erpx/catalogue/module-access";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -12,10 +13,11 @@ export type AssetSourceKind="asset"|"maintenance_work"|"maintenance_plan";
 const definitions={asset:{table:"operational_assets",module:"assets",capability:"assets.register"},maintenance_work:{table:"maintenance_work_orders",module:"maintenance",capability:"assets.maintenance"},maintenance_plan:{table:"maintenance_preventive_plans",module:"maintenance",capability:"assets.preventive"}} as const;
 /** Canonical owner-local fixed row-existence probe for Assets. Visibility,
  * record-source, clock-purchase and package-settlement EXISTS checks share this
- * one literal so the TS read tail carries no duplicate statement. Callers pass
- * only owner-owned FROM and predicate fragments; no SQL or relation name is
- * accepted from a request. */
-export const assetSourceProbeSql=(from:string,where:string)=>`SELECT 1 FROM ${from} WHERE ${where}`;
+ * one literal so the TS read tail carries no duplicate statement. The head is
+ * the owner-local `assetProjectionFromSql` literal, from which this probe renders
+ * byte-identically. Callers pass only owner-owned FROM and predicate fragments;
+ * no SQL or relation name is accepted from a request. */
+export const assetSourceProbeSql=(from:string,where:string)=>assetProjectionFromSql("1",` ${from}`,` WHERE ${where}`);
 /** Canonical owner-local materialized clock CTE body. The metric and record-source
  * purchase probes share this one literal; callers pass only a fixed CTE alias and
  * compose `WITH <alias> AS MATERIALIZED ${assetClockNowMsSql}`, preserving byte parity. */
