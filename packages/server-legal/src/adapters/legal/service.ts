@@ -8,6 +8,7 @@ import { legalManagerAvailableSql, legalSettingsEnabledSql } from "../legal-read
 import { legalItemSelectSql } from "../legal-read-tail-r16-sources";
 import { legalEventsByItemSql } from "../legal-read-tail-r18-sources";
 import { legalHoldTargetGuardPrefix } from "../legal-read-tail-r24-sources";
+import { legalRecentItemListSql } from "../legal-read-tail-r31-sources";
 import { finalRootOwnerProjectionSources as workflowProjectionSources } from "@erpx/server-workflow/public/final-root-owner-projection-sources";
 import {nativeLegalHoldNotice} from "../native-legal-hold-notice";
 import "server-only";
@@ -94,13 +95,13 @@ links:(id:string)=>{return db
         .all<LegalDetail["links"][number]>();},
 comments:(id:string)=>{return db
         .prepare(
-          "SELECT id,body,visibility,created_by,created_at FROM legal_comments WHERE item_id=? ORDER BY created_at DESC LIMIT 100",
+          legalRecentItemListSql("id,body,visibility,created_by,created_at","legal_comments",100),
         )
         .bind(id)
         .all<LegalDetail["comments"][number]>();},
 envelopes:(id:string)=>{return db
         .prepare(
-          "SELECT id,state,document_id,expires_at,consent FROM legal_envelopes WHERE item_id=? ORDER BY created_at DESC LIMIT 20",
+          legalRecentItemListSql("id,state,document_id,expires_at,consent","legal_envelopes",20),
         )
         .bind(id)
         .all<Omit<LegalDetail["envelopes"][number], "signers">>();},
