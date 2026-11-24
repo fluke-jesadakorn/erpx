@@ -3,6 +3,7 @@ import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
 import { PMS_STRIPE_REFUND_COLUMNS_SQL } from "./pms-read-tail-r22-sql";
 import { PMS_RECORDS_PROJECTION_PREFIX_SQL } from "./pms-read-tail-r24-sql";
 import { PMS_SCOPED_RECORDS_SQL } from "./pms-read-tail-r23-sql";
+import { PMS_GUEST_ACCOUNT_ID_MEMBER_SQL, PMS_GUEST_ACCOUNT_CASHIER_MEMBER_SQL, PMS_RESERVATION_ID_MEMBER_SQL } from "./pms-read-tail-r25-sql";
 import { roomChargeReversalWork } from "@erpx/server-pos/public/room-charge-reversal-queue";
 import { withPmsPurchasedCommand } from "@erpx/server-pms/adapters/purchase-boundary";
 import { readPurchasedAccesses, pmsPackageEnforcementMode, type PurchasedAccess } from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -531,11 +532,11 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
         ), siblings AS MATERIALIZED (
           ${PMS_SCOPED_RECORDS_SQL}
           WHERE r.property_id=q.property_id AND r.kind='stay'
-            AND r.data_json::jsonb->>'reservationId' IN (SELECT id FROM booking_ids)
+            ${PMS_RESERVATION_ID_MEMBER_SQL}
         ), account_candidates AS MATERIALIZED (
           ${PMS_SCOPED_RECORDS_SQL}
           WHERE r.property_id=q.property_id AND r.kind='guest_account'
-            AND r.data_json::jsonb->>'reservationId' IN (SELECT id FROM booking_ids)
+            ${PMS_RESERVATION_ID_MEMBER_SQL}
           UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='guest_account'
               AND r.id IN (SELECT data_json::jsonb->>'guestAccountId' FROM siblings)
@@ -580,7 +581,7 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
           FROM target WHERE kind IN ('guest_account','refund')
         ), accounts AS MATERIALIZED (
           ${PMS_SCOPED_RECORDS_SQL}
-          WHERE r.property_id=q.property_id AND r.kind='guest_account' AND r.id IN (SELECT id FROM account_ids)
+          ${PMS_GUEST_ACCOUNT_CASHIER_MEMBER_SQL}
         ), selected AS (
           SELECT * FROM target
           UNION SELECT * FROM accounts
@@ -588,13 +589,13 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
             WHERE r.property_id=q.property_id AND r.kind IN ('rate','credit','item')
           UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind IN ('entry','refund')
-              AND r.data_json::jsonb->>'guestAccountId' IN (SELECT id FROM account_ids)
+              ${PMS_GUEST_ACCOUNT_ID_MEMBER_SQL}
           UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='guest'
               AND r.id IN (SELECT data_json::jsonb->>'guestId' FROM accounts)
           UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND q.target_kind='account_close' AND r.kind='stay'
-              AND r.data_json::jsonb->>'guestAccountId' IN (SELECT id FROM account_ids)
+              ${PMS_GUEST_ACCOUNT_ID_MEMBER_SQL}
           UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='shift' AND (r.id=q.shift_id OR
               (q.target_kind='new_shift' AND r.data_json::jsonb->>'userId'=q.user_id AND r.data_json::jsonb->>'state'='open'))
@@ -613,12 +614,12 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
           UNION SELECT data_json::jsonb->>'guestAccountId' id FROM stays
         ), accounts AS MATERIALIZED (
           ${PMS_SCOPED_RECORDS_SQL}
-            WHERE r.property_id=q.property_id AND r.kind='guest_account' AND r.id IN (SELECT id FROM account_ids)
+            ${PMS_GUEST_ACCOUNT_CASHIER_MEMBER_SQL}
         ), selected AS (
           SELECT * FROM source UNION SELECT * FROM stays UNION SELECT * FROM accounts
           UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind IN ('entry','refund')
-              AND r.data_json::jsonb->>'guestAccountId' IN (SELECT id FROM account_ids)
+              ${PMS_GUEST_ACCOUNT_ID_MEMBER_SQL}
           UNION ${PMS_SCOPED_RECORDS_SQL}
             WHERE r.property_id=q.property_id AND r.kind='entry'
               AND r.data_json::jsonb->>'originalId' IN (SELECT id FROM source)
