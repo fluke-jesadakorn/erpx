@@ -6,6 +6,8 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { PostgresDatabase } from "@erpx/server-runtime/adapters/runtime/postgres";
 import type { PoolClient } from 'pg';
+const MIGRATION_LOCK_SQL = 'SELECT pg_advisory_lock(714928001)';
+const MIGRATION_UNLOCK_SQL = 'SELECT pg_advisory_unlock(714928001)';
 
 // The receipt insert is owned by the Rust crate (runtime_stmt_22) and mirrored
 // by runtime-migrations-sql.json; the test in native_command_sql.rs keeps the
@@ -66,16 +68,16 @@ export async function refreshMigrationCoverage(db: PostgresDatabase, track: stri
   if (!['control','control-read','holding-write','holding-read'].includes(track)) throw new Error('INVALID_MIGRATION_TRACK');
   const client = await db.pool.connect();
   try {
-    await client.query('SELECT pg_advisory_lock(714928001)');
+    await client.query(MIGRATION_LOCK_SQL);
     await refreshCoverage(client, track);
-  } finally { await client.query('SELECT pg_advisory_unlock(714928001)').catch(() => {}); client.release(); }
+  } finally { await client.query(MIGRATION_UNLOCK_SQL).catch(() => {}); client.release(); }
 }
 
 export async function migrateDatabase(db: PostgresDatabase, track: string, root = runtimeResourcePath('migrations/postgres')) {
   if (!['control','control-read','holding-write','holding-read'].includes(track)) throw new Error('INVALID_MIGRATION_TRACK');
   const client = await db.pool.connect();
   try {
-    await client.query('SELECT pg_advisory_lock(714928001)');
+    await client.query(MIGRATION_LOCK_SQL);
     await client.query('CREATE TABLE IF NOT EXISTS erpx_migrations(name TEXT PRIMARY KEY,checksum TEXT NOT NULL,applied_at TIMESTAMPTZ NOT NULL DEFAULT now())');
     for (const name of (await readdir(join(root, track))).filter(f => f.endsWith('.sql')).sort()) {
       const sql = await readFile(join(root, track, name), 'utf8'), checksum = createHash('sha256').update(sql).digest('hex');
@@ -101,5 +103,5 @@ export async function migrateDatabase(db: PostgresDatabase, track: string, root 
       catch (error) { await client.query('ROLLBACK'); throw error; }
     }
     await refreshCoverage(client, track);
-  } finally { await client.query('SELECT pg_advisory_unlock(714928001)').catch(() => {}); client.release(); }
+  } finally { await client.query(MIGRATION_UNLOCK_SQL).catch(() => {}); client.release(); }
 }
