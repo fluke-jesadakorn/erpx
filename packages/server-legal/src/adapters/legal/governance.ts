@@ -13,6 +13,7 @@ import type {LegalWrite} from "@erpx/server-legal/application/service";
 import {createLegalGovernanceApplication} from "@erpx/server-legal/application/governance";
 import { legalGovernance } from '@erpx/server-collaboration/adapters/native-legal-governance';
 import {nativeLegalAuxiliaryRead} from '../native-legal-auxiliary';
+import {legalMembershipSql} from '../legal-members-read-sources';
 /** Exact projection of the native `governance` auxiliary read; the transport accepts
  * every authoritative field and no SQL text remains in TypeScript. */
 type LegalGovernanceRead={forms:Record<string,unknown>[];authorities:Record<string,unknown>[];settings:(Record<string,unknown>&{enabled:boolean;ai_enabled:boolean;reminder_days:number})|null;};
@@ -25,7 +26,7 @@ async createForm(facts){return stage(await nativeGov.createForm(facts));},
 form:(facts:{formId:string;companyId:string;})=>db.prepare("SELECT * FROM legal_intake_forms WHERE id=? AND company_id=?").bind(facts.formId,facts.companyId).first<{ created_by: string; state: string; version: number }>(),
 async approveForm(facts){return stage(await nativeGov.approveForm(facts));},
 approvedForm:(facts:{formId:string;companyId:string;})=>db.prepare("SELECT fields,sla_days FROM legal_intake_forms WHERE id=? AND company_id=? AND state='approved'").bind(facts.formId,facts.companyId).first<{ fields: string; sla_days: number }>(),
-escalationMember:(facts:{itemId:string;escalationOwner:string;})=>db.prepare("SELECT 1 FROM legal_members WHERE item_id=? AND user_id=?").bind(facts.itemId,facts.escalationOwner).first(),
+escalationMember:(facts:{itemId:string;escalationOwner:string;})=>db.prepare(legalMembershipSql).bind(facts.itemId,facts.escalationOwner).first(),
 async applyIntake(facts){return stage(await nativeGov.applyIntake(facts));},
 authorityDocument:(facts:{documentId:string;itemId:string;})=>db.prepare("SELECT 1 FROM legal_documents WHERE id=? AND item_id=?").bind(facts.documentId,facts.itemId).first(),
 signerAccess:(facts:{itemId:string;userId:string;itemId2:string;userId2:string;now:number;})=>db.prepare("SELECT 1 FROM legal_members WHERE item_id=? AND user_id=? UNION ALL SELECT 1 FROM legal_shares WHERE item_id=? AND user_id=? AND revoked_at IS NULL AND expires_at>?").bind(facts.itemId,facts.userId,facts.itemId2,facts.userId2,facts.now).first(),
