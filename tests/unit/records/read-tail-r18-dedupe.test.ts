@@ -57,7 +57,7 @@ describe('Records read-tail r18 requestAiUsageCountSql family', () => {
     expect(ai).toContain('export const requestAiUsageProjection ='); // r16
     const r17 = readFileSync(resolve(srcRoot, 'adapters/read-tail-sql.ts'), 'utf8');
     expect(r17).toContain('export const ownerVersionExistsSql ='); // r17
-    expect((r17.match(/SELECT /g) ?? []).length).toBe(1); // r17 oracle untouched
+    expect((r17.match(/SELECT /g) ?? []).length).toBe(0); // r17 delegates to existsGuardSql (r30)
     const locks = readFileSync(resolve(srcRoot, 'adapters/legal-attachment-read-sources.ts'), 'utf8');
     expect(locks).toContain('LOCK TABLE employee_requests,employee_request_events IN SHARE ROW EXCLUSIVE MODE');
     expect(locks).toContain('LOCK TABLE approval_instances,approval_steps,approval_decisions IN SHARE ROW EXCLUSIVE MODE');

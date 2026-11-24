@@ -1,7 +1,10 @@
-/** Canonical owner-local generator for the Records request-AI usage projection
- * family (full, monthly and beta usage rows). Admitted once; each member renders
- * byte-identical prior SQL and the native owner states the same fixed selection. */
-export const requestAiUsageProjection = (columns: string) => `SELECT ${columns} FROM request_ai_usage`;
+/** Canonical owner-local generator for the Records request-AI table column
+ * projections. r30 admits the table-and-tail column head once; each member passes
+ * its table and optional tail and renders byte-identical prior SQL, and the
+ * native owner states the same fixed selection. */
+export const requestAiProjectionHead = (table: string, columns: string, tail = '') =>
+  `SELECT ${columns} FROM ${table}${tail}`;
+export const requestAiUsageProjection = (columns: string) => requestAiProjectionHead('request_ai_usage', columns);
 export const requestAiUsageProjectionSql = requestAiUsageProjection('"id","company_id","actor_id","month","state","lease_until","input_tokens","output_tokens","created_at"');
 export const recordsRequestUsageSql = requestAiUsageProjection('company_id,month');
 /** Canonical owner-local fixed read for the company+month request-AI usage
@@ -12,7 +15,7 @@ export const requestAiUsageMonthlyCountSql = 'SELECT count(*)::int count FROM re
  * projections. The full read and the bounded drain claim render their exact
  * prior SQL byte-for-byte; only the selected columns and optional tail differ. */
 export const requestAiProposalProjection = (columns: string, tail = '') =>
-  `SELECT ${columns} FROM request_ai_proposals${tail}`;
+  requestAiProjectionHead('request_ai_proposals', columns, tail);
 /** Canonical owner-local fixed projection for the Records request-AI proposal
  * read. Admitted once and shared by every Records proposal consumer; the native
  * owner states the same fixed selection. No duplicate TS literal remains. */

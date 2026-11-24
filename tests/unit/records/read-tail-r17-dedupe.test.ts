@@ -40,9 +40,10 @@ describe('Records read-tail r17 ownerVersionExistsSql family', () => {
     readOnly(at);
   });
 
-  test('the family is one generator literal with two callers and no inlined guard', () => {
+  test('the family is one named delegating generator with two callers and no inlined guard', () => {
     expect(shared.match(/export const ownerVersionExistsSql\s*=/g) ?? []).toHaveLength(1);
-    expect((shared.match(/SELECT /g) ?? []).length).toBe(1);
+    expect(shared).toContain("existsGuardSql(table, `id=? AND company_id=? AND version=?${tail}`)");
+    expect((shared.match(/SELECT /g) ?? []).length).toBe(0); // r30 delegates to existsGuardSql
     expect(employee.match(/ownerVersionExistsSql\(/g) ?? []).toHaveLength(1);
     expect(attachments.match(/ownerVersionExistsSql\(/g) ?? []).toHaveLength(1);
     expect(employee).not.toContain('EXISTS(SELECT 1 FROM employee_requests WHERE id=?');

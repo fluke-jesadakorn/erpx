@@ -66,7 +66,7 @@ describe('Records read-tail r21 employeeRequestColumnsSql family', () => {
     expect(ai).toContain('export const requestAiUsageProjection ='); // r16
     const r17 = readFileSync(resolve(srcRoot, 'adapters/read-tail-sql.ts'), 'utf8');
     expect(r17).toContain('export const ownerVersionExistsSql =');
-    expect((r17.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((r17.match(/SELECT /g) ?? []).length).toBe(0); // r30 delegates to existsGuardSql
     const r18 = readFileSync(resolve(srcRoot, 'adapters/read-tail-count-sql.ts'), 'utf8');
     expect(r18).toContain('export const requestAiUsageCountSql =');
     expect((r18.match(/SELECT /g) ?? []).length).toBe(1);
@@ -103,9 +103,10 @@ describe('Records read-tail r21 retirement check', () => {
     // folds the search references SELECT into the record context detail
     // generator (25 -> 24); r28 folds the reference-edge family into that same
     // generator (24 -> 23); r29 folds the request-events aggregate into that
-    // child-row generator with an order frame (23 -> 22). No other family,
-    // lock or native seam changed.
-    expect(total).toBe(22);
+    // child-row generator with an order frame (23 -> 22); r30 folds the version
+    // fence, employee_requests head and request_ai head (22 -> 19). No other
+    // family, lock or native seam changed.
+    expect(total).toBe(19);
     expect(total).toBeLessThan(30);
   });
 });

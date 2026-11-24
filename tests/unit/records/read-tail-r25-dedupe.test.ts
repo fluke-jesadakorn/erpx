@@ -94,9 +94,9 @@ describe('Records read-tail r25 retirement check', () => {
     // family (26 -> 25); r27 folds the search references SELECT into the
     // record context detail generator (25 -> 24); r28 folds the reference-edge
     // family into that generator (24 -> 23); r29 folds the request-events
-    // aggregate into childRowAgg (23 -> 22). No other family, lock or native
-    // seam changed.
-    expect(total).toBe(22);
+    // aggregate into childRowAgg (23 -> 22); r30 folds three shared heads
+    // (22 -> 19). No other family, lock or native seam changed.
+    expect(total).toBe(19);
     expect(total).toBeLessThan(27);
   });
 });

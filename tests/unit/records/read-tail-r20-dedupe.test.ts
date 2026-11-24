@@ -76,7 +76,7 @@ describe('Records read-tail r20 selectAllWhereSql family', () => {
     expect(ai).toContain('export const requestAiUsageProjection ='); // r16
     const r17 = readFileSync(resolve(srcRoot, 'adapters/read-tail-sql.ts'), 'utf8');
     expect(r17).toContain('export const ownerVersionExistsSql =');
-    expect((r17.match(/SELECT /g) ?? []).length).toBe(1);
+    expect((r17.match(/SELECT /g) ?? []).length).toBe(0); // r30 delegates to existsGuardSql
     const r18 = readFileSync(resolve(srcRoot, 'adapters/read-tail-count-sql.ts'), 'utf8');
     expect(r18).toContain('export const requestAiUsageCountSql =');
     expect((r18.match(/SELECT /g) ?? []).length).toBe(1);

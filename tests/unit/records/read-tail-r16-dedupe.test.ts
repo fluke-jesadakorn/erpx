@@ -51,14 +51,15 @@ describe('Records read-tail r16 request_ai_usage projection family', () => {
   });
 
   test('the request-AI families are single generator literals with no inlined projection', () => {
-    expect(shared.split('`SELECT ${columns} FROM request_ai_usage`')).toHaveLength(2);
+    expect(shared.split('`SELECT ${columns} FROM ${table}${tail}`')).toHaveLength(2);
     expect(shared.match(/requestAiUsageProjection\(/g) ?? []).toHaveLength(2);
     expect(beta.match(/requestAiUsageProjection\(/g) ?? []).toHaveLength(1);
-    expect(shared.split('`SELECT ${columns} FROM request_ai_proposals${tail}`')).toHaveLength(2);
+    expect(shared).toContain("requestAiProjectionHead('request_ai_usage', columns)");
+    expect(shared).toContain("requestAiProjectionHead('request_ai_proposals', columns, tail)");
     expect(shared.match(/requestAiProposalProjection\(/g) ?? []).toHaveLength(1);
     expect(requestAi.match(/requestAiProposalProjection\(/g) ?? []).toHaveLength(1);
     expect(requestAi).not.toContain('SELECT id FROM request_ai_proposals WHERE');
-    expect(selectCount(shared)).toBe(3); // usage generator + monthly count + proposal generator
+    expect(selectCount(shared)).toBe(2); // shared head + monthly count
     expect(selectCount(requestAi)).toBe(0);
     expect(selectCount(beta)).toBe(0);
   });

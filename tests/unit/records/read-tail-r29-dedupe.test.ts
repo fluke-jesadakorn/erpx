@@ -94,7 +94,7 @@ describe('Records read-tail r29 request-events aggregate fold', () => {
 });
 
 describe('Records read-tail r29 retirement check', () => {
-  test('retirement:ts-statements folds the events aggregate (23 -> 22)', () => {
+  test('retirement:ts-statements folds the events aggregate (23 -> 22) and r30 heads (22 -> 19)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -105,9 +105,11 @@ describe('Records read-tail r29 retirement check', () => {
     };
     walk(srcRoot);
     // r28 left the request-events aggregate inline (24 -> 23). r29 admits it
-    // to the childRowAgg family through an optional order frame, so one source
-    // literal is removed with no rendered SQL, bind, lock or native seam change.
-    expect(total).toBe(22);
+    // to the childRowAgg family through an optional order frame (23 -> 22). r30
+    // folds the version fence, employee_requests head and request_ai head into
+    // shared generators (22 -> 19). No rendered SQL, bind, lock or native seam
+    // changes.
+    expect(total).toBe(19);
     expect(total).toBeLessThan(23);
   });
 });
