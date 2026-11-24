@@ -9,6 +9,9 @@ import type {AiGatewayFacts,AiPolicyFacts} from '@erpx/server-agent/domain/gatew
 import {NativeQuotaError,nativeFinishQuota,nativeReserveQuota} from './native-quota-command';
 export type {AiGatewayPolicyView} from '@erpx/server-agent/domain/gateway';
 export type AiGatewayScope=AiGatewayFacts&{db:SqlDatabase};
+/** Byte-identical Agent gateway monthly-request count projection shared by monthly_requests and pending_platform_cost_requests.
+ * Each call site keeps its own binds; the native quota owner remains the authority. */
+const aiGatewayRequestCountSql = '(SELECT count(*)::bigint FROM ai_gateway_requests r';
 
 /**
  * Retained reservation/finish fence for the live `ai-transport` consumer.
@@ -21,11 +24,11 @@ export type AiGatewayScope=AiGatewayFacts&{db:SqlDatabase};
 function repository(db:SqlDatabase):AiGatewayRepository{
   const bootstrap=aiGatewayBootstrapSources(db),company=aiGatewayCompanySources(db);
   const policyQuery=async(start:number,end:number)=>db.prepare(`SELECT p.platform_enabled,p.monthly_request_limit::bigint monthly_request_limit,p.monthly_spend_cap_satang,p.reservation_satang,p.updated_by,p.updated_at,
-    (SELECT count(*)::bigint FROM ai_gateway_requests r WHERE r.created_at>=? AND r.created_at<?) monthly_requests,
+    ${aiGatewayRequestCountSql} WHERE r.created_at>=? AND r.created_at<?) monthly_requests,
     (SELECT coalesce(sum(coalesce(e.thb_satang,r.reservation_satang)),0)::bigint FROM ai_gateway_requests r
       LEFT JOIN ai_provider_cost_evidence e ON e.request_id=r.id
       WHERE r.funding_source='erpx' AND r.created_at>=? AND r.created_at<?) monthly_reserved_or_verified_satang,
-    (SELECT count(*)::bigint FROM ai_gateway_requests r LEFT JOIN ai_provider_cost_evidence e ON e.request_id=r.id
+    ${aiGatewayRequestCountSql} LEFT JOIN ai_provider_cost_evidence e ON e.request_id=r.id
       WHERE r.funding_source='erpx' AND r.status='succeeded' AND e.reconciled_at IS NULL
         AND r.created_at>=? AND r.created_at<?) pending_platform_cost_requests
     FROM ai_gateway_policies p WHERE p.singleton=1`)

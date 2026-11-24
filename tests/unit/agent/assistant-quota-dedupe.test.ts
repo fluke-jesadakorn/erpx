@@ -121,4 +121,69 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
     expect(assistant).toContain(') calls WHERE company_id=? AND created_at>=?');
   });
+
+  /** Verbatim pre-dedupe gateway monthly-request count projection. */
+  const gatewayRequestCount = '(SELECT count(*)::bigint FROM ai_gateway_requests r';
+
+  it('r12: authors the byte-identical gateway monthly-request count once', async () => {
+    const gw = await src('adapters/ai-gateway.ts');
+    expect(gw).toContain(`const aiGatewayRequestCountSql = '${gatewayRequestCount}';`);
+    expect(gw.match(/SELECT count\(\*\)::bigint FROM ai_gateway_requests r/g)).toHaveLength(1);
+    expect(gw.match(/\$\{aiGatewayRequestCountSql\}/g)).toHaveLength(2);
+  });
+
+  it('r12: both gateway consumers render the exact pre-dedupe text with unchanged binds', async () => {
+    const gw = await src('adapters/ai-gateway.ts');
+    const def = gw.match(/const aiGatewayRequestCountSql = '([^']*)';/)?.[1];
+    expect(def).toBe(gatewayRequestCount);
+    const rendered = (body: string) => body.replace(/\$\{aiGatewayRequestCountSql\}/g, def!);
+    const lines = gw.split('\n').map((line) => line.trim());
+    expect(rendered(lines.find((line) => line.endsWith('monthly_requests,'))!)).toBe(
+      `${gatewayRequestCount} WHERE r.created_at>=? AND r.created_at<?) monthly_requests,`,
+    );
+    expect(rendered(lines.find((line) => line.includes('${aiGatewayRequestCountSql} LEFT JOIN'))!)).toBe(
+      `${gatewayRequestCount} LEFT JOIN ai_provider_cost_evidence e ON e.request_id=r.id`,
+    );
+    expect(gw).toContain('.bind(start,end,start,end,start,end)');
+  });
+
+  /** Verbatim pre-dedupe connection projection (connection ↔ aiProviderOverview). */
+  const runtimeConnectionSelect = 'SELECT * FROM ai_connections WHERE';
+
+  it('r12: authors the byte-identical connection projection once', async () => {
+    const rt = await src('adapters/ai-runtime.ts');
+    expect(rt).toContain(`const aiConnectionSelectSql = '${runtimeConnectionSelect}';`);
+    expect(rt.match(/SELECT \* FROM ai_connections WHERE/g)).toHaveLength(1);
+    expect(rt.match(/\$\{aiConnectionSelectSql\}/g)).toHaveLength(2);
+  });
+
+  it('r12: both connection consumers render the exact pre-dedupe text with unchanged binds', async () => {
+    const rt = await src('adapters/ai-runtime.ts');
+    const def = rt.match(/const aiConnectionSelectSql = '([^']*)';/)?.[1];
+    expect(def).toBe(runtimeConnectionSelect);
+    const templates = [...rt.matchAll(/`([\s\S]*?)`/g)]
+      .map((m) => m[1])
+      .filter((t) => t.includes('${aiConnectionSelectSql}'));
+    expect(templates).toHaveLength(2);
+    expect(templates.map((t) => t.replace('${aiConnectionSelectSql}', def!))).toEqual([
+      'SELECT * FROM ai_connections WHERE id=? AND company_id=? AND deleted_at IS NULL',
+      'SELECT * FROM ai_connections WHERE company_id=? AND deleted_at IS NULL ORDER BY created_at,id',
+    ]);
+    expect(rt).toContain('.bind(id, companyId)');
+    expect(rt).toContain('.bind(actor.companyId)');
+  });
+
+  it('r12: the r7-r11 constants, translation guard and source locks stay untouched', async () => {
+    const gov = await src('adapters/agent-governance.ts');
+    const helper = await src('adapters/assistant-quota-sql.ts');
+    const assistant = await src('adapters/workspace-assistant.ts');
+    const locks = await src('adapters/social-ai-source-locks.ts');
+    expect(gov).toContain(`const agentPoolMemberAccessSql = '${poolMemberAccess}';`);
+    expect(gov).toContain(`const privateSessionSelectSql = '${privateSessionSelect}';`);
+    expect(helper).toContain(quotaExpression);
+    expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
+    expect(assistant).toContain(') calls WHERE company_id=? AND created_at>=?');
+    expect(locks.match(/SELECT/g)).toHaveLength(4);
+    expect(locks).toContain("'settings',(SELECT to_jsonb(s) FROM ai_company_settings s WHERE s.company_id=?)");
+  });
 });

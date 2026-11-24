@@ -28,6 +28,9 @@ import type {
 import type { AiEndpoint as CoreEndpoint } from '@erpx/server-agent/domain/transport';
 
 const roles = ['holding_owner', 'it_admin'];
+/** Byte-identical Agent connection projection shared by connection() and aiProviderOverview().
+ * Each call site keeps its own WHERE predicate and binds; the native provider owner remains the authority. */
+const aiConnectionSelectSql = 'SELECT * FROM ai_connections WHERE';
 
 async function exposed<T>(action: () => Promise<T>): Promise<T> {
   try {
@@ -62,7 +65,7 @@ async function requireAiAdmin(db: SqlDatabase, actor: StaffActor) {
 async function connection(db: SqlDatabase, companyId: string, id: string) {
   const row = await db
     .prepare(
-      'SELECT * FROM ai_connections WHERE id=? AND company_id=? AND deleted_at IS NULL',
+      `${aiConnectionSelectSql} id=? AND company_id=? AND deleted_at IS NULL`,
     )
     .bind(id, companyId)
     .first<Connection>();
@@ -114,7 +117,7 @@ export async function aiProviderOverview(
     const rows = (
       await db
         .prepare(
-          'SELECT * FROM ai_connections WHERE company_id=? AND deleted_at IS NULL ORDER BY created_at,id',
+          `${aiConnectionSelectSql} company_id=? AND deleted_at IS NULL ORDER BY created_at,id`,
         )
         .bind(actor.companyId)
         .all<Connection>()
