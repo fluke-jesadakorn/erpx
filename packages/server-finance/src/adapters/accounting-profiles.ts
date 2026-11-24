@@ -1,5 +1,6 @@
 import { financeAccountingProfiles } from '@erpx/server-collaboration/adapters/native-finance-accounting-profiles';
 import { withFinancePurchasedRead, withFinanceConfigurationCommand } from "@erpx/server-finance/adapters/purchase-boundary";
+import { ACTIVE_CHART_BASE_CURRENCY_SQL } from "./chart-base-currency-dedupe-sql";
 import { financeOwnerDecisionEffects } from "@erpx/server-workflow/public/finance-owner-decision-effects";
 import { createAccountingProfiles } from '@erpx/server-finance/application/accounting-profiles';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
@@ -27,7 +28,7 @@ function profileService(provided?: SqlDatabase) {
     return createAccountingProfiles({ error: (...args) => new ApiError(...args), authorize: requirePermission, ready: async (actor) => { await db(actor); }, now: Date.now, replay: async <Result>(actor:WorkContext,key:string,operation:string,id:string,input:unknown) => replayCommand<Result>(await db(actor), actor, key, operation, id, input), profiles: async (facts) => { const { actor } = facts; const write = await db(actor); return (await write.prepare("SELECT p.*,c.name chart_name,c.base_currency FROM finance_accounting_profiles p JOIN finance_charts c ON c.id=p.statutory_chart_id WHERE p.company_id=? ORDER BY p.created_at DESC,p.id").bind(actor.companyId).all<AccountingProfile>()).results; }, activeChart: async (facts) => {
             const { input, actor } = facts;
             const write = await db(actor);
-            return write.prepare("SELECT base_currency FROM finance_charts WHERE id=? AND company_id=? AND status='active'").bind(input.statutoryChartId, actor.companyId).first<{
+            return write.prepare(ACTIVE_CHART_BASE_CURRENCY_SQL).bind(input.statutoryChartId, actor.companyId).first<{
                 base_currency: string;
             }>();
         }, approvedExists: async (facts) => { const { actor } = facts; const write = await db(actor); return !!await write.prepare("SELECT 1 FROM finance_accounting_profiles WHERE company_id=? AND status='approved'").bind(actor.companyId).first(); }, commitPrepareProfile: async (facts) => {

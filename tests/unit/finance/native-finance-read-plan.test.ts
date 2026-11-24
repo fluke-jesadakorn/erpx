@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
+import { readFile } from 'node:fs/promises';
 vi.mock('server-only', () => ({}));
+import { ACTIVE_CHART_BASE_CURRENCY_SQL } from '../../../packages/server-finance/src/adapters/chart-base-currency-dedupe-sql';
 import {
   nativeFinanceReadAll,
   nativeFinanceReadFirst,
@@ -126,5 +128,45 @@ describe('native Finance caller-unit read plan', () => {
     })));
     await expect(nativeFinanceReadFirst(FINANCE_RD_ASSET_POLICY_ROW, ['company', 'p'], db as never))
       .rejects.toMatchObject({ code: 'FINANCE_NATIVE_READ_UNAVAILABLE' });
+  });
+});
+
+const CHART_SQL = "SELECT base_currency FROM finance_charts WHERE id=? AND company_id=? AND status='active'";
+const CHART_CALL_SITES = [
+  'packages/server-finance/src/adapters/finance-planning.ts',
+  'packages/server-finance/src/adapters/accounting-profiles.ts',
+  'packages/server-finance/src/adapters/payroll-recovery-chart.ts',
+  'packages/server-finance/src/adapters/manufacturing-accounting-sources.ts',
+  'packages/server-finance/src/adapters/refunds.ts',
+];
+
+describe('finance active-chart base_currency read dedupe', () => {
+  it('keeps one byte-identical literal and adopts no share-lock variant', async () => {
+    expect(ACTIVE_CHART_BASE_CURRENCY_SQL).toBe(CHART_SQL);
+    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/chart-base-currency-dedupe-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split(CHART_SQL).length - 1).toBe(1);
+    expect(shared).not.toContain('FOR SHARE');
+    for (const rel of CHART_CALL_SITES) {
+      const text = await readFile(new URL(`../../../${rel}`, import.meta.url), 'utf8');
+      expect(text.split(CHART_SQL).length - 1).toBe(0);
+      expect(text).toContain('ACTIVE_CHART_BASE_CURRENCY_SQL');
+      expect(text).not.toContain('FOR SHARE');
+    }
+  });
+
+  it('drives the leaf reader through the shared SQL with unchanged binds', async () => {
+    const prepares: string[] = [];
+    const binds: unknown[][] = [];
+    const db = {
+      prepare(sql: string) {
+        prepares.push(sql);
+        return { bind(...values: unknown[]) { binds.push(values); return { first: async () => ({ base_currency: 'THB' }) }; } };
+      },
+    };
+    const { payrollRecoveryChart } = await import('../../../packages/server-finance/src/adapters/payroll-recovery-chart');
+    await expect(payrollRecoveryChart(db as never).readRecognizePayrollRecoveryChart('ch-1', 'co-1'))
+      .resolves.toEqual({ base_currency: 'THB' });
+    expect(prepares).toEqual([CHART_SQL]);
+    expect(binds).toEqual([['ch-1', 'co-1']]);
   });
 });

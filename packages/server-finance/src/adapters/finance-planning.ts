@@ -1,4 +1,5 @@
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
+import { ACTIVE_CHART_BASE_CURRENCY_SQL } from "./chart-base-currency-dedupe-sql";
 import {financeCommandReceipts} from "@erpx/server-workflow/public/finance-command-receipts";
 import { fiscalCloseSourceSql } from "@erpx/server-finance/public/finance-fiscal-close-source";
 import { financeTransaction } from "@erpx/server-finance/public/finance-transactions";
@@ -22,7 +23,7 @@ import { financePlanning } from '@erpx/server-collaboration/adapters/native-fina
 export {budgetEditionSchema,forecastEditionSchema,financialReportSchema} from '@erpx/server-finance/domain/planning';
 function nativePlanningRepository(db:SqlDatabase):PlanningRepository{const write=db;return {moneyScale:(companyId,currency)=>requireFinanceMoneyScale(db,companyId,currency),tool:companyId=>requireFinanceTool(db,companyId,'planning'),replay:<T>(actor:WorkContext,key:string,op:string,id:string,input:unknown)=>replayCommand<T>(db,actor,key,op,id,input),book:async(actor,chart)=>db
     .prepare(
-      "SELECT base_currency FROM finance_charts WHERE id=? AND company_id=? AND status='active'",
+      ACTIVE_CHART_BASE_CURRENCY_SQL,
     )
     .bind(chart, actor.companyId)
     .first<{base_currency:string}>(),
