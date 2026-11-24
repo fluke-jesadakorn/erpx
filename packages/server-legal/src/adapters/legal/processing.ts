@@ -10,9 +10,10 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import {executeCommand} from "@erpx/server-workflow/public/commands";
 import {createLegalProcessingApplication,type LegalProcessingKind,type LegalProcessingStatus} from "@erpx/server-legal/application/processing";
 import { legalTrustProcessing } from '@erpx/server-collaboration/adapters/native-legal-trust-processing';
+import { legalRateCountPrefix } from '../legal-read-tail-r19-sources';
 function application(db:SqlDatabase,a:WorkContext){return createLegalProcessingApplication({actor:()=>a,access:(actor,id)=>access(db,actor,id),documents:{access:(actor,id)=>documentAccess(db,actor,id)},clock:{now:()=>Date.now()},error:(status,code,message)=>new ApiError(status,code,message),repository:{
  queue:(d,item,kind,key,rateSince,created)=>withLegalPurchasedCommand(db,a,{key,id:item.id,operation:`legal.processing.${kind}`,purpose:"new-work",permission:"legal.read",additional:["legal.documents"]},async owner=>executeCommand(owner,a,key,`legal.processing.${kind}`,{documentId:d.id,kind},item.id,item.version,{id:item.id,jobId:key,state:"queued"},[
- ...guards(owner,a,item.id,item.version,key),assertion(owner,key,"processing-rate","(SELECT count(*) FROM legal_processing_jobs WHERE company_id=? AND created_at>?)<20",[a.companyId,rateSince]),
+ ...guards(owner,a,item.id,item.version,key),assertion(owner,key,"processing-rate",`${legalRateCountPrefix}processing_jobs WHERE company_id=? AND created_at>?)<20`,[a.companyId,rateSince]),
  await legalTrustProcessing(owner,a.companyId,a.userId).job({ key, itemId: item.id, documentId: d.id, checksum: d.checksum, kind, actorJson: JSON.stringify(a), created })])),
  status:id=>db.prepare("SELECT id,item_id,document_id,state,result_json,error,attempts FROM legal_processing_jobs WHERE id=? AND company_id=?").bind(id,a.companyId).first<LegalProcessingStatus>(),
  }});}

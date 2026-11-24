@@ -21,6 +21,7 @@ import type {LegalWrite} from "@erpx/server-legal/application/service";
 import {legalWave3Statement} from "../native-legal-wave3";
 import {nativeLegalAuxiliaryRead} from "../native-legal-auxiliary";
 import {legalSettingsEnabledSql} from "../legal-read-tail-r9-sources";
+import {legalRateCountPrefix} from "../legal-read-tail-r19-sources";
 export {legalReminders} from "@erpx/server-legal/adapters/legal/reminders";
 /** Byte-identical AI-enabled guard; both generation checks prepare and run it. */
 const aiEnabledSql = `${legalSettingsEnabledSql} AND ai_enabled`;
@@ -45,7 +46,7 @@ assignmentAfterGeneration:facts=>authority.assignmentAfterGeneration(facts),
 enabledAfterGeneration:(facts:{companyId:string;})=>db.prepare(aiEnabledSql).bind(facts.companyId).first(),
 complete:async (facts:{fact0:"proposed" | "conflicted";fact1:string;id:string;})=>withLegalQueuedCompletion(db,"legal_ai_proposals",facts.id,async owner=>{await (await legalWave3Statement(owner,{kind:'system'},'legal_ai_complete',[facts.fact0,facts.fact1,facts.id],`legal-ai-complete:${facts.id}`,Date.now())).run();}),
 failed:async (facts:{fact0:string;id:string;})=>{await (await legalWave3Statement(db,{kind:'system'},'legal_ai_fail',[facts.fact0,facts.id],`legal-ai-fail:${facts.id}`,Date.now())).run();},
-requireAiLimit:(key,values)=>stage(assertion(db,key,"legal-ai-limit","(SELECT count(*) FROM legal_ai_proposals p JOIN legal_items i ON i.id=p.item_id WHERE i.company_id=? AND p.created_at>?)<10",values)),
+requireAiLimit:(key,values)=>stage(assertion(db,key,"legal-ai-limit",`${legalRateCountPrefix}ai_proposals p JOIN legal_items i ON i.id=p.item_id WHERE i.company_id=? AND p.created_at>?)<10`,values)),
 guardChanges:(id,version,key)=>guards(db,actor(),id,version,key).map(stage),commit:(key,operation,input,id,version,result,writes)=>executeCommand(db,actor(),key,operation,input,id,version,result,writes.map(write=>{const statement=nativeWrites.get(write);if(!statement)throw new Error("LEGAL_AI_REPOSITORY_MISMATCH");return statement;})),
 }});}
 export function queueLegalAi(db:SqlDatabase,a:WorkContext,raw:unknown,key:string){const input=(raw&&typeof raw==="object"?raw:{}) as Record<string,unknown>;return withLegalPurchasedCommand(db,a,{key,id:typeof input.id==="string"?input.id:undefined,operation:"legal.ai.queue",purpose:"new-work",permission:"legal.ai",additional:["legal.documents"]},tx=>application(tx,a).queueLegalAi(raw,key));}
