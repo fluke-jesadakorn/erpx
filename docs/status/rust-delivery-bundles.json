@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10628,
+    "revision": 10632,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -164290,7 +164290,7 @@
         "owner": "customer_authority",
         "title": "customer authority TS read tail native cutover (round 31)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -164302,22 +164302,37 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMca8",
-          "claimedAt": "2026-11-24T08:16:03.337Z",
-          "heartbeatAt": "2026-11-24T08:16:03.337Z",
-          "expiresAt": "2026-11-24T08:46:03.337Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-customer_authority/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d27cf1a2e",
+            "owner": "customer_authority",
+            "before": 53,
+            "after": 52,
+            "note": "Acknowledgement and closure identity clauses share supportConclusionIdentity; locks, native kinds and r21-r30 untouched."
+          },
+          {
+            "command": "vitest customer_authority r31 (4) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "d27cf1a2e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=53.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMca8",
+          "at": "2026-11-24T08:26:50.918Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -164847,6 +164862,42 @@
         "nextAction": "The id,title options prefix at collaboration-home-sources.ts:37 and :75 can share one constant. BEFORE=126.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.customer_authority.read-tail-r32",
+        "goalId": "G4",
+        "owner": "customer_authority",
+        "title": "customer authority TS read tail native cutover (round 32)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-customer_authority/src/**",
+          "tests/unit/customer_authority/**",
+          "tests/integration/customer_authority/**"
+        ],
+        "resources": [
+          "owner:customer_authority"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMca9",
+          "claimedAt": "2026-11-24T08:26:51.427Z",
+          "heartbeatAt": "2026-11-24T08:26:51.427Z",
+          "expiresAt": "2026-11-24T08:56:51.427Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=52.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -164855,7 +164906,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1425,
+      "totalPackets": 1426,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
@@ -164863,13 +164914,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1055,
+        "blocked": 1056,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:26:32.983Z",
+    "updatedAt": "2026-11-24T08:26:51.432Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
