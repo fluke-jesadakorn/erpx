@@ -234,6 +234,143 @@ const READ_SUPPLIER_BATCH_BANK: NativeReadStatement = NativeReadStatement {
     scope: "holding",
 };
 
+/// Native successor of the retired `finance-tax-register` approved-profile
+/// point read. The caller binds `[companyId, chartId, date]` on its open unit.
+pub const RD_TAX_PROFILE: &str = "finance_rd_tax_profile";
+const SQL_RD_TAX_PROFILE: &str = "SELECT * FROM finance_accounting_profiles WHERE company_id=? AND statutory_chart_id=? AND status='approved' AND effective_date<=?";
+const READ_TAX_PROFILE: NativeReadStatement = NativeReadStatement {
+    kind: RD_TAX_PROFILE,
+    sql: SQL_RD_TAX_PROFILE,
+    bind_count: 3,
+    scope: "holding",
+};
+
+/// Native successor of the retired `finance-tax-register` PP30 package point
+/// read. The caller binds `[id, companyId]` on its open unit.
+pub const RD_TAX_PACKAGE: &str = "finance_rd_tax_package";
+const SQL_RD_TAX_PACKAGE: &str = "SELECT * FROM finance_statutory_packages WHERE id=? AND company_id=? AND form_code='PP30' AND filing_month IS NOT NULL";
+const READ_TAX_PACKAGE: NativeReadStatement = NativeReadStatement {
+    kind: RD_TAX_PACKAGE,
+    sql: SQL_RD_TAX_PACKAGE,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the retired `finance-tax-register` VAT-correction point
+/// read. The caller binds `[id, companyId]` on its open unit.
+pub const RD_TAX_CORRECTION: &str = "finance_rd_tax_correction";
+const SQL_RD_TAX_CORRECTION: &str =
+    "SELECT * FROM finance_vat_corrections WHERE id=? AND company_id=?";
+const READ_TAX_CORRECTION: NativeReadStatement = NativeReadStatement {
+    kind: RD_TAX_CORRECTION,
+    sql: SQL_RD_TAX_CORRECTION,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the retired `finance-tax-register` tax-entry point read.
+/// The caller binds `[id, companyId]` on its open unit.
+pub const RD_TAX_ENTRY: &str = "finance_rd_tax_entry";
+const SQL_RD_TAX_ENTRY: &str = "SELECT * FROM finance_tax_entries WHERE id=? AND company_id=?";
+const READ_TAX_ENTRY: NativeReadStatement = NativeReadStatement {
+    kind: RD_TAX_ENTRY,
+    sql: SQL_RD_TAX_ENTRY,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the retired `finance-tax-register` approved previous
+/// entry point read. The caller binds `[id, companyId]` on its open unit.
+pub const RD_TAX_PREVIOUS_ENTRY: &str = "finance_rd_tax_previous_entry";
+const SQL_RD_TAX_PREVIOUS_ENTRY: &str =
+    "SELECT * FROM finance_current_tax_entries WHERE id=? AND company_id=? AND status='approved'";
+const READ_TAX_PREVIOUS_ENTRY: NativeReadStatement = NativeReadStatement {
+    kind: RD_TAX_PREVIOUS_ENTRY,
+    sql: SQL_RD_TAX_PREVIOUS_ENTRY,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the retired `finance-tax-register` original invoice VAT
+/// entry point read. The caller binds `[companyId, sourceId]` on its open unit.
+pub const RD_TAX_ORIGINAL_ENTRY: &str = "finance_rd_tax_original_entry";
+const SQL_RD_TAX_ORIGINAL_ENTRY: &str = "SELECT * FROM finance_current_tax_entries WHERE company_id=? AND source_type='invoice' AND source_id=? AND status='approved'";
+const READ_TAX_ORIGINAL_ENTRY: NativeReadStatement = NativeReadStatement {
+    kind: RD_TAX_ORIGINAL_ENTRY,
+    sql: SQL_RD_TAX_ORIGINAL_ENTRY,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the retired `finance-tax-register` pending-correction
+/// family point read. The caller binds `[companyId, familyId]` on its open unit.
+pub const RD_TAX_PENDING_FAMILY: &str = "finance_rd_tax_pending_family";
+const SQL_RD_TAX_PENDING_FAMILY: &str = "SELECT 1 FROM finance_vat_corrections WHERE company_id=? AND family_source_id=? AND status='prepared'";
+const READ_TAX_PENDING_FAMILY: NativeReadStatement = NativeReadStatement {
+    kind: RD_TAX_PENDING_FAMILY,
+    sql: SQL_RD_TAX_PENDING_FAMILY,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the retired `finance-tax-register` approved-profile list
+/// read. The caller binds `[companyId]` on its open unit.
+pub const RD_TAX_PROFILES: &str = "finance_rd_tax_profiles";
+const SQL_RD_TAX_PROFILES: &str =
+    "SELECT * FROM finance_accounting_profiles WHERE company_id=? AND status='approved'";
+const READ_TAX_PROFILES: NativeReadStatement = NativeReadStatement {
+    kind: RD_TAX_PROFILES,
+    sql: SQL_RD_TAX_PROFILES,
+    bind_count: 1,
+    scope: "holding",
+};
+
+/// Native successor of the retired `finance-tax-register` chart existence point
+/// read. The caller binds `[chartId, companyId]` on its open unit.
+pub const RD_TAX_CHART: &str = "finance_rd_tax_chart";
+const SQL_RD_TAX_CHART: &str = "SELECT 1 FROM finance_charts WHERE id=? AND company_id=?";
+const READ_TAX_CHART: NativeReadStatement = NativeReadStatement {
+    kind: RD_TAX_CHART,
+    sql: SQL_RD_TAX_CHART,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successor of the retired `finance-tax-register` current-entry point
+/// read. The caller binds `[companyId, sourceType, sourceId]` on its open unit.
+pub const RD_TAX_CURRENT_ENTRY: &str = "finance_rd_tax_current_entry";
+const SQL_RD_TAX_CURRENT_ENTRY: &str = "SELECT id FROM finance_current_tax_entries WHERE company_id=? AND source_type=? AND source_id=? AND status='approved'";
+const READ_TAX_CURRENT_ENTRY: NativeReadStatement = NativeReadStatement {
+    kind: RD_TAX_CURRENT_ENTRY,
+    sql: SQL_RD_TAX_CURRENT_ENTRY,
+    bind_count: 3,
+    scope: "holding",
+};
+
+/// Native successor of the retired `finance-tax-register` pending-correction
+/// count read. The caller binds `[companyId, chartId, endDate]` on its open unit.
+/// Only the read is native; the TS assertion guard and the surrounding lock
+/// remain in the owner adapter.
+pub const RD_TAX_PENDING_CORRECTION_COUNT: &str = "finance_rd_tax_pending_correction_count";
+const SQL_RD_TAX_PENDING_CORRECTION_COUNT: &str = "SELECT COUNT(*) FROM finance_vat_corrections c JOIN finance_tax_entries t ON t.id=c.root_entry_id WHERE c.company_id=? AND c.chart_id=? AND c.status='prepared' AND t.accounting_date<=?";
+const READ_TAX_PENDING_CORRECTION_COUNT: NativeReadStatement = NativeReadStatement {
+    kind: RD_TAX_PENDING_CORRECTION_COUNT,
+    sql: SQL_RD_TAX_PENDING_CORRECTION_COUNT,
+    bind_count: 3,
+    scope: "holding",
+};
+
+/// Native successor of the retired `finance-tax-register` close-profile point
+/// read. The caller binds `[companyId, endDate]` on its open unit.
+pub const RD_TAX_CLOSE_PROFILE: &str = "finance_rd_tax_close_profile";
+const SQL_RD_TAX_CLOSE_PROFILE: &str = "SELECT id,statutory_chart_id,effective_date FROM finance_accounting_profiles WHERE company_id=? AND status='approved' AND effective_date<=?";
+const READ_TAX_CLOSE_PROFILE: NativeReadStatement = NativeReadStatement {
+    kind: RD_TAX_CLOSE_PROFILE,
+    sql: SQL_RD_TAX_CLOSE_PROFILE,
+    bind_count: 2,
+    scope: "holding",
+};
+
 const READS: &[NativeReadStatement] = &[
     READ_ASSET_POLICY_ROW,
     READ_ASSET_POLICY_RUNS,
@@ -253,6 +390,18 @@ const READS: &[NativeReadStatement] = &[
     READ_SUPPLIER_BATCH_ACCOUNTS,
     READ_SUPPLIER_BATCH_PERIODS,
     READ_SUPPLIER_BATCH_BANK,
+    READ_TAX_PROFILE,
+    READ_TAX_PACKAGE,
+    READ_TAX_CORRECTION,
+    READ_TAX_ENTRY,
+    READ_TAX_PREVIOUS_ENTRY,
+    READ_TAX_ORIGINAL_ENTRY,
+    READ_TAX_PENDING_FAMILY,
+    READ_TAX_PROFILES,
+    READ_TAX_CHART,
+    READ_TAX_CURRENT_ENTRY,
+    READ_TAX_PENDING_CORRECTION_COUNT,
+    READ_TAX_CLOSE_PROFILE,
 ];
 
 /// Whether a discriminator is an owner read kind (never a write kind).
@@ -290,6 +439,18 @@ mod tests {
             RD_SUPPLIER_BATCH_ACCOUNTS,
             RD_SUPPLIER_BATCH_PERIODS,
             RD_SUPPLIER_BATCH_BANK,
+            RD_TAX_PROFILE,
+            RD_TAX_PACKAGE,
+            RD_TAX_CORRECTION,
+            RD_TAX_ENTRY,
+            RD_TAX_PREVIOUS_ENTRY,
+            RD_TAX_ORIGINAL_ENTRY,
+            RD_TAX_PENDING_FAMILY,
+            RD_TAX_PROFILES,
+            RD_TAX_CHART,
+            RD_TAX_CURRENT_ENTRY,
+            RD_TAX_PENDING_CORRECTION_COUNT,
+            RD_TAX_CLOSE_PROFILE,
         ] {
             assert!(is_read(kind), "{kind}");
             let read = read_statement(kind).expect("read kind");
@@ -304,7 +465,7 @@ mod tests {
             assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
             assert_eq!(read.scope, "holding", "{kind}");
         }
-        assert_eq!(READS.len(), 18);
+        assert_eq!(READS.len(), 30);
         assert!(!is_read("finance_stmt_1"));
         assert!(read_statement("finance_stmt_1").is_none());
     }
@@ -455,5 +616,92 @@ mod tests {
         assert!(bank.sql.contains("t.amount_minor=-instruction.amount_minor"));
         assert!(bank.sql.contains("t.match_status IN ('unmatched','proposed')"));
         assert!(bank.sql.contains("NOT ?"));
+    }
+
+    /// Byte-for-byte witness against the retired TypeScript literals. The
+    /// expected strings below are copied from `finance-tax-register.ts`; the
+    /// owner plans must reproduce them exactly (no reformatting), with the
+    /// caller's positional binds intact. Unknown kinds fail closed.
+    #[test]
+    fn tax_register_read_plans_are_byte_identical_to_retired_literals() {
+        let expected: &[(&str, &str, usize)] = &[
+            (
+                RD_TAX_PROFILE,
+                "SELECT * FROM finance_accounting_profiles WHERE company_id=? AND statutory_chart_id=? AND status='approved' AND effective_date<=?",
+                3,
+            ),
+            (
+                RD_TAX_PACKAGE,
+                "SELECT * FROM finance_statutory_packages WHERE id=? AND company_id=? AND form_code='PP30' AND filing_month IS NOT NULL",
+                2,
+            ),
+            (
+                RD_TAX_CORRECTION,
+                "SELECT * FROM finance_vat_corrections WHERE id=? AND company_id=?",
+                2,
+            ),
+            (
+                RD_TAX_ENTRY,
+                "SELECT * FROM finance_tax_entries WHERE id=? AND company_id=?",
+                2,
+            ),
+            (
+                RD_TAX_PREVIOUS_ENTRY,
+                "SELECT * FROM finance_current_tax_entries WHERE id=? AND company_id=? AND status='approved'",
+                2,
+            ),
+            (
+                RD_TAX_ORIGINAL_ENTRY,
+                "SELECT * FROM finance_current_tax_entries WHERE company_id=? AND source_type='invoice' AND source_id=? AND status='approved'",
+                2,
+            ),
+            (
+                RD_TAX_PENDING_FAMILY,
+                "SELECT 1 FROM finance_vat_corrections WHERE company_id=? AND family_source_id=? AND status='prepared'",
+                2,
+            ),
+            (
+                RD_TAX_PROFILES,
+                "SELECT * FROM finance_accounting_profiles WHERE company_id=? AND status='approved'",
+                1,
+            ),
+            (
+                RD_TAX_CHART,
+                "SELECT 1 FROM finance_charts WHERE id=? AND company_id=?",
+                2,
+            ),
+            (
+                RD_TAX_CURRENT_ENTRY,
+                "SELECT id FROM finance_current_tax_entries WHERE company_id=? AND source_type=? AND source_id=? AND status='approved'",
+                3,
+            ),
+            (
+                RD_TAX_PENDING_CORRECTION_COUNT,
+                "SELECT COUNT(*) FROM finance_vat_corrections c JOIN finance_tax_entries t ON t.id=c.root_entry_id WHERE c.company_id=? AND c.chart_id=? AND c.status='prepared' AND t.accounting_date<=?",
+                3,
+            ),
+            (
+                RD_TAX_CLOSE_PROFILE,
+                "SELECT id,statutory_chart_id,effective_date FROM finance_accounting_profiles WHERE company_id=? AND status='approved' AND effective_date<=?",
+                2,
+            ),
+        ];
+        assert_eq!(expected.len(), 12);
+        for (kind, sql, binds) in expected {
+            let read = read_statement(kind).unwrap_or_else(|| panic!("{kind}: unregistered read"));
+            assert_eq!(read.kind, *kind, "{kind}: discriminator");
+            assert_eq!(read.sql, *sql, "{kind}: byte-identical SQL");
+            assert_eq!(read.bind_count, *binds, "{kind}: bind count");
+            assert_eq!(
+                read.sql.matches('?').count(),
+                *binds,
+                "{kind}: positional binds"
+            );
+            assert_eq!(read.scope, "holding", "{kind}: scope");
+            assert!(is_read(kind), "{kind}");
+        }
+        assert!(read_statement("finance_rd_tax_unknown").is_none());
+        assert!(!is_read("SELECT * FROM finance_current_tax_entries"));
+        assert!(read_statement("").is_none());
     }
 }

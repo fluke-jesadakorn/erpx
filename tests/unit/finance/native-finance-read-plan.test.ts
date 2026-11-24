@@ -45,6 +45,8 @@ import { workflowFinalOwnerProjections } from '../../../packages/server-finance/
 import {
   nativeFinanceReadAll,
   nativeFinanceReadFirst,
+  nativeFinanceReadScalarFirst,
+  FINANCE_RD_TAX_PENDING_CORRECTION_COUNT,
   FINANCE_RD_ASSET_POLICY_ROW,
   FINANCE_RD_ASSET_POLICY_RUNS,
   FINANCE_RD_INSTRUMENT_EDITION,
@@ -1008,7 +1010,7 @@ describe('finance read-tail r24 byte-identical SQL families', () => {
     }
   });
 
-  it('retirement:ts-statements stays strictly below the r24 BEFORE=2051 baseline', () => {
+  it('retirement:ts-statements stays strictly below the tax-read-port BEFORE=2038 baseline', () => {
     const root = resolve(__dirname, '../../../packages/server-finance/src');
     let total = 0;
     const walk = (dir: string) => {
@@ -1019,7 +1021,114 @@ describe('finance read-tail r24 byte-identical SQL families', () => {
       }
     };
     walk(root);
-    expect(total).toBeLessThan(2051);
-    expect(total).toBe(2038);
+    expect(total).toBeLessThan(2038);
+    expect(total).toBe(2027);
+  });
+});
+
+describe('finance native tax-register read-port cutover', () => {
+  const TAX_KINDS = [
+    'FINANCE_RD_TAX_PROFILE', 'FINANCE_RD_TAX_PACKAGE', 'FINANCE_RD_TAX_CORRECTION',
+    'FINANCE_RD_TAX_ENTRY', 'FINANCE_RD_TAX_PREVIOUS_ENTRY', 'FINANCE_RD_TAX_ORIGINAL_ENTRY',
+    'FINANCE_RD_TAX_PENDING_FAMILY', 'FINANCE_RD_TAX_PROFILES', 'FINANCE_RD_TAX_CHART',
+    'FINANCE_RD_TAX_CURRENT_ENTRY', 'FINANCE_RD_TAX_PENDING_CORRECTION_COUNT',
+    'FINANCE_RD_TAX_CLOSE_PROFILE',
+  ];
+
+  it('exposes every tax read kind with the exact registered discriminator', async () => {
+    const bridge = await readFile(new URL('../../../packages/server-finance/src/adapters/native-finance-read.ts', import.meta.url), 'utf8');
+    for (const kind of TAX_KINDS) {
+      expect(bridge).toContain(`export const ${kind} = '${kind.replace(/^FINANCE_RD_/, 'finance_rd_').toLowerCase()}'`);
+    }
+    expect(bridge).toContain('export async function nativeFinanceReadAll');
+    expect(bridge).toContain('export async function nativeFinanceReadFirst');
+    expect(bridge).toContain('export async function nativeFinanceReadScalarFirst');
+  });
+
+  it('switches the fixed point and count readers while keeping guards and locks in TS', async () => {
+    const tax = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    expect(tax).toContain('from "./native-finance-read"');
+    for (const kind of TAX_KINDS) expect(tax).toContain(kind);
+    expect(tax.match(/nativeFinanceReadAll</g)?.length).toBe(1);
+    expect(tax.match(/nativeFinanceReadFirst</g)?.length).toBe(10);
+    expect(tax.match(/nativeFinanceReadScalarFirst</g)?.length).toBe(2);
+    expect(tax.split("await db(actor),'count')").length - 1).toBe(2);
+    // The other count port (`missingSources`) keeps its TS `.first('count')`.
+    expect(tax.split(".first<number>('count')").length - 1).toBe(1);
+    // None of the eleven switched literals remains inline in the owner.
+    for (const literal of [
+      "SELECT * FROM finance_accounting_profiles WHERE company_id=? AND statutory_chart_id=?",
+      "SELECT * FROM finance_statutory_packages WHERE id=? AND company_id=?",
+      "SELECT * FROM finance_vat_corrections WHERE id=? AND company_id=?",
+      "SELECT * FROM finance_tax_entries WHERE id=? AND company_id=?",
+      "SELECT * FROM finance_current_tax_entries WHERE id=? AND company_id=? AND status='approved'",
+      "SELECT * FROM finance_current_tax_entries WHERE company_id=? AND source_type='invoice' AND source_id=?",
+      ".prepare(\"SELECT 1 FROM finance_vat_corrections WHERE company_id=? AND family_source_id=? AND status='prepared'\")",
+      "SELECT * FROM finance_accounting_profiles WHERE company_id=? AND status='approved'",
+      "SELECT 1 FROM finance_charts WHERE id=? AND company_id=?",
+      "SELECT id FROM finance_current_tax_entries WHERE company_id=? AND source_type=? AND source_id=?",
+      "SELECT id,statutory_chart_id,effective_date FROM finance_accounting_profiles",
+    ]) expect(tax.split(literal).length - 1).toBe(0);
+    // Assertion EXISTS guards and the purchased transaction boundary stay TS.
+    expect((tax.match(/assertion\(write/g) ?? []).length).toBe(22);
+    expect(tax).toContain('withFinancePurchasedCommand');
+    expect(tax).toContain('withFinancePurchasedRead');
+    expect(tax).toContain('vat-correction-volume');
+    // The retained count literal is still needed ONLY by the assertion guard;
+    // neither count caller prepares it in TypeScript any more.
+    expect(tax.split('const pendingCorrectionsSql = "SELECT COUNT(*) FROM finance_vat_corrections').length - 1).toBe(1);
+    expect(tax.split('.prepare(pendingCorrectionsSql)').length - 1).toBe(0);
+    expect(tax.split('(${pendingCorrectionsSql})=0').length - 1).toBe(1);
+  });
+});
+
+describe('native VAT pending-correction count scalar port', () => {
+  const countSql = "SELECT COUNT(*) FROM finance_vat_corrections c JOIN finance_tax_entries t ON t.id=c.root_entry_id WHERE c.company_id=? AND c.chart_id=? AND c.status='prepared' AND t.accounting_date<=?";
+  const values = ['company', 'chart', '2026-05-31'];
+  let bodies: { kind: string; values: unknown[] }[] = [];
+
+  beforeEach(() => {
+    bodies = [];
+    vi.stubGlobal('fetch', vi.fn(async (_url: URL, init: RequestInit) => {
+      bodies.push(JSON.parse(String(init.body)) as { kind: string; values: unknown[] });
+      return new Response(JSON.stringify({ data: { statements: [{ sql: countSql, values }] } }), {
+        status: 200, headers: { 'content-type': 'application/json' },
+      });
+    }));
+  });
+
+  const dbWith = (rows: Record<string, unknown>[]) => {
+    const statement = { bind: (..._values: unknown[]) => statement };
+    return {
+      prepare: () => statement,
+      batch: async () => [{ results: rows, success: true, meta: { changes: 0, duration: 0 } }],
+    } as never;
+  };
+
+  it('extracts the count column for two pending corrections, not the row object', async () => {
+    const value = await nativeFinanceReadScalarFirst<number>(
+      FINANCE_RD_TAX_PENDING_CORRECTION_COUNT, values, dbWith([{ count: '2' }]), 'count',
+    );
+    // The retired `.first<number>('count')` yielded a scalar; Number({count:'2'})
+    // is NaN and would make every VAT package readiness check fail.
+    expect(value).toBe('2');
+    expect(Number(value ?? 0)).toBe(2);
+    expect(bodies[0]!.kind).toBe('finance_rd_tax_pending_correction_count');
+    expect(bodies[0]!.values).toEqual(values);
+  });
+
+  it('extracts a zero count without coercing the whole row', async () => {
+    const value = await nativeFinanceReadScalarFirst<number>(
+      FINANCE_RD_TAX_PENDING_CORRECTION_COUNT, values, dbWith([{ count: 0 }]), 'count',
+    );
+    expect(Number(value ?? 0)).toBe(0);
+  });
+
+  it('returns null for a zero-row result exactly like .first(column)', async () => {
+    const value = await nativeFinanceReadScalarFirst<number>(
+      FINANCE_RD_TAX_PENDING_CORRECTION_COUNT, values, dbWith([]), 'count',
+    );
+    expect(value).toBeNull();
+    expect(Number(value ?? 0)).toBe(0);
   });
 });

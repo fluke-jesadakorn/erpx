@@ -34744,6 +34744,45 @@
       }
     },
     {
+      "lane": "integration",
+      "owner": "finance",
+      "modules": [
+        "finance"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Finance tax register native read plans must match retained TS and PG rows."
+      },
+      "apps": [
+        "finance"
+      ],
+      "packages": [
+        "@erpx/server-finance"
+      ],
+      "id": "finance.rust-tax-register-read-parity-postgres.integration",
+      "files": [
+        "tests/integration/finance/rust-tax-register-read-parity-postgres.test.rs"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-finance",
+        "targets": [
+          "tax_register_read_parity_postgres"
+        ]
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-finance/Cargo.toml"
+      ]
+    },
+    {
       "id": "finance.sales-workspace.e2e",
       "lane": "e2e",
       "owner": "finance",

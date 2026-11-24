@@ -35,6 +35,18 @@ export const FINANCE_RD_SUPPLIER_BATCH_INVOICE = 'finance_rd_supplier_batch_invo
 export const FINANCE_RD_SUPPLIER_BATCH_ACCOUNTS = 'finance_rd_supplier_batch_accounts';
 export const FINANCE_RD_SUPPLIER_BATCH_PERIODS = 'finance_rd_supplier_batch_periods';
 export const FINANCE_RD_SUPPLIER_BATCH_BANK = 'finance_rd_supplier_batch_bank';
+export const FINANCE_RD_TAX_PROFILE = 'finance_rd_tax_profile';
+export const FINANCE_RD_TAX_PACKAGE = 'finance_rd_tax_package';
+export const FINANCE_RD_TAX_CORRECTION = 'finance_rd_tax_correction';
+export const FINANCE_RD_TAX_ENTRY = 'finance_rd_tax_entry';
+export const FINANCE_RD_TAX_PREVIOUS_ENTRY = 'finance_rd_tax_previous_entry';
+export const FINANCE_RD_TAX_ORIGINAL_ENTRY = 'finance_rd_tax_original_entry';
+export const FINANCE_RD_TAX_PENDING_FAMILY = 'finance_rd_tax_pending_family';
+export const FINANCE_RD_TAX_PROFILES = 'finance_rd_tax_profiles';
+export const FINANCE_RD_TAX_CHART = 'finance_rd_tax_chart';
+export const FINANCE_RD_TAX_CURRENT_ENTRY = 'finance_rd_tax_current_entry';
+export const FINANCE_RD_TAX_PENDING_CORRECTION_COUNT = 'finance_rd_tax_pending_correction_count';
+export const FINANCE_RD_TAX_CLOSE_PROFILE = 'finance_rd_tax_close_profile';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'FINANCE_NATIVE_READ_UNAVAILABLE', 'The native Finance read service is unavailable.');
@@ -131,4 +143,22 @@ export async function nativeFinanceReadFirst<T>(
 ): Promise<T | null> {
   const result = await nativeFinanceReadAll<T>(kind, values, db);
   return result.results[0] ?? null;
+}
+
+/** Planned owner read returning one named column of the first row. Mirrors the
+ * retired `.first<T>(column)` used by the VAT count ports: a count row is
+ * `{count: ...}`, so extracting the column yields the scalar rather than
+ * the whole row object. A zero-row result mirrors `.first(column)`'s null. The
+ * registered SQL bytes are unchanged; only the caller-side projection differs. */
+export async function nativeFinanceReadScalarFirst<T>(
+  kind: string,
+  values: readonly unknown[],
+  db: SqlDatabase,
+  column: string,
+): Promise<T | null> {
+  const result = await nativeFinanceReadAll<Record<string, unknown>>(kind, values, db);
+  const row = result.results[0];
+  if (!row || typeof row !== 'object') return null;
+  const value = (row as Record<string, unknown>)[column];
+  return value === undefined ? null : value as T;
 }

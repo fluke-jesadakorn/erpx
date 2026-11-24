@@ -127,3 +127,7 @@ path = "../../tests/integration/finance/rust-finance-due-draft-schedule-postgres
 [[test]]
 name = "attachment_version_postgres"
 path = "../../tests/integration/finance/rust-attachment-version-postgres.test.rs"
+
+[[test]]
+name = "tax_register_read_parity_postgres"
+path = "../../tests/integration/finance/rust-tax-register-read-parity-postgres.test.rs"
