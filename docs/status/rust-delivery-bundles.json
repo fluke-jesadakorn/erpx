@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7891,
+    "revision": 7895,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -132765,7 +132765,7 @@
         "owner": "maintenance",
         "title": "maintenance TS read tail native cutover (r5)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -132777,22 +132777,42 @@
         "resources": [
           "owner:maintenance"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG74mai",
-          "claimedAt": "2026-11-24T01:15:49.087Z",
-          "heartbeatAt": "2026-11-24T01:16:16.832Z",
-          "expiresAt": "2026-11-24T01:46:16.832Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-maintenance/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "0f2678acb",
+            "owner": "maintenance",
+            "before": 47,
+            "after": 46,
+            "note": "Attachment owner version guard shared helper; assertion name/args unchanged; byte-identical."
+          },
+          {
+            "command": "vitest maintenance transport (28)",
+            "result": "passed",
+            "sourceSha": "0f2678acb"
+          },
+          {
+            "command": "tsc maintenance",
+            "result": "passed",
+            "sourceSha": "0f2678acb"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "TS-only dedupe if available; if none safe, report blocked with evidence. BEFORE=47.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG74mai",
+          "at": "2026-11-24T01:21:39.878Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -133156,6 +133176,42 @@
         "nextAction": "Next: scan for a safe dedupe; if none, report blocked with evidence. BEFORE=85.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.maintenance.read-tail-r6",
+        "goalId": "G4",
+        "owner": "maintenance",
+        "title": "maintenance TS read tail native cutover (round 6)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-maintenance/src/**",
+          "tests/unit/maintenance/**",
+          "tests/integration/maintenance/**"
+        ],
+        "resources": [
+          "owner:maintenance"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG85mai",
+          "claimedAt": "2026-11-24T01:21:40.142Z",
+          "heartbeatAt": "2026-11-24T01:21:40.142Z",
+          "expiresAt": "2026-11-24T01:51:40.142Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: scan for another safe owner-local duplicate image; otherwise report blocked pending native port. BEFORE=46.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -133164,7 +133220,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 803,
+      "totalPackets": 804,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -133172,13 +133228,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 428,
+        "blocked": 429,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:20:07.819Z",
+    "updatedAt": "2026-11-24T01:21:40.147Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
