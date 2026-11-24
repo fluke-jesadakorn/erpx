@@ -30,7 +30,10 @@
 //! before/after consistency witness. It plans the Sales projection family:
 //! support-case counts, open cases and CRM source cases, where order scope,
 //! ticket-actor policy and source-id-set predicates stay fixed native SQL and
-//! variable id lists cross only as scalar JSON binds.
+//! variable id lists cross only as scalar JSON binds. It also plans the SLA
+//! alert workspace read and the ticket-recipient read, where the actor id or
+//! ticket id leads the owner-scope binds and the eligibility/reviewer-count
+//! predicates stay fixed native SQL over the closed Identity/People projections.
 //! Reads carry no receipt/audit/outbox ledger: the caller executes them on the
 //! same unit as the surrounding command. No SQL is ever accepted from the wire
 //! and no TypeScript SQL remains for these kinds.
@@ -455,6 +458,34 @@ const READ_EVIDENCE_ITEMS: NativeSupportReadStatement = NativeSupportReadStateme
     bind_count: 1,
 };
 
+/// Native successor of the TypeScript Support SLA-alert workspace read. The
+/// caller binds `[user_id, company_id, branch_id, branch_id, department_id,
+/// department_id]`: the user id leads the `can_ack` eligibility flag, then the
+/// owner scope follows. The eligibility/reviewer-count predicates stay fixed
+/// native SQL over the closed Identity/People projections; only scalar values
+/// cross the wire and no write ledger is attached.
+pub const RD_SLA_ALERTS: &str = "support_rd_sla_alerts";
+const SQL_SLA_ALERTS: &str =
+    "SELECT s.*,t.title,t.company_id,t.branch_id,t.department_id, CASE WHEN EXISTS(SELECT 1 FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) m WHERE m.company_id=t.company_id AND iam_assignment_active(m.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(m.role,m.company_id,'support.manage') AND (m.scope_kind='holding' OR (m.scope_kind='branch' AND m.scope_node_id=t.branch_id) OR (m.scope_kind='department' AND m.scope_node_id=t.department_id)) AND EXISTS(SELECT 1 FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) a JOIN (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) p ON p.user_id=a.user_id AND p.company_id=a.company_id JOIN (SELECT \"id\",\"person_id\",\"company_id\",\"branch_id\",\"department_id\",\"worker_type\",\"employment_type\",\"status\",\"start_date\",\"end_date\",\"manager_person_id\",\"job_title\",\"currency\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"pay_group_id\",\"level_id\",\"position_id\",\"self_service_top_level\" FROM hr_engagements) e ON e.person_id=p.id AND e.company_id=p.company_id WHERE a.company_id=t.company_id AND a.user_id=m.user_id AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(a.role,a.company_id,'support.work') AND iam_role_allows(a.role,a.company_id,'support.read') AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=t.branch_id) OR (a.scope_kind='department' AND a.scope_node_id=t.department_id)) AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD'))) AND m.user_id=?) THEN 1 ELSE 0 END can_ack, (SELECT COUNT(DISTINCT m.user_id) FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) m WHERE m.company_id=t.company_id AND iam_assignment_active(m.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(m.role,m.company_id,'support.manage') AND (m.scope_kind='holding' OR (m.scope_kind='branch' AND m.scope_node_id=t.branch_id) OR (m.scope_kind='department' AND m.scope_node_id=t.department_id)) AND EXISTS(SELECT 1 FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) a JOIN (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) p ON p.user_id=a.user_id AND p.company_id=a.company_id JOIN (SELECT \"id\",\"person_id\",\"company_id\",\"branch_id\",\"department_id\",\"worker_type\",\"employment_type\",\"status\",\"start_date\",\"end_date\",\"manager_person_id\",\"job_title\",\"currency\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"pay_group_id\",\"level_id\",\"position_id\",\"self_service_top_level\" FROM hr_engagements) e ON e.person_id=p.id AND e.company_id=p.company_id WHERE a.company_id=t.company_id AND a.user_id=m.user_id AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(a.role,a.company_id,'support.work') AND iam_role_allows(a.role,a.company_id,'support.read') AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=t.branch_id) OR (a.scope_kind='department' AND a.scope_node_id=t.department_id)) AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD')))) recipients FROM support_sla_alerts s JOIN support_tickets t ON t.id=s.ticket_id WHERE t.company_id=? AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?) ORDER BY s.breached_at,s.id";
+const READ_SLA_ALERTS: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_SLA_ALERTS,
+    sql: SQL_SLA_ALERTS,
+    bind_count: 6,
+};
+
+/// Native successor of the TypeScript Support ticket-recipient read. The caller
+/// binds `[ticket_id, company_id, branch_id, branch_id, department_id,
+/// department_id]`; the eligibility predicate stays fixed native SQL over the
+/// closed Identity/People projections and only scalar values cross the wire.
+pub const RD_TICKET_RECIPIENTS: &str = "support_rd_ticket_recipients";
+const SQL_TICKET_RECIPIENTS: &str =
+    "SELECT DISTINCT m.user_id id,p.legal_name name FROM support_tickets t JOIN (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) m ON m.company_id=t.company_id JOIN (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) p ON p.company_id=t.company_id AND p.user_id=m.user_id WHERE t.id=? AND t.company_id=? AND (?::text IS NULL OR t.branch_id=?) AND (?::text IS NULL OR t.department_id=?) AND EXISTS(SELECT 1 FROM (SELECT \"id\",\"user_id\",\"role\",\"modules_json\",\"company_id\",\"branch_id\",\"valid_from\",\"valid_until\",\"revoked_at\",\"version\",\"scope_kind\",\"scope_node_id\",\"parent_id\",\"source\",\"source_id\" FROM assignments) a JOIN (SELECT \"id\",\"user_id\",\"company_id\",\"legal_name\",\"preferred_name\",\"email\",\"phone\",\"country_code\",\"status\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"merged_into_id\",\"work_email\",\"work_phone\" FROM hr_people) p ON p.user_id=a.user_id AND p.company_id=a.company_id JOIN (SELECT \"id\",\"person_id\",\"company_id\",\"branch_id\",\"department_id\",\"worker_type\",\"employment_type\",\"status\",\"start_date\",\"end_date\",\"manager_person_id\",\"job_title\",\"currency\",\"version\",\"created_by\",\"created_at\",\"updated_at\",\"pay_group_id\",\"level_id\",\"position_id\",\"self_service_top_level\" FROM hr_engagements) e ON e.person_id=p.id AND e.company_id=p.company_id WHERE a.company_id=t.company_id AND a.user_id=m.user_id AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(a.user_id,a.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(a.role,a.company_id,'support.work') AND iam_role_allows(a.role,a.company_id,'support.read') AND (a.scope_kind='holding' OR (a.scope_kind='branch' AND a.scope_node_id=t.branch_id) OR (a.scope_kind='department' AND a.scope_node_id=t.department_id)) AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' AND e.start_date<=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') AND (e.end_date IS NULL OR e.end_date>=to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD'))) ORDER BY p.legal_name";
+const READ_TICKET_RECIPIENTS: NativeSupportReadStatement = NativeSupportReadStatement {
+    kind: RD_TICKET_RECIPIENTS,
+    sql: SQL_TICKET_RECIPIENTS,
+    bind_count: 6,
+};
+
 const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SERVICE_COVERAGE_HISTORY,
     READ_SERVICE_TEAM_COVERAGE,
@@ -489,6 +520,8 @@ const STATEMENTS: &[NativeSupportReadStatement] = &[
     READ_SALES_OPEN_SUPPORT_CASES,
     READ_SALES_CUSTOMER_SOURCE_CASES,
     READ_EVIDENCE_ITEMS,
+    READ_SLA_ALERTS,
+    READ_TICKET_RECIPIENTS,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -640,6 +673,8 @@ mod tests {
                 12usize,
             ),
             (RD_EVIDENCE_ITEMS, SQL_EVIDENCE_ITEMS, 1usize),
+            (RD_SLA_ALERTS, SQL_SLA_ALERTS, 6usize),
+            (RD_TICKET_RECIPIENTS, SQL_TICKET_RECIPIENTS, 6usize),
         ];
         for (kind, sql, binds) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -660,7 +695,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), binds);
         }
-        assert_eq!(STATEMENTS.len(), 33);
+        assert_eq!(STATEMENTS.len(), 35);
     }
 
     #[test]
@@ -727,6 +762,27 @@ mod tests {
         assert_eq!(cases.bind_count, 14);
         let source_cases = read_statement(RD_SALES_CUSTOMER_SOURCE_CASES).expect("sales customer source cases");
         assert_eq!(source_cases.bind_count, 12);
+        let alerts = read_statement(RD_SLA_ALERTS).expect("SLA alerts read");
+        assert_eq!(alerts.bind_count, 6);
+        let recipients = read_statement(RD_TICKET_RECIPIENTS).expect("ticket recipients read");
+        assert_eq!(recipients.bind_count, 6);
+    }
+
+    #[test]
+    fn sla_alert_and_ticket_recipient_reads_keep_fixed_owner_predicates() {
+        let alerts = read_statement(RD_SLA_ALERTS).expect("SLA alerts read");
+        assert!(alerts.sql.starts_with("SELECT s.*,t.title,t.company_id,t.branch_id,t.department_id,"));
+        assert!(alerts.sql.contains("FROM support_sla_alerts s JOIN support_tickets t ON t.id=s.ticket_id"));
+        assert!(alerts.sql.contains("iam_role_allows(m.role,m.company_id,'support.manage')"));
+        assert!(alerts.sql.contains("'support.work'") && alerts.sql.contains("'support.read'"));
+        assert!(alerts.sql.contains(SQL_HR_ENGAGEMENTS));
+        assert!(alerts.sql.ends_with("ORDER BY s.breached_at,s.id"));
+        assert_eq!(alerts.sql.matches('?').count(), 6);
+        let recipients = read_statement(RD_TICKET_RECIPIENTS).expect("ticket recipients read");
+        assert!(recipients.sql.starts_with("SELECT DISTINCT m.user_id id,p.legal_name name FROM support_tickets t JOIN"));
+        assert!(recipients.sql.contains("a.user_id=m.user_id"));
+        assert!(recipients.sql.ends_with("ORDER BY p.legal_name"));
+        assert_eq!(recipients.sql.matches('?').count(), 6);
     }
 
     #[test]

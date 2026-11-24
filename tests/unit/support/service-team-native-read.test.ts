@@ -1,6 +1,11 @@
 import { readFile } from 'node:fs/promises';
 import { describe, expect, it, vi } from 'vitest';
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
+import { supportRecipientEligibility } from '../../../packages/server-support/src/adapters/support-recipient';
+import { supportEligibleFlagSql, supportReviewerCountSql } from '../../../packages/server-support/src/adapters/eligibility-projection-sources';
+import { scope as ticketScope } from '../../../packages/server-support/src/adapters/support-ticket-read-sources';
+import { finalRootOwnerProjectionSources as identityAccessProjections } from '@erpx/server-identity_access/public/final-root-owner-projection-sources';
+import { finalRootOwnerProjectionSources as payrollProjections } from '@erpx/server-people_payroll/public/final-root-owner-projection-sources';
 
 vi.mock('server-only', () => ({}));
 vi.mock('@erpx/server-support/adapters/command-runtime', () => ({
@@ -705,5 +710,93 @@ describe('support service-team coverage native read', () => {
       fetchMock.mockRestore();
       delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
     }
+  });
+
+  it('carries no retired SLA-alert or ticket-recipient SQL in the switched adapters', async () => {
+    const alerts = await source('packages/server-support/src/adapters/support-sla-alerts.ts');
+    const ticket = await source('packages/server-support/src/adapters/support.ts');
+    expect(alerts).not.toContain('FROM support_sla_alerts s JOIN support_tickets t');
+    expect(alerts).not.toContain('supportEligibleFlagSql(');
+    expect(alerts).not.toContain('supportReviewerCountSql(');
+    expect(alerts).toContain('SUPPORT_RD_SLA_ALERTS');
+    expect(ticket).not.toContain('SELECT DISTINCT m.user_id id,p.legal_name name FROM support_tickets t JOIN');
+    expect(ticket).toContain('SUPPORT_RD_TICKET_RECIPIENTS');
+  });
+
+  it('plans SLA alerts with the user id leading six owner binds', async () => {
+    const values = ['user-1', 'company', 'branch-1', 'branch-1', 'dept-1', 'dept-1'];
+    const batch = vi.fn(async () => [{
+      results: [{ id: 'alert-1', can_ack: 1, recipients: 2 }],
+      success: true,
+      meta: { changes: 0, duration: 0 },
+    }]);
+    const db = { prepare: vi.fn(() => ({ bind: vi.fn() })), batch } as unknown as SqlDatabase;
+    process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      ok('SELECT s.* FROM support_sla_alerts s', values),
+    );
+    try {
+      const { nativeSupportReadAll, SUPPORT_RD_SLA_ALERTS } =
+        await import('@erpx/server-support/adapters/native-support-read');
+      const result = await nativeSupportReadAll<{ id: string }>(SUPPORT_RD_SLA_ALERTS, values, db);
+      expect(result.results).toEqual([{ id: 'alert-1', can_ack: 1, recipients: 2 }]);
+      expect(String(fetchMock.mock.calls[0]![0])).toContain('/support/command-plan');
+      expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({
+        kind: 'support_rd_sla_alerts',
+        values,
+      });
+      await expect(nativeSupportReadAll(SUPPORT_RD_SLA_ALERTS, values.slice(0, 5), db))
+        .rejects.toMatchObject({ status: 422, code: 'SUPPORT_NATIVE_READ_BINDS_INVALID' });
+    } finally {
+      fetchMock.mockRestore();
+      delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
+    }
+  });
+
+  it('plans ticket recipients with the ticket id leading six owner binds', async () => {
+    const values = ['ticket-1', 'company', 'branch-1', 'branch-1', 'dept-1', 'dept-1'];
+    const batch = vi.fn(async () => [{
+      results: [{ id: 'user-1', name: 'Support Manager' }],
+      success: true,
+      meta: { changes: 0, duration: 0 },
+    }]);
+    const db = { prepare: vi.fn(() => ({ bind: vi.fn() })), batch } as unknown as SqlDatabase;
+    process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG = config;
+    const fetchMock = vi.spyOn(globalThis, 'fetch').mockResolvedValue(
+      ok('SELECT DISTINCT m.user_id id,p.legal_name name FROM support_tickets t', values),
+    );
+    try {
+      const { nativeSupportReadAll, SUPPORT_RD_TICKET_RECIPIENTS } =
+        await import('@erpx/server-support/adapters/native-support-read');
+      const result = await nativeSupportReadAll<{ id: string; name: string }>(SUPPORT_RD_TICKET_RECIPIENTS, values, db);
+      expect(result.results).toEqual([{ id: 'user-1', name: 'Support Manager' }]);
+      expect(String(fetchMock.mock.calls[0]![0])).toContain('/support/command-plan');
+      expect(JSON.parse(String(fetchMock.mock.calls[0]![1]!.body))).toMatchObject({
+        kind: 'support_rd_ticket_recipients',
+        values,
+      });
+      await expect(nativeSupportReadAll(SUPPORT_RD_TICKET_RECIPIENTS, values.slice(0, 5), db))
+        .rejects.toMatchObject({ status: 422, code: 'SUPPORT_NATIVE_READ_BINDS_INVALID' });
+    } finally {
+      fetchMock.mockRestore();
+      delete process.env.ERPX_NATIVE_SUPPORT_PLAN_CONFIG;
+    }
+  });
+
+  it('keeps the retired SLA-alert and ticket-recipient SQL byte-identical in the Rust registry', async () => {
+    const registry = await source('packages/server-support/src/adapters/native_support_read_sql.rs');
+    const eligibility = supportRecipientEligibility().replaceAll('t.owner_id', 'm.user_id');
+    const recipient = 'm.company_id=t.company_id AND iam_assignment_active(m.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)'
+      + " AND iam_role_allows(m.role,m.company_id,'support.manage')"
+      + " AND (m.scope_kind='holding' OR (m.scope_kind='branch' AND m.scope_node_id=t.branch_id) OR (m.scope_kind='department' AND m.scope_node_id=t.department_id))"
+      + ' AND ' + eligibility;
+    const sla = `SELECT s.*,t.title,t.company_id,t.branch_id,t.department_id, ${supportEligibleFlagSql(recipient, 'can_ack')}, ${supportReviewerCountSql(recipient)} recipients FROM support_sla_alerts s JOIN support_tickets t ON t.id=s.ticket_id WHERE ${ticketScope} ORDER BY s.breached_at,s.id`;
+    const recipients = `SELECT DISTINCT m.user_id id,p.legal_name name FROM support_tickets t JOIN (${identityAccessProjections.assignments}) m ON m.company_id=t.company_id JOIN (${payrollProjections.hr_people}) p ON p.company_id=t.company_id AND p.user_id=m.user_id WHERE t.id=? AND ${ticketScope} AND ${eligibility} ORDER BY p.legal_name`;
+    for (const sql of [sla, recipients]) {
+      expect(sql.match(/\?/g)).toHaveLength(6);
+      expect(registry).toContain(`"${sql.replaceAll('"', '\\"')}"`);
+    }
+    expect(registry).toContain('support_rd_sla_alerts');
+    expect(registry).toContain('support_rd_ticket_recipients');
   });
 });

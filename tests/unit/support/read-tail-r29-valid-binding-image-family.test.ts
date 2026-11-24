@@ -79,7 +79,7 @@ describe('Support read-tail r29 valid-binding + image family', () => {
             }
         };
         walk(srcRoot);
-        expect(total).toBe(48);
+        expect(total).toBe(46);
         expect(total).toBeLessThan(50);
     });
 });

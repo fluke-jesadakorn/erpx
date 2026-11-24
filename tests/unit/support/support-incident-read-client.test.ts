@@ -89,11 +89,10 @@ describe('Support incident read-tail r16 canonical projection', () => {
     expect(shared).toContain('supportReviewerCountSql');
   });
 
-  it('composes the shared eligibility fragments in every Support read tail', async () => {
+  it('composes the shared eligibility fragments in every remaining TS Support read tail', async () => {
     const names = [
       'adapters/support-ticket-read-sources.ts',
       'adapters/support-sla.ts',
-      'adapters/support-sla-alerts.ts',
     ];
     for (const name of names) {
       const text = await src(name);
@@ -105,8 +104,7 @@ describe('Support incident read-tail r16 canonical projection', () => {
     expect(sla).toContain('supportEligibleFlagSql(');
     expect(sla).toContain('supportReviewerCountSql(');
     const alerts = await src('adapters/support-sla-alerts.ts');
-    expect(alerts).toContain('supportEligibleFlagSql(');
-    expect(alerts).toContain('supportReviewerCountSql(');
+    expect(alerts).toContain('SUPPORT_RD_SLA_ALERTS');
   });
 
   it('retirement:ts-statements stays strictly below the r17 BEFORE=91 baseline', () => {

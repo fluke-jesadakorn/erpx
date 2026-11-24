@@ -1,7 +1,6 @@
-import{nativeSupportReadAll,SUPPORT_RD_SLA_POLICY_APPROVED,SUPPORT_RD_TICKET_EVENT_HISTORY,SUPPORT_RD_TICKET_INCIDENT_LINKS}from '@erpx/server-support/adapters/native-support-read';
+import{nativeSupportReadAll,SUPPORT_RD_SLA_POLICY_APPROVED,SUPPORT_RD_TICKET_EVENT_HISTORY,SUPPORT_RD_TICKET_INCIDENT_LINKS,SUPPORT_RD_TICKET_RECIPIENTS}from '@erpx/server-support/adapters/native-support-read';
 import{createNativeSupportTicketRead,supportTicketReadPredicate,ticketEligibilitySelect}from '@erpx/server-support/public/support-ticket-read';
 import{scope,args,eligible,reviewers}from '@erpx/server-support/adapters/support-ticket-read-sources';
-import { finalRootOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as people_payrollProjectionSources } from "@erpx/server-people_payroll/public/final-root-owner-projection-sources";
 import { finalRootOwnerProjectionSources as salesProjectionSources } from "@erpx/server-sales/public/final-root-owner-projection-sources";
 import 'server-only';
@@ -16,10 +15,7 @@ export { supportCreateSchema, supportChangeSchema } from "@erpx/server-support/d
 
 /** Purchase metadata only; callers retain their own authority and record gates. */
 export function supportWorkspacePurchaseAccess(a: WorkContext, provided?: SqlDatabase) { return nativeSupportRuntime(a, provided).purchase("support.tickets"); }
-export async function supportTicketRecipients(a: WorkContext, ticketId: string) { const runtime = nativeSupportRuntime(a); await runtime.requirePurchase("support.tickets", "settle-existing"); return createSupportRecipients({ ...runtime, recipients: async (a, ticketId) => { const write = await runtime.database(); return (await write.prepare(`SELECT DISTINCT m.user_id id,p.legal_name name FROM support_tickets t JOIN (${identity_accessProjectionSources.assignments}) m ON m.company_id=t.company_id JOIN (${people_payrollProjectionSources.hr_people}) p ON p.company_id=t.company_id AND p.user_id=m.user_id WHERE t.id=? AND ${scope} AND ${eligible.replaceAll('t.owner_id', 'm.user_id')} ORDER BY p.legal_name`).bind(ticketId, ...args(a)).all<{
-        id: string;
-        name: string;
-    }>()).results; } })(a, ticketId); }
+export async function supportTicketRecipients(a: WorkContext, ticketId: string) { const runtime = nativeSupportRuntime(a); await runtime.requirePurchase("support.tickets", "settle-existing"); return createSupportRecipients({ ...runtime, recipients: async (a, ticketId) => { const write = await runtime.database(); return (await nativeSupportReadAll<{ id: string; name: string }>(SUPPORT_RD_TICKET_RECIPIENTS, [ticketId, a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId], write)).results; } })(a, ticketId); }
 /** Internal incident adapter shares the native ticket recipient reader; no separate order lookup remains. */
 export { supportTicketRecipients as supportRecipients };
 export async function supportDetail(a: WorkContext, id: string) { const runtime = nativeSupportRuntime(a), access = await runtime.requirePurchase("support.tickets"); const data = await createSupportDetail({ ticket: getSupportTicket, now: runtime.now, recipients: (actor, id) => access.settleExisting ? supportTicketRecipients(actor, id) : Promise.resolve([]), incidents: async (id) => { const write = await runtime.database(); return (await nativeSupportReadAll<Row>(SUPPORT_RD_TICKET_INCIDENT_LINKS, [id], write)).results; }, history: async (id) => { const write = await runtime.database(); return (await nativeSupportReadAll<Row>(SUPPORT_RD_TICKET_EVENT_HISTORY, [id], write)).results; }, notes: async (a, orderId) => { const write = await runtime.database(); return (await write.prepare(`SELECT id,version,channel,occurred_at,body FROM (${salesProjectionSources.customer_contact_notes}) customer_contact_notes WHERE order_id=? AND company_id=? AND status='active' ORDER BY occurred_at DESC`).bind(orderId, a.companyId).all<Row>()).results; }, policies: async (companyId) => { const write = await runtime.database(); return (await nativeSupportReadAll<{

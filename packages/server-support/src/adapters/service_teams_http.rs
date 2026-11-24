@@ -628,6 +628,16 @@ mod tests {
             ),
             ("support_rd_sla_policy_point", json!(["policy-1", "company"]), 200),
             ("support_rd_sla_policy_approved", json!(["company"]), 200),
+            (
+                "support_rd_sla_alerts",
+                json!(["user-1", "company", null, null, null, null]),
+                200,
+            ),
+            (
+                "support_rd_ticket_recipients",
+                json!(["ticket-1", "company", null, null, null, null]),
+                200,
+            ),
             ("support_rd_ticket_source_image", json!(["ticket-1", "company"]), 200),
             (
                 "support_rd_ticket_attachment_source_image",
@@ -739,6 +749,8 @@ mod tests {
             ("support_rd_sla_workspace_tickets", json!(["company"]), 422),
             ("support_rd_sla_policy_point", json!(["policy-1"]), 422),
             ("support_rd_sla_policy_approved", json!([]), 422),
+            ("support_rd_sla_alerts", json!(["user-1", "company"]), 422),
+            ("support_rd_ticket_recipients", json!(["ticket-1"]), 422),
             ("support_rd_ticket_source_image", json!(["ticket-1"]), 422),
             ("support_rd_ticket_attachment_source_image", json!(["ticket-1"]), 422),
             ("support_rd_attachment_migration_scope", json!([]), 422),
