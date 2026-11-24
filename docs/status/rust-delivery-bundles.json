@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8061,
+    "revision": 8069,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -131620,7 +131620,7 @@
         "owner": "people_payroll",
         "title": "people_payroll TS read tail native cutover (r14)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -131632,22 +131632,42 @@
         "resources": [
           "owner:people_payroll"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG48peo",
-          "claimedAt": "2026-11-24T01:03:21.986Z",
-          "heartbeatAt": "2026-11-24T01:36:09.340Z",
-          "expiresAt": "2026-11-24T02:06:09.340Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-people_payroll/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "48f81054d",
+            "owner": "people_payroll",
+            "before": 1633,
+            "after": 1629,
+            "note": "Evaluation timezone and pay-basis row reads share native kinds; duplicate TS literals removed."
+          },
+          {
+            "command": "cargo check + lib tests people-payroll (69)",
+            "result": "passed",
+            "sourceSha": "48f81054d"
+          },
+          {
+            "command": "vitest people payroll read plan (29)",
+            "result": "passed",
+            "sourceSha": "48f81054d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local family; record a strictly lower spaced count (BEFORE=1633).",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG48peo",
+          "at": "2026-11-24T01:38:47.521Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -134690,7 +134710,7 @@
         "owner": "platform_administration",
         "title": "platform_administration TS read tail native cutover (r5)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -134702,22 +134722,42 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGA6pad",
-          "claimedAt": "2026-11-24T01:31:58.202Z",
-          "heartbeatAt": "2026-11-24T01:36:09.340Z",
-          "expiresAt": "2026-11-24T02:06:09.340Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-platform_administration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "48f81054d",
+            "owner": "platform_administration",
+            "before": 47,
+            "after": 45,
+            "note": "Three active-branch-count copies share activeBranchCountSql; byte-identical output."
+          },
+          {
+            "command": "vitest platform dedupe (6)",
+            "result": "passed",
+            "sourceSha": "48f81054d"
+          },
+          {
+            "command": "tsc platform_administration",
+            "result": "passed",
+            "sourceSha": "48f81054d"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe TS-only dedupe; if none, report blocked. BEFORE=47.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGA6pad",
+          "at": "2026-11-24T01:38:47.905Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -135429,6 +135469,78 @@
         "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=461.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.people_payroll.read-tail-r15",
+        "goalId": "G4",
+        "owner": "people_payroll",
+        "title": "people_payroll TS read tail native cutover (r15)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-people_payroll/src/**",
+          "tests/unit/people_payroll/**",
+          "tests/integration/people_payroll/**"
+        ],
+        "resources": [
+          "owner:people_payroll"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGARpeo",
+          "claimedAt": "2026-11-24T01:38:48.186Z",
+          "heartbeatAt": "2026-11-24T01:38:48.186Z",
+          "expiresAt": "2026-11-24T02:08:48.186Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe dedupe/native read; if none, report blocked. BEFORE=1629.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.platform_administration.read-tail-r6",
+        "goalId": "G4",
+        "owner": "platform_administration",
+        "title": "platform_administration TS read tail native cutover (r6)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-platform_administration/src/**",
+          "tests/unit/platform_administration/**",
+          "tests/integration/platform_administration/**"
+        ],
+        "resources": [
+          "owner:platform_administration"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGASpad",
+          "claimedAt": "2026-11-24T01:38:48.496Z",
+          "heartbeatAt": "2026-11-24T01:38:48.496Z",
+          "expiresAt": "2026-11-24T02:08:48.496Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe dedupe/native read; if none, report blocked. BEFORE=45.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -135437,7 +135549,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 843,
+      "totalPackets": 845,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -135445,13 +135557,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 470,
+        "blocked": 472,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:37:58.376Z",
+    "updatedAt": "2026-11-24T01:38:48.500Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
