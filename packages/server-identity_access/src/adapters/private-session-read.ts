@@ -3,6 +3,7 @@ import {runtimeEnv} from "../../../../packages/server-runtime/src/public/runtime
 import {transactionDatabase,type PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgres";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {assertAccountPreferenceSession} from "@erpx/server-identity_access/adapters/account-preference-session";
+import {verifiedUserEmailSql} from "./iam-probe-sql";
 
 type PrivateSessionActor={userId:string;sessionId:string;email:string;audience:string|null};
 /** Normal authentication must precede this lease. Control is read-only and is
@@ -24,7 +25,7 @@ async function currentSessionLease<Result>(actor:PrivateSessionActor,run:(assert
   const assertCurrent=async()=>{
    if(!active)throw new Error("PRIVATE_SESSION_READ_CLOSED");
    try{await assertAccountPreferenceSession(database,actor);}catch(error){if(error instanceof ApiError&&error.code==="SESSION_REVOKED")throw new ApiError(401,"SESSION_REVOKED","Sign in again to open this private document.");throw error;}
-   const user=await database.prepare('SELECT email,"emailVerified" verified FROM "user" WHERE id=?').bind(actor.userId).first<{email:string;verified:number}>();
+   const user=await database.prepare(verifiedUserEmailSql).bind(actor.userId).first<{email:string;verified:number}>();
    if(!user||verified&&!Number(user.verified)||user.email.toLowerCase()!==actor.email.toLowerCase())throw new ApiError(401,"SESSION_REVOKED","Sign in again to open this private document.");
   };
   await assertCurrent();const result=await run(assertCurrent);await client.query("COMMIT");return result;

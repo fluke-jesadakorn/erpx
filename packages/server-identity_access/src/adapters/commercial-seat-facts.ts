@@ -11,14 +11,16 @@ export function commercialSeatCandidates(db:SqlDatabase,asOf:number){return db.p
       AND jsonb_array_length(v.permissions_json)>0
       AND iam_assignment_active(a.id,?) AND iam_principal_active(a.user_id,a.company_id,?)`)
     .bind(asOf,asOf).all<{user_id:string}>();}
-export function commercialSeatAccounts(db:SqlDatabase,ids:string[]){return db.prepare(`SELECT u.id user_id,p.status,
+/** One owner-local projection for the platform-identity seat account read. Both
+ * exported callers previously repeated this literal; a single parameterized
+ * statement now serves them so the projection cannot drift. Only the
+ * already-authorized id list is accepted from a caller; the SQL is fixed here. */
+const seatAccountsSql = (ids:string[]) => `SELECT u.id user_id,p.status,
       EXISTS(SELECT 1 FROM platform_assignments x WHERE x.user_id=u.id) platform_identity
       FROM "user" u LEFT JOIN principals p ON p.user_id=u.id
-      WHERE u.id IN (${ids.map(()=>"?").join(",")})`)
+      WHERE u.id IN (${ids.map(()=>"?").join(",")})`;
+export function commercialSeatAccounts(db:SqlDatabase,ids:string[]){return db.prepare(seatAccountsSql(ids))
       .bind(...ids).all<{user_id:string;status:string|null;platform_identity:boolean}>();}
-export function commercialSeatProjectionAccounts(db:SqlDatabase,ids:string[]){const userPlaceholders=ids.map(()=>'?').join(',');return db.prepare(`SELECT u.id user_id,p.status,
-    EXISTS(SELECT 1 FROM platform_assignments x WHERE x.user_id=u.id) platform_identity
-    FROM "user" u LEFT JOIN principals p ON p.user_id=u.id
-    WHERE u.id IN (${userPlaceholders})`)
+export function commercialSeatProjectionAccounts(db:SqlDatabase,ids:string[]){return db.prepare(seatAccountsSql(ids))
     .bind(...ids)
     .all<{user_id:string;status:string|null;platform_identity:boolean}>();}

@@ -5,6 +5,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { runtimeEnv } from "../../../../packages/server-runtime/src/public/runtime";
 import { ActiveAssignmentEvidenceRow, PendingAccessReviewEvidenceRow } from '@erpx/server-runtime/public/executive/evidence-contract';
+import { idNameByUserIdsSql } from "./iam-probe-sql";
 function identityAccessScope(alias: "a" | "i", actor: WorkContext) {
     if (actor.departmentId)
         return {
@@ -38,7 +39,7 @@ export function executiveMainEvidenceSources(db: SqlDatabase) {
     return { async factsIdentityAccessUserNames(ids: string[]): Promise<Map<string, string>> {
             const control = (await runtimeEnv()).CONTROL_DB;
             try {
-                const rows = (await control.prepare(`SELECT id,name FROM "user" WHERE id IN (${ids.map(() => "?").join(",")})`).bind(...ids).all<{
+                const rows = (await control.prepare(idNameByUserIdsSql(ids)).bind(...ids).all<{
                     id: string;
                     name: string;
                 }>()).results;

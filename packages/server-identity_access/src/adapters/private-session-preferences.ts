@@ -4,6 +4,7 @@ import {transactionDatabase,type PostgresDatabase} from '@erpx/server-runtime/pu
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {assertAccountPreferenceSession} from '@erpx/server-identity_access/adapters/account-preference-session';
+import {verifiedUserEmailSql} from './iam-probe-sql';
 
 type Actor={userId:string;sessionId:string;email:string;audience:string|null};
 type SelfAccountActor=Pick<Actor,'userId'|'sessionId'|'audience'>;
@@ -23,7 +24,7 @@ async function currentSessionPreferences<Result>(actor:SelfAccountActor,identity
   await client.query('LOCK TABLE sso_session_bindings IN SHARE MODE');
   await client.query('LOCK TABLE quick_access_preferences,quick_access_preference_receipts IN SHARE ROW EXCLUSIVE MODE');
   const transaction=transactionDatabase(client);database=transaction;
-  const current=async()=>{assertRequestContext();if(JSON.stringify({actor,identity})!==context)throw new ApiError(401,'SESSION_REVOKED','The current personal account changed.');await assertAccountPreferenceSession(transaction,actor);if(identity.kind==='verified-external'){const user=await transaction.prepare('SELECT email,"emailVerified" verified FROM "user" WHERE id=?').bind(actor.userId).first<{email:string;verified:number}>();if(!user||!Number(user.verified)||user.email.toLowerCase()!==identity.email.toLowerCase())throw new ApiError(401,'SESSION_REVOKED','Sign in again to edit your personal shortcuts.');}};
+  const current=async()=>{assertRequestContext();if(JSON.stringify({actor,identity})!==context)throw new ApiError(401,'SESSION_REVOKED','The current personal account changed.');await assertAccountPreferenceSession(transaction,actor);if(identity.kind==='verified-external'){const user=await transaction.prepare(verifiedUserEmailSql).bind(actor.userId).first<{email:string;verified:number}>();if(!user||!Number(user.verified)||user.email.toLowerCase()!==identity.email.toLowerCase())throw new ApiError(401,'SESSION_REVOKED','Sign in again to edit your personal shortcuts.');}};
   await current();phases.set(transaction,actor.userId);const result=await run(transaction);
   await client.query('SET CONSTRAINTS ALL IMMEDIATE');await current();await client.query('COMMIT');return result;
  }catch(error){await client.query('ROLLBACK').catch(()=>{});if(['55P03','40P01'].includes((error as {code?:string}).code??''))throw new ApiError(409,'SESSION_AUTHORITY_BUSY','Your sign-in is changing. Reload and try again.');throw error;

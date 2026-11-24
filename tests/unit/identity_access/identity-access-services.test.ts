@@ -70,7 +70,8 @@ it('keeps one fixed Records active-assignment projection for both facts reads', 
 it('keeps one fixed People roster role-authorization projection for both facts reads', async () => {
     const { readFile } = await import("node:fs/promises");
     const source = await readFile(new URL("../../../packages/server-identity_access/src/adapters/people-roster-facts.ts", import.meta.url), "utf8");
-    expect(source).toContain("const rosterRoleAllowsSql");
-    expect(source.split("SELECT 1 WHERE iam_role_allows(?,?,?)").length - 1).toBe(1);
-    expect(source.split("database.prepare(rosterRoleAllowsSql)").length - 1).toBe(2);
+    // r14: the roster projection now shares the owner's single role probe literal.
+    expect(source).toContain('import { roleAllowsSql } from "./iam-probe-sql";');
+    expect(source).not.toContain("SELECT 1 WHERE iam_role_allows(?,?,?)");
+    expect(source.split("database.prepare(roleAllowsSql)").length - 1).toBe(2);
 });

@@ -19,3 +19,12 @@ export const protectedMigrationIdentitySql = "SELECT 1 FROM iam_members WHERE co
  * from a caller: only the already-authorized id list and its original gap. */
 export const activeRecipientsSql = (ids: string[], gap: string) =>
   `SELECT DISTINCT user_id FROM assignments WHERE company_id=? AND user_id IN (${ids.map(() => "?").join(",")})${gap}AND revoked_at IS NULL AND iam_assignment_active(id,?) AND iam_principal_active(user_id,company_id,?)`;
+/** Byte-identical user id/name read shared by the calendar appointments facts
+ * port and the executive main-evidence source. Only the already-authorized id
+ * list is accepted from a caller; the projection SQL is fixed here. */
+export const idNameByUserIdsSql = (ids: string[]) =>
+  `SELECT id,name FROM "user" WHERE id IN (${ids.map(() => "?").join(",")})`;
+/** Byte-identical verified-email read shared by the private session preferences
+ * and private session read adapters. Each caller owns its transaction; this
+ * probe takes no lock and touches no lock statement. */
+export const verifiedUserEmailSql = 'SELECT email,"emailVerified" verified FROM "user" WHERE id=?';
