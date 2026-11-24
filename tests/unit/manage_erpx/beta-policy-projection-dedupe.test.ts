@@ -75,3 +75,40 @@ describe('manage_erpx ai-gateway beta_bootstrap scope read family', () => {
     expect(prepared).toBe(OLD_BOOTSTRAP_SCOPE);
   });
 });
+
+const OLD_STORAGE_BYTES_SQL = 'SELECT storage_bytes FROM beta_policy WHERE company_id=?';
+
+describe('manage_erpx beta_policy storage-bytes read pair', () => {
+  it('keeps one fixed-SQL storage-bytes literal shared by both callers', async () => {
+    const attachments = await readFile(adapter('attachments-service-facts.ts'), 'utf8');
+    const allowance = await readFile(adapter('legal-portal-storage-allowance.ts'), 'utf8');
+    // One canonical declaration; the legal-portal surface reuses it by
+    // reference so the attachment quota and portal allowance cannot drift.
+    expect(attachments.match(/SELECT storage_bytes FROM beta_policy WHERE company_id=\?/g)).toHaveLength(1);
+    expect(allowance).not.toMatch(/SELECT storage_bytes FROM beta_policy WHERE company_id=\?/);
+    expect(allowance).toContain('import {betaPolicyStorageBytesSql} from "./attachments-service-facts"');
+  });
+
+  it('preserves the exact prepared SQL for both existing callers', async () => {
+    const { betaPolicyStorageBytesSql, attachmentServiceManageErpxFacts } = await import(
+      '../../../packages/server-manage_erpx/src/adapters/attachments-service-facts'
+    );
+    const { legalPortalStorageAllowance } = await import(
+      '../../../packages/server-manage_erpx/src/adapters/legal-portal-storage-allowance'
+    );
+    expect(betaPolicyStorageBytesSql).toBe(OLD_STORAGE_BYTES_SQL);
+    const prepared: string[] = [];
+    const db = {
+      prepare(sql: string) {
+        prepared.push(sql);
+        return {
+          bind() { return { first: async () => ({ storage_bytes: 1 }) }; },
+          first: async () => ({ storage_bytes: 1 }),
+        };
+      },
+    };
+    await attachmentServiceManageErpxFacts(db as never).readBetaPolicy20({ companyId: 'c1' });
+    await legalPortalStorageAllowance(db as never, 'c1');
+    expect(prepared).toEqual([OLD_STORAGE_BYTES_SQL, OLD_STORAGE_BYTES_SQL]);
+  });
+});
