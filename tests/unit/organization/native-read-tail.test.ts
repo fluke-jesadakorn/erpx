@@ -214,6 +214,28 @@ describe('Organization owner-local read tail', () => {
     for (const key of keys) expect(p[key]).toBe(expected);
   });
 
+  it('shares one canonical alias=organization_nodes projection across the IAM and collaboration snapshot source maps', async () => {
+    const spaced = await import('../../../packages/server-organization/src/adapters/organization-nodes-spaced-projections');
+    const {identitySnapshotSources} = await import('../../../packages/server-organization/src/adapters/identity-snapshot-sources');
+    const {collaborationNotificationSnapshotSources} = await import('../../../packages/server-organization/src/adapters/collaboration-notification-snapshot-sources');
+    const id = identitySnapshotSources();
+    const cn = collaborationNotificationSnapshotSources();
+    const keys = [
+      'access_diagnosis_organization_nodes_from',
+      'authorization_organization_nodes_from',
+      'member_directory_organization_nodes_from',
+      'user_management_organization_nodes_from',
+      'workflow_role_facts_organization_nodes_from',
+    ] as const;
+    for (const key of keys) expect(id[key]).toBe(spaced.ORG_NODES_PROJECTION);
+    for (const key of [
+      'organization_channels_organization_nodes_from',
+      'organization_node_channels_organization_nodes_from',
+      'people_roster_facts_organization_nodes_from',
+    ] as const) expect(cn[key]).toBe(spaced.ORG_NODES_PROJECTION);
+    expect(spaced.ORG_NODES_PROJECTION).toBe('FROM (SELECT "id", "kind", "slug", "display_name", "parent_id", "company_id", "branch_id", "status", "hierarchy_revision" FROM organization_nodes) organization_nodes');
+  });
+
   it('shares one canonical alias=l staff_levels projection across the people/payroll final-owner source map', async () => {
     const {peoplePayrollFinalOwnerProjections} = await import('../../../packages/server-organization/src/adapters/people-payroll-final-owner-projections');
     const p = peoplePayrollFinalOwnerProjections();
