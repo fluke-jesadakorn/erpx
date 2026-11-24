@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9320,
+    "revision": 9332,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -149496,7 +149496,7 @@
         "owner": "sales",
         "title": "sales TS read tail native cutover (r14)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -149508,22 +149508,37 @@
         "resources": [
           "owner:sales"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCTsal",
-          "claimedAt": "2026-11-24T05:07:17.677Z",
-          "heartbeatAt": "2026-11-24T05:07:17.677Z",
-          "expiresAt": "2026-11-24T05:37:17.677Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-sales/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e32957d78",
+            "owner": "sales",
+            "before": 93,
+            "after": 73,
+            "note": "21 settlement fact kind prefixes share factKind generator; rendered SHA identical; locks untouched."
+          },
+          {
+            "command": "vitest sales r13/r14/services/native (128) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "e32957d78"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=93.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-j",
+          "agentId": "wGCTsal",
+          "at": "2026-11-24T05:14:12.054Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -149727,7 +149742,7 @@
         "owner": "customer_360",
         "title": "customer_360 TS read tail native cutover (r6)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -149739,22 +149754,37 @@
         "resources": [
           "owner:customer_360"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCBc360",
-          "claimedAt": "2026-11-24T05:07:20.395Z",
-          "heartbeatAt": "2026-11-24T05:07:20.395Z",
-          "expiresAt": "2026-11-24T05:37:20.395Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-customer_360/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "e32957d78",
+            "owner": "customer_360",
+            "before": 31,
+            "after": 26,
+            "note": "Six timeline event projections share eventSelect; r5 helpers, locks and consumers untouched."
+          },
+          {
+            "command": "vitest customer_360 (106 incl portal application) + tsc",
+            "result": "passed",
+            "sourceSha": "e32957d78"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=31.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-j",
+          "agentId": "wGCBc360",
+          "at": "2026-11-24T05:14:11.694Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -150599,6 +150629,150 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=100.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.crm.read-tail-r17",
+        "goalId": "G4",
+        "owner": "crm",
+        "title": "crm TS read tail native cutover (r17)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-crm/src/**",
+          "tests/unit/crm/**",
+          "tests/integration/crm/**"
+        ],
+        "resources": [
+          "owner:crm"
+        ],
+        "claim": {
+          "runId": "run-20261123-j",
+          "agentId": "wGCDcrm",
+          "claimedAt": "2026-11-24T05:14:12.557Z",
+          "heartbeatAt": "2026-11-24T05:14:12.557Z",
+          "expiresAt": "2026-11-24T05:44:12.557Z",
+          "generation": 162
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=165.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.benefits.read-tail-r17",
+        "goalId": "G4",
+        "owner": "benefits",
+        "title": "benefits TS read tail native cutover (r17)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-benefits/src/**",
+          "tests/unit/benefits/**",
+          "tests/integration/benefits/**"
+        ],
+        "resources": [
+          "owner:benefits"
+        ],
+        "claim": {
+          "runId": "run-20261123-j",
+          "agentId": "wGCDben",
+          "claimedAt": "2026-11-24T05:14:13.254Z",
+          "heartbeatAt": "2026-11-24T05:14:13.254Z",
+          "expiresAt": "2026-11-24T05:44:13.254Z",
+          "generation": 162
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=47.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.customer_360.read-tail-r7",
+        "goalId": "G4",
+        "owner": "customer_360",
+        "title": "customer_360 TS read tail native cutover (r7)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-customer_360/src/**",
+          "tests/unit/customer_360/**",
+          "tests/integration/customer_360/**"
+        ],
+        "resources": [
+          "owner:customer_360"
+        ],
+        "claim": {
+          "runId": "run-20261123-j",
+          "agentId": "wGCDc360",
+          "claimedAt": "2026-11-24T05:14:13.830Z",
+          "heartbeatAt": "2026-11-24T05:14:13.830Z",
+          "expiresAt": "2026-11-24T05:44:13.830Z",
+          "generation": 162
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=26.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.sales.read-tail-r15",
+        "goalId": "G4",
+        "owner": "sales",
+        "title": "sales TS read tail native cutover (r15)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-sales/src/**",
+          "tests/unit/sales/**",
+          "tests/integration/sales/**"
+        ],
+        "resources": [
+          "owner:sales"
+        ],
+        "claim": {
+          "runId": "run-20261123-j",
+          "agentId": "wGCDsal",
+          "claimedAt": "2026-11-24T05:14:14.415Z",
+          "heartbeatAt": "2026-11-24T05:14:14.415Z",
+          "expiresAt": "2026-11-24T05:44:14.415Z",
+          "generation": 162
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=73.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -150607,21 +150781,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1138,
+      "totalPackets": 1142,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 35,
+        "in_progress": 37,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 757,
+        "blocked": 759,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 162,
-    "updatedAt": "2026-11-24T05:13:25.753Z",
+    "updatedAt": "2026-11-24T05:14:14.444Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
