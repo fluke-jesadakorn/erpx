@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11646,
+    "revision": 11652,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -173906,7 +173906,7 @@
         "owner": "pms",
         "title": "pms TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -173918,28 +173918,36 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a11",
-          "claimedAt": "2026-11-24T11:32:51.828Z",
-          "heartbeatAt": "2026-11-24T11:37:13.004Z",
-          "expiresAt": "2026-11-24T12:07:13.004Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pms/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "fc0f4c49c",
+            "owner": "pms",
+            "before": 332,
+            "after": 328,
+            "note": "Record-property and property point heads shared; locks/fragments/registries untouched."
+          },
+          {
+            "command": "vitest pms r17-r36 (145) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "fc0f4c49c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=332.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a11",
-          "at": "2026-11-24T11:32:49.939Z",
+          "at": "2026-11-24T11:43:20.651Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=332."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -174145,7 +174153,7 @@
         "owner": "operations",
         "title": "operations TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -174157,28 +174165,36 @@
         "resources": [
           "owner:operations"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a16",
-          "claimedAt": "2026-11-24T11:32:52.653Z",
-          "heartbeatAt": "2026-11-24T11:37:13.004Z",
-          "expiresAt": "2026-11-24T12:07:13.004Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-operations/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "fc0f4c49c",
+            "owner": "operations",
+            "before": 108,
+            "after": 107,
+            "note": "Project and non-project staff task EXISTS guards share one helper; LOCK TABLE and r29-r43 untouched."
+          },
+          {
+            "command": "vitest operations (169) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "fc0f4c49c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=108.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a16",
-          "at": "2026-11-24T11:32:49.939Z",
+          "at": "2026-11-24T11:43:20.928Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=108."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -174267,7 +174283,7 @@
         "owner": "legal",
         "title": "legal destruction guard and executive spine dedupe",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -174279,28 +174295,36 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wF4a19",
-          "claimedAt": "2026-11-24T11:32:53.163Z",
-          "heartbeatAt": "2026-11-24T11:37:13.004Z",
-          "expiresAt": "2026-11-24T12:07:13.004Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "fc0f4c49c",
+            "owner": "legal",
+            "before": 203,
+            "after": 201,
+            "note": "Destruction guard 3->1 and executive obligation/hold heads 2->2; citations/advisory locks/FOR UPDATE untouched."
+          },
+          {
+            "command": "vitest legal r46 (9) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "fc0f4c49c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Destruction guard 3 sites -> 1 (-2) and executive obligation/hold spine heads 2x2 -> 2 (-2). BEFORE=203.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-b",
+          "runId": "run-20261124-c",
           "agentId": "wF4a19",
-          "at": "2026-11-24T11:32:49.939Z",
+          "at": "2026-11-24T11:43:21.255Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired during 40-worker hy4 dispatch; WIP reviewed, previous run stopped.",
-          "nextAction": "Destruction guard 3 sites -> 1 (-2) and executive obligation/hold spine heads 2x2 -> 2 (-2). BEFORE=203."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -174873,17 +174897,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 10,
+        "in_progress": 7,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1258,
+        "blocked": 1261,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T11:42:37.053Z",
+    "updatedAt": "2026-11-24T11:43:21.259Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
