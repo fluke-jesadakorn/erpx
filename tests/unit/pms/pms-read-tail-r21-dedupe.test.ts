@@ -27,11 +27,16 @@ describe('pms read-tail r21 parameterized recipient cross-join dedupe', () => {
   });
 
   it('routes every source reader through the shared fragment with no inline literal', async () => {
-    const uses = [1, 1, 2];
-    for (let i = 0; i < CALL_SITES.length; i++) {
-      const text = await src(CALL_SITES[i]);
-      // one import plus one use per occurrence in the file
-      expect(text.split('PMS_RECIPIENT_CROSS_JOIN_SQL').length - 1).toBe(uses[i] + 1);
+    const home = await src('adapters/pms/home.ts');
+    expect(home.split('PMS_RECIPIENT_CROSS_JOIN_SQL').length - 1).toBe(3); // import + 2 direct uses
+    expect(home).not.toContain(RECIPIENT);
+    // r35 inlined the two byte-identical point-reader probes behind one helper.
+    const r35 = await src('adapters/pms-read-tail-r35-sql.ts');
+    expect(r35.split('PMS_RECIPIENT_CROSS_JOIN_SQL').length - 1).toBe(2); // import + 1 use
+    for (const file of CALL_SITES.slice(0, 2)) {
+      const text = await src(file);
+      expect(text.split('PMS_RECIPIENT_CROSS_JOIN_SQL').length - 1).toBe(0);
+      expect(text).toContain('pmsSourceRecipientProbeSql()');
       expect(text).not.toContain(RECIPIENT);
     }
   });
@@ -45,7 +50,7 @@ describe('pms read-tail r21 parameterized recipient cross-join dedupe', () => {
   it('lowers the pms owner SELECT KPI strictly below the r20 after=477 baseline', async () => {
     let count = 0;
     for (const file of await tsFiles(dir)) count += (await readFile(file, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(337);
+    expect(count).toBe(332);
     expect(count).toBeLessThan(477);
   });
 });

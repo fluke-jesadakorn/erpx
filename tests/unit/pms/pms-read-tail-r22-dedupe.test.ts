@@ -63,13 +63,14 @@ describe('pms read-tail r22 byte-identical fragment dedupe', () => {
     expect(await src('adapters/feature-availability.ts')).toContain('FOR SHARE');
     const r21 = await src('adapters/pms-read-tail-r21-sql.ts');
     expect(r21.split('CROSS JOIN (SELECT ?::text user_id) recipient').length - 1).toBe(1);
-    expect(await src('adapters/collaboration-home-sources.ts')).toContain('PMS_RECIPIENT_CROSS_JOIN_SQL');
+    expect(await src('adapters/collaboration-home-sources.ts')).toContain('pmsSourceRecipientProbeSql()');
+    expect(await src('adapters/pms-read-tail-r35-sql.ts')).toContain('PMS_RECIPIENT_CROSS_JOIN_SQL');
   });
 
   it('lowers the pms owner SELECT KPI strictly below the r21 after=474 baseline', async () => {
     let count = 0;
     for (const file of await tsFiles(dir)) count += (await readFile(file, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(337);
+    expect(count).toBe(332);
     expect(count).toBeLessThan(474);
   });
 });

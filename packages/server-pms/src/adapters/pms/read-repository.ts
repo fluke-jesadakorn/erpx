@@ -7,6 +7,7 @@ import { PMS_RECORDS_PROJECTION_PREFIX_SQL } from "../pms-read-tail-r24-sql";
 import { PMS_GUEST_STAYS_CHOSEN_MEMBER_SQL } from "../pms-read-tail-r25-sql";
 import { PMS_CHOSEN_RECORDS_SQL } from "../pms-read-tail-r26-sql";
 import { PMS_RECORD_POINT_PREFIX_SQL, pmsSetupExistsSql } from "../pms-read-tail-r31-sql";
+import { PMS_RECORD_ID_PROPERTY_HEAD_SQL } from "../pms-read-tail-r35-sql";
 import { nativePmsReadAll, PMS_RD_INVENTORY_COMMAND } from "../native-pms-read";
 import * as application from "@erpx/server-pms/application/read-repository";
 const stayPredicate = `(data_json::jsonb->>'state' IN ('reserved','in_house') OR
@@ -79,7 +80,7 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
             from: string;
             to: string;
             offset: number;
-        }) => db.prepare(`SELECT id FROM pms_records WHERE property_id=? AND kind=?
+        }) => db.prepare(`${PMS_RECORD_ID_PROPERTY_HEAD_SQL} AND kind=?
    AND (?='' OR COALESCE(data_json::jsonb->>'cleanliness',data_json::jsonb->>'state')=?)
    AND (?='' OR position(lower(?) in lower(concat_ws(' ',id,data_json::jsonb->>'name',data_json::jsonb->>'number',data_json::jsonb->>'phone',data_json::jsonb->>'email',data_json::jsonb->>'building',data_json::jsonb->>'floor')))>0)
    AND (kind<>'room' OR ((?='' OR data_json::jsonb->>'building'=?) AND (?='' OR data_json::jsonb->>'floor'=?) AND (?='' OR data_json::jsonb->>'typeId'=?)))
@@ -119,7 +120,7 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
    reservations AS (SELECT id FROM chosen WHERE kind='reservation' UNION SELECT data->>'reservationId' FROM chosen),
    stays AS (SELECT id,data_json::jsonb data FROM pms_records WHERE property_id=? AND kind='stay' AND (id IN (SELECT id FROM chosen) OR data_json::jsonb->>'reservationId' IN (SELECT id FROM reservations))),
    guestAccounts AS (SELECT data->>'guestAccountId' id FROM stays),
-   groups AS (SELECT id FROM pms_records WHERE property_id=? AND kind='block' AND data_json::jsonb->>'kind'='group' AND data_json::jsonb->>'state'='active' AND COALESCE(data_json::jsonb->>'bookingChangeId','')='' ORDER BY updated_at DESC,id LIMIT 50)
+   groups AS (${PMS_RECORD_ID_PROPERTY_HEAD_SQL} AND kind='block' AND data_json::jsonb->>'kind'='group' AND data_json::jsonb->>'state'='active' AND COALESCE(data_json::jsonb->>'bookingChangeId','')='' ORDER BY updated_at DESC,id LIMIT 50)
    ${PMS_RECORDS_PROJECTION_PREFIX_SQL} WHERE property_id=? AND (
     kind IN ('room_type','room','rate') OR id IN (SELECT id FROM groups) OR id IN (SELECT id FROM chosen) OR id IN (SELECT id FROM reservations) OR id IN (SELECT id FROM stays) OR id IN (SELECT id FROM guestAccounts)
     ${PMS_GUEST_STAYS_CHOSEN_MEMBER_SQL}
@@ -170,7 +171,7 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
  ), guestAccounts AS (SELECT id FROM chosen WHERE kind='guest_account' UNION SELECT data->>'guestAccountId' FROM stays UNION SELECT data->>'guestAccountId' FROM chosen),
  room_ids AS (SELECT id FROM chosen WHERE kind='room' UNION SELECT data->>'roomId' FROM stays UNION SELECT data->>'roomId' FROM chosen),
  recent_tasks AS (
-   SELECT id FROM pms_records WHERE property_id=? AND ? AND kind='task'
+   ${PMS_RECORD_ID_PROPERTY_HEAD_SQL} AND ? AND kind='task'
      AND data_json::jsonb->>'roomId' IN (SELECT id FROM room_ids) AND data_json::jsonb->>'state' IN ('done','superseded')
      ORDER BY updated_at DESC,id LIMIT 50
  ),
@@ -190,7 +191,7 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
    OR (kind='reservation' AND id IN (SELECT data->>'reservationId' FROM stays))
    ${PMS_GUEST_STAYS_CHOSEN_MEMBER_SQL}
    OR (kind='room' AND (? OR id IN (SELECT id FROM room_ids)))
-   OR (kind='guest' AND ? AND id IN (SELECT id FROM pms_records WHERE property_id=? AND kind='guest' ORDER BY updated_at DESC,id LIMIT 50))
+   OR (kind='guest' AND ? AND id IN (${PMS_RECORD_ID_PROPERTY_HEAD_SQL} AND kind='guest' ORDER BY updated_at DESC,id LIMIT 50))
    OR (kind IN ('room_type','rate') AND (? OR ? OR id IN (SELECT data->>'typeId' FROM stays UNION SELECT data->>'rateId' FROM stays)))
    OR (kind='guest_account' AND id IN (SELECT id FROM guestAccounts))
    OR (kind IN ('entry','refund','correction') AND data_json::jsonb->>'guestAccountId' IN (SELECT id FROM guestAccounts))
@@ -253,7 +254,7 @@ export function readPmsOperationsList(db: SqlDatabase, propertyId: string, busin
 export async function readPmsChoices(db:SqlDatabase,propertyId:string,selection:Extract<PmsReadSelection,{view:'choices'}>){
  const eligible=selection.kind==='block'?"AND data_json::jsonb->>'kind'='group' AND data_json::jsonb->>'state'='active' AND COALESCE(data_json::jsonb->>'bookingChangeId','')=''":"";
  const rows=await db.prepare(`WITH matched AS (
-  SELECT id FROM pms_records WHERE property_id=? AND kind=? ${eligible}
+  ${PMS_RECORD_ID_PROPERTY_HEAD_SQL} AND kind=? ${eligible}
   AND (?='' OR position(lower(?) in lower(concat_ws(' ',data_json::jsonb->>'name',data_json::jsonb->>'email',id)))>0)
   ORDER BY data_json::jsonb->>'name',id LIMIT 50
  ) SELECT id,kind,version,updated_at,
