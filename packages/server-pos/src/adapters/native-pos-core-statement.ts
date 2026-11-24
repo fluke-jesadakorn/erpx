@@ -172,3 +172,20 @@ export async function nativePosPaymentByIdStatement<T = SqlValueRow>(
 ): Promise<T | null> {
   return nativePosOne<T>(db, '', 'stripe_readpospaymentsbyid_527', [paymentId]);
 }
+
+/**
+ * Owner-issued PMS booking connection-readiness row. The SQL lives in the
+ * native POS owner registry (`erpx-server-pos::adapters::owner_writes`, kind
+ * `stripe_readposbookingconnection_528`) and is byte-identical to the two
+ * deleted `SELECT * FROM pos_connections WHERE company_id=? AND state='ready'
+ * AND charges_enabled=true AND payouts_enabled=true` literals in
+ * `pms-booking-change-facts.ts` and `pms-booking-facts.ts`. This bridge sends
+ * only the kind and Company value; the caller executes the registry statement
+ * on its own unit, so no TypeScript SQL, mirror or fallback reader remains.
+ */
+export async function nativePosBookingConnectionStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  companyId: unknown,
+): Promise<T | null> {
+  return nativePosOne<T>(db, String(companyId ?? ''), 'stripe_readposbookingconnection_528', [companyId]);
+}

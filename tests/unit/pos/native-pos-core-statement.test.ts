@@ -12,6 +12,7 @@ import {
   nativePosSettingsAccountsStatement,
   nativePosConnectionsStatement,
   nativePosPaymentByIdStatement,
+  nativePosBookingConnectionStatement,
 } from '../../../packages/server-pos/src/adapters/native-pos-core-statement';
 import { pmsHospitalitySetupPosFacts } from '../../../packages/server-pos/src/adapters/pms-hospitality-setup-facts';
 import { pmsBookingChangeFacts } from '../../../packages/server-pos/src/adapters/pms-booking-change-facts';
@@ -501,5 +502,95 @@ describe('native POS core workspace read bridge (shifts family)', () => {
     const source = readFileSync(new URL('../../../packages/server-pos/src/adapters/pos-stripe.ts', import.meta.url), 'utf8');
     expect(source.match(/nativePosPaymentByIdStatement<PosRow>\(db, facts\.id\)/g)).toHaveLength(4);
     expect(source).not.toContain('SELECT * FROM pos_payments WHERE id=? FOR UPDATE');
+  });
+
+  it('requests the PMS booking connection row from the native owner registry only', async () => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const sql = "SELECT * FROM pos_connections WHERE company_id=? AND state='ready' AND charges_enabled=true AND payouts_enabled=true";
+    const values = ['company'];
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { sql, values } }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const seen: { sql?: string; values?: unknown[] } = {};
+    const row = { account_id: 'acct_1', livemode: false, card_enabled: true, promptpay_enabled: false };
+    const db = {
+      prepare: (text: string) => ({
+        bind: (...bound: unknown[]) => {
+          seen.sql = text;
+          seen.values = bound;
+          return { first: async () => row };
+        },
+      }),
+    };
+    const prepare = vi.spyOn(db, 'prepare');
+    const result = await nativePosBookingConnectionStatement(db as never, 'company');
+    expect(result).toEqual(row);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe('http://127.0.0.1:44994/api/v1/companies/company/pos/owner-write');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual({
+      company: 'company',
+      kind: 'stripe_readposbookingconnection_528',
+      values,
+    });
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(seen.sql).toBe(sql);
+    expect(seen.values).toEqual(values);
+  });
+
+  it('fails closed for the booking connection read when the native owner service is unconfigured', async () => {
+    delete process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    await expect(nativePosBookingConnectionStatement({} as never, 'company')).rejects.toMatchObject({
+      code: 'NATIVE_POS_OWNER_UNAVAILABLE',
+      status: 503,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('serves both PMS booking connection reads from the native registry with no local SQL', async () => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const sql = "SELECT * FROM pos_connections WHERE company_id=? AND state='ready' AND charges_enabled=true AND payouts_enabled=true";
+    const fetch = vi.fn().mockImplementation(() => Promise.resolve(
+      new Response(JSON.stringify({ data: { sql, values: ['company'] } }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    ));
+    vi.stubGlobal('fetch', fetch);
+    const seen: { sql?: string; values?: unknown[] } = {};
+    const row = { account_id: 'acct_1', livemode: false, card_enabled: true, promptpay_enabled: false };
+    const db = {
+      prepare: (text: string) => ({
+        bind: (...bound: unknown[]) => {
+          seen.sql = text;
+          seen.values = bound;
+          return { first: async () => row };
+        },
+      }),
+    };
+    const prepare = vi.spyOn(db, 'prepare');
+    await expect(pmsBookingChangeFacts(db as never).readPosConnections({ companyId: 'company' })).resolves.toEqual(row);
+    await expect(pmsBookingPosFacts(db as never).readPosConnections1({ companyId: 'company' })).resolves.toEqual(row);
+    expect(fetch).toHaveBeenCalledTimes(2);
+    for (const call of fetch.mock.calls)
+      expect(JSON.parse(call[1].body)).toEqual({
+        company: 'company',
+        kind: 'stripe_readposbookingconnection_528',
+        values: ['company'],
+      });
+    expect(prepare).toHaveBeenCalledTimes(2);
+    expect(seen.sql).toBe(sql);
+    expect(seen.values).toEqual(['company']);
+  });
+
+  it('keeps no byte-identical PMS booking connection SQL literal in the TS adapters', async () => {
+    const { readFileSync } = await import('node:fs');
+    const literal = "SELECT * FROM pos_connections WHERE company_id=? AND state='ready' AND charges_enabled=true AND payouts_enabled=true";
+    for (const file of ['pms-booking-change-facts.ts', 'pms-booking-facts.ts']) {
+      const source = readFileSync(new URL(`../../../packages/server-pos/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(source).not.toContain(literal);
+      expect(source).toContain('nativePosBookingConnectionStatement');
+    }
   });
 });
