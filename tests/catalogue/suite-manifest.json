@@ -3428,7 +3428,7 @@
       "lane": "unit",
       "owner": "billing",
       "modules": [
-        "billing"
+        "commercial"
       ],
       "fixture": "none",
       "requires": {
@@ -3455,7 +3455,7 @@
       "lane": "unit",
       "owner": "billing",
       "modules": [
-        "billing"
+        "commercial"
       ],
       "fixture": "none",
       "requires": {
@@ -3482,7 +3482,7 @@
       "lane": "unit",
       "owner": "billing",
       "modules": [
-        "billing"
+        "commercial"
       ],
       "fixture": "none",
       "requires": {
@@ -3509,7 +3509,7 @@
       "lane": "unit",
       "owner": "billing",
       "modules": [
-        "billing"
+        "commercial"
       ],
       "fixture": "none",
       "requires": {
@@ -24113,6 +24113,33 @@
       "id": "files.read-tail-r37-dedupe.unit",
       "files": [
         "tests/unit/files/read-tail-r37-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "files",
+      "modules": [
+        "manage_erpx"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Files attachment event head must stay one helper."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-files"
+      ],
+      "id": "files.read-tail-r38-dedupe.unit",
+      "files": [
+        "tests/unit/files/read-tail-r38-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
@@ -114202,6 +114229,33 @@
       "id": "support.read-tail-r29-valid-binding-image-family.unit",
       "files": [
         "tests/unit/support/read-tail-r29-valid-binding-image-family.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "support",
+      "modules": [
+        "support"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Support ticket identity head must stay one helper."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-support"
+      ],
+      "id": "support.read-tail-r32-ticket-identity-family.unit",
+      "files": [
+        "tests/unit/support/read-tail-r32-ticket-identity-family.test.ts"
       ],
       "framework": "vitest"
     },

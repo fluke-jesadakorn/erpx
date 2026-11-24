@@ -22,7 +22,9 @@ describe('Support read-tail r22 ticket guard family', () => {
     test('authors one parameterized ticket guard witness', () => {
         expect(helper.match(/const ticketGuardExistsSql\s*=/g) ?? []).toHaveLength(1);
         expect(helper).toContain('export const ticketGuardExistsSql = (predicate: string) =>');
-        expect(helper).toContain('`EXISTS(SELECT 1 FROM support_tickets t WHERE t.id=? AND ${predicate})`');
+        expect(helper).toContain('export const ticketByIdSql = (projection: string, predicate: string) =>');
+        expect(helper).toContain('`SELECT ${projection} FROM support_tickets t WHERE t.id=? AND ${predicate}`');
+        expect(helper).toContain("`EXISTS(${ticketByIdSql('1', predicate)})`");
     });
 
     test('both guards render byte-identically with unchanged binds', () => {

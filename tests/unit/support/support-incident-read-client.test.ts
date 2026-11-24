@@ -169,8 +169,10 @@ describe('Support evidence read-tail r18 canonical eligibility witness', () => {
   it('keeps one canonical evidence eligibility witness projection', async () => {
     const source = await src('adapters/support-evidence.ts');
     expect(source).toContain('const evidenceEligibilitySelect = () =>');
-    expect(source.match(/SELECT 1 AS ok FROM support_tickets t WHERE t\.id=\? AND/g)).toHaveLength(1);
-    expect(source.match(/\$\{eligible\.replaceAll\('t\.owner_id', '\?::text'\)\}/g)).toHaveLength(1);
+    expect(source.match(/ticketByIdSql\('1 AS ok', eligible\.replaceAll/g)).toHaveLength(1);
+    const shared = await src('adapters/ticket-guard-sources.ts');
+    expect(shared.match(/SELECT \$\{projection\} FROM support_tickets t WHERE t\.id=\? AND/g)).toHaveLength(1);
+    expect(source.match(/eligible\.replaceAll\('t\.owner_id', '\?::text'\)/g)).toHaveLength(2);
   });
 
   it('composes the witness in both evidence readers with no local copy', async () => {

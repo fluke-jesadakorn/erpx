@@ -9,7 +9,7 @@ import { getSupportTicket } from "@erpx/server-support/adapters/support";
 import { attachmentsV2ReadOnly } from "@erpx/server-files/public/attachments/feature";
 import { supportRecipientEligibility } from "@erpx/server-support/adapters/support-recipient";
 import { nativeSupportRuntime } from "@erpx/server-support/adapters/command-runtime";
-import { ticketGuardExistsSql } from './ticket-guard-sources';
+import { ticketByIdSql, ticketGuardExistsSql } from './ticket-guard-sources';
 import { nativeSupportReadRuntime } from "@erpx/server-support/adapters/read-runtime";
 import { createNativeSupportTicketRead } from "@erpx/server-support/public/support-ticket-read";
 import { createSupportEvidence, createSupportEvidenceGuard } from "@erpx/server-support/application/support-evidence";
@@ -19,7 +19,7 @@ const nativeTicketRead = createNativeSupportTicketRead({ read: readSourceRecord,
  * One fixed text serves the Files-stage guard and the evidence reader so the
  * two call sites cannot drift; predicates and binds stay byte-identical. */
 const evidenceEligibilitySelect = () =>
-    `SELECT 1 AS ok FROM support_tickets t WHERE t.id=? AND ${eligible.replaceAll('t.owner_id', '?::text')}`;
+    ticketByIdSql('1 AS ok', eligible.replaceAll('t.owner_id', '?::text'));
 
 /**
  * Read-only Support case policy for Files-side staging. The native Support
