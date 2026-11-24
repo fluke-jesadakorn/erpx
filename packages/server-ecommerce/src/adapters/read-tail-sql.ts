@@ -3,9 +3,12 @@ export const ecommerceModuleAssignment = (alias = '') => {
  const p = alias ? `${alias}.` : '';
  return `SELECT 1 FROM assignments${alias ? ` ${alias}` : ''} WHERE ${p}id=? AND ${p}company_id=? AND (jsonb_array_length(${p}modules_json::jsonb)=0 OR ${p}modules_json::jsonb @> '["ecommerce"]'::jsonb)`;
 };
-export const ecommerceScopeRow = (alias: string, branch = false) => branch
- ? `(SELECT ?::text company_id,?::text branch_id,?::text department_id) ${alias}`
- : `(SELECT ?::text company_id) ${alias}`;
+/** r20: the row/alias separator is configurable so the no-space workforce
+ *  scope probe rebuilds byte-identically. Existing callers keep the default
+ *  single space; text only, binds and locks unchanged. */
+export const ecommerceScopeRow = (alias: string, branch = false, separator = ' ') => branch
+ ? `(SELECT ?::text company_id,?::text branch_id,?::text department_id)${separator}${alias}`
+ : `(SELECT ?::text company_id)${separator}${alias}`;
 /** r14: one parameterized EXISTS row guard; the channel, cart and checkout
  *  assertion callers rebuild byte-identically. Text only: binds unchanged. */
 export const ecommerceExistsGuard = (table: string, where: string) =>

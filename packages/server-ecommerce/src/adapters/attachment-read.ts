@@ -12,7 +12,7 @@ import {isTransactionalSqlDatabase,type SqlDatabase,type StoredFile} from '@erpx
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {attachmentReadSource,attachmentPrivateReadSourceLocks,assertAttachmentReadRoute,attachmentReadChanged,requirePrivateAttachmentReaderCurrent,bufferedAttachmentRead,type AttachmentReadRoute,type AttachmentReadSource} from '@erpx/server-files/public/private-attachment-reads';
 import {ecommerceCommerceSourceReadLocks} from '@erpx/server-ecommerce/adapters/commerce-source-locks';
-import {ecommerceListingEvidence} from './read-tail-sql';
+import {ecommerceListingEvidence,ecommerceScopeRow} from './read-tail-sql';
 
 async function ecommerceImage(database:SqlDatabase,actor:WorkContext,id:string){
  return database.prepare(ecommerceListingEvidence("jsonb_build_object('listing',to_jsonb(l),'channel',to_jsonb(c),'product',to_jsonb(p))::text image\n")).bind(id,actor.companyId).first<string>('image');
@@ -31,7 +31,7 @@ export async function withEcommerceAttachmentContentRead<Result extends {object:
   await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);await database.batch(locks.slice(1));
   const before=await attachmentReadSource(database,actor.companyId,linkId);assertAttachmentReadRoute(selectedRoute,before);if(!before)throw attachmentReadChanged();
   const image=await ecommerceImage(database,actor,before.targetId);if(!image)throw new ApiError(404,'ATTACHMENT_TARGET_NOT_FOUND','The original Ecommerce listing evidence owner is unavailable.');
-  const current=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!!await database.prepare(`SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${current.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args).first();
+  const current=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!!await database.prepare(`SELECT 1 FROM${ecommerceScopeRow('workforce_actor_scope', true, '')} WHERE ${current.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...current.args).first();
   const invalidAuthority=initiallyCurrent?null:await privateFileDenialAuthorityWitness(database,actor);
   const check=async(authorizeSource:boolean)=>{
    if(JSON.stringify(actor)!==context)throw attachmentReadChanged();
