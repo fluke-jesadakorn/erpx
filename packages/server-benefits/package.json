@@ -14,6 +14,7 @@
     "./adapters/attachment-read": "./src/adapters/attachment-read.ts",
     "./adapters/record-purchases": "./src/adapters/record-purchases.ts",
     "./adapters/purchases": "./src/adapters/purchases.ts",
+    "./adapters/benefits-read-sql": "./src/adapters/benefits-read-sql.ts",
     "./adapters/people-payroll-final-owner-projections": "./src/adapters/people-payroll-final-owner-projections.ts",
     "./adapters/package-obligations": "./src/adapters/package-obligations.ts",
     "./adapters/attachments-sensitive-facts": "./src/adapters/attachments-sensitive-facts.ts",

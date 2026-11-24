@@ -14,6 +14,7 @@ import {attachmentReadSource,attachmentPrivateReadSourceLocks,assertAttachmentRe
 
 import {benefitSourceReadLocks} from '@erpx/server-benefits/adapters/purchases';
 import {isBenefitAttachmentReadTarget,benefitAttachmentReadImage} from '@erpx/server-benefits/adapters/attachment-read-sources';
+import {workforceActorScopeProbe} from '@erpx/server-benefits/adapters/benefits-read-sql';
 const identity=(actor:WorkContext)=>JSON.stringify(actor);
 function changed(){return new ApiError(409,'BENEFIT_FILE_READ_CHANGED','The original Benefits evidence, worker source or current account changed during its private read.');}
 /** Benefits employee/document authority stays with the original File read policy.
@@ -28,7 +29,7 @@ export async function withBenefitAttachmentContentRead<Result extends {object:St
   await database.batch([...benefitSourceReadLocks(database),attachmentPrivateReadSourceLocks(database),...privateFileDenialAuthoritySourceLocks(database)]);
   await lockQueuedCommandAuthority(database);await lockScheduledFeatureSources(database);await database.batch(purchase.slice(1));
   const source=await attachmentReadSource(database,actor.companyId,linkId);assertAttachmentReadRoute(selected,source);if(!source)throw changed();
-  const before=await benefitAttachmentReadImage(database,actor,source.targetType,source.targetId),currentScope=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!!await database.prepare(`SELECT 1 FROM(SELECT ?::text company_id,?::text branch_id,?::text department_id)workforce_actor_scope WHERE ${currentScope.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...currentScope.args).first();
+  const before=await benefitAttachmentReadImage(database,actor,source.targetType,source.targetId),currentScope=currentAssignmentReadScope(actor,'workforce_actor_scope'),initiallyCurrent=!!await database.prepare(`${workforceActorScopeProbe})workforce_actor_scope WHERE ${currentScope.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...currentScope.args).first();
   const deniedAuthority=initiallyCurrent?null:await privateFileDenialAuthorityWitness(database,actor),checkpoint=new Set((await attachmentDeniedReadAudits(database,actor,linkId)).map(event=>event.id));
   const check=async(authorizeSource:boolean,denial=false)=>{
    if(identity(actor)!==context)throw changed();
