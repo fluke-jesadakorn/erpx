@@ -169,4 +169,19 @@ describe('Organization owner-local read tail', () => {
     expect(ORG_ACTIVE_BRANCHES_SOURCE).toBe("SELECT id,display_name FROM organization_nodes WHERE kind='branch' AND company_id=? AND status='active' AND (?::text IS NULL OR id=?)");
   });
 
+  it('shares one canonical roster-required source across the save-directory person reads', async () => {
+    const {peopleDirectoryOrganizationFacts} = await import('@erpx/server-organization/adapters/people-directory-facts');
+    const seen: string[] = [];
+    const first = vi.fn(async () => ({roster_required: 1}));
+    const bind = vi.fn(() => ({first}));
+    const handle = {prepare: vi.fn((sql: string) => {seen.push(sql); return {bind};})} as unknown as SqlDatabase;
+    const facts = peopleDirectoryOrganizationFacts(handle);
+    await expect(facts.readSaveDirectoryPersonPrevious('company', 'position')).resolves.toEqual({roster_required: 1});
+    await expect(facts.readSaveDirectoryPersonNext('company', 'position')).resolves.toEqual({roster_required: 1});
+    expect(seen).toEqual([
+      'SELECT roster_required FROM organization_positions WHERE company_id=? AND id=?',
+      'SELECT roster_required FROM organization_positions WHERE company_id=? AND id=?',
+    ]);
+  });
+
 });
