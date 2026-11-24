@@ -1,4 +1,5 @@
 import { idCompanyStatusVersionGuard, aggByCompany } from './finance-read-tail-r20-sql';
+import { TAX_SOURCE_APPROVED_INVOICE_SQL, TAX_SOURCE_APPROVED_COMMERCE_RETURN_SQL, TAX_SOURCE_APPROVED_BILLING_CREDIT_SQL } from './finance-read-tail-r24-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
 import { nativeFinanceTaxRegister } from '@erpx/server-collaboration/adapters/native-finance-tax-register';
 import { financeOwnerDecisionEffects } from "@erpx/server-workflow/public/finance-owner-decision-effects";
@@ -24,13 +25,13 @@ export const pendingVatReviewSql = `WITH scope AS (
 ) SELECT COUNT(*) value FROM (
   SELECT i.id FROM scope s JOIN finance_invoices i ON i.company_id=s.company_id JOIN finance_journals j ON j.id=i.journal_id
   WHERE j.chart_id=s.statutory_chart_id AND j.status IN ('posted','reversed') AND j.entry_date BETWEEN s.effective_date AND s.end_date AND i.tax_account_id IS NOT NULL
-    AND NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=i.company_id AND t.source_type='invoice' AND t.source_id=i.id AND t.status='approved')
+    AND ${TAX_SOURCE_APPROVED_INVOICE_SQL}
   UNION ALL SELECT r.id FROM scope s ${commerceSnapshotSources().finance_tax_register_commerce_returns_r_join} ON r.company_id=s.company_id JOIN finance_invoices i ON i.id=r.invoice_id JOIN finance_journals j ON j.id=r.credit_journal_id
   WHERE r.status='posted' AND j.chart_id=s.statutory_chart_id AND j.status='posted' AND j.entry_date BETWEEN s.effective_date AND s.end_date AND i.tax_account_id IS NOT NULL
-    AND NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='commerce_return' AND t.source_id=r.id AND t.status='approved')
+    AND ${TAX_SOURCE_APPROVED_COMMERCE_RETURN_SQL}
   UNION ALL SELECT r.id FROM scope s JOIN finance_billing_corrections r ON r.company_id=s.company_id JOIN finance_invoices i ON i.id=r.invoice_id JOIN finance_journals j ON j.id=r.credit_journal_id
   WHERE r.status='posted' AND j.chart_id=s.statutory_chart_id AND j.status='posted' AND j.entry_date BETWEEN s.effective_date AND s.end_date AND i.tax_account_id IS NOT NULL
-    AND NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='billing_credit' AND t.source_id=r.id AND t.status='approved')
+    AND ${TAX_SOURCE_APPROVED_BILLING_CREDIT_SQL}
   UNION ALL SELECT c.id FROM scope s JOIN finance_vat_corrections c ON c.company_id=s.company_id AND c.chart_id=s.statutory_chart_id
     JOIN finance_tax_entries t ON t.id=c.root_entry_id WHERE c.status='prepared' AND t.accounting_date<=s.end_date
 ) pending`;
@@ -101,13 +102,13 @@ const reconciliationSql = `WITH tax_accounts AS (
       FROM tax_accounts a JOIN finance_accounts ac ON ac.id=a.id ORDER BY a.id,a.direction`;
 const missingSql = `SELECT COUNT(*) FROM (SELECT i.id FROM finance_invoices i JOIN finance_journals j ON j.id=i.journal_id
     WHERE i.company_id=? AND j.chart_id=? AND j.status IN ('posted','reversed') AND j.entry_date BETWEEN ? AND ? AND i.tax_account_id IS NOT NULL
-    AND NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=i.company_id AND t.source_type='invoice' AND t.source_id=i.id AND t.status='approved')
+    AND ${TAX_SOURCE_APPROVED_INVOICE_SQL}
     UNION ALL SELECT r.id ${commerceSnapshotSources().finance_tax_register_commerce_returns_r_from} JOIN finance_invoices i ON i.id=r.invoice_id JOIN finance_journals j ON j.id=r.credit_journal_id
     WHERE r.company_id=? AND j.chart_id=? AND r.status='posted' AND j.status='posted' AND j.entry_date BETWEEN ? AND ? AND i.tax_account_id IS NOT NULL
-    AND NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='commerce_return' AND t.source_id=r.id AND t.status='approved')
+    AND ${TAX_SOURCE_APPROVED_COMMERCE_RETURN_SQL}
     UNION ALL SELECT r.id FROM finance_billing_corrections r JOIN finance_invoices i ON i.id=r.invoice_id JOIN finance_journals j ON j.id=r.credit_journal_id
     WHERE r.company_id=? AND j.chart_id=? AND r.status='posted' AND j.status='posted' AND j.entry_date BETWEEN ? AND ? AND i.tax_account_id IS NOT NULL
-    AND NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='billing_credit' AND t.source_id=r.id AND t.status='approved')) pending`;
+    AND ${TAX_SOURCE_APPROVED_BILLING_CREDIT_SQL}) pending`;
 const pendingCorrectionsSql = "SELECT COUNT(*) FROM finance_vat_corrections c JOIN finance_tax_entries t ON t.id=c.root_entry_id WHERE c.company_id=? AND c.chart_id=? AND c.status='prepared' AND t.accounting_date<=?";
 function reconciliationGuards(write: SqlDatabase, actor: WorkContext, key: string, chartId: string, endDate: string, effectiveDate: string, rows: TaxRow[]) {
     const args = [actor.companyId, chartId, effectiveDate, endDate];

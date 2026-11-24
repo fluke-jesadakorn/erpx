@@ -1,5 +1,7 @@
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFile } from 'node:fs/promises';
+import { readFileSync, readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
 vi.mock('server-only', () => ({}));
 import { ACTIVE_CHART_BASE_CURRENCY_SQL } from '../../../packages/server-finance/src/adapters/chart-base-currency-dedupe-sql';
 import { FINANCE_JOURNALS_PROJECTION_SQL } from '../../../packages/server-finance/src/adapters/finance-journals-projection-dedupe-sql';
@@ -37,6 +39,7 @@ import { rootOwnerExistsSql, materializedClockCteSql } from '../../../packages/s
 import { idCompanyStatusVersionGuard, aggByCompany } from '../../../packages/server-finance/src/adapters/finance-read-tail-r20-sql';
 import { journalLineEvidenceSql } from '../../../packages/server-finance/src/adapters/finance-read-tail-r22-sql';
 import { bookRootUnionSql, peopleRunsCteSql, peoplePostingsCteSql, journalAggregateCtesSql, netPayableFactSql, payrollUnpostedFactSql, statutoryLiabilityFactSql, statutoryLateralSql, secondaryJournalFactSql } from '../../../packages/server-finance/src/adapters/finance-read-tail-r23-sql';
+import { packageObligationFactsSql, ASSET_DEPRECIATION_COUNT_SQL, ASSET_POLICY_EDITION_PENDING_SQL, ASSET_POLICY_RUN_PENDING_SQL, TAX_SOURCE_APPROVED_INVOICE_SQL, TAX_SOURCE_APPROVED_COMMERCE_RETURN_SQL, TAX_SOURCE_APPROVED_BILLING_CREDIT_SQL } from '../../../packages/server-finance/src/adapters/finance-read-tail-r24-sql';
 import { peoplePayrollFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/people-payroll-final-owner-projections';
 import { workflowFinalOwnerProjections } from '../../../packages/server-finance/src/adapters/workflow-final-owner-projections';
 import {
@@ -940,5 +943,83 @@ describe('finance read-tail r23 byte-identical SQL families', () => {
   it('keeps the r23 helper SELECT count at the deduplicated total', async () => {
     const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r23-sql.ts', import.meta.url), 'utf8');
     expect(shared.split('SELECT ').length - 1).toBe(19);
+  });
+});
+
+
+const R24_POS_SQL = "WITH scope AS (SELECT ?::text company_id)\n    SELECT 'invoice' kind,i.id,i.version,i.status state,i.outstanding_minor::text amount FROM finance_invoices i,scope\n      WHERE i.company_id=scope.company_id AND i.source_type='pos' AND (i.outstanding_minor<>0 OR i.status NOT IN ('paid','voided'))\n    UNION ALL SELECT 'payment',p.id,p.version,p.status,p.outstanding_minor::text FROM finance_payments p,scope\n      WHERE p.company_id=scope.company_id AND EXISTS(SELECT 1 FROM (${pos.payments}) source WHERE source.company_id=p.company_id AND source.finance_payment_id=p.id)\n        AND (p.status NOT IN ('settled','voided') OR p.outstanding_minor<>0)\n    UNION ALL SELECT 'posting',pp.source_key,COALESCE(j.version,0),COALESCE(j.status,'missing'),COALESCE(sum(l.base_debit_minor-l.base_credit_minor),0)::text\n      FROM (${pos.postings}) pp LEFT JOIN finance_journals j ON j.id=pp.journal_id AND j.company_id=pp.company_id\n      LEFT JOIN finance_journal_lines l ON l.journal_id=j.id,scope WHERE pp.company_id=scope.company_id\n      GROUP BY pp.source_key,j.id,j.version,j.status HAVING j.id IS NULL OR j.status<>'posted' OR count(l.id)<2 OR sum(l.base_debit_minor-l.base_credit_minor)<>0\n    UNION ALL SELECT 'clearing',concat(l.account_id,':',j.currency),0,'unsettled',sum(l.debit_minor-l.credit_minor)::text\n      FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id JOIN (${pos.settings}) c ON c.company_id=j.company_id,scope\n      WHERE j.company_id=scope.company_id AND j.status='posted' AND l.account_id IN (\n        c.accounts_json::jsonb->>'stripe',c.accounts_json::jsonb->>'advance',c.accounts_json::jsonb->>'refund',c.accounts_json::jsonb->>'disputes',c.accounts_json::jsonb->>'receivable')\n      GROUP BY l.account_id,j.currency HAVING sum(l.debit_minor-l.credit_minor)<>0 ORDER BY kind,id";
+const R24_PMS_SQL = "WITH scope AS (SELECT ?::text company_id)\n    SELECT 'invoice' kind,i.id,i.version,i.status state,i.outstanding_minor::text amount FROM finance_invoices i,scope\n      WHERE i.company_id=scope.company_id AND i.source_type='pms' AND (i.outstanding_minor<>0 OR i.status NOT IN ('paid','voided'))\n    UNION ALL SELECT 'payment',p.id,p.version,p.status,p.outstanding_minor::text FROM finance_payments p,scope\n      WHERE p.company_id=scope.company_id AND EXISTS(SELECT 1 FROM (${pms.payments}) source WHERE source.company_id=p.company_id AND source.finance_id=p.id)\n        AND (p.status NOT IN ('settled','voided') OR p.outstanding_minor<>0)\n    UNION ALL SELECT 'posting',concat(pp.property_id,':',pp.source_key),COALESCE(j.version,0),COALESCE(j.status,'missing'),COALESCE(sum(l.base_debit_minor-l.base_credit_minor),0)::text\n      FROM (${pms.postings}) pp LEFT JOIN finance_journals j ON j.id=pp.journal_id AND j.company_id=pp.company_id\n      LEFT JOIN finance_journal_lines l ON l.journal_id=j.id,scope WHERE pp.company_id=scope.company_id\n      GROUP BY pp.property_id,pp.source_key,j.id,j.version,j.status HAVING j.id IS NULL OR j.status<>'posted' OR count(l.id)<2 OR sum(l.base_debit_minor-l.base_credit_minor)<>0\n    UNION ALL SELECT 'clearing',concat(l.account_id,':',j.currency),0,'unsettled',sum(l.debit_minor-l.credit_minor)::text\n      FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id,scope\n      WHERE j.company_id=scope.company_id AND j.status='posted' AND EXISTS(SELECT 1 FROM (${pms.clearing}) c WHERE c.company_id=j.company_id AND c.account_id=l.account_id)\n      GROUP BY l.account_id,j.currency HAVING sum(l.debit_minor-l.credit_minor)<>0 ORDER BY kind,id";
+const R24_POS_ARGS = {
+  sourceType: 'pos', payments: '${pos.payments}', paymentFk: 'finance_payment_id',
+  postingKey: 'pp.source_key', postings: '${pos.postings}', postingGroup: 'pp.source_key',
+  clearingFrom: 'FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id JOIN (${pos.settings}) c ON c.company_id=j.company_id,scope',
+  clearingWhere: "l.account_id IN (\n        c.accounts_json::jsonb->>'stripe',c.accounts_json::jsonb->>'advance',c.accounts_json::jsonb->>'refund',c.accounts_json::jsonb->>'disputes',c.accounts_json::jsonb->>'receivable')",
+};
+const R24_PMS_ARGS = {
+  sourceType: 'pms', payments: '${pms.payments}', paymentFk: 'finance_id',
+  postingKey: "concat(pp.property_id,':',pp.source_key)", postings: '${pms.postings}', postingGroup: 'pp.property_id,pp.source_key',
+  clearingFrom: 'FROM finance_journals j JOIN finance_journal_lines l ON l.journal_id=j.id,scope',
+  clearingWhere: 'EXISTS(SELECT 1 FROM (${pms.clearing}) c WHERE c.company_id=j.company_id AND c.account_id=l.account_id)',
+};
+const R24_RENDERED: Record<string, string> = { 'pos-package-obligations.ts': R24_POS_SQL, 'pms-package-obligations.ts': R24_PMS_SQL };
+const R24_ARGS: Record<string, Parameters<typeof packageObligationFactsSql>[0]> = { 'pos-package-obligations.ts': R24_POS_ARGS, 'pms-package-obligations.ts': R24_PMS_ARGS };
+
+describe('finance read-tail r24 byte-identical SQL families', () => {
+  it('renders pos and pms package-obligation skeletons byte-identically with no lock text', () => {
+    for (const file of Object.keys(R24_RENDERED)) {
+      const rendered = packageObligationFactsSql(R24_ARGS[file]);
+      expect(rendered).toBe(R24_RENDERED[file]);
+      expect(rendered).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+    }
+  });
+
+  it('keeps every shared fragment byte-identical to the pre-dedupe literal', () => {
+    expect(ASSET_DEPRECIATION_COUNT_SQL).toBe("SELECT count(*) n FROM finance_asset_depreciations WHERE asset_id=?");
+    expect(ASSET_POLICY_EDITION_PENDING_SQL).toBe("SELECT 1 FROM finance_asset_policy_editions WHERE asset_id=? AND status='draft'");
+    expect(ASSET_POLICY_RUN_PENDING_SQL).toBe("SELECT 1 FROM finance_asset_policy_runs WHERE asset_id=? AND status='draft'");
+    expect(TAX_SOURCE_APPROVED_INVOICE_SQL).toBe("NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=i.company_id AND t.source_type='invoice' AND t.source_id=i.id AND t.status='approved')");
+    expect(TAX_SOURCE_APPROVED_COMMERCE_RETURN_SQL).toBe("NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='commerce_return' AND t.source_id=r.id AND t.status='approved')");
+    expect(TAX_SOURCE_APPROVED_BILLING_CREDIT_SQL).toBe("NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='billing_credit' AND t.source_id=r.id AND t.status='approved')");
+  });
+
+  it('backs every call site with the shared r24 text and no inline literal', async () => {
+    for (const file of Object.keys(R24_RENDERED)) {
+      const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+      expect(text).toContain('from "./finance-read-tail-r24-sql"');
+      expect(text.split(R24_RENDERED[file]).length - 1).toBe(0);
+      expect(text.split('packageObligationFactsSql(').length - 1).toBe(1);
+    }
+    const asset = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-asset-policies.ts', import.meta.url), 'utf8');
+    expect(asset).toContain("from './finance-read-tail-r24-sql'");
+    for (const lit of ["SELECT count(*) n FROM finance_asset_depreciations WHERE asset_id=?", "SELECT 1 FROM finance_asset_policy_editions WHERE asset_id=? AND status='draft'", "SELECT 1 FROM finance_asset_policy_runs WHERE asset_id=? AND status='draft'"]) expect(asset.split(lit).length - 1).toBe(0);
+    for (const name of ['ASSET_DEPRECIATION_COUNT_SQL', 'ASSET_POLICY_EDITION_PENDING_SQL', 'ASSET_POLICY_RUN_PENDING_SQL']) expect(asset).toContain(name);
+    const tax = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-tax-register.ts', import.meta.url), 'utf8');
+    expect(tax).toContain("from './finance-read-tail-r24-sql'");
+    for (const lit of ["NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=i.company_id AND t.source_type='invoice' AND t.source_id=i.id AND t.status='approved')", "NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='commerce_return' AND t.source_id=r.id AND t.status='approved')", "NOT EXISTS(SELECT 1 FROM finance_current_tax_entries t WHERE t.company_id=r.company_id AND t.source_type='billing_credit' AND t.source_id=r.id AND t.status='approved')"]) expect(tax.split(lit).length - 1).toBe(0);
+    for (const name of ['TAX_SOURCE_APPROVED_INVOICE_SQL', 'TAX_SOURCE_APPROVED_COMMERCE_RETURN_SQL', 'TAX_SOURCE_APPROVED_BILLING_CREDIT_SQL']) expect(tax).toContain(name);
+  });
+
+  it('keeps the transaction locks inline and the shared helper lock-free', async () => {
+    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-read-tail-r24-sql.ts', import.meta.url), 'utf8');
+    expect(shared).not.toMatch(/FOR UPDATE|FOR SHARE|LOCK TABLE/);
+    for (const file of ['pos-package-obligations.ts', 'pms-package-obligations.ts']) {
+      const text = await readFile(new URL('../../../packages/server-finance/src/adapters/' + file, import.meta.url), 'utf8');
+      expect(text.split('LOCK TABLE finance_invoices,finance_payments,finance_journals,finance_journal_lines,finance_allocations IN SHARE MODE').length - 1).toBe(1);
+    }
+  });
+
+  it('retirement:ts-statements stays strictly below the r24 BEFORE=2051 baseline', () => {
+    const root = resolve(__dirname, '../../../packages/server-finance/src');
+    let total = 0;
+    const walk = (dir: string) => {
+      for (const entry of readdirSync(dir, { withFileTypes: true })) {
+        const path = resolve(dir, entry.name);
+        if (entry.isDirectory()) walk(path);
+        else if (entry.name.endsWith('.ts')) total += (readFileSync(path, 'utf8').match(/SELECT /g) ?? []).length;
+      }
+    };
+    walk(root);
+    expect(total).toBeLessThan(2051);
+    expect(total).toBe(2038);
   });
 });

@@ -1,4 +1,5 @@
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
+import { ASSET_DEPRECIATION_COUNT_SQL, ASSET_POLICY_EDITION_PENDING_SQL, ASSET_POLICY_RUN_PENDING_SQL } from './finance-read-tail-r24-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
 import { assetPolicyRunSchema } from '@erpx/server-finance/domain/due-inputs';
@@ -77,7 +78,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async legacyCount(id: string | number | null) {
             const db = read();
             return db
-                .prepare("SELECT count(*) n FROM finance_asset_depreciations WHERE asset_id=?")
+                .prepare(ASSET_DEPRECIATION_COUNT_SQL)
                 .bind(id)
                 .first<number>("n");
         }, async postedRuns(id: string | number | null) {
@@ -89,13 +90,13 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async policyLegacyCount(id: string | number | null) {
             const db = read();
             return db
-                .prepare("SELECT count(*) n FROM finance_asset_depreciations WHERE asset_id=?")
+                .prepare(ASSET_DEPRECIATION_COUNT_SQL)
                 .bind(id)
                 .first<number>("n");
         }, async pendingRun(id: string | number | null) {
             const db = read();
             return db
-                .prepare("SELECT 1 FROM finance_asset_policy_runs WHERE asset_id=? AND status='draft'")
+                .prepare(ASSET_POLICY_RUN_PENDING_SQL)
                 .bind(id)
                 .first();
         }, async preparePolicy(id: string, companyId: string, assetId: string, value: string | number | null, value2: string, hash: string, userId: string, reason: string, now: number, now2: number, value3: string) {
@@ -119,7 +120,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async runLegacyCount(id: string | number | null) {
             const db = read();
             return db
-                .prepare("SELECT count(*) n FROM finance_asset_depreciations WHERE asset_id=?")
+                .prepare(ASSET_DEPRECIATION_COUNT_SQL)
                 .bind(id)
                 .first<number>("n");
         }, async prepareRun(runId: string, companyId: string, id: string | number | null, id2: string, ordinal: number, entryDate: string, value: string, value2: string, hash: string, userId: string, reason: string, now: number, now2: number) {
@@ -155,7 +156,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async pendingPolicy(id: string | number | null) {
             const db = read();
             return db
-                .prepare("SELECT 1 FROM finance_asset_policy_editions WHERE asset_id=? AND status='draft'")
+                .prepare(ASSET_POLICY_EDITION_PENDING_SQL)
                 .bind(id)
                 .first();
         }, async reverseAssetCarrying(value: string, now: number, id: string | number | null) {
@@ -212,13 +213,13 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async disposalPendingRun(assetId: string) {
             const db = read();
             return db
-                .prepare("SELECT 1 FROM finance_asset_policy_runs WHERE asset_id=? AND status='draft'")
+                .prepare(ASSET_POLICY_RUN_PENDING_SQL)
                 .bind(assetId)
                 .first();
         }, async disposalPendingPolicy(assetId: string) {
             const db = read();
             return db
-                .prepare("SELECT 1 FROM finance_asset_policy_editions WHERE asset_id=? AND status='draft'")
+                .prepare(ASSET_POLICY_EDITION_PENDING_SQL)
                 .bind(assetId)
                 .first();
         }, async disposalBookMappings(ruleId: string | null, gainAccountId: string, lossAccountId: string) {
