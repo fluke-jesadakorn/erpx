@@ -145,20 +145,6 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
     WHERE i.kind=? AND i.historical_outstanding_minor>0 AND (?::text IS NULL OR i.chart_id=?) ORDER BY i.due_date,i.id`)
                 .bind(actor.companyId, asOf, kind, chartId ?? null, chartId ?? null).all<HistoricalAgingRow>()).results;
         },
-        listJournals: async (actor, query) => {
-            const write = await db(actor);
-            const clauses = ["company_id=?"];
-            const args: (string | number)[] = [actor.companyId];
-            if (query.periodId) {
-                clauses.push("period_id=?");
-                args.push(query.periodId);
-            }
-            if (query.status) {
-                clauses.push("status=?");
-                args.push(query.status);
-            }
-            return (await write.prepare(`SELECT * FROM finance_journals WHERE ${clauses.join(" AND ")} ORDER BY entry_date DESC,journal_number DESC LIMIT 500`).bind(...args).all<FinanceRow>()).results;
-        },
         financeOverviewCounts: async (actor) => {
             const write = await db(actor);
             return (await write.prepare(`SELECT

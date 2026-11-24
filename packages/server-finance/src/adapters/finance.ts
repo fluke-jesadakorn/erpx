@@ -138,10 +138,6 @@ export async function createPeriod(actor: WorkContext, input: z.infer<typeof cre
 export async function createSupplyPostingPeriod(actor:WorkContext,raw:unknown,key:string){const request=supplyPostingPeriodSchema.parse(raw);return withSupplyPostingPrerequisiteCommand(actor,'period',request,key,tx=>configurationService(tx,request).createPeriod(actor,request.input,key));}
 export async function createSalesPostingPeriod(actor:WorkContext,raw:unknown,key:string){const request=salesPostingPeriodSchema.parse(raw);return withSalesPostingCommand(actor,'period',request,key,tx=>configurationService(tx,request).createPeriod(actor,request.input,key));}
 
-export async function listJournals(actor: WorkContext, query: {
-    periodId?: string;
-    status?: string;
-}) { return purchasedFinanceRead(actor,db=>financeReadService(db).listJournals(actor,query)); }
 export async function listInvoices(actor: WorkContext, limit = 100) { return purchasedFinanceRead(actor,db=>financeReadService(db).listInvoices(actor,limit)); }
 export async function workInvoiceRows(actor: WorkContext, provided?:SqlDatabase) {
     if (await financePackageEnforcementMode() !== "disabled") {

@@ -123,10 +123,6 @@ export interface FinanceReadPorts {
         kind: "payable" | "receivable";
         chartId: string | undefined;
     }): Promise<HistoricalAgingRow[]>;
-    listJournals(actor: WorkContext, query: {
-        periodId?: string;
-        status?: string;
-    }): Promise<FinanceRow[]>;
     financeOverviewCounts(actor: WorkContext): Promise<{
         journals: number;
         posting: number;
@@ -284,10 +280,6 @@ export function createFinanceReads(ports: FinanceReadPorts) {
         return { dates, balanceSheet: { assets: minorToDecimal(category(balance, "asset")), liabilities: minorToDecimal(-category(balance, "liability")), equity: minorToDecimal(recordedEquity + unclosedProfit), recordedEquity: minorToDecimal(recordedEquity), unclosedProfit: minorToDecimal(unclosedProfit) },
             profitAndLoss: { revenue: minorToDecimal(-category(income, "revenue")), expenses: minorToDecimal(category(income, "expense")), otherIncome: minorToDecimal(-category(income, "other_income")), otherExpenses: minorToDecimal(category(income, "other_expense")), netProfit: minorToDecimal(-category(income, "revenue") - category(income, "expense") - category(income, "other_income") - category(income, "other_expense")) }, trialBalance: tb };
     }
-    async function listJournals(actor: WorkContext, query: {
-        periodId?: string;
-        status?: string;
-    }) { actor = ports.authorize(actor, 'finance.read'); await ports.ready(actor); return ports.listJournals(actor, query); }
     async function financeOverviewCounts(actor: WorkContext) { actor = ports.authorize(actor, 'finance.read'); await ports.ready(actor); return ports.financeOverviewCounts(actor); }
     async function invoicesPage(actor: WorkContext, query: {
         q?: string;
@@ -308,5 +300,5 @@ export function createFinanceReads(ports: FinanceReadPorts) {
         q?: string;
     }) { actor = ports.authorize(actor, 'finance.read'); await ports.ready(actor); const result = await ports.bankWorkspace(actor, query); if (query?.match && !result.selectedTransaction)
         throw ports.error(404, 'BANK_TRANSACTION_NOT_FOUND', 'Bank movement not found in this Company.'); return result; }
-    return { listCharts, listAccounts, listInvoices, workInvoiceRows, getInvoice, listPayments, getPayment, invoiceWorkspace, bankStatementDetail, aging, trialBalance, statements, listJournals, financeOverviewCounts, invoicesPage, bankWorkspace };
+    return { listCharts, listAccounts, listInvoices, workInvoiceRows, getInvoice, listPayments, getPayment, invoiceWorkspace, bankStatementDetail, aging, trialBalance, statements, financeOverviewCounts, invoicesPage, bankWorkspace };
 }

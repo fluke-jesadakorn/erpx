@@ -1,5 +1,7 @@
 import {describe,it,expect,vi} from 'vitest';
+import {readFile} from 'node:fs/promises';
 const{requestHeaders}=vi.hoisted(()=>({requestHeaders:vi.fn()}));vi.mock('server-only',()=>({}));vi.mock('next/headers',()=>({headers:requestHeaders}));
+import {createNativeJournalListReader} from '../../../packages/feature-finance/src/adapters/server/native-journal-list';
 import {createNativeJournalDetailClient,createNativeJournalWorkspaceClient,createNextNativeJournalDetailReader,createNextNativeJournalWorkspaceReader,NativeFinanceReadError} from '@erpx/feature-finance/public/server';
 import type {NativeFinanceReadTransport,NativeJournalReadInput} from '@erpx/feature-finance/public/server';
 import type {FinanceJournalReadResponse,FinanceJournalWorkspaceReadResponse} from '@erpx/contracts/finance-journal-read';
@@ -172,4 +174,41 @@ it('transports Field no-charge only to Rust and rejects unrelated acknowledgemen
   expect((await nativeServiceNoCharge(request(),'acme','field-invoice-one')).status).toBe(200);expect(seen).toEqual([{method:'POST',path:'/api/v1/holdings/acme/finance/invoices/field-invoice-one/confirm-no-charge',body,key:'exact-key'}]);
   poisoned=true;expect((await nativeServiceNoCharge(request(),'acme','field-invoice-one')).status).toBe(502);
  }finally{if(old===undefined)delete process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_POST_CONFIG;else process.env.ERPX_NATIVE_FINANCE_SERVICE_INVOICE_POST_CONFIG=old;await new Promise<void>((resolve,reject)=>server.close(e=>e?reject(e):resolve()));}
+});
+
+describe('native finance journal-list cutover',()=>{
+ const listConfig=JSON.stringify({...configuration,privateBaseUrl:'http://127.0.0.1:44991'});
+ const actor={userId:'original-user',holdingId:'h001',holdingSlug:'acme',companyId:'company',branchId:null,departmentId:null,assignmentId:'grant',role:'reader',assignmentScope:'holding',scope:{kind:'holding'},authority:{revision:7,assignmentVersion:3},modules:['finance'],iam:{permissions:['finance.read','module.finance.read']}} as import('@erpx/feature-finance/public/server').NativeJournalPageContext;
+ const listReply=(data:Record<string,unknown>={})=>json({context:{userId:'original-user',holdingId:'h001',companyId:'company',branchId:null,departmentId:null,branchSlug:null,departmentSlug:null,assignmentId:'grant',assignmentVersion:3,revision:7,modules:['finance'],permissions:['finance.read','module.finance.read'],expiresAt:1800000000000},data:{charts:[{id:'chart',name:'Operations ledger'}],chart:{id:'chart',name:'Operations ledger',base_currency:'THB'},accounts:[],periods:[],dimensions:[],dimensionValues:[],journals:[{id:'j1',status:'posted'}],nextCursor:null,...data}});
+ it('reads the mounted journal list through the exact native route with context headers and query',async()=>{
+  const calls:{url:URL;headers:Headers}[]=[];
+  const result=await createNativeJournalListReader(listConfig,async(url,headers)=>{calls.push({url,headers});return listReply();})(incoming(),actor,'acme',{chart:'chart',status:'posted',cursor:'cursor-1'});
+  expect(calls).toHaveLength(1);
+  expect(calls[0]!.url.pathname).toBe('/api/v1/holdings/acme/finance/journals');
+  expect(calls[0]!.url.searchParams.get('chart')).toBe('chart');
+  expect(calls[0]!.url.searchParams.get('status')).toBe('posted');
+  expect(calls[0]!.url.searchParams.get('cursor')).toBe('cursor-1');
+  expect(calls[0]!.headers.get('x-erpx-context-company')).toBe('company');
+  expect(calls[0]!.headers.get('x-erpx-context-assignment-version')).toBe('3');
+  expect(result.journals).toEqual([{id:'j1',status:'posted'}]);
+  expect(result.journalPage).toBeNull();
+ });
+ it('fails closed on unavailable, malformed and mismatched native journal-list responses',async()=>{
+  await expect(createNativeJournalListReader(listConfig,async()=>json(null,503))(incoming(),actor,'acme',{})).rejects.toMatchObject({code:'NATIVE_FINANCE_UNAVAILABLE',status:503});
+  await expect(createNativeJournalListReader(listConfig,async()=>listReply({journals:'not-rows'}))(incoming(),actor,'acme',{})).rejects.toMatchObject({code:'NATIVE_FINANCE_RESPONSE_INVALID'});
+  await expect(createNativeJournalListReader(listConfig,async()=>listReply())(incoming(),{...actor,companyId:'foreign'},'acme',{})).rejects.toMatchObject({code:'NATIVE_FINANCE_CONTEXT_CHANGED'});
+ });
+ it('keeps the TS journal-list SELECT retired in the owner and both route fallbacks removed',async()=>{
+  const source=(path:string)=>readFile(new URL('../../../'+path,import.meta.url),'utf8');
+  const [adapter,bridge,reads,workplace,feature]=await Promise.all([
+   source('packages/server-finance/src/adapters/finance-invoice-read.ts'),
+   source('packages/server-finance/src/adapters/finance.ts'),
+   source('packages/server-finance/src/application/finance-reads.ts'),
+   source('packages/workplace/src/routes/api/v1/holdings/[holdingSlug]/finance/[...path]/route.ts'),
+   source('packages/feature-finance/src/routes/api/v1/holdings/[holdingSlug]/finance/route.ts'),
+  ]);
+  expect(adapter+bridge+reads).not.toMatch(/listJournals|SELECT \* FROM finance_journals WHERE \$\{clauses/);
+  expect(adapter).toMatch(/financeOverviewCounts: async/);
+  for(const route of [workplace,feature]){expect(route).toMatch(/nativeJournalList/);expect(route).not.toMatch(/listJournals/);expect(route).toMatch(/NATIVE_FINANCE_UNAVAILABLE/);}
+ });
 });

@@ -1,4 +1,5 @@
 import {nativeFieldJournalWorkspaceReadback} from '@erpx/feature-finance/public/server';
+import {nativeJournalList} from '@erpx/feature-finance/lib/native-journal-list';
 import {nativeServicePaymentReadback,nativeServiceInvoiceReadback} from '@erpx/feature-finance/public/server';
 import {nativeFinanceBankCommand} from '@erpx/feature-finance/lib/native-finance-bank';
 import {nativeFinanceBankHttpGet} from '@erpx/feature-finance/lib/native-finance-bank-read';
@@ -29,7 +30,7 @@ import { requestPublicOrigin } from "@erpx/server-manage_erpx/public/public-orig
 import { requireWorkContext } from "@erpx/server-identity_access/public/authorization";
 import { ApiError, errorResponse } from "@erpx/server-runtime/public/http";
 import {createFinanceStarter,financeStarterSchema} from "@erpx/server-finance/public/finance-starter";
-import {aging,createInvoice,voidDraftInvoice,createParty,createPayment,approvePayment,releasePayment,confirmPayment,confirmPaymentSchema,reversePayment,reversePaymentSchema,allocatePayment,exportPaymentFile,createTaxCode,taxCodeSchema,createAsset,assetSchema,depreciateAsset,createBudget,budgetSchema,createLease,leaseSchema,createLoan,loanSchema,createRevenueContract,revenueContractSchema,createRevenueObligation,revenueObligationSchema,listAccounts,listCharts,listJournals,listInvoices,listPayments,getPayment,postInvoice,invoicePostingSchema,journalBatchSchema,statements,trialBalance,reportDateSchema,partySchema,invoiceSchema,prepareFxRevaluation,prepareFxRevaluationSchema,decideFxRevaluation,decideFxRevaluationSchema} from '@erpx/server-finance/public/finance';
+import {aging,createInvoice,voidDraftInvoice,createParty,createPayment,approvePayment,releasePayment,confirmPayment,confirmPaymentSchema,reversePayment,reversePaymentSchema,allocatePayment,exportPaymentFile,createTaxCode,taxCodeSchema,createAsset,assetSchema,depreciateAsset,createBudget,budgetSchema,createLease,leaseSchema,createLoan,loanSchema,createRevenueContract,revenueContractSchema,createRevenueObligation,revenueObligationSchema,listAccounts,listCharts,listInvoices,listPayments,getPayment,postInvoice,invoicePostingSchema,journalBatchSchema,statements,trialBalance,reportDateSchema,partySchema,invoiceSchema,prepareFxRevaluation,prepareFxRevaluationSchema,decideFxRevaluation,decideFxRevaluationSchema} from '@erpx/server-finance/public/finance';
 import {getInvoice} from '@erpx/server-finance/public/finance-invoice-read';
 import { z } from "zod";
 import {financeDueWorkspace,financeDueDraftSchema,financeDueDecisionSchema,nativeFinanceDueDraftSchedule,nativeFinanceDueDraftDecide} from "@erpx/server-finance/public/finance-due-drafts";
@@ -176,7 +177,15 @@ export async function GET(request: Request, context: FinanceRouteContext) {
     if(parts[0]==="refund-instructions"&&parts.length===3&&parts[2]==="export")return Response.json(canonicalDestinationLinks({data:await recoverRefundExport(actor,parts[1])}));
     if(parts[0]==="refunds")return Response.json(canonicalDestinationLinks({data:parts[1]?await refundWorkspace(actor,parts[1]):await listRefunds(actor)}));
     if (parts[0] === "periods") return Response.json(canonicalDestinationLinks({ data: await listPeriods(actor) }));
-    if (parts[0] === "journals") return Response.json(canonicalDestinationLinks({ data: await listJournals(actor, { periodId: search.get("periodId") ?? undefined, status: search.get("status") ?? undefined }) }));
+    if (parts[0] === "journals") {
+      const native = await nativeJournalList(actor, holdingSlug, {
+        chart: search.get("chart") ?? undefined,
+        status: search.get("status") ?? undefined,
+        cursor: search.get("cursor") ?? undefined,
+      });
+      if (native) return Response.json(canonicalDestinationLinks({ data: native.journals }));
+      throw new ApiError(503, "NATIVE_FINANCE_UNAVAILABLE", "The native Finance journal-list service is unavailable.");
+    }
     if (parts[0] === "project-cost-allocations") {
       const projectId = search.get("projectId");
       if (!projectId) throw new ApiError(422, "PROJECT_ID_REQUIRED", "Select a project for project cost allocations.");
