@@ -1,4 +1,5 @@
 import {PP_RD15_PEOPLE_SNAPSHOT_SQL} from './pp-read-tail-r15-sources';
+import {ppRd45EngagementProjection} from './pp-read-tail-r45-sources';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 export function activeBenefitPerson(db:SqlDatabase,companyId:string,userId:string){return db.prepare("SELECT p.id,e.id engagement_id,e.branch_id,e.department_id FROM hr_people p JOIN hr_engagements e ON e.person_id=p.id AND e.company_id=p.company_id WHERE p.company_id=? AND p.user_id=? AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active' LIMIT 1").bind(companyId,userId).first<{id:string;engagement_id:string;branch_id:string|null;department_id:string|null}>();}
 export const benefitElectionEmployeeName=()=>"SELECT legal_name FROM hr_people WHERE id=e.person_id";
@@ -15,7 +16,7 @@ export async function benefitPeopleSourceWitness(database:SqlDatabase,companyId:
 /** Closed minimal relations for the original Benefits sensitive-file policy. */
 export const benefitAttachmentPeopleSources={
  people:PP_RD15_PEOPLE_SNAPSHOT_SQL,
- engagements:"SELECT id,person_id,company_id,branch_id,department_id,status,version,start_date FROM hr_engagements",
+ engagements:ppRd45EngagementProjection("id,person_id,company_id,branch_id,department_id,status,version,start_date"),
 } as const;
 
 /** Complete point facts stay inside the Benefits private read transaction.

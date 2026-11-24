@@ -1,4 +1,5 @@
 import {ppRd44PurchaseClockProbe} from './pp-read-tail-r44-sources';
+import {ppRd45RunByIdProjection} from './pp-read-tail-r45-sources';
 import {ppRd32TwoColProjection} from './pp-read-tail-r32-sources';
 import {ppRd43EmployeeEngagementProjection} from './pp-read-tail-r43-sources';
 import {ppRd37StatusGuard5} from './pp-read-tail-r37-sources';
@@ -129,7 +130,7 @@ function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disable
         guard30(...args) { return payrollBenefitSources(database).guard30(...args); },
         guard31(key: string, value: string, company_id: string, engagement_id: string, period_end: string, period_start: string, runId: string, length: number) { return assertion(database, key, value, "(SELECT COUNT(*) FROM hr_payroll_advance_repayments r JOIN hr_payroll_advances a ON a.id=r.advance_id WHERE r.company_id=? AND a.engagement_id=? AND a.status='approved' AND r.status IN ('open','reserved') AND r.due_period_start<=? AND r.due_period_end>=? AND (r.payroll_run_id IS NULL OR r.payroll_run_id=?))=?", [company_id, engagement_id, period_end, period_start, runId, length]); },
         guard32(key: string, value: string, id: string, version: number) { return assertion(database, key, value, ppRd27IdVersionStatusInGuard('hr_payroll_advance_repayments', "'open','reserved'"), [id, version]); },
-        readPayrollReadinessRun(runId: string, companyId: string) { return database.prepare("SELECT id,company_id,pay_group_id,country_pack_id,scope_engagement_id,period_start,period_end,pay_date,currency,mode,status,version,revision,input_digest,submitted_by,submitted_digest,adjustment_of_run_id FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(runId, companyId).first<Run>(); },
+        readPayrollReadinessRun(runId: string, companyId: string) { return database.prepare(ppRd45RunByIdProjection("id,company_id,pay_group_id,country_pack_id,scope_engagement_id,period_start,period_end,pay_date,currency,mode,status,version,revision,input_digest,submitted_by,submitted_digest,adjustment_of_run_id")).bind(runId, companyId).first<Run>(); },
         readPayrollReadinessToday(pay_group_id: string, companyId: string) {
             return database.prepare("SELECT timezone FROM hr_pay_groups WHERE id=? AND company_id=?").bind(pay_group_id, companyId).first<{
                 timezone: string;

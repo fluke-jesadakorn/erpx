@@ -1,4 +1,5 @@
 import {ppRd42FourColOwnerProjection} from './pp-read-tail-r42-sources';
+import {ppRd45EngagementProjection,ppRd45PeopleProjection} from './pp-read-tail-r45-sources';
 import {ppRd32TwoColProjection} from './pp-read-tail-r32-sources';
 import "server-only";
 import {PP_RD15_COMMAND_RECEIPT_PRIOR_SQL} from './pp-read-tail-r15-sources';
@@ -25,7 +26,7 @@ type Command={key:string;operation:string;capability:Capability;purpose:Capabili
 const compositions=new WeakMap<SqlDatabase,{companyId?:string;checks:(()=>Promise<void>)[]}>();
 async function source(database:SqlDatabase,target:Target):Promise<Source|null>{
  if(target.kind.startsWith("preparation-"))return database.prepare(`SELECT t.id,t.company_id,c.person_id,c.engagement_id,t.case_id,t.position_id,t.kind,t.clearance_type,t.privileged${target.kind==="preparation-complete"?",t.assignee_id":""} FROM people_preparation_tasks t LEFT JOIN people_lifecycle_cases c ON c.id=t.case_id AND c.company_id=t.company_id WHERE t.id=?`).bind(target.id).first<Source>();
- const select=target.kind==="person"?"SELECT id,company_id,id person_id,NULL::text engagement_id FROM hr_people":target.kind==="engagement"?"SELECT id,company_id,person_id,id engagement_id FROM hr_engagements":target.kind==="compensation"?"SELECT c.id,e.company_id,e.person_id,c.engagement_id FROM hr_compensation_revisions c JOIN hr_engagements e ON e.id=c.engagement_id":ppRd42FourColOwnerProjection("id,company_id,person_id,engagement_id","people_lifecycle_cases");
+ const select=target.kind==="person"?ppRd45PeopleProjection("id,company_id,id person_id,NULL::text engagement_id"):target.kind==="engagement"?ppRd45EngagementProjection("id,company_id,person_id,id engagement_id"):target.kind==="compensation"?"SELECT c.id,e.company_id,e.person_id,c.engagement_id FROM hr_compensation_revisions c JOIN hr_engagements e ON e.id=c.engagement_id":ppRd42FourColOwnerProjection("id,company_id,person_id,engagement_id","people_lifecycle_cases");
  return database.prepare(`${select} WHERE ${target.kind==="compensation"?"c.":""}id=?`).bind(target.id).first<Source>();
 }
 async function current(database:SqlDatabase,actor:WorkContext,key:string,permission?:string){

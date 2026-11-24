@@ -15601,6 +15601,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "crm",
+      "modules": [
+        "crm"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "CRM single-key source, metric breakdown and sales opportunity heads must stay canonical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-crm"
+      ],
+      "id": "crm.read-tail-r37-dedupe.unit",
+      "files": [
+        "tests/unit/crm/read-tail-r37-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "crm.rust-crm-account-http.integration",
       "lane": "integration",
       "owner": "crm",
@@ -69694,6 +69721,33 @@
       "id": "people_payroll.read-tail-r44-dedupe.unit",
       "files": [
         "tests/unit/people_payroll/read-tail-r44-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "people_payroll",
+      "modules": [
+        "people_payroll"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Payroll engagement, run, people, comp and receipt heads must stay canonical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-people_payroll"
+      ],
+      "id": "people_payroll.read-tail-r45-dedupe.unit",
+      "files": [
+        "tests/unit/people_payroll/read-tail-r45-dedupe.test.ts"
       ],
       "framework": "vitest"
     },

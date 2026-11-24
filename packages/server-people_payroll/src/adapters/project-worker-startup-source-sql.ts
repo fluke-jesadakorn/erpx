@@ -1,4 +1,5 @@
 import 'server-only';
+import {ppRd45ReceiptMarkerProjection} from './pp-read-tail-r45-sources';
 import {projectWorkerCommandEvidence as workflow} from '@erpx/server-workflow/public/project-worker-startup-evidence';
 import {projectWorkerAppliedEvidence as applied} from '@erpx/server-identity_access/public/project-worker-startup-subject';
 export const projectWorkerCapabilities=['projects.wbs','people.worker-reference'] as const;
@@ -17,7 +18,7 @@ export const projectWorkerSourceRows=`SELECT p.id person_id,p.company_id,e.id en
  AND r.result_json::jsonb->>'id'=p.id AND r.result_json::jsonb->>'version'=r.result_json::jsonb->'${projectWorkerMarker}'->>'resultVersion'
  AND r.result_json::jsonb->'${projectWorkerMarker}'->>'kind'='project-worker-startup' AND r.result_json::jsonb->'${projectWorkerMarker}'->>'personId'=p.id AND r.result_json::jsonb->'${projectWorkerMarker}'->>'companyId'=p.company_id AND r.result_json::jsonb->'${projectWorkerMarker}'->>'commandId'=r.command_id AND r.result_json::jsonb->'${projectWorkerMarker}'->>'operation'=r.operation
  AND ((r.operation='people.directory.create' AND r.result_json::jsonb->'${projectWorkerMarker}'->>'mode'='create' AND p.id='person-'||r.command_id AND e.id='eng-'||r.command_id) OR (r.operation='people.directory.update' AND r.result_json::jsonb->'${projectWorkerMarker}'->>'mode'='link'))`;
-export const projectWorkerMarkedRows=`SELECT record_id person_id,authority_json::jsonb->>'companyId' company_id FROM command_receipts WHERE jsonb_exists(result_json::jsonb,'${projectWorkerMarker}')`;
+export const projectWorkerMarkedRows=ppRd45ReceiptMarkerProjection('record_id person_id',projectWorkerMarker);
 export const projectWorkerPlacementRows=`SELECT c.id,c.company_id,c.person_id,c.engagement_id,starter.account_id,starter.command_id starter_command_id,r.command_id,r.request_hash,r.result_json::jsonb->'${projectWorkerPlacementMarker}' proof
  FROM people_lifecycle_cases c JOIN command_receipts r ON r.record_id=c.id AND r.operation='people.lifecycle.submit' AND r.actor_id=c.created_by AND r.authority_json::jsonb->>'companyId'=c.company_id
  JOIN (${projectWorkerSourceRows}) starter ON starter.person_id=c.person_id AND starter.engagement_id=c.engagement_id AND starter.company_id=c.company_id AND starter.command_id=r.result_json::jsonb->'${projectWorkerPlacementMarker}'->>'starterCommandId' AND starter.request_hash=r.result_json::jsonb->'${projectWorkerPlacementMarker}'->>'starterRequestHash'
@@ -28,7 +29,7 @@ export const projectWorkerPlacementRows=`SELECT c.id,c.company_id,c.person_id,c.
  AND r.result_json::jsonb->'${projectWorkerPlacementMarker}'->>'authorizingAssignmentId'=c.authorizing_assignment_id AND r.result_json::jsonb->'${projectWorkerPlacementMarker}'->'definition'=c.definition AND r.result_json::jsonb->'${projectWorkerPlacementMarker}'->'reviewSnapshot'=c.review_snapshot
  AND r.authority_json::jsonb->>'assignmentId'=c.authorizing_assignment_id AND c.definition->>'kind'='onboarding' AND c.definition->>'personId'=c.person_id AND c.definition->>'engagementId'=c.engagement_id AND c.definition->>'expectedVersion'='0' AND c.definition->>'effectiveAt'=c.effective_at::text
  AND c.definition->>'acceptRecommendedPay'='false' AND c.definition->>'acceptRecommendedLeave'='false'`;
-export const projectWorkerPlacementMarkedRows=`SELECT record_id id,authority_json::jsonb->>'companyId' company_id FROM command_receipts WHERE jsonb_exists(result_json::jsonb,'${projectWorkerPlacementMarker}')`;
+export const projectWorkerPlacementMarkedRows=ppRd45ReceiptMarkerProjection('record_id id',projectWorkerPlacementMarker);
 
 /** Completion/cancellation is proved by original immutable owner evidence,
  * without depending on the worker's later employment or account lifecycle. */

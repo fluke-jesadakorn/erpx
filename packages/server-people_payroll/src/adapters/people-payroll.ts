@@ -1,4 +1,5 @@
 import {ppRd42IdVersionLiteralGuard} from './pp-read-tail-r42-sources';
+import {ppRd45RunByIdProjection} from './pp-read-tail-r45-sources';
 import {ppRd38SinglePredTail} from './pp-read-tail-r38-sources';
 import {ppRd37StatusGuard5} from './pp-read-tail-r37-sources';
 import {ppRd36SinglePred, ppRd36ThreePred, ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
@@ -490,7 +491,7 @@ function context(provided?: SqlDatabase, actor?: WorkContext): PeoplePayrollPort
         },
         readCreatePaymentBatchDuplicate(companyId: string, sourceType: "contractor" | "payroll" | "expense", sourceId: string) { return database.prepare("SELECT id FROM hr_payment_batches WHERE company_id=? AND source_type=? AND source_id=? AND status NOT IN ('cancelled') LIMIT 1").bind(companyId, sourceType, sourceId).first(); },
         readCreatePaymentBatchSource(sourceId: string, companyId: string) {
-            return database.prepare("SELECT id,status,currency FROM hr_payroll_runs WHERE id=? AND company_id=?").bind(sourceId, companyId).first<{
+            return database.prepare(ppRd45RunByIdProjection("id,status,currency")).bind(sourceId, companyId).first<{
                 id: string;
                 status: string;
                 currency: string;

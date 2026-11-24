@@ -1,11 +1,12 @@
 import { PP_RD22_LEAVE_REQUESTS_PROJECTION_SQL } from './pp-read-tail-r22-sources';
 import { PP_RD20_HR_ENGAGEMENTS_COMPACT_SQL } from './pp-read-tail-r20-sources';
+import {ppRd45CompRevisionProjection} from './pp-read-tail-r45-sources';
 import "server-only";
 import {PP_RD18_HR_PEOPLE_PROJ_SQL} from './pp-read-tail-r18-sources';
 /** Closed owner projections for Platform, Organization and Procurement joins. Original filters, bindings and supplied transactions remain with the caller. */
 export const platformOwnerProjectionSources = Object.freeze({
   employees: "SELECT \"id\",\"user_id\",\"company_id\",\"branch_id\",\"display_name\",\"status\",\"created_at\",\"department_id\",\"person_id\" FROM employees",
-  hr_compensation_revisions: "SELECT \"id\",\"engagement_id\",\"effective_from\",\"effective_to\",\"pay_frequency\",\"base_amount_minor\",\"hourly_rate_minor\",\"expected_hours\",\"currency\",\"components_json\",\"status\",\"version\",\"approved_by\",\"created_by\",\"created_at\",\"updated_at\",\"daily_rate_minor\",\"standard_daily_hours\" FROM hr_compensation_revisions",
+  hr_compensation_revisions: ppRd45CompRevisionProjection("\"id\",\"engagement_id\",\"effective_from\",\"effective_to\",\"pay_frequency\",\"base_amount_minor\",\"hourly_rate_minor\",\"expected_hours\",\"currency\",\"components_json\",\"status\",\"version\",\"approved_by\",\"created_by\",\"created_at\",\"updated_at\",\"daily_rate_minor\",\"standard_daily_hours\""),
   hr_engagements: PP_RD20_HR_ENGAGEMENTS_COMPACT_SQL,
   hr_pay_groups: "SELECT \"id\",\"company_id\",\"name\",\"country_code\",\"currency\",\"frequency\",\"timezone\",\"calendar_json\",\"status\",\"created_by\",\"created_at\",\"updated_at\",\"overtime_multiplier_bps\",\"proration_method\",\"schedule_enabled\",\"pay_delay_days\",\"schedule_anchor_date\",\"schedule_version\" FROM hr_pay_groups",
   hr_people: PP_RD18_HR_PEOPLE_PROJ_SQL,

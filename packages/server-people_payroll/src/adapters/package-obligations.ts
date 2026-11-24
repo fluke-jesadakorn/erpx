@@ -2,6 +2,7 @@ import { PP_RD21_SCOPE_COMPANY_SQL } from './pp-read-tail-r21-sources';
 import { PP_RD29_FINAL_PAY_TERMINAL_SQL } from './pp-read-tail-r29-sources';
 import { PP_RD20_PAYROLL_RUNS_SQL, PP_RD20_PAYROLL_POSTINGS_SQL, PP_RD20_STATUTORY_REMITTANCES_SQL, PP_RD20_PAYROLL_ITEMS_SQL, PP_RD20_PAYMENT_BATCHES_SQL, PP_RD20_PAYMENT_BATCH_ITEMS_SQL, PP_RD20_PAYROLL_PAYMENT_SETTLEMENTS_SQL, PP_RD20_PAYROLL_RECOVERIES_SQL, PP_RD20_PAYROLL_ADVANCES_SQL, PP_RD20_PAYROLL_ADVANCE_REPAYMENTS_SQL } from './pp-read-tail-r20-sources';
 import {PP_RD15_PEOPLE_SNAPSHOT_SQL} from './pp-read-tail-r15-sources';
+import {ppRd45CompRevisionProjection,ppRd45EngagementProjection} from './pp-read-tail-r45-sources';
 import {finalPayCancellationTerminalRows,finalPayCancellationTerminalSourceReadLocks} from '@erpx/server-people_payroll/adapters/final-pay-cancellation-terminal-sources';
 import {workerPlacementMarkedRows as projectWorkerPlacementMarkedRows} from '@erpx/server-people_payroll/adapters/project-worker-startup-source-sql';
 import "server-only";
@@ -16,7 +17,7 @@ const sources=new WeakMap<SqlDatabase,string>();
  * purchase-filtered Work projection or an authority decision. */
 export const peoplePackageSettlementSources={
  people:PP_RD15_PEOPLE_SNAPSHOT_SQL,
- engagements:"SELECT * FROM hr_engagements",compensation:"SELECT * FROM hr_compensation_revisions",
+ engagements:ppRd45EngagementProjection("*"),compensation:ppRd45CompRevisionProjection("*"),
  runs:PP_RD20_PAYROLL_RUNS_SQL,items:PP_RD20_PAYROLL_ITEMS_SQL,postings:PP_RD20_PAYROLL_POSTINGS_SQL,
  batches:PP_RD20_PAYMENT_BATCHES_SQL,batchItems:PP_RD20_PAYMENT_BATCH_ITEMS_SQL,
  settlements:PP_RD20_PAYROLL_PAYMENT_SETTLEMENTS_SQL,remittances:PP_RD20_STATUTORY_REMITTANCES_SQL,
