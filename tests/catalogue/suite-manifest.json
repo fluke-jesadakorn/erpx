@@ -85086,6 +85086,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "quality",
+      "modules": [
+        "quality"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Quality return anchor and obligation arm must share one head."
+      },
+      "apps": [
+        "quality"
+      ],
+      "packages": [
+        "@erpx/server-quality"
+      ],
+      "id": "quality.read-tail-r25-hold-source-dedupe.unit",
+      "files": [
+        "tests/unit/quality/read-tail-r25-hold-source-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "lane": "integration",
       "owner": "quality",
       "modules": [

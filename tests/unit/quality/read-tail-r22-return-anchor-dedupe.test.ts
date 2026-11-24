@@ -62,7 +62,8 @@ describe('quality return-anchor UNION arm dedupe (r21)', () => {
     }
     expect(sales).toContain("import {qualityReturnAnchorSql} from './quality-return-anchor-sql'");
     expect(ecommerce).toContain("import {qualityReturnAnchorSql} from './quality-return-anchor-sql'");
-    expect(read('adapters/quality-return-anchor-sql.ts').match(/SELECT /g)).toHaveLength(1);
+    expect(read('adapters/quality-return-anchor-sql.ts').match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(read('adapters/quality-source-arm-head.ts').match(/SELECT /g)).toHaveLength(1);
   });
   test('the helper is read-only; locks, native and r1-r20 helpers stay untouched', () => {
     const helper = read('adapters/quality-return-anchor-sql.ts');
@@ -79,10 +80,11 @@ describe('quality return-anchor UNION arm dedupe (r21)', () => {
       'quality-record-source-sql': 1, 'quality-lineage-recursion-sql': 2, 'quality-child-agg-sql': 1,
       'quality-receipt-guard-sql': 1, 'quality-source-rows-sql': 1, 'quality-scope-sql': 2,
       'quality-alert-recipient-sql': 1, 'quality-attachment-scope-read-sql': 1, 'quality-id-source-sql': 1,
-      'quality-attachment-source-select-sql': 1, 'quality-source-union-sql': 1, 'quality-return-anchor-sql': 1,
+      'quality-attachment-source-select-sql': 1, 'quality-source-union-sql': 1, 'quality-return-anchor-sql': 0,
+      'quality-obligation-fact-arm-sql': 0, 'quality-source-arm-head': 1,
     };
     for (const [name, count] of Object.entries(counts)) {
-      expect(read(`adapters/${name}.ts`).match(/SELECT /g)).toHaveLength(count);
+      expect(read(`adapters/${name}.ts`).match(/SELECT /g) ?? []).toHaveLength(count);
     }
   });
 });
@@ -99,6 +101,6 @@ describe('quality read-tail r21 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(70);
-    expect(total).toBe(59);
+    expect(total).toBe(58);
   });
 });

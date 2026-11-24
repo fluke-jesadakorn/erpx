@@ -74,7 +74,8 @@ describe('quality obligation fact ARM dedupe (r23)', () => {
     }
     expect(supply).toContain("import {qualityObligationFactArm} from './quality-obligation-fact-arm-sql'");
     expect(manuf).toContain("import {qualityObligationFactArm} from './quality-obligation-fact-arm-sql'");
-    expect(read('adapters/quality-obligation-fact-arm-sql.ts').match(/SELECT /g)).toHaveLength(1);
+    expect(read('adapters/quality-obligation-fact-arm-sql.ts').match(/SELECT /g) ?? []).toHaveLength(0);
+    expect(read('adapters/quality-source-arm-head.ts').match(/SELECT /g)).toHaveLength(1);
   });
   test('the helper is read-only; locks, native and r1-r22 helpers stay untouched', () => {
     const helper = read('adapters/quality-obligation-fact-arm-sql.ts');
@@ -91,11 +92,11 @@ describe('quality obligation fact ARM dedupe (r23)', () => {
       'quality-record-source-sql': 1, 'quality-lineage-recursion-sql': 2, 'quality-child-agg-sql': 1,
       'quality-receipt-guard-sql': 1, 'quality-source-rows-sql': 1, 'quality-scope-sql': 2,
       'quality-alert-recipient-sql': 1, 'quality-attachment-scope-read-sql': 1, 'quality-id-source-sql': 1,
-      'quality-attachment-source-select-sql': 1, 'quality-source-union-sql': 1, 'quality-return-anchor-sql': 1,
-      'quality-obligation-fact-arm-sql': 1,
+      'quality-attachment-source-select-sql': 1, 'quality-source-union-sql': 1, 'quality-return-anchor-sql': 0,
+      'quality-obligation-fact-arm-sql': 0, 'quality-source-arm-head': 1,
     };
     for (const [name, count] of Object.entries(counts)) {
-      expect(read(`adapters/${name}.ts`).match(/SELECT /g)).toHaveLength(count);
+      expect(read(`adapters/${name}.ts`).match(/SELECT /g) ?? []).toHaveLength(count);
     }
   });
 });
@@ -112,6 +113,6 @@ describe('quality read-tail r23 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(67);
-    expect(total).toBe(59);
+    expect(total).toBe(58);
   });
 });
