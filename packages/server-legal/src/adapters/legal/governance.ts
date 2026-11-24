@@ -17,6 +17,7 @@ import {legalMembershipSql} from '../legal-members-read-sources';
 import {legalSignerAccessPrefix,legalSignerAccessSuffix} from '../legal-signer-access-sources';
 import {legalDocumentsItemPairSql} from '../legal-read-tail-r9-sources';
 import {legalVersionExistsSql} from '../legal-read-tail-r26-sources';
+import {legalByIdAndItemSql} from '../legal-read-tail-r27-sources';
 /** Exact projection of the native `governance` auxiliary read; the transport accepts
  * every authoritative field and no SQL text remains in TypeScript. */
 type LegalGovernanceRead={forms:Record<string,unknown>[];authorities:Record<string,unknown>[];settings:(Record<string,unknown>&{enabled:boolean;ai_enabled:boolean;reminder_days:number})|null;};
@@ -34,7 +35,7 @@ async applyIntake(facts){return stage(await nativeGov.applyIntake(facts));},
 authorityDocument:(facts:{documentId:string;itemId:string;})=>db.prepare(legalDocumentsItemPairSql).bind(facts.documentId,facts.itemId).first(),
 signerAccess:(facts:{itemId:string;userId:string;itemId2:string;userId2:string;now:number;})=>db.prepare(legalSignerAccessPrefix+"user_id=?"+legalSignerAccessSuffix).bind(facts.itemId,facts.userId,facts.itemId2,facts.userId2,facts.now).first(),
 async createAuthority(facts){return stage(await nativeGov.createAuthority(facts));},
-authority:(facts:{authorityId:string;itemId:string;})=>db.prepare("SELECT * FROM legal_authorities WHERE id=? AND item_id=?").bind(facts.authorityId,facts.itemId).first<{ created_by: string; state: string; version: number }>(),
+authority:(facts:{authorityId:string;itemId:string;})=>db.prepare(legalByIdAndItemSql("legal_authorities")).bind(facts.authorityId,facts.itemId).first<{ created_by: string; state: string; version: number }>(),
 async decideAuthority(facts){return stage(await nativeGov.decideAuthority(facts));},
 async advanceRecord(facts){return stage(await nativeGov.advanceRecord(facts));},
 requireFormCurrent:(key,values)=>stage(assertion(db,key,"form-current","EXISTS(SELECT 1 FROM legal_intake_forms WHERE id=? AND version=? AND state='draft')",values)),

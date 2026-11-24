@@ -18,6 +18,7 @@ import {nativeLegalAuxiliaryRead} from '../native-legal-auxiliary';
 import {legalHoldGuardPrefix,legalHoldGuardSuffix} from '../legal-hold-guard-sources';
 import {legalRetentionPolicySelectSql} from '../legal-read-tail-r18-sources';
 import {legalVersionExistsSql} from '../legal-read-tail-r26-sources';
+import {legalByIdAndItemSql} from '../legal-read-tail-r27-sources';
 export {drainLegalDestruction} from "@erpx/server-legal/adapters/legal/destruction-worker";
 /** Exact projection of the native `retention` auxiliary read; the transport accepts
  * every authoritative field and no SQL text remains in TypeScript. */
@@ -38,7 +39,7 @@ approvedPolicy:(facts:{policyId:string | undefined;companyId:string;})=>db.prepa
 async assignRetention(facts){return stage(await nativeRet.assignRetention(facts));},
 eligibleAssignment:(facts:{id:string;now:number;})=>db.prepare("SELECT r.* FROM legal_retention_assignments r JOIN legal_retention_policies p ON p.id=r.policy_id AND p.version=r.policy_version AND p.state='approved' WHERE r.item_id=? AND r.eligible_at<=?").bind(facts.id,facts.now).first<{ policy_id: string; policy_version: number }>(),
 async requestDestruction(facts){return stage(await nativeRet.requestDestruction(facts));},
-destruction:(facts:{requestId:string | undefined;id:string;})=>db.prepare("SELECT * FROM legal_destructions WHERE id=? AND item_id=?").bind(facts.requestId,facts.id).first<{
+destruction:(facts:{requestId:string | undefined;id:string;})=>db.prepare(legalByIdAndItemSql("legal_destructions")).bind(facts.requestId,facts.id).first<{
         id: string;
         state: string;
         requested_by: string;
