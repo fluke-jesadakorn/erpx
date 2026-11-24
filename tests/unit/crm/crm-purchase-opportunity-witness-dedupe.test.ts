@@ -43,4 +43,23 @@ describe('crm purchase opportunity witness read family', () => {
     expect(identities).toContain('const contactScopeSql=`' + predicate + '`;');
     expect(identities.match(/\$\{contactScopeSql\}/g)).toHaveLength(2);
   });
+
+  it('keeps one marketing candidate row prefix shared by the handoff read and recheck', async () => {
+    const src = await readFile(purchasesUrl, 'utf8');
+    const literal = '`SELECT * FROM (${crmMarketingCandidateSources}) candidate WHERE id=? AND company_id=?`';
+    expect(src.split(literal).length - 1).toBe(1);
+    expect(src).toContain('export const crmMarketingCandidateRows=' + literal);
+    expect(src.match(/(?:prepare\(crmMarketingCandidateRows\)|\$\{crmMarketingCandidateRows\})/g)).toHaveLength(2);
+  });
+
+  it('keeps one lead-activity existence probe shared by the purchase and work families', async () => {
+    const purchases = await readFile(purchasesUrl, 'utf8');
+    const record = await readFile(adapter('record-purchases.ts'), 'utf8');
+    const literal = '`SELECT 1 FROM crm_lead_activities c JOIN crm_leads l ON l.id=c.lead_id AND l.company_id=c.company_id WHERE c.id=`';
+    expect(purchases.split(literal).length - 1).toBe(1);
+    expect(purchases).toContain('export const crmLeadActivityExists=' + literal);
+    expect(purchases.match(/\$\{crmLeadActivityExists\}/g)).toHaveLength(1);
+    expect(record).not.toMatch(/SELECT 1 FROM crm_lead_activities c JOIN crm_leads l/);
+    expect(record.match(/\$\{crmLeadActivityExists\}/g)).toHaveLength(1);
+  });
 });
