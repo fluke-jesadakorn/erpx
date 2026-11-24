@@ -94,6 +94,7 @@ describe('Customer Authority read-tail r26 binding/order row projection family',
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(60);
-    expect(total).toBe(59);
+    // r27 further reduced the tail (59 -> 58); keep a bound, not a stale exact pin.
+    expect(total).toBeLessThan(59);
   });
 });
