@@ -9,7 +9,7 @@ import 'server-only';
 import type {CRMAnalyticsAccess} from '@erpx/feature-crm/lib/analytics-access';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {assignmentReadSql} from '@erpx/server-identity_access/public/record-source-authority';
-import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import {requirePermission} from '@erpx/server-identity_access/public/iam-permissions';
 import {hasModuleAccess} from '@erpx/catalogue/module-access';
@@ -19,8 +19,9 @@ import {createCRMAnalyticsApplication,type CRMAnalyticsRepository,type CRMAnalyt
 import {n,s,analyticsRange,analyticsSchema} from '@erpx/server-crm/domain/analytics';
 import {crmLeadProjectionScope} from '@erpx/server-crm/adapters/record-purchases';
 import {crmAnalyticsAccess,requireCRMReportAccess} from '@erpx/server-crm/adapters/analytics-purchases';
+import {crmClockCteSql} from '@erpx/server-crm/adapters/purchases';
 export type {AnalyticsFilters} from '@erpx/server-crm/domain/analytics';
-const clock=`report_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms)`;
+const clock=`report_clock${crmClockCteSql}`;
 function hotelHistory(actor:WorkContext,access:CRMAnalyticsAccess|undefined,privateHistory:boolean){
  if(!access)return {where:'TRUE',args:[] as unknown[]};if(!access.hotel||!privateHistory&&!access.hotelRevenue)return {where:'FALSE',args:[] as unknown[]};
  const purchase=(capability:string)=>purchasedCapabilityPredicate('l.company_id',capability,'history','report_clock.now_ms');

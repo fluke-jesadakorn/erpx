@@ -6,7 +6,7 @@ import {packageSettlementSource,type PackageSettlementSourceLock} from '@erpx/se
 import {assertMarketingPackageObligationSources,marketingPackageSettlementSources as marketing} from '@erpx/server-marketing/public/package-obligations';
 import {crmFinanceSourceReadLocks} from '@erpx/server-finance/public/crm-purchase-sources';
 import {crmHotelReservationSources,crmHotelSourceReadLocks} from '@erpx/server-pms/public/crm-purchase-sources';
-import {crmPurchaseLeadRows} from '@erpx/server-crm/adapters/purchases';
+import {crmPurchaseLeadRows,crmObligationScopeSql} from '@erpx/server-crm/adapters/purchases';
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};const sources=new WeakMap<SqlDatabase,string>();
 export async function lockMarketingCRMPackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.batch([...crmFinanceSourceReadLocks(database),...crmHotelSourceReadLocks(database)]);await database.prepare('LOCK TABLE crm_accounts,crm_contacts,crm_guest_links,crm_leads,crm_opportunities,crm_case_events IN SHARE MODE').run();sources.set(database,companyId);}
 /** Completed Marketing delivery belongs to base Sales thereafter. The exact
@@ -14,7 +14,7 @@ export async function lockMarketingCRMPackageObligationSources(owner:PostgresDat
  * obligation; an unrelated open Sales lead cannot block its withdrawal. */
 export async function marketingCRMPackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
  owner.assertActiveTransaction(database);if(sources.get(database)!==input.companyId)throw Error('MARKETING_CRM_PACKAGE_OBLIGATION_SOURCE_REQUIRED');assertMarketingPackageObligationSources(owner,database,input.companyId);if(input.moduleId!=='crm'||input.packageId!=='sales-marketing'||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error('MARKETING_CRM_PACKAGE_OBLIGATION_SCOPE_REQUIRED');
- const facts=(await database.prepare(`WITH scope AS(SELECT ?::text company_id),candidates AS MATERIALIZED(SELECT candidate.* FROM (${marketing.candidates}) candidate,scope WHERE candidate.company_id=scope.company_id)
+ const facts=(await database.prepare(`${crmObligationScopeSql}candidates AS MATERIALIZED(SELECT candidate.* FROM (${marketing.candidates}) candidate,scope WHERE candidate.company_id=scope.company_id)
  SELECT 'handoff' kind,c.id,to_jsonb(c)||jsonb_build_object('parent',to_jsonb(parent),'child',to_jsonb(child),'create',to_jsonb(created),'handoff',to_jsonb(handoff),'lead',to_jsonb(lead)) fact,
  c.status='handed_off' AND NOT COALESCE(c.source_valid AND c.reviewed_by<>c.created_by AND parent.command_id IS NOT NULL AND child.command_id IS NOT NULL AND created.id IS NOT NULL AND handoff.id IS NOT NULL AND native.id IS NOT NULL AND lead.created_by=c.reviewed_by AND lead.branch_id=c.branch_id AND lead.department_id IS NOT DISTINCT FROM NULLIF(child.authority_json::jsonb->>'departmentId','') AND lead.company_id=c.company_id AND c.crm_lead_id='lead-'||parent.command_id||'-crm'
  AND parent.operation='marketing.candidate.handoff' AND parent.record_id=c.id AND parent.actor_id=c.reviewed_by AND parent.authority_json::jsonb->>'companyId'=c.company_id AND parent.result_json::jsonb->>'id'=c.id AND parent.result_json::jsonb->>'crmLeadId'=c.crm_lead_id AND parent.result_json::jsonb->>'status'='handed_off' AND parent.result_json::jsonb->>'version'=c.version::text

@@ -1,5 +1,8 @@
 import { describe, it, expect } from 'vitest';
 import { readFile } from 'node:fs/promises';
+import { readFileSync, readdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const purchasesUrl = new URL('../../../packages/server-crm/src/adapters/purchases.ts', import.meta.url);
 const adapter = (name: string) => new URL(`../../../packages/server-crm/src/adapters/${name}`, import.meta.url);
@@ -90,5 +93,45 @@ describe('crm purchase opportunity witness read family', () => {
     expect(leads.match(/\$\{crmLeadVersionProjection\}/g)).toHaveLength(1);
     expect(executive).toContain('${crmLeadVersionProjection}\n');
     expect(leads).toContain('${crmLeadVersionProjection}v.stage,v.expected_minor,v.currency,v.close_date,v.version opportunity_version');
+  });
+
+  it('owns the r11 scope/clock/opportunity fragments once and stays below BEFORE=178', async () => {
+    const purchases = await readFile(purchasesUrl, 'utf8');
+    const record = await readFile(adapter('record-purchases.ts'), 'utf8');
+    const analytics = await readFile(adapter('analytics.ts'), 'utf8');
+    const marketing = await readFile(adapter('marketing-package-obligations.ts'), 'utf8');
+    const sales = await readFile(adapter('sales-package-obligations.ts'), 'utf8');
+    const clock = ' AS MATERIALIZED(SELECT ${packageClockSql} now_ms)';
+    const scope = 'WITH scope AS(SELECT ?::text company_id),';
+    const opportunity = 'SELECT 1 FROM (${crmPurchaseOpportunityRows}) opportunity WHERE ';
+    expect(purchases.split('export const crmClockCteSql=`' + clock + '`;').length - 1).toBe(1);
+    expect(purchases.split('export const crmObligationScopeSql=`' + scope + '`;').length - 1).toBe(1);
+    expect(purchases.split('export const crmOpportunityExistsSql=`' + opportunity + '`;').length - 1).toBe(1);
+    expect(analytics).not.toContain(clock);
+    expect(record).not.toContain(clock);
+    expect(record).not.toContain(opportunity);
+    expect(marketing).not.toContain(scope);
+    expect(sales).not.toContain(scope);
+    expect(analytics.match(/\$\{crmClockCteSql\}/g)).toHaveLength(1);
+    expect(record.match(/\$\{crmClockCteSql\}/g)).toHaveLength(2);
+    expect(record.match(/\$\{crmOpportunityExistsSql\}/g)).toHaveLength(1);
+    expect(purchases.match(/\$\{crmOpportunityExistsSql\}/g)).toHaveLength(1);
+    expect(marketing.match(/\$\{crmObligationScopeSql\}/g)).toHaveLength(1);
+    expect(sales.match(/\$\{crmObligationScopeSql\}/g)).toHaveLength(1);
+    const accountScope = '(?::text IS NULL OR account.created_by=? OR EXISTS(SELECT 1 FROM crm_leads lead WHERE lead.account_id=account.id AND lead.company_id=account.company_id AND lead.branch_id=? AND (?::text IS NULL OR lead.department_id=?)))';
+    const attachment = await readFile(adapter('attachment-purchases.ts'), 'utf8');
+    const serviceFacts = await readFile(adapter('attachments-service-facts.ts'), 'utf8');
+    expect(purchases.split('export const crmAccountCreatedByScopeSql=`' + accountScope + '`;').length - 1).toBe(1);
+    expect(attachment).not.toContain(accountScope);
+    expect(serviceFacts).not.toContain('?::text IS NULL OR account.created_by=? OR EXISTS(SELECT 1 FROM crm_leads lead\n');
+    expect(attachment.match(/\$\{crmAccountCreatedByScopeSql\}/g)).toHaveLength(1);
+    expect(serviceFacts.match(/\$\{crmAccountCreatedByScopeSql\}/g)).toHaveLength(1);
+    const root = fileURLToPath(new URL('../../../packages/server-crm/src/', import.meta.url));
+    let total = 0;
+    for (const rel of readdirSync(root, { recursive: true })) {
+      if (!String(rel).endsWith('.ts')) continue;
+      total += readFileSync(resolve(root, String(rel)), 'utf8').match(/SELECT /g)?.length ?? 0;
+    }
+    expect(total).toBeLessThan(178);
   });
 });

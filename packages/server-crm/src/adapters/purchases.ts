@@ -8,6 +8,7 @@ import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {workContextGuards,financialConstraintError} from '@erpx/server-workflow/public/command-guards';
 import {replayCommand} from '@erpx/server-workflow/public/commands';
 import {commercePackageEnforcementMode,readPurchasedAccesses,checkPurchasedCapability,companyPurchaseReadLocks,purchaseCommandBoundary,purchaseCommandFailure,type PackageEnforcementMode} from "@erpx/server-commercial/public/purchase-command-boundary";
+import {packageClockSql} from "@erpx/server-commercial/public/purchased-capability-sql";
 import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packages";
 import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-transactions";
 import {isTransactionalSqlDatabase,type SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
@@ -35,6 +36,8 @@ export const crmMarketingCandidateRows=`SELECT * FROM (${crmMarketingCandidateSo
 export const crmLeadActivityExists=`SELECT 1 FROM crm_lead_activities c JOIN crm_leads l ON l.id=c.lead_id AND l.company_id=c.company_id WHERE c.id=`;
 export const crmAssignmentModuleExists=`EXISTS(SELECT 1 FROM assignments selected WHERE selected.id=? AND (jsonb_array_length(selected.modules_json::jsonb)=0 OR selected.modules_json::jsonb @> jsonb_build_array(`;
 export const crmLeadVersionProjection=`SELECT v.id,v.lead_id,l.title,l.status lead_status,l.version lead_version,`;
+export const crmObligationScopeSql=`WITH scope AS(SELECT ?::text company_id),`;
+export const crmClockCteSql=` AS MATERIALIZED(SELECT ${packageClockSql} now_ms)`;
 export const crmPurchaseAccountRows=`SELECT account.id,account.company_id,NULL::text branch_id,NULL::text department_id,account.created_by,${accountIdentity} witness FROM crm_accounts account LEFT JOIN (${crmFinanceCustomerSources}) customer ON customer.id=account.finance_party_id AND customer.company_id=account.company_id AND customer.kind='customer' WHERE account.finance_party_id IS NULL OR customer.id IS NOT NULL`;
 export const crmPurchaseContactRows=`SELECT contact.id,contact.company_id,NULL::text branch_id,NULL::text department_id,account.created_by,${contactIdentity} witness FROM crm_contacts contact JOIN (${crmPurchaseAccountRows}) account ON account.id=contact.account_id AND account.company_id=contact.company_id`;
 export const crmPurchaseLeadRows=`SELECT lead.id,lead.company_id,lead.branch_id,lead.department_id,
@@ -51,6 +54,8 @@ export const crmPurchaseOpportunityRows=`SELECT lead.id,lead.company_id,lead.bra
  LEFT JOIN (${crmCommerceOrderSources}) sale ON sale.id=opportunity.sales_id AND sale.company_id=lead.company_id AND sale.branch_id=lead.branch_id AND sale.department_id IS NOT DISTINCT FROM lead.department_id AND sale.party_id=customer.id AND sale.currency=opportunity.currency AND sale.kind='sales' AND sale.source_id=quote.id
  LEFT JOIN (${crmHotelReservationSources}) reservation ON reservation.id=opportunity.reservation_id AND reservation.company_id=lead.company_id AND reservation.branch_id=lead.branch_id AND EXISTS(SELECT 1 FROM crm_guest_links guest_link WHERE guest_link.contact_id=native.contact_id AND guest_link.company_id=lead.company_id AND guest_link.guest_id=reservation.guest_id AND guest_link.property_id=reservation.property_id)
  WHERE (opportunity.quote_id IS NULL OR quote.id IS NOT NULL) AND (opportunity.sales_id IS NULL OR sale.id IS NOT NULL) AND (opportunity.reservation_id IS NULL OR reservation.id IS NOT NULL)`;
+export const crmOpportunityExistsSql=`SELECT 1 FROM (${crmPurchaseOpportunityRows}) opportunity WHERE `;
+export const crmAccountCreatedByScopeSql=`(?::text IS NULL OR account.created_by=? OR EXISTS(SELECT 1 FROM crm_leads lead WHERE lead.account_id=account.id AND lead.company_id=account.company_id AND lead.branch_id=? AND (?::text IS NULL OR lead.department_id=?)))`;
 export const crmPurchaseGuestLinkRows=`SELECT link.id,link.company_id,guest.branch_id,NULL::text department_id,account.created_by,
  jsonb_build_object('link',jsonb_build_array(link.id,link.company_id,link.contact_id,link.guest_id,link.property_id),'contact',${contactIdentity},'guest',to_jsonb(guest)) witness FROM crm_guest_links link
  JOIN crm_contacts contact ON contact.id=link.contact_id AND contact.company_id=link.company_id
@@ -79,7 +84,7 @@ async function source(database:SqlDatabase,actor:WorkContext,target:CRMPurchaseT
  const args=target.kind==="lead"||target.kind==="activity"?[actor.branchId,actor.branchId,actor.departmentId,actor.departmentId]:[actor.branchId,actor.userId,actor.branchId,actor.departmentId,actor.departmentId];
  const row=await database.prepare(`SELECT id,company_id,branch_id,department_id,witness::text witness FROM (${sourceRows[target.kind]}) actual WHERE id=? AND company_id=? AND ${scoped}`).bind(target.id,actor.companyId,...args).first<Source>();
  if(!row||target.kind==="guest-link"&&actor.branchId&&row.branch_id!==actor.branchId)throw new ApiError(404,"CRM_SOURCE_NOT_FOUND","The original CRM source is unavailable in this workspace.");
- if(target.kind==='lead'&&await database.prepare('SELECT 1 FROM crm_opportunities WHERE lead_id=?').bind(target.id).first()&&!await database.prepare(`SELECT 1 FROM (${crmPurchaseOpportunityRows}) opportunity WHERE id=? AND company_id=?`).bind(target.id,actor.companyId).first())throw new ApiError(404,'CRM_SOURCE_NOT_FOUND','The actual original opportunity source is unavailable.');
+ if(target.kind==='lead'&&await database.prepare('SELECT 1 FROM crm_opportunities WHERE lead_id=?').bind(target.id).first()&&!await database.prepare(`${crmOpportunityExistsSql}id=? AND company_id=?`).bind(target.id,actor.companyId).first())throw new ApiError(404,'CRM_SOURCE_NOT_FOUND','The actual original opportunity source is unavailable.');
  return row;
 }
 export async function requireCRMCurrentAuthority(database:SqlDatabase,actor:WorkContext,permissions:readonly string[],key:string,record?:Source){
