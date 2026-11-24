@@ -15,7 +15,7 @@ import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packa
 
 import type {LearningCapability,LearningPurchaseControls} from "@erpx/server-learning/domain/purchase-controls";
 export type {LearningCapability,LearningPurchaseControls} from "@erpx/server-learning/domain/purchase-controls";
-import {assignmentsImage,coursesImage,currentAssignmentScopeHead,identitySourceRead,moduleGrantAssignmentProbe,workspaceImageFrame} from "./learning-read-sql";
+import {assignmentsImage,coursesImage,currentAssignmentScopeHead,identitySourceRead,keyedRowRead,moduleGrantAssignmentProbe,workspaceImageFrame} from "./learning-read-sql";
 type Target={kind:"course"|"assignment"|"certificate";id:string};
 const commands=new WeakMap<SqlDatabase,{actorId:string;assignmentId:string;target:Target;operation:string}>();
 /** Private owner marker, never a public transaction registration port. */
@@ -82,7 +82,7 @@ export async function withLearningPurchasedCommand<Result>(owner:SqlDatabase,act
  if(!isTransactionalSqlDatabase(owner))throw new ApiError(503,"LEARNING_TRANSACTION_REQUIRED","Learning requires its complete owned Holding transaction.");
  try{return await owner.transaction(async database=>{
   await sourceLeases(database,actor);
-  const prior=await database.prepare("SELECT operation FROM command_receipts WHERE command_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?")
+  const prior=await database.prepare(keyedRowRead('operation', ' FROM command_receipts', ` WHERE command_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?`))
    .bind(command.key,actor.userId,actor.companyId).first<{operation:string}>();
   const replay=prior?.operation===command.operation,purpose=replay?"history" as const:command.purpose;
   const before=await image(database,actor,command.target);

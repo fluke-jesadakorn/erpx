@@ -12,7 +12,7 @@ import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import type {AttachmentOperation} from "@erpx/server-files/public/attachments/types";
 import {learningOwnsAttachmentAction} from "@erpx/server-learning/adapters/purchases";
-import {assignmentCourseJoinHead,learningCourseProjection} from "./learning-read-sql";
+import {assignmentCourseJoinHead,existsRowProbe,learningCourseProjection} from "./learning-read-sql";
 
 type Target="learning_course"|"learning_assignment";
 export type LearningAttachmentPurchase={companyId:string;capability:"learn.courses"|"learn.certificates";purpose:CapabilityPurpose;actor:WorkContext;targetType:Target;targetId:string;witness:string;ownedCompletion:boolean};
@@ -57,7 +57,7 @@ export async function learningAttachmentCommandBoundary(database:SqlDatabase,sco
   const writerArgs=scope.targetType==="learning_course"?[actor.role,actor.companyId]:[actor.role,actor.companyId,actor.userId];
   const recordScope=scope.targetType==="learning_course"?"TRUE":"(?::text IS NULL OR branch_id=?) AND (?::text IS NULL OR department_id=?)";
   const scopeArgs=scope.targetType==="learning_course"?[]:[actor.branchId,actor.branchId,actor.departmentId,actor.departmentId];
-  return [...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),assertion(database,key,"learning-file-source",`EXISTS(SELECT 1 FROM (${source(scope.targetType,scope.ownedCompletion)}) learning_file_source WHERE image=? AND ${recordScope} AND ${writer})`,[scope.targetId,scope.companyId,scope.witness,...scopeArgs,...writerArgs]),await nativeClearCommandAssertions(database, actor.companyId, key)];
+  return [...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),assertion(database,key,"learning-file-source",`EXISTS(${existsRowProbe(`FROM (${source(scope.targetType,scope.ownedCompletion)}) learning_file_source`, `image=? AND ${recordScope} AND ${writer}`)})`,[scope.targetId,scope.companyId,scope.witness,...scopeArgs,...writerArgs]),await nativeClearCommandAssertions(database, actor.companyId, key)];
  }))).flat();
  return {before:[...boundaries.flatMap(item=>item.boundary.before),...await guards("before")],after:[...financeDeferredEffectStatements(database),...await guards("after"),...boundaries.flatMap(item=>item.boundary.after),...await Promise.all(boundaries.map(item=>nativeClearCommandAssertions(database, item.companyId, item.key)))],observe:mode==="shadow"?observePurchaseResults:undefined};
 }

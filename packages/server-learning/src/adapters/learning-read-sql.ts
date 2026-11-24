@@ -15,6 +15,18 @@ export const jsonbAggImageHead = (alias: string) => `SELECT jsonb_agg(to_jsonb($
  * with the callers, so every rendered row keeps its exact pre-dedupe bytes. */
 export const scopeRow = (columns: string) => `(SELECT ${columns})`;
 
+/** r17 — existence-probe head shared by the row-existence callers. The FROM
+ * source and the WHERE body stay in the caller, so each rendered probe keeps
+ * its exact pre-dedupe bytes and its own bind list. */
+export const existsRowProbe = (source: string, where: string) => `SELECT 1 ${source} WHERE ${where}`;
+
+/** r17 — keyed single-row read head. The projection, FROM/JOIN frame, key and
+ * any tail stay with the caller; only the shared head bytes are owned here, so
+ * every rendered read keeps its exact pre-dedupe text and binds. An empty key
+ * means the caller supplies its own scope rows and no WHERE clause at all. */
+export const keyedRowRead = (projection: string, frame: string, where = '', tail = '') =>
+  `SELECT ${projection}${frame}${where}${tail}`;
+
 export const actorScopeProbe = "(SELECT ?::text company_id,?::text branch_id,?::text department_id";
 export const clockProbe = `MATERIALIZED (SELECT ${packageClockSql} now_ms)`;
 export const coursesImage = `(${jsonbAggImageHead('c')} FROM learning_courses c WHERE c.company_id=?)`;

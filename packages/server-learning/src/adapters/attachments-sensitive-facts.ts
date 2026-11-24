@@ -1,7 +1,7 @@
 import "server-only";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {identitySourceRead,learningAssignmentsExistsProbe,learningCourseProjection} from "./learning-read-sql";
+import {existsRowProbe,identitySourceRead,learningAssignmentsExistsProbe,learningCourseProjection} from "./learning-read-sql";
 const sensitiveTables:Record<string,string>={learning_course:"learning_courses",learning_assignment:"learning_assignments"};
 const sensitiveRecordTables = new Set([
   "hr_evaluation_assessment",
@@ -33,7 +33,7 @@ function sensitiveAttachmentTargetVersionGuard(
     db,
     commandId,
     `sensitive-attachment-owner-${index}`,
-    `EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=?)`,
+    `EXISTS(${existsRowProbe(`FROM ${table}`, 'id=? AND company_id=? AND version=?')})`,
     [targetId, companyId, version],
   );
 }

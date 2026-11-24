@@ -3,7 +3,7 @@ import {createHash} from "node:crypto";
 import type {PostgresDatabase} from "@erpx/server-runtime/public/runtime/postgres";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {packageSettlementSource,type PackageSettlementSourceLock} from "@erpx/server-commercial/public/package-settlement-sources";
-import {certificateConsistencyProbe,latestEventLateral,obligationFactHead,packageScopeCte,scopeRow,sourceLiteral} from "./learning-read-sql";
+import {certificateConsistencyProbe,keyedRowRead,latestEventLateral,obligationFactHead,packageScopeCte,scopeRow,sourceLiteral} from "./learning-read-sql";
 
 type Input={companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number};
 const sources=new WeakMap<SqlDatabase,string>();
@@ -20,17 +20,17 @@ export function assertLearningPackageObligationSources(owner:PostgresDatabase,da
 /** Raw lineage remains visible even when the source is broken, inactive or
  * absent from the current user's Work. These are owner facts, never a UI list. */
 export const learningPackageSettlementSources={
- assignments:`SELECT a.*,c.company_id course_company_id,c.required_for,
+ assignments:keyedRowRead(`a.*,c.company_id course_company_id,c.required_for,
  event.id event_id,event.version event_version,event.action event_action,event.status event_status,
  COALESCE(c.id IS NOT NULL AND c.company_id=a.company_id AND a.course_version<=c.version,false) source_valid,
  COALESCE(event.status=a.status AND event.version<=a.version AND command.command_id IS NOT NULL
  AND command.operation='learning.assignment.'||event.action AND command.record_id=a.id
  AND command.actor_id=event.actor_id AND command.authority_json::jsonb->>'companyId'=a.company_id
  AND command.result_json::jsonb->>'id'=a.id AND command.result_json::jsonb->>'version'=event.version::text
- AND command.result_json::jsonb->>'status'=a.status,false) terminal_proven
+ AND command.result_json::jsonb->>'status'=a.status,false) terminal_proven`, `
  FROM learning_assignments a LEFT JOIN learning_courses c ON c.id=a.course_id
  ${latestEventLateral('e.*','learning_assignment_events','assignment_id','a')}
- LEFT JOIN command_receipts command ON event.id='learning-assignment-event-'||command.command_id`,
+ LEFT JOIN command_receipts command ON event.id='learning-assignment-event-'||command.command_id`),
  handoffs:sourceLiteral('learning_eligibility_handoffs'),
  certificates:sourceLiteral('learning_certificates'),
 } as const;

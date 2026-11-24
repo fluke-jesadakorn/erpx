@@ -52177,6 +52177,33 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Learning exists-row and keyed-row frames must stay canonical."
+      },
+      "apps": [
+        "learn"
+      ],
+      "packages": [
+        "@erpx/server-learning"
+      ],
+      "id": "learning.read-tail-r17-dedupe.unit",
+      "files": [
+        "tests/unit/learning/read-tail-r17-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "learning",
+      "modules": [
+        "learning"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Learning native source and evidence reads must stay byte-identical."
       },
       "apps": "learn",

@@ -7,7 +7,7 @@ import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {learningPackageEnforcementMode,readPurchasedAccess} from "@erpx/server-commercial/public/purchase-command-boundary";
 import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
-import {actorScopeExistsProbe,clockedSourceCte,nativeSourceProbe,scopeRow} from "./learning-read-sql";
+import {actorScopeExistsProbe,clockedSourceCte,keyedRowRead,nativeSourceProbe,scopeRow} from "./learning-read-sql";
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 function visible(actor:WorkContext,id:string,company:string){
  const permitted=hasModuleAccess(actor.modules,'learning')&&hasPermission(actor,'records.read'),capabilities=['learn.courses','learn.assignments','learn.results','learn.certificates'];
@@ -26,7 +26,7 @@ export async function requireLearningWorkspaceRecordRead(database:SqlDatabase,ac
  if(moduleId==='learning'){const access=await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:'learn.assignments'});if(!access.history)throw new ApiError(403,'PACKAGE_REQUIRED','Learning history is unavailable.');}
  if(!await database.prepare(`${nativeSourceProbe('native')} WHERE native.id=?`).bind(id).first())return;
  if(mode==='shadow'){await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:'learn.assignments'});return;}
- const scope=visible(actor,'learning_record.id','learning_record.company_id'),allowed=await database.prepare(`SELECT ${scope.sql} allowed FROM ${scopeRow('?::text id,?::text company_id')} learning_record`).bind(...scope.args,id,actor.companyId).first('allowed');if(!allowed)throw new ApiError(403,'LEARNING_SOURCE_FORBIDDEN','This Learning source is unavailable in the current assignment.');
+ const scope=visible(actor,'learning_record.id','learning_record.company_id'),allowed=await database.prepare(keyedRowRead(`${scope.sql} allowed`, ` FROM ${scopeRow('?::text id,?::text company_id')} learning_record`)).bind(...scope.args,id,actor.companyId).first('allowed');if(!allowed)throw new ApiError(403,'LEARNING_SOURCE_FORBIDDEN','This Learning source is unavailable in the current assignment.');
 }
 export async function filterLearningWork(database:SqlDatabase,actor:WorkContext,items:WorkItem[]){
  if(await learningPackageEnforcementMode()==='disabled'||!items.some(item=>item.type==='learning_assignment'))return items;
