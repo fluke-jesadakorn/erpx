@@ -119,3 +119,15 @@ export const journalLineSumSql = (column: string) =>
  * are left untouched. */
 export const childLineOwnerExistsSql = (table: string, alias: string, childFk: string, parentFk: string) =>
   `EXISTS(SELECT 1 FROM ${table} ${alias} WHERE ${alias}.id=child.${childFk} AND ${alias}.${parentFk}=d.id)`;
+/** r24: parameterized native-record identity EXISTS guard. A records-surface
+ *  filter admits a row only while its backing native Inventory document still
+ *  exists. The table, row alias and id expression vary per consumer; only the
+ *  SQL text is shared. Every caller keeps its own binds and independent
+ *  statement. r11-r23 helpers above are left untouched. */
+export const nativeRecordExistsSql = (table: string, alias: string, id: string) =>
+  `EXISTS(SELECT 1 FROM ${table} ${alias} WHERE ${alias}.id=${id})`;
+/** r24: parameterized branch-scope tuple. A branch-restricted read keeps both
+ *  the null-branch and matching-branch cases in a single bind pair. Only the
+ *  row alias varies; every caller supplies its own two branch binds. */
+export const branchScopeTupleSql = (alias: string) =>
+  `(?::text IS NULL OR ${alias}.branch_id=?)`;
