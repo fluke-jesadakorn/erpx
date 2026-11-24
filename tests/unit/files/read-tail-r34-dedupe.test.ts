@@ -89,8 +89,8 @@ describe('Files read-tail r34 parameterized family', () => {
       }
     };
     walk(srcRoot);
-    expect(literal).toBe(262); // r33 left 264; r34 lowers 264->262 (two 2-token heads -> one 2-token helper).
-    expect(total).toBe(263);
+    expect(literal).toBe(260); // r34 left 262; r35 lowers 262->260 (two 2-token upload heads -> one 2-token helper).
+    expect(total).toBe(261);
     expect(literal).toBeLessThan(264);
     expect(total).toBeLessThan(265);
   });

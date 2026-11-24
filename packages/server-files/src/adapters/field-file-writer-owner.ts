@@ -5,6 +5,7 @@ import {holdingResources} from '@erpx/server-runtime/public/runtime';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {LINK_SET_WHERE_EXISTS_SQL} from './read-tail-dedupe-sql';
 import {FIELD_LINK_EXISTS_SQL} from './read-tail-r33-source-sql';
+import {FIELD_UPLOAD_OWNER_HEAD_SQL} from './read-tail-r35-source-sql';
 /** Byte-identical scoped-existence witnesses shared by the two Field owner
  * preflights. Text only: the table token comes from a fixed closed set and every
  * call site still prepares its own statement with its own binds. */
@@ -27,7 +28,7 @@ async function financeFileOwnerInDatabase(db:SqlDatabase,actor:Pick<WorkContext,
  if(!resource.id||resource.id.includes("\u0000"))throw new ApiError(404,'ATTACHMENT_NOT_FOUND','File evidence not found.');
  const queries={
   set:`SELECT EXISTS(SELECT 1 FROM attachment_sets s WHERE s.id=? AND ${serviceSetMarker}) marker,${scopedByCompanySql('attachment_sets')}`,
-  upload:`SELECT EXISTS(SELECT 1 FROM upload_intents u LEFT JOIN attachment_sets s ON s.id=u.attachment_set_id WHERE u.id=? AND (${serviceOwner} OR ${serviceSet})) OR ${LINK_SET_WHERE_EXISTS_SQL}upload_intent_id=? AND ${serviceSet}) marker,${scopedByCompanySql('upload_intents')}`,
+  upload:`${FIELD_UPLOAD_OWNER_HEAD_SQL}${serviceOwner} OR ${serviceSet})) OR ${LINK_SET_WHERE_EXISTS_SQL}upload_intent_id=? AND ${serviceSet}) marker,${scopedByCompanySql('upload_intents')}`,
   link:`${FIELD_LINK_EXISTS_SQL}LEFT JOIN attachments a ON a.id=l.attachment_id WHERE l.id=? AND (${serviceSet} OR ${serviceOwner} OR ${serviceAncestor} OR ${serviceSource})) marker,${scopedLinkSql}`,
   attachment:`SELECT EXISTS(SELECT 1 FROM attachments a WHERE a.id=? AND (${serviceSource} OR ${LINK_SET_WHERE_EXISTS_SQL}attachment_id=a.id AND ${serviceSet}))) marker,${scopedByCompanySql('attachments')}`,
  } as const;
@@ -63,7 +64,7 @@ export async function fieldFileWriterOwnerInDatabase(db:SqlDatabase,actor:Pick<W
  if(!resource.id||resource.id.includes("\u0000"))throw new ApiError(404,'ATTACHMENT_NOT_FOUND','File evidence not found.');
  const queries={
   set:`SELECT EXISTS(SELECT 1 FROM attachment_sets s WHERE s.id=? AND ${fieldSetMarker}) marker,${scopedByCompanySql('attachment_sets')}`,
-  upload:`SELECT EXISTS(SELECT 1 FROM upload_intents u LEFT JOIN attachment_sets s ON s.id=u.attachment_set_id WHERE u.id=? AND (u.owner_type='field_service_visit' OR s.target_type='field_service_visit' OR EXISTS(SELECT 1 FROM attachments a WHERE a.upload_id=u.id AND erpx_files_field_attachment_owned(a.id)))) OR ${LINK_SET_WHERE_EXISTS_SQL}upload_intent_id=? AND s.target_type='field_service_visit') marker,${scopedByCompanySql('upload_intents')}`,
+  upload:`${FIELD_UPLOAD_OWNER_HEAD_SQL}u.owner_type='field_service_visit' OR s.target_type='field_service_visit' OR EXISTS(SELECT 1 FROM attachments a WHERE a.upload_id=u.id AND erpx_files_field_attachment_owned(a.id)))) OR ${LINK_SET_WHERE_EXISTS_SQL}upload_intent_id=? AND s.target_type='field_service_visit') marker,${scopedByCompanySql('upload_intents')}`,
   link:`${FIELD_LINK_EXISTS_SQL}WHERE l.id=? AND (s.target_type='field_service_visit' OR u.owner_type='field_service_visit' OR us.target_type='field_service_visit' OR erpx_files_field_attachment_owned(l.attachment_id))) marker,${scopedLinkSql}`,
   attachment:`SELECT erpx_files_field_attachment_owned(?) marker,${scopedByCompanySql('attachments')}`,
  } as const;

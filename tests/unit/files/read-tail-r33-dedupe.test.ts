@@ -64,10 +64,10 @@ describe('Files read-tail r33 parameterized family', () => {
       }
     };
     walk(srcRoot);
-    // r34 further lowers the tail (264 -> 262): the service/messaging reference
-    // head now delegates to the byte-identical r34 helper.
-    expect(literal).toBe(262);
-    expect(total).toBe(263);
+    // r34 lowers the tail (264 -> 262) and r35 further lowers it (262 -> 260):
+    // the two Field upload preflights now delegate to the byte-identical r35 helper.
+    expect(literal).toBe(260);
+    expect(total).toBe(261);
     expect(literal).toBeLessThan(266);
     expect(total).toBeLessThan(267);
   });
