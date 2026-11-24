@@ -58,6 +58,8 @@ export { addReferenceSchema } from '@erpx/server-records/domain/records';
 export { suggestionSchema } from '@erpx/server-records/domain/records';
 export { suggestionDecisionSchema } from '@erpx/server-records/domain/records';
 export { addPrincipalMentionSchema } from '@erpx/server-records/domain/records';
+// Shared owner-local version fence for record guards (guard3/guard25); identical SQL.
+const recordVersionExistsSql = "EXISTS(SELECT 1 FROM workspace_records WHERE module_id=? AND id=? AND version=? AND archived_at IS NULL)";
 function application(provided?: SqlDatabase,actor?:WorkContext) {
     let database = provided!;
     let control: SqlDatabase;
@@ -78,7 +80,7 @@ function application(provided?: SqlDatabase,actor?:WorkContext) {
             return database.prepare(`SELECT module_id,id,section_id,title,description,status,fields_json,version,created_by,updated_at
     FROM workspace_records WHERE archived_at IS NULL AND module_id=? AND id=? AND ${scope.sql}`).bind(moduleId, id, ...args).first<RecordRow>();
         },
-        guard3(key: string, value: "record-version", moduleId: string, id: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM workspace_records WHERE module_id=? AND id=? AND version=? AND archived_at IS NULL)", [moduleId, id, version]); },
+        guard3(key: string, value: "record-version", moduleId: string, id: string, version: number) { return assertion(database, key, value, recordVersionExistsSql, [moduleId, id, version]); },
         /** Retired: creation, archive and update execute in the native Rust records command route. */
         stageCreateRecordEffect() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records command is unavailable.'); },
         stageArchiveRecordEffect() { throw new NativeApiError(503,'NATIVE_RECORDS_UNAVAILABLE','The native Records command is unavailable.'); },
@@ -130,7 +132,7 @@ function application(provided?: SqlDatabase,actor?:WorkContext) {
             return nativeRecordsStatement('records_stmt_19', { companyId: actor?.companyId, actor, now: Date.now() }).bind(suggestionId, moduleId, id, key, value, value2, value3, value4, value5, userId, now, now2);
         },
         guard24(key: string, value: "suggestion-ready", suggestionId: string) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM record_field_suggestions WHERE id=? AND state='ready')", [suggestionId]); },
-        guard25(key: string, value: string, mod: string, sourceId: string, version: number) { return assertion(database, key, value, "EXISTS(SELECT 1 FROM workspace_records WHERE module_id=? AND id=? AND version=? AND archived_at IS NULL)", [mod, sourceId, version]); },
+        guard25(key: string, value: string, mod: string, sourceId: string, version: number) { return assertion(database, key, value, recordVersionExistsSql, [mod, sourceId, version]); },
         stageDecideSuggestionEffect(value: string, userId: string, now: number, moduleId: string, id: string) { return nativeRecordsStatement('records_stmt_20', { companyId: actor?.companyId, actor, now: Date.now() }).bind(value, userId, now, moduleId, id); },
         stageDecideSuggestionEffect2(value: "rejected" | "applied", userId: string, now: number, suggestionId: string) { return nativeRecordsStatement('records_stmt_21', { companyId: actor?.companyId, actor, now: Date.now() }).bind(value, userId, now, suggestionId); } };
     return createRecordsApplication({ repository, clock: { now: Date.now }, identifiers: { next: () => crypto.randomUUID() }, commands: { replay: (...args) => nativeReplayCommand(database, ...args), commit: (...args) => nativeExecuteCommand(database, ...args) }, prepare: async (holding) => {
