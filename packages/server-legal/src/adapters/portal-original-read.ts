@@ -7,12 +7,14 @@ import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-fea
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import type {PortalActor} from '@erpx/server-legal/domain/portal';
 import {legalPortalPurchasePredicate,legalPortalSourceImageFields} from '@erpx/server-legal/adapters/portal-purchases';
+import {legalShareDocumentImageHead} from './legal-read-tail-r49-sources';
 
 async function originalImage(database:SqlDatabase,actor:PortalActor,id:string){
- const row=await database.prepare(`SELECT i.company_id,d.attachment_link_id,
+ const projection=`i.company_id,d.attachment_link_id,
  jsonb_build_object('share',to_jsonb(s),'item',to_jsonb(i),'document',to_jsonb(d),
  ${legalPortalSourceImageFields()})::text image
- FROM legal_shares s JOIN legal_items i ON i.id=s.item_id JOIN legal_documents d ON d.id=s.document_id AND d.item_id=i.id
+`;
+ const row=await database.prepare(`${legalShareDocumentImageHead(projection)}
  WHERE s.id=? AND lower(s.email)=? AND (s.user_id IS NULL OR s.user_id=?) AND s.revoked_at IS NULL
  AND s.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND ${await legalPortalPurchasePredicate()}`)
  .bind(actor.userId,actor.userId,id,actor.email,actor.userId).first<{company_id:string;attachment_link_id:string|null;image:string}>();

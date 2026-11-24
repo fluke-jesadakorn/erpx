@@ -13,6 +13,7 @@ import {legalPurchaseClockExistsSql} from './legal-read-tail-r29-sources';
 import {legalPointByIdAndKeySql} from './legal-read-tail-r34-sources';
 import {legalShareDocumentReadHead} from './legal-read-tail-r41-sources';
 import {legalActiveDestructionGuardHead} from './legal-read-tail-r46-sources';
+import {legalShareDocumentImageHead} from './legal-read-tail-r49-sources';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-feature-source-locks';
 import {attachmentPrivateReadSourceLocks} from '@erpx/server-files/public/private-attachment-reads';
@@ -36,11 +37,12 @@ export function legalPortalSourceImageFields(){
  'billing',(SELECT jsonb_agg(to_jsonb(entry) ORDER BY entry.id) FROM legal_counsel_entries entry WHERE entry.item_id=i.id AND entry.created_by=?)`;
 }
 export async function legalPortalSnapshotSourceImage(database:SqlDatabase,actor:PortalActor,id?:string){
- const row=await database.prepare(`SELECT COALESCE(jsonb_agg(jsonb_build_object(
+ const projection=`COALESCE(jsonb_agg(jsonb_build_object(
  'share',to_jsonb(s),'item',to_jsonb(i),'document',to_jsonb(d),
  ${legalPortalSourceImageFields()}
  ) ORDER BY s.id),'[]'::jsonb)::text image
- FROM legal_shares s JOIN legal_items i ON i.id=s.item_id JOIN legal_documents d ON d.id=s.document_id AND d.item_id=i.id
+`;
+ const row=await database.prepare(`${legalShareDocumentImageHead(projection)}
  WHERE lower(s.email)=? AND (s.user_id IS NULL OR s.user_id=?) AND (?::text IS NULL OR s.id=?) AND s.revoked_at IS NULL
  AND s.expires_at>floor(extract(epoch FROM clock_timestamp())*1000)::bigint AND ${await legalPortalPurchasePredicate()}`)
  .bind(actor.userId,actor.userId,actor.email,actor.userId,id??null,id??null).first<{image:string}>();
