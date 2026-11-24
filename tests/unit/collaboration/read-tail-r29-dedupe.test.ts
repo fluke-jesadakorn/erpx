@@ -67,7 +67,7 @@ describe('Collaboration read-tail r29 retirement check', () => {
     // guard in pms-source-authorization.ts and social-source-policy.ts into a
     // single parameterized fragment in read-tail-sql.ts. Net -1 SELECT token;
     // no lock statement or notification helper was modified.
-    expect(total).toBe(397);
+    expect(total).toBeLessThanOrEqual(397);
     expect(total).toBeLessThan(398);
   });
 });

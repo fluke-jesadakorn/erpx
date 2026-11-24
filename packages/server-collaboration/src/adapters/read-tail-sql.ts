@@ -3,11 +3,11 @@ export const socialTaskOriginPostExists=`EXISTS(SELECT 1 FROM social_task_origin
 export const socialTaskOriginByTask=`SELECT post_id FROM social_task_origins WHERE task_id=?`;
 export const socialTaskOriginByPost=`SELECT task_id FROM social_task_origins WHERE post_id=?`;
 export const messagingRoomMembersAgg=`(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM messaging_room_members m WHERE m.room_id=r.id)`;
-export const socialFollowPostExists=`EXISTS(SELECT 1 FROM social_follows f WHERE f.principal_id=? AND f.target_type='post' AND f.target_id=p.id)`;
+export const socialFollowPostExists=(targetType:string,targetId:string)=>`EXISTS(SELECT 1 FROM social_follows f WHERE f.principal_id=? AND f.target_type=${targetType} AND f.target_id=${targetId})`;
 export const messagingTeamMemberExists=`EXISTS(SELECT 1 FROM messaging_team_members m WHERE m.team_id=t.id AND m.user_id=?)`;
 export const legacyNativeUnion=`(SELECT * FROM legacy_rows UNION ALL SELECT * FROM native_rows)`;
 export const workforceActorScopeColumns=`(SELECT ?::text company_id,?::text branch_id,?::text department_id)`;
-export const messagingTeamMembersAgg=`(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM messaging_team_members m WHERE m.team_id=r.team_id)`;
+export const messagingTeamMembersAgg=(teamId:string)=>`(SELECT jsonb_agg(to_jsonb(m) ORDER BY m.user_id) FROM messaging_team_members m WHERE m.team_id=${teamId})`;
 export const workSocialPostsAgg=`(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM posts p)`;
 export const workSocialCommentsAgg=`(SELECT jsonb_agg(to_jsonb(c) ORDER BY c.id) FROM social_comments c JOIN posts p ON p.id=c.post_id)`;
 export const workSocialSourcesAgg=`(SELECT jsonb_agg(to_jsonb(s) ORDER BY s.post_id,s.ordinal) FROM social_post_sources s JOIN posts p ON p.id=s.post_id)`;
@@ -22,6 +22,11 @@ export const socialPostDraftById=`SELECT * FROM social_post_drafts WHERE id=? AN
 export const socialPurchaseActorFeature=(predicate:string)=>`SELECT 1 FROM social_purchase_actor WHERE ${predicate}`;
 export const socialPurchaseActorExists=(predicate:string)=>`EXISTS(${socialPurchaseActorFeature(predicate)})`;
 export const socialPostByIdPredicate=(predicate:string)=>`SELECT 1 FROM social_posts p WHERE p.id=? AND p.company_id=? AND ${predicate}`;
+/** Byte-identical recipient/participant existence guard shared by the handover
+ * receipts projection and the Work package-obligation handover facts. Only the
+ * trailing predicate varies; the fixed `recipient.post_id=p.id AND
+ * recipient.user_id<>p.author_id` head, bind order and lock semantics stay. */
+export const socialPostRecipientExists=(tail:string)=>`EXISTS(SELECT 1 FROM social_post_participants recipient WHERE recipient.post_id=p.id AND recipient.user_id<>p.author_id AND ${tail})`;
 export const messagingMemberIds=(table:string,column:string)=>`SELECT user_id FROM ${table} WHERE ${column}=?`;
 export const socialPostTopicExists=(tag:string)=>`EXISTS(SELECT 1 FROM social_post_topics pt WHERE pt.post_id=p.id AND pt.tag=${tag})`;
 export const socialCommentTopicExists=(tag:string)=>`EXISTS(SELECT 1 FROM social_comment_topics ct JOIN social_comments c ON c.id=ct.comment_id WHERE c.post_id=p.id AND c.state='published' AND ct.tag=${tag})`;

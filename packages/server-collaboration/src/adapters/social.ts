@@ -27,8 +27,8 @@ function filterSql(filter: FeedFilter) {
         return " AND p.kind='record'";
     if (filter === "following")
         return ` AND (
-    ${socialFollowPostExists}
-    OR EXISTS(SELECT 1 FROM social_follows f WHERE f.principal_id=? AND f.target_type='person' AND f.target_id=p.author_id)
+    ${socialFollowPostExists("'post'",'p.id')}
+    OR ${socialFollowPostExists("'person'",'p.author_id')}
     OR EXISTS(SELECT 1 FROM social_post_topics pt JOIN social_follows f ON f.target_type='topic' AND f.target_id=pt.tag
       WHERE pt.post_id=p.id AND f.principal_id=?))`;
     return "";
@@ -41,7 +41,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
       (SELECT count(*) FROM social_reactions r WHERE r.post_id=p.id AND r.kind='appreciate') AS appreciation_count,
       (SELECT count(*) FROM social_comments c WHERE c.post_id=p.id AND c.state='published') AS comment_count,
       EXISTS(SELECT 1 FROM social_reactions r WHERE r.post_id=p.id AND r.principal_id=? AND r.kind='appreciate') AS appreciated,
-      ${socialFollowPostExists} AS followed,
+      ${socialFollowPostExists("'post'",'p.id')} AS followed,
       COALESCE((SELECT string_agg(pt.tag, ',' ORDER BY pt.tag) FROM social_post_topics pt WHERE pt.post_id=p.id),'') AS topic_list
     FROM social_posts p WHERE ${scope.sql}${filterSql(filter)} AND ${purchase.where}
     ORDER BY p.created_at DESC LIMIT 30`)

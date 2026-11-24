@@ -23,7 +23,7 @@ import {workSocialNativePostPredicate,workSocialUnresolvedPostPredicate,operatio
 import {sourceAccessSql} from '@erpx/server-collaboration/public/social-source-policy';
 
 import{units}from '@erpx/server-collaboration/adapters/work-social-unit-state';
-import {workforceActorScopeExists,jsonbTextIds,socialPurchaseActorFeature,socialPurchaseActorExists,projectPurchaseSourceAbsent} from './read-tail-sql';
+import {workforceActorScopeExists,jsonbTextIds,socialPurchaseActorFeature,socialPurchaseActorExists,projectPurchaseSourceAbsent,socialPostByIdPredicate} from './read-tail-sql';
 type Reader=Pick<StaffActor,'companyId'|'userId'>&Partial<StaffActor>;
 type ReadScope={prefix:string;where:string;args:SqlValue[]};
 export const actorKey=(actor:StaffActor)=>JSON.stringify([actor.companyId,actor.branchId,actor.departmentId,actor.userId,actor.assignmentId,actor.role,actor.authority??null,actor.iam??null]);
@@ -77,5 +77,5 @@ export async function workSocialPresentation(database:SqlDatabase,actor:StaffAct
 }
 export async function requireWorkSocialRead(database:SqlDatabase,actor:Reader,id:string){
  const scope=await workSocialReadScope(database,actor);if(!scope.prefix)return;
- if(!await database.prepare(`${scope.prefix}SELECT 1 FROM social_posts p WHERE p.id=? AND p.company_id=? AND ${scope.where}`).bind(...scope.args,id,actor.companyId).first())throw new ApiError(404,'POST_NOT_FOUND','This post is unavailable.');
+ if(!await database.prepare(`${scope.prefix}${socialPostByIdPredicate(scope.where)}`).bind(...scope.args,id,actor.companyId).first())throw new ApiError(404,'POST_NOT_FOUND','This post is unavailable.');
 }

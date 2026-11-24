@@ -37,7 +37,7 @@ import { collaborationHomeSources as operations } from '@erpx/server-operations/
 import {handoverAcknowledgements} from '@erpx/server-operations/public/handover-acknowledgement-read';
 import {workSocialReadScope,workSocialPresentation} from '@erpx/server-collaboration/public/work-social-read-policy';
 import {withWorkSocialCommand} from '@erpx/server-collaboration/adapters/work-social-purchases';
-import {socialFollowPostExists,messagingTeamMemberExists,publishedCommentRead,socialPostDraftById,socialPostTopicExists,socialCommentTopicExists,socialCommentAncestorStep,socialPostDraftExists,socialPostDraftFieldGuard} from './read-tail-sql';
+import {socialFollowPostExists,messagingTeamMemberExists,publishedCommentRead,socialPostDraftById,socialPostTopicExists,socialCommentTopicExists,socialCommentAncestorStep,socialPostDraftExists,socialPostDraftFieldGuard,socialPostByIdPredicate} from './read-tail-sql';
 const draftVersionGuardSql = socialPostDraftExists('version=? AND published_post_id IS NULL');
 async function inward<T>(action: () => Promise<T>) {
     try {
@@ -179,7 +179,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
             }>();
         }, async feedIds(companyId: string, userId: string, now: number, now2: number, assignmentId: string, branchId: string | null, branchId2: string | null, value: string | null, value2: string | null, value3: number, value4: number, value5: string, value6: 0 | 1, userId2: string, value7: string | null, value8: string | null, value9: string | null, value10: string | null, value11: string | null, value12: "update" | "plan" | "blocker" | "handover" | "announcement" | null, value13: "update" | "plan" | "blocker" | "handover" | "announcement" | null, value14: string | null, value15: string | null, value16: "conversations" | "milestones" | null, value17: "conversations" | "milestones" | null, value18: "conversations" | "milestones" | null, limit: number) {
             return db
-                .prepare(`${purchase.prefix}SELECT p.id FROM social_posts p WHERE p.company_id=? AND p.state='published' AND p.linked_module IS NULL AND ${sourceAccessSql("p", "?::text")} AND ${purchase.where} AND (?::text IS NULL OR p.branch_id=? OR p.branch_id IS NULL) AND (?::text IS NULL OR p.branch_id=?) AND (p.created_at<? OR (p.created_at=? AND p.id<?)) AND (?=0 OR ${socialFollowPostExists}) AND (?::text IS NULL OR ${socialPostTopicExists('?')} OR ${socialCommentTopicExists('?')})
+                .prepare(`${purchase.prefix}SELECT p.id FROM social_posts p WHERE p.company_id=? AND p.state='published' AND p.linked_module IS NULL AND ${sourceAccessSql("p", "?::text")} AND ${purchase.where} AND (?::text IS NULL OR p.branch_id=? OR p.branch_id IS NULL) AND (?::text IS NULL OR p.branch_id=?) AND (p.created_at<? OR (p.created_at=? AND p.id<?)) AND (?=0 OR ${socialFollowPostExists("'post'",'p.id')}) AND (?::text IS NULL OR ${socialPostTopicExists('?')} OR ${socialCommentTopicExists('?')})
         AND (?::text IS NULL OR (p.audience_kind='team' AND p.audience_id=?))
         AND (?::text IS NULL OR p.purpose=?) AND (?::text IS NULL OR NOT EXISTS(SELECT 1 FROM social_post_sources s WHERE s.post_id=p.id AND s.source_kind='pms_record')
           OR EXISTS(SELECT 1 FROM social_post_sources s JOIN (${pmsSourcesSql}) pr ON pr.id=s.source_id
@@ -204,7 +204,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
                 body: string;
                 created_at: number;
             }>();
-        }, async hiddenReplayAccess(id: string, companyId: string, userId: string, now: number, now2: number, value: string[], hasAssignment: boolean) { return db.prepare(`${purchase.prefix}SELECT 1 FROM social_posts p WHERE p.id=? AND p.company_id=? AND ${sourceAccessSql('p', hasAssignment ? '?::text' : undefined)} AND ${purchase.where}`).bind(...purchase.args,id, companyId, userId, now, now2, ...value).first(); }, async comment(commentId: string, id: string) {
+        }, async hiddenReplayAccess(id: string, companyId: string, userId: string, now: number, now2: number, value: string[], hasAssignment: boolean) { return db.prepare(`${purchase.prefix}${socialPostByIdPredicate(`${sourceAccessSql('p', hasAssignment ? '?::text' : undefined)} AND ${purchase.where}`)}`).bind(...purchase.args,id, companyId, userId, now, now2, ...value).first(); }, async comment(commentId: string, id: string) {
             return db.prepare("SELECT author_id,author_kind,state,version,rich_content_json,mentions_json FROM social_comments WHERE id=? AND post_id=?")
                 .bind(commentId, id).first<{
                 author_id: string;
