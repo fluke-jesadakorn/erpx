@@ -1,5 +1,6 @@
 import { assertPmsProviderAuthority } from "@erpx/server-pms/adapters/provider-authority";
 import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
+import { PMS_BOOKING_PAYMENT_BY_ID_SQL } from "./pms-read-tail-r18-sql";
 import 'server-only';
 import { randomUUID } from 'node:crypto';
 import { type Snapshot } from "@erpx/server-pms/public/rules/pms";
@@ -117,7 +118,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
         }) => db.prepare("SELECT * FROM pms_booking_refund_requests WHERE (id=? OR payment_id=?) AND state IN ('approved','processing','requires_action') ORDER BY created_at").bind(facts.id, facts.id2).all<Request>(),
         readPmsBookingPayments4: (facts: {
             payment_id: string;
-        }) => db.prepare('SELECT * FROM pms_booking_payments WHERE id=?').bind(facts.payment_id).first<BookingPaymentRow>(),
+        }) => db.prepare(PMS_BOOKING_PAYMENT_BY_ID_SQL).bind(facts.payment_id).first<BookingPaymentRow>(),
         insertPmsBookingRefundAttempts: (facts: {
             id: string;
             generation: number;

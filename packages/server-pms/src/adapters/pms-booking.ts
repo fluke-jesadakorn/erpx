@@ -1,5 +1,6 @@
 import {hydratePmsReceiptAllocationCredits} from "../../../../packages/server-pms/src/adapters/pms";
 import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
+import { PMS_BOOKING_PAYMENT_BY_ID_SQL } from "./pms-read-tail-r18-sql";
 import {holdingRoutingEnabled,holdingHosts} from '@erpx/contracts/holding-hosts';
 import {bookingEmailDeliveryPayload} from "@erpx/server-pms/adapters/booking-email-delivery";
 import "server-only";
@@ -160,7 +161,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
         }) => write('pms_w030', [facts.key, facts.id, facts.digest, facts.id2, facts.now, facts.fact5]),
         readPmsBookingPayments1: (facts: {
             id: string;
-        }) => db.prepare('SELECT * FROM pms_booking_payments WHERE id=?').bind(facts.id).first<BookingPaymentRow>(),
+        }) => db.prepare(PMS_BOOKING_PAYMENT_BY_ID_SQL).bind(facts.id).first<BookingPaymentRow>(),
         readPmsRecords1: (facts: {
             reservation_id: string;
             property_id: string;
@@ -175,7 +176,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
         }) => write('pms_w031', [facts.id, facts.url, facts.fact2, facts.id2]),
         readPmsBookingPayments2: (facts: {
             id: string;
-        }) => db.prepare('SELECT * FROM pms_booking_payments WHERE id=?').bind(facts.id).first<BookingPaymentRow>(),
+        }) => db.prepare(PMS_BOOKING_PAYMENT_BY_ID_SQL).bind(facts.id).first<BookingPaymentRow>(),
         readPmsBookingReceipts2: (facts: {
             reservation_id: string;
             id: string;
@@ -184,7 +185,7 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
         }>(),
         readPmsBookingPayments3: (facts: {
             id: string;
-        }) => db.prepare('SELECT * FROM pms_booking_payments WHERE id=?').bind(facts.id).first<BookingPaymentRow>(),
+        }) => db.prepare(PMS_BOOKING_PAYMENT_BY_ID_SQL).bind(facts.id).first<BookingPaymentRow>(),
         writePmsBookingPayments3: (facts: {
             paymentIntentId: string;
             now: number;
