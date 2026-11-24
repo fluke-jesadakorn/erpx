@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7912,
+    "revision": 7916,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -132901,7 +132901,7 @@
         "owner": "platform_administration",
         "title": "platform_administration TS read tail native cutover (round 3)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -132913,22 +132913,42 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG75pad",
-          "claimedAt": "2026-11-24T01:16:08.674Z",
-          "heartbeatAt": "2026-11-24T01:23:27.967Z",
-          "expiresAt": "2026-11-24T01:53:27.967Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-platform_administration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "42b769baa",
+            "owner": "platform_administration",
+            "before": 49,
+            "after": 48,
+            "note": "PMS rollout and release acceptance share releaseRevisionShareLockSql; scopes/binds preserved."
+          },
+          {
+            "command": "vitest platform units (36)",
+            "result": "passed",
+            "sourceSha": "42b769baa"
+          },
+          {
+            "command": "tsc owner/tests-config",
+            "result": "passed",
+            "sourceSha": "42b769baa"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: finance attachment release facts (2) or PMS fixed release locks (2); avoid legal-release and executive-projection. BEFORE=49.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG75pad",
+          "at": "2026-11-24T01:23:49.509Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -133436,6 +133456,42 @@
         "nextAction": "Next: another byte-identical owner-local clause family; if none, report blocked. BEFORE=175.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.platform_administration.read-tail-r4",
+        "goalId": "G4",
+        "owner": "platform_administration",
+        "title": "platform_administration TS read tail native cutover (round 4)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-platform_administration/src/**",
+          "tests/unit/platform_administration/**",
+          "tests/integration/platform_administration/**"
+        ],
+        "resources": [
+          "owner:platform_administration"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wG90pad",
+          "claimedAt": "2026-11-24T01:23:49.737Z",
+          "heartbeatAt": "2026-11-24T01:23:49.737Z",
+          "expiresAt": "2026-11-24T01:53:49.737Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: finance attachment release facts (2) or another owner-local dedupe; avoid legal-release/executive-projection. BEFORE=48.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -133444,7 +133500,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 808,
+      "totalPackets": 809,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -133452,13 +133508,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 433,
+        "blocked": 434,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:23:37.932Z",
+    "updatedAt": "2026-11-24T01:23:49.742Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
