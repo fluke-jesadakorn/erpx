@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12476,
+    "revision": 12478,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183336,7 +183336,7 @@
         "owner": "support",
         "title": "support TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -183348,28 +183348,36 @@
         "resources": [
           "owner:support"
         ],
-        "claim": {
-          "runId": "run-20261124-d",
-          "agentId": "wH4n89",
-          "claimedAt": "2026-11-24T16:09:11.732Z",
-          "heartbeatAt": "2026-11-24T16:30:27.050Z",
-          "expiresAt": "2026-11-24T17:00:27.050Z",
-          "generation": 170
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "65ca193cc",
+            "owner": "support",
+            "before": 42,
+            "after": 40,
+            "note": "Rust registry 38->40: support_rd_service_team_members_named (2 binds) and support_rd_work_team_coverage (8 binds); TS literals retired, registry byte tests pass. Advisory/FOR SHARE/assertions untouched."
+          },
+          {
+            "command": "cargo test -p erpx-server-support --lib (98) + vitest support r37 (9) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "65ca193cc"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Service-team members named native kind, registry 38->39: 42->41. BEFORE=42.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261124-d",
-          "agentId": "lead-opencode",
-          "at": "2026-11-24T16:09:11.596Z",
+          "agentId": "wH4n89",
+          "at": "2026-11-24T16:44:03.818Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Service-team members named native kind, registry 38->39: 42->41. BEFORE=42."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -184295,17 +184303,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 6,
+        "in_progress": 5,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1451,
+        "blocked": 1452,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T16:31:08.926Z",
+    "updatedAt": "2026-11-24T16:44:03.822Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
