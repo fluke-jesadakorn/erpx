@@ -350,6 +350,80 @@ const READ_FULFILLMENT_LOT_ALLOCATION: NativeStatement = NativeStatement {
     scope: "holding",
 };
 
+/// Native successor of the TypeScript `commerce-facts`
+/// `readInventoryOrderReservations2` read. Owner-local: it touches only
+/// Inventory's own `inventory_order_reservations` table and the caller executes
+/// it on its already-open unit with the same single order-line bind, returning
+/// the full `SqlResult` array like the retired `.all()`.
+pub const RD_ORDER_RESERVATIONS_BY_LINE: &str = "inventory_rd_order_reservations_by_line";
+const SQL_RD_ORDER_RESERVATIONS_BY_LINE: &str =
+    "SELECT * FROM inventory_order_reservations WHERE order_line_id=? AND quantity_milli>consumed_milli+released_milli AND expires_at>floor(extract(epoch FROM statement_timestamp())*1000)::bigint ORDER BY created_at,id";
+const READ_ORDER_RESERVATIONS_BY_LINE: NativeStatement = NativeStatement {
+    kind: RD_ORDER_RESERVATIONS_BY_LINE,
+    sql: SQL_RD_ORDER_RESERVATIONS_BY_LINE,
+    bind_count: 1,
+    scope: "holding",
+};
+
+/// Native successor of the TypeScript `commerce-facts`
+/// `readInventoryLotBalances1` read. Owner-local: it touches only Inventory's
+/// own `inventory_lot_balances` table and the caller executes it on its
+/// already-open unit with the same two binds, taking the first row like the
+/// retired `.first()`.
+pub const RD_LOT_BALANCE_BY_LOT_WAREHOUSE: &str = "inventory_rd_lot_balance_by_lot_warehouse";
+const SQL_RD_LOT_BALANCE_BY_LOT_WAREHOUSE: &str =
+    "SELECT * FROM inventory_lot_balances WHERE lot_id=? AND warehouse_id=?";
+const READ_LOT_BALANCE_BY_LOT_WAREHOUSE: NativeStatement = NativeStatement {
+    kind: RD_LOT_BALANCE_BY_LOT_WAREHOUSE,
+    sql: SQL_RD_LOT_BALANCE_BY_LOT_WAREHOUSE,
+    bind_count: 2,
+    scope: "holding",
+};
+
+/// Native successors of the TypeScript `inventory-transit` fixed reads. Each
+/// plan is the exact statement the retired TypeScript adapter bound on the
+/// inventory owner's own tables; the caller executes it on its already-open
+/// unit with the same binds and the same `.all()`/`.first()` result shape.
+/// Authorization stays in the preceding `requireTransferPurchasedRead`.
+pub const RD_TRANSIT_EVENTS_WITH_RESOLUTION: &str = "inventory_rd_transit_events_with_resolution";
+const SQL_RD_TRANSIT_EVENTS_WITH_RESOLUTION: &str =
+    "SELECT e.*,(SELECT r.kind FROM inventory_transit_events r WHERE r.proposal_id=e.id) resolution FROM inventory_transit_events e WHERE e.transit_id=? ORDER BY e.created_at,e.id";
+const READ_TRANSIT_EVENTS_WITH_RESOLUTION: NativeStatement = NativeStatement {
+    kind: RD_TRANSIT_EVENTS_WITH_RESOLUTION,
+    sql: SQL_RD_TRANSIT_EVENTS_WITH_RESOLUTION,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_POSTED_TRANSIT_TRANSFER: &str = "inventory_rd_posted_transit_transfer";
+const SQL_RD_POSTED_TRANSIT_TRANSFER: &str =
+    "SELECT id,version FROM inventory_transfers WHERE id=? AND company_id=? AND status='posted' AND delivery_mode='transit'";
+const READ_POSTED_TRANSIT_TRANSFER: NativeStatement = NativeStatement {
+    kind: RD_POSTED_TRANSIT_TRANSFER,
+    sql: SQL_RD_POSTED_TRANSIT_TRANSFER,
+    bind_count: 2,
+    scope: "holding",
+};
+
+pub const RD_TRANSFER_BY_ID: &str = "inventory_rd_transfer_by_id";
+const SQL_RD_TRANSFER_BY_ID: &str = "SELECT * FROM inventory_transfers WHERE id=?";
+const READ_TRANSFER_BY_ID: NativeStatement = NativeStatement {
+    kind: RD_TRANSFER_BY_ID,
+    sql: SQL_RD_TRANSFER_BY_ID,
+    bind_count: 1,
+    scope: "holding",
+};
+
+pub const RD_TRANSIT_DISPATCH_LINES: &str = "inventory_rd_transit_dispatch_lines";
+const SQL_RD_TRANSIT_DISPATCH_LINES: &str =
+    "SELECT l.*,s.source_version,s.source_quantity_milli,s.source_value_minor,s.product_version FROM inventory_transit_lines l JOIN inventory_transfer_lines s ON s.id=l.source_line_id WHERE l.transit_id=? ORDER BY l.id";
+const READ_TRANSIT_DISPATCH_LINES: NativeStatement = NativeStatement {
+    kind: RD_TRANSIT_DISPATCH_LINES,
+    sql: SQL_RD_TRANSIT_DISPATCH_LINES,
+    bind_count: 1,
+    scope: "holding",
+};
+
 /// Native successor of the TypeScript `pos-startup-sources` posting-state
 /// read. Owner-local: the statement touches only Inventory's own
 /// `inventory_counts` table and the caller executes it on its already-open
@@ -436,6 +510,12 @@ pub fn is_read(kind: &str) -> bool {
             | RD_COMMERCE_ATTACHMENT_STOCK_IMAGE
             | RD_IN_TRANSIT_CURRENCY_TOTALS
             | RD_FULFILLMENT_LOT_ALLOCATION
+            | RD_ORDER_RESERVATIONS_BY_LINE
+            | RD_LOT_BALANCE_BY_LOT_WAREHOUSE
+            | RD_TRANSIT_EVENTS_WITH_RESOLUTION
+            | RD_POSTED_TRANSIT_TRANSFER
+            | RD_TRANSFER_BY_ID
+            | RD_TRANSIT_DISPATCH_LINES
     )
 }
 
@@ -465,6 +545,12 @@ pub fn read_statement(kind: &str) -> Option<&'static NativeStatement> {
         RD_COMMERCE_ATTACHMENT_STOCK_IMAGE => Some(&READ_COMMERCE_ATTACHMENT_STOCK_IMAGE),
         RD_IN_TRANSIT_CURRENCY_TOTALS => Some(&READ_IN_TRANSIT_CURRENCY_TOTALS),
         RD_FULFILLMENT_LOT_ALLOCATION => Some(&READ_FULFILLMENT_LOT_ALLOCATION),
+        RD_ORDER_RESERVATIONS_BY_LINE => Some(&READ_ORDER_RESERVATIONS_BY_LINE),
+        RD_LOT_BALANCE_BY_LOT_WAREHOUSE => Some(&READ_LOT_BALANCE_BY_LOT_WAREHOUSE),
+        RD_TRANSIT_EVENTS_WITH_RESOLUTION => Some(&READ_TRANSIT_EVENTS_WITH_RESOLUTION),
+        RD_POSTED_TRANSIT_TRANSFER => Some(&READ_POSTED_TRANSIT_TRANSFER),
+        RD_TRANSFER_BY_ID => Some(&READ_TRANSFER_BY_ID),
+        RD_TRANSIT_DISPATCH_LINES => Some(&READ_TRANSIT_DISPATCH_LINES),
         _ => None,
     }
 }
@@ -530,6 +616,12 @@ mod tests {
             RD_COMMERCE_ATTACHMENT_STOCK_IMAGE,
             RD_IN_TRANSIT_CURRENCY_TOTALS,
             RD_FULFILLMENT_LOT_ALLOCATION,
+            RD_ORDER_RESERVATIONS_BY_LINE,
+            RD_LOT_BALANCE_BY_LOT_WAREHOUSE,
+            RD_TRANSIT_EVENTS_WITH_RESOLUTION,
+            RD_POSTED_TRANSIT_TRANSFER,
+            RD_TRANSFER_BY_ID,
+            RD_TRANSIT_DISPATCH_LINES,
         ] {
             assert!(is_read(kind));
             let read = read_statement(kind).expect("read kind");
@@ -787,5 +879,67 @@ mod tests {
             read.sql,
             r#"SELECT b.*,w.name warehouse_name FROM inventory_lot_balances b JOIN (SELECT "id","company_id","branch_id","code","name","status","version" FROM commerce_warehouses) w ON w.id=b.warehouse_id WHERE b.lot_id=? AND w.company_id=? AND (?::text IS NULL OR w.branch_id=?) ORDER BY w.name LIMIT 31 OFFSET ?"#
         );
+    }
+
+    /// Parity witness for the owner-local `commerce-facts` order-reservation
+    /// and lot-balance reads: each native plan is the exact statement the
+    /// retired TypeScript literals bound on Inventory's own tables, with the
+    /// caller-unit binds intact and the same `.all()`/`.first()` result shape.
+    #[test]
+    fn commerce_facts_order_reservation_and_lot_balance_reads_match_retired_owner_statements() {
+        let reservations = read_statement(RD_ORDER_RESERVATIONS_BY_LINE).expect("read kind");
+        assert_eq!(
+            reservations.sql,
+            "SELECT * FROM inventory_order_reservations WHERE order_line_id=? AND quantity_milli>consumed_milli+released_milli AND expires_at>floor(extract(epoch FROM statement_timestamp())*1000)::bigint ORDER BY created_at,id"
+        );
+        assert_eq!(reservations.bind_count, 1);
+        assert_eq!(reservations.sql.matches('?').count(), reservations.bind_count);
+        assert_eq!(reservations.scope, "holding");
+
+        let balance = read_statement(RD_LOT_BALANCE_BY_LOT_WAREHOUSE).expect("read kind");
+        assert_eq!(
+            balance.sql,
+            "SELECT * FROM inventory_lot_balances WHERE lot_id=? AND warehouse_id=?"
+        );
+        assert_eq!(balance.bind_count, 2);
+        assert_eq!(balance.sql.matches('?').count(), balance.bind_count);
+        assert_eq!(balance.scope, "holding");
+    }
+
+    /// Parity witness for the `inventory-transit` fixed reads: each native plan
+    /// is the exact statement the retired TypeScript adapter bound on the
+    /// inventory owner's own tables, with the caller-unit binds intact and the
+    /// same `.all()`/`.first()` result shape.
+    #[test]
+    fn inventory_transit_fixed_reads_match_retired_owner_statements() {
+        let cases = [
+            (
+                RD_TRANSIT_EVENTS_WITH_RESOLUTION,
+                "SELECT e.*,(SELECT r.kind FROM inventory_transit_events r WHERE r.proposal_id=e.id) resolution FROM inventory_transit_events e WHERE e.transit_id=? ORDER BY e.created_at,e.id",
+                1,
+            ),
+            (
+                RD_POSTED_TRANSIT_TRANSFER,
+                "SELECT id,version FROM inventory_transfers WHERE id=? AND company_id=? AND status='posted' AND delivery_mode='transit'",
+                2,
+            ),
+            (
+                RD_TRANSFER_BY_ID,
+                "SELECT * FROM inventory_transfers WHERE id=?",
+                1,
+            ),
+            (
+                RD_TRANSIT_DISPATCH_LINES,
+                "SELECT l.*,s.source_version,s.source_quantity_milli,s.source_value_minor,s.product_version FROM inventory_transit_lines l JOIN inventory_transfer_lines s ON s.id=l.source_line_id WHERE l.transit_id=? ORDER BY l.id",
+                1,
+            ),
+        ];
+        for (kind, expected, binds) in cases {
+            let read = read_statement(kind).expect("read kind");
+            assert_eq!(read.sql, expected, "{kind}");
+            assert_eq!(read.bind_count, binds, "{kind}");
+            assert_eq!(read.sql.matches('?').count(), read.bind_count, "{kind}");
+            assert_eq!(read.scope, "holding", "{kind}");
+        }
     }
 }

@@ -154,7 +154,7 @@ describe('Inventory read-tail r47 dedupe', () => {
     ]) expect(adapter(f).length).toBeGreaterThan(0);
   });
 
-  test('retirement:ts-statements KPI is 314 (strictly below the r46 BEFORE=316)', () => {
+  test('retirement:ts-statements KPI is 307 after the r49 native read cutover (strictly below r47 314)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -169,7 +169,9 @@ describe('Inventory read-tail r47 dedupe', () => {
     // metric heads referenced reservedWarehouseProductQtySql, so Rank1 removes
     // 0 source SELECT tokens (3 references -> 1 reference); Rank2 and Rank3
     // each remove 1 literal token while adding 1 helper token: 316 -> 314.
-    expect(total).toBe(314);
-    expect(total).toBeLessThan(316);
+    // The r49 native read cutover retires 7 owner-local SELECT tokens (2
+    // commerce-facts, 5 inventory-transit): 314 -> 307.
+    expect(total).toBe(307);
+    expect(total).toBeLessThan(314);
   });
 });

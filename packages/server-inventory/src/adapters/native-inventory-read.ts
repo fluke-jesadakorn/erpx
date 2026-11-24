@@ -41,6 +41,12 @@ export const INVENTORY_RD_WORKFLOW_DOCUMENT_STOCK_COUNT = 'inventory_rd_workflow
 export const INVENTORY_RD_WORKFLOW_DOCUMENT_TRANSFER = 'inventory_rd_workflow_document_transfer';
 export const INVENTORY_RD_WORKFLOW_DOCUMENT_PAGE_STOCK_COUNT = 'inventory_rd_workflow_document_page_stock_count';
 export const INVENTORY_RD_WORKFLOW_DOCUMENT_PAGE_TRANSFER = 'inventory_rd_workflow_document_page_transfer';
+export const INVENTORY_RD_ORDER_RESERVATIONS_BY_LINE = 'inventory_rd_order_reservations_by_line';
+export const INVENTORY_RD_LOT_BALANCE_BY_LOT_WAREHOUSE = 'inventory_rd_lot_balance_by_lot_warehouse';
+export const INVENTORY_RD_TRANSIT_EVENTS_WITH_RESOLUTION = 'inventory_rd_transit_events_with_resolution';
+export const INVENTORY_RD_POSTED_TRANSIT_TRANSFER = 'inventory_rd_posted_transit_transfer';
+export const INVENTORY_RD_TRANSFER_BY_ID = 'inventory_rd_transfer_by_id';
+export const INVENTORY_RD_TRANSIT_DISPATCH_LINES = 'inventory_rd_transit_dispatch_lines';
 
 const unavailable = (): never => {
   throw new ApiError(503, 'INVENTORY_NATIVE_READ_UNAVAILABLE', 'The native Inventory read service is unavailable.');

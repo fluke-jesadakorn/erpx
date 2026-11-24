@@ -11,7 +11,10 @@ pub use crate::adapters::native_command_sql::{
     RD_WORKFLOW_DOCUMENT_PAGE_TRANSFER,
     RD_LEDGER_SUPPLEMENT_ROW, RD_LEDGER_SUPPLEMENT_ROWS, RD_LOT_BALANCE_SUPPLEMENT_ROWS,
     RD_LOT_SUPPLEMENT_ROW, RD_STOCK_COUNT_DELTAS, RD_STOCK_COUNT_ROW, RD_STOCK_SUPPLEMENT_ROW,
-    RD_TRANSIT_ATTACHMENT_DESCRIPTOR, is_read, read_statement, statement, supported,
+    RD_TRANSIT_ATTACHMENT_DESCRIPTOR, RD_ORDER_RESERVATIONS_BY_LINE,
+    RD_LOT_BALANCE_BY_LOT_WAREHOUSE, RD_TRANSIT_EVENTS_WITH_RESOLUTION,
+    RD_POSTED_TRANSIT_TRANSFER, RD_TRANSFER_BY_ID, RD_TRANSIT_DISPATCH_LINES,
+    is_read, read_statement, statement, supported,
 };
 pub use crate::application::native_command::{
     NativeCommandFuture, NativeCommandOutcome, NativeCommandRepository, admit,

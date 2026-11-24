@@ -113,7 +113,7 @@ describe('Inventory read-tail r46 dedupe', () => {
     expect(shared).not.toMatch(lockRe);
   });
 
-  test('retirement:ts-statements KPI is 314 after r47 (strictly below r46 316)', () => {
+  test('retirement:ts-statements KPI is 307 after the r49 native read cutover (strictly below r47 314)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -127,7 +127,11 @@ describe('Inventory read-tail r46 dedupe', () => {
     // Locks, native transport, count adapters and r11-r45 helpers stay untouched.
     // r47 folds 3 head references into 1 shared head (0 token delta), 2 marked
     // guards and 2 replay probes into one helper each (-1 each): 316 -> 314.
-    expect(total).toBe(314);
-    expect(total).toBeLessThan(316);
+    // The r49 native read cutover retires 7 owner-local SELECT tokens: 2 in
+    // commerce-facts (order reservations by line, lot balance by lot/warehouse)
+    // and 5 in inventory-transit (event resolution subquery, posted transfer,
+    // transfer by id, dispatch-lines join): 314 -> 307.
+    expect(total).toBe(307);
+    expect(total).toBeLessThan(314);
   });
 });
