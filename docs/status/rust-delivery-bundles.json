@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9300,
+    "revision": 9302,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -149367,7 +149367,7 @@
         "owner": "marketing",
         "title": "marketing and assets native read-plan mounts",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -149385,7 +149385,14 @@
           "owner:assets",
           "resource:composition"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-j",
+          "agentId": "wGCMmar",
+          "claimedAt": "2026-11-24T05:11:55.641Z",
+          "heartbeatAt": "2026-11-24T05:11:55.641Z",
+          "expiresAt": "2026-11-24T05:41:55.641Z",
+          "generation": 162
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -150014,7 +150021,7 @@
         "owner": "assets",
         "title": "assets TS read tail native cutover (r18)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -150026,22 +150033,22 @@
         "resources": [
           "owner:assets"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCBas",
-          "claimedAt": "2026-11-24T05:11:10.047Z",
-          "heartbeatAt": "2026-11-24T05:11:10.047Z",
-          "expiresAt": "2026-11-24T05:41:10.047Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=27.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261123-j",
+          "agentId": "wGCBas",
+          "at": "2026-11-24T05:11:55.444Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=27."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -150342,18 +150349,18 @@
       "totalPackets": 1132,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 16,
+        "pending": 15,
         "in_progress": 32,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 753,
+        "blocked": 754,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 162,
-    "updatedAt": "2026-11-24T05:11:46.733Z",
+    "updatedAt": "2026-11-24T05:11:55.654Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
