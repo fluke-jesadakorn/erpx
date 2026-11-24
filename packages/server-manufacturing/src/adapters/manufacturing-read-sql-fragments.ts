@@ -17,3 +17,6 @@ export const manufacturingSpecificationProductsAggSql = (alias: string, productS
 
 export const manufacturingScopedCte = (name: string, source: string, alias: string) =>
   `${name} AS MATERIALIZED(SELECT ${alias}.* FROM ${source} ${alias},scope WHERE ${alias}.company_id=scope.company_id)`;
+
+export const manufacturingActorScopeRows = () =>
+  `(SELECT ?::text company_id,?::text branch_id,?::text department_id)`;

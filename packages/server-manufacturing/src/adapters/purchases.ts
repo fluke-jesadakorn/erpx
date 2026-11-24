@@ -16,7 +16,7 @@ import {holdingResources} from "../../../../packages/server-runtime/src/public/r
 import {ApiError} from "@erpx/server-runtime/public/http";
 import {planningPurchaseScenarioRows,planningPurchaseRecommendationRows,planningPurchaseResourceRows,planningPurchaseSourceReadLocks} from "@erpx/server-planning/public/purchase-sources";
 import {manufacturingWarehouseSources,manufacturingProductSources,manufacturingCommerceSourceReadLocks} from "@erpx/server-commerce/public/manufacturing-purchase-sources";
-import {manufacturingOperationAggSql,manufacturingSpecificationLineAggSql,manufacturingSpecificationProductsAggSql} from "./manufacturing-read-sql-fragments";
+import {manufacturingOperationAggSql,manufacturingSpecificationLineAggSql,manufacturingSpecificationProductsAggSql,manufacturingActorScopeRows} from "./manufacturing-read-sql-fragments";
 export type ManufacturingPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 /** Owner-local fixed read: one command receipt on the caller transaction. This
  * idempotency/replay witness is identical in the purchased-command and
@@ -84,7 +84,7 @@ async function current(database:SqlDatabase,actor:WorkContext,key:string,permiss
  if(module&&!actor.modules.includes(module))throw new ApiError(403,"MANUFACTURING_ACCESS_CHANGED","Choose a current original production assignment.");
  for(const required of new Set([permission,...(module&&permission==="records.review"?["records.write"]:[])])){
  if(!hasPermission(actor,required))throw new ApiError(403,"MANUFACTURING_ACCESS_CHANGED","Choose a current original production assignment.");
- const row=await database.prepare(`SELECT ${assignmentReadSql("production_scope",required)} allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) production_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();
+ const row=await database.prepare(`SELECT ${assignmentReadSql("production_scope",required)} allowed FROM ${manufacturingActorScopeRows()} production_scope`).bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first<{allowed:boolean}>();
  if(!row?.allowed)throw new ApiError(403,"MANUFACTURING_ACCESS_CHANGED","The original production assignment is no longer current.");}
  if(module){const selection=await database.prepare("SELECT (jsonb_array_length(modules_json::jsonb)=0 OR modules_json::jsonb @> jsonb_build_array(?::text)) allowed FROM assignments WHERE id=?").bind(module,actor.assignmentId).first<{allowed:boolean}>();if(!selection?.allowed)throw new ApiError(403,"MANUFACTURING_ACCESS_CHANGED","The current assignment no longer selects the original production module.");}
  await runOwnerUnitEffects(database,actor.companyId,key,[...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearCommandAssertions(database,key)]);

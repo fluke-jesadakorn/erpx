@@ -3,8 +3,8 @@ import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {manufacturingScopedCte} from './manufacturing-read-sql-fragments';
 export {manufacturingPurchaseSourceReadLocks as manufacturingPostingSourceReadLocks} from '@erpx/server-manufacturing/adapters/purchases';
-const productionAgg=(table:string,alias:string)=>`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${table} ${alias})`;
-const profileImage='(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM manufacturing_accounting_profiles p,scope WHERE p.company_id=scope.company_id)';
+const productionAgg=(table:string,alias:string,scope="")=>`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${table} ${alias}${scope})`;
+const profileImage=productionAgg('manufacturing_accounting_profiles','p',',scope WHERE p.company_id=scope.company_id');
 /** A specification or an unexecuted planned order is intent, not a production
  * economic fact. Original postings/cost movements and actual issued/reported
  * quantities remain conservative blockers when their mapping is absent. */

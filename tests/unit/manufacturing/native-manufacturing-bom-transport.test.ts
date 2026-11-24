@@ -167,7 +167,7 @@ describe('Manufacturing finance-close read retirement',()=>{
     expect(paths.some(path=>path.includes('finance-close-source'))).toBe(false);
     const count=paths.reduce((count,path)=>count+(nodeFs.readFileSync(path,'utf8').match(/\bSELECT\b/g)?.length??0),0);
     expect(count).toBeLessThan(148);
-    expect(count).toBe(129);
+    expect(count).toBe(126);
   });
 });
 describe('Manufacturing owner-local report-actor read dedupe',()=>{
@@ -349,6 +349,48 @@ describe('Manufacturing operation-event done guard dedupe',()=>{
     expect(source.slice(source.indexOf('guardOperationSequence'),source.indexOf('guardOperationSequence')+360)).toContain('[value2, value3, id]');
   });
 });
+describe('Manufacturing specification-operation guard prefix dedupe',()=>{
+  const source=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/production-command-sources.ts',import.meta.url),'utf8');
+  const registry=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/public/native_command.rs',import.meta.url),'utf8');
+  const prefix='NOT EXISTS(SELECT 1 FROM manufacturing_specification_operations op WHERE op.specification_id=?';
+  const tail='AND NOT EXISTS(SELECT 1 FROM manufacturing_operation_events e WHERE e.order_id=? AND e.operation_id=op.id))';
+  it('keeps one fixed-SQL prefix and emits both routing guards byte for byte',()=>{
+    expect(source).toContain('const specificationOperationsGuardSql=(extra=" ")=>');
+    expect(source.split('`'+prefix)).toHaveLength(2);
+    expect(`${prefix} ${tail}`).toBe('NOT EXISTS(SELECT 1 FROM manufacturing_specification_operations op WHERE op.specification_id=? AND NOT EXISTS(SELECT 1 FROM manufacturing_operation_events e WHERE e.order_id=? AND e.operation_id=op.id))');
+    expect(`${prefix} AND op.ordinal<? ${tail}`).toBe('NOT EXISTS(SELECT 1 FROM manufacturing_specification_operations op WHERE op.specification_id=? AND op.ordinal<? AND NOT EXISTS(SELECT 1 FROM manufacturing_operation_events e WHERE e.order_id=? AND e.operation_id=op.id))');
+    for(const method of ['guardCompleteRouting','guardOperationSequence']){
+      const at=source.indexOf(method);
+      expect(source.slice(at,at+360)).toContain('${specificationOperationsGuardSql(');
+    }
+  });
+  it('stays owner-local, outside the RD_* registry and free of fail-closed markers',()=>{
+    expect(registry).not.toContain(prefix);
+    expect(registry).not.toContain('specificationOperationsGuardSql');
+    for(const method of ['guardCompleteRouting','guardOperationSequence']){
+      const at=source.indexOf(method);
+      expect(source.slice(at,at+360)).not.toMatch(/503|UNAVAILABLE|fail closed/i);
+    }
+  });
+  it('keeps the identical live guard text on both callers with their own binds',()=>{
+    expect(source).toContain('assertion(db, key, value, `${specificationOperationsGuardSql()}${operationEventDoneGuardSql}`, [value2, id])');
+    expect(source).toContain('assertion(db, key, value, `${specificationOperationsGuardSql(" AND op.ordinal<? ")}${operationEventDoneGuardSql}`, [value2, value3, id])');
+  });
+});
+describe('Manufacturing posting-source aggregate dedupe',()=>{
+  const source=nodeFs.readFileSync(new URL('../../../packages/server-manufacturing/src/adapters/posting-setup-sources.ts',import.meta.url),'utf8');
+  const profile='(SELECT jsonb_agg(to_jsonb(p) ORDER BY p.id) FROM manufacturing_accounting_profiles p,scope WHERE p.company_id=scope.company_id)';
+  it('keeps one aggregate definition and derives the scoped profile image from it',()=>{
+    expect(source).toContain('const productionAgg=(table:string,alias:string,scope="")=>');
+    expect(source).not.toContain(`const profileImage='${profile}'`);
+    expect(source).toContain("profileImage=productionAgg('manufacturing_accounting_profiles','p',',scope WHERE p.company_id=scope.company_id')");
+    expect(source.split('jsonb_agg(to_jsonb(')).toHaveLength(2);
+  });
+  it('emits the former profile image text byte for byte',()=>{
+    const productionAgg=(table:string,alias:string,scope="")=>`(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${table} ${alias}${scope})`;
+    expect(productionAgg('manufacturing_accounting_profiles','p',',scope WHERE p.company_id=scope.company_id')).toBe(profile);
+  });
+});
 describe('Manufacturing read-tail text-only fragment dedupe', () => {
   const adapter = (name: string) => nodeFs.readFileSync(new URL(`../../../packages/server-manufacturing/src/adapters/${name}`, import.meta.url), 'utf8');
   const opSpec = '(SELECT jsonb_agg(to_jsonb(operation) ORDER BY operation.id) FROM manufacturing_specification_operations operation WHERE operation.specification_id=specification.id)';
@@ -364,6 +406,7 @@ describe('Manufacturing read-tail text-only fragment dedupe', () => {
   const cteOrders = 'orders AS MATERIALIZED(SELECT o.* FROM manufacturing_orders o,scope WHERE o.company_id=scope.company_id)';
   const ctePostings = 'postings AS MATERIALIZED(SELECT p.* FROM manufacturing_order_postings p,scope WHERE p.company_id=scope.company_id)';
   const cteMovements = 'movements AS MATERIALIZED(SELECT m.* FROM manufacturing_cost_movements m,scope WHERE m.company_id=scope.company_id)';
+  const actorScope = '(SELECT ?::text company_id,?::text branch_id,?::text department_id)';
   it('emits the former inline projection and guard text byte for byte', async () => {
     const f = await import('../../../packages/server-manufacturing/src/adapters/manufacturing-read-sql-fragments');
     expect(f.manufacturingOperationAggSql('manufacturing_specification_operations operation', 'WHERE operation.specification_id=specification.id')).toBe(opSpec);
@@ -378,10 +421,11 @@ describe('Manufacturing read-tail text-only fragment dedupe', () => {
     expect(f.manufacturingScopedCte('orders', 'manufacturing_orders', 'o')).toBe(cteOrders);
     expect(f.manufacturingScopedCte('postings', 'manufacturing_order_postings', 'p')).toBe(ctePostings);
     expect(f.manufacturingScopedCte('movements', 'manufacturing_cost_movements', 'm')).toBe(cteMovements);
+    expect(f.manufacturingActorScopeRows()).toBe(actorScope);
   });
   it('keeps one text-only definition and routes every caller through it', () => {
     const fragment = adapter('manufacturing-read-sql-fragments.ts');
-    expect(fragment.match(/\bSELECT\b/g)).toHaveLength(6);
+    expect(fragment.match(/\bSELECT\b/g)).toHaveLength(7);
     expect(fragment).not.toMatch(/^import /m);
     expect(fragment).not.toMatch(/compositionRoot|registerRead|readPlanRegistry/);
     for (const [name, old, helper] of [
@@ -390,6 +434,8 @@ describe('Manufacturing read-tail text-only fragment dedupe', () => {
       ['attachment-purchases.ts', [asFile], 'manufacturingSelectedAssignmentExists'],
       ['record-purchases.ts', [asSource], 'manufacturingSelectedAssignmentExists'],
       ['posting-setup-sources.ts', [cteOrders, ctePostings, cteMovements], 'manufacturingScopedCte'],
+      ['purchases.ts', [actorScope], 'manufacturingActorScopeRows'],
+      ['attachment-read.ts', [actorScope], 'manufacturingActorScopeRows'],
     ] as const) {
       const text = adapter(name);
       for (const literal of old) expect(text).not.toContain(literal);
