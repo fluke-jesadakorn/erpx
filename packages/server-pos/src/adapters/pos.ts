@@ -1,5 +1,5 @@
 import { nativePosAll } from './native-owner-write';
-import { nativePosCashMovementsStatement, nativePosSalesEvidenceStatement, nativePosShiftsStatement, nativePosTablesStatement } from './native-pos-core-statement';
+import { nativePosCashMovementsStatement, nativePosRegisterByIdStatement, nativePosSalesEvidenceStatement, nativePosShiftsStatement, nativePosTablesStatement } from './native-pos-core-statement';
 import { nativePosRegistersStatement, nativePosRegistersFrontStatement, nativePosSaleStatement, nativePosSettingsStatement } from './native-pos-registers-statement';
 import { roomChargeReversalWork } from "@erpx/server-pos/adapters/room-charge-reversal-queue";
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
@@ -224,7 +224,7 @@ function unit(db: SqlDatabase, actor: WorkContext): PosReadUnit<SqlStatement> {
         }) => nativePosAll(db, facts.company, 'pos_readposjobs1_245', [facts.company]),
         readPosRegisters3: (facts: {
             registerId: string;
-        }) => one(db, 'SELECT * FROM pos_registers WHERE id=?', facts.registerId),
+        }) => nativePosRegisterByIdStatement(db, facts.registerId),
         readPosLines4: (facts: {
             companyId: string;
             companyId2: string;

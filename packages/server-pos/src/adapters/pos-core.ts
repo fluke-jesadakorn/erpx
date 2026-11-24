@@ -1,5 +1,5 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
-import { nativePosPostingJournalStatement, nativePosRegisterCatalogStatement, nativePosSaleByIdStatement } from './native-pos-core-statement';
+import { nativePosPostingJournalStatement, nativePosRegisterByIdStatement, nativePosRegisterCatalogStatement, nativePosSaleByIdStatement } from './native-pos-core-statement';
 import { posGuestAccountInterface } from "@erpx/server-pms/public/pos-guest-account-interface";
 import { hospitalityOwnerProjectionSources as pmsProjectionSources } from "@erpx/server-pms/public/hospitality-owner-projection-sources";
 import 'server-only';
@@ -284,7 +284,7 @@ function unit(db: SqlDatabase): PosUnit<SqlStatement> {
         }) => all(db, "SELECT id FROM pos_registers WHERE company_id=? AND (?::text IS NULL OR branch_id=?) AND (?<>'recipe' OR mode='restaurant')", facts.company, facts.branchId, facts.branchId2, facts.kind),
         readPosRegisters6: (facts: {
             rid: string;
-        }) => one(db, 'SELECT * FROM pos_registers WHERE id=?', facts.rid),
+        }) => nativePosRegisterByIdStatement(db, facts.rid),
         writePosCatalog2: (facts: {
             productId: string;
             company: string;

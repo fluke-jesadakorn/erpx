@@ -9,6 +9,7 @@ import {
   nativePosSettingsCurrencyStatement,
   nativePosPostingJournalStatement,
   nativePosRegisterCatalogStatement,
+  nativePosRegisterByIdStatement,
   nativePosSettingsAccountsStatement,
   nativePosConnectionsStatement,
   nativePosPaymentByIdStatement,
@@ -1034,5 +1035,63 @@ describe('native POS PMS/counter connection read bridge (SELECT-only family)', (
     expect(command).toContain('nativePosChargeConnectionStatement');
     expect(command).toContain('nativePosConnectionAccountStatement');
     expect(counter).toContain('nativePosCounterPaymentConnectionStatement');
+  });
+});
+
+describe('native POS by-id register read (byte-identical SELECT-only family)', () => {
+  it('requests the by-id register row from the native owner registry only', async () => {
+    process.env.ERPX_NATIVE_POS_OWNER_CONFIG = config();
+    const sql = 'SELECT * FROM pos_registers WHERE id=?';
+    const values = ['register-1'];
+    const fetch = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ data: { sql, values } }), { status: 200, headers: { 'content-type': 'application/json' } }),
+    );
+    vi.stubGlobal('fetch', fetch);
+    const seen: { sql?: string; values?: unknown[] } = {};
+    const row = { id: 'register-1', name: 'Main' };
+    const db = {
+      prepare: (text: string) => ({
+        bind: (...bound: unknown[]) => {
+          seen.sql = text;
+          seen.values = bound;
+          return { first: async () => row };
+        },
+      }),
+    };
+    const prepare = vi.spyOn(db, 'prepare');
+    const result = await nativePosRegisterByIdStatement(db as never, 'register-1');
+    expect(result).toEqual(row);
+    expect(fetch).toHaveBeenCalledTimes(1);
+    const [url, init] = fetch.mock.calls[0];
+    expect(url).toBe('http://127.0.0.1:44994/api/v1/companies//pos/owner-write');
+    expect(init.method).toBe('POST');
+    expect(JSON.parse(init.body)).toEqual({ company: '', kind: 'core_readposregisterbyid_539', values });
+    expect(prepare).toHaveBeenCalledTimes(1);
+    expect(seen.sql).toBe(sql);
+    expect(seen.values).toEqual(values);
+    expect(seen.sql).not.toMatch(/FOR UPDATE|FOR SHARE/);
+  });
+
+  it('fails closed when the native owner service is unconfigured', async () => {
+    delete process.env.ERPX_NATIVE_POS_OWNER_CONFIG;
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    await expect(nativePosRegisterByIdStatement({} as never, 'register-1')).rejects.toMatchObject({
+      code: 'NATIVE_POS_OWNER_UNAVAILABLE',
+      status: 503,
+    });
+    expect(fetch).not.toHaveBeenCalled();
+  });
+
+  it('keeps no byte-identical by-id register SELECT literal in the TS adapters', async () => {
+    const { readFileSync } = await import('node:fs');
+    // The FOR UPDATE by-id register reads deliberately stay in TypeScript;
+    // only the lock-free quoted literal must be gone.
+    const literal = "'SELECT * FROM pos_registers WHERE id=?'";
+    for (const file of ['pos.ts', 'pos-core.ts']) {
+      const source = readFileSync(new URL(`../../../packages/server-pos/src/adapters/${file}`, import.meta.url), 'utf8');
+      expect(source).not.toContain(literal);
+      expect(source).toContain('nativePosRegisterByIdStatement');
+    }
   });
 });

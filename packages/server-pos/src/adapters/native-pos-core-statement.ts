@@ -103,6 +103,23 @@ export async function nativePosRestaurantRegistersStatement(
 }
 
 /**
+ * Owner-issued by-id register row. The SQL lives in the native POS owner
+ * registry (`erpx-server-pos::adapters::owner_writes`, kind
+ * `core_readposregisterbyid_539`) and is byte-identical to the two retired
+ * literals in `pos.ts` (`readPosRegisters3`) and `pos-core.ts`
+ * (`readPosRegisters6`). This bridge sends only the typed kind and register id;
+ * the caller executes the registry statement on its own transaction, so no
+ * local SQL, mirror or fallback remains. The lock-bearing by-id register reads
+ * and refund reads stay in TypeScript and are unchanged.
+ */
+export async function nativePosRegisterByIdStatement<T = SqlValueRow>(
+  db: SqlDatabase,
+  registerId: unknown,
+): Promise<T | null> {
+  return nativePosOne<T>(db, '', 'core_readposregisterbyid_539', [registerId]);
+}
+
+/**
  * Owner-issued posting-journal id read. The SQL lives in the native POS owner
  * registry (`erpx-server-pos::adapters::owner_writes`, kind
  * `core_readpospostingsjournal_523`); this bridge sends only the typed kind and

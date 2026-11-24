@@ -172,6 +172,13 @@ pub const CORE_READPOSSETTINGSENABLEDCURRENCY_537: &str = "core_readpossettingse
 /// `pms-hospitality-setup-facts.ts`. Read-only caller-transaction `SELECT`
 /// scoped by Company and Branch; no TypeScript mirror remains.
 pub const CORE_READPOSRESTAURANTREGISTERS_538: &str = "core_readposrestaurantregisters_538";
+/// By-id register row read retired from the two byte-identical
+/// `SELECT * FROM pos_registers WHERE id=?` literals in `pos.ts`
+/// (`readPosRegisters3`) and `pos-core.ts` (`readPosRegisters6`). Read-only
+/// caller-transaction `SELECT` scoped by register id; no TypeScript mirror
+/// remains. The lock-bearing by-id register reads and refund reads are
+/// unchanged and stay in TypeScript.
+pub const CORE_READPOSREGISTERBYID_539: &str = "core_readposregisterbyid_539";
 pub const STRIPE_WRITEPOSSTRIPEEVENTS1_49: &str = "stripe_writeposstripeevents1_49";
 pub const STRIPE_WRITEPOSSTRIPEEVENTS2_53: &str = "stripe_writeposstripeevents2_53";
 pub const STRIPE_WRITEPOSCONNECTIONHISTORY1_58: &str = "stripe_writeposconnectionhistory1_58";
@@ -287,6 +294,7 @@ pub const KINDS: &[&str] = &[
     COUNTER_READPOSCONNECTIONREADINESS_536,
     CORE_READPOSSETTINGSENABLEDCURRENCY_537,
     CORE_READPOSRESTAURANTREGISTERS_538,
+    CORE_READPOSREGISTERBYID_539,
     STRIPE_WRITEPOSSTRIPEEVENTS1_49,
     STRIPE_WRITEPOSSTRIPEEVENTS2_53,
     STRIPE_WRITEPOSCONNECTIONHISTORY1_58,
@@ -445,6 +453,7 @@ fn sql(kind: &str) -> Option<&'static str> {
         COUNTER_READPOSCONNECTIONREADINESS_536 => r#"SELECT * FROM pos_connections WHERE company_id=? AND state='ready' AND charges_enabled=true AND payouts_enabled=true AND promptpay_enabled=true AND thb_bank_ready=true AND payout_interval='daily'"#,
         CORE_READPOSSETTINGSENABLEDCURRENCY_537 => r#"SELECT enabled,currency FROM pos_settings WHERE company_id=?"#,
         CORE_READPOSRESTAURANTREGISTERS_538 => r#"SELECT id,name,warehouse_id,mode FROM pos_registers WHERE company_id=? AND branch_id=? AND active=true AND mode='restaurant'"#,
+        CORE_READPOSREGISTERBYID_539 => r#"SELECT * FROM pos_registers WHERE id=?"#,
         STRIPE_WRITEPOSSTRIPEEVENTS1_49 => r#"INSERT INTO pos_stripe_events(id,account_id,livemode,company_id,event_type,payload_json,received_at) VALUES(?,?,?,?,?,?,?) ON CONFLICT(id) DO NOTHING"#,
         STRIPE_WRITEPOSSTRIPEEVENTS2_53 => r#"UPDATE pos_stripe_events SET provider_created_at=COALESCE(provider_created_at,?) WHERE id=?"#,
         STRIPE_WRITEPOSCONNECTIONHISTORY1_58 => r#"INSERT INTO pos_connection_history VALUES(?,?,?) ON CONFLICT DO NOTHING"#,
@@ -545,7 +554,7 @@ mod tests {
     use super::*;
     #[test]
     fn every_kind_is_allow_listed_with_parameterized_owner_sql() {
-        assert_eq!(KINDS.len(), 132);
+        assert_eq!(KINDS.len(), 133);
         for kind in KINDS {
             assert!(supported(kind), "kind must be allow listed: {kind}");
             let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
@@ -921,6 +930,24 @@ mod tests {
             sql(CORE_READPOSRESTAURANTREGISTERS_538).unwrap(),
             "SELECT id,name,warehouse_id,mode FROM pos_registers WHERE company_id=? AND branch_id=? AND active=true AND mode='restaurant'"
         );
+    }
+
+    /// The retired by-id register read is a SELECT-only owner statement. Its SQL
+    /// is byte-identical to the literals deleted from `pos.ts` and `pos-core.ts`;
+    /// this kind is the sole authority and no TypeScript copy, mirror or fallback
+    /// remains. The `FOR UPDATE` by-id register reads and refund reads stayed in
+    /// TypeScript and are untouched by this kind.
+    #[test]
+    fn register_by_id_read_kind_is_select_only() {
+        let kind = CORE_READPOSREGISTERBYID_539;
+        assert!(supported(kind), "by-id register read kind must be allow listed: {kind}");
+        let stmt = sql(kind).unwrap_or_else(|| panic!("missing SQL for {kind}"));
+        assert!(stmt.starts_with("SELECT "), "by-id register read must be SELECT-only: {kind}");
+        for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE", "FOR SHARE"] {
+            assert!(!stmt.contains(forbidden), "by-id register read must not mutate or lock: {kind} contains {forbidden}");
+        }
+        assert_eq!(stmt.matches('?').count(), 1);
+        assert_eq!(stmt, "SELECT * FROM pos_registers WHERE id=?");
     }
 
     /// The retired purchase-boundary reads are SELECT-only owner statements.
