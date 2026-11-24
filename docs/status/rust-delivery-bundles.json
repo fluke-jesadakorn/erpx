@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9268,
+    "revision": 9270,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -148115,7 +148115,7 @@
         "owner": "identity_access",
         "title": "identity_access TS read tail native cutover (r14)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -148127,22 +148127,37 @@
         "resources": [
           "owner:identity_access"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCJida",
-          "claimedAt": "2026-11-24T04:58:49.661Z",
-          "heartbeatAt": "2026-11-24T04:58:49.661Z",
-          "expiresAt": "2026-11-24T05:28:49.661Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-identity_access/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d16265b9c",
+            "owner": "identity_access",
+            "before": 540,
+            "after": 535,
+            "note": "Commercial seat projection, id name, verified email and roster role families shared; locks and r13 untouched."
+          },
+          {
+            "command": "vitest identity r13/r14/services/quick access (40) + tsc identity",
+            "result": "passed",
+            "sourceSha": "d16265b9c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=540.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-j",
+          "agentId": "wGCJida",
+          "at": "2026-11-24T05:10:49.263Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -149838,17 +149853,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
-        "in_progress": 21,
+        "in_progress": 20,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 751,
+        "blocked": 752,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 162,
-    "updatedAt": "2026-11-24T05:09:58.528Z",
+    "updatedAt": "2026-11-24T05:10:49.269Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
