@@ -52,7 +52,7 @@ describe('quality recursive lineage recursion family dedupe (r14)', () => {
 });
 
 describe('quality read-tail r14 retirement check', () => {
-  test('retirement:ts-statements stays strictly below the r16 BEFORE=80 baseline', () => {
+  test('retirement:ts-statements stays strictly below the r16 BEFORE=76 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -62,7 +62,7 @@ describe('quality read-tail r14 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBeLessThan(80);
-    expect(total).toBe(76);
+    expect(total).toBeLessThan(76);
+    expect(total).toBe(75);
   });
 });

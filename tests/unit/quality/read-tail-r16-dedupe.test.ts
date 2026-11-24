@@ -71,7 +71,7 @@ describe('quality executive evidence join family dedupe (r16)', () => {
 });
 
 describe('quality read-tail r16 retirement check', () => {
-  test('retirement:ts-statements stays strictly below the BEFORE=80 baseline', () => {
+  test('retirement:ts-statements stays strictly below the BEFORE=76 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -81,8 +81,8 @@ describe('quality read-tail r16 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBeLessThan(80);
-    expect(total).toBe(76);
+    expect(total).toBeLessThan(76);
+    expect(total).toBe(75);
   });
   test('the three helpers are read-only and leave locks and prior families untouched', () => {
     for (const name of ['quality-work-scope-sql', 'native-source-wrapper-sql', 'inspection-evidence-source-sql']) {

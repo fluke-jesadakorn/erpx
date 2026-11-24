@@ -202,10 +202,10 @@ describe('quality package-obligation scope and clock CTE dedupe',()=>{
   const clockSites=[['packages/server-quality/src/adapters/record-purchases.ts','quality_source_clock'],['packages/server-quality/src/adapters/product-entry.ts','quality_entry_clock'],['packages/server-quality/src/adapters/calendar-quality-facts.ts','quality_calendar_clock']] as const;
   for(const [path,name] of clockSites){const text=readFileSync(source(path),'utf8');expect(text).toContain(`qualityClockCte("${name}")`);expect(text).not.toContain(`WITH ${name} AS MATERIALIZED (SELECT`);}
  });
- test('the owner TS statement KPI stays strictly below the r16 BEFORE=80 baseline',()=>{
+ test('the owner TS statement KPI stays strictly below the r16 BEFORE=76 baseline',()=>{
   const count=files(source('packages/server-quality/src')).reduce((total,path)=>total+(readFileSync(path,'utf8').match(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)?.length??0),0);
-  expect(count).toBeLessThan(80);
-  expect(count).toBe(76);
+  expect(count).toBeLessThan(76);
+  expect(count).toBe(75);
  });
 });
 describe('quality command-receipt guard dedupe',()=>{

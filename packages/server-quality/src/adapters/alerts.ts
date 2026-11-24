@@ -1,6 +1,6 @@
 import {qualitySourceAccess,requireQualityPurchasedRead} from "@erpx/server-quality/adapters/purchases";
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
-import { commercialOwnerProjectionSources as identity_accessProjectionSources } from "@erpx/server-identity_access/public/commercial-owner-projection-sources";
+import { qualityAlertRecipientSql } from './quality-alert-recipient-sql';
 import "server-only";
 
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -17,13 +17,7 @@ import type {QualityAlert as Alert} from '@erpx/server-quality/domain/alerts';
 // Assignment scope and the required quality authority are evaluated from the
 // current hold state on every sweep and read. No recipient routing is copied
 // into the alert, so revocation and role changes take effect immediately.
-const recipient = `m.company_id=h.company_id
- AND iam_assignment_active(m.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)
- AND iam_role_allows(m.role,m.company_id,CASE WHEN h.status IN ('awaiting_release','cancel_pending') THEN 'quality.release' ELSE 'quality.inspect' END)
- AND (m.scope_kind='holding' OR (m.scope_kind='branch' AND m.scope_node_id=h.branch_id))
- AND NOT iam_same_person(m.user_id,h.created_by,h.company_id)
- AND (h.status<>'cancel_pending' OR NOT iam_same_person(m.user_id,h.cancel_requested_by,h.company_id))
- AND (h.status<>'awaiting_release' OR NOT iam_same_person(m.user_id,h.last_inspector,h.company_id))`;
+// The shared recipient read is owned by ./quality-alert-recipient-sql.
 
 const scope = "h.company_id=? AND (?::text IS NULL OR h.branch_id=?)";
 const scopeArgs = (actor: WorkContext) => [
@@ -38,9 +32,9 @@ function repository(write:SqlDatabase,actor:WorkContext):QualityAlertRepository{
     await write
       .prepare(
         `SELECT a.*,h.company_id,h.branch_id,h.status,h.version hold_version,p.name product_name,w.name warehouse_name,
-          CASE WHEN EXISTS(SELECT 1 FROM (${identity_accessProjectionSources.assignments}) m WHERE ${recipient.replaceAll("clock_timestamp()", "clock_timestamp()")}
-             AND m.user_id=?) THEN 1 ELSE 0 END can_ack,
-          (SELECT COUNT(DISTINCT m.user_id) FROM (${identity_accessProjectionSources.assignments}) m WHERE ${recipient}) recipients
+          CASE WHEN EXISTS(${qualityAlertRecipientSql('1', `
+             AND m.user_id=?`)}) THEN 1 ELSE 0 END can_ack,
+          (${qualityAlertRecipientSql('COUNT(DISTINCT m.user_id)')}) recipients
          FROM inventory_quality_alerts a
          JOIN inventory_quality_holds h ON h.id=a.hold_id
          JOIN (${commerceProjectionSources.commerce_products}) p ON p.id=h.product_id
