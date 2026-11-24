@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9380,
+    "revision": 9382,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -150485,7 +150485,7 @@
         "owner": "customer_authority",
         "title": "customer_authority TS read tail native cutover (r21)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -150497,22 +150497,37 @@
         "resources": [
           "owner:customer_authority"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCNcau",
-          "claimedAt": "2026-11-24T05:11:25.502Z",
-          "heartbeatAt": "2026-11-24T05:11:25.502Z",
-          "expiresAt": "2026-11-24T05:41:25.502Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-customer_authority/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "ba36cfb1c",
+            "owner": "customer_authority",
+            "before": 78,
+            "after": 70,
+            "note": "Seven jsonb_agg fact subselects and three bindings EXISTS probes share builders; locks untouched; portal consumers retained."
+          },
+          {
+            "command": "vitest customer authority r21 (5) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "ba36cfb1c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=78.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-j",
+          "agentId": "wGCNcau",
+          "at": "2026-11-24T05:19:46.024Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -151354,17 +151369,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 35,
+        "in_progress": 34,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 772,
+        "blocked": 773,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 162,
-    "updatedAt": "2026-11-24T05:18:51.746Z",
+    "updatedAt": "2026-11-24T05:19:46.045Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
