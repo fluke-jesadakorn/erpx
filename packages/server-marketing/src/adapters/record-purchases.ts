@@ -10,7 +10,8 @@ import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commerc
 import {marketingPurchaseAssetRows,marketingPurchaseCandidateRows,requireMarketingPurchasedRead,type MarketingPurchaseTarget} from '@erpx/server-marketing/adapters/purchases';
 import {marketingModuleMemberSql} from './module-membership';
 import {marketingRecordScopeAuthoritySql} from './record-scope-authority';
-const nativeIds='SELECT id FROM marketing_assets UNION ALL SELECT id FROM marketing_lead_candidates UNION ALL SELECT id FROM marketing_campaigns UNION ALL SELECT id FROM marketing_campaign_costs';
+import {marketingSourceIdsSql} from './marketing-source-id-sql';
+const nativeIds=marketingSourceIdsSql();
 const rows=`SELECT asset.id,'asset' kind,asset.company_id,asset.branch_id,asset.department_id FROM (${marketingPurchaseAssetRows}) asset UNION ALL SELECT candidate.id,'candidate',candidate.company_id,candidate.branch_id,candidate.department_id FROM (${marketingPurchaseCandidateRows}) candidate UNION ALL SELECT id,'campaign',company_id,NULL,NULL FROM marketing_campaigns UNION ALL SELECT cost.id,'campaign-cost',cost.company_id,NULL,NULL FROM marketing_campaign_costs cost JOIN marketing_campaigns campaign ON campaign.id=cost.campaign_id AND campaign.company_id=cost.company_id`;
 function scope(actor:WorkContext,id:string,company:string){
  const history=purchasedCapabilityPredicate('marketing_source.company_id','sales.marketing','history','marketing_clock.now_ms');
