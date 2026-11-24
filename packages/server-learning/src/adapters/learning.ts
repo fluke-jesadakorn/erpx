@@ -20,7 +20,7 @@ import { createChangeLearningCourse, createChangeLearningAssignment, createLearn
 import type { LearningAssignment as Assignment } from "@erpx/server-learning/domain/learning";
 import {courseActionSchema,learningActionSchema} from "@erpx/server-learning/domain/learning";
 import {withLearningPurchasedCommand,withLearningPurchasedRead,requireLearningPurchasedRead,type LearningCapability} from "@erpx/server-learning/adapters/purchases";
-import {learningCourseProjection,overdueEvidenceColumns} from "./learning-read-sql";
+import {assignmentCourseReadHead,learningCourseProjection,overdueEvidenceColumns} from "./learning-read-sql";
 import {completionEvidenceColumns} from "./learning-completion-evidence";
 export type { LearningExecutiveEvidenceMetric } from "@erpx/server-learning/application/learning";
 const learnerEligible = `EXISTS(SELECT 1 ${identityaccessSources.learning_adapters_learning_assignments_x_from} ${peoplepayrollSources.learning_adapters_learning_hr_people_p_join} ON p.user_id=x.user_id AND p.company_id=x.company_id ${peoplepayrollSources.learning_adapters_learning_hr_engagements_e_join} ON e.person_id=p.id AND e.company_id=p.company_id WHERE x.company_id=a.company_id AND x.user_id=a.learner_id AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_principal_active(x.user_id,x.company_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND (x.scope_kind='holding' OR (x.scope_kind='branch' AND x.scope_node_id=a.branch_id) OR (x.scope_kind='department' AND x.scope_node_id=a.department_id)) AND p.status='active' AND p.merged_into_id IS NULL AND e.status='active')`;
@@ -51,13 +51,12 @@ function commandPorts(database: () => Promise<SqlDatabase>): LearningCommandPort
  * and every lock statement stay untouched. */
 const assignmentChildImage = (aggregate: string, source: string, label: string) => `(SELECT ${aggregate} ${source}) ${label}`;
 function assignmentWitness(actor:WorkContext,id:string){return async(write:SqlDatabase)=>{
- const row=await write.prepare(`SELECT a.course_id,a.course_version,c.company_id course_company,c.required_for,
+ const row=await write.prepare(assignmentCourseReadHead(`a.course_id,a.course_version,c.company_id course_company,c.required_for,
  ${assignmentChildImage("jsonb_agg(to_jsonb(p)-'updated_at' ORDER BY p.id)", `${peoplepayrollSources.learning_adapters_learning_hr_people_p_from} WHERE p.company_id=a.company_id AND p.user_id=a.learner_id`, "people")},
  ${assignmentChildImage("jsonb_agg(to_jsonb(e)-'updated_at' ORDER BY e.id)", `${peoplepayrollSources.learning_adapters_learning_hr_people_p_from} ${peoplepayrollSources.learning_adapters_learning_hr_engagements_e_join} ON e.person_id=p.id AND e.company_id=p.company_id WHERE p.company_id=a.company_id AND p.user_id=a.learner_id`, "engagements")},
  ${assignmentChildImage("jsonb_agg(to_jsonb(h) ORDER BY h.id)", "FROM learning_eligibility_handoffs h WHERE h.assignment_id=a.id AND h.company_id=a.company_id", "handoffs")},
  ${assignmentChildImage("jsonb_agg(to_jsonb(certificate) ORDER BY certificate.id)", "FROM learning_certificates certificate WHERE certificate.assignment_id=a.id AND certificate.company_id=a.company_id", "certificates")},
- CASE WHEN ${learnerEligible} THEN 1 ELSE 0 END learner_eligible
- FROM learning_assignments a JOIN learning_courses c ON c.id=a.course_id WHERE a.id=? AND a.company_id=?`)
+ CASE WHEN ${learnerEligible} THEN 1 ELSE 0 END learner_eligible`,'\n '))
   .bind(id,actor.companyId).first<Record<string,unknown>>();return JSON.stringify(row);
 };}
 function learnerReferenceWitness(actor:WorkContext,learnerId:string,courseId:string){return async(write:SqlDatabase)=>JSON.stringify({
@@ -80,7 +79,7 @@ export function nativeLearningAssignmentChanges(source:DatabaseSource){return as
  return withLearningPurchasedCommand(await databaseSource(source)(),a,{key,operation:`learning.assignment.${input.action}`,target:{kind:"assignment",id},purpose:"settle-existing",capabilities:["learn.assignments"],permission:input.action==="waive"||input.action==="cancel"?"records.review":"records.write",existing:true,sourceWitness:assignmentWitness(a,id),readOnlySourceWitness:assignmentReferenceWitness(a,id),
  additionalCapabilities:async write=>{
   if(input.action!=="complete"&&input.action!=="waive")return [];
-  const row=await write.prepare("SELECT c.required_for FROM learning_assignments a JOIN learning_courses c ON c.id=a.course_id WHERE a.id=? AND a.company_id=?").bind(id,a.companyId).first<{required_for:string|null}>();
+  const row=await write.prepare(assignmentCourseReadHead('c.required_for')).bind(id,a.companyId).first<{required_for:string|null}>();
   const caps:LearningCapability[]=["learn.results"];if(row?.required_for)caps.push("learn.certificates");return caps;
  }},write=>learningAssignmentChanges(write)(a,id,input,key));
 };}

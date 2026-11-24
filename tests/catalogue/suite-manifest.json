@@ -50503,6 +50503,33 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Learning assignment course read head must stay one helper."
+      },
+      "apps": [
+        "learn"
+      ],
+      "packages": [
+        "@erpx/server-learning"
+      ],
+      "id": "learning.read-tail-r11-dedupe.unit",
+      "files": [
+        "tests/unit/learning/read-tail-r11-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "learning",
+      "modules": [
+        "learning"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Learning native source and evidence reads must stay byte-identical."
       },
       "apps": "learn",

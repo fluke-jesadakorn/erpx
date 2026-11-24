@@ -77,3 +77,10 @@ export const learningCourseProjection = (projection: string, separator = ' ') =>
  * vary, so every rendered query keeps its exact pre-dedupe bytes. */
 export const assignmentCourseJoinHead = (projection: string, separator = ' ') =>
   `SELECT ${projection}${separator}FROM learning_assignments a JOIN learning_courses c ON c.id=a.course_id AND c.company_id=a.company_id`;
+
+/** r11 — single-row assignment x course reads that omit the company join key share
+ * the same FROM/WHERE tail and differ only by projected columns and the whitespace
+ * before FROM. Only the projection and its separator vary, so every rendered query
+ * keeps its exact pre-dedupe bytes. */
+export const assignmentCourseReadHead = (projection: string, separator = ' ') =>
+  `SELECT ${projection}${separator}FROM learning_assignments a JOIN learning_courses c ON c.id=a.course_id WHERE a.id=? AND a.company_id=?`;
