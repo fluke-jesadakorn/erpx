@@ -20,6 +20,11 @@ export function projectOwnerOrMemberSql(alias:string){return `(iam_same_person($
  * staff and executive metric reads; one definition keeps every source relation and
  * bind order identical. */
 export const projectMemberScopeSql = "(p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?))";
+/** Byte-identical member-scope assertion guard shared by the Projects Social
+ * audience guard and the Operations staff-task guard. The scope fragment is the
+ * only variable; the source relation and bind order stay exactly as in both
+ * former inline copies. */
+export const projectMemberScopeGuard = (scope: string) => `EXISTS(SELECT 1 FROM staff_projects p WHERE p.id=? AND p.company_id=? AND ${scope})`;
 export function projectHandoverSourceSql(post:string,user:string){return `SELECT 1 FROM staff_projects hp WHERE hp.id=hs.source_id AND hp.company_id=${post}.company_id
           AND (iam_same_person(hp.owner_user_id,${user},hp.company_id)
             OR EXISTS(SELECT 1 FROM staff_project_members hm WHERE hm.project_id=hp.id AND hm.user_id=${user}))`;}

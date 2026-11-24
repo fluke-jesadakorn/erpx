@@ -8,6 +8,7 @@ import {purchasedCapabilityPredicate,packageClockSql} from '@erpx/server-commerc
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {hasPermission} from '@erpx/feature-identity_access/lib/permissions';
 import {ApiError} from '@erpx/server-runtime/public/http';
+import {projectMemberScopeGuard} from '@erpx/server-projects/adapters/project-read-projections';
 
 /** Owner-local fixed SQL for the Projects collaboration-home read family. The
  * selected-audience and home reads repeat identical membership, actor-scope and
@@ -79,6 +80,6 @@ export function collaborationHomeSources(db: SqlDatabase) {
                 title: string;
             }>();
         }, guardProjectAudience(key: string, value: "audience-project", id: string, companyId: string, userId: string, userId2: string) {
-            return assertion(db, key, value, `EXISTS(SELECT 1 FROM staff_projects p WHERE p.id=? AND p.company_id=? AND ${projectMemberScope})`, [id, companyId, userId, userId2]);
+            return assertion(db, key, value, projectMemberScopeGuard(projectMemberScope), [id, companyId, userId, userId2]);
         } };
 }
