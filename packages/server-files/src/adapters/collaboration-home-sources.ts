@@ -2,6 +2,7 @@ import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { socialDraftFilesReadSql } from '@erpx/server-collaboration/public/social-draft-file-projection';
 import { nativeWrite } from './native-files-command';
+import { socialDraftImageExistsSql } from './social-draft-image-guard-sql';
 export function collaborationHomeSources(db: SqlDatabase) {
     return { revokeUnusedDraftFiles(now: number, recordId: string, keptAttachmentIds: string[]) {
             return nativeWrite('SF_REVOKE_DRAFT', [now, recordId, JSON.stringify(keptAttachmentIds)]);
@@ -55,9 +56,9 @@ export function collaborationHomeSources(db: SqlDatabase) {
                 id: string;
             }>();
         }, guardRetainedImage(key: string, value: string, attachmentId: string | null, id: string, id2: string, companyId: string) {
-            return assertion(db, key, value, `EXISTS(SELECT 1 FROM attachments a JOIN (${socialDraftFilesReadSql}) d ON d.id=a.owner_id WHERE a.id=? AND a.owner_type='social_draft' AND (d.published_post_id=? OR (d.edit_post_id=? AND d.edit_saved_version IS NOT NULL)) AND d.company_id=? AND a.revoked_at IS NULL)`, [attachmentId, id, id2, companyId]);
+            return assertion(db, key, value, `${socialDraftImageExistsSql}(${socialDraftFilesReadSql}) d ON d.id=a.owner_id WHERE a.id=? AND a.owner_type='social_draft' AND (d.published_post_id=? OR (d.edit_post_id=? AND d.edit_saved_version IS NOT NULL)) AND d.company_id=? AND a.revoked_at IS NULL)`, [attachmentId, id, id2, companyId]);
         }, guardUploadedImage(key: string, value: string, attachmentId: string | null, value2: string, userId: string, companyId: string, id: string, version: number) {
-            return assertion(db, key, value, `EXISTS(SELECT 1 FROM attachments a JOIN upload_intents u ON u.id=a.upload_id JOIN (${socialDraftFilesReadSql}) d ON d.id=a.owner_id WHERE a.id=? AND a.owner_type='social_draft' AND a.owner_id=? AND d.author_id=? AND d.company_id=? AND d.edit_post_id=? AND d.edit_post_version=? AND d.edit_saved_version IS NULL AND d.cancelled_at IS NULL AND a.revoked_at IS NULL AND u.owner_type='social_draft' AND u.owner_id=d.id AND u.status='ready')`, [attachmentId, value2, userId, companyId, id, version]);
+            return assertion(db, key, value, `${socialDraftImageExistsSql}upload_intents u ON u.id=a.upload_id JOIN (${socialDraftFilesReadSql}) d ON d.id=a.owner_id WHERE a.id=? AND a.owner_type='social_draft' AND a.owner_id=? AND d.author_id=? AND d.company_id=? AND d.edit_post_id=? AND d.edit_post_version=? AND d.edit_saved_version IS NULL AND d.cancelled_at IS NULL AND a.revoked_at IS NULL AND u.owner_type='social_draft' AND u.owner_id=d.id AND u.status='ready')`, [attachmentId, value2, userId, companyId, id, version]);
         }, revokeUnusedPostFiles(now: number, id: string, id2: string, value: (string | null)[]) {
             return nativeWrite('SF_REVOKE_POST', [now, id, id2, JSON.stringify(value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0))]);
         }, expireUnusedPostUploads(now: number, id: string, id2: string) {
@@ -67,7 +68,7 @@ export function collaborationHomeSources(db: SqlDatabase) {
                 .bind(...value, commentDraftId, companyId).all<{
                 id: string;
             }>();
-        }, guardCommentImage(key: string, value: string, attachmentId: string | null, commentDraftId: string, companyId: string) { return assertion(db, key, value, `EXISTS(SELECT 1 FROM attachments a JOIN (${socialDraftFilesReadSql}) d ON d.id=a.owner_id WHERE a.id=? AND a.owner_type='social_draft' AND a.owner_id=? AND d.company_id=? AND a.revoked_at IS NULL)`, [attachmentId, commentDraftId, companyId]); }, revokeUnusedCommentFiles(now: number, commentDraftId: string, value: (string | null)[]) {
+        }, guardCommentImage(key: string, value: string, attachmentId: string | null, commentDraftId: string, companyId: string) { return assertion(db, key, value, `${socialDraftImageExistsSql}(${socialDraftFilesReadSql}) d ON d.id=a.owner_id WHERE a.id=? AND a.owner_type='social_draft' AND a.owner_id=? AND d.company_id=? AND a.revoked_at IS NULL)`, [attachmentId, commentDraftId, companyId]); }, revokeUnusedCommentFiles(now: number, commentDraftId: string, value: (string | null)[]) {
             return nativeWrite('SF_REVOKE_COMMENT', [now, commentDraftId, JSON.stringify(value.filter((entry): entry is string => typeof entry === 'string' && entry.length > 0))]);
         } };
 }
