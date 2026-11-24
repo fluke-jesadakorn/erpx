@@ -1,4 +1,4 @@
-import {releaseRevisionTable,releaseCurrencyPredicate,releaseRevisionShareLockSql,releaseRevisionReadSql,latestReleaseIdSql,activeBranchCountSql,businessAcceptanceSetupSql,releaseAcceptanceExistsSql} from "@erpx/server-platform_administration/adapters/release-predicate";
+import {releaseRevisionTable,releaseCurrencyPredicate,releaseRevisionShareLockSql,releaseRevisionReadSql,latestReleaseIdSql,latestReleaseRowSql,activeBranchCountSql,businessAcceptanceSetupSql,releaseAcceptanceExistsSql} from "@erpx/server-platform_administration/adapters/release-predicate";
 import { platformOwnerProjectionSources as identity_accessPlatformSources } from "@erpx/server-identity_access/public/platform-owner-projection-sources";
 import { platformOwnerProjectionSources as organizationPlatformSources } from "@erpx/server-organization/public/platform-owner-projection-sources";
 import "server-only";
@@ -46,8 +46,8 @@ function repository(db:SqlDatabase,companyId:string,work?:WorkContext):ReleaseRe
  db.prepare(businessAcceptanceSetupSql('?', { columns: 'version,status' })).bind(companyId).first<{version:number;status:string}>(),
  db.prepare(activeBranchCountSql('?', { countAlias: 'count' })).bind(companyId).first<{count:number}>(),
  db.prepare(`SELECT ${releaseCurrencyPredicate('?')} AS compatible`).bind(companyId).first<{compatible:boolean}>()]);return {revision,setup,branches,currency};},
- row:(releaseId,scope)=>db.prepare(`SELECT * FROM company_release_acceptances WHERE company_id=? ${releaseId?'AND id=?':'AND scope_version=?'} ORDER BY created_at DESC,id DESC LIMIT 1`).bind(companyId,releaseId??scope).first<ReleaseRow>(),
- latest:scope=>db.prepare('SELECT id FROM company_release_acceptances WHERE company_id=? AND scope_version=? ORDER BY created_at DESC,id DESC LIMIT 1').bind(companyId,scope).first<{id:string}>(),
+ row:(releaseId,scope)=>db.prepare(latestReleaseRowSql('*', releaseId?'AND id=?':'AND scope_version=?')).bind(companyId,releaseId??scope).first<ReleaseRow>(),
+ latest:scope=>db.prepare(latestReleaseRowSql('id','AND scope_version=?')).bind(companyId,scope).first<{id:string}>(),
  reviews:async row=>(await db.prepare(`SELECT g.*,EXISTS(SELECT 1 FROM (${identity_accessPlatformSources.assignments}) a WHERE a.id=g.assignment_id
     AND a.company_id=g.company_id AND a.user_id=g.reviewer_id AND a.scope_kind='holding'
     AND iam_assignment_active(a.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint)

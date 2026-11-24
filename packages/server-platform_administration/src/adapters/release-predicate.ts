@@ -60,6 +60,14 @@ export function latestReleaseIdSql(companyExpression: string, scopeExpression: s
   return `(SELECT latest.id FROM company_release_acceptances latest WHERE latest.company_id=${companyExpression} AND latest.scope_version=${scopeExpression} ORDER BY latest.created_at DESC,latest.id DESC LIMIT 1)`;
 }
 
+/** The single latest-acceptance row read shared by the repository's row and
+ * latest lookups. Kept here once so the "latest acceptance per company" rule has
+ * one owner-local definition; each caller supplies its columns and id predicate.
+ * The rendered SQL is byte-identical to the former inline copies. */
+export function latestReleaseRowSql(columns: string, idPredicate: string) {
+  return `SELECT ${columns} FROM company_release_acceptances WHERE company_id=? ${idPredicate} ORDER BY created_at DESC,id DESC LIMIT 1`;
+}
+
 /** The single THB-currency probe shared by every release-currency source. Kept
  * here once so this parameterized family has one owner-local definition; each
  * caller supplies only its closed source projection and company predicate. The
