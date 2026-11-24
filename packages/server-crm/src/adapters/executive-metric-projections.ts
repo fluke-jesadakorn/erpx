@@ -8,6 +8,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
+import {crmMetricBreakdownSql} from './read-tail-r37-sql';
 /** Byte-identical org label fragment shared by the branch/department breakdowns.
  * The alias, column and fallback stay caller-owned; the rendered SQL is unchanged. */
 const orgLabelSql = (alias: string, column: string, fallback: string) =>
@@ -21,7 +22,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
         const label = breakdown === "status" ? "v.stage"
             : breakdown === "branch" ? orgLabelSql("l","branch_id","Company-wide")
                 : breakdown === "month" ? "substring(v.close_date,1,7)" : "v.stage";
-        sql = `SELECT ${label} label,sum(v.expected_minor)::text value FROM crm_opportunities v JOIN (${purchased.sql}) l ON l.id=v.lead_id WHERE ${scopedAlias("l")} AND v.currency=? AND v.close_date BETWEEN ? AND ? AND v.stage IN ('discovery','proposal','negotiation') GROUP BY 1 ORDER BY 1`;
+        sql = crmMetricBreakdownSql(label,'sum(v.expected_minor)::text',` FROM crm_opportunities v JOIN (${purchased.sql}) l ON l.id=v.lead_id WHERE ${scopedAlias("l")} AND v.currency=? AND v.close_date BETWEEN ? AND ? AND v.stage IN ('discovery','proposal','negotiation') GROUP BY 1 ORDER BY 1`);
         values = [...purchased.args,...scopeArgs, f.currency, f.from, f.to];
     }
     if (id === "overdue-followups") {
@@ -29,7 +30,7 @@ export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: Wo
             : breakdown === "branch" ? orgLabelSql("o","branch_id","Company-wide")
                 : breakdown === "department" ? orgLabelSql("o","department_id","Unassigned")
                     : breakdown === "month" ? "substring(c.due_date,1,7)" : "'Overdue follow-ups'";
-        sql = `SELECT ${label} label,count(*)::text value FROM (${purchased.sql}) c JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=c.order_id AND o.company_id=c.company_id WHERE ${scopedAlias("o")} AND o.kind IN ('sales','quote') AND c.status='open' AND c.due_date BETWEEN ? AND ? AND c.due_date<to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') GROUP BY 1 ORDER BY 1`;
+        sql = crmMetricBreakdownSql(label,'count(*)::text',` FROM (${purchased.sql}) c JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=c.order_id AND o.company_id=c.company_id WHERE ${scopedAlias("o")} AND o.kind IN ('sales','quote') AND c.status='open' AND c.due_date BETWEEN ? AND ? AND c.due_date<to_char(current_timestamp AT TIME ZONE 'UTC','YYYY-MM-DD') GROUP BY 1 ORDER BY 1`);
         values = [...purchased.args,...scopeArgs, f.from, f.to];
     }
     const raw = (await sourceDb.prepare(sql).bind(...values).all<RawMetricRow>()).results;

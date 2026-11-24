@@ -6,6 +6,7 @@ import { crmCampaignOptionsSql } from './read-tail-r27-sql';
 import { crmCaseEventReadSql, crmOpportunityProbeSql } from './read-tail-r28-sql';
 import { crmLeadOwnerGuardSql } from './read-tail-r29-sql';
 import { crmCommerceOrderReadSql } from './read-tail-r32-sql';
+import { crmSingleKeySourceSql } from './read-tail-r37-sql';
 import { nativeCrmActivityWork } from './native-activity-workspace';
 import {filterCRMPurchasedWork} from "@erpx/server-crm/adapters/record-purchases";
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
@@ -48,8 +49,8 @@ async branches(){return (await write.prepare(crmBranchOptionsSql('',true)).bind(
 async campaigns(){if(!await crmReferenceHistory(write,a,'sales.marketing'))return [];return (await write.prepare(crmCampaignOptionsSql(marketingProjectionSources.marketing_campaigns,'marketing_campaigns')).bind(a.companyId).all<Row>()).results;},
 async evidence(id){return await write.prepare(`${crmLeadVersionProjection}v.stage,v.expected_minor,v.currency,v.close_date,v.version opportunity_version
  FROM crm_opportunities v JOIN crm_leads l ON l.id=v.lead_id WHERE ${scope} AND v.id=? LIMIT 1`).bind(...args(a),id).first<Row>();},
-async currency(){return write.prepare(`SELECT currency FROM (${commerceProjectionSources.commerce_settings}) commerce_settings WHERE company_id=?`).bind(a.companyId).first<Row>();},
-async recipients(id){return (await write.prepare(`SELECT DISTINCT c.owner_id id,p.legal_name name FROM (SELECT DISTINCT user_id owner_id FROM (${identity_accessProjectionSources.assignments}) assignments WHERE company_id=?) c JOIN (${people_payrollProjectionSources.hr_people}) p ON p.user_id=c.owner_id AND p.company_id=? JOIN crm_leads l ON l.id=? WHERE ${salesRecipientEligibility('l','c.owner_id')} ORDER BY p.legal_name`).bind(a.companyId,a.companyId,id).all<{id:string;name:string}>()).results;},
+async currency(){return write.prepare(crmSingleKeySourceSql('currency',commerceProjectionSources.commerce_settings,'commerce_settings')).bind(a.companyId).first<Row>();},
+async recipients(id){return (await write.prepare(`SELECT DISTINCT c.owner_id id,p.legal_name name FROM (${crmSingleKeySourceSql('DISTINCT user_id owner_id',identity_accessProjectionSources.assignments,'assignments')}) c JOIN (${people_payrollProjectionSources.hr_people}) p ON p.user_id=c.owner_id AND p.company_id=? JOIN crm_leads l ON l.id=? WHERE ${salesRecipientEligibility('l','c.owner_id')} ORDER BY p.legal_name`).bind(a.companyId,a.companyId,id).all<{id:string;name:string}>()).results;},
 async customers(){return (await write.prepare(activeCustomerPartiesSql).bind(a.companyId).all<Row>()).results;},
 async quotes(row){return (await write.prepare(crmCommerceOrderReadSql('o.id,o.number,o.version,o.state','o',`WHERE o.company_id=? AND o.party_id=? AND o.branch_id=? AND o.department_id IS NOT DISTINCT FROM ?::text AND o.kind='quote' AND o.state='confirmed' ORDER BY o.updated_at DESC`)).bind(a.companyId,row.customer_id,row.branch_id,row.department_id).all<Row>()).results;},
 async sales(row){return (await write.prepare(crmCommerceOrderReadSql('id,number,version,state','commerce_orders',`WHERE company_id=? AND source_id=? AND kind='sales' AND state IN ('confirmed','partially_fulfilled','fulfilled') ORDER BY updated_at DESC`)).bind(a.companyId,row.quote_id).all<Row>()).results;},
