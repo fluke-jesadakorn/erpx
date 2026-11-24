@@ -4,6 +4,7 @@ import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postg
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { packageSettlementSource, type PackageSettlementSourceLock } from "@erpx/server-commercial/public/package-settlement-sources";
 import { pmsPaymentIdentityUnionSql } from "./finance-record-sources";
+import { PMS_CORRECTION_FACT_HEAD_SQL } from "./pms-read-tail-r42-sql";
 
 type Input = { companyId: string; packageId: string; packageVersion: number; moduleId: string; now: number };
 const sources = new WeakMap<SqlDatabase, string>();
@@ -54,7 +55,7 @@ export async function pmsPackageObligations(owner: PostgresDatabase, database: S
     UNION ALL SELECT 'property',p.id,p.version,p.state FROM properties p WHERE p.state='closing'
     UNION ALL SELECT 'job',j.id,j.updated_at,j.state FROM pms_jobs j JOIN properties p ON p.id=j.property_id WHERE j.state<>'completed'
     UNION ALL SELECT 'transfer',t.id,t.version,t.state FROM pms_transfer_requests t JOIN properties p ON p.id=t.property_id WHERE t.state='pending'
-    UNION ALL SELECT 'correction',c.id,c.version,c.status FROM pms_charge_corrections c JOIN properties p ON p.id=c.property_id WHERE c.status='pending'
+    UNION ALL ${PMS_CORRECTION_FACT_HEAD_SQL} JOIN properties p ON p.id=c.property_id WHERE c.status='pending'
     UNION ALL SELECT 'booking-payment',b.id,b.updated_at,b.status FROM pms_booking_payments b JOIN properties p ON p.id=b.property_id WHERE b.status='payment_pending' OR b.status='refund_review' AND b.refund_state IS DISTINCT FROM 'succeeded' OR b.status='expired' AND b.checkout_id IS NOT NULL
     UNION ALL SELECT 'booking-refund',r.id,r.updated_at,r.state FROM pms_booking_refund_requests r JOIN pms_booking_payments b ON b.id=r.payment_id JOIN properties p ON p.id=b.property_id WHERE r.state<>'succeeded'
     UNION ALL SELECT 'booking-change',c.id,c.created_at,c.state FROM pms_booking_changes c JOIN properties p ON p.id=c.property_id WHERE c.state='payment_pending'

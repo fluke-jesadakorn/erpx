@@ -4,6 +4,7 @@ import type { PostgresDatabase } from "@erpx/server-runtime/public/runtime/postg
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { assertPmsPackageObligationSources } from "@erpx/server-pms/adapters/package-obligations";
 import { assertPosAddonPackageObligationSources, posAddonPackageSettlementSources as pos } from "@erpx/server-pos/public/addon-package-obligations";
+import { PMS_CORRECTION_FACT_HEAD_SQL } from "./pms-read-tail-r42-sql";
 
 type Input = { companyId:string;packageId:string;packageVersion:number;moduleId:string;now:number };
 /** PMS owns the source-key/entry relationship and the guest-account settlement
@@ -83,7 +84,7 @@ export async function pmsAddonPackageObligations(owner:PostgresDatabase,database
     UNION ALL SELECT 'account',a.id,COALESCE(r.version,0),COALESCE(r.data->>'state','missing') FROM accounts a LEFT JOIN records r ON r.id=a.id AND r.property_id=a.property_id AND r.kind='guest_account',scope WHERE a.company_id=scope.company_id AND a.package_id=scope.package_id AND (
       r.id IS NULL OR a.track_due AND COALESCE((r.data->>'due')::bigint,0)<>0 OR COALESCE((r.data->>'advance')::bigint,0)<>0 OR COALESCE((r.data->>'refundReserved')::bigint,0)<>0 OR COALESCE((r.data->>'depositRefundReserved')::bigint,0)<>0)
     UNION ALL SELECT 'refund',r.id,r.version,r.data->>'state' FROM records r,scope WHERE r.company_id=scope.company_id AND r.kind='refund' AND r.data->>'state' NOT IN ('paid','rejected') AND EXISTS(SELECT 1 FROM accounts a WHERE a.package_id=scope.package_id AND a.company_id=r.company_id AND a.property_id=r.property_id AND a.id=r.data->>'guestAccountId')
-    UNION ALL SELECT 'correction',c.id,c.version,c.status FROM pms_charge_corrections c,scope WHERE c.company_id=scope.company_id AND c.status='pending' AND EXISTS(SELECT 1 FROM entries e WHERE e.package_id=scope.package_id AND e.company_id=c.company_id AND e.property_id=c.property_id AND e.id=c.entry_id)
+    UNION ALL ${PMS_CORRECTION_FACT_HEAD_SQL},scope WHERE c.company_id=scope.company_id AND c.status='pending' AND EXISTS(SELECT 1 FROM entries e WHERE e.package_id=scope.package_id AND e.company_id=c.company_id AND e.property_id=c.property_id AND e.id=c.entry_id)
     UNION ALL SELECT 'linen',r.id,r.version,'custody' FROM records r,scope WHERE scope.package_id='pms-minibar-linen' AND r.company_id=scope.company_id AND r.kind='item' AND r.data->>'kind'='linen' AND (COALESCE((r.data->>'issued')::bigint,0)<>0 OR COALESCE((r.data->>'laundry')::bigint,0)<>0)
     ORDER BY kind,id`).bind(input.companyId,input.packageId).all()).results;
   return {companyId:input.companyId,packageId:input.packageId,moduleId:'pms',observedAt:input.now,

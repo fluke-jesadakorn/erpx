@@ -155,15 +155,15 @@ describe('pms read-tail r41 guest-join, property-scope and rollout-exists dedupe
     }
   });
 
-  it('lowers the pms owner SELECT KPI from 310 to 305', async () => {
+  it('lowers the pms owner SELECT KPI from 305 to 302', async () => {
     let spaced = 0, bare = 0;
     for (const file of await tsFiles(dir)) {
       const text = await readFile(file, 'utf8');
       spaced += text.split('SELECT ').length - 1;
       bare += text.split('SELECT').length - 1;
     }
-    expect(spaced).toBe(305);
-    expect(bare).toBe(307);
+    expect(spaced).toBe(302);
+    expect(bare).toBe(304);
     expect(spaced).toBeLessThan(310);
   });
 });

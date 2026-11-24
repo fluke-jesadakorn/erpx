@@ -10,6 +10,7 @@ import { PMS_RECORD_POINT_PREFIX_SQL, pmsSetupExistsSql } from "../pms-read-tail
 import { PMS_RECORD_ID_PROPERTY_HEAD_SQL } from "../pms-read-tail-r35-sql";
 import { PMS_STAY_SOURCE_PROJECTION_SQL } from "../pms-read-tail-r38-sql";
 import { pmsGuestIdJoinSql } from "../pms-read-tail-r41-sql";
+import { PMS_ORDERED_RECORDS_TAIL_SQL, pmsStayExistsHeadSql } from "../pms-read-tail-r42-sql";
 import { nativePmsReadAll, PMS_RD_INVENTORY_COMMAND } from "../native-pms-read";
 import * as application from "@erpx/server-pms/application/read-repository";
 const stayPredicate = `(data_json::jsonb->>'state' IN ('reserved','in_house') OR
@@ -26,7 +27,7 @@ export const pmsDashboardRecordsSql = `WITH selected_stays AS MATERIALIZED (
  WHERE property_id=(SELECT property_id FROM scope) AND kind='guest_account' AND data_json::jsonb->>'state'!='closed' AND (data_json::jsonb->>'due')::bigint>0
  UNION ALL ${PMS_RECORDS_PROJECTION_PREFIX_SQL}
  WHERE property_id=(SELECT property_id FROM scope) AND kind='guest' AND id IN (SELECT data_json::jsonb->>'guestId' FROM selected_stays)
-) SELECT * FROM selected_records ORDER BY updated_at,id`;
+) ${PMS_ORDERED_RECORDS_TAIL_SQL}`;
 function repository(db: SqlDatabase): application.PmsReadRepository {
     return {
         roomSummary: facts => db.prepare(`SELECT count(*)::integer total,
@@ -35,7 +36,7 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
           count(*) FILTER(WHERE r.data_json::jsonb->>'cleanliness'='clean')::integer clean,
           count(*) FILTER(WHERE r.data_json::jsonb->>'cleanliness'='inspected')::integer inspected,
           count(*) FILTER(WHERE r.data_json::jsonb->>'dnd'='true')::integer dnd,
-          count(*) FILTER(WHERE EXISTS(SELECT 1 FROM pms_records st WHERE st.property_id=r.property_id AND st.kind='stay' AND st.data_json::jsonb->>'roomId'=r.id AND st.data_json::jsonb->>'state'='in_house'))::integer occupied
+          count(*) FILTER(WHERE ${pmsStayExistsHeadSql('roomId')} AND st.data_json::jsonb->>'state'='in_house'))::integer occupied
           FROM pms_records r WHERE r.property_id=? AND r.kind='room'
           AND (?='' OR r.data_json::jsonb->>'cleanliness'=?)
           AND (?='' OR position(lower(?) in lower(concat_ws(' ',r.id,r.data_json::jsonb->>'number',r.data_json::jsonb->>'building',r.data_json::jsonb->>'floor')))>0)
@@ -63,7 +64,7 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
    AND (r.data_json::jsonb->>'state'=? OR ?='' OR (?='arrivals' AND r.data_json::jsonb->>'state'='reserved' AND r.data_json::jsonb->>'arrival'=?) OR (?='departures' AND r.data_json::jsonb->>'state'='in_house' AND r.data_json::jsonb->>'departure'<=?))
    AND (?<>'' OR r.kind='reservation' OR r.data_json::jsonb->>'state' IN ('reserved','in_house'))
    AND (CASE WHEN r.kind='stay' THEN (r.data_json::jsonb->>'arrival'<=? AND r.data_json::jsonb->>'departure'>=?) OR r.data_json::jsonb->>'state'='in_house'
-     ELSE EXISTS(SELECT 1 FROM pms_records st WHERE st.property_id=r.property_id AND st.kind='stay' AND st.data_json::jsonb->>'reservationId'=r.id AND ((st.data_json::jsonb->>'arrival'<=? AND st.data_json::jsonb->>'departure'>=?) OR st.data_json::jsonb->>'state'='in_house')) END)
+     ELSE ${pmsStayExistsHeadSql('reservationId')} AND ((st.data_json::jsonb->>'arrival'<=? AND st.data_json::jsonb->>'departure'>=?) OR st.data_json::jsonb->>'state'='in_house')) END)
    AND (?='' OR position(lower(?) in lower(concat_ws(' ',g.data_json::jsonb->>'name',r.id,r.data_json::jsonb->>'number',(SELECT data_json::jsonb->>'number' FROM pms_records parent WHERE parent.property_id=r.property_id AND parent.id=r.data_json::jsonb->>'reservationId'))))>0)
    ORDER BY COALESCE(r.data_json::jsonb->>'arrival',r.updated_at::text),r.id LIMIT 51 OFFSET ?`).bind(facts.propertyId, facts.kind, facts.status, facts.status2, facts.status3, facts.businessDate, facts.status4, facts.businessDate2, facts.status5, facts.to, facts.from, facts.to2, facts.from2, facts.q, facts.q2, facts.offset).all<{
             id: string;
@@ -205,7 +206,7 @@ function repository(db: SqlDatabase): application.PmsReadRepository {
  ${PMS_RECORDS_PROJECTION_PREFIX_SQL}
  WHERE property_id=? AND id=linked.id OFFSET 0
  ) related ON true
- ) SELECT * FROM selected_records ORDER BY updated_at,id`).bind(facts.propertyId, facts.seedsJson, facts.propertyId2, facts.propertyId3,facts.propertyId3, facts.roomView, facts.inventoryView, facts.nightView, facts.businessDate, facts.propertyId4, facts.roomView2, facts.propertyId5, facts.inventoryView2, facts.from, facts.to, facts.from2, facts.to2, facts.propertyId6, facts.inventoryView3, facts.inventoryView4, facts.propertyId7, facts.roomView3, facts.nightView2, facts.roomView4, facts.roomView5, facts.fact24, facts.nightView3, facts.nightView4,facts.propertyId6).all<PmsStoredRecord>().then(rows => rows.results.map(decodePmsRecord)),
+ ) ${PMS_ORDERED_RECORDS_TAIL_SQL}`).bind(facts.propertyId, facts.seedsJson, facts.propertyId2, facts.propertyId3,facts.propertyId3, facts.roomView, facts.inventoryView, facts.nightView, facts.businessDate, facts.propertyId4, facts.roomView2, facts.propertyId5, facts.inventoryView2, facts.from, facts.to, facts.from2, facts.to2, facts.propertyId6, facts.inventoryView3, facts.inventoryView4, facts.propertyId7, facts.roomView3, facts.nightView2, facts.roomView4, facts.roomView5, facts.fact24, facts.nightView3, facts.nightView4,facts.propertyId6).all<PmsStoredRecord>().then(rows => rows.results.map(decodePmsRecord)),
         dashboard: (facts: {
             propertyId: string;
             date: string;
