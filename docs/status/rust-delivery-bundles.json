@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8882,
+    "revision": 8884,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -145284,7 +145284,7 @@
         "owner": "manufacturing",
         "title": "manufacturing TS read tail native cutover (round 12)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -145296,22 +145296,37 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCCman",
-          "claimedAt": "2026-11-24T03:26:02.328Z",
-          "heartbeatAt": "2026-11-24T03:26:02.328Z",
-          "expiresAt": "2026-11-24T03:56:02.328Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-manufacturing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "c66038c29",
+            "owner": "manufacturing",
+            "before": 102,
+            "after": 101,
+            "note": "Reservation and inventory-move history EXISTS guards shared; emitted SQL byte-identical; RD_* untouched."
+          },
+          {
+            "command": "vitest manufacturing BOM (35) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "c66038c29"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: remaining parameterized agg/guard families; RD_* untouched. BEFORE=102.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCCman",
+          "at": "2026-11-24T03:33:49.283Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -145700,17 +145715,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 32,
+        "in_progress": 31,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 665,
+        "blocked": 666,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T03:33:35.239Z",
+    "updatedAt": "2026-11-24T03:33:49.292Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
