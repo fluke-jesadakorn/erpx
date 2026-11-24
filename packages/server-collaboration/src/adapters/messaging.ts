@@ -21,7 +21,7 @@ import { ApiError } from '@erpx/server-runtime/public/http';
 import { createMessagingApplication, type MessagingRepository } from '@erpx/server-collaboration/application/messaging';
 import { nativeOwnerWrite } from '@erpx/server-collaboration/adapters/native-owner-write';
 import {messagingPurchaseControls,requireMessagingCurrentAccount,requireMessagingPurchase,withMessagingPurchasedCommand} from '@erpx/server-collaboration/adapters/messaging-purchases';
-import {messagingMemberIds,messagingOwnerGuard,messagingTeamAccessSql} from './read-tail-sql';
+import {messagingMemberIds,messagingOwnerGuard,messagingTeamAccessSql,messagingRoomByIdSql} from './read-tail-sql';
 async function inward<T>(action: () => Promise<T>) {
     try {
         return await action();
@@ -48,7 +48,7 @@ function application(db: SqlDatabase, actor: WorkContext, allowProvision=true) {
     const write = (kind: string, values: unknown[], key: string, fragments?: { target?: 'room' | 'team'; predicate?: string }) =>
         nativeOwnerWrite(db, actor, kind, values, key, Date.now(), fragments);
     const repository: MessagingRepository<SqlStatement> = { guardAccess(key: string, value: "messaging-access", roomId: string, companyId: string, value2: string[]) {
-            return assertion(db, key, value, `EXISTS(SELECT 1 FROM messaging_rooms r WHERE r.id=? AND r.company_id=? AND ${access})`, [roomId, companyId, ...value2]);
+            return assertion(db, key, value, `EXISTS(${messagingRoomByIdSql('1',access)})`, [roomId, companyId, ...value2]);
         }, room(...args){return nativeMessagingReadRepository(db).room(...args);}, async team(id: string, companyId: string, userId: string, userId2: string) {
             return db
                 .prepare(messagingTeamAccessSql('t.id=? AND ',messagingManagedTeamSql("t", "?"),''))

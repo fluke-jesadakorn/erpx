@@ -92,3 +92,23 @@ export const socialPostRevisionsAgg=(tail:string)=>`(SELECT jsonb_agg(to_jsonb(r
  * trailing condition vary; the fixed `ps.post_id=<post>.id AND
  * ps.source_kind='pms_record'` head, bind order and lock semantics stay. */
 export const socialPostSourcePmsGuard=(post:string,tail:string)=>`NOT EXISTS(SELECT 1 FROM social_post_sources ps WHERE ps.post_id=${post}.id AND ps.source_kind='pms_record'${tail})`;
+/** Byte-identical messaging room-by-id read shared by the room assertion in
+ * messaging.ts and the room reader in messaging-read.ts. Only the projected
+ * column list varies; the fixed `id=? AND company_id=? AND <access>` predicate,
+ * bind order and lock semantics stay unchanged. */
+export const messagingRoomByIdSql=(cols:string,access:string)=>`SELECT ${cols} FROM messaging_rooms r WHERE r.id=? AND r.company_id=? AND ${access}`;
+/** Byte-identical Social agent-reply identity read shared by the request and
+ * retry readers in social-agent.ts. Only the projected column list varies; the
+ * fixed `id=? AND company_id=? AND actor_id=?` prefix, bind order and lock
+ * semantics stay unchanged. */
+export const socialAgentReplyById=(cols:string)=>`SELECT ${cols} FROM social_agent_replies WHERE id=? AND company_id=? AND actor_id=?`;
+/** Byte-identical attachment owner-version guard shared by the portal-facts and
+ * service-facts readers. Only the target table and trailing version predicate
+ * vary; the fixed `id=? AND company_id=? AND version=?` prefix, bind order and
+ * lock semantics stay unchanged. */
+export const attachmentVersionGuard=(table:string,tail:string)=>`EXISTS(SELECT 1 FROM ${table} WHERE id=? AND company_id=? AND version=?${tail})`;
+/** Byte-identical command-receipt by command-id read shared across the replay and
+ * receipt-image readers in work-social-purchases.ts. Only the projected column
+ * list and table alias vary; the fixed `command_id=?` predicate, bind order and
+ * lock semantics stay unchanged. */
+export const commandReceiptById=(cols:string,alias='')=>`SELECT ${cols} FROM command_receipts${alias ? ` ${alias}` : ''} WHERE command_id=?`;

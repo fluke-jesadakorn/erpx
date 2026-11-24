@@ -23,7 +23,7 @@ import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-fea
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 
 import {lockQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
-import {requestedSourcesJsonb,workSocialPostsAgg,workSocialCommentsAgg,workSocialSourcesAgg,socialPurchaseActorFeature,socialPostByIdPredicate,socialAgentReplyLeaseIdentity,socialPostPublishReceipt,socialPostByIdGuard,socialAiPhaseImageSql,socialPostRevisionsAgg,socialPostDraftById} from './read-tail-sql';
+import {requestedSourcesJsonb,workSocialPostsAgg,workSocialCommentsAgg,workSocialSourcesAgg,socialPurchaseActorFeature,socialPostByIdPredicate,socialAgentReplyLeaseIdentity,socialPostPublishReceipt,socialPostByIdGuard,socialAiPhaseImageSql,socialPostRevisionsAgg,socialPostDraftById,commandReceiptById} from './read-tail-sql';
 
 import {executeCommand,replayCommand} from '@erpx/server-workflow/public/commands';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
@@ -82,7 +82,7 @@ async function inSocialUnit<Result>(owner:SqlDatabase,actor:StaffActor,run:(data
 export async function withWorkSocialCommand<Result>(owner:SqlDatabase,actor:StaffActor,command:Command,run:(database:SqlDatabase)=>Promise<Result>):Promise<Result>{
  const {work:mode,project,disabled}=await socialOwnerModes();if(disabled)return run(owner);
  return inSocialUnit(owner,actor,async database=>{
-  const receipt=await database.prepare('SELECT operation,actor_id,record_id FROM command_receipts WHERE command_id=?').bind(command.key).first<{operation:string;actor_id:string;record_id:string}>();
+  const receipt=await database.prepare(commandReceiptById('operation,actor_id,record_id')).bind(command.key).first<{operation:string;actor_id:string;record_id:string}>();
   if(receipt&&(receipt.operation!==command.operation||receipt.actor_id!==actor.userId))throw new ApiError(409,'IDEMPOTENCY_CONFLICT','This command key belongs to another original Social action.');
   const published=command.publishedDraftReplay&&command.id?await database.prepare(`SELECT 1 FROM social_post_drafts draft JOIN social_posts post ON post.id=draft.published_post_id AND post.company_id=draft.company_id WHERE draft.id=? AND draft.company_id=? AND draft.author_id=? AND EXISTS(${socialPostPublishReceipt('post.id','draft.author_id')})`).bind(command.id,actor.companyId,actor.userId).first():null;
   const retained=command.operation==='work.handover.publish'&&command.id?await database.prepare(socialPostByIdGuard('author_id=?')).bind(command.id,actor.companyId,actor.userId).first():null;
@@ -208,7 +208,7 @@ export async function workSocialAttachmentSourceImage(database:SqlDatabase,compa
 
 /** Closing only an original creator's still-unconsumed private upload grants
  * no parent read, Project membership, byte access, publication or new work. */
-const receiptImageSql='SELECT to_jsonb(c)::text image FROM command_receipts c WHERE command_id=?';
+const receiptImageSql=commandReceiptById('to_jsonb(c)::text image','c');
 export async function withWorkSocialUploadCleanup<Result extends {id:string}>(owner:SqlDatabase,actor:StaffActor,input:{id:string;key:string;kind:'comment'|'edit'},run:(database:SqlDatabase)=>Promise<Result>):Promise<Result>{
  if(units.has(owner))throw new ApiError(503,'WORK_SOCIAL_TRANSACTION_REQUIRED','Upload cleanup requires its fresh complete original owner unit.');
  return inSocialUnit(owner,actor,async database=>{
@@ -219,12 +219,12 @@ export async function withWorkSocialUploadCleanup<Result extends {id:string}>(ow
   type Draft=Record<string,unknown>;const draft=JSON.parse(before.draft) as Draft;
   if(draft.author_id!==actor.userId)throw new ApiError(403,'DRAFT_LOCKED','Only the original author can clean up this private upload.');
   if(before.consumed||draft.published_post_id!==null||draft.published_comment_id!==null||draft.edit_saved_version!==null||(input.kind==='comment'?!draft.comment_parent_post_id||draft.edit_post_id!==null:!draft.edit_post_id||draft.comment_parent_post_id!==null))throw new ApiError(409,'UPLOAD_DRAFT_CONSUMED','This upload has already been consumed by its original conversation.');
-  const prior=await database.prepare('SELECT operation,actor_id,record_id,to_jsonb(c)::text image FROM command_receipts c WHERE command_id=?').bind(input.key).first<{operation:string;actor_id:string;record_id:string;image:string}>();
+  const prior=await database.prepare(commandReceiptById('operation,actor_id,record_id,to_jsonb(c)::text image','c')).bind(input.key).first<{operation:string;actor_id:string;record_id:string;image:string}>();
   if(prior&&(prior.operation!==operation||prior.actor_id!==actor.userId||prior.record_id!==input.id))throw new ApiError(409,'IDEMPOTENCY_CONFLICT','This command key belongs to another original action.');
   if(draft.cancelled_at!==null&&!prior)throw new ApiError(404,'UPLOAD_DRAFT_UNAVAILABLE','This upload draft was already cancelled.');
   const files=await beginSocialUploadCleanupFiles(database,{id:input.id,companyId:actor.companyId,userId:actor.userId,version:Number(draft.version)}),result=await run(database);
   const exactResult=(value:unknown)=>value!==null&&typeof value==='object'&&!Array.isArray(value)&&Object.keys(value).length===1&&Reflect.get(value,'id')===input.id;
-  const receiptRow=await database.prepare("SELECT operation,actor_id,record_id,authority_json::jsonb->>'companyId' company_id,result_json,to_jsonb(c)::text image FROM command_receipts c WHERE command_id=?").bind(input.key).first<{operation:string;actor_id:string;record_id:string;company_id:string;result_json:string;image:string}>();
+  const receiptRow=await database.prepare(commandReceiptById("operation,actor_id,record_id,authority_json::jsonb->>'companyId' company_id,result_json,to_jsonb(c)::text image",'c')).bind(input.key).first<{operation:string;actor_id:string;record_id:string;company_id:string;result_json:string;image:string}>();
   if(!exactResult(result)||!receiptRow||receiptRow.operation!==operation||receiptRow.actor_id!==actor.userId||receiptRow.record_id!==input.id||receiptRow.company_id!==actor.companyId||!exactResult(JSON.parse(receiptRow.result_json)))throw new ApiError(409,'SOCIAL_UPLOAD_CLEANUP_CHANGED','The original cleanup result or receipt changed.');
   const receipt=receiptRow.image;
   // The original Workflow validator owns the request/actor/authority hash.

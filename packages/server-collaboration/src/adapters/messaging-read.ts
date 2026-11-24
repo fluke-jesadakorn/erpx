@@ -12,10 +12,11 @@ import { ApiError } from '@erpx/server-runtime/public/http';
 import { requireMessagingPurchase } from '@erpx/server-collaboration/adapters/messaging-purchases';
 import {messagingRoomAccessSql} from '@erpx/server-collaboration/adapters/messaging-source-policy';
 import{createMessagingRead,type createMessagingReadPorts}from '@erpx/server-collaboration/application/messaging';
+import {messagingRoomByIdSql} from './read-tail-sql';
 const access=messagingRoomAccessSql();
 export function nativeMessagingReadRepository(db:SqlDatabase):createMessagingReadPorts<SqlStatement>['repository']{return{async room(id: string, companyId: string, value: string[]) {
             return db
-                .prepare(`SELECT r.* FROM messaging_rooms r WHERE r.id=? AND r.company_id=? AND ${access}`)
+                .prepare(messagingRoomByIdSql('r.*',access))
                 .bind(id, companyId, ...value)
                 .first<MessagingRoom>();
         }};}
