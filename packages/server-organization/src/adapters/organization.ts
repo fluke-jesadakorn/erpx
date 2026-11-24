@@ -35,6 +35,7 @@ import {organizationRoster}from '@erpx/server-organization/public/organization-r
 import {NODE_BRANCH_ACTIVE,NODE_BRANCH_ACTIVE_EXISTS,departmentSnapshotMissing} from './organization-read-tail-sources';
 import {changeVersionGuardSource} from './organization-read-tail-sources-r39';
 import {nodeChangeByIdCompany} from './organization-read-tail-sources-r40';
+import {relocationVersionSnapshot} from './organization-read-tail-sources-r41';
 import {snapshotProjection,staffLevelNumberSource} from './organization-column-alias-families';
 import {impactCount} from './organization-column-alias-families-r29';
 const HEAD_SEAT_SNAPSHOT_SOURCE =
@@ -55,9 +56,9 @@ async function organizationNodeImpact(db:SqlDatabase,companyId:string,nodeId:str
 async function relocationSnapshot(db:SqlDatabase,companyId:string,departmentId:string){
   const [engagements,positions,assignments,rules,head,legacyHead,flow]=await Promise.all([
     db.prepare(`SELECT id,version,status FROM (${people_payrollPlatformSources.hr_engagements}) hr_engagements WHERE company_id=? AND department_id=? AND status IN ('draft','onboarding','active','suspended') ORDER BY id`).bind(companyId,departmentId).all(),
-    db.prepare("SELECT id,version FROM organization_positions WHERE company_id=? AND department_id=? AND active=1 ORDER BY id").bind(companyId,departmentId).all(),
-    db.prepare(`SELECT id,version FROM (${identity_accessPlatformSources.assignments}) assignments WHERE company_id=? AND scope_kind='department' AND scope_node_id=? AND revoked_at IS NULL ORDER BY id`).bind(companyId,departmentId).all(),
-    db.prepare(`SELECT id,version FROM (${identity_accessPlatformSources.organization_gpo_rules}) organization_gpo_rules WHERE company_id=? AND target_kind='department' AND target_id=? ORDER BY id`).bind(companyId,departmentId).all(),
+    db.prepare(relocationVersionSnapshot('organization_positions','department_id=? AND active=1')).bind(companyId,departmentId).all(),
+    db.prepare(relocationVersionSnapshot(`(${identity_accessPlatformSources.assignments}) assignments`, "scope_kind='department' AND scope_node_id=? AND revoked_at IS NULL")).bind(companyId,departmentId).all(),
+    db.prepare(relocationVersionSnapshot(`(${identity_accessPlatformSources.organization_gpo_rules}) organization_gpo_rules`, "target_kind='department' AND target_id=?")).bind(companyId,departmentId).all(),
     db.prepare(HEAD_SEAT_SNAPSHOT_SOURCE).bind(companyId,departmentId).first(),
     db.prepare(DEPARTMENT_HEAD_SNAPSHOT_SOURCE).bind(companyId,departmentId).first(),
     db.prepare(DEPARTMENT_FLOW_SNAPSHOT_SOURCE).bind(companyId,departmentId).first(),
