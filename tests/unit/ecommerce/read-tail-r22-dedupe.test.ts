@@ -93,7 +93,7 @@ describe('Ecommerce read-tail r22 select-one probe dedupe', () => {
 });
 
 describe('Ecommerce read-tail r22 retirement check', () => {
-  test('retirement:ts-statements === 26 (r22 BEFORE=29; r21 BEFORE=38)', () => {
+  test('retirement:ts-statements === 25 (r23 BEFORE=26; r22 BEFORE=29)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -103,6 +103,6 @@ describe('Ecommerce read-tail r22 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(26);
+    expect(total).toBe(25);
   });
 });

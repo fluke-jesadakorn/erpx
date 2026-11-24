@@ -53,7 +53,7 @@ describe('Ecommerce read-tail r20 C5-C9 dedupe', () => {
     expect(po).not.toContain('EXISTS(SELECT 1 FROM (${commerce.deliveries}) delivery');
     expect(ar).not.toContain(head.workforceRow);
     expect(po).toContain("import {ecommerceExistsGuard} from './read-tail-sql';");
-    expect(ar).toContain("import {ecommerceListingEvidence,ecommerceScopeRow} from './read-tail-sql';");
+    expect(ar).toContain("import {ecommerceListingEvidence,ecommerceRowProbe,ecommerceScopeRow} from './read-tail-sql';");
     expect((po.match(/ecommerceExistsGuard\(/g) ?? []).length).toBe(3);
     expect((ar.match(/ecommerceScopeRow\(/g) ?? []).length).toBe(1);
     expect(shared.match(/export const ecommerceExistsGuard = /g) ?? []).toHaveLength(1);
@@ -61,7 +61,7 @@ describe('Ecommerce read-tail r20 C5-C9 dedupe', () => {
     expect(po).toContain("NOT ${ecommerceExistsGuard('money_transaction_snapshots captured'");
     expect(po).toContain('OR ${ecommerceExistsGuard(`(${commerce.deliveries}) delivery`');
     expect(po).toContain("NOT ${ecommerceExistsGuard('ecommerce_fulfillment_links link'");
-    expect(ar).toContain("`SELECT 1 FROM${ecommerceScopeRow('workforce_actor_scope', true, '')} WHERE ${current.where}`");
+    expect(ar).toContain("ecommerceRowProbe(ecommerceScopeRow('workforce_actor_scope', true, ''),current.where,'')");
   });
 
   test('binds and locks stay unchanged; composed guards stay read-only', () => {
@@ -82,11 +82,13 @@ describe('Ecommerce read-tail r20 C5-C9 dedupe', () => {
     expect(ar).toContain('ecommerceCommerceSourceReadLocks(database)');
   });
 
-  test('receipt duplicate probe is left alone because it is not byte-identical to a frame', () => {
-    expect(pb).toContain(head.receiptProbe);
-    expect((pb.match(/SELECT 1 FROM command_receipts WHERE command_id=\?/g) ?? []).length).toBe(1);
+  test('both bare probes now compose from the r23 frame, byte-identically', () => {
+    expect(pb).not.toContain(head.receiptProbe);
+    expect((pb.match(/SELECT 1 FROM command_receipts WHERE command_id=\?/g) ?? []).length).toBe(0);
     expect(po).not.toContain(head.receiptProbe);
     expect(ar).not.toContain(head.receiptProbe);
+    expect(pb).toContain("ecommerceRowProbe('command_receipts',");
+    expect(ar).toContain("ecommerceRowProbe(ecommerceScopeRow('workforce_actor_scope', true, ''),current.where,'')");
     expect(pb).not.toContain('ecommerceExistsGuard');
     expect(pb).not.toContain('receiptAuditGuard');
   });
@@ -114,7 +116,7 @@ describe('Ecommerce read-tail r20 C5-C9 dedupe', () => {
 });
 
 describe('Ecommerce read-tail r20 retirement check', () => {
-  test('retirement:ts-statements === 26 (r22 BEFORE=29; r21 BEFORE=38)', () => {
+  test('retirement:ts-statements === 25 (r23 BEFORE=26; r22 BEFORE=29)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -124,6 +126,6 @@ describe('Ecommerce read-tail r20 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(26);
+    expect(total).toBe(25);
   });
 });

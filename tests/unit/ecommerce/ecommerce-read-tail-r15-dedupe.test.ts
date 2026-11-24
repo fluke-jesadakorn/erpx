@@ -68,7 +68,7 @@ describe('Ecommerce read-tail r15 listing-evidence dedupe', () => {
 });
 
 describe('Ecommerce read-tail r15 retirement check', () => {
-  test('retirement:ts-statements stays strictly below the r15 BEFORE=51 baseline (r22 pin 26)', () => {
+  test('retirement:ts-statements stays strictly below the r15 BEFORE=51 baseline (r23 pin 25)', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -79,6 +79,6 @@ describe('Ecommerce read-tail r15 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(51);
-    expect(total).toBe(26);
+    expect(total).toBe(25);
   });
 });

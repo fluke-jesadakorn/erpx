@@ -13,7 +13,7 @@ import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-avail
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
-import {ecommerceModuleAssignment,ecommerceScopeRow,ecommerceSourceIdentity,ecommerceReleaseGate} from './read-tail-sql';
+import {ecommerceModuleAssignment,ecommerceRowProbe,ecommerceScopeRow,ecommerceSourceIdentity,ecommerceReleaseGate} from './read-tail-sql';
 type Target={kind:'channel'|'listing'|'cart'|'checkout';id:string};
 type Source={company_id:string;branch_id:string|null;department_id:string|null;version:number;identity:string;image:string};
 export type EcommercePurchaseCommand={operation:string;key:string;id:string;purpose:'new-work'|'settle-existing';review?:boolean;before?:Target;after:Target};
@@ -69,7 +69,7 @@ export async function withEcommercePurchasedCommand<Result extends Record<string
  if(mode==='disabled')return run(provided??owner);
  if(provided)throw new ApiError(503,'ECOMMERCE_COMPOSITION_REQUIRED','Ecommerce requires its complete owned Holding handoff.');
  return commerceOwnerTransaction(owner,actor,async database=>{
-  const bound=await current(database,actor,command.review),prior=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(command.key,command.operation,command.id,actor.userId,actor.companyId).first(),before=command.before?await source(database,actor,command.before):null;
+  const bound=await current(database,actor,command.review),prior=await database.prepare(ecommerceRowProbe('command_receipts',"command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?")).bind(command.key,command.operation,command.id,actor.userId,actor.companyId).first(),before=command.before?await source(database,actor,command.before):null;
   if(prior&&!command.before)await source(database,actor,command.after);
   const scope={companyId:actor.companyId,capability:'sales.ecommerce',purpose:prior?'history' as const:command.purpose},key=`ecommerce-purchase:${randomUUID()}`,boundary=purchaseCommandBoundary(database,mode,key,scope)!;
   await checkPurchasedCapability(database,mode,scope);await database.batch(boundary.before);

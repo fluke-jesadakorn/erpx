@@ -6,6 +6,11 @@ export const ecommerceModuleAssignment = (alias = '') => {
  const p = alias ? `${alias}.` : '';
  return ecommerceSelectOne(`FROM assignments${alias ? ` ${alias}` : ''} WHERE ${p}id=? AND ${p}company_id=? AND (jsonb_array_length(${p}modules_json::jsonb)=0 OR ${p}modules_json::jsonb @> '["ecommerce"]'::jsonb)`);
 };
+/** r23: one parameterized bare one-row probe frame. The workforce-scope
+ *  current-assignment probe and the command-receipt replay probe rebuild
+ *  byte-identically. Text only: binds, source locks and emitted SQL unchanged. */
+export const ecommerceRowProbe = (from: string, where: string, gap = ' ') =>
+  `SELECT 1 FROM${gap}${from} WHERE ${where}`;
 /** r21: one scoped-row frame emits both column shapes byte-identically. The
  *  r20 separator stays configurable; text only, binds and locks unchanged. */
 export const ecommerceScopeRow = (alias: string, branch = false, separator = ' ') =>
