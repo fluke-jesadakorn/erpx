@@ -333,6 +333,9 @@ mod field_service_http_wire;
 mod field_service_http_core;
 
 #[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
+pub mod finance_journal_batch;
+
+#[cfg(any(feature = "existing-business", feature = "finance-field-write"))]
 pub mod finance_journal_create;
 
 #[cfg(feature = "field-service")]

@@ -6,6 +6,7 @@ export {createNativeJournalPageReader,nativeJournalPageWorkspace,nativeJournalPa
 export type {NativeJournalPageContext} from '../adapters/server/native-journal-page';
 export {nativeServiceNoCharge,nativeServiceInvoicePost,nativeJournalEdit,nativeJournalEditReadback,nativeJournalCreate,nativeJournalCreateReadback,nativeJournalPost,nativeJournalPostReadback,nativeJournalReverse,nativeJournalReverseReadback} from '../adapters/server/native-journal-post';
 
+export {nativeJournalBatch} from '../adapters/server/native-journal-batch';
 export {nativeServiceInvoiceWorkspace,nativeServiceInvoiceReadback,nativeServiceInvoiceFlowReadback} from '../adapters/server/native-service-invoice';
 export {nativeSalesInvoiceCreate} from '../adapters/server/native-sales-invoice-create';
 export {nativeSalesDefaultsWorkspace,nativeSalesDefaultsPrepare,nativeSalesDefaultsDecide} from '../adapters/server/native-sales-defaults';

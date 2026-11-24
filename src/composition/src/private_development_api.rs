@@ -6,6 +6,9 @@ use crate::support_files::{SupportFilesBackend, SupportFilesService};
 #[cfg(feature = "finance-field-write")]
 use crate::{
     business_http::{BusinessHttpTarget, business_router},
+    finance_journal_batch::{
+        FinanceJournalBatchService, FinanceJournalBatchTarget, finance_journal_batch_router,
+    },
     finance_journal_create::{FinanceJournalCreateConfiguration, FinanceJournalCreateService},
     finance_journal_create_http::{FinanceJournalCreateTarget, finance_journal_create_router},
     finance_journal_edit::FinanceJournalEditService,
@@ -3566,6 +3569,8 @@ async fn assemble_checked(
         #[cfg(feature = "finance-field-write")]
         let mut post_targets = Vec::new();
         #[cfg(feature = "finance-field-write")]
+        let mut batch_targets = Vec::new();
+        #[cfg(feature = "finance-field-write")]
         let mut create_targets = Vec::new();
         #[cfg(feature = "finance-field-write")]
         let mut edit_targets = Vec::new();
@@ -6258,6 +6263,21 @@ async fn assemble_checked(
                         if reverse {
                             finance_reversal_targets.insert(target);
                         }
+                        // Batch-post reuses the exact journal-post Company/Holding
+                        // allow-chain and its enforced finance review policy.
+                        if post {
+                            batch_targets.push(FinanceJournalBatchTarget {
+                                host: holding.host.clone(),
+                                holding_slug: holding.registration.slug.clone(),
+                                service: Arc::new(FinanceJournalBatchService::new(
+                                    authorizer.clone(),
+                                    action_config.clone(),
+                                    catalogue.clone(),
+                                    company.clone(),
+                                    Arc::new(SharedClock(clock.clone())),
+                                )),
+                            });
+                        }
                         post_targets.push(BusinessHttpTarget {
                             host: holding.host.clone(),
                             holding_slug: holding.registration.slug.clone(),
@@ -6505,6 +6525,17 @@ async fn assemble_checked(
                         config.holdings_registry.clone(),
                         Arc::new(FinanceJournalReadScopeHeaders),
                         post_targets,
+                    )
+                    .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
+                );
+            }
+            if !batch_targets.is_empty() {
+                router = router.merge(
+                    finance_journal_batch_router(
+                        config.policy.clone(),
+                        config.holdings_registry.clone(),
+                        Arc::new(FinanceJournalReadScopeHeaders),
+                        batch_targets,
                     )
                     .map_err(|_| "PRIVATE_API_FINANCE_CONFIGURATION_INVALID")?,
                 );
