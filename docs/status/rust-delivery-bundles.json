@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9340,
+    "revision": 9344,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -150854,6 +150854,78 @@
         "nextAction": "Next: only advisory/FOR UPDATE and unique reads likely remain; re-scan and report blocked if so. BEFORE=69.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.learning.read-tail-r5",
+        "goalId": "G4",
+        "owner": "learning",
+        "title": "learning TS read tail native cutover (r5)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-learning/src/**",
+          "tests/unit/learning/**",
+          "tests/integration/learning/**"
+        ],
+        "resources": [
+          "owner:learning"
+        ],
+        "claim": {
+          "runId": "run-20261123-j",
+          "agentId": "wGCElea",
+          "claimedAt": "2026-11-24T05:15:40.380Z",
+          "heartbeatAt": "2026-11-24T05:15:40.380Z",
+          "expiresAt": "2026-11-24T05:45:40.380Z",
+          "generation": 162
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=81.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.platform_administration.read-tail-r12",
+        "goalId": "G4",
+        "owner": "platform_administration",
+        "title": "platform_administration TS read tail native cutover (r12)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-platform_administration/src/**",
+          "tests/unit/platform_administration/**",
+          "tests/integration/platform_administration/**"
+        ],
+        "resources": [
+          "owner:platform_administration"
+        ],
+        "claim": {
+          "runId": "run-20261123-j",
+          "agentId": "wGCEpla",
+          "claimedAt": "2026-11-24T05:15:41.058Z",
+          "heartbeatAt": "2026-11-24T05:15:41.058Z",
+          "expiresAt": "2026-11-24T05:45:41.058Z",
+          "generation": 162
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=36.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -150862,11 +150934,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1143,
+      "totalPackets": 1145,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 35,
+        "in_progress": 37,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -150876,7 +150948,7 @@
       }
     },
     "lastCoordinatorGeneration": 162,
-    "updatedAt": "2026-11-24T05:15:02.025Z",
+    "updatedAt": "2026-11-24T05:15:41.078Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
