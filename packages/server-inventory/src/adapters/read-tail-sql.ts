@@ -274,3 +274,11 @@ export const attachmentOwnerVersionGuardSql = (table: string, extra = '') =>
  *  native read registry stay untouched. r11-r37 helpers above are left unchanged. */
 export const attachmentLotIdsSql = (lots: string, lines: string, lineFk: string, parentFk: string) =>
   `ARRAY(SELECT lot_id FROM ${lots} cl JOIN ${lines} l ON l.id=cl.${lineFk} WHERE l.${parentFk}=d.id) lot_ids`;
+/** r39: parameterized reserved-stock availability SUM. The production joined
+ *  projection's reserved-stock and reserved-availability facts share one
+ *  byte-identical SQL head; only the reservation alias and WHERE tail vary.
+ *  Every consumer keeps its own binds and independent statement. Locks, count
+ *  sources/adapters, the clock CTE and native transport stay untouched.
+ *  r11-r38 helpers above are left unchanged. */
+export const reservedAvailabilitySumSql = (tail: string) =>
+  `COALESCE((SELECT sum(quantity_milli) FROM inventory_active_reservations ${tail}),0)`;
