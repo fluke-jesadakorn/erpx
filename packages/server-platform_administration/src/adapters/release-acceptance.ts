@@ -1,4 +1,4 @@
-import {releaseRevisionTable,releaseCurrencyPredicate,releaseRevisionShareLockSql,latestReleaseIdSql} from "@erpx/server-platform_administration/adapters/release-predicate";
+import {releaseRevisionTable,releaseCurrencyPredicate,releaseRevisionShareLockSql,latestReleaseIdSql,activeBranchCountSql} from "@erpx/server-platform_administration/adapters/release-predicate";
 import { platformOwnerProjectionSources as identity_accessPlatformSources } from "@erpx/server-identity_access/public/platform-owner-projection-sources";
 import { platformOwnerProjectionSources as organizationPlatformSources } from "@erpx/server-organization/public/platform-owner-projection-sources";
 import "server-only";
@@ -32,7 +32,7 @@ async function inputsGuard(db: SqlDatabase, actor: WorkContext, key: string, rev
     db.prepare(releaseRevisionShareLockSql(scope)).bind(actor.companyId),
     assertion(db, key, 'release-configuration', `EXISTS(SELECT 1 FROM ${releaseRevisionTable(scope)} WHERE company_id=? AND revision=?)`, [actor.companyId, revision]),
     assertion(db, key, 'release-setup', `EXISTS(SELECT 1 FROM (${organizationPlatformSources.company_business_acceptance}) company_business_acceptance WHERE company_id=? AND status='accepted' AND version=?)`, [actor.companyId, setupVersion]),
-    ...(scope === productionScope.version ? [assertion(db, key, 'release-establishment', `(SELECT count(*) FROM (${organizationPlatformSources.organization_nodes}) organization_nodes WHERE company_id=? AND kind='branch' AND status='active')=1`, [actor.companyId]),
+    ...(scope === productionScope.version ? [assertion(db, key, 'release-establishment', `(${activeBranchCountSql('?')})=1`, [actor.companyId]),
     assertion(db, key, 'release-currency', releaseCurrencyPredicate('?'), [actor.companyId])] : []),
   ];
 }
@@ -44,7 +44,7 @@ function repository(db:SqlDatabase,companyId:string,work?:WorkContext):ReleaseRe
  inputFacts:async scope=>{const [revision,setup,branches,currency]=await Promise.all([
  db.prepare(`SELECT revision FROM ${releaseRevisionTable(scope)} WHERE company_id=?`).bind(companyId).first<{revision:number}>(),
  db.prepare(`SELECT version,status FROM (${organizationPlatformSources.company_business_acceptance}) company_business_acceptance WHERE company_id=?`).bind(companyId).first<{version:number;status:string}>(),
- db.prepare(`SELECT count(*) count FROM (${organizationPlatformSources.organization_nodes}) organization_nodes WHERE company_id=? AND kind='branch' AND status='active'`).bind(companyId).first<{count:number}>(),
+ db.prepare(activeBranchCountSql('?', { countAlias: 'count' })).bind(companyId).first<{count:number}>(),
  db.prepare(`SELECT ${releaseCurrencyPredicate('?')} AS compatible`).bind(companyId).first<{compatible:boolean}>()]);return {revision,setup,branches,currency};},
  row:(releaseId,scope)=>db.prepare(`SELECT * FROM company_release_acceptances WHERE company_id=? ${releaseId?'AND id=?':'AND scope_version=?'} ORDER BY created_at DESC,id DESC LIMIT 1`).bind(companyId,releaseId??scope).first<ReleaseRow>(),
  latest:scope=>db.prepare('SELECT id FROM company_release_acceptances WHERE company_id=? AND scope_version=? ORDER BY created_at DESC,id DESC LIMIT 1').bind(companyId,scope).first<{id:string}>(),

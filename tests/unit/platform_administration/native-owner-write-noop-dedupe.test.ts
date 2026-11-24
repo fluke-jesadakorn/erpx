@@ -57,4 +57,17 @@ describe('platform administration native owner-write no-op dedupe', () => {
     expect(acceptance).toContain("latestReleaseIdSql('?', '?')");
     expect(acceptance).not.toContain('WHERE latest.company_id=?');
   });
+
+  it('keeps one canonical active-branch count subquery and reuses it in guards, inputs and predicate', () => {
+    const branchBody = "organization_nodes) organization_nodes WHERE company_id=? AND kind='branch' AND status='active'";
+    const predicate = source('adapters/release-predicate.ts');
+    const acceptance = source('adapters/release-acceptance.ts');
+    // The literal body survives once in the helper definition only.
+    expect(`${predicate}\n${acceptance}`.split("organization_nodes}) ${options.qualifier ?? 'organization_nodes'} WHERE").length - 1).toBe(1);
+    expect(predicate).toContain("activeBranchCountSql('release.company_id', { qualifier: 'branch' })");
+    expect(acceptance).toContain("activeBranchCountSql('?')");
+    expect(acceptance).toContain("activeBranchCountSql('?', { countAlias: 'count' })");
+    expect(acceptance).not.toContain(branchBody);
+    expect(predicate).not.toContain("branch WHERE branch.company_id=release.company_id");
+  });
 });
