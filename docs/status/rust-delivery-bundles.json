@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8086,
+    "revision": 8091,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -116282,7 +116282,7 @@
         "owner": "ecommerce",
         "title": "Mount ecommerce listing commands + TS client + route switch",
         "kind": "integration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -116303,7 +116303,14 @@
           "owner:ecommerce",
           "resource:composition"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGB2eco",
+          "claimedAt": "2026-11-24T01:41:21.142Z",
+          "heartbeatAt": "2026-11-24T01:41:21.142Z",
+          "expiresAt": "2026-11-24T02:11:21.142Z",
+          "generation": 161
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -120890,7 +120897,7 @@
         "owner": "manufacturing",
         "title": "manufacturing TS read tail native cutover (round 2)",
         "kind": "migration",
-        "status": "blocked",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -120902,7 +120909,14 @@
         "resources": [
           "owner:manufacturing"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGB1man",
+          "claimedAt": "2026-11-24T01:41:20.971Z",
+          "heartbeatAt": "2026-11-24T01:41:20.971Z",
+          "expiresAt": "2026-11-24T02:11:20.971Z",
+          "generation": 161
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -120928,7 +120942,7 @@
           }
         ],
         "retainedLegacy": [],
-        "blocker": "handoff",
+        "blocker": null,
         "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261123-g",
@@ -135766,6 +135780,93 @@
         "nextAction": "Next: finance_journal_lines projection (4 copies -> -3) or remaining journals literals in hospitality/commercial. BEFORE=2257.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.benefits.read-tail-dedupe",
+        "goalId": "G4",
+        "owner": "benefits",
+        "title": "benefits TS read tail native cutover (new lane)",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-benefits/src/**",
+          "tests/unit/benefits/**",
+          "tests/integration/benefits/**"
+        ],
+        "resources": [
+          "owner:benefits"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: smallest byte-identical fragment groups in record-purchases/purchases/attachment-read/attachment-purchases; BEFORE=80. Report blocked if none. wGAYben",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.learning.read-tail-r1",
+        "goalId": "G4",
+        "owner": "learning",
+        "title": "learning TS read tail native cutover (new lane)",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-learning/src/**",
+          "tests/unit/learning/**",
+          "tests/integration/learning/**"
+        ],
+        "resources": [
+          "owner:learning"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: own-local byte-identical dedupe or orphan adapter; BEFORE=94. wGAZlea",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.runtime.read-tail-r1",
+        "goalId": "G4",
+        "owner": "runtime",
+        "title": "runtime TS read tail native cutover (new lane)",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-runtime/src/**",
+          "tests/unit/runtime/**",
+          "tests/integration/runtime/**"
+        ],
+        "resources": [
+          "owner:runtime"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: own-local byte-identical dedupe; avoid executive metric source regex; BEFORE=71. wGB0run",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -135774,21 +135875,21 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 849,
+      "totalPackets": 852,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 16,
-        "in_progress": 27,
+        "pending": 19,
+        "in_progress": 28,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 477,
+        "blocked": 476,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:41:07.313Z",
+    "updatedAt": "2026-11-24T01:41:21.150Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
