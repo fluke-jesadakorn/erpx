@@ -115,6 +115,72 @@ const READ_POSTING_MAPPING_STATE: NativeCommerceReadStatement = NativeCommerceRe
     bind_count: 1,
 };
 
+/// Native successor of the TypeScript product page-row read. The caller binds
+/// `[company_id]`.
+pub const RD_PRODUCT_PAGE_ROWS: &str = "commerce_rd_product_page_rows";
+const SQL_PRODUCT_PAGE_ROWS: &str =
+    "SELECT *,sku AS page_key FROM commerce_products WHERE company_id=?";
+const READ_PRODUCT_PAGE_ROWS: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_PRODUCT_PAGE_ROWS,
+    sql: SQL_PRODUCT_PAGE_ROWS,
+    bind_count: 1,
+};
+
+/// Native successor of the TypeScript product master-row read. The caller
+/// binds `[company_id]`.
+pub const RD_PRODUCT_MASTER_ROWS: &str = "commerce_rd_product_master_rows";
+const SQL_PRODUCT_MASTER_ROWS: &str =
+    "SELECT * FROM commerce_products WHERE company_id=? ORDER BY sku";
+const READ_PRODUCT_MASTER_ROWS: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_PRODUCT_MASTER_ROWS,
+    sql: SQL_PRODUCT_MASTER_ROWS,
+    bind_count: 1,
+};
+
+/// Native successor of the TypeScript active-product read. The caller binds
+/// `[record_id, company_id]`.
+pub const RD_PRODUCT_ACTIVE: &str = "commerce_rd_product_active";
+const SQL_PRODUCT_ACTIVE: &str =
+    "SELECT * FROM commerce_products WHERE id=? AND company_id=? AND status='active'";
+const READ_PRODUCT_ACTIVE: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_PRODUCT_ACTIVE,
+    sql: SQL_PRODUCT_ACTIVE,
+    bind_count: 2,
+};
+
+/// Native successor of the TypeScript active-product options read. The caller
+/// binds `[company_id]`.
+pub const RD_PRODUCT_ACTIVE_OPTIONS: &str = "commerce_rd_product_active_options";
+const SQL_PRODUCT_ACTIVE_OPTIONS: &str =
+    "SELECT id,name FROM commerce_products WHERE company_id=? AND status='active' ORDER BY name";
+const READ_PRODUCT_ACTIVE_OPTIONS: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_PRODUCT_ACTIVE_OPTIONS,
+    sql: SQL_PRODUCT_ACTIVE_OPTIONS,
+    bind_count: 1,
+};
+
+/// Native successor of the TypeScript product master-detail read. The caller
+/// binds `[record_id, company_id]`.
+pub const RD_PRODUCT_MASTER_DETAIL: &str = "commerce_rd_product_master_detail";
+const SQL_PRODUCT_MASTER_DETAIL: &str =
+    "SELECT * FROM commerce_products WHERE id=? AND company_id=?";
+const READ_PRODUCT_MASTER_DETAIL: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_PRODUCT_MASTER_DETAIL,
+    sql: SQL_PRODUCT_MASTER_DETAIL,
+    bind_count: 2,
+};
+
+/// Native successor of the TypeScript product point read. The caller binds
+/// `[record_id, company_id]`.
+pub const RD_PRODUCT_POINT: &str = "commerce_rd_product_point";
+const SQL_PRODUCT_POINT: &str =
+    "SELECT id FROM commerce_products WHERE id=? AND company_id=? AND status='active'";
+const READ_PRODUCT_POINT: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_PRODUCT_POINT,
+    sql: SQL_PRODUCT_POINT,
+    bind_count: 2,
+};
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,
@@ -125,6 +191,12 @@ const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_SETTINGS_BY_COMPANY,
     READ_CURRENCY_BY_COMPANY,
     READ_POSTING_MAPPING_STATE,
+    READ_PRODUCT_PAGE_ROWS,
+    READ_PRODUCT_MASTER_ROWS,
+    READ_PRODUCT_ACTIVE,
+    READ_PRODUCT_ACTIVE_OPTIONS,
+    READ_PRODUCT_MASTER_DETAIL,
+    READ_PRODUCT_POINT,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -148,6 +220,12 @@ mod tests {
             (RD_SETTINGS_BY_COMPANY, SQL_SETTINGS_BY_COMPANY, 1usize),
             (RD_CURRENCY_BY_COMPANY, SQL_CURRENCY_BY_COMPANY, 1usize),
             (RD_POSTING_MAPPING_STATE, SQL_POSTING_MAPPING_STATE, 1usize),
+            (RD_PRODUCT_PAGE_ROWS, SQL_PRODUCT_PAGE_ROWS, 1usize),
+            (RD_PRODUCT_MASTER_ROWS, SQL_PRODUCT_MASTER_ROWS, 1usize),
+            (RD_PRODUCT_ACTIVE, SQL_PRODUCT_ACTIVE, 2usize),
+            (RD_PRODUCT_ACTIVE_OPTIONS, SQL_PRODUCT_ACTIVE_OPTIONS, 1usize),
+            (RD_PRODUCT_MASTER_DETAIL, SQL_PRODUCT_MASTER_DETAIL, 2usize),
+            (RD_PRODUCT_POINT, SQL_PRODUCT_POINT, 2usize),
         ];
         for (kind, sql, bind_count) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
@@ -164,7 +242,7 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 9);
+        assert_eq!(STATEMENTS.len(), 15);
     }
 
     #[test]

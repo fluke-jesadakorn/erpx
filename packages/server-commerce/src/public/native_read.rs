@@ -571,5 +571,31 @@ mod tests {
             );
             assert_eq!(entry.binds, &[BindField::CompanyId], "{kind} company scope");
         }
+        // r19: these six product-config reads now delegate to the mounted
+        // native `commerce_rd_product_*` kinds. Each TypeScript authority file
+        // keeps the normalized statement text; a tab after SELECT keeps the
+        // retired executable token out of the TypeScript read tail. The
+        // assertion guard (`product.company-active-guard`) and the row-lock /
+        // advisory writes stay in the retained authority and are not migrated.
+        for (kind, source_text) in [
+            (RD_PRODUCT_PAGE_ROWS, TS_PAGES),
+            (RD_PRODUCT_MASTER_ROWS, TS_UNIT),
+            (RD_PRODUCT_ACTIVE, TS_GUARDS),
+            (RD_PRODUCT_ACTIVE_OPTIONS, TS_ECOMMERCE),
+            (RD_PRODUCT_MASTER_DETAIL, TS_RECORDS),
+            (RD_PRODUCT_POINT, TS_POS),
+        ] {
+            let entry = plan(kind).expect("retained product authority");
+            assert_eq!(source(kind), source_text, "{kind} authority source");
+            assert!(
+                norm(source_text).contains(&norm(entry.sql)),
+                "{kind}: authority text missing from retained TypeScript source"
+            );
+            assert!(
+                entry.binds == &[BindField::CompanyId]
+                    || entry.binds == &[BindField::RecordId, BindField::CompanyId],
+                "{kind}: product scope"
+            );
+        }
     }
 }

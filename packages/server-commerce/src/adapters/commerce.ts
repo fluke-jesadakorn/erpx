@@ -20,7 +20,8 @@ import { commerceFinalOwnerProjectionSources as recordsProjectionSources } from 
 import {commerceCommerceStockEffects} from '@erpx/server-inventory/public/commerce-stock-owner-effects';
 import { commercialOwnerProjectionSources as inventoryProjectionSources } from "@erpx/server-inventory/public/commercial-owner-projection-sources";
 import { COMMERCE_STOCK_BY_WAREHOUSE_PRODUCT_SQL, COMMERCE_STOCK_VERSION_GUARD_SQL } from "./stock-source-dedupe-sql";
-import { COMMERCE_PRODUCT_ACTIVE_VERSION_GUARD_SQL, COMMERCE_WAREHOUSE_ACTIVE_SQL, COMMERCE_PRODUCT_ACTIVE_SQL } from "./guarded-source-dedupe-sql";
+import { COMMERCE_PRODUCT_ACTIVE_VERSION_GUARD_SQL, COMMERCE_WAREHOUSE_ACTIVE_SQL } from "./guarded-source-dedupe-sql";
+import { nativeCommerceReadAll, nativeCommerceReadFirst, RD_PRODUCT_ACTIVE, RD_PRODUCT_MASTER_ROWS } from './native-commerce-read';
 
 import { commerceExpensePaymentEffects } from "@erpx/server-people_payroll/public/commerce-expense-payment-effects";
 import { commerceFinancePageSources } from "@erpx/server-finance/public/commerce-page-sources";
@@ -104,7 +105,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
         },
         readCommerceProducts1: (facts: {
             companyId: string;
-        }) => db.prepare("SELECT * FROM commerce_products WHERE company_id=? ORDER BY sku").bind(facts.companyId).all<Row>(),
+        }) => nativeCommerceReadAll<Row>(RD_PRODUCT_MASTER_ROWS, [facts.companyId], db),
         readFinanceParties1: facts => CommerceFinanceFacts(db).readFinanceParties1(facts),
         readCommerceWarehouses1: (facts: {
             companyId: string;
@@ -304,7 +305,7 @@ function unit(db: SqlDatabase, actor?:WorkContext): CommerceUnit<SqlStatement> {
         readCommerceProducts2: (facts: {
             productId: string;
             companyId: string;
-        }) => db.prepare(COMMERCE_PRODUCT_ACTIVE_SQL).bind(facts.productId, facts.companyId).first<Row>(),
+        }) => nativeCommerceReadFirst<Row>(RD_PRODUCT_ACTIVE, [facts.productId, facts.companyId], db),
         prepareCommerceOrders2: async (facts: {
             partyId: string;
             warehouseId: string | null;

@@ -7,6 +7,14 @@ export const RD_SETTINGS_BY_COMPANY = 'commerce_rd_settings_by_company';
 export const RD_CURRENCY_BY_COMPANY = 'commerce_rd_currency_by_company';
 export const RD_POSTING_MAPPING_STATE = 'commerce_rd_posting_mapping_state';
 
+/** Allow-listed product-config read kinds resolved by the mounted owner command-plan route. */
+export const RD_PRODUCT_PAGE_ROWS = 'commerce_rd_product_page_rows';
+export const RD_PRODUCT_MASTER_ROWS = 'commerce_rd_product_master_rows';
+export const RD_PRODUCT_ACTIVE = 'commerce_rd_product_active';
+export const RD_PRODUCT_ACTIVE_OPTIONS = 'commerce_rd_product_active_options';
+export const RD_PRODUCT_MASTER_DETAIL = 'commerce_rd_product_master_detail';
+export const RD_PRODUCT_POINT = 'commerce_rd_product_point';
+
 /**
  * Strict owner transport for the mounted native Commerce `command-plan` read
  * route. The axum owner plans the exact statement for a registered read kind;

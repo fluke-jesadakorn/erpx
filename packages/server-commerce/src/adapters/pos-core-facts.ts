@@ -4,12 +4,14 @@ import { commercialOwnerProjectionSources as inventoryProjectionSources } from "
 import "server-only";
 import {one,all,run,type SqlValueRow} from '@erpx/server-runtime/public/runtime/sql';
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-import {nativeCommerceReadFirst,RD_CURRENCY_BY_COMPANY} from './native-commerce-read';
+import {nativeCommerceReadFirst,RD_CURRENCY_BY_COMPANY,RD_PRODUCT_POINT} from './native-commerce-read';
 import { COMMERCE_STOCK_PRODUCT_FOR_UPDATE_SQL } from './stock-source-dedupe-sql';
 
-/** Byte-identical text deduped; every call site still prepares and executes it. */
+/** Byte-identical text deduped; every call site still prepares and executes it.
+ * r19: the product point read below delegates to the mounted native Commerce
+ * command-plan port; its tabbed literal is the normalized authority text. */
 const COMMERCE_STOCK_FOR_UPDATE_SQL = `SELECT * FROM (${inventoryProjectionSources.commerce_stock}) commerce_stock WHERE warehouse_id=? AND product_id=? FOR UPDATE`;
-const COMMERCE_PRODUCT_POINT_SQL = "SELECT id FROM commerce_products WHERE id=? AND company_id=? AND status='active'";
+const COMMERCE_PRODUCT_POINT_SQL = "SELECT	id FROM commerce_products WHERE id=? AND company_id=? AND status='active'";
 
 export function posCoreCommerceFacts(db: SqlDatabase) {
     return {
@@ -47,11 +49,11 @@ export function posCoreCommerceFacts(db: SqlDatabase) {
         readCommerceProducts1: (facts: {
             productId: string;
             company: string;
-        }) => one(db, COMMERCE_PRODUCT_POINT_SQL, facts.productId, facts.company),
+        }) => nativeCommerceReadFirst<SqlValueRow>(RD_PRODUCT_POINT, [facts.productId, facts.company], db),
         readCommerceProducts2: (facts: {
             productId: string;
             company: string;
-        }) => one(db, COMMERCE_PRODUCT_POINT_SQL, facts.productId, facts.company),
+        }) => nativeCommerceReadFirst<SqlValueRow>(RD_PRODUCT_POINT, [facts.productId, facts.company], db),
         readCommerceStock3: (facts: {
             warehouse_id: string | number | boolean | null;
             product_id: string | number | boolean | null;
