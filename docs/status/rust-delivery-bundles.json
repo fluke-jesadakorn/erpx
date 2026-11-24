@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11409,
+    "revision": 11429,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -173368,10 +173368,10 @@
         ],
         "claim": {
           "runId": "run-20261124-b",
-          "agentId": "wGCMinvg",
-          "claimedAt": "2026-11-24T10:35:57.909Z",
-          "heartbeatAt": "2026-11-24T11:01:04.525Z",
-          "expiresAt": "2026-11-24T11:31:04.525Z",
+          "agentId": "wHNGinv1",
+          "claimedAt": "2026-11-24T11:16:54.820Z",
+          "heartbeatAt": "2026-11-24T11:16:54.820Z",
+          "expiresAt": "2026-11-24T11:46:54.820Z",
           "generation": 168
         },
         "baseSha": null,
@@ -173381,7 +173381,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=338.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMinvg",
+          "at": "2026-11-24T11:16:53.152Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=338."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -173404,10 +173411,10 @@
         ],
         "claim": {
           "runId": "run-20261124-b",
-          "agentId": "wGCMeco4",
-          "claimedAt": "2026-11-24T10:35:58.091Z",
-          "heartbeatAt": "2026-11-24T11:01:04.525Z",
-          "expiresAt": "2026-11-24T11:31:04.525Z",
+          "agentId": "wHNGecc1",
+          "claimedAt": "2026-11-24T11:16:55.158Z",
+          "heartbeatAt": "2026-11-24T11:16:55.158Z",
+          "expiresAt": "2026-11-24T11:46:55.158Z",
           "generation": 168
         },
         "baseSha": null,
@@ -173417,7 +173424,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=47.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMeco4",
+          "at": "2026-11-24T11:16:53.485Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=47."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -173440,10 +173454,10 @@
         ],
         "claim": {
           "runId": "run-20261124-b",
-          "agentId": "wGCMlrn9",
-          "claimedAt": "2026-11-24T10:35:58.269Z",
-          "heartbeatAt": "2026-11-24T11:01:04.525Z",
-          "expiresAt": "2026-11-24T11:31:04.525Z",
+          "agentId": "wHNGler1",
+          "claimedAt": "2026-11-24T11:16:55.325Z",
+          "heartbeatAt": "2026-11-24T11:16:55.325Z",
+          "expiresAt": "2026-11-24T11:46:55.325Z",
           "generation": 168
         },
         "baseSha": null,
@@ -173453,7 +173467,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=57.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMlrn9",
+          "at": "2026-11-24T11:16:53.661Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=57."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -173476,10 +173497,10 @@
         ],
         "claim": {
           "runId": "run-20261124-b",
-          "agentId": "wGCUqug",
-          "claimedAt": "2026-11-24T10:35:58.493Z",
-          "heartbeatAt": "2026-11-24T11:01:04.525Z",
-          "expiresAt": "2026-11-24T11:31:04.525Z",
+          "agentId": "wHNGqua1",
+          "claimedAt": "2026-11-24T11:16:54.994Z",
+          "heartbeatAt": "2026-11-24T11:16:54.994Z",
+          "expiresAt": "2026-11-24T11:46:54.994Z",
           "generation": 168
         },
         "baseSha": null,
@@ -173489,7 +173510,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=70.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCUqug",
+          "at": "2026-11-24T11:16:53.318Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=70."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -173584,10 +173612,10 @@
         ],
         "claim": {
           "runId": "run-20261124-b",
-          "agentId": "wGCMppld",
-          "claimedAt": "2026-11-24T10:40:06.780Z",
-          "heartbeatAt": "2026-11-24T11:01:04.525Z",
-          "expiresAt": "2026-11-24T11:31:04.525Z",
+          "agentId": "wHNGpp1",
+          "claimedAt": "2026-11-24T11:16:56.149Z",
+          "heartbeatAt": "2026-11-24T11:16:56.149Z",
+          "expiresAt": "2026-11-24T11:46:56.149Z",
           "generation": 168
         },
         "baseSha": null,
@@ -173597,7 +173625,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=1306.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMppld",
+          "at": "2026-11-24T11:16:54.490Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=1306."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -173743,10 +173778,10 @@
         ],
         "claim": {
           "runId": "run-20261124-b",
-          "agentId": "wGCMpmsb",
-          "claimedAt": "2026-11-24T10:40:07.419Z",
-          "heartbeatAt": "2026-11-24T11:01:04.525Z",
-          "expiresAt": "2026-11-24T11:31:04.525Z",
+          "agentId": "wHNGpms1",
+          "claimedAt": "2026-11-24T11:16:56.320Z",
+          "heartbeatAt": "2026-11-24T11:16:56.320Z",
+          "expiresAt": "2026-11-24T11:46:56.320Z",
           "generation": 168
         },
         "baseSha": null,
@@ -173756,7 +173791,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=332.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMpmsb",
+          "at": "2026-11-24T11:16:54.654Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=332."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -173779,10 +173821,10 @@
         ],
         "claim": {
           "runId": "run-20261124-b",
-          "agentId": "wGCMfina4",
-          "claimedAt": "2026-11-24T10:40:07.584Z",
-          "heartbeatAt": "2026-11-24T11:01:04.525Z",
-          "expiresAt": "2026-11-24T11:31:04.525Z",
+          "agentId": "wHNGfin1",
+          "claimedAt": "2026-11-24T11:16:55.987Z",
+          "heartbeatAt": "2026-11-24T11:16:55.987Z",
+          "expiresAt": "2026-11-24T11:46:55.987Z",
           "generation": 168
         },
         "baseSha": null,
@@ -173792,7 +173834,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=1929.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMfina4",
+          "at": "2026-11-24T11:16:54.336Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=1929."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -173887,10 +173936,10 @@
         ],
         "claim": {
           "runId": "run-20261124-b",
-          "agentId": "wGCMprjc",
-          "claimedAt": "2026-11-24T10:42:25.149Z",
-          "heartbeatAt": "2026-11-24T11:01:04.525Z",
-          "expiresAt": "2026-11-24T11:31:04.525Z",
+          "agentId": "wHNGprj1",
+          "claimedAt": "2026-11-24T11:16:55.655Z",
+          "heartbeatAt": "2026-11-24T11:16:55.655Z",
+          "expiresAt": "2026-11-24T11:46:55.655Z",
           "generation": 168
         },
         "baseSha": null,
@@ -173900,7 +173949,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=112.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMprjc",
+          "at": "2026-11-24T11:16:54.006Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=112."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -173995,10 +174051,10 @@
         ],
         "claim": {
           "runId": "run-20261124-b",
-          "agentId": "wGCMwf5",
-          "claimedAt": "2026-11-24T10:42:25.720Z",
-          "heartbeatAt": "2026-11-24T11:01:04.525Z",
-          "expiresAt": "2026-11-24T11:31:04.525Z",
+          "agentId": "wHNGwf1",
+          "claimedAt": "2026-11-24T11:16:55.823Z",
+          "heartbeatAt": "2026-11-24T11:16:55.823Z",
+          "expiresAt": "2026-11-24T11:46:55.823Z",
           "generation": 168
         },
         "baseSha": null,
@@ -174008,7 +174064,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=50.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMwf5",
+          "at": "2026-11-24T11:16:54.174Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=50."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -174031,10 +174094,10 @@
         ],
         "claim": {
           "runId": "run-20261124-b",
-          "agentId": "wGCMlegj",
-          "claimedAt": "2026-11-24T11:00:32.033Z",
-          "heartbeatAt": "2026-11-24T11:01:04.525Z",
-          "expiresAt": "2026-11-24T11:31:04.525Z",
+          "agentId": "wHNGleg1",
+          "claimedAt": "2026-11-24T11:16:55.490Z",
+          "heartbeatAt": "2026-11-24T11:16:55.490Z",
+          "expiresAt": "2026-11-24T11:46:55.490Z",
           "generation": 168
         },
         "baseSha": null,
@@ -174044,7 +174107,14 @@
         "retainedLegacy": [],
         "blocker": null,
         "nextAction": "Destruction guard 3 sites -> 1 (-2) and executive obligation/hold spine heads 2x2 -> 2 (-2). BEFORE=203.",
-        "handoff": null,
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMlegj",
+          "at": "2026-11-24T11:16:53.833Z",
+          "previousStatus": "in_progress",
+          "reason": "released with work preserved",
+          "nextAction": "Destruction guard 3 sites -> 1 (-2) and executive obligation/hold spine heads 2x2 -> 2 (-2). BEFORE=203."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -174104,7 +174174,7 @@
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T11:15:47.021Z",
+    "updatedAt": "2026-11-24T11:16:56.324Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
