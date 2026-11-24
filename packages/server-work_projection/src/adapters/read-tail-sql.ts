@@ -25,3 +25,5 @@ export const occurrenceExceptionPointSql = (columns: string) =>
 /** Reminder source point read over the appointment/attendee join. Only the selected columns vary. */
 export const reminderAttendeePointSql = (columns: string) =>
     `SELECT ${columns} FROM calendar_appointments a JOIN calendar_attendees t ON t.appointment_id=a.id AND t.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND t.user_id=?`;
+/** Invited-attendee scope arm of the candidate query. One definition serves every scope arm. */
+export const attendeeScopeExistsSql = `EXISTS(SELECT 1 FROM calendar_attendees ap WHERE ap.appointment_id=x.id AND ap.user_id=?)`;

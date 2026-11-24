@@ -3,7 +3,7 @@ import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { type RecurrenceRule } from "@erpx/feature-work_projection/lib/calendar-recurrence";
 import type { AppointmentRow } from "@erpx/server-work_projection/domain/calendar/appointments";
-import { inList, overlapProbe } from './read-tail-sql';
+import { inList, overlapProbe, attendeeScopeExistsSql } from './read-tail-sql';
 export const byAppointmentIds = (table: 'calendar_series' | 'calendar_occurrence_exceptions') =>
     `SELECT * FROM ${table} WHERE company_id=? AND ${inList("appointment_id")}`;
 export function calendarAppointmentsWorkProjectionFacts(db: SqlDatabase) {
@@ -24,13 +24,13 @@ export function calendarAppointmentsWorkProjectionFacts(db: SqlDatabase) {
         }) => {
             return db.prepare(`WITH candidates AS (
  SELECT x.*,p.legal_name organizer_name,
- ((? AND ${inList("coalesce(x.department_id,x.branch_id,x.company_id)")}) OR x.organizer_person_id=? OR EXISTS(SELECT 1 FROM calendar_attendees ap WHERE ap.appointment_id=x.id AND ap.user_id=?)) full_detail
+ ((? AND ${inList("coalesce(x.department_id,x.branch_id,x.company_id)")}) OR x.organizer_person_id=? OR ${attendeeScopeExistsSql}) full_detail
  FROM calendar_appointments x LEFT JOIN (${calendarPeopleProjectionSources.people}) p ON p.id=x.organizer_person_id AND p.company_id=x.company_id
  WHERE x.company_id=? AND x.starts_at<? AND (x.ends_at>? OR EXISTS(SELECT 1 FROM calendar_series s WHERE s.appointment_id=x.id))
- AND (${inList("coalesce(x.department_id,x.branch_id,x.company_id)")} OR EXISTS(SELECT 1 FROM calendar_attendees ap WHERE ap.appointment_id=x.id AND ap.user_id=?) OR EXISTS(SELECT 1 FROM calendar_appointment_participants ap JOIN (${calendarPeopleProjectionSources.engagements}) e ON e.person_id=ap.person_id AND e.company_id=ap.company_id WHERE ap.appointment_id=x.id AND e.status='active' AND ${inList("coalesce(e.department_id,e.branch_id,e.company_id)")})))
+ AND (${inList("coalesce(x.department_id,x.branch_id,x.company_id)")} OR ${attendeeScopeExistsSql} OR EXISTS(SELECT 1 FROM calendar_appointment_participants ap JOIN (${calendarPeopleProjectionSources.engagements}) e ON e.person_id=ap.person_id AND e.company_id=ap.company_id WHERE ap.appointment_id=x.id AND e.status='active' AND ${inList("coalesce(e.department_id,e.branch_id,e.company_id)")})))
  SELECT x.* FROM candidates x WHERE (full_detail OR (? AND x.status='scheduled'))
  AND ((?::text IS NOT NULL AND EXISTS(SELECT 1 FROM calendar_appointment_participants ap WHERE ap.appointment_id=x.id AND ap.person_id=?))
-   OR (?::text IS NULL AND (?='team' OR EXISTS(SELECT 1 FROM calendar_attendees ap WHERE ap.appointment_id=x.id AND ap.user_id=?) OR x.organizer_person_id=?)))
+   OR (?::text IS NULL AND (?='team' OR ${attendeeScopeExistsSql} OR x.organizer_person_id=?)))
  AND (?='' OR (CASE WHEN full_detail THEN x.title ELSE 'Busy' END) ILIKE '%'||?||'%') ORDER BY x.id LIMIT ?`).bind(facts.value1, facts.value2, facts.value3, facts.value4, facts.value5, facts.value6, facts.value7, facts.value2, facts.value4, facts.value2, facts.value8, facts.value9, facts.value9, facts.value9, facts.value10, facts.value4, facts.value11, facts.value12, facts.value12, facts.value13).all<AppointmentRow & {
                 full_detail: boolean;
                 organizer_name: string | null;
