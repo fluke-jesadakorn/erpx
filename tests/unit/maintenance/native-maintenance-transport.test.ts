@@ -521,8 +521,9 @@ describe('Maintenance package settlement source fixed SQL',()=>{
   // and work-event full-row literals through settlementEventRows (12 -> 11);
   // r10 shared the two upstream-source EXISTS witnesses (11 -> 10); r15 shared
   // the two MATERIALIZED scoped CTEs through scopedSourceCte (10 -> 9); r16
-  // moved the asset-version lookup into projectionLookup (9 -> 8).
-  expect(source.match(/SELECT/g)).toHaveLength(8);
+  // moved the asset-version lookup into projectionLookup (9 -> 8); r20 shared
+  // the three facts UNION rows through factRow (8 -> 6).
+  expect(source.match(/SELECT/g)).toHaveLength(6);
   expect(count(source,'SELECT work.*,COALESCE')).toBe(0);
   expect(count(source,'SELECT plan.*,COALESCE')).toBe(0);
   expect(source).toContain('ownerSourceSql("maintenance_work_orders","work")');
@@ -571,8 +572,8 @@ describe('Maintenance settlement event row fixed SQL',()=>{
   expect(source.match(/const settlementEventRows=\(table:"maintenance_preventive_occurrences"\|"maintenance_work_events"\)=>`SELECT \* FROM \$\{table\}`/g)).toHaveLength(1);
   expect(source.match(/SELECT \* FROM/g)).toHaveLength(1);
   // r10 shared the two upstream-source EXISTS witnesses (11 -> 10); r15 shared
-  // the two MATERIALIZED scoped CTEs through scopedSourceCte (10 -> 9).; r16 moved the asset-version lookup into projectionLookup (9 -> 8).
-  expect(source.match(/SELECT/g)).toHaveLength(8);
+  // the two MATERIALIZED scoped CTEs through scopedSourceCte (10 -> 9).; r16 moved the asset-version lookup into projectionLookup (9 -> 8); r20 shared the three facts UNION rows through factRow (8 -> 6).
+  expect(source.match(/SELECT/g)).toHaveLength(6);
   expect(source).not.toContain('occurrences:"SELECT * FROM maintenance_preventive_occurrences"');
   expect(source).not.toContain('workEvents:"SELECT * FROM maintenance_work_events"');
   expect(source).toContain('settlementEventRows("maintenance_preventive_occurrences")');
@@ -596,8 +597,8 @@ describe('Maintenance upstream source witness fixed SQL',()=>{
    const source=await readFile(new URL(file,import.meta.url),'utf8');
    expect(source.match(/const workSourceExists=\(source:string,alias:string,column:string\)=>`EXISTS\(SELECT 1 FROM \$\{source\} \$\{alias\} WHERE \$\{alias\}\.\$\{column\}=work\.id\)`/g)).toHaveLength(1);
    expect(source.match(/EXISTS\(SELECT 1 FROM/g)).toHaveLength(1);
-   // r16 moved the asset-version lookup into projectionLookup (9 -> 8).
-   expect(source.match(/SELECT/g)).toHaveLength(8);
+   // r16 moved the asset-version lookup into projectionLookup (9 -> 8); r20 shared the three facts UNION rows through factRow (8 -> 6).
+   expect(source.match(/SELECT/g)).toHaveLength(6);
    expect(source).toContain('`EXISTS(SELECT 1 FROM ${source} ${alias} WHERE ${alias}.${column}=work.id)`');
    expect(source).not.toContain('EXISTS(SELECT 1 FROM maintenance_preventive_occurrences occurrence');
    expect(source).not.toContain('EXISTS(SELECT 1 FROM (${maintenanceSettlementConsumptions}) part');
@@ -709,7 +710,7 @@ describe('Maintenance record-image fixed SQL',()=>{
   }
  });
 
- it('retirement:ts-statements stays strictly below the r19 BEFORE=33 baseline',async()=>{
+ it('retirement:ts-statements stays strictly below the r20 BEFORE=32 baseline',async()=>{
   const {readdirSync,readFileSync}=await import('node:fs');
   const {resolve}=await import('node:path');
   let total=0;
@@ -722,8 +723,8 @@ describe('Maintenance record-image fixed SQL',()=>{
    }
   };
   walk(srcRoot);
-  expect(total).toBe(32);
-  expect(total).toBeLessThan(33);
+  expect(total).toBe(30);
+  expect(total).toBeLessThan(32);
  });
 });
 
@@ -965,5 +966,58 @@ describe('Maintenance asset settlement ref source fixed SQL',()=>{
   expect(readFileSync(new URL(`${dir}attachment-owner-version-guard.ts`,import.meta.url),'utf8')).toContain('export const attachmentOwnerVersionGuardSql');
   expect(readFileSync(new URL(`${dir}projection-lookup.ts`,import.meta.url),'utf8')).toContain('export const projectionLookup');
   expect(readFileSync(new URL(`${dir}package-obligations.ts`,import.meta.url),'utf8')).toContain('const settlementEventRows');
+ });
+});
+
+/** Fixed-SQL read-tail oracle for the Maintenance package-obligations facts
+ * family (r20). The Work, Plan and occurrence UNION ALL branches share one
+ * owner-local fact-row projection head. Every composed row stays byte-identical
+ * to its pre-dedupe literal, no duplicate TS query literal remains, the total
+ * read-tail drops strictly below the r20 BEFORE=32 baseline, every r3-r19 family
+ * stays unchanged and every owner lock is untouched. */
+describe('Maintenance facts UNION fact-row fixed SQL',()=>{
+ const dir='../../../packages/server-maintenance/src/adapters/';
+ it('single-sources the fact-row head and keeps all three rows byte-identical',async()=>{
+  const {readFileSync}=await import('node:fs');
+  const source=readFileSync(new URL(`${dir}package-obligations.ts`,import.meta.url),'utf8');
+  // One fixed SELECT template for the family; the three inline row literals are gone.
+  expect(source.match(/export const factRow=\(kind:string,columns:string,from:string\)=>`SELECT \$\{kind\},\$\{columns\} FROM \$\{from\}`/g)).toHaveLength(1);
+  expect(source.match(/factRow\(/g)).toHaveLength(3);
+  expect(source).not.toContain("SELECT 'work' kind,work.id");
+  expect(source).not.toContain("SELECT 'preventive-plan',plan.id");
+  expect(source).not.toContain("SELECT 'occurrence',occurrence.id");
+  // r20 folded three SELECT literals into one template: this file is 8 -> 6 and
+  // the owner read-tail total is 32 -> 30 (strictly below BEFORE=32).
+  expect(source.match(/SELECT/g)).toHaveLength(6);
+  // The owner lock and the scope CTE stay untouched; no write/row-lock introduced.
+  expect(source).toContain('LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE');
+  expect(source).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|pg_advisory/i);
+
+  const {factRow,maintenancePackageSettlementSources,scopedSourceCte}=await import('../../../packages/server-maintenance/src/adapters/package-obligations');
+  const {projectionLookup}=await import('../../../packages/server-maintenance/src/adapters/projection-lookup');
+  const {assetPackageSettlementSources:as}=await import('../../../packages/server-assets/src/public/package-obligations');
+  const {work}=maintenancePackageSettlementSources;
+  // Pre-r20 literals rebuilt verbatim with closed kind/column/from fragments.
+  const workRow="SELECT 'work' kind,work.id,work.version,work.status state,NOT work.source_valid OR work.status NOT IN ('completed','cancelled') OR work.downtime_started_at IS NOT NULL AND work.downtime_ended_at IS NULL pending FROM work";
+  const planRow="SELECT 'preventive-plan',plan.id,plan.version,plan.status,NOT plan.source_valid OR plan.status<>'cancelled' FROM plans plan";
+  const occFrom=`maintenance_preventive_occurrences occurrence JOIN plans plan ON plan.id=occurrence.plan_id LEFT JOIN (${work}) generated ON generated.id=occurrence.work_order_id AND generated.company_id=plan.company_id WHERE generated.id IS NULL OR generated.asset_id<>plan.asset_id OR occurrence.plan_version>plan.version OR NOT generated.source_valid OR occurrence.source_asset_version>${projectionLookup("version",as.assets,"actual","actual.id=plan.asset_id AND actual.company_id=plan.company_id")}`;
+  const occRow=`SELECT 'occurrence',occurrence.id,occurrence.plan_version,'ambiguous-source',true FROM ${occFrom}`;
+  expect(factRow("'work' kind","work.id,work.version,work.status state,NOT work.source_valid OR work.status NOT IN ('completed','cancelled') OR work.downtime_started_at IS NOT NULL AND work.downtime_ended_at IS NULL pending","work")).toBe(workRow);
+  expect(factRow("'preventive-plan'","plan.id,plan.version,plan.status,NOT plan.source_valid OR plan.status<>'cancelled'","plans plan")).toBe(planRow);
+  expect(factRow("'occurrence'","occurrence.id,occurrence.plan_version,'ambiguous-source',true",occFrom)).toBe(occRow);
+  for(const sql of [workRow,planRow,occRow]){
+   expect(sql).toContain('SELECT ');
+   expect(sql).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|pg_advisory/i);
+  }
+  // r3-r19 families and their locks stay untouched.
+  expect(source).toContain('const ownerSourceSql = (table:string,alias:string) =>');
+  expect(source).toContain('const settlementEventRows=');
+  expect(source).toContain('const workSourceExists=');
+  expect(source).toContain('export const scopedSourceCte=');
+  expect(scopedSourceCte('work','<src>','<extra>')).toBe('SELECT work.* FROM (<src>) work,scope WHERE work.company_id=scope.company_id AND <extra>');
+  const read=readFileSync(new URL(`${dir}asset-settlement-refs.ts`,import.meta.url),'utf8');
+  expect(read).toContain('export const settlementRefSource');
+  const wsrc=readFileSync(new URL(`${dir}work.ts`,import.meta.url),'utf8');
+  expect(wsrc).toContain('export const workAssetSource');
  });
 });

@@ -30,6 +30,13 @@ const workSourceExists=(source:string,alias:string,column:string)=>`EXISTS(SELEC
  * a closed source relation and a fixed scope predicate, never request-authored
  * SQL; each composed CTE stays byte-identical to its pre-dedupe literal. */
 export const scopedSourceCte=(alias:"work"|"plan",source:string,extra:string)=>`SELECT ${alias}.* FROM (${source}) ${alias},scope WHERE ${alias}.company_id=scope.company_id AND ${extra}`;
+/** Canonical owner-local fact-row projection shared by the Work, Plan and
+ * occurrence branches of the package-obligations facts UNION. Every row selects
+ * a fixed kind discriminator, an owner-fixed fact projection and a closed scope
+ * relation; callers pass only closed fragments, never request-authored SQL.
+ * Each composed row stays byte-identical to its pre-dedupe literal and no
+ * LOCK/UPDATE statement is accepted or changed. */
+export const factRow=(kind:string,columns:string,from:string)=>`SELECT ${kind},${columns} FROM ${from}`;
 const workScopeExtra=`(scope.package_id='assets' OR scope.package_id='assets-preventive' AND ${workSourceExists("maintenance_preventive_occurrences","occurrence","work_order_id")} OR scope.package_id='assets-parts-costs' AND ${workSourceExists(`(${maintenanceSettlementConsumptions})`,"part","source_id")})`;
 export const maintenancePackageSettlementSources={work,plans,consumptions:maintenanceSettlementConsumptions,occurrences:settlementEventRows("maintenance_preventive_occurrences"),workEvents:settlementEventRows("maintenance_work_events")} as const;
 export async function lockMaintenancePackageObligationSources(owner:PostgresDatabase,lock:PackageSettlementSourceLock){const {database,companyId}=packageSettlementSource(owner,lock);await database.prepare("LOCK TABLE maintenance_work_orders,maintenance_work_events,maintenance_preventive_plans,maintenance_preventive_events,maintenance_preventive_occurrences IN SHARE MODE").run();await database.batch(maintenanceSettlementInventoryReadLocks(database));sources.set(database,companyId);}
@@ -37,9 +44,9 @@ export function assertMaintenancePackageObligationSources(owner:PostgresDatabase
 export async function maintenancePackageObligations(owner:PostgresDatabase,database:SqlDatabase,input:Input){
  assertMaintenancePackageObligationSources(owner,database,input.companyId);if(input.moduleId!=="maintenance"||!["assets","assets-preventive","assets-parts-costs"].includes(input.packageId)||input.packageVersion!==1||!Number.isSafeInteger(input.now)||input.now<0)throw Error("MAINTENANCE_PACKAGE_OBLIGATION_SCOPE_REQUIRED");
  const facts=(await database.prepare(`WITH scope AS(SELECT ?::text company_id,?::text package_id),work AS MATERIALIZED(${scopedSourceCte("work",work,workScopeExtra)}),plans AS MATERIALIZED(${scopedSourceCte("plan",plans,"scope.package_id<>'assets-parts-costs'")})
- SELECT 'work' kind,work.id,work.version,work.status state,NOT work.source_valid OR work.status NOT IN ('completed','cancelled') OR work.downtime_started_at IS NOT NULL AND work.downtime_ended_at IS NULL pending FROM work
- UNION ALL SELECT 'preventive-plan',plan.id,plan.version,plan.status,NOT plan.source_valid OR plan.status<>'cancelled' FROM plans plan
- UNION ALL SELECT 'occurrence',occurrence.id,occurrence.plan_version,'ambiguous-source',true FROM maintenance_preventive_occurrences occurrence JOIN plans plan ON plan.id=occurrence.plan_id LEFT JOIN (${work}) generated ON generated.id=occurrence.work_order_id AND generated.company_id=plan.company_id WHERE generated.id IS NULL OR generated.asset_id<>plan.asset_id OR occurrence.plan_version>plan.version OR NOT generated.source_valid OR occurrence.source_asset_version>${projectionLookup("version",assets.assets,"actual","actual.id=plan.asset_id AND actual.company_id=plan.company_id")}
+ ${factRow("'work' kind","work.id,work.version,work.status state,NOT work.source_valid OR work.status NOT IN ('completed','cancelled') OR work.downtime_started_at IS NOT NULL AND work.downtime_ended_at IS NULL pending","work")}
+ UNION ALL ${factRow("'preventive-plan'","plan.id,plan.version,plan.status,NOT plan.source_valid OR plan.status<>'cancelled'","plans plan")}
+ UNION ALL ${factRow("'occurrence'","occurrence.id,occurrence.plan_version,'ambiguous-source',true",`maintenance_preventive_occurrences occurrence JOIN plans plan ON plan.id=occurrence.plan_id LEFT JOIN (${work}) generated ON generated.id=occurrence.work_order_id AND generated.company_id=plan.company_id WHERE generated.id IS NULL OR generated.asset_id<>plan.asset_id OR occurrence.plan_version>plan.version OR NOT generated.source_valid OR occurrence.source_asset_version>${projectionLookup("version",assets.assets,"actual","actual.id=plan.asset_id AND actual.company_id=plan.company_id")}`)}
  ORDER BY kind,id`).bind(input.companyId,input.packageId).all<{kind:string;id:string;version:number;state:string;pending:boolean}>()).results;
  return {companyId:input.companyId,packageId:input.packageId,moduleId:"maintenance",observedAt:input.now,revision:createHash("sha256").update(JSON.stringify({companyId:input.companyId,packageId:input.packageId,packageVersion:input.packageVersion,facts})).digest("hex"),outstanding:facts.filter(fact=>fact.pending).length};
 }
