@@ -7,6 +7,10 @@ import type { AttachmentSourceState, AttachmentComponentKind } from "@erpx/serve
 import type { SetRow, LinkRow } from "@erpx/server-files/domain/attachments/service-models";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 const setByIdSql = "SELECT * FROM attachment_sets WHERE id=? AND company_id=?";
+const advisoryLockSql = "SELECT pg_advisory_xact_lock(hashtextextended(?,0))";
+const attachmentChecksumSql = "SELECT checksum_sha256,source_state FROM attachments WHERE id=? AND company_id=?";
+const setLockSql = "SELECT state FROM attachment_sets WHERE id=? AND company_id=? FOR UPDATE";
+const publicationByIdSql = "SELECT * FROM attachment_publications WHERE id=? AND company_id=?";
 export function repository(db: SqlDatabase) {
     return {
         readAttachmentSetAlias: (facts:{id:string;companyId:string;userId:string}) => db.prepare(`SELECT source.* FROM attachment_events receipt JOIN attachment_sets source ON source.id=receipt.set_id AND source.company_id=receipt.company_id AND source.created_by=receipt.actor_id
@@ -74,7 +78,7 @@ export function repository(db: SqlDatabase) {
         },
         lock8: (facts: {
             arg1: string;
-        }) => { return db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(facts.arg1).run(); },
+        }) => { return db.prepare(advisoryLockSql).bind(facts.arg1).run(); },
         readAttachmentSets9: (facts: {
             id: string;
             companyId: string;
@@ -142,7 +146,7 @@ export function repository(db: SqlDatabase) {
         }) => { return db.prepare(`SELECT l.id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=? AND l.state='bound' AND s.company_id=? AND s.target_type=? AND s.target_id=? AND s.purpose_key=?`).bind(facts.supersedesLinkId, facts.companyId, facts.target_type, facts.target_id, facts.purpose_key).first(); },
         lock15: (facts: {
             arg1: string;
-        }) => { return db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(facts.arg1).run(); },
+        }) => { return db.prepare(advisoryLockSql).bind(facts.arg1).run(); },
         readUploadIntents16: (facts: {
             token: string;
             companyId: string;
@@ -227,13 +231,13 @@ export function repository(db: SqlDatabase) {
         readAttachments26: (facts: {
             attachmentId: string;
             companyId: string;
-        }) => { return db.prepare("SELECT checksum_sha256,source_state FROM attachments WHERE id=? AND company_id=?").bind(facts.attachmentId, facts.companyId).first<{
+        }) => { return db.prepare(attachmentChecksumSql).bind(facts.attachmentId, facts.companyId).first<{
             checksum_sha256: string;
             source_state: AttachmentSourceState;
         }>(); },
         lock27: (facts: {
             arg1: string;
-        }) => { return db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(facts.arg1).run(); },
+        }) => { return db.prepare(advisoryLockSql).bind(facts.arg1).run(); },
         readUploadIntents28: (facts: {
             uploadIntentId: string;
             userId: string;
@@ -242,7 +246,7 @@ export function repository(db: SqlDatabase) {
         readAttachments29: (facts: {
             attachmentId: string;
             companyId: string;
-        }) => { return db.prepare("SELECT checksum_sha256,source_state FROM attachments WHERE id=? AND company_id=?").bind(facts.attachmentId, facts.companyId).first<{
+        }) => { return db.prepare(attachmentChecksumSql).bind(facts.attachmentId, facts.companyId).first<{
             checksum_sha256: string;
             source_state: AttachmentSourceState;
         }>(); },
@@ -270,7 +274,7 @@ export function repository(db: SqlDatabase) {
         readAttachmentSets32: (facts: {
             attachment_set_id: unknown;
             companyId: string;
-        }) => { return db.prepare("SELECT state FROM attachment_sets WHERE id=? AND company_id=? FOR UPDATE").bind(facts.attachment_set_id, facts.companyId).first<{
+        }) => { return db.prepare(setLockSql).bind(facts.attachment_set_id, facts.companyId).first<{
             state: string;
         }>(); },
         stepAttachments33: (facts: {
@@ -392,7 +396,7 @@ export function repository(db: SqlDatabase) {
         }) => { return db.prepare("SELECT l.*,s.target_type,s.target_id,s.component_kind,s.purpose_key,s.expected_target_version,s.state set_state,s.company_id FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id WHERE l.id=? AND s.company_id=? FOR UPDATE").bind(facts.linkId, facts.companyId).first<Record<string, unknown>>(); },
         lock49: (facts: {
             arg1: string;
-        }) => { return db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(facts.arg1).run(); },
+        }) => { return db.prepare(advisoryLockSql).bind(facts.arg1).run(); },
         readAttachmentEvents50: (facts: {
             eventId: string;
             companyId: string;
@@ -404,7 +408,7 @@ export function repository(db: SqlDatabase) {
         readAttachmentSets51: (facts: {
             setId: string;
             companyId: string;
-        }) => { return db.prepare("SELECT state FROM attachment_sets WHERE id=? AND company_id=? FOR UPDATE").bind(facts.setId, facts.companyId).first<{
+        }) => { return db.prepare(setLockSql).bind(facts.setId, facts.companyId).first<{
             state: string;
         }>(); },
         readAttachmentLinks52: (facts: {
@@ -447,7 +451,7 @@ export function repository(db: SqlDatabase) {
         },
         lock56: (facts: {
             arg1: string;
-        }) => { return db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(facts.arg1).run(); },
+        }) => { return db.prepare(advisoryLockSql).bind(facts.arg1).run(); },
         readAttachmentSets57: (facts: {
             setId: string;
             companyId: string;
@@ -557,14 +561,14 @@ export function repository(db: SqlDatabase) {
         readAttachmentPublications76: (facts: {
             id: string;
             companyId: string;
-        }) => { return db.prepare("SELECT * FROM attachment_publications WHERE id=? AND company_id=?").bind(facts.id, facts.companyId).first<Record<string, unknown>>(); },
+        }) => { return db.prepare(publicationByIdSql).bind(facts.id, facts.companyId).first<Record<string, unknown>>(); },
         lock77: (facts: {
             arg1: string;
-        }) => { return db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(facts.arg1).run(); },
+        }) => { return db.prepare(advisoryLockSql).bind(facts.arg1).run(); },
         readAttachmentPublications78: (facts: {
             id: string;
             companyId: string;
-        }) => { return db.prepare("SELECT * FROM attachment_publications WHERE id=? AND company_id=?").bind(facts.id, facts.companyId).first<Record<string, unknown>>(); },
+        }) => { return db.prepare(publicationByIdSql).bind(facts.id, facts.companyId).first<Record<string, unknown>>(); },
         readAttachmentPublications79: (facts: {
             companyId: string;
             targetType: string;
@@ -670,7 +674,7 @@ export function repository(db: SqlDatabase) {
         }) => { return nativeWrite('SR_027', [facts.arg1, facts.companyId, facts.source_link_id, facts.userId, facts.arg5, facts.arg6, facts.now]); },
         lock92: (facts: {
             arg1: string;
-        }) => { return db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(facts.arg1).run(); },
+        }) => { return db.prepare(advisoryLockSql).bind(facts.arg1).run(); },
         readAttachmentEvents93: (facts: {
             eventId: string;
             companyId: string;
@@ -913,7 +917,7 @@ export function repository(db: SqlDatabase) {
         },
         lock139: (facts: {
             arg1: string;
-        }) => { return db.prepare("SELECT pg_advisory_xact_lock(hashtextextended(?,0))").bind(facts.arg1).run(); },
+        }) => { return db.prepare(advisoryLockSql).bind(facts.arg1).run(); },
         lock140: () => { return db.prepare("SELECT pg_advisory_xact_lock(hashtextextended('legal-files',0))").bind().run(); },
         readAttachments141: (facts: {
             id: string;
