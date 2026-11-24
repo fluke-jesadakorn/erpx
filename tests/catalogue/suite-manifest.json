@@ -2294,6 +2294,33 @@
       },
       "ci": {
         "critical": true,
+        "reason": "Benefits event history UNION arm must stay one byte-identical literal."
+      },
+      "apps": [
+        "apps"
+      ],
+      "packages": [
+        "@erpx/server-benefits"
+      ],
+      "id": "benefits.read-tail-r13-dedupe.unit",
+      "files": [
+        "tests/unit/benefits/read-tail-r13-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "benefits",
+      "modules": [
+        "benefits"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
         "reason": "Benefits scope CTE prefix must exist once and stay byte-identical."
       },
       "apps": [
