@@ -37,7 +37,7 @@ import { collaborationHomeSources as operations } from '@erpx/server-operations/
 import {handoverAcknowledgements} from '@erpx/server-operations/public/handover-acknowledgement-read';
 import {workSocialReadScope,workSocialPresentation} from '@erpx/server-collaboration/public/work-social-read-policy';
 import {withWorkSocialCommand} from '@erpx/server-collaboration/adapters/work-social-purchases';
-import {socialFollowPostExists,messagingTeamMemberExists} from './read-tail-sql';
+import {socialFollowPostExists,messagingTeamMemberExists,publishedCommentRead,socialPostDraftById} from './read-tail-sql';
 const draftVersionGuardSql = "EXISTS(SELECT 1 FROM social_post_drafts WHERE id=? AND author_id=? AND version=? AND published_post_id IS NULL)";
 async function inward<T>(action: () => Promise<T>) {
     try {
@@ -77,7 +77,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
             return nativeOwnerWriteDescriptor(db, 'SH_DRAFT_PREPARE', [recordId, userId, companyId, branch, body, now, now2, department, value, audienceId, value2, value3, purpose, value4, value5, value6]);
         }, async publishDraft(id: string, companyId: string, userId: string) {
             return db
-                .prepare("SELECT * FROM social_post_drafts WHERE id=? AND company_id=? AND author_id=?")
+                .prepare(`${socialPostDraftById} AND author_id=?`)
                 .bind(id, companyId, userId)
                 .first<PostDraft>();
         }, guardPublishDraft(key: string, value: "draft", id: string, userId: string, version: number) {
@@ -257,7 +257,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
                 parent_comment_id: string | null;
             }>();
         }, guardParentComment(key: string, value: "reply-parent", id: string, id2: string) {
-            return assertion(db, key, value, "EXISTS(SELECT 1 FROM social_comments WHERE id=? AND post_id=? AND state='published')", [id, id2]);
+            return assertion(db, key, value, `EXISTS(${publishedCommentRead})`, [id, id2]);
         }, prepareComment(value: string, id: string, userId: string, name: string, body: string, key: string, now: number, now2: number, value2: string, value3: string | null, value4: string | null, value5: string | null) {
             return nativeOwnerWriteDescriptor(db, 'SH_COMMENT_PREPARE', [value, id, userId, name, body, key, now, now2, value2, value3, value4, value5]);
         }, bindCommentDraft(value: string, now: number, commentDraftId: string) {

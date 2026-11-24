@@ -16,14 +16,15 @@ import { ApiError } from '@erpx/server-runtime/public/http';
 
 
 import {requireWorkSocialDraftRead} from '@erpx/server-collaboration/adapters/work-social-draft-policy';
+import {publishedCommentRead,socialPostDraftById} from './read-tail-sql';
 import{createSocialUploadRead,type createSocialUploadReadPorts}from '@erpx/server-collaboration/application/social-home';
 
 export function nativeSocialUploadReadRepository(db:SqlDatabase):createSocialUploadReadPorts<SqlStatement>['repository']{return{async draft(id: string, companyId: string) {
             return db
-                .prepare("SELECT * FROM social_post_drafts WHERE id=? AND company_id=?")
+                .prepare(socialPostDraftById)
                 .bind(id, companyId)
                 .first<PostDraft>();
-        },async publishedComment(published_comment_id: string, comment_parent_post_id: string) { return db.prepare("SELECT 1 FROM social_comments WHERE id=? AND post_id=? AND state='published'").bind(published_comment_id, comment_parent_post_id).first(); }};}
+        },async publishedComment(published_comment_id: string, comment_parent_post_id: string) { return db.prepare(publishedCommentRead).bind(published_comment_id, comment_parent_post_id).first(); }};}
 function application(db:SqlDatabase){return createSocialUploadRead({repository:{draft:(...args)=>nativeSocialUploadReadRepository(db).draft(...args),publishedComment:(...args)=>nativeSocialUploadReadRepository(db).publishedComment(...args)},readablePost: (...args) => inward(() => readablePost(db, ...args))});}
 async function inward<T>(action: () => Promise<T>) {
     try {

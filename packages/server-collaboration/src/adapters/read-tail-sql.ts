@@ -16,3 +16,6 @@ export const jsonbTextIds=`(SELECT jsonb_array_elements_text(?::jsonb))`;
 export const workforceActorScopeExists=(where:string)=>`EXISTS(SELECT 1 FROM ${workforceActorScopeColumns} workforce_actor_scope WHERE ${where})`;
 export const messagingRoomMemberExists=`EXISTS(SELECT 1 FROM messaging_room_members m WHERE m.room_id=r.id AND m.user_id=?)`;
 export const messagingRoomTeamId=`(SELECT team_id FROM messaging_rooms WHERE id=?)`;
+export const socialAiMonthlyUsageCount=`SELECT count(*) FROM social_ai_usage WHERE company_id=? AND month=?`;
+export const publishedCommentRead=`SELECT 1 FROM social_comments WHERE id=? AND post_id=? AND state='published'`;
+export const socialPostDraftById=`SELECT * FROM social_post_drafts WHERE id=? AND company_id=?`;
