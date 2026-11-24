@@ -40,9 +40,33 @@ const READ_PMS_SETTINGS_EXISTS: NativeCommerceReadStatement = NativeCommerceRead
     bind_count: 1,
 };
 
+/// Native successor of the TypeScript `salesEditorOptions` active-product
+/// options read. The caller binds `[company_id]`.
+pub const RD_SALES_EDITOR_PRODUCTS: &str = "commerce_rd_sales_editor_products";
+const SQL_SALES_EDITOR_PRODUCTS: &str =
+    "SELECT id,sku,name,status,item_type,price_minor,tax_bps FROM commerce_products WHERE company_id=? AND status='active' ORDER BY sku";
+const READ_SALES_EDITOR_PRODUCTS: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_SALES_EDITOR_PRODUCTS,
+    sql: SQL_SALES_EDITOR_PRODUCTS,
+    bind_count: 1,
+};
+
+/// Native successor of the TypeScript `salesEditorOptions` active-warehouse
+/// options read. The caller binds `[company_id, branch_id, branch_id]`.
+pub const RD_SALES_EDITOR_WAREHOUSES: &str = "commerce_rd_sales_editor_warehouses";
+const SQL_SALES_EDITOR_WAREHOUSES: &str =
+    "SELECT id,name,status FROM commerce_warehouses WHERE company_id=? AND status='active' AND (?::text IS NULL OR branch_id=?) ORDER BY name";
+const READ_SALES_EDITOR_WAREHOUSES: NativeCommerceReadStatement = NativeCommerceReadStatement {
+    kind: RD_SALES_EDITOR_WAREHOUSES,
+    sql: SQL_SALES_EDITOR_WAREHOUSES,
+    bind_count: 3,
+};
+
 const STATEMENTS: &[NativeCommerceReadStatement] = &[
     READ_PMS_WAREHOUSE_ACTIVE,
     READ_PMS_SETTINGS_EXISTS,
+    READ_SALES_EDITOR_PRODUCTS,
+    READ_SALES_EDITOR_WAREHOUSES,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -55,27 +79,29 @@ mod tests {
     use super::*;
 
     #[test]
-    fn setup_existence_reads_are_owner_authored_select_only_and_single_bound() {
+    fn owner_reads_are_owner_authored_select_only_with_exact_binds() {
         let expected = [
-            (RD_PMS_WAREHOUSE_ACTIVE, SQL_PMS_WAREHOUSE_ACTIVE),
-            (RD_PMS_SETTINGS_EXISTS, SQL_PMS_SETTINGS_EXISTS),
+            (RD_PMS_WAREHOUSE_ACTIVE, SQL_PMS_WAREHOUSE_ACTIVE, 1usize),
+            (RD_PMS_SETTINGS_EXISTS, SQL_PMS_SETTINGS_EXISTS, 1usize),
+            (RD_SALES_EDITOR_PRODUCTS, SQL_SALES_EDITOR_PRODUCTS, 1usize),
+            (RD_SALES_EDITOR_WAREHOUSES, SQL_SALES_EDITOR_WAREHOUSES, 3usize),
         ];
-        for (kind, sql) in expected {
+        for (kind, sql, bind_count) in expected {
             let statement = read_statement(kind).expect("registered owner read kind");
             assert_eq!(statement.kind, kind);
             assert_eq!(statement.sql, sql);
-            assert_eq!(statement.bind_count, 1);
+            assert_eq!(statement.bind_count, bind_count);
             assert!(sql.starts_with("SELECT "), "owner read must be SELECT-only: {sql}");
             for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
                 assert!(!sql.contains(forbidden), "owner read must not mutate: {forbidden}");
             }
             assert!(
-                sql.contains("commerce_"),
+                sql.contains("commerce_products") || sql.contains("commerce_warehouses") || sql.contains("commerce_settings"),
                 "owner read must stay on owner-local Commerce tables: {sql}"
             );
-            assert_eq!(sql.matches('?').count(), 1);
+            assert_eq!(sql.matches('?').count(), bind_count);
         }
-        assert_eq!(STATEMENTS.len(), 2);
+        assert_eq!(STATEMENTS.len(), 4);
     }
 
     #[test]
