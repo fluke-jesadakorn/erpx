@@ -58,3 +58,14 @@ export const executiveReportSharesSql = (columns: string, suffix = '') =>
  */
 export const executiveReportRevisionsSql = (columns: string, suffix = '') =>
   `SELECT ${columns} FROM executive_report_revisions WHERE report_id=?${suffix}`;
+
+/**
+ * Runtime-owned canonical SQL for the closed `executive_reports` read family.
+ * Report access and library surfaces project different column subsets and a
+ * shared-definition join of the same fixed read; one builder keeps the query
+ * text identical across every caller. No relation name or predicate comes from
+ * an untrusted caller. Control-plane lock, guard and migration statements are
+ * not part of this family.
+ */
+export const executiveReportsSql = (columns: string, suffix = '') =>
+  `SELECT ${columns} FROM executive_reports${suffix}`;
