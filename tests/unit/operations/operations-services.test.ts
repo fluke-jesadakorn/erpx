@@ -494,6 +494,7 @@ import {operationsOverdueAlertSql} from '../../../packages/server-operations/src
 import {workCacheOperationsDeadlines} from '../../../packages/server-operations/src/adapters/work-cache-deadlines';
 import {operationsSocialTaskOriginExists} from '../../../packages/server-operations/src/adapters/social-task-origin-exists';
 import {operationsReceiptVersionExists} from '../../../packages/server-operations/src/adapters/operations-receipt-version-exists';
+import {operationsStaffTaskExists} from '../../../packages/server-operations/src/adapters/operations-staff-task-exists';
 import {finalRootOwnerProjectionSources as collaborationProjectionSources} from '@erpx/server-collaboration/public/final-root-owner-projection-sources';
 describe('Operations task delegation source dedupe',()=>{
  const fragment='(SELECT jsonb_agg(to_jsonb(delegation) ORDER BY delegation.id) FROM staff_task_delegations delegation WHERE delegation.task_id=t.id AND delegation.company_id=t.company_id)';
@@ -888,7 +889,7 @@ describe('Operations read-tail r41 retirement',()=>{
     walk(root);
     // r42 deduped the social task-origin EXISTS family and r43 deduped the
     // command-receipt version guard; the r41 BEFORE=110 baseline is unchanged.
-    expect(space).toBe(108);
+    expect(space).toBe(107);
     expect(space).toBeLessThan(110);
   });
 });
@@ -927,7 +928,7 @@ describe('Operations read-tail r42 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(108);
+    expect(space).toBe(107);
     expect(space).toBeLessThan(110);
   });
 });
@@ -972,7 +973,51 @@ describe('Operations read-tail r43 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(108);
+    expect(space).toBe(107);
     expect(space).toBeLessThan(109);
+  });
+});
+
+describe('Operations read-tail r44 retirement',()=>{
+  const source=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  const exists=(alias:string,id:string,tail:string)=>`EXISTS(SELECT 1 FROM staff_tasks ${alias} WHERE ${alias}.id=${id} AND ${tail})`;
+  test('the project and non-project workspace guards render byte-identically',()=>{
+    expect(operationsStaffTaskExists('work_record_project','workspace_records.id','work_record_project.company_id=workspace_records.company_id AND work_record_project.project_id IS NOT NULL')).toBe(exists('work_record_project','workspace_records.id','work_record_project.company_id=workspace_records.company_id AND work_record_project.project_id IS NOT NULL'));
+    expect(operationsStaffTaskExists('work_record_task','e.source_id','work_record_task.project_id IS NULL')).toBe("EXISTS(SELECT 1 FROM staff_tasks work_record_task WHERE work_record_task.id=e.source_id AND work_record_task.project_id IS NULL)");
+    expect(operationsStaffTaskExists('work_record_project','workspace_records.id','work_record_project.company_id=workspace_records.company_id AND work_record_project.project_id IS NOT NULL')).toBe("EXISTS(SELECT 1 FROM staff_tasks work_record_project WHERE work_record_project.id=workspace_records.id AND work_record_project.company_id=workspace_records.company_id AND work_record_project.project_id IS NOT NULL)");
+    expect(operationsStaffTaskExists('a','b','c').match(/SELECT /g)).toHaveLength(1);
+  });
+  test('the family keeps one canonical literal and no local SELECT at its call sites',()=>{
+    const records=source('record-purchases.ts');
+    expect(records).toContain("operationsStaffTaskExists('work_record_project',id,");
+    expect(records).toContain("operationsStaffTaskExists('work_record_task',id,'work_record_task.project_id IS NULL')");
+    expect(records.match(/operationsStaffTaskExists\(/g)).toHaveLength(2);
+    expect(records).not.toContain('EXISTS(SELECT 1 FROM staff_tasks work_record_project WHERE');
+    expect(records).not.toContain('EXISTS(SELECT 1 FROM staff_tasks work_record_task WHERE');
+    expect(source('operations-staff-task-exists.ts').match(/SELECT /g)).toHaveLength(1);
+  });
+  test('LOCK TABLE and the r29-r43 helpers remain untouched',()=>{
+    expect(source('work-package-obligation-sources.ts')).toContain('LOCK TABLE');
+    expect(source('project-package-obligation-sources.ts')).toContain('LOCK TABLE');
+    expect(source('work-package-obligations.ts')).toContain('LOCK TABLE command_receipts IN SHARE MODE');
+    expect(source('task-delegation-source.ts')).toContain('operationsActiveDelegationSql');
+    expect(source('social-task-origin-exists.ts')).toContain('operationsSocialTaskOriginExists');
+    expect(source('executive-task-cohort.ts')).toContain('operationsOverdueAlertSql');
+    expect(source('operations-receipt-version-exists.ts')).toContain('operationsReceiptVersionExists');
+    expect(source('work-cache-deadlines.ts')).toContain('activeDelegationDeadline');
+  });
+  test('retirement:ts-statements stays strictly below the r44 BEFORE=108 baseline',()=>{
+    const root=resolve(__dirname,'../../../packages/server-operations/src');
+    let space=0;
+    const walk=(dir:string)=>{
+      for(const entry of readdirSync(dir,{withFileTypes:true})){
+        const path=resolve(dir,entry.name);
+        if(entry.isDirectory())walk(path);
+        else if(entry.name.endsWith('.ts'))space+=(readFileSync(path,'utf8').match(/SELECT /g)??[]).length;
+      }
+    };
+    walk(root);
+    expect(space).toBe(107);
+    expect(space).toBeLessThan(108);
   });
 });

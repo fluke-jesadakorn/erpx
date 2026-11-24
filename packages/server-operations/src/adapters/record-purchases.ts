@@ -18,6 +18,7 @@ import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-avail
 import {workTaskSocialReadScope} from '@erpx/server-collaboration/public/work-task-read-policy';
 import {nativeHandbookReads} from '@erpx/feature-collaboration/lib/native-handbook-page';
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
+import {operationsStaffTaskExists} from './operations-staff-task-exists';
 
 /** Canonical project-source history probe shared by the Work and routine
  * metric gates. Both sites rendered the exact same bytes; only the source
@@ -60,8 +61,8 @@ export async function workSourceReadScope(database:SqlDatabase,actor:WorkContext
   return {where:'TRUE',args:[] as unknown[]};
  }
  const id=surface==='records'?'workspace_records.id':surface==='staff'?'staff_notifications.record_id':'e.source_id',company=surface==='records'?'workspace_records.company_id':surface==='staff'?'staff_notifications.company_id':'e.company_id';
- const projectTaskExists=`EXISTS(SELECT 1 FROM staff_tasks work_record_project WHERE work_record_project.id=${id} AND work_record_project.company_id=${company} AND work_record_project.project_id IS NOT NULL)`;
- const task=await visibleTask(database,actor,id,company),handbook=await handbookSourceReadScope(actor,surface),actual=`EXISTS(SELECT 1 FROM staff_tasks work_record_task WHERE work_record_task.id=${id} AND work_record_task.project_id IS NULL)`;
+ const projectTaskExists=operationsStaffTaskExists('work_record_project',id,`work_record_project.company_id=${company} AND work_record_project.project_id IS NOT NULL`);
+ const task=await visibleTask(database,actor,id,company),handbook=await handbookSourceReadScope(actor,surface),actual=operationsStaffTaskExists('work_record_task',id,'work_record_task.project_id IS NULL');
  if(surface!=='records'){
   const type=surface==='staff'?'staff_notifications.record_type':'e.source_type';
   return {where:`(${type} NOT IN ('task','staff_task','staff_task_alert') OR ${projectTaskExists} OR ${task.where}) AND ${handbook.where}`,args:[...task.args,...handbook.args]};
