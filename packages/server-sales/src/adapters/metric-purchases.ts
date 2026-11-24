@@ -8,11 +8,11 @@ import {commercePackageEnforcementMode,readPurchasedAccesses} from "@erpx/server
 import {purchasedCapabilityPredicate} from "@erpx/server-commercial/public/purchased-capability-sql";
 import {crmCommerceOrderSources} from "@erpx/server-commerce/public/crm-purchase-sources";
 import {crmFinanceCustomerSources} from "@erpx/server-finance/public/crm-purchase-sources";
-import {actorScopeTuple,clockNowMs} from "./followup-source-sql";
+import {actorScopeTuple,clockNowMs,followupMetricPrefix} from "./followup-source-sql";
 /** Owner-local fixed follow-up source projection. The original quotation/Sales
  * join is shared by the enforced and non-enforced read paths so the two callers
  * cannot drift into separate query text. No caller input enters this statement. */
-const followupSourceSelect=`SELECT followup.*,actual.branch_id,actual.department_id,actual.kind order_kind FROM customer_followups followup JOIN (${crmCommerceOrderSources}) actual ON actual.id=followup.order_id AND actual.company_id=followup.company_id`;
+const followupSourceSelect=`${followupMetricPrefix} FROM customer_followups followup JOIN (${crmCommerceOrderSources}) actual ON actual.id=followup.order_id AND actual.company_id=followup.company_id`;
 const rows=`${followupSourceSelect} JOIN (${crmFinanceCustomerSources}) customer ON customer.id=actual.party_id AND customer.company_id=actual.company_id WHERE actual.kind IN ('sales','quote')`;
 export async function salesFollowupMetricHistoryAccess(database:SqlDatabase,actor:WorkContext){
  const mode=await commercePackageEnforcementMode(),access=await readPurchasedAccesses(database,mode,actor.companyId,["sales.quotes","sales.orders"]);if(mode!=="enforced")return {"overdue-followups":true};

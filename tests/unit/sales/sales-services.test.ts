@@ -436,10 +436,27 @@ test('actual Sales service owner reader retains Department history while origina
 test('keeps one fixed Sales follow-up source projection for the enforced and non-enforced metric readers',async()=>{
  const {readFile}=await import('node:fs/promises'),source=await readFile(new URL("../../../packages/server-sales/src/adapters/metric-purchases.ts",import.meta.url),'utf8');
  expect(source).toContain('const followupSourceSelect=');
- expect(source.match(/SELECT followup\.\*,actual\.branch_id,actual\.department_id,actual\.kind order_kind FROM customer_followups followup JOIN /g)).toHaveLength(1);
+ expect(source.match(/\$\{followupMetricPrefix\} FROM customer_followups followup JOIN /g)).toHaveLength(1);
  expect(source.match(/followupSourceSelect/g)).toHaveLength(3);
  expect(source).toContain('return {sql:followupSourceSelect,args:[] as unknown[]}');
  expect(source).toContain('`${followupSourceSelect} JOIN (${crmFinanceCustomerSources}) customer');
+});
+
+test('Sales read-tail cross-file prefixes share one byte-identical SQL constant per projection',async()=>{
+ const {readFile}=await import('node:fs/promises'),base=new URL("../../../packages/server-sales/src/adapters/",import.meta.url);
+ const shared=await readFile(new URL("followup-source-sql.ts",base),'utf8');
+ expect(shared).toContain('export const followupEvidencePrefix=`SELECT c.id,c.order_id,c.next_action,c.due_date,c.status,c.version,o.number order_number FROM `');
+ expect(shared).toContain('export const followupMetricPrefix=`SELECT followup.*,actual.branch_id,actual.department_id,actual.kind order_kind`');
+ for(const file of ['followups.ts','executive-followup-evidence-sources.ts']){
+  const source=await readFile(new URL(file,base),'utf8');
+  expect(source.match(/followupEvidencePrefix/g)).toHaveLength(2);
+  expect(source).not.toContain('SELECT c.id,c.order_id,c.next_action,c.due_date,c.status,c.version,o.number order_number FROM ');
+ }
+ for(const file of ['metric-purchases.ts','followup-purchases.ts']){
+  const source=await readFile(new URL(file,base),'utf8');
+  expect(source.match(/followupMetricPrefix/g)).toHaveLength(2);
+  expect(source).not.toContain('SELECT followup.*,actual.branch_id,actual.department_id,actual.kind order_kind');
+ }
 });
 
 test('final-root Sales projections reuse the one owner fixed SQL for notices and follow-ups',async()=>{

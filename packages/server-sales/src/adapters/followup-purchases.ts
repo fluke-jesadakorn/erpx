@@ -12,11 +12,11 @@ import {crmFinanceCustomerSources,crmFinanceSourceReadLocks} from '@erpx/server-
 import {crmCommerceOrderSources,crmCommerceSourceReadLocks} from '@erpx/server-commerce/public/crm-purchase-sources';
 import type {WorkItem} from '@erpx/feature-work_projection/lib/work-item';
 import {salesRecipientEligibility} from '@erpx/server-sales/adapters/recipient';
-import {actorScopeTuple,clockNowMs} from './followup-source-sql';
+import {actorScopeTuple,clockNowMs,followupMetricPrefix} from './followup-source-sql';
 export type FollowupPurchaseTarget={kind:'followup'|'order';id:string};
 type Source={id:string;company_id:string;branch_id:string;department_id:string|null;order_kind:'quote'|'sales';witness:string;owner_id:string|null;due_date:string|null;status:string|null;version:number|null};
 const orders=`SELECT actual.*,jsonb_build_array(actual.id,actual.company_id,actual.branch_id,actual.department_id,actual.kind,actual.party_id,actual.currency) witness FROM (${crmCommerceOrderSources}) actual JOIN (${crmFinanceCustomerSources}) customer ON customer.id=actual.party_id AND customer.company_id=actual.company_id AND customer.kind='customer' WHERE actual.kind IN ('quote','sales')`;
-export const followupPurchaseRows=`SELECT followup.*,actual.branch_id,actual.department_id,actual.kind order_kind,jsonb_build_object('followup',jsonb_build_array(followup.id,followup.company_id,followup.order_id,followup.created_by),'order',actual.witness) witness FROM customer_followups followup JOIN (${orders}) actual ON actual.id=followup.order_id AND actual.company_id=followup.company_id`;
+export const followupPurchaseRows=`${followupMetricPrefix},jsonb_build_object('followup',jsonb_build_array(followup.id,followup.company_id,followup.order_id,followup.created_by),'order',actual.witness) witness FROM customer_followups followup JOIN (${orders}) actual ON actual.id=followup.order_id AND actual.company_id=followup.company_id`;
 const capability=(kind:Source['order_kind'])=>kind==='quote'?'sales.quotes':'sales.orders';
 export function followupPurchaseSourceReadLocks(database:SqlDatabase){return [...crmFinanceSourceReadLocks(database),...crmCommerceSourceReadLocks(database),database.prepare('LOCK TABLE customer_followups,customer_followup_events IN SHARE ROW EXCLUSIVE MODE')];}
 async function source(database:SqlDatabase,actor:WorkContext,target:FollowupPurchaseTarget){

@@ -1,6 +1,7 @@
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
 import { commercialOwnerProjectionSources as financeProjectionSources } from "@erpx/server-finance/public/commercial-owner-projection-sources";
 import "server-only";
+import {followupEvidencePrefix} from "./followup-source-sql";
 import {salesFollowupMetricSource} from "@erpx/server-sales/adapters/metric-purchases";
 import { z } from "zod";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -22,7 +23,7 @@ export function executiveFollowupEvidenceSources(db: SqlDatabase) {
                 conditions.push("(c.due_date>? OR (c.due_date=? AND c.id>?))");
                 values.push(cursor.dueDate, cursor.dueDate, cursor.id);
             }
-            const rows = (await db.prepare(`SELECT c.id,c.order_id,c.next_action,c.due_date,c.status,c.version,o.number order_number FROM (${purchased.sql}) c
+            const rows = (await db.prepare(`${followupEvidencePrefix}(${purchased.sql}) c
     JOIN (${commerceProjectionSources.commerce_orders}) o ON o.id=c.order_id AND o.company_id=c.company_id JOIN (${financeProjectionSources.finance_parties}) p ON p.id=o.party_id AND p.company_id=o.company_id
     WHERE ${conditions.join(" AND ")} ORDER BY c.due_date,c.id LIMIT ?`)
                 .bind(...values, input.limit + 1).all<FollowupRow>()).results;
