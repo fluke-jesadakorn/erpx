@@ -16,6 +16,7 @@ import { createPmsBookingChange, type PmsBookingChangeUnit, type PmsBookingChang
 import { holdingResources as resolveResources } from "../../../../packages/server-runtime/src/public/runtime";
 import { requirePmsPropertyPurchase, withPmsPropertyPurchasedTransaction } from "@erpx/server-pms/adapters/property-purchase-boundary";
 import { nativePmsReadFirst, PMS_RD_BOOKING_CHANGE, PMS_RD_BOOKING_CHANGE_PENDING, PMS_RD_BOOKING_PAYMENT } from "./native-pms-read";
+import { pmsBookingAllocationRefundSql } from "./pms-read-tail-r32-sql";
 const signature = (env: BookingEnv, payload: string) => createHmac('sha256', env.secret).update(`pms-change:${payload}`).digest('base64url');
 function signed(p: Proposal, env: BookingEnv) { const payload = Buffer.from(JSON.stringify(p)).toString('base64url'); return `${payload}.${signature(env, payload)}`; }
 function read(token: string, env: BookingEnv): Proposal { const [body, sig, extra] = token.split("."), expected = signature(env, body ?? ''); if (extra || !body || !sig || sig.length !== expected.length || !timingSafeEqual(Buffer.from(sig), Buffer.from(expected)))
@@ -31,14 +32,14 @@ function unit(db: SqlDatabase, whole?: TransactionalSqlDatabase, companyId = '')
         }>(),
         readPmsBookingRefundRequests: (facts: {
             id: string;
-        }) => db.prepare('SELECT a.*,COALESCE((SELECT SUM((part->>\'amount\')::bigint) FROM pms_booking_refund_requests r CROSS JOIN LATERAL jsonb_array_elements(r.allocations_json::jsonb) part WHERE r.payment_id=a.payment_id AND part->>\'entryId\'=a.entry_id),0) refunded FROM pms_booking_allocations a WHERE a.stay_id=?').bind(facts.id).all<{
+        }) => db.prepare(pmsBookingAllocationRefundSql(false)).bind(facts.id).all<{
             entry_id: string;
             amount_minor: number;
             refunded: number;
         }>(),
         readPmsBookingRefundRequests2: (facts: {
             stayId: string;
-        }) => db.prepare('SELECT a.*,COALESCE((SELECT SUM((part->>\'amount\')::bigint) FROM pms_booking_refund_requests r CROSS JOIN LATERAL jsonb_array_elements(r.allocations_json::jsonb) part WHERE r.payment_id=a.payment_id AND part->>\'entryId\'=a.entry_id),0) refunded FROM pms_booking_allocations a WHERE a.stay_id=? ORDER BY a.created_at,a.id').bind(facts.stayId).all<{
+        }) => db.prepare(pmsBookingAllocationRefundSql(true)).bind(facts.stayId).all<{
             entry_id: string;
             payment_id: string;
             amount_minor: number;
