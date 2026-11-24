@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12366,
+    "revision": 12374,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -183345,6 +183345,146 @@
           "nextAction": "Blocked with AST evidence; claim released"
         },
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.billing.read-tail-r36",
+        "goalId": "G4",
+        "owner": "billing",
+        "title": "billing TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-billing/src/**",
+          "tests/unit/billing/**"
+        ],
+        "resources": [
+          "owner:billing"
+        ],
+        "claim": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n69",
+          "claimedAt": "2026-11-24T15:36:26.760Z",
+          "heartbeatAt": "2026-11-24T15:36:26.760Z",
+          "expiresAt": "2026-11-24T16:06:26.760Z",
+          "generation": 170
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Projection family (-4), point-read family (-2): 24->18; r16 guard excluded pending authorization. BEFORE=24.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.marketing.read-tail-r43",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n70",
+          "claimedAt": "2026-11-24T15:36:39.576Z",
+          "heartbeatAt": "2026-11-24T15:36:39.576Z",
+          "expiresAt": "2026-11-24T16:06:39.576Z",
+          "generation": 170
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Source-row guard head (-6), actor-scope guard (-3), union frame (-1): 48->38. BEFORE=48.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.collaboration.read-tail-r41",
+        "goalId": "G4",
+        "owner": "collaboration",
+        "title": "collaboration TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-collaboration/src/**",
+          "tests/unit/collaboration/**"
+        ],
+        "resources": [
+          "owner:collaboration"
+        ],
+        "claim": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n71",
+          "claimedAt": "2026-11-24T15:36:52.400Z",
+          "heartbeatAt": "2026-11-24T15:36:52.400Z",
+          "expiresAt": "2026-11-24T16:06:52.400Z",
+          "generation": 170
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Origin-by pair (-1), ai usage projection (-1), messaging member exists (-1): 355->352. BEFORE=355.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.files.read-tail-r45",
+        "goalId": "G4",
+        "owner": "files",
+        "title": "files TS read tail (next round)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "tests/unit/files/**"
+        ],
+        "resources": [
+          "owner:files"
+        ],
+        "claim": {
+          "runId": "run-20261124-d",
+          "agentId": "wH4n72",
+          "claimedAt": "2026-11-24T15:37:05.082Z",
+          "heartbeatAt": "2026-11-24T15:37:05.082Z",
+          "expiresAt": "2026-11-24T16:07:05.082Z",
+          "generation": 170
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "attachment_events head (-1): 242->241. BEFORE=242.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -183353,11 +183493,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1789,
+      "totalPackets": 1793,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 0,
+        "in_progress": 4,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -183367,7 +183507,7 @@
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T15:35:54.401Z",
+    "updatedAt": "2026-11-24T15:37:05.085Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
