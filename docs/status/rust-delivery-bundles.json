@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12189,
+    "revision": 12191,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -181477,6 +181477,41 @@
           "nextAction": "Blocked with AST evidence; claim released"
         },
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.identity_access.read-tail-r33",
+        "goalId": "G4",
+        "owner": "identity_access",
+        "title": "identity assignment authority trio and session guards",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-identity_access/src/**",
+          "tests/unit/identity_access/**"
+        ],
+        "resources": [
+          "owner:identity_access"
+        ],
+        "claim": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n34",
+          "claimedAt": "2026-11-24T13:58:02.383Z",
+          "heartbeatAt": "2026-11-24T13:58:02.383Z",
+          "expiresAt": "2026-11-24T14:28:02.383Z",
+          "generation": 169
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "EXISTS assignment authority trio (-2), DISTINCT user_id pair (-1), active work context pair (-1): 472->468.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -181485,11 +181520,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1753,
+      "totalPackets": 1754,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 15,
+        "in_progress": 16,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
@@ -181499,7 +181534,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:57:28.890Z",
+    "updatedAt": "2026-11-24T13:58:02.391Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
