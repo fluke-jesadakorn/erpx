@@ -2,6 +2,10 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { readFile } from 'node:fs/promises';
 vi.mock('server-only', () => ({}));
 import { ACTIVE_CHART_BASE_CURRENCY_SQL } from '../../../packages/server-finance/src/adapters/chart-base-currency-dedupe-sql';
+import { FINANCE_JOURNALS_PROJECTION_SQL } from '../../../packages/server-finance/src/adapters/finance-journals-projection-dedupe-sql';
+import { finalRootOwnerProjectionSources } from '../../../packages/server-finance/src/adapters/final-root-owner-projection-sources';
+import { platformOwnerProjectionSources } from '../../../packages/server-finance/src/adapters/platform-owner-projection-sources';
+import { inventoryExecutiveOwnerProjections } from '../../../packages/server-finance/src/adapters/inventory-executive-owner-projections';
 import {
   nativeFinanceReadAll,
   nativeFinanceReadFirst,
@@ -178,5 +182,26 @@ describe('finance books posted-chart existence read dedupe', () => {
     const text = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-books.ts', import.meta.url), 'utf8');
     expect(text.split(`"${POSTED_CHART_SQL}"`).length - 1).toBe(1);
     expect(text.split('chartPostedSql,').length - 1).toBe(2);
+  });
+});
+
+const JOURNALS_CALL_SITES = [
+  'packages/server-finance/src/adapters/final-root-owner-projection-sources.ts',
+  'packages/server-finance/src/adapters/platform-owner-projection-sources.ts',
+  'packages/server-finance/src/adapters/inventory-executive-owner-projections.ts',
+];
+
+describe('finance finance_journals projection dedupe', () => {
+  it('keeps one byte-identical literal and backs all three owner projections with it', async () => {
+    const shared = await readFile(new URL('../../../packages/server-finance/src/adapters/finance-journals-projection-dedupe-sql.ts', import.meta.url), 'utf8');
+    expect(shared.split('FROM finance_journals').length - 1).toBe(1);
+    for (const rel of JOURNALS_CALL_SITES) {
+      const text = await readFile(new URL(`../../../${rel}`, import.meta.url), 'utf8');
+      expect(text.split('FROM finance_journals').length - 1).toBe(0);
+      expect(text).toContain('FINANCE_JOURNALS_PROJECTION_SQL');
+    }
+    expect(finalRootOwnerProjectionSources.finance_journals).toBe(FINANCE_JOURNALS_PROJECTION_SQL);
+    expect(platformOwnerProjectionSources.finance_journals).toBe(FINANCE_JOURNALS_PROJECTION_SQL);
+    expect(inventoryExecutiveOwnerProjections.finance_journals).toBe(FINANCE_JOURNALS_PROJECTION_SQL);
   });
 });
