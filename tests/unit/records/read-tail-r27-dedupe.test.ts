@@ -110,10 +110,11 @@ describe('Records read-tail r27 retirement check', () => {
     walk(srcRoot);
     // r25 folded the two projection-source guards (27 -> 26), r26 folded the
     // workspace version fence (26 -> 25), r27 folded the search references
-    // SELECT into the record context detail generator (25 -> 24) and r28 folds
-    // the reference-edge family into that generator (24 -> 23). No lock,
+    // SELECT into the record context detail generator (25 -> 24), r28 folds
+    // the reference-edge family into that generator (24 -> 23) and r29 folds
+    // the request-events aggregate into childRowAgg (23 -> 22). No lock,
     // cross-owner port or native seam changed.
-    expect(total).toBe(23);
+    expect(total).toBe(22);
     expect(total).toBeLessThan(25);
   });
 });

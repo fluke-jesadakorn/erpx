@@ -69,7 +69,7 @@ describe('Records read-tail r24 childRowAgg family', () => {
   test('the family is one generator literal with three call sites and no inlined children read', () => {
     expect(shared.match(/export const childRowAgg\s*=/g) ?? []).toHaveLength(1);
     expect((shared.match(/SELECT jsonb_agg\(to_jsonb\(\$\{alias\}/g) ?? []).length).toBe(1);
-    expect(shared.match(/childRowAgg\(/g) ?? []).toHaveLength(3); // three call sites
+    expect(shared.match(/childRowAgg\(/g) ?? []).toHaveLength(4); // four call sites (r29 adds the events aggregate)
     expect(shared).not.toContain(pre.children.sql);
     expect(shared).not.toMatch(/approvalChildAgg/);
     expect(shared).toContain('LOCK TABLE employee_requests,employee_request_events IN SHARE ROW EXCLUSIVE MODE');
@@ -109,9 +109,10 @@ describe('Records read-tail r24 retirement check', () => {
     // guards into one generator (27 -> 26); r26 folds the workspace version
     // fence into the exists guard family (26 -> 25); r27 folds the search
     // references SELECT into the record context detail generator (25 -> 24);
-    // r28 folds the reference-edge family into that generator (24 -> 23).
+    // r28 folds the reference-edge family into that generator (24 -> 23);
+    // r29 folds the request-events aggregate into childRowAgg (23 -> 22).
     // No other family changed.
-    expect(total).toBe(23);
+    expect(total).toBe(22);
     expect(total).toBeLessThan(28);
   });
 });
