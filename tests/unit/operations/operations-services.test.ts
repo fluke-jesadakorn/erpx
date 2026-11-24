@@ -478,8 +478,8 @@ describe('Operations staff_tasks snapshot sources share one canonical projection
 });
 
 import {readFileSync} from 'node:fs';
-import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL,operationsApprovalImageSql,operationsActiveDelegationSql,operationsChildJsonSql,operationsChildAggJsonSql} from '../../../packages/server-operations/src/adapters/task-delegation-source';
-import {workforceActorScopeSql} from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
+import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL,operationsApprovalImageSql,operationsActiveDelegationSql,operationsChildJsonSql,operationsChildAggJsonSql,operationsChildJsonByBoundId} from '../../../packages/server-operations/src/adapters/task-delegation-source';
+import {workforceActorScopeSql,OPERATIONS_VIEWER_CLOCK_SQL} from '../../../packages/server-operations/src/adapters/workforce-actor-scope-source';
 import {OPERATIONS_TASK_START_APPROVER_SQL,OPERATIONS_TASK_COMPLETION_APPROVER_SQL,approverJsonExistsSql} from '../../../packages/server-operations/src/adapters/task-approver-access-source';
 import {handoverTaskAccessSql} from '../../../packages/server-operations/src/adapters/handover-policy';
 import {taskParticipantReadPolicy} from '../../../packages/server-operations/src/adapters/project-task-record-policy';
@@ -666,5 +666,27 @@ describe('Operations task-image child JSON projection dedupe',()=>{
   const srcSrc=readFileSync(new URL('../../../packages/server-operations/src/adapters/task-delegation-source.ts',import.meta.url),'utf8');
   expect(srcSrc).toContain("operationsChildJsonSql('routine_templates','template','template_id','t')");
   expect(srcSrc).toContain("operationsChildAggJsonSql('staff_task_delegations','delegation','t')");
+ });
+});
+
+describe('Operations bound-parameter child JSON and viewer clock dedupe',()=>{
+ const child=(table:string,alias:string)=>`(SELECT to_jsonb(${alias}) FROM ${table} ${alias} WHERE ${alias}.id=? AND ${alias}.company_id=?)`;
+ test('the canonical bound child projection renders both reference sites byte-identically',()=>{
+  expect(operationsChildJsonByBoundId('routine_templates','t')).toBe(child('routine_templates','t'));
+  expect(operationsChildJsonByBoundId('routine_schedules','s')).toBe(child('routine_schedules','s'));
+  expect(operationsChildJsonByBoundId('t','a').match(/SELECT /g)).toHaveLength(1);
+ });
+ test('the routine reference image composes the canonical projection and keeps no local literal',()=>{
+  const src=readFileSync(new URL('../../../packages/server-operations/src/adapters/work-task-purchases.ts',import.meta.url),'utf8');
+  expect(src).toContain("operationsChildJsonByBoundId('routine_templates','t')");
+  expect(src).toContain("operationsChildJsonByBoundId('routine_schedules','s')");
+  expect(src).not.toContain("(SELECT to_jsonb(t) FROM routine_templates t WHERE t.id=?");
+  expect(src).not.toContain("(SELECT to_jsonb(s) FROM routine_schedules s WHERE s.id=?");
+ });
+ test('the attachment file guard composes the canonical viewer clock and keeps no local literal',()=>{
+  expect(OPERATIONS_VIEWER_CLOCK_SQL).toBe('(SELECT ?::text user_id,?::text assignment_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms)');
+  const src=readFileSync(new URL('../../../packages/server-operations/src/adapters/task-attachment-purchases.ts',import.meta.url),'utf8');
+  expect(src).toContain('MATERIALIZED${OPERATIONS_VIEWER_CLOCK_SQL}');
+  expect(src).not.toContain('MATERIALIZED(SELECT ?::text user_id,?::text assignment_id,floor(');
  });
 });

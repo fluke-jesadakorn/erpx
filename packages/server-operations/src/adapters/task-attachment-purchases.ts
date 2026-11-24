@@ -1,6 +1,6 @@
 import 'server-only';
 import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL,operationsActiveDelegationSql} from './task-delegation-source';
-import {OPERATIONS_ACTOR_SCOPE_INPUT_SQL} from './workforce-actor-scope-source';
+import {OPERATIONS_ACTOR_SCOPE_INPUT_SQL,OPERATIONS_VIEWER_CLOCK_SQL} from './workforce-actor-scope-source';
 import {randomUUID} from 'node:crypto';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {currentAssignmentReadScope} from '@erpx/server-identity_access/public/record-source-authority';
@@ -66,7 +66,7 @@ export async function workTaskAttachmentCommandBoundary(database:SqlDatabase,sco
  const guards=(phase:string)=>unique.flatMap((scope,index)=>{
   const actor=scope.actor,key=`work-task-file-${phase}:${randomUUID()}`,viewer='work_task_file_actor',current=currentAssignmentReadScope(actor,'workforce_actor_scope');
   const writer=scope.writer==='creator'?`iam_same_person(work_task_file_source.creator_user_id,${viewer}.user_id,work_task_file_source.company_id)`:scope.writer==='assignee'?`iam_same_person(work_task_file_source.assignee_user_id,${viewer}.user_id,work_task_file_source.company_id)`:`EXISTS(${operationsActiveDelegationSql('1','delegation','work_task_file_source.id','work_task_file_source.company_id',`${viewer}.now_ms`,` AND iam_same_person(delegation.delegate_user_id,${viewer}.user_id,delegation.company_id)`)})`;
-  return [...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),staffGuard(database,key,actor.companyId,actor.userId,'work-task-file-staff'),assertion(database,key,'work-task-file-source',`EXISTS(WITH ${viewer} AS MATERIALIZED(SELECT ?::text user_id,?::text assignment_id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint now_ms)
+  return [...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),staffGuard(database,key,actor.companyId,actor.userId,'work-task-file-staff'),assertion(database,key,'work-task-file-source',`EXISTS(WITH ${viewer} AS MATERIALIZED${OPERATIONS_VIEWER_CLOCK_SQL}
  SELECT 1 FROM (${source(scope.ownedAction)}) work_task_file_source CROSS JOIN ${viewer} WHERE work_task_file_source.project_id IS NULL AND witness=? AND ${writer}
  AND ${projectTaskRecordPolicy('work_task_file_source.id','work_task_file_source.company_id',viewer)}
  AND EXISTS(SELECT 1 FROM ${OPERATIONS_ACTOR_SCOPE_INPUT_SQL} workforce_actor_scope WHERE ${current.where}))`,[actor.userId,actor.assignmentId,scope.targetId,scope.companyId,scope.witness,actor.companyId,actor.branchId,actor.departmentId,...current.args]),assertion(database,key,'work-task-file-social-source',social[index].where,social[index].args),clearWorkflowCommandAssertions(database, key)];

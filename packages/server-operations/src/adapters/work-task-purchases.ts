@@ -1,5 +1,5 @@
 import 'server-only';
-import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL,operationsApprovalImageSql} from './task-delegation-source';
+import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL,OPERATIONS_TASK_TEMPLATE_SOURCE_SQL,OPERATIONS_TASK_SCHEDULE_SOURCE_SQL,operationsApprovalImageSql,operationsChildJsonByBoundId} from './task-delegation-source';
 import {OPERATIONS_ACTOR_SCOPE_INPUT_SQL,operationsClockProbe} from './workforce-actor-scope-source';
 import {randomUUID} from 'node:crypto';
 import {nativeOperationsReadFirst,OPERATIONS_RD_WORK_TASK_SOURCE} from './native-operations-read';
@@ -36,7 +36,7 @@ async function capabilities(database:SqlDatabase,actor:StaffActor,task:TaskSourc
  if(!ordinary)return [];const codes=['work.actions'];if(task?.template_id)codes.push('work.advanced-routines');if((await workTaskSocialPurchaseSource(database,actor.companyId,task?.id??'',postId)).workSocial)codes.push('work.social');return codes;
 }
 const taskImageSql=`SELECT jsonb_build_object('task',to_jsonb(t)-'updated_at','template',${OPERATIONS_TASK_TEMPLATE_SOURCE_SQL},'schedule',${OPERATIONS_TASK_SCHEDULE_SOURCE_SQL},'delegations',${OPERATIONS_TASK_DELEGATION_SOURCE_SQL},${operationsApprovalImageSql('approvals','a','',approvals.instances,approvals.steps,approvals.decisions)})::text image FROM staff_tasks t WHERE t.id=? AND t.company_id=?`;
-const referencesImageSql="SELECT jsonb_build_object('template',(SELECT to_jsonb(t) FROM routine_templates t WHERE t.id=? AND t.company_id=?),'schedule',(SELECT to_jsonb(s) FROM routine_schedules s WHERE s.id=? AND s.company_id=?))::text image";
+const referencesImageSql=`SELECT jsonb_build_object('template',${operationsChildJsonByBoundId('routine_templates','t')},'schedule',${operationsChildJsonByBoundId('routine_schedules','s')})::text image`;
 /** A complete existing owner unit composes both actual Project and ordinary
  * Work sources. No Work purchase is added to Project-only task foundations. */
 export async function withWorkTaskPurchasedCommand<Result>(owner:SqlDatabase,actor:StaffActor,command:Command,run:(database:SqlDatabase)=>Promise<Result>){

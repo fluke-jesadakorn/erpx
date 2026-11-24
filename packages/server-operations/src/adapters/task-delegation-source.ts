@@ -6,6 +6,10 @@ export const operationsChildJsonSql = (table:string,alias:string,fk:string,outer
 /** Canonical task-scoped aggregated child JSON projection for the Operations
  *  task image. Table, alias and outer alias are the only varying bytes. */
 export const operationsChildAggJsonSql = (table:string,alias:string,outer:string) => `(SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.id) FROM ${table} ${alias} WHERE ${alias}.task_id=${outer}.id AND ${alias}.company_id=${outer}.company_id)`;
+/** Canonical bound-parameter child JSON projection for the Operations routine
+ *  reference image. Table and alias are the only varying bytes; each rendering
+ *  is byte-identical to the original inline literals. */
+export const operationsChildJsonByBoundId = (table:string,alias:string) => `(SELECT to_jsonb(${alias}) FROM ${table} ${alias} WHERE ${alias}.id=? AND ${alias}.company_id=?)`;
 /** Canonical source projections shared by the Operations task image SQL clauses. */
 export const OPERATIONS_TASK_DELEGATION_SOURCE_SQL = operationsChildAggJsonSql('staff_task_delegations','delegation','t');
 /** Canonical routine-template projection shared by the Operations task image SQL clauses. */
