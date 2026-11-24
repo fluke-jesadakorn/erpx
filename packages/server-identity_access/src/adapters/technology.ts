@@ -1,4 +1,5 @@
 import { nativeIdentityWrite } from '@erpx/server-identity_access/public/native-identity-write';
+import { activeIamRoleProbeSql } from './active-role-probe-family-r25';
 import 'server-only';import {createHash,randomUUID} from 'node:crypto';import type {PoolClient} from 'pg';import type {TechnologyStore} from '@erpx/server-identity_access/public/technology-contracts';import type {DirectoryMembershipFact,ProvisionConnection,ProvisionChild} from '@erpx/server-identity_access/public/technology-contracts';
 import type {PostgresDatabase} from '@erpx/server-runtime/public/runtime/postgres';import {ApiError} from '@erpx/server-runtime/public/http';import {iamDb} from '@erpx/server-identity_access/public/iam-db';import {assertCompanyScope} from '@erpx/server-identity_access/public/iam-context';import {requirePermission} from '@erpx/server-identity_access/public/iam-permissions';import {iamCommand} from '@erpx/server-identity_access/public/iam-transactions';import {requireFreshMfa} from '@erpx/server-identity_access/public/iam-mfa';import { grantInput, proposeIamReview } from '@erpx/server-identity_access/public/iam-service';
 import {validateIamGrant,insertIamGrant} from '@erpx/server-identity_access/public/iam-grants';import {prepareDirectoryPreview} from '@erpx/server-identity_access/public/directory-operations';import {technologyProvisioningFacts} from '@erpx/server-people_payroll/public/technology-provisioning-facts';import {technologyVerifiedPersonUsersProjection,technologyRestorationAssignmentProjection} from '@erpx/server-people_payroll/public/technology-provisioning-projection';import {technologyProvisioningEffects} from '@erpx/server-workflow/public/technology-provisioning-effects';import {createTechnologyService} from '@erpx/server-identity_access/application/technology';const clients=new WeakMap<TechnologyStore,PoolClient>();function nativeStore(c:PoolClient):TechnologyStore{const store:TechnologyStore={...technologyProvisioningFacts(c),...technologyProvisioningEffects(c),parentExpiry:async(facts)=>{const{actor}=facts;return (await c.query<{valid_until:number}>("SELECT valid_until FROM assignments WHERE id=$1", [
@@ -22,7 +23,7 @@ verifiedUsers:async(facts)=>{const{actor,e,definition}=facts;return (await c.que
         ],
       )).rows;},
 roleRevision:async(facts)=>{const{grant,actor}=facts;return (await c.query(
-            "SELECT 1 FROM iam_roles WHERE id=$1 AND company_id IN ('*',$2) AND status='active' AND published_revision=$3",
+            activeIamRoleProbeSql(true),
             [grant.roleId, actor.companyId, grant.expectedRoleRevision],
           )).rowCount;},
 connectionInventory:async(facts)=>{const{connectionId,actor}=facts;return (await c.query<ProvisionConnection>(
