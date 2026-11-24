@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10089,
+    "revision": 10091,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -158597,7 +158597,7 @@
         "owner": "brand",
         "title": "brand TS read tail native cutover (r1)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -158609,22 +158609,43 @@
         "resources": [
           "owner:brand"
         ],
-        "claim": {
-          "runId": "run-20261123-m",
-          "agentId": "wGCMbrn",
-          "claimedAt": "2026-11-24T06:39:50.707Z",
-          "heartbeatAt": "2026-11-24T06:39:50.707Z",
-          "expiresAt": "2026-11-24T07:09:50.708Z",
-          "generation": 165
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-brand/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "76637452f",
+            "owner": "brand",
+            "before": 6,
+            "after": 3,
+            "note": "Three pure reads cut to dormant native brand read port; residual 3 = two management authority guards and one cross-owner current-scope probe, both fail-closed without explicit sign-off."
+          },
+          {
+            "command": "vitest brand application (16) + tsc brand",
+            "result": "passed",
+            "sourceSha": "76637452f"
+          },
+          {
+            "command": "native cutover availability",
+            "result": "observed",
+            "sourceSha": "76637452f",
+            "note": "ERPX_NATIVE_BRAND_READ_CONFIG plus mounted branding read-port must be provisioned wherever brand reads run; no TS fallback by design."
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked with evidence. BEFORE=6.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Three reads cut; residual blocked with evidence; claim released",
+        "handoff": {
+          "runId": "run-20261123-m",
+          "agentId": "wGCMbrn",
+          "at": "2026-11-24T06:52:50.297Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Three reads cut; residual blocked with evidence; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -159208,17 +159229,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
-        "in_progress": 28,
+        "in_progress": 27,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 932,
+        "blocked": 933,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 165,
-    "updatedAt": "2026-11-24T06:52:23.639Z",
+    "updatedAt": "2026-11-24T06:52:50.303Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
