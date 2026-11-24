@@ -5,7 +5,6 @@ import type {StaffActor,StaffPerson} from "@erpx/server-operations/public/staff-
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {isTransactionalSqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {ApiError} from "@erpx/server-runtime/public/http";
-import {assignmentReadSql} from "@erpx/server-identity_access/public/record-source-authority";
 import {iamMutationGuards} from "@erpx/server-identity_access/public/iam-store";
 import {lockQueuedCommandAuthority} from "@erpx/server-identity_access/public/queued-command-authority";
 import {StaffPolicyIdentityAccessFacts} from "@erpx/server-identity_access/public/operations-staff-policy-facts";
@@ -17,7 +16,7 @@ import type {CapabilityPurpose} from "@erpx/server-commercial/public/rules/packa
 import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-transactions";
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 import {projectMemberRows} from "@erpx/server-projects/adapters/work-ui-staff-facts";
-import {projectAssignmentScopeSql} from "@erpx/server-projects/adapters/package-obligations";
+import {projectAssignmentAuthorityReadSql} from './read-tail-r23';
 
 export type ProjectCapability="projects.wbs"|"projects.tasks"|"projects.time"|"projects.handover"|"projects.costs";
 export type ProjectPurchaseTarget={kind:"milestone"|"work_log"|"allocation"|"handoff";id:string}|{kind:"work_date";date:string}|{kind:"cost_line";id:string};
@@ -44,8 +43,7 @@ async function current(database:SqlDatabase,actor:StaffActor,key:string,permissi
  // Explicit Project membership can cross a staff branch. Preserve that owner
  // policy while validating the actual selected assignment, never another role.
  const scope={company_id:actor.companyId,branch_id:actor.branchId,department_id:actor.departmentId};
- const found=await database.prepare(`SELECT ${assignmentReadSql("project_scope",permission)} allowed FROM
- ${projectAssignmentScopeSql("project_scope")}`)
+ const found=await database.prepare(projectAssignmentAuthorityReadSql("project_scope",permission,true))
   .bind(actor.assignmentId,actor.userId,actor.role,scope.company_id,scope.branch_id,scope.department_id).first<{allowed:boolean}>();
  if(!found?.allowed)throw new ApiError(403,"PROJECT_ACCESS_CHANGED","Choose a current Project assignment.");
  await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),clearWorkflowCommandAssertions(database, key)]);

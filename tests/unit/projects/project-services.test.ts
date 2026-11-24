@@ -719,7 +719,7 @@ it('keeps one byte-identical grouped metric projection family for the Projects e
  expect(count('SELECT min(${label}) label,(sum(l.minutes::numeric)*60000)::text value,count(*)::text count_value')).toBe(0);
  expect(count('SELECT min(${label}) label,sum(a.amount_minor::numeric)::text value,count(*)::text count_value')).toBe(0);
 });
-it('retirement:ts-statements stays strictly below the r22 BEFORE=126 baseline',async()=>{
+it('retirement:ts-statements stays strictly below the r23 BEFORE=125 baseline',async()=>{
  const {readFileSync,readdirSync}=await import('node:fs');
  const {resolve}=await import('node:path');
  const root=resolve(__dirname,'../../../packages/server-projects/src');
@@ -732,6 +732,6 @@ it('retirement:ts-statements stays strictly below the r22 BEFORE=126 baseline',a
   }
  };
  walk(root);
- expect(total).toBeLessThan(126);
- expect(total).toBeLessThanOrEqual(125);
+ expect(total).toBeLessThan(125);
+ expect(total).toBeLessThanOrEqual(124);
 });
