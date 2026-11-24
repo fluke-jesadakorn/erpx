@@ -476,3 +476,21 @@ describe('Operations staff_tasks snapshot sources share one canonical projection
   expect(collaborationNotificationSnapshotSources().operations_handover_facts_staff_tasks_t_from).toBe(from);
  });
 });
+
+import {readFileSync} from 'node:fs';
+import {OPERATIONS_TASK_DELEGATION_SOURCE_SQL} from '../../../packages/server-operations/src/adapters/task-delegation-source';
+describe('Operations task delegation source dedupe',()=>{
+ const fragment='(SELECT jsonb_agg(to_jsonb(delegation) ORDER BY delegation.id) FROM staff_task_delegations delegation WHERE delegation.task_id=t.id AND delegation.company_id=t.company_id)';
+ test('the canonical projection owns a single byte-identical delegation read',()=>{
+  expect(OPERATIONS_TASK_DELEGATION_SOURCE_SQL).toBe(fragment);
+  expect(OPERATIONS_TASK_DELEGATION_SOURCE_SQL.match(/SELECT /g)).toHaveLength(1);
+ });
+ test('all owner task source clauses compose the canonical interpolation',()=>{
+  const names=['work-task-alert-purchases.ts','work-task-purchases.ts','task-attachment-read.ts','task-attachment-purchases.ts'];
+  for(const name of names){
+   const source=readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+   expect(source).toContain('${OPERATIONS_TASK_DELEGATION_SOURCE_SQL}');
+   expect(source).not.toContain(fragment);
+  }
+ });
+});
