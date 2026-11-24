@@ -1,4 +1,5 @@
 import {ppRd38SinglePredTail} from './pp-read-tail-r38-sources';
+import {ppRd39NumberedThreePred} from './pp-read-tail-r39-sources';
 import {ppRd36SinglePred, ppRd36ThreePred, ppRd36TwoPredTail} from './pp-read-tail-r36-sources';
 import { PP_RD23_HR_ENGAGEMENTS_ACTIVE_FOR_PERSON_NOT_EXISTS } from './pp-read-tail-r23-sources';
 import { ppRd30Exists4Guard } from './pp-read-tail-r30-sources';
@@ -381,7 +382,7 @@ function applicationPorts(raw: SqlDatabase, client?: PoolClient, actor?: WorkCon
         applyBindPositionPackageEffect3(companyId: unknown, id: unknown, value: unknown) { return nativePpQuery<Record<string, unknown>>('people_lifecycle_stmt_20', [companyId, id, value]); },
         readRequestLifecycleAccessrow(companyId: unknown, id: unknown) { return client!.query<LifecycleCase>("SELECT * FROM people_lifecycle_cases WHERE company_id=$1 AND id=$2 FOR UPDATE", [companyId, id]); },
         applyRequestLifecycleAccessEffect(...args) { return peopleLifecycleIdentityAccessFacts(database, client).applyRequestLifecycleAccessEffect(...args); },
-        readRequestLifecycleAccessdefinition(companyId: unknown, package_id: unknown, package_revision: unknown) { return client!.query<LifecyclePackageRevisionFact>("SELECT definition FROM people_package_revisions WHERE company_id=$1 AND package_id=$2 AND revision=$3", [companyId, package_id, package_revision]); },
+        readRequestLifecycleAccessdefinition(companyId: unknown, package_id: unknown, package_revision: unknown) { return client!.query<LifecyclePackageRevisionFact>(ppRd39NumberedThreePred("definition","people_package_revisions","company_id","package_id","revision"), [companyId, package_id, package_revision]); },
         applyRequestLifecycleAccessEffect2(grantId: unknown, companyId: unknown, id: unknown, userId: unknown, index: unknown, value: unknown, id2: unknown) { return nativePpQuery<Record<string, unknown>>('people_lifecycle_stmt_21', [grantId, companyId, id, userId, index, value, id2]); },
         applyRequestLifecycleAccessEffect3(id: unknown, value: unknown) { return nativePpQuery<Record<string, unknown>>('people_lifecycle_stmt_22', [id, value]); },
         readApplyLifecycleReviewrow(companyId: unknown, caseId: unknown) { return client!.query<LifecycleCase>("SELECT * FROM people_lifecycle_cases WHERE company_id=$1 AND id=$2 AND status='pending_review' FOR UPDATE", [companyId, caseId]); },

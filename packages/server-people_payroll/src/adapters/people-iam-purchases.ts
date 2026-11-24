@@ -1,4 +1,5 @@
 import {ppRd36NumberedTwoPred} from './pp-read-tail-r36-sources';
+import {ppRd39NumberedThreePred} from './pp-read-tail-r39-sources';
 import { PP_RD23_IAM_REVIEWS_BY_ID_SQL } from './pp-read-tail-r23-sources';
 import "server-only";
 import {randomUUID} from "node:crypto";
@@ -20,7 +21,7 @@ async function prepare(client:PoolClient,actor:IamActor,key:string,capability:st
  if(actor.platform||actor.scopeKind!=="holding")throw new ApiError(403,"COMPANY_SCOPE_REQUIRED","Choose current Company authority for this work.");
  const database=transactionDatabase(client),checkKey=`people-iam:${randomUUID()}`;
  await database.batch(companyPurchaseReadLocks(database,actor.companyId));
- const replay=Boolean((await client.query("SELECT 1 FROM iam_receipts WHERE id=$1 AND company_id=$2 AND actor_id=$3",[key,actor.companyId,actor.userId])).rowCount),scope={companyId:actor.companyId,capability,purpose:replay?"history" as const:purpose},boundary=purchaseCommandBoundary(database,mode,checkKey,scope)!;
+ const replay=Boolean((await client.query(ppRd39NumberedThreePred("1","iam_receipts","id","company_id","actor_id"),[key,actor.companyId,actor.userId])).rowCount),scope={companyId:actor.companyId,capability,purpose:replay?"history" as const:purpose},boundary=purchaseCommandBoundary(database,mode,checkKey,scope)!;
  // The selected assignment, identity, role publication and work context remain
  // exactly those that authorized the command; no alternate account role helps.
  const authority=async()=>{
@@ -64,7 +65,7 @@ export async function preparePeopleIamCommand(client:PoolClient,actor:IamActor,k
  }
  if(operation.startsWith("people.position.")){
   const id=String(value.positionId);
-  return prepare(client,actor,key,"foundation.identity",operation.endsWith("preview")?"history":"new-work",async()=>({position:(await client.query(ppRd36NumberedTwoPred("*", "organization_positions", "company_id", "id"),[actor.companyId,id])).rows[0]??null,binding:(await client.query(ppRd36NumberedTwoPred("*", "people_position_packages", "company_id", "position_id"),[actor.companyId,id])).rows[0]??null,package:(await client.query("SELECT * FROM people_package_revisions WHERE company_id=$1 AND package_id=$2 AND revision=$3",[actor.companyId,value.packageId,value.revision])).rows[0]??null}));
+  return prepare(client,actor,key,"foundation.identity",operation.endsWith("preview")?"history":"new-work",async()=>({position:(await client.query(ppRd36NumberedTwoPred("*", "organization_positions", "company_id", "id"),[actor.companyId,id])).rows[0]??null,binding:(await client.query(ppRd36NumberedTwoPred("*", "people_position_packages", "company_id", "position_id"),[actor.companyId,id])).rows[0]??null,package:(await client.query(ppRd39NumberedThreePred("*","people_package_revisions","company_id","package_id","revision"),[actor.companyId,value.packageId,value.revision])).rows[0]??null}));
  }
  if(operation==="people.lifecycle.request-access"){
   const id=String(value.id),row=(await client.query(ppRd36NumberedTwoPred("kind", "people_lifecycle_cases", "company_id", "id"),[actor.companyId,id])).rows[0];
