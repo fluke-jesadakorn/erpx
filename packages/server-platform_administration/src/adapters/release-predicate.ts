@@ -13,11 +13,18 @@ export function releaseRevisionTable(scope: ReleaseScopeVersion) {
   return scope === legalProductionScope.version ? 'company_legal_release_revisions' : 'company_release_revisions';
 }
 
+/** The single revision read shared by release-acceptance inputs and the share-lock
+ * guards. Kept here once so the base revision SQL has one owner-local definition;
+ * each caller supplies its own suffix (e.g. ' FOR SHARE'). */
+export function releaseRevisionReadSql(scope: ReleaseScopeVersion, suffix = '') {
+  return `SELECT revision FROM ${releaseRevisionTable(scope)} WHERE company_id=?${suffix}`;
+}
+
 /** The single revision share-lock statement shared by release acceptance and
  * PMS rollout guards. Kept here once so owner guards never repeat the same
  * fixed lock SQL in every call site. */
 export function releaseRevisionShareLockSql(scope: ReleaseScopeVersion) {
-  return `SELECT revision FROM ${releaseRevisionTable(scope)} WHERE company_id=? FOR SHARE`;
+  return releaseRevisionReadSql(scope, ' FOR SHARE');
 }
 
 /** The single active-branch count subquery shared by release acceptance guards,

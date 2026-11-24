@@ -2,7 +2,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 vi.mock('server-only', () => ({}));
 import { NATIVE_OWNER_WRITE_NOOP_SQL } from '../../../packages/server-platform_administration/src/adapters/native-owner-write';
-import { businessAcceptanceSetupSql } from '../../../packages/server-platform_administration/src/adapters/release-predicate';
+import { businessAcceptanceSetupSql, releaseRevisionReadSql, releaseRevisionTable } from '../../../packages/server-platform_administration/src/adapters/release-predicate';
+import { productionScope } from '@erpx/catalogue/production-scope';
 import { platformOwnerProjectionSources as organizationPlatformSources } from '../../../packages/server-organization/src/public/platform-owner-projection-sources';
 
 const source = (relative: string) =>
@@ -34,14 +35,16 @@ describe('platform administration native owner-write no-op dedupe', () => {
     expect(text.match(new RegExp(rowLock.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'g'))).toHaveLength(1);
   });
 
-  it('keeps one canonical revision share-lock and reuses it in PMS and release acceptance', () => {
-    const shareLock = 'SELECT revision FROM ${releaseRevisionTable(scope)} WHERE company_id=? FOR SHARE';
+  it('keeps one canonical revision read and reuses it in the share-lock, PMS and release acceptance', () => {
+    const revisionRead = 'SELECT revision FROM ${releaseRevisionTable(scope)} WHERE company_id=?';
     const all = [
       'adapters/release-predicate.ts',
       'adapters/pms-rollout-guards.ts',
       'adapters/release-acceptance.ts',
     ].map(source).join('\n');
-    expect(all.split(shareLock).length - 1).toBe(1);
+    expect(all.split(revisionRead).length - 1).toBe(1);
+    expect(source('adapters/release-predicate.ts')).toContain("releaseRevisionReadSql(scope, ' FOR SHARE')");
+    expect(source('adapters/release-acceptance.ts')).toContain('releaseRevisionReadSql(scope)');
     for (const file of ['adapters/pms-rollout-guards.ts', 'adapters/release-acceptance.ts']) {
       const text = source(file);
       expect(text).toContain('releaseRevisionShareLockSql(scope)');
@@ -94,5 +97,12 @@ describe('platform administration native owner-write no-op dedupe', () => {
     expect(businessAcceptanceSetupSql('?', { columns: 'version,status' })).toBe(
       `SELECT version,status FROM (${projection}) company_business_acceptance WHERE company_id=?`,
     );
+  });
+
+  it('generates byte-identical revision read SQL with the caller suffix appended', () => {
+    const scope = productionScope.version;
+    const base = releaseRevisionReadSql(scope);
+    expect(base).toBe(`SELECT revision FROM ${releaseRevisionTable(scope)} WHERE company_id=?`);
+    expect(releaseRevisionReadSql(scope, ' FOR SHARE')).toBe(`${base} FOR SHARE`);
   });
 });

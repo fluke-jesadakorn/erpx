@@ -1,4 +1,4 @@
-import {releaseRevisionTable,releaseCurrencyPredicate,releaseRevisionShareLockSql,latestReleaseIdSql,activeBranchCountSql,businessAcceptanceSetupSql} from "@erpx/server-platform_administration/adapters/release-predicate";
+import {releaseRevisionTable,releaseCurrencyPredicate,releaseRevisionShareLockSql,releaseRevisionReadSql,latestReleaseIdSql,activeBranchCountSql,businessAcceptanceSetupSql} from "@erpx/server-platform_administration/adapters/release-predicate";
 import { platformOwnerProjectionSources as identity_accessPlatformSources } from "@erpx/server-identity_access/public/platform-owner-projection-sources";
 import { platformOwnerProjectionSources as organizationPlatformSources } from "@erpx/server-organization/public/platform-owner-projection-sources";
 import "server-only";
@@ -42,7 +42,7 @@ function repository(db:SqlDatabase,companyId:string,work?:WorkContext):ReleaseRe
  const workActor=()=>{if(!work)throw new ApiError(403,'RELEASE_REVIEW_AUTHORITY_REQUIRED','Open the Company workspace.');return work;};
  return {
  inputFacts:async scope=>{const [revision,setup,branches,currency]=await Promise.all([
- db.prepare(`SELECT revision FROM ${releaseRevisionTable(scope)} WHERE company_id=?`).bind(companyId).first<{revision:number}>(),
+ db.prepare(releaseRevisionReadSql(scope)).bind(companyId).first<{revision:number}>(),
  db.prepare(businessAcceptanceSetupSql('?', { columns: 'version,status' })).bind(companyId).first<{version:number;status:string}>(),
  db.prepare(activeBranchCountSql('?', { countAlias: 'count' })).bind(companyId).first<{count:number}>(),
  db.prepare(`SELECT ${releaseCurrencyPredicate('?')} AS compatible`).bind(companyId).first<{compatible:boolean}>()]);return {revision,setup,branches,currency};},
