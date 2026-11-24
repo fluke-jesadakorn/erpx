@@ -18,6 +18,7 @@ export type BillingJobEnv = BetaEnvironment & {
 import {createBillingJobs,type BillingJobRepository,type BillingInboxRow} from '@erpx/server-billing/application/jobs';
 import {nativeBillingOwnerQuery,nativeBillingOwnerBind} from '@erpx/server-billing/adapters/native-billing-owner-write';
 import {BILLING_INVOICE_BY_ID_SQL,BILLING_ACCOUNT_BY_HOLDING_SQL,BILLING_CUSTOMER_BY_HOLDING_SQL} from './billing-read-tail-r15-sql';
+import {billingPendingInboxSql} from './billing-read-tail-r23-sql';
 import type {BillingAccount,BillingInvoiceRow,BillingJobRow} from '@erpx/server-billing/domain/billing';
 import {billingTestFinanceReady} from '@erpx/server-commerce/public/billing-test-finance-ready';
 /** r17 read tail: shared invoice-id read prefix; each caller appends its own predicate. */
@@ -42,7 +43,7 @@ currentAccount:(v0)=>c.query<BillingAccount>(BILLING_ACCOUNT_BY_HOLDING_SQL,[v0]
 retainCurrentCard:(v0,v1)=>nativeBillingOwnerQuery(c, 'retain_current_card', [v0,v1]),
 pendingJobs:(v0,v1)=>c.query<BillingJobRow>("SELECT * FROM billing_jobs WHERE holding_id=$1 AND state='pending' AND next_at<=$2 ORDER BY created_at,id LIMIT 10",[v0,v1]),
 rescheduleJob:(v0,v1,v2,v3)=>nativeBillingOwnerQuery(c, 'reschedule_job', [v0,v1,v2,v3]),
-pendingEvents:(v0,v1)=>c.query<BillingInboxRow>("SELECT * FROM stripe_inbox WHERE state='pending' AND next_at<=$1 AND payload_json::jsonb #>> '{data,object,customer}'=(SELECT customer_id FROM billing_accounts WHERE holding_id=$2) ORDER BY created_at,id LIMIT 50",[v0,v1]),
+pendingEvents:(v0,v1)=>c.query<BillingInboxRow>(billingPendingInboxSql("payload_json::jsonb #>> '{data,object,customer}'=(SELECT customer_id FROM billing_accounts WHERE holding_id=$2) ORDER BY created_at,id LIMIT 50"),[v0,v1]),
 eventInvoices:(v0,v1)=>c.query<{id:string}>(billingInvoiceIdSql(" AND stripe_id=$2"),[v0,v1]),
 setupCustomer:(v0)=>c.query<{customer_id:string|null}>(BILLING_CUSTOMER_BY_HOLDING_SQL,[v0]),
 retainSetupState:(v0,v1)=>nativeBillingOwnerQuery(c, 'retain_setup_state', [v0,v1]),
@@ -59,6 +60,6 @@ paidTargetInvoices:(v0,v1)=>c.query<{id:string}>(`SELECT i.id FROM billing_invoi
 rollback:()=>c.query<Record<string,unknown>>("ROLLBACK",[]),
 unlockHolding:(v0)=>c.query<Record<string,unknown>>("SELECT pg_advisory_unlock(hashtextextended($1,0))",[v0]),release:()=>c.release(),advance:(id,now)=>advanceBilling(c,id,now)}}
 function nativeBillingJobs(env?:BillingJobEnv,stripe:BillingStripe=env?billingStripe(env):async()=>{throw new Error('BILLING_PROVIDER_REQUIRED')}){const db=env?.CONTROL_DB as PostgresDatabase|undefined;return createBillingJobs({accountHoldings:()=>db!.pool.query<{holding_id:string}>("SELECT holding_id FROM billing_accounts",[]),
-legacyEvents:(v0)=>db!.pool.query<BillingInboxRow>("SELECT * FROM stripe_inbox WHERE state='pending' AND next_at<=$1 AND NOT EXISTS(SELECT 1 FROM billing_accounts a WHERE a.customer_id=stripe_inbox.payload_json::jsonb #>> '{data,object,customer}') LIMIT 20",[v0]),now:Date.now,stripe,promptpay:(env?.ERPX_BILLING_PROMPTPAY_SANDBOX??process.env.ERPX_BILLING_PROMPTPAY_SANDBOX)==='true',session:async()=>nativeJobRepository(await db!.pool.connect()),errorCode:error=>error instanceof ApiError?error.code:error instanceof Error?error.message:'STRIPE_UNAVAILABLE',financeReady:()=>billingTestFinanceReady(env!),syncFinance:(local,s,notes,now)=>syncBillingTestFinance(env!,local,s,notes,now),applyLegacyEvent:event=>applyLegacyStripeEvent(env!,event),retryLegacy:async(id,nextAt,code)=>nativeBillingOwnerBind(db!,'jobs_retry_legacy_event',[nextAt,code,id])})}
+legacyEvents:(v0)=>db!.pool.query<BillingInboxRow>(billingPendingInboxSql("NOT EXISTS(SELECT 1 FROM billing_accounts a WHERE a.customer_id=stripe_inbox.payload_json::jsonb #>> '{data,object,customer}') LIMIT 20"),[v0]),now:Date.now,stripe,promptpay:(env?.ERPX_BILLING_PROMPTPAY_SANDBOX??process.env.ERPX_BILLING_PROMPTPAY_SANDBOX)==='true',session:async()=>nativeJobRepository(await db!.pool.connect()),errorCode:error=>error instanceof ApiError?error.code:error instanceof Error?error.message:'STRIPE_UNAVAILABLE',financeReady:()=>billingTestFinanceReady(env!),syncFinance:(local,s,notes,now)=>syncBillingTestFinance(env!,local,s,notes,now),applyLegacyEvent:event=>applyLegacyStripeEvent(env!,event),retryLegacy:async(id,nextAt,code)=>nativeBillingOwnerBind(db!,'jobs_retry_legacy_event',[nextAt,code,id])})}
 export const mirrorInvoice=(c:PoolClient,invoiceId:string,stripe:BillingStripe,now:number,env?:BillingJobEnv)=>nativeBillingJobs(env,stripe).mirrorInvoice(nativeJobRepository(c),invoiceId,stripe,now,Boolean(env));
 export const drainBilling=(env:BillingJobEnv,now=Date.now(),stripe:BillingStripe=billingStripe(env))=>nativeBillingJobs(env,stripe).drainBilling(now,stripe);
