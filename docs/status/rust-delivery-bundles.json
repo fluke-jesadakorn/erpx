@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9961,
+    "revision": 9973,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -157706,6 +157706,222 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=32.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.work_projection.read-tail-r17",
+        "goalId": "G4",
+        "owner": "work_projection",
+        "title": "work_projection TS read tail native cutover (r17)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-work_projection/src/**",
+          "tests/unit/work_projection/**",
+          "tests/integration/work_projection/**"
+        ],
+        "resources": [
+          "owner:work_projection"
+        ],
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCXwp",
+          "claimedAt": "2026-11-24T06:24:54.633Z",
+          "heartbeatAt": "2026-11-24T06:24:54.633Z",
+          "expiresAt": "2026-11-24T06:54:54.634Z",
+          "generation": 164
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=70.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.runtime.read-tail-r13",
+        "goalId": "G4",
+        "owner": "runtime",
+        "title": "runtime TS read tail native cutover (r13)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-runtime/src/**",
+          "tests/unit/runtime/**",
+          "tests/integration/runtime/**"
+        ],
+        "resources": [
+          "owner:runtime"
+        ],
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCXrun",
+          "claimedAt": "2026-11-24T06:24:55.056Z",
+          "heartbeatAt": "2026-11-24T06:24:55.056Z",
+          "expiresAt": "2026-11-24T06:54:55.056Z",
+          "generation": 164
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=41.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.agent.read-tail-r19",
+        "goalId": "G4",
+        "owner": "agent",
+        "title": "agent TS read tail native cutover (r19)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-agent/src/**",
+          "tests/unit/agent/**",
+          "tests/integration/agent/**"
+        ],
+        "resources": [
+          "owner:agent"
+        ],
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCXage",
+          "claimedAt": "2026-11-24T06:24:55.655Z",
+          "heartbeatAt": "2026-11-24T06:24:55.655Z",
+          "expiresAt": "2026-11-24T06:54:55.655Z",
+          "generation": 164
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=57.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.support.read-tail-r22",
+        "goalId": "G4",
+        "owner": "support",
+        "title": "support TS read tail native cutover (r22)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCXsup",
+          "claimedAt": "2026-11-24T06:24:56.143Z",
+          "heartbeatAt": "2026-11-24T06:24:56.143Z",
+          "expiresAt": "2026-11-24T06:54:56.143Z",
+          "generation": 164
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=57.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.maintenance.read-tail-r14",
+        "goalId": "G4",
+        "owner": "maintenance",
+        "title": "maintenance TS read tail native cutover (r14)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-maintenance/src/**",
+          "tests/unit/maintenance/**",
+          "tests/integration/maintenance/**"
+        ],
+        "resources": [
+          "owner:maintenance"
+        ],
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCXmai",
+          "claimedAt": "2026-11-24T06:24:56.598Z",
+          "heartbeatAt": "2026-11-24T06:24:56.598Z",
+          "expiresAt": "2026-11-24T06:54:56.598Z",
+          "generation": 164
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=39.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.crm.read-tail-r24",
+        "goalId": "G4",
+        "owner": "crm",
+        "title": "crm TS read tail native cutover (r24)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-crm/src/**",
+          "tests/unit/crm/**",
+          "tests/integration/crm/**"
+        ],
+        "resources": [
+          "owner:crm"
+        ],
+        "claim": {
+          "runId": "run-20261123-l",
+          "agentId": "wGCXcrm",
+          "claimedAt": "2026-11-24T06:24:57.095Z",
+          "heartbeatAt": "2026-11-24T06:24:57.095Z",
+          "expiresAt": "2026-11-24T06:54:57.095Z",
+          "generation": 164
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=144.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -157714,11 +157930,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1274,
+      "totalPackets": 1280,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
-        "in_progress": 15,
+        "in_progress": 21,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -157728,7 +157944,7 @@
       }
     },
     "lastCoordinatorGeneration": 164,
-    "updatedAt": "2026-11-24T06:24:37.568Z",
+    "updatedAt": "2026-11-24T06:24:57.102Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
