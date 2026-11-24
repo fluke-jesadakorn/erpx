@@ -82,6 +82,7 @@ describe('Customer Authority read-tail r27 customer-access event evidence probe 
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(59);
-    expect(total).toBe(58);
+    // r28 further reduced the tail (58 -> 57); keep a bound, not a stale exact pin.
+    expect(total).toBeLessThan(58);
   });
 });

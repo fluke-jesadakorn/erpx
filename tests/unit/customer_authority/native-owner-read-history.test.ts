@@ -305,16 +305,21 @@ describe('customer authority assignment-projection existence core dedupe', () =>
 
 describe('customer authority portal release gate dedupe', () => {
   const gate = () => new URL('../../../packages/server-customer_authority/src/adapters/portal-release-gate.ts', import.meta.url);
+  const shared = () => new URL('../../../packages/server-customer_authority/src/adapters/customer-authority-read-tail-r28-sources.ts', import.meta.url);
 
-  it('keeps one aliased gate source shared by the read and wrapped assertion forms', async () => {
+  it('keeps one aliased gate source and one shared read builder for both forms', async () => {
     const src = await readFile(gate(), 'utf8');
     // Attachment purchases, portal purchases/access and support commands all
     // reach the gate through these two helpers; one source literal prevents the
-    // Company alias from drifting and drops a duplicate SELECT from the KPI.
+    // Company alias from drifting. r28 further shares the outer SELECT template
+    // across the aliased read and the wrapped command assertion.
     expect(src.match(/SELECT \?::text company_id/g)).toHaveLength(1);
     expect(src).toContain('const gateSource=`(SELECT ?::text company_id) ${gateAlias}`;');
-    expect(src).toContain('`SELECT ${predicate()} allowed FROM ${gateSource}`');
-    expect(src).toContain('`(SELECT ${predicate()} FROM ${gateSource})`');
+    expect(src).toContain("releaseGateRead(predicate(),gateSource,' allowed')");
+    expect(src).toContain("releaseGateRead(predicate(),gateSource,'')");
+    const builder = await readFile(shared(), 'utf8');
+    expect(builder).toContain('export const releaseGateRead');
+    expect(builder.match(/\bSELECT\b/g)).toHaveLength(1);
   });
 });
 

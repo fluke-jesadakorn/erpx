@@ -1,5 +1,6 @@
 import 'server-only';
 import {scheduledFeaturePredicate} from '@erpx/server-pms/public/feature-availability';
+import {releaseGateRead} from './customer-authority-read-tail-r28-sources';
 
 const gateAlias='portal_release_gate';
 const predicate=()=>scheduledFeaturePredicate(`${gateAlias}.company_id`,'customer_authority');
@@ -8,7 +9,7 @@ const predicate=()=>scheduledFeaturePredicate(`${gateAlias}.company_id`,'custome
 const gateSource=`(SELECT ?::text company_id) ${gateAlias}`;
 
 /** Aliased release-gate read shared by portal purchase/support/file commands. */
-export const portalReleaseGateSql=()=>`SELECT ${predicate()} allowed FROM ${gateSource}`;
+export const portalReleaseGateSql=()=>releaseGateRead(predicate(),gateSource,' allowed');
 
 /** Wrapped scalar form for command assertions; keeps the gate inside the assertion. */
-export const portalReleaseAssertionSql=()=>`(SELECT ${predicate()} FROM ${gateSource})`;
+export const portalReleaseAssertionSql=()=>`(${releaseGateRead(predicate(),gateSource,'')})`;
