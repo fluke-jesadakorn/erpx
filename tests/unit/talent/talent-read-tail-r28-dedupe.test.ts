@@ -54,7 +54,7 @@ describe('talent read-tail r28 metric source-row family dedupe', () => {
   it('lowers the talent owner SELECT KPI strictly below the recorded 51 r27 baseline', async () => {
     let count = 0;
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(50);
+    expect(count).toBe(49);
     expect(count).toBeLessThan(51);
   });
 });
