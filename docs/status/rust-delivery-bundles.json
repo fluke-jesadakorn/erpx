@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11949,
+    "revision": 11951,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -177301,7 +177301,7 @@
         "owner": "ecommerce",
         "title": "ecommerce TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -177313,22 +177313,37 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4g01",
-          "claimedAt": "2026-11-24T12:27:18.487Z",
-          "heartbeatAt": "2026-11-24T12:37:13.270Z",
-          "expiresAt": "2026-11-24T13:07:13.270Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-ecommerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "74edcb781",
+            "owner": "ecommerce",
+            "before": 29,
+            "after": 26,
+            "note": "Module assignment, exists guard, receipt audit and cart probe share ecommerceSelectOne; locks/native untouched."
+          },
+          {
+            "command": "vitest ecommerce (112) + scoped tsc + 5/5 byte oracle",
+            "result": "passed",
+            "sourceSha": "74edcb781"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "F1 select-one probes (-2/-4) and F2 cart head (-1): 29->26.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4g01",
+          "at": "2026-11-24T12:44:22.505Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -178506,17 +178521,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 5,
+        "in_progress": 4,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1335,
+        "blocked": 1336,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T12:43:54.618Z",
+    "updatedAt": "2026-11-24T12:44:22.512Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
