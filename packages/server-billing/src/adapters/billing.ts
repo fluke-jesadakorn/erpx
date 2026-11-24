@@ -13,6 +13,7 @@ import {calculateTargetBillingPeriod} from '@erpx/server-billing/adapters/billin
 import {calculateTargetRolloutReadiness} from '@erpx/server-billing/adapters/billing-target-rollout';
 import {BILLING_ROLLOUT_ELIGIBILITY_SQL,BILLING_LEGACY_ENROLLMENT_OVERLAP_SQL,BILLING_MONTH_INVOICE_SQL} from './billing-read-tail-r16-sql';
 import {billingProviderCostsSql} from './billing-read-tail-r19-sql';
+import {BILLING_ADVISORY_XACT_LOCK_SQL} from './billing-read-tail-r25-sql';
 export {billingInput} from '@erpx/server-billing/domain/billing';
 export type {BillingActor,BillingInput} from '@erpx/server-billing/domain/billing';
 /** r17 read tail: one SQL text per alias-parameterized read family. Call sites keep
@@ -38,8 +39,8 @@ effectivePlan:(value0,value1)=>c.query<BillingPlan>(billingPlanByRevisionSql(" A
 createBillingPeriod:(value0,value1,value2,value3,value4,value5,value6,value7,value8)=>nativeBillingOwnerQuery(c, 'create_billing_period', [value0,value1,value2,value3,value4,value5,value6,value7,value8]),
 closeElapsedPeriods:(value0,value1)=>nativeBillingOwnerQuery(c, 'close_elapsed_periods', [value0,value1]),
 begin:()=>c.query<Record<string,unknown>>("BEGIN",[]),
-lockHolding:(value0)=>c.query<Record<string,unknown>>("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[value0]),
-lockCommand:(value0)=>c.query<Record<string,unknown>>("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[value0]),
+lockHolding:(value0)=>c.query<Record<string,unknown>>(BILLING_ADVISORY_XACT_LOCK_SQL,[value0]),
+lockCommand:(value0)=>c.query<Record<string,unknown>>(BILLING_ADVISORY_XACT_LOCK_SQL,[value0]),
 receipt:(value0)=>c.query<BillingReceipt>("SELECT * FROM billing_receipts WHERE id=$1",[value0]),
 commitReplay:()=>c.query<Record<string,unknown>>("COMMIT",[]),
 holdingExists:value0=>billingHoldingFacts(c).holdingExists(value0),
