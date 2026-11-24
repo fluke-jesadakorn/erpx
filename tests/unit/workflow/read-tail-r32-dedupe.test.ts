@@ -1,6 +1,13 @@
 import { readFile } from 'node:fs/promises';
 import { describe, it, expect, vi } from 'vitest';
 vi.mock('server-only', () => ({}));
+// r42 moved the flow-defaults revision read onto the mounted native read; the
+// r32 span assertion below now covers the guard literal only. Keep the native
+// transport mocked so the retained guard assertions stay deterministic.
+vi.mock('../../../packages/server-workflow/src/adapters/native-workflow-read', () => ({
+  nativeWorkflowReadAll: vi.fn(async () => ({ results: [] })),
+  nativeWorkflowReadFirst: vi.fn(async () => ({ revision: 7 })),
+}));
 import { nativeFlowPlanningPorts } from '../../../packages/server-workflow/src/adapters/flow-planning-ports';
 import { nativeApprovalPlanningPorts } from '../../../packages/server-workflow/src/adapters/approval-planning';
 import { approvalInstancesStarWhereSql, approvalStepsStarSql, approvalStepsByInstanceSql } from '../../../packages/server-workflow/src/adapters/approval-projection-sources';
@@ -21,14 +28,16 @@ function capture() {
 const maxRevision = 'SELECT COALESCE(MAX(revision),0)';
 
 describe('flow-defaults revision span dedupe (r32)', () => {
-  it('emits byte-identical SQL for the revision read and the route-version guard', () => {
+  it('emits byte-identical SQL for the revision read and the route-version guard', async () => {
     const { db, calls } = capture();
     const repo = nativeFlowPlanningPorts(db).repository as unknown as {
-      readReadFlowDefaultsRevision: (companyId: string) => unknown;
+      readReadFlowDefaultsRevision: (companyId: string) => Promise<unknown>;
       guard25: (key: string, value: string, companyId: string, revision: number) => { values: unknown[] };
     };
-    repo.readReadFlowDefaultsRevision('co-1');
-    expect(calls).toEqual([{ sql: `${maxRevision} revision FROM flow_defaults WHERE company_id=?`, binds: ['co-1'] }]);
+    // The revision read is now the mounted native read (pinned by the r42
+    // native-workflow-evidence-transport test); it emits no local SQL.
+    await expect(repo.readReadFlowDefaultsRevision('co-1')).resolves.toEqual({ revision: 7 });
+    expect(calls).toEqual([]);
 
     const guard = repo.guard25('key', 'route-version', 'co-2', 7);
     expect(guard.values).toEqual(['key', 'route-version', 'co-2', 7, `(${maxRevision} FROM flow_defaults WHERE company_id=?)=?`]);
