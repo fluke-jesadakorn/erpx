@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10336,
+    "revision": 10344,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -161064,7 +161064,7 @@
         "owner": "support",
         "title": "support TS read tail native cutover (round 26)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -161076,22 +161076,37 @@
         "resources": [
           "owner:support"
         ],
-        "claim": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMsup5",
-          "claimedAt": "2026-11-24T07:20:38.677Z",
-          "heartbeatAt": "2026-11-24T07:20:38.677Z",
-          "expiresAt": "2026-11-24T07:50:38.677Z",
-          "generation": 166
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-support/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "2762d0355",
+            "owner": "support",
+            "before": 53,
+            "after": 52,
+            "note": "Support SLA policy point and approved list reads share supportPolicySelect; r18-r25, locks and native readers untouched."
+          },
+          {
+            "command": "vitest support r18-r26 (40) + tsc support",
+            "result": "passed",
+            "sourceSha": "2762d0355"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=53.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMsup5",
+          "at": "2026-11-24T07:28:12.096Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -161375,7 +161390,7 @@
         "owner": "platform_administration",
         "title": "platform_administration TS read tail native cutover (r14)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -161387,22 +161402,37 @@
         "resources": [
           "owner:platform_administration"
         ],
-        "claim": {
-          "runId": "run-20261123-n",
-          "agentId": "wGCMpad2",
-          "claimedAt": "2026-11-24T07:25:04.524Z",
-          "heartbeatAt": "2026-11-24T07:25:04.524Z",
-          "expiresAt": "2026-11-24T07:55:04.524Z",
-          "generation": 166
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-platform_administration/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "2762d0355",
+            "owner": "platform_administration",
+            "before": 34,
+            "after": 33,
+            "note": "Release evidence row and finance attachment owner row share releaseAcceptanceRowSql; locks untouched."
+          },
+          {
+            "command": "vitest platform_administration (32) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "2762d0355"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=34.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMpad2",
+          "at": "2026-11-24T07:28:12.455Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -161887,6 +161917,78 @@
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=22.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.support.read-tail-r27",
+        "goalId": "G4",
+        "owner": "support",
+        "title": "support TS read tail native cutover (r27)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-support/src/**",
+          "tests/unit/support/**",
+          "tests/integration/support/**"
+        ],
+        "resources": [
+          "owner:support"
+        ],
+        "claim": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMsup6",
+          "claimedAt": "2026-11-24T07:28:12.915Z",
+          "heartbeatAt": "2026-11-24T07:28:12.915Z",
+          "expiresAt": "2026-11-24T07:58:12.915Z",
+          "generation": 166
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=52.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.platform_administration.read-tail-r15",
+        "goalId": "G4",
+        "owner": "platform_administration",
+        "title": "platform_administration TS read tail native cutover (r15)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-platform_administration/src/**",
+          "tests/unit/platform_administration/**",
+          "tests/integration/platform_administration/**"
+        ],
+        "resources": [
+          "owner:platform_administration"
+        ],
+        "claim": {
+          "runId": "run-20261123-n",
+          "agentId": "wGCMpad3",
+          "claimedAt": "2026-11-24T07:28:13.305Z",
+          "heartbeatAt": "2026-11-24T07:28:13.305Z",
+          "expiresAt": "2026-11-24T07:58:13.306Z",
+          "generation": 166
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=33.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -161895,7 +161997,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1365,
+      "totalPackets": 1367,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -161903,13 +162005,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 988,
+        "blocked": 990,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 166,
-    "updatedAt": "2026-11-24T07:26:46.078Z",
+    "updatedAt": "2026-11-24T07:28:13.314Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
