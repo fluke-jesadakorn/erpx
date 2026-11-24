@@ -23,6 +23,7 @@ import {manufacturingPostingCommerceReadLocks,manufacturingPostingMappingState,m
 import {manufacturingExistingPostingMarker} from '@erpx/server-commerce/adapters/manufacturing-existing-posting-proof';
 import {manufacturingExistingPostingSetupSchema,type ManufacturingExistingPostingSetupResult,type ManufacturingExistingPostingSetupView} from '@erpx/server-commerce/domain/manufacturing-existing-posting-setup';
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
+import { COMMERCE_MFG_INITIALIZED_GUARD_SQL } from "./guarded-source-dedupe-sql";
 
 /** Native owner statement for the existing-posting confirmation. No SQL is
  * staged in TypeScript: the axum command owns the write and the statement's
@@ -60,7 +61,7 @@ export async function manufacturingExistingPostingSetup(actor:WorkContext):Promi
  return (await owner(actor)).transaction(async database=>{
   await leases(database,actor.companyId);const authority=await requireManufacturingPostingFinanceAuthority(database,actor),access=await readPurchasedAccesses(database,'enforced',actor.companyId,capabilities);
   if(!capabilities.every(capability=>access[capability].history))return unavailable(actor.companyId,'purchase-required');
-  const ready=await schema(database),state=await snapshot(database,actor),confirmation=await receiptImage(database,actor.companyId),initialized=!!await database.prepare("SELECT 1 FROM command_receipts WHERE operation='commerce.manufacturing-posting-setup.initialize' AND record_id=? AND authority_json::jsonb->>'companyId'=?").bind(actor.companyId,actor.companyId).first();
+  const ready=await schema(database),state=await snapshot(database,actor),confirmation=await receiptImage(database,actor.companyId),initialized=!!await database.prepare(COMMERCE_MFG_INITIALIZED_GUARD_SQL).bind(actor.companyId,actor.companyId).first();
   let reason:ManufacturingExistingPostingSetupView['unavailableReason']=!ready?'schema-required':!state.configuration?'mapping-required':initialized?'already-manufacturing-configured':null;
   if(state.configuration&&!confirmation&&!reason){try{await validateManufacturingExistingPostingFinanceState(database,actor,state.configuration);}catch(error){if(error instanceof ApiError&&[409,422].includes(error.status))reason='invalid-existing-mapping';else throw error;}}
   if(authorityImage(authority)!==authorityImage(await requireManufacturingPostingFinanceAuthority(database,actor)))throw changed();
@@ -85,7 +86,7 @@ export async function confirmExistingManufacturingPostingSetup(actor:WorkContext
   else{
    if(confirmation)throw new ApiError(409,'MANUFACTURING_EXISTING_POSTING_ALREADY_CONFIRMED','Retain the original existing-mapping confirmation.');
    if(!before.configuration||!before.mapping)throw new ApiError(409,'MANUFACTURING_EXISTING_POSTING_MAPPING_REQUIRED','Configure the original nine real posting accounts first.');
-   if(await database.prepare("SELECT 1 FROM command_receipts WHERE operation='commerce.manufacturing-posting-setup.initialize' AND record_id=? AND authority_json::jsonb->>'companyId'=?").bind(actor.companyId,actor.companyId).first())throw new ApiError(409,'MANUFACTURING_EXISTING_POSTING_ALREADY_CONFIRMED','The original Manufacturing initialization already supplies its source.');
+   if(await database.prepare(COMMERCE_MFG_INITIALIZED_GUARD_SQL).bind(actor.companyId,actor.companyId).first())throw new ApiError(409,'MANUFACTURING_EXISTING_POSTING_ALREADY_CONFIRMED','The original Manufacturing initialization already supplies its source.');
    if(input.contextKey!==contextKey(authority,before,confirmation))throw new ApiError(409,'MANUFACTURING_POSTING_CONTEXT_CHANGED','Keep the draft and preview the actual existing mapping again.');
    await validateManufacturingExistingPostingFinanceState(database,actor,before.configuration);
    const proof={kind:'manufacturing-existing-posting-setup',companyId:actor.companyId,confirmationCommandId:key,mapping:JSON.parse(before.mapping) as Record<string,unknown>,expectedSalesDefaults:before.finance.expectedSalesDefaults,effectiveService:before.finance.service};

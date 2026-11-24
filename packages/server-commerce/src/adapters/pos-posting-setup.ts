@@ -1,5 +1,5 @@
 import 'server-only';
-import { COMMERCE_POSTING_ABSENT_SQL } from './guarded-source-dedupe-sql';
+import { COMMERCE_POSTING_ABSENT_SQL, COMMERCE_POSTING_RECEIPT_RECORD_GUARD_SQL } from './guarded-source-dedupe-sql';
 import { COMMERCE_POSTING_MAPPING_STATE_SQL } from './settings-dedupe-sql';
 
 import { nativeCommerceOwnerWrite, NativeCommerceOwnerWriteError } from "@erpx/server-commerce/adapters/native-owner-write";
@@ -70,7 +70,7 @@ export async function posPostingSetup(actor:WorkContext):Promise<PosPostingSetup
 export async function initializePosPostingSetup(actor:WorkContext,raw:unknown,key:string):Promise<PosPostingSetupResult>{
  const input=posPostingSetupSchema.parse(raw);
  try{return await (await owner(actor)).transaction(async database=>{
-  await leases(database,actor.companyId,true);const authority=await requirePosStartupFinanceAuthority(database,actor),receipt=await database.prepare("SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?").bind(key,operation,actor.companyId,actor.userId,actor.companyId).first(),purpose=receipt?'history' as const:'new-work' as const;
+  await leases(database,actor.companyId,true);const authority=await requirePosStartupFinanceAuthority(database,actor),receipt=await database.prepare(COMMERCE_POSTING_RECEIPT_RECORD_GUARD_SQL).bind(key,operation,actor.companyId,actor.userId,actor.companyId).first(),purpose=receipt?'history' as const:'new-work' as const;
   for(const capability of capabilities)await checkPurchasedCapability(database,'enforced',{companyId:actor.companyId,capability,purpose});
   const guard=`pos-posting:${randomUUID()}`,boundaries=capabilities.map((capability,index)=>({key:`${guard}:${index}`,boundary:purchaseCommandBoundary(database,'enforced',`${guard}:${index}`,{companyId:actor.companyId,capability,purpose})!}));
   await database.batch(boundaries.flatMap(item=>item.boundary.before));const configuration=await current(database,actor.companyId),before=await sources(database,actor);let applied=false;

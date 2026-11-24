@@ -13,18 +13,22 @@ import { readFile } from 'node:fs/promises';
 import {
   COMMERCE_ACTIVE_WAREHOUSES_SQL,
   COMMERCE_BILLING_TEST_SOURCE_KEY_SQL,
+  COMMERCE_EXPENSE_RECEIPT_IMAGE_SQL,
   COMMERCE_MASTER_SOURCE_SQL,
+  COMMERCE_MFG_INITIALIZED_GUARD_SQL,
   COMMERCE_OWN_RECEIPT_SOURCE_SQL,
+  COMMERCE_POSTING_RECEIPT_RECORD_GUARD_SQL,
   COMMERCE_PRODUCT_ACTIVE_SQL,
   COMMERCE_PRODUCT_COMPANY_ACTIVE_GUARD_SQL,
   COMMERCE_WAREHOUSE_ACTIVE_SQL,
   COMMERCE_WAREHOUSE_BRANCH_ACTIVE_SQL,
   COMMERCE_WAREHOUSE_IDENTITY_SQL,
 } from '../../../packages/server-commerce/src/adapters/guarded-source-dedupe-sql';
-import { COMMERCE_BRANCH_LABEL_SQL } from '../../../packages/server-commerce/src/adapters/projection-source-dedupe-sql';
+import { COMMERCE_BRANCH_LABEL_SQL, COMMERCE_FLOW_PARENT_SQL } from '../../../packages/server-commerce/src/adapters/projection-source-dedupe-sql';
 import { COMMERCE_STOCK_PRODUCT_FOR_UPDATE_SQL, COMMERCE_STOCK_WAREHOUSE_FOR_UPDATE_SQL } from '../../../packages/server-commerce/src/adapters/stock-source-dedupe-sql';
 import { COMMERCE_POSTING_MAPPING_STATE_SQL } from '../../../packages/server-commerce/src/adapters/settings-dedupe-sql';
 import { commercialOwnerProjectionSources } from '@erpx/server-inventory/public/commercial-owner-projection-sources';
+import { commercialOwnerProjectionSources as financeProjectionSources } from '@erpx/server-finance/public/commercial-owner-projection-sources';
 
 const host = 'acme.example.com';
 const origin = `https://${host}`;
@@ -212,8 +216,8 @@ describe('commerce read-tail r11 warehouse/product guard dedupe', () => {
       expect(value, name).toBe(literal);
       expect(shared.split(literal).length - 1, name).toBe(1);
     }
-    // Pre-existing posting constants plus the nine shared read-tail literals.
-    expect(shared.split('SELECT').length - 1).toBe(12);
+    // Pre-existing posting constants, nine r11 literals and three r13 guards.
+    expect(shared.split('SELECT').length - 1).toBe(15);
   });
 
   it('backs every call site with its shared constant and no inline literal', async () => {
@@ -291,5 +295,53 @@ describe('commerce read-tail r12 stock warehouse lock dedupe', () => {
     expect(text).toContain('lockIssueStock');
     // Every site still prepares its own statement in its own transaction.
     expect(text).toContain('db.prepare(COMMERCE_STOCK_WAREHOUSE_FOR_UPDATE_SQL)');
+  });
+});
+
+describe('commerce read-tail r13 posting/flow guard dedupe', () => {
+  const cases = [
+    {
+      name: 'COMMERCE_FLOW_PARENT_SQL',
+      value: COMMERCE_FLOW_PARENT_SQL,
+      literal: `SELECT f.order_id FROM commerce_fulfillments f JOIN (${financeProjectionSources.finance_journals}) j ON j.id=f.journal_id WHERE j.id=? AND j.company_id=?`,
+      file: 'workflow-flow-routing-facts.ts',
+      prepares: 2,
+    },
+    {
+      name: 'COMMERCE_EXPENSE_RECEIPT_IMAGE_SQL',
+      value: COMMERCE_EXPENSE_RECEIPT_IMAGE_SQL,
+      literal: 'SELECT to_jsonb(r)::text image FROM command_receipts r WHERE r.command_id=?',
+      file: 'expense-posting-setup.ts',
+      prepares: 2,
+    },
+    {
+      name: 'COMMERCE_MFG_INITIALIZED_GUARD_SQL',
+      value: COMMERCE_MFG_INITIALIZED_GUARD_SQL,
+      literal: "SELECT 1 FROM command_receipts WHERE operation='commerce.manufacturing-posting-setup.initialize' AND record_id=? AND authority_json::jsonb->>'companyId'=?",
+      file: 'manufacturing-existing-posting-setup.ts',
+      prepares: 2,
+    },
+  ] as const;
+
+  it('keeps one byte-identical literal per shared constant', () => {
+    for (const { name, value, literal } of cases) expect(value, name).toBe(literal);
+    expect(COMMERCE_POSTING_RECEIPT_RECORD_GUARD_SQL).toBe(
+      "SELECT 1 FROM command_receipts WHERE command_id=? AND operation=? AND record_id=? AND actor_id=? AND authority_json::jsonb->>'companyId'=?",
+    );
+  });
+
+  it('backs every call site with the constant and no inline literal', async () => {
+    for (const { name, literal, file, prepares } of cases) {
+      const text = await readFile(adapters(file), 'utf8');
+      for (const quote of ["'", '"', '`']) {
+        expect(text.split(`database.prepare(${quote}${literal}${quote})`).length - 1, `${name} inline in ${file}`).toBe(0);
+      }
+      expect(text.split(`database.prepare(${name})`).length - 1, `${name} prepares in ${file}`).toBe(prepares);
+    }
+    for (const file of ['manufacturing-posting-setup.ts', 'pos-posting-setup.ts']) {
+      const text = await readFile(adapters(file), 'utf8');
+      expect(text.split(COMMERCE_POSTING_RECEIPT_RECORD_GUARD_SQL).length - 1, file).toBe(0);
+      expect(text.split('database.prepare(COMMERCE_POSTING_RECEIPT_RECORD_GUARD_SQL)').length - 1, file).toBe(1);
+    }
   });
 });
