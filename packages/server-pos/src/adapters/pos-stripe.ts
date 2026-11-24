@@ -1,5 +1,6 @@
 import { nativePosOne, nativePosRun } from './native-owner-write';
 import { nativePosConnectionsStatement, nativePosPaymentByIdCompanyStatement, nativePosPaymentByIdPlainStatement, nativePosPaymentByIdStatement, nativePosPostingJournalStatement, nativePosSaleByIdStatement, nativePosStripeRoutesStatement } from './native-pos-core-statement';
+import { nativePosSettlementBalanceRowStatement, nativePosSettlementBalanceStateStatement, nativePosSettlementPayoutJournalStatement, nativePosSettlementStateStatement, nativePosStripePaymentIdStatement, nativePosStripePaymentStatement, nativePosStripeRefundIdStatement, nativePosStripeRefundStatement } from './native-pos-stripe-reads';
 import{secret,stripeRequest}from '@erpx/server-pos/adapters/stripe-provider';
 import {posStripeBindingFacts} from "@erpx/server-runtime/public/pos-stripe-binding-facts";
 import 'server-only';
@@ -129,7 +130,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
             company_id: string | number | boolean | null;
             account_id: string | number | boolean | null;
             livemode: string | number | boolean | null;
-        }) => one(db, 'SELECT * FROM pos_payments WHERE id=? AND company_id=? AND stripe_account=? AND livemode=?', facts.pid, facts.company_id, facts.account_id, facts.livemode),
+        }) => nativePosStripePaymentStatement<PosRow>(db, facts),
         writePosStripeEvents3: (facts: {
             fact0: number;
             id: string | number | boolean | null;
@@ -143,7 +144,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
             company_id: string | number | boolean | null;
             account_id: string | number | boolean | null;
             livemode: string | number | boolean | null;
-        }) => one(db, 'SELECT rp.* FROM pos_refund_payments rp JOIN pos_payments p ON p.id=rp.payment_id WHERE rp.id=? AND p.company_id=? AND p.stripe_account=? AND p.livemode=?', facts.rpid, facts.company_id, facts.account_id, facts.livemode),
+        }) => nativePosStripeRefundStatement<PosRow>(db, facts),
         readPosPayments6: (facts: {
             payment_id: string | number | boolean | null;
         }) => nativePosPaymentByIdPlainStatement(db, facts.payment_id),
@@ -156,19 +157,19 @@ function unit(db: SqlDatabase): PosStripeUnit {
             account_id: string | number | boolean | null;
             livemode: string | number | boolean | null;
             btId: string;
-        }) => one(db, "SELECT state FROM pos_settlements WHERE company_id=? AND account_id=? AND livemode=? AND kind='balance' AND provider_id=?", facts.company_id, facts.account_id, facts.livemode, facts.btId),
+        }) => nativePosSettlementStateStatement<PosRow>(db, facts),
         readPosPayments7: (facts: {
             paymentId: string;
             company_id: string | number | boolean | null;
             account_id: string | number | boolean | null;
             livemode: string | number | boolean | null;
-        }) => one(db, 'SELECT id FROM pos_payments WHERE id=? AND company_id=? AND stripe_account=? AND livemode=?', facts.paymentId, facts.company_id, facts.account_id, facts.livemode),
+        }) => nativePosStripePaymentIdStatement<PosRow>(db, facts),
         readPosRefundPayments2: (facts: {
             source: string;
             company_id: string | number | boolean | null;
             account_id: string | number | boolean | null;
             livemode: string | number | boolean | null;
-        }) => one(db, 'SELECT rp.id FROM pos_refund_payments rp JOIN pos_payments p ON p.id=rp.payment_id WHERE rp.provider_id=? AND p.company_id=? AND p.stripe_account=? AND p.livemode=?', facts.source, facts.company_id, facts.account_id, facts.livemode),
+        }) => nativePosStripeRefundIdStatement<PosRow>(db, facts),
         writePosSettlements1: (facts: {
             fact0: `${string}-${string}-${string}-${string}-${string}`;
             company_id: string | number | boolean | null;
@@ -209,7 +210,7 @@ function unit(db: SqlDatabase): PosStripeUnit {
             account_id: string | number | boolean | null;
             livemode: string | number | boolean | null;
             fact2: string;
-        }) => one(db, "SELECT state FROM pos_settlements WHERE account_id=? AND livemode=? AND kind='balance' AND provider_id=?", facts.account_id, facts.livemode, facts.fact2),
+        }) => nativePosSettlementBalanceStateStatement<PosRow>(db, facts),
         readPosPostings1: (facts: {
             fact0: string;
         }) => nativePosPostingJournalStatement(db, facts.fact0),
@@ -218,12 +219,12 @@ function unit(db: SqlDatabase): PosStripeUnit {
             account_id: string | number | boolean | null;
             livemode: string | number | boolean | null;
             id: string;
-        }) => one(db, "SELECT journal_id FROM pos_settlements WHERE company_id=? AND account_id=? AND livemode=? AND kind='payout' AND provider_id=? AND journal_id IS NOT NULL", facts.company_id, facts.account_id, facts.livemode, facts.id),
+        }) => nativePosSettlementPayoutJournalStatement<PosRow>(db, facts),
         readPosSettlements4: (facts: {
             account_id: string | number | boolean | null;
             livemode: string | number | boolean | null;
             id: string;
-        }) => one(db, "SELECT * FROM pos_settlements WHERE account_id=? AND livemode=? AND kind='balance' AND provider_id=?", facts.account_id, facts.livemode, facts.id),
+        }) => nativePosSettlementBalanceRowStatement<PosRow>(db, facts),
         writePosSettlements4: (facts: {
             fact0: `${string}-${string}-${string}-${string}-${string}`;
             company_id: string | number | boolean | null;

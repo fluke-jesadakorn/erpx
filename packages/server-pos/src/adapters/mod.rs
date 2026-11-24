@@ -7,6 +7,7 @@ pub(crate) mod day_close_http;
 pub(crate) mod day_control_reads;
 pub(crate) mod day_report_reads;
 pub(crate) mod sale_child_reads;
+pub(crate) mod stripe_reads;
 pub(crate) mod attachment_read_sources;
 pub(crate) mod boundary_reads;
 pub(crate) mod core_reads;
