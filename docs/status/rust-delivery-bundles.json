@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10515,
+    "revision": 10520,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -159811,7 +159811,7 @@
         "owner": "legal",
         "title": "legal TS read tail native cutover (r29)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -159823,27 +159823,20 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMleg2",
-          "claimedAt": "2026-11-24T07:54:20.926Z",
-          "heartbeatAt": "2026-11-24T07:54:20.926Z",
-          "expiresAt": "2026-11-24T08:24:20.926Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
+        "blocker": "released with work preserved",
         "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=245.",
         "handoff": {
-          "runId": "run-20261123-n",
+          "runId": "run-20261124-a",
           "agentId": "wGCMleg2",
-          "at": "2026-11-24T07:53:21.211Z",
+          "at": "2026-11-24T08:07:55.517Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long worker integration; WIP reviewed by lead; all live claims re-claimed with the same agents under a new generation",
+          "reason": "released with work preserved",
           "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=245."
         },
         "scopeRefinementRequired": false
@@ -162933,7 +162926,7 @@
         "owner": "legal",
         "title": "legal id and key point read family (round 34)",
         "kind": "migration",
-        "status": "pending",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -162949,11 +162942,33 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-legal/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "fa293c9c3",
+            "owner": "legal",
+            "before": 236,
+            "after": 233,
+            "note": "Four id plus key point reads share legalPointByIdAndKeySql; locks, corpus/citation and r9/r16-r33 untouched."
+          },
+          {
+            "command": "vitest legal dedupe (59) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "fa293c9c3"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Four id+key point reads share legalPointByIdAndKeySql. BEFORE=236.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMleg7",
+          "at": "2026-11-24T08:07:55.928Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -163496,7 +163511,7 @@
         "owner": "legal",
         "title": "legal item ordered list family (round 35)",
         "kind": "migration",
-        "status": "pending",
+        "status": "in_progress",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -163508,7 +163523,14 @@
         "resources": [
           "owner:legal"
         ],
-        "claim": null,
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMleg8",
+          "claimedAt": "2026-11-24T08:07:56.074Z",
+          "heartbeatAt": "2026-11-24T08:07:56.074Z",
+          "expiresAt": "2026-11-24T08:37:56.074Z",
+          "generation": 167
+        },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
@@ -163637,18 +163659,18 @@
       "totalPackets": 1399,
       "migratedPackets": 329,
       "statusCounts": {
-        "pending": 20,
+        "pending": 18,
         "in_progress": 22,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 1026,
+        "blocked": 1028,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:07:40.180Z",
+    "updatedAt": "2026-11-24T08:07:56.078Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
