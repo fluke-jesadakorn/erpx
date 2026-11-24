@@ -1,5 +1,7 @@
 import { lastAuditOwnerProjectionSources as people_payrollLastAuditProjectionSources } from "@erpx/server-people_payroll/public/last-audit-owner-projection-sources";
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';export function leaveEvidenceSources(database:SqlDatabase){return {availableCanonical(leaveRequestId:string,purposeKey:"medical_certificate" | "leave_supporting_photo"){return database.prepare(
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import {NO_ATTACHMENT_LINK_SQL} from './read-tail-dedupe-sql';
+export function leaveEvidenceSources(database:SqlDatabase){return {availableCanonical(leaveRequestId:string,purposeKey:"medical_certificate" | "leave_supporting_photo"){return database.prepare(
 	        `SELECT DISTINCT set_row.id,source.id source_id
 	         FROM attachment_sets set_row
 	         JOIN (${people_payrollLastAuditProjectionSources.leave_requests}) request ON request.id=set_row.target_id
@@ -24,7 +26,7 @@ availableLegacy(leaveRequestId:string,purposeKey:"medical_certificate" | "leave_
              AND source.revoked_at IS NULL AND source.purpose=?
              AND source.source_state='available'
              AND NOT EXISTS(
-               SELECT 1 FROM attachment_links link WHERE link.attachment_id=source.id
+               ${NO_ATTACHMENT_LINK_SQL}
              )`,
         )
         .bind(leaveRequestId, purposeKey)
@@ -66,7 +68,7 @@ legacyManifest(leaveRequestId:string){return database.prepare(
            WHERE source.owner_type='leave_request' AND source.owner_id=?
              AND source.revoked_at IS NULL AND source.source_state='available'
              AND NOT EXISTS(
-               SELECT 1 FROM attachment_links link WHERE link.attachment_id=source.id
+               ${NO_ATTACHMENT_LINK_SQL}
              )
            ORDER BY source.created_at,source.id`,
         )

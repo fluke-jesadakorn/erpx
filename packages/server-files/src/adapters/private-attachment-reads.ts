@@ -11,6 +11,7 @@ import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-t
 import {isTransactionalSqlDatabase,type SqlDatabase,type StoredFile} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import type {AttachmentComponentKind} from '@erpx/server-files/public/attachments/types';
+import {SCANS_WITNESS_SQL} from './read-tail-dedupe-sql';
 
 /** A pool observation selects a fresh owned reader; it never authorizes bytes.
  * Draft sets and links are mutable, so every field must match after leases. */
@@ -22,7 +23,7 @@ export async function attachmentReadRoute(database:SqlDatabase,companyId:string,
 }
 export async function attachmentReadSource(database:SqlDatabase,companyId:string,linkId:string):Promise<AttachmentReadSource|null>{
  return database.prepare(`SELECT ${routeColumns},jsonb_build_object('link',to_jsonb(l),'set',to_jsonb(s),'source',to_jsonb(a),'intent',to_jsonb(u),
- 'scans',(SELECT jsonb_agg(to_jsonb(scan) ORDER BY scan.id) FROM attachment_scan_attempts scan WHERE scan.attachment_id=a.id))::text witness
+ ${SCANS_WITNESS_SQL}
  FROM attachment_links l JOIN attachment_sets s ON s.id=l.set_id
  LEFT JOIN attachments a ON a.id=l.attachment_id AND a.company_id=s.company_id
  LEFT JOIN upload_intents u ON u.id=coalesce(l.upload_intent_id,a.upload_id) AND u.company_id=s.company_id
