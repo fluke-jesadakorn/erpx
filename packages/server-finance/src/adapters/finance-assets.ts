@@ -1,3 +1,4 @@
+import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { ASSET_DEPRECIATIONS_SQL, ASSET_DRAFT_DISPOSAL_SQL } from './finance-read-tail-r39-sql';
 import { APPROVED_SECONDARY_CHART_CORRELATED_GUARD } from './finance-read-tail-r41-sql';
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
@@ -51,7 +52,7 @@ function nativeAssets(provided?:SqlDatabase, providedOwned=false) {
         finally {
             owned = undefined;
         } }), replay: async (actor, key, op, id, input) => replayCommand(await database(actor), actor, key, op, id, input),
-        asset: async (actor, id) => (await database(actor)).prepare("SELECT * FROM finance_assets WHERE id=? AND company_id=?").bind(id, actor.companyId).first<Asset>(),
+        asset: async (actor, id) => (await database(actor)).prepare(tableByIdSql('finance_assets')).bind(id, actor.companyId).first<Asset>(),
         accountRows: async (actor, ids) => (await (await database(actor)).prepare("SELECT id,chart_id,category FROM finance_accounts WHERE company_id=? AND status='active' AND id IN (?,?,?)").bind(actor.companyId, ids.cost, ids.accumulated ?? null, ids.expense ?? null).all<{
             id: string;
             chart_id: string;
@@ -76,7 +77,7 @@ function nativeAssets(provided?:SqlDatabase, providedOwned=false) {
             id: string;
             category: string;
         }>()).results,
-        disposal: async (actor, id) => (await database(actor)).prepare("SELECT * FROM finance_asset_disposals WHERE id=? AND company_id=?").bind(id, actor.companyId).first<Disposal>(),
+        disposal: async (actor, id) => (await database(actor)).prepare(tableByIdSql('finance_asset_disposals')).bind(id, actor.companyId).first<Disposal>(),
         retainedPolicyHash: async (actor, id) => (await (await database(actor)).prepare("SELECT policy_source_hash FROM finance_asset_disposals WHERE id=?").bind(id).first<{
             policy_source_hash: string | null;
         }>())?.policy_source_hash ?? null,

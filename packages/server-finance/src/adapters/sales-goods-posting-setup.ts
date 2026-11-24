@@ -1,3 +1,4 @@
+import { journalRefGuardSql } from './finance-read-tail-r49-sql';
 import 'server-only';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {requirePermission} from '@erpx/server-identity_access/public/iam-permissions';
@@ -39,12 +40,12 @@ export async function salesGoodsPostingFinanceState(database:SqlDatabase,actor:W
  UNION ALL SELECT 'integrity',jsonb_build_object(
  'fulfillmentInvoice',EXISTS(SELECT 1 FROM fulfillments f WHERE f.invoice_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM finance_invoices i WHERE i.id=f.invoice_id AND i.company_id=f.company_id AND i.kind='receivable')),
  'invoiceLink',EXISTS(SELECT 1 FROM invoices i JOIN fulfillments f ON i.source_type='commerce_fulfillment' AND i.source_id=f.id WHERE f.invoice_id IS DISTINCT FROM i.id),
- 'invoiceJournal',EXISTS(SELECT 1 FROM invoices i WHERE i.journal_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM finance_journals j WHERE j.id=i.journal_id AND j.company_id=i.company_id)),
+ 'invoiceJournal',EXISTS(SELECT 1 FROM invoices i WHERE i.journal_id IS NOT NULL AND ${journalRefGuardSql('i.journal_id','i.company_id')}),
  'invoiceLine',EXISTS(SELECT 1 FROM finance_invoice_line_versions l JOIN invoices i ON i.id=l.invoice_id WHERE l.company_id<>i.company_id),
  'allocation',EXISTS(SELECT 1 FROM finance_allocations a JOIN invoices i ON i.id=a.invoice_id LEFT JOIN finance_payments p ON p.id=a.payment_id WHERE a.company_id<>i.company_id OR p.company_id IS DISTINCT FROM i.company_id),
- 'paymentJournal',EXISTS(SELECT 1 FROM payments p WHERE p.journal_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM finance_journals j WHERE j.id=p.journal_id AND j.company_id=p.company_id) OR p.fx_journal_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM finance_journals j WHERE j.id=p.fx_journal_id AND j.company_id=p.company_id)),
- 'reversalJournal',EXISTS(SELECT 1 FROM reversals r JOIN payments p ON p.id=r.payment_id WHERE NOT EXISTS(SELECT 1 FROM finance_journals j WHERE j.id=r.reversal_journal_id AND j.company_id=p.company_id) OR r.fx_reversal_journal_id IS NOT NULL AND NOT EXISTS(SELECT 1 FROM finance_journals j WHERE j.id=r.fx_reversal_journal_id AND j.company_id=p.company_id)),
- 'book',EXISTS(SELECT 1 FROM finance_book_postings b JOIN primary_journals p ON p.id=b.primary_journal_id WHERE b.company_id<>(SELECT company_id FROM scope) OR NOT EXISTS(SELECT 1 FROM finance_journals j WHERE j.id=b.secondary_journal_id AND j.company_id=b.company_id)),
+ 'paymentJournal',EXISTS(SELECT 1 FROM payments p WHERE p.journal_id IS NOT NULL AND ${journalRefGuardSql('p.journal_id','p.company_id')} OR p.fx_journal_id IS NOT NULL AND ${journalRefGuardSql('p.fx_journal_id','p.company_id')}),
+ 'reversalJournal',EXISTS(SELECT 1 FROM reversals r JOIN payments p ON p.id=r.payment_id WHERE ${journalRefGuardSql('r.reversal_journal_id','p.company_id')} OR r.fx_reversal_journal_id IS NOT NULL AND ${journalRefGuardSql('r.fx_reversal_journal_id','p.company_id')}),
+ 'book',EXISTS(SELECT 1 FROM finance_book_postings b JOIN primary_journals p ON p.id=b.primary_journal_id WHERE b.company_id<>(SELECT company_id FROM scope) OR ${journalRefGuardSql('b.secondary_journal_id','b.company_id')}),
  'capture',EXISTS(SELECT 1 FROM finance_financial_events c JOIN journals actual ON actual.id=c.journal_id WHERE c.company_id<>(SELECT company_id FROM scope)))::text
  ORDER BY kind,source`).bind(actor.companyId).all<{kind:string;source:string}>(),
  ]);

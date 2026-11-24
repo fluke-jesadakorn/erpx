@@ -86,7 +86,7 @@ describe('Finance read-tail r44 byte-identical NEW families', () => {
 });
 
 describe('Finance read-tail r44 retirement check', () => {
-  test('retirement:ts-statements stays strictly below BEFORE=1884 and at or below 1844', () => {
+  test('retirement:ts-statements stays strictly below BEFORE=1884 and at or below 1812', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -96,9 +96,9 @@ describe('Finance read-tail r44 retirement check', () => {
       }
     };
     walk(srcRoot);
-    // r44 collapsed 21 inline into five helpers (1884 -> 1868); r45 removes eight more (-> 1860); r46 removes nine more (-> 1851); r48 removes seven more (-> 1844).
-    expect(total).toBe(1844);
-    expect(total).toBeLessThanOrEqual(1844);
+    // r44 collapsed 21 inline into five helpers (1884 -> 1868); r45 removes eight more (-> 1860); r46 removes nine more (-> 1851); r48 removes seven more (-> 1844); r49 removes 32 more (-> 1812).
+    expect(total).toBe(1812);
+    expect(total).toBeLessThanOrEqual(1812);
     expect(total).toBeLessThan(1884);
   });
 });

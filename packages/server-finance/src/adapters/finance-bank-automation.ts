@@ -1,3 +1,4 @@
+import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { bankCashLinesSql } from './finance-read-tail-r39-sql';
 import { bankTxnGuardSql } from './finance-read-tail-r48-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
@@ -108,7 +109,7 @@ proposeCommit:async(facts)=>{const {actor,key,op,input,id,source,now,allocations
   );},
 group:async(actor,id)=>write
       .prepare(
-        "SELECT * FROM finance_bank_match_groups WHERE id=? AND company_id=? FOR UPDATE",
+        tableByIdSql('finance_bank_match_groups') + ' FOR UPDATE',
       )
       .bind(id, actor.companyId)
       .first<{

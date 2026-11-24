@@ -1,3 +1,4 @@
+import { tableByIdSql } from './finance-read-tail-r49-sql';
 import {childBillingRunExistsSql} from './finance-read-tail-r43-sql';
 import { billingCorrectionPointSql, chartPointSql } from './finance-read-tail-r42-sql';
 import { BILLING_RUN_CHILD_EXISTS_SQL, BILLING_RUN_POINT_SQL, BUSINESS_CONTRACT_POINT_SQL, BILLING_RUN_ROOT_WINDOW_SQL } from './finance-read-tail-r38-sql';
@@ -210,7 +211,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async recognition(id: string, companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT * FROM finance_recognition_runs WHERE id=? AND company_id=?")
+                .prepare(tableByIdSql('finance_recognition_runs'))
                 .bind(id, companyId)
                 .first<Row>();
         }, guardRecognitionDraft(key: string, value: "recognition-version", id: string, companyId: string, expectedVersion: number) {
@@ -222,7 +223,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async postedRecognition(id: string, companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT * FROM finance_recognition_runs WHERE id=? AND company_id=? AND status='posted'")
+                .prepare(tableByIdSql('finance_recognition_runs') + " AND status='posted'")
                 .bind(id, companyId)
                 .first<Row>();
         }, guardPostedRecognition(key: string, value: "recognition-version", id: string, companyId: string, expectedVersion: number) {
@@ -234,7 +235,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async zeroBill(id: string, companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT * FROM finance_business_billing_runs WHERE id=? AND company_id=? AND invoice_id IS NULL")
+                .prepare(tableByIdSql('finance_business_billing_runs') + ' AND invoice_id IS NULL')
                 .bind(id, companyId)
                 .first<Row>();
         }, async zeroChildBill(id: string) {

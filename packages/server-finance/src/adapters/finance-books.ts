@@ -1,3 +1,4 @@
+import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { openingBalanceSql } from './finance-read-tail-r39-sql';
 import { OPEN_PERIOD_GUARD_SQL, OPEN_PERIOD_IDS_SQL } from './finance-read-tail-r16-sql';
 import { JOURNAL_SELECT_PREFIX } from './finance-read-tail-r30-sql';
@@ -59,7 +60,7 @@ async function commandReplay<Result=Record<string,unknown>>(
 }
 function nativeBookReview(db:SqlDatabase):BookReviewRepository{return {replay:(actor,key,op,id,input)=>replayCommand(db,actor,key,op,id,input),opening:(companyId,chartId,date)=>opening(db,companyId,chartId,date),rule:async(actor,id)=>db
       .prepare(
-        "SELECT * FROM finance_book_rules WHERE id=? AND company_id=? FOR UPDATE",
+        tableByIdSql('finance_book_rules') + ' FOR UPDATE',
       )
       .bind(id, actor.companyId)
       .first<{

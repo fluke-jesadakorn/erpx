@@ -1,3 +1,4 @@
+import { journalRefGuardSql } from './finance-read-tail-r49-sql';
 import { jsonbArrayTextSql } from './finance-read-tail-r44-sql';
 import {BOOKS_AGGREGATE_IMAGE_SQL} from './finance-read-tail-r43-sql';
 import 'server-only';
@@ -22,7 +23,7 @@ export async function manufacturingExistingPostingFinancialHistory(database:SqlD
  'books',(${BOOKS_AGGREGATE_IMAGE_SQL}),
  'money',${aggByCompany('m','money_transaction_snapshots','source_type,source_id,amount_kind',' AND (m.source_id IN(SELECT id FROM journals) OR m.source_id IN(SELECT id FROM owner_orders))')}
  )::text image,
- EXISTS(SELECT 1 FROM books b WHERE b.company_id<>? OR NOT EXISTS(SELECT 1 FROM finance_journals j WHERE j.id=b.secondary_journal_id AND j.company_id=b.company_id))
+ EXISTS(SELECT 1 FROM books b WHERE b.company_id<>? OR ${journalRefGuardSql('b.secondary_journal_id','b.company_id')})
  OR EXISTS(SELECT 1 FROM finance_financial_events c JOIN journals actual ON actual.id=c.journal_id WHERE c.company_id<>?) invalid`).bind(JSON.stringify(source.journalIds),JSON.stringify(source.orderIds),actor.companyId,actor.companyId,actor.companyId).first<{image:string;invalid:boolean}>();
  if(!state)throw new ApiError(503,'MANUFACTURING_POSTING_SOURCE_UNAVAILABLE','The original Manufacturing financial evidence is unavailable.');
  return {image:JSON.stringify([source.image,state.image]),invalid:source.invalid||state.invalid};

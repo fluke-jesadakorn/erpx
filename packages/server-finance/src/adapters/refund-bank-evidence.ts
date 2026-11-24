@@ -1,3 +1,4 @@
+import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { bankImportMarkerExistsSql } from './finance-read-tail-r42-sql';
 import { commandReceiptReplayProbeSql } from './finance-read-tail-r40-sql';
 import { REFUND_INSTRUCTION_POINT_SQL } from './finance-read-tail-r38-sql';
@@ -49,7 +50,7 @@ async function source(database:SqlDatabase,actor:WorkContext,id:string):Promise<
  const owner=await database.prepare(`SELECT o.*,COALESCE(r.number,c.number) return_number FROM finance_refund_obligations o LEFT ${commerceSnapshotSources().refunds_commerce_returns_r_join} ON r.id=o.return_id AND r.company_id=o.company_id LEFT JOIN finance_billing_corrections c ON c.id=o.billing_correction_id AND c.company_id=o.company_id WHERE o.id=? AND o.company_id=?`).bind(row.obligation_id,actor.companyId).first<Row>();
  if(!owner)throw new ApiError(404,'REFUND_NOT_FOUND','The original refund obligation is unavailable.');
  const [account,chart,receipt]=await Promise.all([
-  database.prepare('SELECT * FROM finance_accounts WHERE id=? AND company_id=?').bind(row.cash_account_id,actor.companyId).first<Row>(),
+  database.prepare(tableByIdSql('finance_accounts')).bind(row.cash_account_id,actor.companyId).first<Row>(),
   database.prepare(CHART_IMAGE_BY_COMPANY_SQL).bind(owner.chart_id,actor.companyId).first<Row>(),
   database.prepare("SELECT command_id,operation,actor_id,request_hash,record_id,result_json,authority_json,created_at FROM command_receipts WHERE command_id=? AND operation='finance.refund.export' AND authority_json::jsonb->>'companyId'=?").bind(row.export_command_id,actor.companyId).first<ExportReceipt>(),
  ]);

@@ -1,3 +1,4 @@
+import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { CUSTOMER_PARTY_PROFILE_SQL } from './finance-read-tail-r38-sql';
 import "server-only";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
@@ -13,7 +14,7 @@ export async function documentPostingPreview(actor: WorkContext, kind: "invoice"
   const db = provided ?? (await holdingResources(actor.holdingId)).write;
   return createDocumentPostingPreview({
     ...inventoryFacts(db), ...procurementFacts(db),
-    invoice: (companyId, invoiceId) => db.prepare("SELECT * FROM finance_invoices WHERE company_id=? AND id=?").bind(companyId, invoiceId).first<PostingPreviewRow>(),
+    invoice: (companyId, invoiceId) => db.prepare(tableByIdSql('finance_invoices')).bind(invoiceId, companyId).first<PostingPreviewRow>(),
     accounts: async companyId => (await db.prepare("SELECT id,code,name,status FROM finance_accounts WHERE company_id=?").bind(companyId).all<PostingPreviewRow>()).results,
     journalLines: async journalId => (await db.prepare("SELECT account_id id,debit_minor debit,credit_minor credit FROM finance_journal_lines WHERE journal_id=? ORDER BY ordinal").bind(journalId).all<PostingPreviewLine>()).results,
     stockConfiguration: companyId => db.prepare(`SELECT s.inventory_account_id,a.id variance_account_id ${commercePostingProjection.postingSettings} JOIN finance_accounts a ON a.chart_id=s.chart_id AND a.company_id=s.company_id AND a.code='5400' AND a.category='expense' AND a.status='active' WHERE s.company_id=?`).bind(companyId).first<PostingPreviewConfiguration>(),

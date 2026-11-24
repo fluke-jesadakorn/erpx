@@ -1,3 +1,4 @@
+import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import type { z } from "zod";
@@ -19,7 +20,7 @@ import type {BookAdjustmentRow as Row,bookAdjustmentSchema,bookAdjustmentReversa
 import {nativeWorkflowWrite} from '@erpx/server-workflow/public/native-workflow-evidence';
 import { financeBookAdjustments } from '@erpx/server-collaboration/adapters/native-finance-book-adjustments';
 export {bookAdjustmentSchema,bookAdjustmentReversalSchema} from '@erpx/server-finance/domain/book-adjustments';
-const bookAdjustmentByIdSql = "SELECT * FROM finance_book_adjustments WHERE id=? AND company_id=?";
+const bookAdjustmentByIdSql = tableByIdSql('finance_book_adjustments');
 async function nativeBookAdjustmentWorkspace(write:SqlDatabase,actor:WorkContext){  return (
     await write
       .prepare(

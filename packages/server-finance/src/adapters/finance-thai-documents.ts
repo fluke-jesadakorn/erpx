@@ -1,3 +1,4 @@
+import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { sourcePartyIdSql, sourcePartyStatusSql, thaiDocumentRowsSql } from './finance-read-tail-r40-sql';
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { INVOICE_EXISTS_PREFIX } from './finance-read-tail-r30-sql';
@@ -86,7 +87,7 @@ function documentService(provided?: SqlDatabase) {
                 assertion(write, commandId, "current-document", "NOT EXISTS(SELECT 1 FROM finance_thai_document_events WHERE document_id=? AND action IN ('cancelled','superseded'))", [documentId]),
                 await nativeFinanceThaiDocuments(write, actor.companyId).changeInsert([id, actor.companyId, documentId, payer.id, payee.id, input.issueDate, input.reason, taxSourceDigest(source), JSON.stringify(source), actor.userId, now, now]),
             ]);
-        }, pendingChange: async (facts) => { const { id, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_thai_document_changes WHERE id=? AND company_id=?").bind(id, actor.companyId).first<Record<string, string | number | null>>(); }, originalForDecision: async (facts) => { const { change, actor } = facts; const write = await db(actor); return write.prepare(ISSUED_THAI_DOCUMENT_BY_ID_SQL).bind(change.document_id, actor.companyId).first<IssuedDocument>(); }, financialSourceForDecision: async (facts) => {
+        }, pendingChange: async (facts) => { const { id, actor } = facts; const write = await db(actor); return write.prepare(tableByIdSql('finance_thai_document_changes')).bind(id, actor.companyId).first<Record<string, string | number | null>>(); }, originalForDecision: async (facts) => { const { change, actor } = facts; const write = await db(actor); return write.prepare(ISSUED_THAI_DOCUMENT_BY_ID_SQL).bind(change.document_id, actor.companyId).first<IssuedDocument>(); }, financialSourceForDecision: async (facts) => {
             const { original, actor } = facts;
             const write = await db(actor);
             return write.prepare(original.payment_id ? sourcePartyStatusSql('finance_payments') : sourcePartyStatusSql('finance_invoices')).bind(original.payment_id ?? original.invoice_id, actor.companyId).first<{

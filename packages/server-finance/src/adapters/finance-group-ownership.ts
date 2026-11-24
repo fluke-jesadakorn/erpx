@@ -1,3 +1,4 @@
+import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { acquisitionReadSql, acquisitionVersionGuardSql } from './finance-read-tail-r48-sql';
 import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
@@ -67,7 +68,7 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
             return await nativeFinanceOwnerWriteSystem(database, companyId, 'acquisition_insert', [id, holdingId, companyId, ownershipId, investee_entity_id, acquisitionDate, currency, value, value2, nciMeasurement, value3, value4, value5, value6, value7, cguReference, calcId, userId, now, now2, hash, value8, reason, value9, value10]);
         },
         readDecideAcquisitionEditionCalc(calculation_run_id: string | number | null, companyId: string, holdingId: string) {
-            return database.prepare("SELECT * FROM finance_calculation_runs WHERE id=? AND company_id=? AND holding_id=? AND status='prepared'")
+            return database.prepare(tableByIdSql('finance_calculation_runs') + " AND holding_id=? AND status='prepared'")
                 .bind(calculation_run_id, companyId, holdingId)
                 .first<Row>();
         },

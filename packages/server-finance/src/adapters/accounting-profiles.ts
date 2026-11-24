@@ -1,3 +1,4 @@
+import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { financeAccountingProfiles } from '@erpx/server-collaboration/adapters/native-finance-accounting-profiles';
 import { withFinancePurchasedRead, withFinanceConfigurationCommand } from "@erpx/server-finance/adapters/purchase-boundary";
 import { ACTIVE_CHART_BASE_CURRENCY_SQL } from "./chart-base-currency-dedupe-sql";
@@ -41,7 +42,7 @@ function profileService(provided?: SqlDatabase) {
                 assertion(write, key, "profile", NO_APPROVED_PROFILE_GUARD_SQL, [actor.companyId]),
                 await financeAccountingProfiles(write, actor.companyId).create({ id, companyId: actor.companyId, statutoryChartId: input.statutoryChartId, standard: input.standard, fiscalStartMonth: input.fiscalStartMonth, effectiveDate: input.effectiveDate, eligibilityEvidence: input.eligibilityEvidence, policyEvidence: input.policyEvidence, taxBasis: input.taxBasis, inventoryPolicy: input.inventoryPolicy, depreciationPolicy: input.depreciationPolicy, userId: actor.userId, now: Date.now() }),
             ]);
-        }, profile: async (facts) => { const { id, actor } = facts; const write = await db(actor); return write.prepare("SELECT * FROM finance_accounting_profiles WHERE id=? AND company_id=?").bind(id, actor.companyId).first<AccountingProfile>(); }, commitProfileDecision: async (facts) => {
+        }, profile: async (facts) => { const { id, actor } = facts; const write = await db(actor); return write.prepare(tableByIdSql('finance_accounting_profiles')).bind(id, actor.companyId).first<AccountingProfile>(); }, commitProfileDecision: async (facts) => {
             const { actor, key, operation, input, id, status, decision, profile, now } = facts;
             const write = await db(actor);
             return executeCommand(write, actor, key, operation, input, id, input.expectedVersion + 1, { id, status, version: input.expectedVersion + 1 }, [

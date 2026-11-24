@@ -130,7 +130,7 @@ describe('Finance read-tail r48 protected families and retirement', () => {
     }
   });
 
-  test('retirement:ts-statements reaches the r48 target of 1844', () => {
+  test('retirement:ts-statements stays at or below the r48 target of 1844', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -140,8 +140,8 @@ describe('Finance read-tail r48 protected families and retirement', () => {
       }
     };
     walk(srcRoot);
-    // Ten inline SELECTs collapse into three r48 helpers (-7: 1851 -> 1844).
-    expect(total).toBe(1844);
-    expect(total).toBeLessThan(1851);
+    // Ten inline SELECTs collapse into three r48 helpers (-7: 1851 -> 1844); r49 collapses 36 more into four helpers (-32: 1844 -> 1812).
+    expect(total).toBe(1812);
+    expect(total).toBeLessThan(1844);
   });
 });

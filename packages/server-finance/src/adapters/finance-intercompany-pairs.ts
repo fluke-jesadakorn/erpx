@@ -1,3 +1,4 @@
+import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { intercompanyPairPointSql } from './finance-read-tail-r42-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { groupCompanyPurchases, groupRecordPurchases, requireGroupCompanyHistory, groupHistoryPredicate, groupSourceSql, groupRecordHistorySql } from "@erpx/server-finance/adapters/group-purchase-sources";
@@ -28,7 +29,7 @@ function nativePairRepository(db:SqlDatabase,historySql:(company:string)=>string
         .first<Row>(),
 journal:async(journalId,companyId,currency)=>db
         .prepare(
-          "SELECT * FROM finance_journals WHERE id=? AND company_id=? AND status='posted' AND currency=?",
+          tableByIdSql('finance_journals') + " AND status='posted' AND currency=?",
         )
         .bind(journalId, companyId, currency)
         .first<Row>(),

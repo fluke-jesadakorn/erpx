@@ -1,3 +1,4 @@
+import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { chartPointSql } from './finance-read-tail-r42-sql';
 import { bankTxnGuardSql } from './finance-read-tail-r48-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
@@ -31,7 +32,7 @@ export {instrumentDecisionSchema,instrumentReversalSchema} from '@erpx/server-fi
 export {instrumentRunSchema} from '@erpx/server-finance/domain/due-inputs';
 function nativeInstrumentRepository(db:SqlDatabase):InstrumentRepository{const journals=new Map<string,Awaited<ReturnType<typeof prepareJournal>>>(),reversals=new Map<string,Awaited<ReturnType<typeof prepareOwnedJournalReversal>>>();return {moneyScale:(companyId,currency)=>requireFinanceMoneyScale(db,companyId,currency),tool:companyId=>requireFinanceTool(db,companyId,'instruments'),replay:(actor,key,op,id,input)=>replayCommand(db,actor,key,op,id,input),prepareJournal:async(actor,input,key,status)=>{const prepared=await prepareJournal(db,actor,input,key,status);const id=String(prepared.result.id);journals.set(id,prepared);return id},prepareReversal:async(actor,journalId,sourceType,id,input,key)=>{const prepared=await prepareOwnedJournalReversal(db,actor,journalId,sourceType,id,input,key);reversals.set(prepared.id,prepared);return prepared.id},edition:async(actor,id)=>db
     .prepare(
-      "SELECT * FROM finance_instrument_editions WHERE id=? AND company_id=?",
+      tableByIdSql('finance_instrument_editions'),
     )
     .bind(id, actor.companyId)
     .first<Row>(),
@@ -135,7 +136,7 @@ prepareRunCommit:async(facts)=>{const {actor,id,input,key,op,runId,e,now}=facts;
     );},
 run:async(actor,id)=>db
     .prepare(
-      "SELECT * FROM finance_instrument_runs WHERE id=? AND company_id=?",
+      tableByIdSql('finance_instrument_runs'),
     )
     .bind(id, actor.companyId)
     .first<Row>(),

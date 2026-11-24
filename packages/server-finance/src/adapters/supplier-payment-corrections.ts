@@ -1,3 +1,4 @@
+import { tableByIdSql } from './finance-read-tail-r49-sql';
 import "server-only";
 import type {SupplierInvoiceCorrections,SupplierPaymentCorrectionSource} from "@erpx/feature-finance/lib/supplier-payment-correction";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -33,7 +34,7 @@ async function source(database:SqlDatabase,actor:WorkContext,target:Target):Prom
  const created=await database.prepare("SELECT receipt.result_json::jsonb->>'correctionPaymentId' correction_id,receipt.result_json::jsonb->>'settlementInvoiceId' invoice_id FROM command_receipts receipt JOIN finance_payments payment ON payment.id=receipt.record_id AND payment.company_id=? AND receipt.actor_id=payment.created_by WHERE receipt.record_id=? AND receipt.operation='finance.payment.create' AND receipt.authority_json::jsonb->>'companyId'=?").bind(actor.companyId,target.id,actor.companyId).first<{correction_id:string|null;invoice_id:string|null}>();
  if(!created?.correction_id||!created.invoice_id)return null;
  value=await source(database,actor,{kind:"create",invoiceId:created.invoice_id,correctionPaymentId:created.correction_id});if(!value||value.status!=="voided")return null;
- const payment=await database.prepare("SELECT * FROM finance_payments WHERE id=? AND company_id=? AND party_id=? AND currency=? AND kind='payment' AND bank_account=? AND amount_minor=? AND NOT EXISTS(SELECT 1 FROM finance_allocations allocation WHERE allocation.payment_id=? AND (allocation.invoice_id<>? OR allocation.company_id<>?))").bind(target.id,actor.companyId,value.party_id,value.currency,value.bank_account,value.amount_minor,target.id,value.invoice_id,actor.companyId).first();
+ const payment=await database.prepare(tableByIdSql('finance_payments') + " AND party_id=? AND currency=? AND kind='payment' AND bank_account=? AND amount_minor=? AND NOT EXISTS(SELECT 1 FROM finance_allocations allocation WHERE allocation.payment_id=? AND (allocation.invoice_id<>? OR allocation.company_id<>?))").bind(target.id,actor.companyId,value.party_id,value.currency,value.bank_account,value.amount_minor,target.id,value.invoice_id,actor.companyId).first();
  return payment?{...value,image:JSON.stringify([value.image,payment])}:null;
 }
 const identity=(value:Source)=>JSON.stringify([value.id,value.invoice_id,value.bank_transaction_id,value.bank_account,value.currency,value.amount_minor,value.party_id]);

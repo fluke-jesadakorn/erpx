@@ -1,3 +1,4 @@
+import { tableByIdSql } from './finance-read-tail-r49-sql';
 import { ASSET_DRAFT_DISPOSAL_SQL } from './finance-read-tail-r39-sql';
 import { idCompanyStatusVersionGuard } from './finance-read-tail-r20-sql';
 import { ASSET_DEPRECIATION_COUNT_SQL, ASSET_POLICY_EDITION_PENDING_SQL, ASSET_POLICY_RUN_PENDING_SQL } from './finance-read-tail-r24-sql';
@@ -74,7 +75,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async edition(id: string, companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT * FROM finance_asset_policy_editions WHERE id=? AND company_id=?")
+                .prepare(tableByIdSql('finance_asset_policy_editions'))
                 .bind(id, companyId)
                 .first<Row>();
         }, async legacyCount(id: string | number | null) {
@@ -131,7 +132,7 @@ function bindPorts(read: () => SqlDatabase, base: () => SqlDatabase, owned: SqlD
         }, async run(id: string, companyId: string) {
             const db = read();
             return db
-                .prepare("SELECT * FROM finance_asset_policy_runs WHERE id=? AND company_id=?")
+                .prepare(tableByIdSql('finance_asset_policy_runs'))
                 .bind(id, companyId)
                 .first<Row>();
         }, async updateAssetCarrying(value: string, now: number, id: string | number | null) {

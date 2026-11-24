@@ -1,3 +1,4 @@
+import { tableByIdSql } from './finance-read-tail-r49-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead,requireFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
 import { CHART_BASE_CURRENCY_BY_ID_SQL } from './finance-read-tail-r15-sql';
 import { COLLECTIONS_TOOL_GUARD_SQL } from './finance-read-tail-r18-sql';
@@ -21,7 +22,7 @@ import {createFinanceCollections} from '@erpx/server-finance/application/collect
 import type {CollectionInvoice,CollectionQuery,collectionCaseSchema,reviseCollectionCaseSchema} from '@erpx/server-finance/domain/collections';
 export {collectionCaseSchema,reviseCollectionCaseSchema} from '@erpx/server-finance/domain/collections';
 export type {CollectionQuery} from '@erpx/server-finance/domain/collections';
-const collectionCaseByIdSql = "SELECT * FROM finance_collection_cases WHERE id=? AND company_id=?";
+const collectionCaseByIdSql = tableByIdSql('finance_collection_cases');
 function nativeCollections(provided?:SqlDatabase){let write:SqlDatabase;return createFinanceCollections({error:(...args)=>new ApiError(...args),permission:requirePermission,samePerson,ready:async actor=>{write=provided??(await holdingResources(actor.holdingId)).write},now:Date.now,id:()=>crypto.randomUUID(),hash:sha256,tool:actor=>requireFinanceTool(write,actor.companyId,'collections'),replay:async(actor,key,op,input)=>{const r=await financeCommandReceipts(write).record(key);return r?replayCommand(write,actor,key,op,r.record_id,input):null},reviewReplay:(actor,key,op,id,input)=>replayCommand(write,actor,key,op,id,input),invoice:async(actor,id)=>write
     .prepare(
       "SELECT i.*,p.name party_name,p.version party_version FROM finance_invoices i JOIN finance_parties p ON p.id=i.party_id AND p.company_id=i.company_id WHERE i.id=? AND i.company_id=? AND i.kind='receivable' AND i.status IN ('posted','partially_paid') AND i.outstanding_minor>0",
