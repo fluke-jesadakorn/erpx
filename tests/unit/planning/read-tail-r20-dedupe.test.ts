@@ -75,7 +75,7 @@ describe('Planning read-tail r20 production-resources EXISTS head dedupe', () =>
       }
     };
     walk(srcRoot);
-    expect(total).toBe(18);
+    expect(total).toBe(17);
     expect(total).toBeLessThan(19);
   });
 });

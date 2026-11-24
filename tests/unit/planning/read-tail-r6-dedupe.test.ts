@@ -64,7 +64,7 @@ describe('Planning read-tail r6 parameterized attachment-target family', () => {
 
   test('shared module declares each read literal exactly once', () => {
     const shared = src('planning-attachment-target-sql.ts');
-    expect(selectCount(shared)).toBe(2); // one literal per builder
+    expect(selectCount(shared)).toBe(1); // r21: version EXISTS literal folded into the generalized guard
   });
 
   test('retirement:ts-statements stays strictly below the r6 BEFORE=39 baseline', () => {

@@ -121,7 +121,7 @@ describe('Planning read-tail r17 parameterized projection/FROM head', () => {
     // r18 folds the calendar/comparison single-line heads (21 -> 20);
     // r19 folds the capacity operations head into this builder (20 -> 19);
     // r20 folds the production-resources guard into this EXISTS builder (19 -> 18).
-    expect(total).toBe(18);
+    expect(total).toBe(17);
     expect(total).toBeLessThan(21);
   });
 });

@@ -134,7 +134,7 @@ describe('Planning read-tail r16 generalized source-row head', () => {
     // r18 folded the calendar/comparison single-line heads (21 -> 20);
     // r19 folded the capacity operations head into the r17 builder (20 -> 19);
     // r20 folded the production-resources guard into the r7 EXISTS builder (19 -> 18).
-    expect(total).toBe(18);
+    expect(total).toBe(17);
     expect(total).toBeLessThan(25);
   });
 });

@@ -103,7 +103,7 @@ describe('Planning read-tail r18 parameterized single-line projection/FROM head'
     // one owner-local builder (21 -> 20) while keeping every SQL byte-identical;
     // r19 folds the capacity operations head into the r17 builder (20 -> 19);
     // r20 folds the production-resources guard into the r7 EXISTS builder (19 -> 18).
-    expect(total).toBe(18);
+    expect(total).toBe(17);
     expect(total).toBeLessThan(21);
   });
 });
