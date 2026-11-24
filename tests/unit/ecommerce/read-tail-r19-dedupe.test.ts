@@ -106,6 +106,6 @@ describe('Ecommerce read-tail r19 retirement check', () => {
       }
     };
     walk(srcRoot);
-    expect(total).toBe(11);
+    expect(total).toBe(10);
   });
 });

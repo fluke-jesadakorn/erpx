@@ -66,7 +66,7 @@ describe('Ecommerce read-tail r14 four-family dedupe', () => {
     expect((src.match(/ecommerceOrderedList\(/g) ?? []).length).toBe(7);
     expect((src.match(/ecommerceListingChannelRow\(/g) ?? []).length).toBe(1);
     expect((ao.match(/ecommerceListingChannelRow\(/g) ?? []).length).toBe(1);
-    expect((pb.match(/ecommerceSourceIdentity\(/g) ?? []).length).toBe(2);
+    expect((pb.match(/ecommerceSourceIdentity\(/g) ?? []).length).toBe(3);
     for (const oracle of Object.values(head)) {
       expect(src).not.toContain(oracle);
       expect(ao).not.toContain(oracle);
@@ -120,6 +120,6 @@ describe('Ecommerce read-tail r14 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(57);
-    expect(total).toBe(11);
+    expect(total).toBe(10);
   });
 });

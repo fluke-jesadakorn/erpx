@@ -26,18 +26,20 @@ async function source(database:SqlDatabase,actor:WorkContext,target:Target){
  else if(target.kind==='listing')sql=ecommerceSourceIdentity(`c.company_id,NULL::text branch_id,NULL::text department_id,x.version,jsonb_build_array(x.id,x.channel_id,x.product_id,c.company_id)::text identity,jsonb_build_array(to_jsonb(x),to_jsonb(c),p.id,p.company_id)::text image`,`ecommerce_listings x JOIN ecommerce_channels c ON c.id=x.channel_id JOIN (${commerce.commerce_products}) p ON p.id=x.product_id AND p.company_id=c.company_id`);
  else{
   const checkout=target.kind==='checkout';
-  sql=`SELECT c.company_id,c.branch_id,c.department_id,${checkout?'x':'c'}.version,jsonb_build_array(${checkout?'x.id,x.cart_id,x.sales_order_id,':''}c.id,c.company_id,c.branch_id,c.department_id,c.channel_id,c.party_id,c.warehouse_id,c.currency)::text identity,
+  const columns=`c.company_id,c.branch_id,c.department_id,${checkout?'x':'c'}.version,jsonb_build_array(${checkout?'x.id,x.cart_id,x.sales_order_id,':''}c.id,c.company_id,c.branch_id,c.department_id,c.channel_id,c.party_id,c.warehouse_id,c.currency)::text identity,
    jsonb_build_array(to_jsonb(c),to_jsonb(channel),party.id,party.company_id,warehouse.id,warehouse.company_id,warehouse.branch_id,
    ${childAgg('line','ecommerce_cart_lines','ordinal','cart_id','c')}
    ${checkout?`,to_jsonb(x),o.id,o.company_id,o.branch_id,o.department_id,o.kind,o.party_id,o.warehouse_id,o.currency,
    ${childAgg('link','ecommerce_fulfillment_links','id','checkout_id','x')},
    ${childAgg('link','ecommerce_return_links','id','checkout_id','x')}`:''})::text image
-   FROM ${checkout?'ecommerce_checkouts x JOIN ecommerce_carts c ON c.id=x.cart_id':'ecommerce_carts c'}
+  `;
+  const from=`${checkout?'ecommerce_checkouts x JOIN ecommerce_carts c ON c.id=x.cart_id':'ecommerce_carts c'}
    JOIN ecommerce_channels channel ON channel.id=c.channel_id AND channel.company_id=c.company_id
    JOIN (${finance.finance_parties}) party ON party.id=c.party_id AND party.company_id=c.company_id AND party.kind='customer'
    JOIN (${commerce.commerce_warehouses}) warehouse ON warehouse.id=c.warehouse_id AND warehouse.company_id=c.company_id AND warehouse.branch_id=c.branch_id
    ${checkout?`JOIN (${commerce.commerce_orders}) o ON o.id=x.sales_order_id AND o.id='order-ecommerce-order-'||c.id AND o.company_id=c.company_id AND o.branch_id=c.branch_id AND o.department_id IS NOT DISTINCT FROM c.department_id AND o.kind='sales' AND o.party_id=c.party_id AND o.warehouse_id=c.warehouse_id AND o.currency=c.currency`:''}
-   WHERE ${checkout?'x':'c'}.id=?`;
+  `;
+  sql=ecommerceSourceIdentity(columns,from,checkout?'x':'c');
  }
  const row=await database.prepare(sql).bind(target.id).first<Source>();
  if(!row||row.company_id!==actor.companyId||target.kind!=='channel'&&target.kind!=='listing'&&(actor.branchId&&row.branch_id!==actor.branchId||actor.departmentId&&row.department_id!==actor.departmentId))throw new ApiError(404,'ECOMMERCE_SOURCE_NOT_FOUND','The actual Ecommerce source is unavailable in this workspace.');
