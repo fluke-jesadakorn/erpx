@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 7796,
+    "revision": 7798,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -131532,7 +131532,7 @@
         "owner": "records",
         "title": "records TS read tail native cutover (r13)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -131544,22 +131544,39 @@
         "resources": [
           "owner:records"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG53rec",
-          "claimedAt": "2026-11-24T01:06:01.599Z",
-          "heartbeatAt": "2026-11-24T01:07:51.653Z",
-          "expiresAt": "2026-11-24T01:37:51.653Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "tsc -p packages/server-records/tsconfig.json",
+            "result": "passed",
+            "sourceSha": "a0abc4e21"
+          },
+          {
+            "command": "vitest records registered suites (85)",
+            "result": "passed",
+            "sourceSha": "a0abc4e21"
+          },
+          {
+            "command": "exhaustive byte-identical scan of records TS sources (57 SELECT literals)",
+            "result": "passed",
+            "sourceSha": "a0abc4e21",
+            "note": "zero duplicates remain; no safe KPI reduction"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Pick the smallest remaining owner-local dedupe; BEFORE=41.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with evidence; no forced refactor.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG53rec",
+          "at": "2026-11-24T01:12:04.423Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with evidence; no forced refactor."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -131953,17 +131970,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
-        "in_progress": 33,
+        "in_progress": 32,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 404,
+        "blocked": 405,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:10:41.265Z",
+    "updatedAt": "2026-11-24T01:12:04.427Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
