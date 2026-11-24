@@ -1,4 +1,5 @@
 import {NO_ATTACHMENT_LINK_SQL} from './read-tail-dedupe-sql';
+import {SET_ROW_JOIN_HEAD_SQL} from './read-tail-r42-source-sql';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import {assertion} from "@erpx/server-workflow/public/command-assertions";export function leaveReviewEvidenceFacts(database:SqlDatabase){return {guard11(key:string,value:"leave-evidence-canonical-count",id:string,company_id:string,length:number){return assertion(database,
           key,
           value,
@@ -19,9 +20,7 @@ guard12(key:string,value:string,id:string,company_id:string,linkId:string,source
             key,
             value,
             `EXISTS(
-              SELECT 1
-              FROM attachment_sets set_row
-              JOIN attachment_links link ON link.set_id=set_row.id
+              ${SET_ROW_JOIN_HEAD_SQL}attachment_links link ON link.set_id=set_row.id
               JOIN attachments source ON source.id=link.attachment_id
               WHERE set_row.target_type='leave_request' AND set_row.target_id=?
                 AND set_row.company_id=? AND source.company_id=set_row.company_id
@@ -94,9 +93,7 @@ guard15(key:string,value:"leave-evidence-no-pending",id:string,company_id:string
                 key,
                 value,
                 `NOT EXISTS(
-                  SELECT 1
-                  FROM attachment_sets set_row
-                  JOIN attachment_links link ON link.set_id=set_row.id
+                  ${SET_ROW_JOIN_HEAD_SQL}attachment_links link ON link.set_id=set_row.id
                   LEFT JOIN attachments source ON source.id=link.attachment_id
                     AND source.company_id=set_row.company_id
                   LEFT JOIN upload_intents intent ON intent.id=link.upload_intent_id

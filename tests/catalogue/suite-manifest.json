@@ -24576,6 +24576,33 @@
       "framework": "vitest"
     },
     {
+      "lane": "unit",
+      "owner": "files",
+      "modules": [
+        "manage_erpx"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Files set row join and ledger projection heads must stay canonical."
+      },
+      "apps": [
+        "launcher"
+      ],
+      "packages": [
+        "@erpx/server-files"
+      ],
+      "id": "files.read-tail-r42-dedupe.unit",
+      "files": [
+        "tests/unit/files/read-tail-r42-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
       "id": "files.rust-asset-descriptor-binding.unit",
       "lane": "unit",
       "owner": "files",

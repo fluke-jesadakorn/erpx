@@ -94,6 +94,10 @@ describe('Files read-tail r38 parameterized family', () => {
     expect(changed.every(p => [...SITES.map(s => rel(s)),
       rel('field-file-writer-owner.ts'), rel('attachments/service.ts'),
       rel('legal-destruction-source-facts.ts'), rel('messaging-upload-rollback.ts'),
+          'packages/server-files/src/adapters/app-attachment-sources.ts',
+      'packages/server-files/src/adapters/leave-review-evidence-facts.ts',
+      'packages/server-files/src/adapters/attachments/migration.ts',
+      'packages/server-files/src/adapters/attachments/service-repository.ts',
     ].includes(p))).toBe(true);
   });
 
@@ -112,9 +116,9 @@ describe('Files read-tail r38 parameterized family', () => {
       }
     };
     walk(srcRoot);
-    // r40 left 254; r41 lowers 254->251 (three shared read heads -> three helpers).
-    expect(literal).toBe(251);
-    expect(total).toBe(252);
+    // r40 left 254; r41 lowers 254->251; r42 lowers 251->248 (three set-row JOIN sites -> one head, two ledger projection sites -> one head).
+    expect(literal).toBe(248);
+    expect(total).toBe(249);
     expect(literal).toBeLessThan(255);
     expect(total).toBeLessThan(256);
   });

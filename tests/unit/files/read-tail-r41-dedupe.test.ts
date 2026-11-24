@@ -153,10 +153,14 @@ describe('Files read-tail r41 byte-oracle dedupe', () => {
       'packages/server-files/src/adapters/attachments/service.ts',
       'packages/server-files/src/adapters/legal-destruction-source-facts.ts',
       'packages/server-files/src/adapters/messaging-upload-rollback.ts',
+          'packages/server-files/src/adapters/app-attachment-sources.ts',
+      'packages/server-files/src/adapters/leave-review-evidence-facts.ts',
+      'packages/server-files/src/adapters/attachments/migration.ts',
+      'packages/server-files/src/adapters/attachments/service-repository.ts',
     ].includes(p))).toBe(true);
   });
 
-  test('retirement:ts-statements is strictly below the r40 BEFORE=254 baseline (254->251)', () => {
+  test('retirement:ts-statements is strictly below the r40 BEFORE=254 baseline (254->251->248)', () => {
     let literal = 0, total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -171,8 +175,8 @@ describe('Files read-tail r41 byte-oracle dedupe', () => {
     };
     walk(srcRoot);
     // r40 left 254; r41 lowers 254->251 (three shared read heads -> one helper each).
-    expect(literal).toBe(251);
-    expect(total).toBe(252);
+    expect(literal).toBe(248);
+    expect(total).toBe(249);
     expect(literal).toBeLessThan(254);
     expect(total).toBeLessThan(255);
   });

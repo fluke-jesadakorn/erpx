@@ -90,8 +90,8 @@ describe('Files read-tail r34 parameterized family', () => {
       }
     };
     walk(srcRoot);
-    expect(literal).toBe(251); // r40 left 254; r41 lowers 254->251 (three shared read heads -> three helpers).
-    expect(total).toBe(252);
+    expect(literal).toBe(248); // r40 left 254; r41 lowers 254->251; r42 lowers 251->248 (three set-row JOIN sites -> one head, two ledger projection sites -> one head).
+    expect(total).toBe(249);
     expect(literal).toBeLessThan(264);
     expect(total).toBeLessThan(265);
   });

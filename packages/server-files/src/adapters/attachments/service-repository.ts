@@ -14,6 +14,7 @@ import {attachmentPublicationByIdSql} from "../read-tail-r31-source-sql";
 import {ATTACHMENT_LINK_PROJECTION_HEAD_SQL} from "../read-tail-r37-source-sql";
 import {ATTACHMENT_EVENT_EVENT_HEAD_SQL} from "../read-tail-r38-source-sql";
 import {SANITIZATION_ATTESTED_HEAD_SQL} from "../read-tail-r40-source-sql";
+import {LEDGER_OBJECT_KEY_PROJECTION_HEAD_SQL} from "../read-tail-r42-source-sql";
 const setByIdSql = "SELECT * FROM attachment_sets WHERE id=? AND company_id=?";
 export const usedStorageSql = "SELECT COALESCE(sum(bytes),0) FROM attachment_storage_ledger WHERE company_id=? AND state IN ('reserved','stored')";
 export const pendingStorageSql = "SELECT COALESCE(sum(declared_bytes),0) FROM upload_intents WHERE company_id=? AND status='pending' AND expires_at>?";
@@ -984,7 +985,7 @@ export function repository(db: SqlDatabase) {
         }) => { return db.prepare("SELECT 1 FROM attachment_events WHERE attachment_id=? AND action='source.bytes_deleted'").bind(facts.id).first(); },
         readAttachmentStorageLedger150: (facts: {
             id: string;
-        }) => { return db.prepare("SELECT object_key FROM attachment_storage_ledger WHERE attachment_id=?").bind(facts.id).all<{
+        }) => { return db.prepare(`${LEDGER_OBJECT_KEY_PROJECTION_HEAD_SQL}attachment_id=?`).bind(facts.id).all<{
             object_key: string;
         }>(); },
         writeAttachmentEvents151: (facts: {
