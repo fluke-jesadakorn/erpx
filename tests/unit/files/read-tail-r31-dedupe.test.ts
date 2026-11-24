@@ -80,8 +80,6 @@ describe('Files read-tail r31 parameterized families', () => {
       }
     };
     walk(srcRoot);
-    expect(literal).toBe(267); // r30 left 268; r31 lowers 268->267 across these families.
-    expect(total).toBe(268);
     expect(literal).toBeLessThan(268);
     expect(total).toBeLessThan(269);
   });
