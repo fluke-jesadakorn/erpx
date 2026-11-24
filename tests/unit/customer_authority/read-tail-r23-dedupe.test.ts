@@ -101,6 +101,7 @@ describe('Customer Authority read-tail r23 JSONB image projection family', () =>
     walk(srcRoot);
     const total = files.reduce((n, p) => n + (readFileSync(p, 'utf8').match(/SELECT/g) ?? []).length, 0);
     expect(total).toBeLessThan(65);
-    expect(total).toBe(64);
+    // r24 lowers the tail further; only the strict-lower bound stays stable.
+    expect(total).toBeLessThan(64);
   });
 });
