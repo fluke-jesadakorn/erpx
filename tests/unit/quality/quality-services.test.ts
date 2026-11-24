@@ -202,10 +202,10 @@ describe('quality package-obligation scope and clock CTE dedupe',()=>{
   const clockSites=[['packages/server-quality/src/adapters/record-purchases.ts','quality_source_clock'],['packages/server-quality/src/adapters/product-entry.ts','quality_entry_clock'],['packages/server-quality/src/adapters/calendar-quality-facts.ts','quality_calendar_clock']] as const;
   for(const [path,name] of clockSites){const text=readFileSync(source(path),'utf8');expect(text).toContain(`qualityClockCte("${name}")`);expect(text).not.toContain(`WITH ${name} AS MATERIALIZED (SELECT`);}
  });
- test('the owner TS statement KPI stays strictly below 100',()=>{
+ test('the owner TS statement KPI stays strictly below the r12 BEFORE=97 baseline',()=>{
   const count=files(source('packages/server-quality/src')).reduce((total,path)=>total+(readFileSync(path,'utf8').match(/INSERT INTO|DELETE FROM|UPDATE [a-z_]+ SET|SELECT /g)?.length??0),0);
-  expect(count).toBeLessThan(100);
-  expect(count).toBe(97);
+  expect(count).toBeLessThan(97);
+  expect(count).toBe(94);
  });
 });
 describe('quality command-receipt guard dedupe',()=>{
@@ -258,5 +258,38 @@ describe('quality hold child aggregate dedupe',()=>{
    expect(text).toContain('qualityChildAggSql(');
    expect(text).not.toMatch(/jsonb_agg\(to_jsonb\((i|c|d|inspection|event)\) ORDER BY \1\.id\) FROM inventory_quality_/);
   }
+ });
+});
+describe('quality source-rows family dedupe (r12)',()=>{
+ const source=(path:string)=>resolve(process.cwd(),path);
+ const pre={
+  holds:'SELECT * FROM inventory_quality_holds',
+  inspections:'SELECT * FROM inventory_quality_inspections',
+  dispositions:'SELECT * FROM inventory_quality_disposition_events',
+  cancellations:'SELECT * FROM inventory_quality_cancellations',
+ } as const;
+ test('one parameterized helper reproduces the four full-row source reads byte-for-byte',async()=>{
+  const {qualitySourceRows}=await import('../../../packages/server-quality/src/adapters/quality-source-rows-sql');
+  for(const literal of Object.values(pre)){
+   const table=literal.slice('SELECT * FROM '.length);
+   expect(qualitySourceRows(table)).toBe(literal);
+   expect(qualitySourceRows(table).match(/SELECT /g)).toHaveLength(1);
+  }
+  const {salesQualitySettlementSources}=await import('../../../packages/server-quality/src/adapters/sales-package-sources');
+  for(const [key,literal] of Object.entries(pre))expect(salesQualitySettlementSources[key as keyof typeof pre]).toBe(literal);
+ });
+ test('the four callers share one helper literal with no inline copies',()=>{
+  const adapter=readFileSync(source('packages/server-quality/src/adapters/sales-package-sources.ts'),'utf8');
+  expect(adapter.match(/qualitySourceRows\(/g)).toHaveLength(4);
+  for(const literal of Object.values(pre))expect(adapter).not.toContain(literal);
+  const helper=readFileSync(source('packages/server-quality/src/adapters/quality-source-rows-sql.ts'),'utf8');
+  expect(helper.match(/SELECT /g)).toHaveLength(1);
+ });
+ test('source locks and r10/r11 helpers stay independent and untouched',()=>{
+  const adapter=readFileSync(source('packages/server-quality/src/adapters/sales-package-sources.ts'),'utf8');
+  expect(adapter).toContain('LOCK TABLE inventory_quality_holds,inventory_quality_inspections,inventory_quality_disposition_events,inventory_quality_cancellations,inventory_quality_specs,inventory_quality_spec_metrics IN SHARE MODE');
+  expect(adapter).toContain('export function salesQualitySettlementSourceReadLocks');
+  const helper=readFileSync(source('packages/server-quality/src/adapters/quality-source-rows-sql.ts'),'utf8');
+  expect(helper).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE/i);
  });
 });

@@ -1,6 +1,7 @@
 import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {commerceQualityOriginRows} from '@erpx/server-commerce/public/quality-purchase-sources';
+import {qualitySourceRows} from './quality-source-rows-sql';
 /** Raw retained quarantine and immutable decisions. The Inventory withdrawal
  * reader proves actual Sales return identity; a source_type alone never grants
  * a Count or Quality command. Invalid declared origins remain unresolved. */
@@ -14,5 +15,5 @@ const returnHoldSources=`WITH RECURSIVE anchors AS(
  JOIN inventory_quality_holds child ON child.id=original.id||'-remaining-'||count.id AND child.source_id=original.source_id||':remaining:'||count.id
  WHERE parent.depth<64)
  SELECT DISTINCT ON(h.id,lineage.source_company) h.*,lineage.source_company,lineage.depth source_depth FROM lineage JOIN inventory_quality_holds h ON h.id=lineage.id ORDER BY h.id,lineage.source_company,lineage.depth DESC`;
-export const salesQualitySettlementSources={returnOrigins:commerceQualityOriginRows,holds:'SELECT * FROM inventory_quality_holds',returnHoldSources,inspections:'SELECT * FROM inventory_quality_inspections',dispositions:'SELECT * FROM inventory_quality_disposition_events',cancellations:'SELECT * FROM inventory_quality_cancellations'} as const;
+export const salesQualitySettlementSources={returnOrigins:commerceQualityOriginRows,holds:qualitySourceRows('inventory_quality_holds'),returnHoldSources,inspections:qualitySourceRows('inventory_quality_inspections'),dispositions:qualitySourceRows('inventory_quality_disposition_events'),cancellations:qualitySourceRows('inventory_quality_cancellations')} as const;
 export function salesQualitySettlementSourceReadLocks(database:SqlDatabase){return [database.prepare('LOCK TABLE inventory_quality_holds,inventory_quality_inspections,inventory_quality_disposition_events,inventory_quality_cancellations,inventory_quality_specs,inventory_quality_spec_metrics IN SHARE MODE')];}
