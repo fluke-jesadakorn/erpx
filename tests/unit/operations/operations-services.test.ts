@@ -491,6 +491,7 @@ import {handoverTaskAccessSql} from '../../../packages/server-operations/src/ada
 import {taskParticipantReadPolicy} from '../../../packages/server-operations/src/adapters/project-task-record-policy';
 import {projectSourceProbe} from '../../../packages/server-operations/src/adapters/record-purchases';
 import {operationsOverdueAlertSql} from '../../../packages/server-operations/src/adapters/executive-task-cohort';
+import {workCacheOperationsDeadlines} from '../../../packages/server-operations/src/adapters/work-cache-deadlines';
 import {finalRootOwnerProjectionSources as collaborationProjectionSources} from '@erpx/server-collaboration/public/final-root-owner-projection-sources';
 describe('Operations task delegation source dedupe',()=>{
  const fragment='(SELECT jsonb_agg(to_jsonb(delegation) ORDER BY delegation.id) FROM staff_task_delegations delegation WHERE delegation.task_id=t.id AND delegation.company_id=t.company_id)';
@@ -845,7 +846,45 @@ describe('Operations read-tail r40 retirement',()=>{
       }
     };
     walk(root);
-    expect(space).toBe(111);
+    // r41 deduped the active-delegation deadline UNION family; the r40
+    // BEFORE=114 baseline itself is unchanged.
+    expect(space).toBeLessThanOrEqual(110);
     expect(space).toBeLessThan(114);
+  });
+});
+
+describe('Operations read-tail r41 retirement',()=>{
+  const source=(name:string)=>readFileSync(new URL(`../../../packages/server-operations/src/adapters/${name}`,import.meta.url),'utf8');
+  const branch=(column:string)=>`SELECT ${column} FROM staff_task_delegations WHERE status='active'`;
+  test('the two cache-fence deadline branches render byte-identically',()=>{
+    expect(workCacheOperationsDeadlines()).toBe(`${branch('starts_at')} UNION ALL ${branch('expires_at')}`);
+    expect(workCacheOperationsDeadlines()).toBe("SELECT starts_at FROM staff_task_delegations WHERE status='active' UNION ALL SELECT expires_at FROM staff_task_delegations WHERE status='active'");
+  });
+  test('the deadline family keeps one canonical literal and no local SELECT',()=>{
+    const src=source('work-cache-deadlines.ts');
+    expect(src).toContain("activeDelegationDeadline('starts_at')");
+    expect(src).toContain("activeDelegationDeadline('expires_at')");
+    expect(src).not.toContain('SELECT starts_at FROM staff_task_delegations');
+    expect(src.match(/SELECT /g)).toHaveLength(1);
+  });
+  test('LOCK TABLE and the r29-r40 helpers remain untouched',()=>{
+    expect(source('work-package-obligation-sources.ts')).toContain('LOCK TABLE');
+    expect(source('project-package-obligation-sources.ts')).toContain('LOCK TABLE');
+    expect(source('task-delegation-source.ts')).toContain('operationsActiveDelegationSql');
+    expect(source('executive-task-cohort.ts')).toContain('operationsOverdueAlertSql');
+  });
+  test('retirement:ts-statements stays strictly below the r41 BEFORE=111 baseline',()=>{
+    const root=resolve(__dirname,'../../../packages/server-operations/src');
+    let space=0;
+    const walk=(dir:string)=>{
+      for(const entry of readdirSync(dir,{withFileTypes:true})){
+        const path=resolve(dir,entry.name);
+        if(entry.isDirectory())walk(path);
+        else if(entry.name.endsWith('.ts'))space+=(readFileSync(path,'utf8').match(/SELECT /g)??[]).length;
+      }
+    };
+    walk(root);
+    expect(space).toBe(110);
+    expect(space).toBeLessThan(111);
   });
 });
