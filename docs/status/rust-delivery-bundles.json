@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8668,
+    "revision": 8672,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -142642,7 +142642,7 @@
         "owner": "workflow",
         "title": "workflow TS read tail native cutover (r26)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -142654,22 +142654,37 @@
         "resources": [
           "owner:workflow"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGCAwor",
-          "claimedAt": "2026-11-24T02:37:14.461Z",
-          "heartbeatAt": "2026-11-24T02:37:14.461Z",
-          "expiresAt": "2026-11-24T03:07:14.461Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-workflow/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "2445e29ca",
+            "owner": "workflow",
+            "before": 69,
+            "after": 68,
+            "note": "Approver name lookup span shared in decision history; emitted SQL byte-identical; guards untouched."
+          },
+          {
+            "command": "vitest workflow transport (30) + tsc workflow",
+            "result": "passed",
+            "sourceSha": "2445e29ca"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=69.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCAwor",
+          "at": "2026-11-24T02:43:27.621Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -143046,6 +143061,42 @@
         "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=89.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.workflow.read-tail-r27",
+        "goalId": "G4",
+        "owner": "workflow",
+        "title": "workflow TS read tail native cutover (round 27)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/**",
+          "tests/unit/workflow/**",
+          "tests/integration/workflow/**"
+        ],
+        "resources": [
+          "owner:workflow"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGCBwor",
+          "claimedAt": "2026-11-24T02:43:28.368Z",
+          "heartbeatAt": "2026-11-24T02:43:28.368Z",
+          "expiresAt": "2026-11-24T03:13:28.368Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=68.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -143054,7 +143105,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 992,
+      "totalPackets": 993,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
@@ -143062,13 +143113,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 612,
+        "blocked": 613,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T02:43:11.006Z",
+    "updatedAt": "2026-11-24T02:43:28.381Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
