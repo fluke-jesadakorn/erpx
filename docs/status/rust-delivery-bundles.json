@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9056,
+    "revision": 9058,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -140684,7 +140684,7 @@
         "owner": "quality",
         "title": "quality attachment descriptor native port",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -140696,28 +140696,37 @@
         "resources": [
           "owner:quality"
         ],
-        "claim": {
-          "runId": "run-20261123-j",
-          "agentId": "wGCtqua",
-          "claimedAt": "2026-11-24T03:57:22.059Z",
-          "heartbeatAt": "2026-11-24T04:26:55.017Z",
-          "expiresAt": "2026-11-24T04:56:55.017Z",
-          "generation": 162
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "cargo check -p erpx-server-quality --tests (clean snapshot overlay)",
+            "result": "passed",
+            "sourceSha": "b190d714e"
+          },
+          {
+            "command": "cargo test quality descriptor lib 1 + read-cancel PG parity 1",
+            "result": "passed",
+            "sourceSha": "b190d714e"
+          },
+          {
+            "command": "tsc server-quality",
+            "result": "passed",
+            "sourceSha": "b190d714e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Build owner-local native adapter/port for attachment descriptor reads using the existing attachment_descriptor owner port; PG parity test. No composition or Files consumer switch.",
+        "blocker": "handoff",
+        "nextAction": "Port integrated; cutover queued.",
         "handoff": {
-          "runId": "run-20261123-i",
+          "runId": "run-20261123-j",
           "agentId": "wGCtqua",
-          "at": "2026-11-24T03:57:20.238Z",
+          "at": "2026-11-24T04:27:55.939Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Coordinator lease expired during long cargo queue; WIP reviewed, all owner claims preserved and re-issued.",
-          "nextAction": "Build owner-local native adapter/port for attachment descriptor reads using the existing attachment_descriptor owner port; PG parity test. No composition or Files consumer switch."
+          "reason": "handoff",
+          "nextAction": "Port integrated; cutover queued."
         },
         "scopeRefinementRequired": false
       },
@@ -147356,17 +147365,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 23,
+        "in_progress": 22,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 701,
+        "blocked": 702,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 162,
-    "updatedAt": "2026-11-24T04:27:31.858Z",
+    "updatedAt": "2026-11-24T04:27:55.943Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
