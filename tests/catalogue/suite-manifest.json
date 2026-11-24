@@ -17532,6 +17532,39 @@
       ]
     },
     {
+      "id": "ecommerce.native-ecommerce-listing-transport.unit",
+      "lane": "unit",
+      "owner": "ecommerce",
+      "modules": [
+        "ecommerce"
+      ],
+      "files": [
+        "tests/unit/ecommerce/native-ecommerce-listing-transport.test.ts"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native Ecommerce listing transport must send exact create/retitle/review bodies, retain authority headers, validate the owner receipt and fail closed."
+      },
+      "framework": "vitest",
+      "apps": [
+        "sales"
+      ],
+      "packages": [
+        "@erpx/feature-identity_access",
+        "@erpx/feature-records",
+        "@erpx/feature-sales",
+        "@erpx/feature-work_projection",
+        "@erpx/server-identity_access",
+        "@erpx/server-runtime",
+        "@erpx/server-shared"
+      ]
+    },
+    {
       "id": "ecommerce.rust-ecommerce-commands.unit",
       "lane": "unit",
       "owner": "ecommerce",
@@ -53620,6 +53653,33 @@
           "H001_DB"
         ]
       }
+    },
+    {
+      "lane": "unit",
+      "owner": "marketing",
+      "modules": [
+        "marketing"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Marketing purchase witness rows must share one canonical byte-identical projection helper."
+      },
+      "apps": [
+        "marketing"
+      ],
+      "packages": [
+        "@erpx/server-marketing"
+      ],
+      "id": "marketing.purchase-rows-dedupe.unit",
+      "files": [
+        "tests/unit/marketing/purchase-rows-dedupe.test.ts"
+      ],
+      "framework": "vitest"
     },
     {
       "id": "marketing.rust-marketing-campaign-http.integration",

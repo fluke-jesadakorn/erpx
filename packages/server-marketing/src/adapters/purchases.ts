@@ -13,15 +13,16 @@ import {marketingExpenseSourceReadLocks} from "@erpx/server-finance/public/marke
 import {isTransactionalSqlDatabase,type SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import {holdingResources} from "../../../../packages/server-runtime/src/public/runtime";
 import {ApiError} from "@erpx/server-runtime/public/http";
-import {crmMarketingCandidateSources,crmMarketingSourceReadLocks,publicSubmissionReceiptWitness} from "@erpx/server-marketing/adapters/crm-purchase-sources";
+import {crmMarketingSourceReadLocks,publicSubmissionReceiptWitness} from "@erpx/server-marketing/adapters/crm-purchase-sources";
 import type {PublicMarketingForm} from "@erpx/server-marketing/application/public-form";
 import {marketingActorScopeSql} from "./marketing-actor-scope-sql";
+import {marketingPurchaseRowsSql} from "./marketing-purchase-rows-sql";
 export type MarketingPurchaseControls={newWork:boolean;settleExisting:boolean;history:boolean;revision:string};
 export type MarketingPurchaseTarget={kind:"asset"|"candidate"|"campaign"|"campaign-cost";id:string};
-export const marketingPurchaseAssetRows="SELECT asset.id,asset.company_id,NULL::text branch_id,NULL::text department_id,(to_jsonb(asset)-'status'-'reviewed_by'-'version'-'updated_at') witness FROM marketing_assets asset";
-export const marketingPurchaseCandidateRows=`SELECT candidate.id,candidate.company_id,candidate.branch_id,candidate.department_id,(to_jsonb(candidate)-'status'-'crm_lead_id'-'reviewed_by'-'version'-'updated_at') witness FROM (${crmMarketingCandidateSources}) candidate`;
-const campaignRows="SELECT campaign.id,campaign.company_id,NULL::text branch_id,NULL::text department_id,to_jsonb(campaign) witness FROM marketing_campaigns campaign";
-const costRows="SELECT cost.id,cost.company_id,NULL::text branch_id,NULL::text department_id,to_jsonb(cost) witness FROM marketing_campaign_costs cost JOIN marketing_campaigns campaign ON campaign.id=cost.campaign_id AND campaign.company_id=cost.company_id";
+export const marketingPurchaseAssetRows=marketingPurchaseRowsSql('asset');
+export const marketingPurchaseCandidateRows=marketingPurchaseRowsSql('candidate');
+const campaignRows=marketingPurchaseRowsSql('campaign');
+const costRows=marketingPurchaseRowsSql('campaign-cost');
 const rows={asset:marketingPurchaseAssetRows,candidate:marketingPurchaseCandidateRows,campaign:campaignRows,"campaign-cost":costRows};
 /** Owner-local fixed form-asset snapshot shared by the retained public-submission
  * before/after check. Both reads execute this exact statement inside the caller's
