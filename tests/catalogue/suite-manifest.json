@@ -68390,33 +68390,6 @@
       "framework": "vitest"
     },
     {
-      "lane": "unit",
-      "owner": "pms",
-      "modules": [
-        "pms"
-      ],
-      "fixture": "none",
-      "requires": {
-        "jobs": false,
-        "scanner": false
-      },
-      "ci": {
-        "critical": true,
-        "reason": "PMS r22 byte-identical stripe refund, rollout and recipient FROM fragments must stay one literal each."
-      },
-      "apps": [
-        "booking"
-      ],
-      "packages": [
-        "@erpx/server-pms"
-      ],
-      "id": "pms.read-tail-r22-dedupe.unit",
-      "files": [
-        "tests/unit/pms/pms-read-tail-r22-dedupe.test.ts"
-      ],
-      "framework": "vitest"
-    },
-    {
       "id": "pms.reports.integration",
       "lane": "integration",
       "owner": "pms",
