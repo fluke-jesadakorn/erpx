@@ -2,13 +2,14 @@ import "server-only";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import type {TargetRow} from "@erpx/server-files/public/contracts/attachments-operational";
-import { ecommerceListingChannelRow } from "./read-tail-sql";
+import { ecommerceListingChannelRow, ecommerceExistsGuard } from "./read-tail-sql";
 const versionOwners:Record<string,string>={"ecommerce_listing": "ecommerce_listings"};
 const allowedTargets=new Set<string>(["ecommerce_listing"]);
-/** r9: one parameterized attachment-owner version guard; the listing-specific
- *  and generic callers rebuild byte-identically. Text only: binds unchanged. */
-const attachmentVersionGuardSql = (source: string, where: string) =>
-  `EXISTS(SELECT 1 FROM ${source} WHERE ${where})`;
+/** r18: the r9 attachment-owner guard and the r14 owner guard share one
+ *  byte-identical parameterized EXISTS-head frame. Alias the single shared
+ *  frame so both callers rebuild byte-identically.
+ *  Text only: binds, locks and emitted SQL are unchanged. */
+const attachmentVersionGuardSql = ecommerceExistsGuard;
 function remainingOperationalAttachmentTargetVersionGuard(
   db: SqlDatabase,
   commandId: string,

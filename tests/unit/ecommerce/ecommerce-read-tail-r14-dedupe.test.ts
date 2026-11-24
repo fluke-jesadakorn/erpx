@@ -120,6 +120,6 @@ describe('Ecommerce read-tail r14 retirement check', () => {
     };
     walk(srcRoot);
     expect(total).toBeLessThan(57);
-    expect(total).toBe(48);
+    expect(total).toBe(47);
   });
 });
