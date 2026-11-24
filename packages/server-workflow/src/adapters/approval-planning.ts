@@ -30,7 +30,9 @@ const approvalStepsApproverSql = `SELECT s.*,COALESCE(p.legal_name,s.approver_us
 /** Byte-identical span shared by the previous/approver name lookups; emitted SQL is unchanged. */
 const approverNameLookupSql = `(SELECT legal_name ${peoplepayrollFinalSources.approvals_hr_people_from} WHERE company_id=i.company_id AND iam_same_person(user_id,d.`;
 const approvalDecisionHistorySql = `COALESCE(p.legal_name,d.actor_user_id) actor_name,${approverNameLookupSql}previous_approver_user_id,company_id) AND merged_into_id IS NULL LIMIT 1) previous_approver_name,${approverNameLookupSql}approver_user_id,company_id) AND merged_into_id IS NULL LIMIT 1) approver_name FROM approval_decisions d JOIN approval_instances i ON i.id=d.instance_id LEFT ${peoplepayrollFinalSources.approvals_hr_people_p_join} ON p.user_id=d.actor_user_id AND p.company_id=i.company_id AND p.merged_into_id IS NULL WHERE i.record_type=`;
-const pendingInstanceExistsSql = "EXISTS(SELECT 1 FROM approval_instances WHERE id=? AND version=? AND state='pending' AND current_step=?)";
+/** Byte-identical prefix shared by the pending/blocked instance-state guards; callers keep their own literal state and bind order, emitted SQL is unchanged. */
+const approvalInstanceStateExistsPrefix = "EXISTS(SELECT 1 FROM approval_instances WHERE id=? AND version=? AND state='";
+const pendingInstanceExistsSql = `${approvalInstanceStateExistsPrefix}pending' AND current_step=?)`;
 /** Byte-identical span shared by the override/non-override approval-version guards; emitted SQL is unchanged. */
 const pendingInstanceAndStepSql = `${pendingInstanceExistsSql} AND EXISTS(SELECT 1 FROM approval_steps WHERE id=? AND `;
 /** Byte-identical record/version EXISTS prefix shared by the legacy-record (guard17)
@@ -83,7 +85,7 @@ export function nativeApprovalPlanningPorts(database: SqlDatabase, readOverrides
         readInitializeLegacyApprovalExpense(record_id: string, company_id: string) { return people_payroll_approvals(database).readInitializeLegacyApprovalExpense(record_id, company_id); },
         readInitializeLegacyApprovalRecord(recordId: string, companyId: string, pendingState: 'pending_approval' | 'in_review', kind: ApprovalKind) { return legacyApprovalRecord(database, kind, recordId, companyId, pendingState); },
         guard16(key: string, value: "legacy-route", id: string, version: number, id2: string) {
-            return assertion(database, key, value, "EXISTS(SELECT 1 FROM approval_instances WHERE id=? AND version=? AND state='blocked') AND NOT EXISTS(SELECT 1 FROM approval_steps WHERE instance_id=?)", [id, version, id2]);
+            return assertion(database, key, value, `${approvalInstanceStateExistsPrefix}blocked') AND NOT EXISTS(SELECT 1 FROM approval_steps WHERE instance_id=?)`, [id, version, id2]);
         },
         guard17(key: string, value: "legacy-record", record_id: string, company_id: string, pendingState: "pending_approval" | "in_review", version: number, kind: ApprovalKind) {
             const { table, column } = nativeApprovalRecord(kind);
