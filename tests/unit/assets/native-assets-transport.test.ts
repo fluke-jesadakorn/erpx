@@ -370,14 +370,15 @@ it('shares one fixed owner predicate for attachment owner version guards (46->45
   expect(service).toContain('attachmentOwnerVersionGuardSql(item.table, item.extra)');
   expect(operational).toContain('attachmentOwnerVersionGuardSql(table)');
 });
-it('shares one canonical existence probe across the Assets package-settlement read (11->6; r23 all-rows family)',async()=>{
+it('shares one canonical existence probe across the Assets package-settlement read (11->1 after r26 native cutover)',async()=>{
   const {readFile}=await import('node:fs/promises');
   const adapter=await readFile(new URL('../../../packages/server-assets/src/adapters/package-obligations.ts',import.meta.url),'utf8');
   const count=(text:string,needle:string)=>text.split(needle).length-1;
   // The owner-local source probe is the single existence statement; neither this
   // adapter nor its comments may smuggle another "SELECT" token into the KPI.
-  // r23 moves the Finance-link all-rows literal to the owner all-rows helper.
-  expect(adapter.match(/SELECT/g)).toHaveLength(6);
+  // r23 moves the Finance-link all-rows literal to the owner all-rows helper;
+  // r26 retires the obligation fallback, leaving only the Maintenance source.
+  expect(adapter.match(/SELECT/g)).toHaveLength(1);
   expect(adapter).toContain('import {assetSourceProbeSql} from "./record-purchases"');
   expect(adapter).toContain('import {assetAllRowsSql} from "./asset-all-rows-sql"');
   expect(adapter).toContain('const assetExistsSql = (from:string,where:string) =>');
@@ -387,16 +388,22 @@ it('shares one canonical existence probe across the Assets package-settlement re
   // No duplicate raw probe literal remains at the owner or finance-source call sites.
   expect(count(adapter,'EXISTS(SELECT 1 FROM (${source}) ${alias} WHERE ${where})')).toBe(0);
   expect(count(adapter,'NOT EXISTS(SELECT 1 FROM (${assetsSettlementFinancialAssets}) financial')).toBe(0);
-  expect(count(adapter,'assetSourceExistsSql(')).toBe(3);
-  expect(count(adapter,'assetExistsSql(')).toBe(2);
+  expect(count(adapter,'assetSourceExistsSql(')).toBe(2);
+  expect(count(adapter,'assetExistsSql(')).toBe(1);
   expect(adapter).toContain('assetSourceExistsSql(placements,"branch"');
   expect(adapter).toContain('assetSourceExistsSql(placements,"department"');
-  expect(adapter).toContain('assetSourceExistsSql(refs,"source"');
-  expect(adapter).toContain('NOT ${assetExistsSql(`(${assetsSettlementFinancialAssets}) financial JOIN');
+  expect(adapter).not.toContain('assetSourceExistsSql(refs,"source"');
+  expect(adapter).not.toContain('NOT ${assetExistsSql(`(${assetsSettlementFinancialAssets}) financial JOIN');
   // The exported source object used by the Maintenance consumer is unchanged in shape.
   expect(adapter).toContain('export const assetPackageSettlementSources={assets:');
   expect(adapter).toContain('links:assetAllRowsSql("operational_asset_finance_links")} as const;');
   expect(count(adapter,'links:"SELECT * FROM operational_asset_finance_links"')).toBe(0);
+  // The obligation reader now routes unconditionally and keeps its lock/guards.
+  expect(adapter).not.toContain('nativeAssetsReadConfigured');
+  expect(adapter).toContain('nativeAssetsReadAll<{kind:string;id:string;version:number;state:string;pending:boolean}>(kind,{companyId:input.companyId,isBase:full},database)');
+  expect(adapter).toContain('LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links IN SHARE MODE');
+  expect(adapter).toContain('throw Error("ASSETS_PACKAGE_OBLIGATION_SOURCE_REQUIRED")');
+  expect(adapter).toContain('throw Error("ASSETS_PACKAGE_OBLIGATION_SCOPE_REQUIRED")');
 });
 it('shares one canonical lineage aggregate projection across the Assets financial source (42->39)',async()=>{
    const {readFile}=await import('node:fs/promises');
@@ -535,8 +542,9 @@ describe('Assets read-tail r17 byte-identical family dedupe',()=>{
   // r20 retired the image-witness literal; r21 shares the keyed-row read;
   // r22 shares the Finance-link keyed reads; r23 shares the all-rows projection;
   // r24 shares the fixed operational_assets projection;
-  // r25 retires the field-service image literal already byte-identical to the native plan.
-  expect(selects).toBe(20);
+  // r25 retires the field-service image literal already byte-identical to the native plan;
+  // r26 retires the package-obligation fallback (BEFORE=20, strictly lower).
+  expect(selects).toBe(15);
   const financial=readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8');
   expect(financial).toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
   const purchases=readFileSync(resolve(srcRoot,'adapters/purchases.ts'),'utf8');
@@ -581,8 +589,9 @@ describe('Assets read-tail r21 id+company keyed-row family',()=>{
   };
   walk(srcRoot);
   // r23 shares the all-rows projection; r24 shares the fixed operational_assets projection;
-  // r25 retires the field-service image literal byte-identical to PLAN_FS_IMAGE.
-  expect(selects).toBe(20);
+  // r25 retires the field-service image literal byte-identical to PLAN_FS_IMAGE;
+  // r26 retires the package-obligation fallback (BEFORE=20, strictly lower).
+  expect(selects).toBe(15);
   // r2-r20 lock/cascade families are untouched.
   expect(readFileSync(resolve(srcRoot,'adapters/financial-workflow-sources.ts'),'utf8'))
    .toContain("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links,maintenance_work_orders IN SHARE MODE");
@@ -689,7 +698,8 @@ describe('Assets read-tail r23 all-rows projection family',()=>{
   expect(obligations).toContain('links:assetAllRowsSql("operational_asset_finance_links")');
   expect(obligations).not.toContain('links:"SELECT * FROM operational_asset_finance_links"');
   expect((metric.match(/SELECT/g)??[])).toHaveLength(1);
-  expect((obligations.match(/SELECT/g)??[])).toHaveLength(6);
+  // r26 retires the obligation fallback; only the Maintenance source literal remains.
+  expect((obligations.match(/SELECT/g)??[])).toHaveLength(1);
  });
  it('leaves r11-r22 families, locks and the native read transport untouched',async()=>{
   expect((src('record-purchases.ts').match(/SELECT/g)??[])).toHaveLength(2);
@@ -766,7 +776,7 @@ describe('Assets read-tail r25 byte-identical field-service image family',()=>{
   return selects;
  };
  it('lowers the owner TS SELECT tail strictly below BEFORE=21',()=>{
-  expect(ownerSelectCount()).toBe(20);
+  expect(ownerSelectCount()).toBe(15);
  });
  it('routes the field-service image unconditionally to the byte-identical native plan',()=>{
   const field=read('adapters/field-service-references.ts');
@@ -778,5 +788,54 @@ describe('Assets read-tail r25 byte-identical field-service image family',()=>{
  });
  it('keeps the registered native plan SQL byte-identical to the retired literal',()=>{
   expect(read('public/native_read.rs')).toContain(`"${retired}"`);
+ });
+});
+
+describe('Assets read-tail r26 package-obligation native cutover',()=>{
+ const retired='WITH scope AS(SELECT ?::text company_id,?::boolean is_base)';
+ const root=resolve(__dirname,'../../../packages/server-assets/src');
+ const read=(p:string)=>readFileSync(resolve(root,p),'utf8');
+ const ownerSelectCount=()=>{
+  let selects=0;
+  const walk=(dir:string)=>{
+   for(const entry of readdirSync(dir,{withFileTypes:true})){
+    const path=resolve(dir,entry.name);
+    if(entry.isDirectory())walk(path);
+    else if(entry.name.endsWith('.ts'))selects+=(readFileSync(path,'utf8').match(/SELECT/g)??[]).length;
+   }
+  };
+  walk(root);
+  return selects;
+ };
+ it('lowers the owner TS SELECT tail strictly below BEFORE=20',()=>{
+  expect(ownerSelectCount()).toBe(15);
+ });
+ it('routes package obligations unconditionally to the registered native plans',()=>{
+  const pkg=read('adapters/package-obligations.ts');
+  expect(pkg).toContain('nativeAssetsReadAll<{kind:string;id:string;version:number;state:string;pending:boolean}>(kind,{companyId:input.companyId,isBase:full},database)');
+  expect(pkg).toContain('ASSETS_RD_OBLIGATIONS_BASE');
+  expect(pkg).toContain('ASSETS_RD_OBLIGATIONS_PREVENTIVE');
+  expect(pkg).toContain('ASSETS_RD_OBLIGATIONS_PARTS');
+  expect(pkg).not.toContain('nativeAssetsReadConfigured');
+  expect(pkg).not.toContain(retired);
+  expect(pkg).not.toContain("SELECT 'asset' kind");
+  expect(pkg.match(/SELECT/g)).toHaveLength(1);
+ });
+ it('keeps the Maintenance source, lock authority and all guards',()=>{
+  const pkg=read('adapters/package-obligations.ts');
+  expect(pkg).toContain('export const assetPackageSettlementSources={assets:');
+  expect(pkg).toContain('links:assetAllRowsSql("operational_asset_finance_links")} as const;');
+  expect(pkg).toContain('LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links IN SHARE MODE');
+  expect(pkg).toContain('assertAssetPackageObligationSources(owner,database,input.companyId)');
+  expect(pkg).toContain('throw Error("ASSETS_PACKAGE_OBLIGATION_SOURCE_REQUIRED")');
+  expect(pkg).toContain('throw Error("ASSETS_PACKAGE_OBLIGATION_SCOPE_REQUIRED")');
+  expect(read('public/package-obligations.ts')).toContain('assetPackageSettlementSources');
+ });
+ it('keeps the frozen native obligation SQL byte-identical in the owner registry',()=>{
+  const native=read('public/native_read.rs');
+  expect(native).toContain('WITH scope AS(SELECT ?::text company_id,?::boolean is_base)');
+  expect(native).toContain("SELECT 'asset' kind,asset.id,asset.version,asset.lifecycle_status state");
+  expect(native).toContain("UNION ALL SELECT 'asset-link'");
+  expect(native).toContain('\\n ORDER BY kind,id');
  });
 });

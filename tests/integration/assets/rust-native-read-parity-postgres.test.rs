@@ -1,11 +1,12 @@
-//! Same-transaction live-vs-native parity for the Assets field-service reference
-//! and package-obligation read tail (`G4 / migrate.assets.read-ports`).
+//! Same-transaction frozen-vs-native parity for the Assets field-service reference
+//! and package-obligation read tail (`G4 / retire.assets.read-tail-r26`).
 //!
-//! The live TypeScript statements are copied verbatim below (and checked against
-//! their source files). Each statement and the matching owner-local native plan
-//! run on ONE freshly opened transaction over the same fixture rows, including
-//! an uncommitted write. Both result projections must match. Nothing commits,
-//! no caller is switched, and no TypeScript reader is deleted.
+//! The TypeScript readers are retired; their statements are frozen byte-exact
+//! below and pinned to the registered owner-local native plans. Each frozen
+//! statement and the matching plan run on ONE freshly opened transaction over
+//! the same fixture rows, including an uncommitted write. Both result
+//! projections must match. Nothing commits; cross-owner sources and the owner
+//! lock/guard authority stay retained.
 #![allow(dead_code)]
 #[path = "../../support/rust-postgres.rs"]
 mod fixture;
@@ -14,7 +15,7 @@ use erpx_server_assets::public::native_read as plans;
 use erpx_server_assets::public::{bind, ReadScope};
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row};
 
-/// Retained TypeScript authority, read at compile time for source parity.
+/// Cross-owner and cutover-guard TypeScript authority, read at compile time.
 const TS_FS: &str = include_str!("../../../packages/server-assets/src/adapters/field-service-references.ts");
 const TS_PKG: &str = include_str!("../../../packages/server-assets/src/adapters/package-obligations.ts");
 const TS_PROBE: &str = include_str!("../../../packages/server-assets/src/adapters/record-purchases.ts");
@@ -71,10 +72,10 @@ macro_rules! asset_sources {
     };
 }
 
-// Live TypeScript statement literals (`field-service-references.ts`).
-const LIVE_FS_ROWS: &str =
+// Frozen native literals, byte-identical to the retired TypeScript statements.
+const FROZEN_FS_ROWS: &str =
     "SELECT id,company_id,branch_id,department_id,lifecycle_status,warranty_end,version FROM operational_assets";
-const LIVE_FS_IMAGE: &str =
+const FROZEN_FS_IMAGE: &str =
     "SELECT to_jsonb(source)::text image FROM operational_assets source WHERE source.id=? AND source.company_id=?";
 
 macro_rules! obligations {
@@ -96,9 +97,9 @@ macro_rules! obligations {
         )
     };
 }
-const LIVE_OBLIGATIONS_BASE: &str = obligations!(parts!());
-const LIVE_OBLIGATIONS_PREVENTIVE: &str = obligations!(preventive!());
-const LIVE_OBLIGATIONS_PARTS: &str = obligations!(parts!());
+const FROZEN_OBLIGATIONS_BASE: &str = obligations!(parts!());
+const FROZEN_OBLIGATIONS_PREVENTIVE: &str = obligations!(preventive!());
+const FROZEN_OBLIGATIONS_PARTS: &str = obligations!(parts!());
 
 const DDL: &str = "\
 CREATE TABLE operational_assets(id text primary key,company_id text not null,branch_id text,department_id text,lifecycle_status text,warranty_end text,version bigint,code text,name text,cost_minor bigint,currency text,finance_asset_id text);\
@@ -116,18 +117,11 @@ INSERT INTO maintenance_preventive_plans VALUES ('plan-1','company','asset-2');\
 INSERT INTO maintenance_work_orders VALUES ('work-1','company','asset-1');\
 INSERT INTO operational_inventory_consumptions VALUES ('cons-1','company','work-1','maintenance');";
 
-/// Live statement literals must stay verbatim against the retained TS source.
+/// Retained cross-owner fragments still match their TypeScript authorities.
 #[test]
-fn live_statements_match_typescript_authority() {
-    assert!(TS_FS.contains(LIVE_FS_ROWS));
-    assert!(TS_FS.contains(LIVE_FS_IMAGE));
+fn cross_owner_fragments_match_typescript_authority() {
     assert!(TS_PROBE.contains("SELECT 1 FROM ${from} WHERE ${where}"));
     assert!(TS_PKG.contains("${assetSourceExistsSql(placements"));
-    assert!(TS_PKG.contains("${assetSourceExistsSql(refs"));
-    assert!(TS_PKG.contains("NOT ${assetExistsSql("));
-    assert!(TS_PKG.contains("WITH scope AS(SELECT ?::text company_id,?::boolean is_base)"));
-    assert!(TS_PKG.contains("UNION ALL SELECT 'asset-link'"));
-    assert!(TS_PKG.contains("\n ORDER BY kind,id"));
     assert!(TS_PLACEMENTS.contains(placements!()));
     assert!(TS_FINANCIAL.contains(financial!()));
     assert!(TS_REFS.contains(preventive!()));
@@ -135,17 +129,35 @@ fn live_statements_match_typescript_authority() {
     assert!(TS_CONSUMPTIONS.contains(consumptions!()));
 }
 
-/// The registry must hold the exact statements the TypeScript caller runs.
+/// r25/r26 retired statement SQL must be gone from the owner TS readers; the
+/// callers route unconditionally to native plans and keep their lock/guards.
 #[test]
-fn native_plans_match_live_typescript_statements() {
+fn retired_statements_are_absent_from_typescript_authority() {
+    assert!(!TS_FS.contains("SELECT to_jsonb(source)::text image"));
+    assert!(TS_FS.contains("nativeAssetsReadFirst<string>(ASSETS_RD_FS_ASSET_ATTACHMENT_IMAGE"));
+    assert!(!TS_PKG.contains("WITH scope AS(SELECT ?::text company_id,?::boolean is_base)"));
+    assert!(!TS_PKG.contains("UNION ALL SELECT 'asset-link'"));
+    assert!(!TS_PKG.contains("${assetSourceExistsSql(refs"));
+    assert!(!TS_PKG.contains("NOT ${assetExistsSql("));
+    assert!(!TS_PKG.contains("nativeAssetsReadConfigured"));
+    assert!(TS_PKG.contains("nativeAssetsReadAll<{kind:string;id:string;version:number;state:string;pending:boolean}>(kind,{companyId:input.companyId,isBase:full},database)"));
+    assert!(TS_PKG.contains("LOCK TABLE operational_assets,operational_asset_events,operational_asset_finance_links IN SHARE MODE"));
+    assert!(TS_PKG.contains("throw Error(\"ASSETS_PACKAGE_OBLIGATION_SOURCE_REQUIRED\")"));
+    assert!(TS_PKG.contains("throw Error(\"ASSETS_PACKAGE_OBLIGATION_SCOPE_REQUIRED\")"));
+    assert!(TS_PKG.contains("export const assetPackageSettlementSources={assets:"));
+}
+
+/// The registry must hold the exact frozen native statements.
+#[test]
+fn native_plans_match_frozen_literals() {
     let cases = [
-        (plans::RD_FS_ASSET_SOURCE_ROWS, LIVE_FS_ROWS),
-        (plans::RD_FS_ASSET_ATTACHMENT_IMAGE, LIVE_FS_IMAGE),
+        (plans::RD_FS_ASSET_SOURCE_ROWS, FROZEN_FS_ROWS),
+        (plans::RD_FS_ASSET_ATTACHMENT_IMAGE, FROZEN_FS_IMAGE),
         (plans::RD_PKG_ASSET_SOURCES, asset_sources!()),
         (plans::RD_PKG_LINKS, links!()),
-        (plans::RD_OBLIGATIONS_BASE, LIVE_OBLIGATIONS_BASE),
-        (plans::RD_OBLIGATIONS_PREVENTIVE, LIVE_OBLIGATIONS_PREVENTIVE),
-        (plans::RD_OBLIGATIONS_PARTS, LIVE_OBLIGATIONS_PARTS),
+        (plans::RD_OBLIGATIONS_BASE, FROZEN_OBLIGATIONS_BASE),
+        (plans::RD_OBLIGATIONS_PREVENTIVE, FROZEN_OBLIGATIONS_PREVENTIVE),
+        (plans::RD_OBLIGATIONS_PARTS, FROZEN_OBLIGATIONS_PARTS),
     ];
     for (kind, live) in cases {
         let plan = plans::plan(kind).expect("registered plan");
@@ -185,7 +197,7 @@ async fn rows(conn: &mut PgConnection, sql: &str, values: &[&str]) -> Vec<String
         .collect()
 }
 
-/// Run the live statement and the registered owner plan on the same unit and
+/// Run the frozen statement and the registered owner plan on the same unit and
 /// require identical rows and identical ordered binds.
 async fn parity(
     conn: &mut PgConnection,
@@ -227,7 +239,7 @@ async fn field_service_and_package_reads_match_native_rows_on_one_transaction() 
 
         parity(
             &mut tx,
-            LIVE_FS_ROWS,
+            FROZEN_FS_ROWS,
             &[],
             plans::RD_FS_ASSET_SOURCE_ROWS,
             &ReadScope::default(),
@@ -235,7 +247,7 @@ async fn field_service_and_package_reads_match_native_rows_on_one_transaction() 
         .await;
         parity(
             &mut tx,
-            LIVE_FS_IMAGE,
+            FROZEN_FS_IMAGE,
             &["asset-1", "company"],
             plans::RD_FS_ASSET_ATTACHMENT_IMAGE,
             &ReadScope {
@@ -268,7 +280,7 @@ async fn field_service_and_package_reads_match_native_rows_on_one_transaction() 
         };
         parity(
             &mut tx,
-            LIVE_OBLIGATIONS_BASE,
+            FROZEN_OBLIGATIONS_BASE,
             &["company", "true"],
             plans::RD_OBLIGATIONS_BASE,
             &obligation_scope(true),
@@ -276,7 +288,7 @@ async fn field_service_and_package_reads_match_native_rows_on_one_transaction() 
         .await;
         parity(
             &mut tx,
-            LIVE_OBLIGATIONS_PREVENTIVE,
+            FROZEN_OBLIGATIONS_PREVENTIVE,
             &["company", "false"],
             plans::RD_OBLIGATIONS_PREVENTIVE,
             &obligation_scope(false),
@@ -284,7 +296,7 @@ async fn field_service_and_package_reads_match_native_rows_on_one_transaction() 
         .await;
         parity(
             &mut tx,
-            LIVE_OBLIGATIONS_PARTS,
+            FROZEN_OBLIGATIONS_PARTS,
             &["company", "false"],
             plans::RD_OBLIGATIONS_PARTS,
             &obligation_scope(false),
