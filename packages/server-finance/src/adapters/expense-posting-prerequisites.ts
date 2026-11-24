@@ -1,3 +1,4 @@
+import { FINANCE_SCOPE_NULL_BIND_SQL } from './finance-read-tail-r44-sql';
 import { POSTING_RECEIPT_IMAGE_SQL } from './finance-read-tail-r40-sql';
 import {materializedClockCteSql} from './finance-read-tail-r19-sql';
 import { FINANCE_RECEIPT_IMAGE_SQL } from "./finance-tail-dedupe-sql";
@@ -161,7 +162,7 @@ export async function expensePostingPrerequisitesProductEntry(database:SqlDataba
  if(scope.beta||scope.branchId||scope.departmentId||!scope.sessionId||!Number.isSafeInteger(scope.assignmentVersion)||scope.assignmentVersion<1)return null;
  let iam:Awaited<ReturnType<typeof loadIamAuthority>>;try{iam=await loadIamAuthority(database,scope.companyId,scope.userId,scope.role,scope.sessionId);}catch(error){if(error instanceof ApiError&&[401,403].includes(error.status))return null;throw error;}
  const access=await readPurchasedAccesses(database,'enforced',scope.companyId,capabilities);if(!capabilities.every(capability=>access[capability].history))return null;
- const query=`${materializedClockCteSql('expense_setup_clock', packageClockSql)} SELECT a.id,a.modules_json FROM assignments a CROSS JOIN(SELECT ?::text company_id,NULL::text branch_id,NULL::text department_id)expense_setup_scope CROSS JOIN expense_setup_clock
+ const query=`${materializedClockCteSql('expense_setup_clock', packageClockSql)} SELECT a.id,a.modules_json FROM assignments a CROSS JOIN(${FINANCE_SCOPE_NULL_BIND_SQL})expense_setup_scope CROSS JOIN expense_setup_clock
  WHERE a.id=? AND a.user_id=? AND a.company_id=expense_setup_scope.company_id AND a.role=? AND a.version=? AND a.scope_kind='holding' AND ${assignmentReadSql('expense_setup_scope','finance.read')}
  AND NOT EXISTS(SELECT 1 FROM iam_revoked_sessions r WHERE r.company_id=expense_setup_scope.company_id AND r.user_id=a.user_id AND r.session_id=?)
  AND ${['people_payroll','finance'].map(feature=>scheduledFeaturePredicate('expense_setup_scope.company_id',feature)).join(' AND ')} AND ${capabilities.map(capability=>purchasedCapabilityPredicate('expense_setup_scope.company_id',capability,'history','expense_setup_clock.now_ms')).join(' AND ')}`;

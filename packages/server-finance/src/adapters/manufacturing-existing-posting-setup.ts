@@ -1,3 +1,4 @@
+import { jsonbArrayTextSql } from './finance-read-tail-r44-sql';
 import {BOOKS_AGGREGATE_IMAGE_SQL} from './finance-read-tail-r43-sql';
 import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
@@ -13,7 +14,7 @@ import {aggByCompany} from './finance-read-tail-r20-sql';
  * owner rows stay private; no caller SQL, source label or Company-wide scan. */
 export async function manufacturingExistingPostingFinancialHistory(database:SqlDatabase,actor:WorkContext){
  const source=await manufacturingExistingPostingEconomicReferences(database,actor.companyId);
- const state=await database.prepare(`WITH primary_journals AS MATERIALIZED(SELECT jsonb_array_elements_text(?::jsonb) id),owner_orders AS MATERIALIZED(SELECT jsonb_array_elements_text(?::jsonb) id),books AS MATERIALIZED(SELECT b.* FROM finance_book_postings b JOIN primary_journals p ON p.id=b.primary_journal_id),journals AS MATERIALIZED(SELECT id FROM primary_journals UNION SELECT secondary_journal_id FROM books)
+ const state=await database.prepare(`WITH primary_journals AS MATERIALIZED(${jsonbArrayTextSql(' id')}),owner_orders AS MATERIALIZED(${jsonbArrayTextSql(' id')}),books AS MATERIALIZED(SELECT b.* FROM finance_book_postings b JOIN primary_journals p ON p.id=b.primary_journal_id),journals AS MATERIALIZED(SELECT id FROM primary_journals UNION SELECT secondary_journal_id FROM books)
  SELECT jsonb_build_object(
  'journals',(SELECT jsonb_agg(to_jsonb(j) ORDER BY j.id) FROM finance_journals j JOIN journals actual ON actual.id=j.id),
  'lines',(SELECT jsonb_agg(to_jsonb(l) ORDER BY l.id) FROM finance_journal_lines l JOIN journals actual ON actual.id=l.journal_id),

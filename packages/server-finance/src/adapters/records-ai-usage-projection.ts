@@ -1,1 +1,2 @@
-export const recordsFinanceUsageSql = 'SELECT company_id,month FROM finance_ai_usage';
+import { AI_USAGE_MONTH_SQL } from './finance-read-tail-r44-sql';
+export const recordsFinanceUsageSql = AI_USAGE_MONTH_SQL;

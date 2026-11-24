@@ -1,3 +1,4 @@
+import { FINANCE_SCOPE_NULL_BIND_SQL } from './finance-read-tail-r44-sql';
 import 'server-only';
 import {materializedClockCteSql} from './finance-read-tail-r19-sql';
 import {createHash} from 'node:crypto';
@@ -18,7 +19,7 @@ export async function assetsFinancialProductEntry(database:SqlDatabase,scope:Ass
  const caps=['assets.register','finance.asset-recognition','finance.asset-disposal'] as const,access=await readPurchasedAccesses(database,'enforced',scope.companyId,caps);
  if(!access['assets.register'].history||!access['finance.asset-recognition'].history&&!access['finance.asset-disposal'].history)return null;
  const current=await database.prepare(`${materializedClockCteSql('assets_financial_clock', packageClockSql)}
- SELECT a.id FROM (${identitySources.assignments}) a CROSS JOIN (SELECT ?::text company_id,NULL::text branch_id,NULL::text department_id) assets_financial_scope CROSS JOIN assets_financial_clock
+ SELECT a.id FROM (${identitySources.assignments}) a CROSS JOIN (${FINANCE_SCOPE_NULL_BIND_SQL}) assets_financial_scope CROSS JOIN assets_financial_clock
  WHERE a.id=? AND a.user_id=? AND a.company_id=assets_financial_scope.company_id AND a.role=? AND a.version=? AND a.scope_kind='holding'
  AND ${assignmentReadSql('assets_financial_scope','finance.read')}
  AND ${['assets','finance'].map(feature=>scheduledFeaturePredicate('assets_financial_scope.company_id',feature)).join(' AND ')}

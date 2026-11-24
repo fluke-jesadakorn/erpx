@@ -1,3 +1,4 @@
+import { UNMATCHED_BANK_TXN_COUNT_SQL } from './finance-read-tail-r44-sql';
 
 
 import { requireFinanceDocumentHistory } from "@erpx/server-finance/adapters/document-purchases";
@@ -160,7 +161,7 @@ export function financeReadService(provided?:SqlDatabase,historyOnly=false) {
     (SELECT count(*) FROM finance_payments WHERE company_id=?) AS payments,
     (SELECT count(*) FROM finance_invoices WHERE company_id=? AND kind='receivable' AND status IN ('posted','partially_paid') AND outstanding_minor>0) AS receivable,
     (SELECT count(*) FROM finance_invoices WHERE company_id=? AND kind='payable' AND status IN ('posted','partially_paid') AND outstanding_minor>0) AS payable,
-    (SELECT count(*) FROM finance_bank_transactions WHERE company_id=? AND match_status<>'matched') AS reconcile`)
+    (${UNMATCHED_BANK_TXN_COUNT_SQL}) AS reconcile`)
                 .bind(...Array(7).fill(actor.companyId)).first<{
                 journals: number;
                 posting: number;

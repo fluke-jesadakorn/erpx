@@ -1,3 +1,4 @@
+import { FINANCE_SCOPE_NULL_BIND_SQL } from './finance-read-tail-r44-sql';
 import 'server-only';
 import {materializedClockCteSql} from './finance-read-tail-r19-sql';
 import { POSTING_FINANCE_PERIODS_SQL, POSTING_COMPANY_FX_RATES_SQL, POSTING_COMPANY_MONEY_IMAGE_SQL, POSTING_COMMAND_RECEIPT_RECORD_SQL } from "./posting-prerequisites-dedupe-sql";
@@ -159,7 +160,7 @@ export async function salesPostingSetupProductEntry(database:SqlDatabase,scope:S
  let iam:Awaited<ReturnType<typeof loadIamAuthority>>;try{iam=await loadIamAuthority(database,scope.companyId,scope.userId,scope.role,scope.sessionId);}catch(error){if(error instanceof ApiError&&(error.status===401||error.status===403))return null;throw error;}
  const access=(await readPurchasedAccesses(database,'enforced',scope.companyId,[capability]))[capability];if(!access.history)return null;
  const current=await database.prepare(`${materializedClockCteSql('sales_setup_clock', packageClockSql)}
- SELECT a.id FROM (${identitySources.assignments}) a CROSS JOIN (SELECT ?::text company_id,NULL::text branch_id,NULL::text department_id) sales_setup_scope CROSS JOIN sales_setup_clock
+ SELECT a.id FROM (${identitySources.assignments}) a CROSS JOIN (${FINANCE_SCOPE_NULL_BIND_SQL}) sales_setup_scope CROSS JOIN sales_setup_clock
  WHERE a.id=? AND a.user_id=? AND a.company_id=sales_setup_scope.company_id AND a.role=? AND a.version=? AND a.scope_kind='holding'
  AND ${assignmentReadSql('sales_setup_scope','finance.read')} AND (${assignmentReadSql('sales_setup_scope','finance.write')} OR ${assignmentReadSql('sales_setup_scope','finance.approve')})
  AND ${scheduledFeaturePredicate('sales_setup_scope.company_id','sales')} AND ${scheduledFeaturePredicate('sales_setup_scope.company_id','finance')}

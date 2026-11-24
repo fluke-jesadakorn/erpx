@@ -1,3 +1,4 @@
+import { FINANCE_SCOPE_BIND_SQL } from './finance-read-tail-r44-sql';
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
@@ -9,7 +10,7 @@ import {ApiError} from "@erpx/server-runtime/public/http";
  * Do not use a caller-supplied source label to grant an included posting foundation. */
 export async function financeSourceAccess(database:SqlDatabase,actor:WorkContext,capabilities:readonly string[]) {
   const mode=await financePackageEnforcementMode(),access=await readPurchasedAccesses(database,mode,actor.companyId,capabilities);
-  const current=mode==="disabled"||!!await database.prepare(`SELECT ${assignmentReadSql("finance_scope","finance.read")} allowed FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) finance_scope`)
+  const current=mode==="disabled"||!!await database.prepare(`SELECT ${assignmentReadSql("finance_scope","finance.read")} allowed FROM (${FINANCE_SCOPE_BIND_SQL}) finance_scope`)
     .bind(actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId).first("allowed");
   return Object.fromEntries(capabilities.map(capability=>[capability,{...access[capability],history:access[capability].history&&current,settleExisting:access[capability].settleExisting&&current,newWork:access[capability].newWork&&current}]));
 }

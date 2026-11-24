@@ -1,3 +1,4 @@
+import { FINANCE_SCOPE_BIND_SQL } from './finance-read-tail-r44-sql';
 import { ASSIGNMENT_VERSION_SQL } from './finance-read-tail-r40-sql';
 import "server-only";
 import {materializedClockCteSql} from './finance-read-tail-r19-sql';
@@ -25,7 +26,7 @@ export async function financeProductLegalSetupEntry(scope: LegalSetupScope) {
   const access = await readPurchasedAccesses(database, "enforced", scope.companyId, financeReferenceCapabilities());
   const permitted = Object.entries(access).filter(([,value])=>value.history);if(!permitted.length)return null;
   const current = await database.prepare(`${materializedClockCteSql('legal_setup_clock', packageClockSql)}
-    SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) legal_setup_scope CROSS JOIN legal_setup_clock
+    SELECT 1 FROM (${FINANCE_SCOPE_BIND_SQL}) legal_setup_scope CROSS JOIN legal_setup_clock
     WHERE ${assignmentReadSql("legal_setup_scope", "finance.read")} AND EXISTS(SELECT 1 FROM assignments WHERE id=? AND version=?)
     AND ${scheduledFeaturePredicate("legal_setup_scope.company_id","finance")}
     AND (${permitted.map(([capability])=>purchasedCapabilityPredicate("legal_setup_scope.company_id",capability,"history","legal_setup_clock.now_ms")).join(" OR ")})`)

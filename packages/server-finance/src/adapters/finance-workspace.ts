@@ -1,3 +1,4 @@
+import { UNMATCHED_BANK_TXN_COUNT_SQL } from './finance-read-tail-r44-sql';
 import "server-only";
 import { requireFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 
@@ -62,7 +63,7 @@ function nativeFinanceWorkspace(provided?:SqlDatabase){let write:SqlDatabase;ret
         + (SELECT count(*) FROM finance_supplier_batches b WHERE b.company_id=? AND b.status IN ('draft','approved','exported') AND (b.status IN ('draft','approved') OR EXISTS (SELECT 1 FROM finance_supplier_instructions i WHERE i.batch_id=b.id AND i.status IN ('exported','unknown','failed'))))
         + (SELECT count(*) FROM finance_refund_obligations WHERE company_id=? AND status IN ('pending','approved') AND outstanding_minor>0)
         + ${financeWorkspacePendingPeopleSql}) pending_payments,
-      (SELECT count(*) FROM finance_bank_transactions WHERE company_id=? AND match_status<>'matched') unmatched_bank,
+      (${UNMATCHED_BANK_TXN_COUNT_SQL}) unmatched_bank,
       ${financeWorkspaceReadyExpenseAiSql} ready_ai_proposals,
       (SELECT count(*) FROM finance_periods WHERE company_id=? AND state='closing') closing_periods,
       (SELECT count(*) FROM finance_periods WHERE company_id=? AND state='open' AND end_date<?) expired_open_periods`)

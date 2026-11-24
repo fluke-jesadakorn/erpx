@@ -1,3 +1,4 @@
+import { FINANCE_SCOPE_BIND_SQL } from './finance-read-tail-r44-sql';
 import { ownedDocumentExistsSql } from './finance-read-tail-r40-sql';
 import {rootOwnerExistsSql, materializedClockCteSql} from './finance-read-tail-r19-sql';
 import { JOURNAL_SELECT_PREFIX } from './finance-read-tail-r30-sql';
@@ -214,7 +215,7 @@ export async function financeNotificationReadScope(database:SqlDatabase,actor:Wo
   const initialRow=`EXISTS(SELECT 1 FROM finance_journals d WHERE d.id=${id} AND d.company_id=${company} AND (${initialStockJournalPredicate} OR ${manufacturingInitialStockJournalPredicate('d')} OR ${posInitialStockJournalPredicate('d')} OR ${serviceInitialStockJournalPredicate('d')}))`;
   const knownInitial=`EXISTS(SELECT 1 FROM finance_journals d WHERE d.id=${id} AND d.company_id=${company} AND (${rootOwnerExistsSql(roots('journal'), inventoryFinanceRecordSources.initialPhysicalCountMarkedJournal, 'marker')} OR ${manufacturingInitialStockJournalMarkedPredicate('d')} OR ${posInitialStockJournalMarkedPredicate('d')} OR ${serviceInitialStockJournalMarkedPredicate('d')}))`;
   const initialAllowed=`EXISTS(SELECT 1 FROM finance_journals d WHERE d.id=${id} AND d.company_id=${company} AND (SELECT ${initialPhysicalStockFinanceJournalFilter('d','finance_notice_clock.now_ms')} FROM finance_notice_clock))`;
-  const current=`(SELECT ${assignmentReadSql('finance_notice_scope','finance.read')} FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) finance_notice_scope)`;
+  const current=`(SELECT ${assignmentReadSql('finance_notice_scope','finance.read')} FROM (${FINANCE_SCOPE_BIND_SQL}) finance_notice_scope)`;
   const ordinary=mode==='enforced'?`(${document('invoice')} OR ${document('journal')} OR ${document('refund')} OR ${document('supplier-batch')})`:'TRUE';
   return {clock:`${materializedClockCteSql('finance_notice_clock', packageClockSql)} `,where:`(${type} NOT IN ('invoice','journal','refund','supplier_batch') OR CASE WHEN ${type}='journal' AND ${knownInitial} THEN ${initialRow} AND ${initialAllowed} AND ${current} ELSE ${mode==='enforced'?`${current} AND `:''}${ordinary} END)`,args:mode==='enforced'?[actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId,actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId]:[actor.assignmentId,actor.userId,actor.role,actor.companyId,actor.branchId,actor.departmentId]};
 }
@@ -239,7 +240,7 @@ export async function financeProductDocumentRecord(database:SqlDatabase,scope:Fi
   for(const proof of commerceProofs(target.kind,capability)){
   const where=initial?(serviceInitial?serviceInitialStockJournalPredicate('d'):posInitial?posInitialStockJournalPredicate('d'):manufacturingInitial?manufacturingInitialStockJournalPredicate('d'):initialStockJournalPredicate):capability===base(target.kind)?"TRUE":ownerPredicate(target.kind,capability,proof);
   const extra=capability==="finance.service-invoice"&&target.kind==="journal"?`(NOT (${servicePartsPredicate(target.kind)}) OR ${purchasedCapabilityPredicate("finance_entry_scope.company_id","service.parts-assets","history","finance_entry_clock.now_ms")})`:"TRUE";
-  const row=await database.prepare(`WITH finance_entry_scope AS MATERIALIZED(SELECT ?::text company_id,?::text branch_id,?::text department_id),finance_entry_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms)
+  const row=await database.prepare(`WITH finance_entry_scope AS MATERIALIZED(${FINANCE_SCOPE_BIND_SQL}),finance_entry_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms)
    SELECT d.id${summary?`,d.${summary[0]} number,d.${summary[1]}::text date,d.status,d.version`:""}
    FROM ${tables[target.kind]} d CROSS JOIN finance_entry_scope CROSS JOIN finance_entry_clock
    WHERE d.id=? AND d.company_id=finance_entry_scope.company_id AND ${assignmentReadSql("finance_entry_scope","finance.read")}

@@ -1,10 +1,11 @@
+import { jsonbArrayTextSql } from './finance-read-tail-r44-sql';
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {financeBankCalendarPurchase} from "@erpx/server-finance/adapters/calendar-purchases";
 import { financeSnapshotSources as commerceSnapshot } from "@erpx/server-commerce/public/finance-snapshot-sources";
 import { financeSnapshotSources as people_payrollSnapshot } from "@erpx/server-people_payroll/public/finance-snapshot-sources";
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
-const inList = (expression: string) => `${expression} IN (SELECT jsonb_array_elements_text(?::jsonb))`;
+const inList = (expression: string) => `${expression} IN (${jsonbArrayTextSql('')})`;
 export function calendarRefundsFinanceFacts(db: SqlDatabase,actor:WorkContext) {
     return { read1: async (facts: {
             value1: string;
