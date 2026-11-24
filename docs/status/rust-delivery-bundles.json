@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10574,
+    "revision": 10578,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -163205,7 +163205,7 @@
         "owner": "marketing",
         "title": "marketing materialized clock body dedupe (round 32)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -163217,28 +163217,36 @@
         "resources": [
           "owner:marketing"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMmkt5",
-          "claimedAt": "2026-11-24T08:02:05.666Z",
-          "heartbeatAt": "2026-11-24T08:15:48.647Z",
-          "expiresAt": "2026-11-24T08:45:48.647Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-marketing/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "5a950900e",
+            "owner": "marketing",
+            "before": 79,
+            "after": 77,
+            "note": "Three materialized clock bodies share marketingClockBody with per-caller spacing; native mounts and locks untouched."
+          },
+          {
+            "command": "vitest marketing dedupe/transport (22) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "5a950900e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Three materialized clock bodies share one fragment; preserve exact spacing per caller. BEFORE=79.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
           "runId": "run-20261124-a",
           "agentId": "wGCMmkt5",
-          "at": "2026-11-24T08:02:05.023Z",
+          "at": "2026-11-24T08:17:59.675Z",
           "previousStatus": "in_progress",
-          "reason": "released with work preserved",
-          "nextAction": "Three materialized clock bodies share one fragment; preserve exact spacing per caller. BEFORE=79."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -164347,6 +164355,42 @@
         "nextAction": "Two arbitrary key point reads share legalPointByKeySql. BEFORE=231.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.marketing.read-tail-r33",
+        "goalId": "G4",
+        "owner": "marketing",
+        "title": "marketing TS read tail native cutover (round 33)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-marketing/src/**",
+          "tests/unit/marketing/**",
+          "tests/integration/marketing/**"
+        ],
+        "resources": [
+          "owner:marketing"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMmkt6",
+          "claimedAt": "2026-11-24T08:18:00.194Z",
+          "heartbeatAt": "2026-11-24T08:18:00.194Z",
+          "expiresAt": "2026-11-24T08:48:00.194Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Probe families are exhausted; verify and either find a safe family or report blocked. BEFORE=77.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -164355,7 +164399,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1416,
+      "totalPackets": 1417,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 21,
@@ -164363,13 +164407,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1038,
+        "blocked": 1039,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T08:17:43.449Z",
+    "updatedAt": "2026-11-24T08:18:00.201Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
