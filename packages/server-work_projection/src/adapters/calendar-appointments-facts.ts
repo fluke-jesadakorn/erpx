@@ -3,7 +3,7 @@ import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { type RecurrenceRule } from "@erpx/feature-work_projection/lib/calendar-recurrence";
 import type { AppointmentRow } from "@erpx/server-work_projection/domain/calendar/appointments";
-import { inList, overlapProbe, attendeeScopeExistsSql, participantScopeExistsSql } from './read-tail-sql';
+import { inList, overlapProbe, attendeeScopeExistsSql, participantScopeExistsSql, derivedProbeSql } from './read-tail-sql';
 export const byAppointmentIds = (table: 'calendar_series' | 'calendar_occurrence_exceptions' | 'calendar_occurrence_responses', columns = '*') =>
     `SELECT ${columns} FROM ${table} WHERE company_id=? AND ${inList("appointment_id")}`;
 export function calendarAppointmentsWorkProjectionFacts(db: SqlDatabase) {
@@ -40,7 +40,7 @@ export function calendarAppointmentsWorkProjectionFacts(db: SqlDatabase) {
             value1: string;
             value2: string;
         }) => {
-            return db.prepare(`SELECT ap.appointment_id,ap.user_id,ap.person_id,p.legal_name name,EXISTS(SELECT 1 FROM (${calendarPeopleProjectionSources.engagements}) e WHERE e.person_id=p.id AND e.company_id=p.company_id AND ${inList("coalesce(e.department_id,e.branch_id,e.company_id)")}) in_scope,ap.attendance,ap.response
+            return db.prepare(`SELECT ap.appointment_id,ap.user_id,ap.person_id,p.legal_name name,EXISTS(${derivedProbeSql(calendarPeopleProjectionSources.engagements, 'e', `e.person_id=p.id AND e.company_id=p.company_id AND ${inList("coalesce(e.department_id,e.branch_id,e.company_id)")}`)}) in_scope,ap.attendance,ap.response
           FROM calendar_attendees ap LEFT JOIN (${calendarPeopleProjectionSources.people}) p ON p.id=ap.person_id AND p.company_id=ap.company_id WHERE ${inList("ap.appointment_id")} ORDER BY p.legal_name,ap.user_id`).bind(facts.value1, facts.value2).all<{
                 appointment_id: string;
                 user_id: string;

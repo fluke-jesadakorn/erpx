@@ -53,3 +53,6 @@ export const commandReceiptSql = (beforeCompany = '', afterCompany = '', alias =
     const p = alias ? `${alias}.` : '';
     return `SELECT 1 FROM command_receipts${alias ? ` ${alias}` : ''} WHERE ${p}command_id=? AND ${p}actor_id=? AND ${p}operation=?${beforeCompany} AND ${p}authority_json::jsonb->>'companyId'=?${afterCompany}`;
 };
+/** Membership probe over a derived source. The source, alias and predicate are the only variation between the people-identity check and the engagement-scope check. */
+export const derivedProbeSql = (source: string, alias: string, predicate: string) =>
+    `SELECT 1 FROM (${source}) ${alias} WHERE ${predicate}`;
