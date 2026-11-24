@@ -1,3 +1,4 @@
+import {ppRd44PurchaseClockProbe} from './pp-read-tail-r44-sources';
 import "server-only";
 import {PP_RD15_COMMAND_RECEIPT_PRIOR_SQL} from './pp-read-tail-r15-sources';
 import {randomUUID} from "node:crypto";
@@ -46,5 +47,5 @@ export async function withWorkforceAccrualTransaction<Result>(owner:SqlDatabase,
 }
 
 /** Closed owner SQL is composed before list limits; it never authorizes a row. */
-export async function workforcePurchasedHistorySql(companySql:string){const mode=await peoplePackageEnforcementMode();return mode==="enforced"?`(SELECT ${purchasedCapabilityPredicate(companySql,"people.workforce","history","workforce_history_clock.now_ms")} FROM (SELECT ${packageClockSql} now_ms) workforce_history_clock)`:"TRUE";}
+export async function workforcePurchasedHistorySql(companySql:string){const mode=await peoplePackageEnforcementMode();return mode==="enforced"?ppRd44PurchaseClockProbe(purchasedCapabilityPredicate(companySql,"people.workforce","history","workforce_history_clock.now_ms"), packageClockSql, 'workforce_history_clock'):"TRUE";}
 export async function workforcePurchaseControls(actor:WorkContext,provided?:SqlDatabase){const mode=await peoplePackageEnforcementMode();if(mode==="disabled")return undefined;const database=provided??(await holdingResources(actor.holdingId)).write;await requirePeopleCurrentAuthority(database,actor,`workforce-controls:${randomUUID()}`);const {newWork,settleExisting,history,revision}=await readPurchasedAccess(database,mode,{companyId:actor.companyId,capability:"people.workforce"});return {newWork,settleExisting,history,revision};}

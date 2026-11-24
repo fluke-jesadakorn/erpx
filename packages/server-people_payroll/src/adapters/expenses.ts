@@ -1,3 +1,4 @@
+import {ppRd44AuthorityProbe} from './pp-read-tail-r44-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import { PP_RD24_UNCLAIMED_EXPENSE_GUARD } from './pp-read-tail-r24-sources';
 import { ppRd25ByIdCompany } from './pp-read-tail-r25-sources';
@@ -559,7 +560,7 @@ export function nativeExpenseReversal(database: SqlDatabase){return (...args:Par
 
 export function nativeExpenseDetail(database:SqlDatabase){return (...args:Parameters<ReturnType<typeof originalNativeExpenseDetail>>)=>withExpensePurchasedRead(database,args[0],async transaction=>{
  const detail=await originalNativeExpenseDetail(transaction)(...args),actor=args[0],expense=detail.expense;
- const canCancel=expense.workflow_version===2&&['posted','reimbursed','cancelled'].includes(String(expense.status))&&!!expense.invoice_id&&!!expense.journal_id&&hasPermission(actor,'expense.pay')&&expense.expense_purchase_settle_existing!==0&&(await expensePayers(transaction,expense)).includes(actor.userId)&&Boolean(await transaction.prepare(`SELECT ${ppRd29FinanceExpenseTreasurySql(expensePaymentTreasurySql('e'))} ok`).bind(expense.id,actor.companyId,actor.assignmentId,actor.userId).first<boolean>('ok'));
+ const canCancel=expense.workflow_version===2&&['posted','reimbursed','cancelled'].includes(String(expense.status))&&!!expense.invoice_id&&!!expense.journal_id&&hasPermission(actor,'expense.pay')&&expense.expense_purchase_settle_existing!==0&&(await expensePayers(transaction,expense)).includes(actor.userId)&&Boolean(await transaction.prepare(ppRd44AuthorityProbe(ppRd29FinanceExpenseTreasurySql(expensePaymentTreasurySql('e')), 'ok')).bind(expense.id,actor.companyId,actor.assignmentId,actor.userId).first<boolean>('ok'));
  return {...detail,paymentDrafts:detail.paymentDrafts.map((draft):ExpenseRow & {can_cancel_payment:number}=>({...draft,can_cancel_payment:canCancel&&draft.native_preparation===1&&draft.status==='draft'&&draft.payment_id===null?1:0})),permittedActions:detail.permittedActions.filter(action=>['save','submit'].includes(action)?expense.expense_purchase_new_work!==0:expense.expense_purchase_settle_existing!==0)};
 });}
 export function nativeExpenseOptions(database:SqlDatabase){return (...args:Parameters<ReturnType<typeof originalNativeExpenseOptions>>)=>withExpensePurchasedRead(database,args[0],transaction=>originalNativeExpenseOptions(transaction)(...args));}

@@ -1,14 +1,15 @@
+import {ppRd44NamedSourceProjection} from './pp-read-tail-r44-sources';
 import { PP_RD20_HR_ENGAGEMENTS_FROM_SQL } from './pp-read-tail-r20-sources';
 import 'server-only';
 import {PP_RD16_HR_PEOPLE_P_JOIN_SQL} from './pp-read-tail-r16-sources';
 /** Closed, named source clauses for the supplied notification statement snapshot.
  * No table, SQL, predicate or alias is accepted from a caller. */
 export function collaborationNotificationSnapshotSources(){return {
-  "people_roster_position_notifications_people_roster_assignments_a_from": "FROM (SELECT \"id\", \"shift_id\", \"person_id\", \"engagement_id\", \"state\", \"version\" FROM people_roster_assignments) a",
+  "people_roster_position_notifications_people_roster_assignments_a_from": ppRd44NamedSourceProjection('"id", "shift_id", "person_id", "engagement_id", "state", "version"', 'people_roster_assignments', 'a'),
   "people_roster_position_notifications_people_roster_shifts_s_join": "JOIN (SELECT \"id\", \"week_id\", \"template_id\", \"name\", \"local_date\", \"start_time\", \"end_time\", \"starts_at\", \"ends_at\", \"capacity\", \"state\", \"version\" FROM people_roster_shifts) s",
   "people_roster_position_notifications_people_roster_weeks_w_join": "JOIN (SELECT \"id\", \"company_id\", \"branch_id\", \"department_id\", \"week_start\", \"timezone\", \"state\", \"version\", \"created_by\", \"published_by\", \"created_at\", \"updated_at\" FROM people_roster_weeks) w",
-  "people_roster_position_notifications_people_roster_requests_r_from": "FROM (SELECT \"id\", \"company_id\", \"department_id\", \"kind\", \"requester_person_id\", \"coworker_person_id\", \"source_assignment_id\", \"source_version\", \"target_shift_id\", \"target_assignment_id\", \"target_version\", \"state\", \"reason\", \"decision_note\", \"accepted_by\", \"decided_by\", \"version\", \"created_by\", \"created_at\", \"updated_at\" FROM people_roster_requests) r",
+  "people_roster_position_notifications_people_roster_requests_r_from": ppRd44NamedSourceProjection('"id", "company_id", "department_id", "kind", "requester_person_id", "coworker_person_id", "source_assignment_id", "source_version", "target_shift_id", "target_assignment_id", "target_version", "state", "reason", "decision_note", "accepted_by", "decided_by", "version", "created_by", "created_at", "updated_at"', 'people_roster_requests', 'r'),
   "people_roster_position_notifications_hr_engagements_from": PP_RD20_HR_ENGAGEMENTS_FROM_SQL,
-  "people_roster_position_notifications_people_roster_assignments_from": "FROM (SELECT \"id\", \"shift_id\", \"person_id\", \"engagement_id\", \"state\", \"version\" FROM people_roster_assignments) people_roster_assignments",
+  "people_roster_position_notifications_people_roster_assignments_from": ppRd44NamedSourceProjection('"id", "shift_id", "person_id", "engagement_id", "state", "version"', 'people_roster_assignments', 'people_roster_assignments'),
   "people_roster_position_notifications_hr_people_p_join": PP_RD16_HR_PEOPLE_P_JOIN_SQL
 } as const;}

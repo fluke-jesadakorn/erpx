@@ -1,3 +1,4 @@
+import {ppRd44AuthorityProbe} from './pp-read-tail-r44-sources';
 import { nativePpStatement } from '@erpx/server-people_payroll/adapters/native-people-payroll-command';
 import { PP_RD24_EXPENSE_AI_JOB_LEASE_GUARD } from './pp-read-tail-r24-sources';
 import { ppRd43AiReservationProjection } from './pp-read-tail-r43-sources';
@@ -352,7 +353,7 @@ export function nativeExpenseAiWorker(db: SqlDatabase, files: FileStore, env: Be
        if(JSON.stringify(authority.args)!==JSON.stringify(originalAuthority.args)||source.digest!==capturedSource.digest||!await expenseAiAllowed(database,actor,source.claim,row.payment_draft_id,'settle-existing'))throw new ApiError(409,'AI_STALE','The original Expense source or queued authority changed before completion.');
        await apply(database,authority,source);
        expenseFinalRead(database,actor,async()=>{
-        if((await expenseAiSource(database,row.company_id,row.expense_id,row.payment_draft_id)).digest!==source.digest||JSON.stringify((await providers(database,row.company_id,env)).snapshot)!==row.provider_json||!await database.prepare(`SELECT ${authority.query} allowed`).bind(...authority.args).first<boolean>('allowed'))throw new ApiError(409,'AI_STALE','The original Expense source changed during completion.');
+        if((await expenseAiSource(database,row.company_id,row.expense_id,row.payment_draft_id)).digest!==source.digest||JSON.stringify((await providers(database,row.company_id,env)).snapshot)!==row.provider_json||!await database.prepare(ppRd44AuthorityProbe(authority.query, 'allowed')).bind(...authority.args).first<boolean>('allowed'))throw new ApiError(409,'AI_STALE','The original Expense source changed during completion.');
        });
       });
     },

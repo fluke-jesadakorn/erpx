@@ -1,3 +1,4 @@
+import {ppRd44PurchaseClockProbe} from './pp-read-tail-r44-sources';
 import {ppRd32TwoColProjection} from './pp-read-tail-r32-sources';
 import {ppRd43EmployeeEngagementProjection} from './pp-read-tail-r43-sources';
 import {ppRd37StatusGuard5} from './pp-read-tail-r37-sources';
@@ -36,7 +37,7 @@ export { payrollScheduleSchema, payrollSubmitReviewSchema, type PayrollBlocker }
 type Permits = (companyId: string, purpose: CapabilityPurpose) => Promise<boolean>;
 function context(provided?: SqlDatabase, mode: PackageEnforcementMode = "disabled", permits?: Permits, sourceChecks: (() => Promise<void>)[] = []): PayrollReadinessPorts<SqlStatement> {
     let database = provided!;
-    const purchase = (company: string, purpose: CapabilityPurpose) => mode === "enforced" ? `(SELECT ${purchasedCapabilityPredicate(company,"people.payroll",purpose,"payroll_purchase_clock.now_ms")} FROM (SELECT ${packageClockSql} now_ms) payroll_purchase_clock)` : "TRUE";
+    const purchase = (company: string, purpose: CapabilityPurpose) => mode === "enforced" ? ppRd44PurchaseClockProbe(purchasedCapabilityPredicate(company,"people.payroll",purpose,"payroll_purchase_clock.now_ms"), packageClockSql, 'payroll_purchase_clock') : "TRUE";
     const repository: PayrollReadinessRepository<SqlStatement> = { readCostEvidenceBlockersEngagements(company_id: string, pay_group_id: string, currency: string, period_end: string, period_start: string, scope_engagement_id: string | null, scope_engagement_id2: string | null) {
             return database.prepare(ppRd43EmployeeEngagementProjection('e.id,e.start_date,e.end_date,p.id person_id,p.legal_name'))
                 .bind(company_id, pay_group_id, currency, period_end, period_start, scope_engagement_id, scope_engagement_id2)

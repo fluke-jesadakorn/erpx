@@ -1,3 +1,4 @@
+import {ppRd44AuthorityProbe} from './pp-read-tail-r44-sources';
 import { PP_RD21_CLOCK_NOW_MS_SQL } from './pp-read-tail-r21-sources';
 import 'server-only';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
@@ -75,7 +76,7 @@ export async function withExpenseWorkspaceRecordRead<Result>(database:SqlDatabas
    const result=await run(transaction);
    await flushFinanceDeferredEffects(transaction);
    if(recordActor(actor)!==actorImage||authorityImage!==null&&await expenseCurrentAuthorityImage(transaction,actor)!==authorityImage)throw new ApiError(403,'EXPENSE_ACCESS_CHANGED','The original Expense record reader changed.');
-   if(routingAuthority&&!await transaction.prepare(`SELECT ${routingAuthority.query} unchanged`).bind(...routingAuthority.args).first<boolean>('unchanged'))throw new ApiError(403,'EXPENSE_ACCESS_CHANGED','The native Expense routing authority changed.');
+   if(routingAuthority&&!await transaction.prepare(ppRd44AuthorityProbe(routingAuthority.query, 'unchanged')).bind(...routingAuthority.args).first<boolean>('unchanged'))throw new ApiError(403,'EXPENSE_ACCESS_CHANGED','The native Expense routing authority changed.');
    if(JSON.stringify((await readCandidates()).results)!==sourceImage)throw new ApiError(409,'EXPENSE_RECORD_SOURCE_CHANGED','The native Expense record source changed before the read completed.');
    const currentVisible=access.history?await expenseVisibleRecordIds(transaction,actor,expenseIds,true):new Set<string>();
    if(JSON.stringify([...currentVisible].sort())!==JSON.stringify([...visible].sort()))throw new ApiError(409,'EXPENSE_RECORD_SOURCE_CHANGED','The original Expense visibility changed before the read completed.');
