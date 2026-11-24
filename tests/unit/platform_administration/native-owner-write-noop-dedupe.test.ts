@@ -1,7 +1,7 @@
 import { describe, it, expect, vi } from 'vitest';
 import { readFileSync } from 'node:fs';
 vi.mock('server-only', () => ({}));
-import { NATIVE_OWNER_WRITE_NOOP_SQL } from '../../../packages/server-platform_administration/src/adapters/native-owner-write';
+import { NATIVE_OWNER_WRITE_NOOP_SQL, selectOneSql } from '../../../packages/server-platform_administration/src/adapters/native-owner-write';
 import { businessAcceptanceSetupSql, releaseRevisionReadSql, releaseRevisionTable } from '../../../packages/server-platform_administration/src/adapters/release-predicate';
 import { productionScope } from '@erpx/catalogue/production-scope';
 import { platformOwnerProjectionSources as organizationPlatformSources } from '../../../packages/server-organization/src/public/platform-owner-projection-sources';
@@ -13,6 +13,16 @@ describe('platform administration native owner-write no-op dedupe', () => {
   it('keeps exactly one canonical inert no-op SELECT', () => {
     expect(NATIVE_OWNER_WRITE_NOOP_SQL).toBe('SELECT 1');
     expect(NATIVE_OWNER_WRITE_NOOP_SQL.match(/SELECT /g)).toHaveLength(1);
+  });
+
+  it('shares one owner-local one-row probe base with byte-identical suffixes', () => {
+    expect(selectOneSql()).toBe(NATIVE_OWNER_WRITE_NOOP_SQL);
+    expect(selectOneSql(' WHERE probe')).toBe('SELECT 1 WHERE probe');
+    const base = source('adapters/native-owner-write.ts');
+    expect(base.split('`SELECT 1${suffix}`').length - 1).toBe(1);
+    const engineering = source('adapters/engineering-verification.ts');
+    expect(engineering).toContain('selectOneSql(` WHERE ${predicate}`)');
+    expect(engineering).not.toContain('`SELECT 1 WHERE ${predicate}`');
   });
 
   it('reuses the canonical no-op in every native owner-write caller', () => {
