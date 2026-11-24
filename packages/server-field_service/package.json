@@ -4,11 +4,9 @@
   "private": true,
   "type": "module",
   "exports": {
-    "./adapters/final-root-owner-projection-sources": "./src/adapters/final-root-owner-projection-sources.ts",
     "./adapters/finance-record-sources": "./src/adapters/finance-record-sources.ts",
     "./adapters/record-purchases": "./src/adapters/record-purchases.ts",
     "./public/native-work": "./src/public/native-work.ts",
-    "./public/final-root-owner-projection-sources": "./src/public/final-root-owner-projection-sources.ts",
     "./public/native-executive": "./src/public/native-executive.ts",
     "./public/finance-record-sources": "./src/public/finance-record-sources.ts",
     "./public/record-purchases": "./src/public/record-purchases.ts",

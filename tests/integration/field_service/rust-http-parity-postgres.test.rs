@@ -2288,30 +2288,38 @@ process.stdout.write(JSON.stringify(predicate({},order,{settleExisting:true},{se
     }).await;
 }
 
-/// The native final-root projection sources must remain byte-identical to the
-/// retained TypeScript authority and produce the same real PostgreSQL rows,
-/// under the serializable fence, until Customer 360 / Customer Authority cut over.
+/// The native final-root projection sources must stay byte-identical to their
+/// native-only oracle and produce the same real PostgreSQL rows under the
+/// serializable fence. The TS authority was retired with the last cross-owner
+/// imports; the oracle literals below are Rust-owned and no TS fragment is read.
 #[tokio::test]
-async fn final_root_projection_sources_match_ts_authority_under_postgres_fence() {
+async fn final_root_projection_sources_match_native_oracle_under_postgres_fence() {
     use erpx_server_field_service::public::final_root_projection::{
         inspect_final_root_projection_sources, lock_final_root_projection_sources,
         FinalRootProjectionSource,
     };
-    // The retained TS authority is the oracle until lead integration cuts over.
-    const TS_AUTHORITY: &str = include_str!(
-        "../../../packages/server-field_service/src/adapters/final-root-owner-projection-sources.ts"
-    );
-    let ts_sql = |source: FinalRootProjectionSource| -> String {
-        let key = source.relation().trim_start_matches("public.");
-        let prefix = format!("{key}:");
-        let line = TS_AUTHORITY
-            .lines()
-            .find(|l| l.trim_start().starts_with(&prefix) && l.contains(": \""))
-            .unwrap_or_else(|| panic!("TS authority missing {key}"));
-        let start = line.find('"').unwrap() + 1;
-        let end = line.rfind('"').unwrap();
-        line[start..end].replace("\\\"", "\"")
-    };
+    const NATIVE_SQL: [(FinalRootProjectionSource, &str); 5] = [
+        (
+            FinalRootProjectionSource::AgreementEvents,
+            r#"SELECT "id","agreement_id","version","action","actor_id","reason","status","created_at" FROM field_service_agreement_events"#,
+        ),
+        (
+            FinalRootProjectionSource::Agreements,
+            r#"SELECT "id","company_id","branch_id","department_id","customer_id","asset_id","title","start_date","end_date","currency","visit_rate_minor","status","created_by","reviewed_by","reviewed_at","version","created_at","updated_at","warranty_discount_bps" FROM field_service_agreements"#,
+        ),
+        (
+            FinalRootProjectionSource::BillingReleases,
+            r#"SELECT "id","order_id","agreement_id","customer_id","currency","amount_minor","source_order_version","status","released_by","reason","created_at","warranty_applied","warranty_discount_bps","warranty_end_snapshot","pricing_date" FROM field_service_billing_releases"#,
+        ),
+        (
+            FinalRootProjectionSource::OrderEvents,
+            r#"SELECT "id","order_id","version","action","actor_id","reason","status","technician_id","scheduled_at","details_json","created_at" FROM field_service_order_events"#,
+        ),
+        (
+            FinalRootProjectionSource::Orders,
+            r#"SELECT "id","company_id","branch_id","department_id","ticket_id","ticket_version","agreement_id","agreement_version","asset_id","issue","site","technician_id","scheduled_at","status","exception_reason","visit_started_at","visit_completed_at","labor_minutes","completion_evidence","customer_confirmation","version","created_by","created_at","updated_at" FROM field_service_orders"#,
+        ),
+    ];
     account::with_system(move |system| async move {
         let p = setup_workspace(system).await;
         let mut tx = p
@@ -2322,27 +2330,26 @@ async fn final_root_projection_sources_match_ts_authority_under_postgres_fence()
             .unwrap();
         lock_final_root_projection_sources(&mut tx).await.unwrap();
         let current = inspect_final_root_projection_sources(&mut tx).await.unwrap();
-        for source in FinalRootProjectionSource::ALL {
+        for (source, oracle_sql) in NATIVE_SQL {
             let native_sql = current.sql(source);
-            let authority_sql = ts_sql(source);
-            assert_eq!(native_sql, authority_sql, "statement drift for {source:?}");
+            assert_eq!(native_sql, oracle_sql, "statement drift for {source:?}");
             let native_query = format!(
                 "SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.id)::text,'[]') FROM ({native_sql}) r"
             );
-            let authority_query = format!(
-                "SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.id)::text,'[]') FROM ({authority_sql}) r"
+            let oracle_query = format!(
+                "SELECT COALESCE(jsonb_agg(to_jsonb(r) ORDER BY r.id)::text,'[]') FROM ({oracle_sql}) r"
             );
             let native_image: String = sqlx::query_scalar(sqlx::AssertSqlSafe(native_query.as_str()))
                 .fetch_one(&mut *tx)
                 .await
                 .unwrap();
-            let authority_image: String =
-                sqlx::query_scalar(sqlx::AssertSqlSafe(authority_query.as_str()))
+            let oracle_image: String =
+                sqlx::query_scalar(sqlx::AssertSqlSafe(oracle_query.as_str()))
                     .fetch_one(&mut *tx)
                     .await
                     .unwrap();
             assert_eq!(
-                native_image, authority_image,
+                native_image, oracle_image,
                 "PG row-image drift for {source:?}"
             );
         }

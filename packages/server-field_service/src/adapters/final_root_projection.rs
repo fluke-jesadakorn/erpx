@@ -1,12 +1,12 @@
 //! Native Field projection sources for the final-root owner joins.
 //!
-//! These fixed, owner-authored statements replace the five SQL fragments that
-//! `final-root-owner-projection-sources.ts` exported to Customer 360 and
-//! customer-authority consumers. A caller never supplies SQL or a relation
-//! name: it selects a closed `FinalRootProjectionSource` and composes the
-//! returned statement inside its own transaction. A `Current...` witness binds
-//! the fragments to one serializable, fenced snapshot so a late effect cannot
-//! silently change the source of a composed read.
+//! These fixed, owner-authored statements replaced the retired TS fragments
+//! once exported to Customer 360 and customer-authority consumers. A caller
+//! never supplies SQL or a relation name: it selects a closed
+//! `FinalRootProjectionSource` and composes the returned statement inside its
+//! own transaction. A `Current...` witness binds the fragments to one
+//! serializable, fenced snapshot so a late effect cannot silently change the
+//! source of a composed read.
 use erpx_server_runtime::public::postgres::{PersistenceError, PgTransactionError};
 use erpx_server_shared::public::{BusinessError, FailureKind};
 use sqlx::{Connection, PgConnection};

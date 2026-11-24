@@ -1,18 +1,16 @@
 //! Native consumer of the Field final-root projection sources: the Field-owned
-//! `scoped_service` agreement composition stays byte-identical to the shared
-//! TS consumer until Customer 360 / Customer Authority cut over by lead
-//! integration. The TS authority for the source statements is pinned here.
+//! `scoped_service` agreement composition embeds the native fixed statement.
+//! The retired TS authority is gone; the native-owned agreement statement is
+//! pinned here as the independent test oracle.
 use erpx_server_field_service::public::final_root_consumer::FinalRootConsumerScope;
 use erpx_server_field_service::public::final_root_projection::FinalRootProjectionSource;
 use erpx_server_shared::public::CompanyId;
 
-const SOURCE_AUTHORITY: &str = include_str!(
-    "../../../packages/server-field_service/src/adapters/final-root-owner-projection-sources.ts"
-);
+const NATIVE_AGREEMENTS_SQL: &str = r#"SELECT "id","company_id","branch_id","department_id","customer_id","asset_id","title","start_date","end_date","currency","visit_rate_minor","status","created_by","reviewed_by","reviewed_at","version","created_at","updated_at","warranty_discount_bps" FROM field_service_agreements"#;
 
-/// The `scoped_service` composition as it appears in the retained shared
-/// consumer (Customer 360 timeline). Pinned so the native port cannot drift
-/// from the TS binding shape without an explicit, reviewed update.
+/// The `scoped_service` composition shape retained from the former Customer 360
+/// consumer. Pinned so the native port cannot drift from the reviewed binding
+/// shape without an explicit, reviewed update.
 const CONSUMER_SCOPED_SERVICE_PREFIX: &str =
     "SELECT g.id,g.customer_id,g.branch_id,g.department_id FROM (";
 const CONSUMER_SCOPED_SERVICE_SUFFIX: &str =
@@ -34,9 +32,8 @@ fn scoped_service_embeds_the_native_fixed_agreement_source() {
     assert!(sql.starts_with(CONSUMER_SCOPED_SERVICE_PREFIX));
     assert!(sql.ends_with(CONSUMER_SCOPED_SERVICE_SUFFIX));
     assert!(sql.contains(source), "native fixed source not embedded");
-    // The same statement is the pinned TS authority for the consumer.
-    let escaped = source.replace('"', "\\\"");
-    assert!(SOURCE_AUTHORITY.contains(&escaped));
+    // The native statement is the sole authority; pin it against drift here.
+    assert_eq!(source, NATIVE_AGREEMENTS_SQL, "native agreement source drift");
 }
 
 #[test]
