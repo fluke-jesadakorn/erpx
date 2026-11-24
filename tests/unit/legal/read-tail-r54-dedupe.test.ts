@@ -111,7 +111,7 @@ describe('legal read-tail r54 item-key, ordered-key and state/kind tail dedupe',
     expect(retention).toContain('LOCK TABLE legal_settings,legal_retention_execution_authorizations');
   });
 
-  it('retirement:ts-statements is BEFORE=173 -> AFTER=163', async () => {
+  it('retirement:ts-statements is BEFORE=173 -> AFTER=153', async () => {
     let total = 0;
     const walk = async (dir: string) => {
       for (const entry of await readdir(dir, { withFileTypes: true })) {
@@ -122,6 +122,6 @@ describe('legal read-tail r54 item-key, ordered-key and state/kind tail dedupe',
     };
     await walk(srcRoot);
     expect(total).toBeLessThan(173);
-    expect(total).toBe(163);
+    expect(total).toBe(153);
   });
 });
