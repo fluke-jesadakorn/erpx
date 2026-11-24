@@ -66,6 +66,14 @@ export const messagingMemberIds=(table:string,column:string)=>`SELECT user_id FR
 export const socialPostTopicExists=(tag:string)=>`EXISTS(SELECT 1 FROM social_post_topics pt WHERE pt.post_id=p.id AND pt.tag=${tag})`;
 export const socialCommentTopicExists=(tag:string)=>`EXISTS(SELECT 1 FROM social_comment_topics ct JOIN social_comments c ON c.id=ct.comment_id WHERE c.post_id=p.id AND c.state='published' AND ct.tag=${tag})`;
 export const socialCommentAncestorStep=`SELECT parent.* FROM ancestors child JOIN social_comments parent ON parent.id=child.parent_comment_id AND parent.post_id=child.post_id WHERE parent.state='published'`;
+/** Byte-identical Social comment column head shared by the home comments CTE
+ * and the paginated comments-page reader. Only the qualified column list is
+ * parameterized; each caller's tail, table, binds and locks stay local. */
+export const socialCommentHead=(cols:string)=>`SELECT ${cols},`;
+/** Byte-identical Social comment projection shared by the `selected` and
+ * `ancestors` UNION arms of the home comments CTE. Only the closed source
+ * table varies; the column list, bind order and other arms stay local. */
+export const socialCommentProjection=(cols:string,table:'selected'|'ancestors')=>`SELECT ${cols} FROM ${table}`;
 export const socialAgentReplyLeaseIdentity=(tail:string)=>`SELECT 1 FROM social_agent_replies WHERE id=? AND company_id=? AND actor_id=? AND post_id=? AND lease_token=? AND actor_json=? AND owner_type=? AND owner_id=?${tail}`;
 /** Byte-identical project-purchase source-absence guard shared across the two
  * read-policy call sites in work-social-read-policy.ts. Only the trailing

@@ -147,7 +147,7 @@ describe('Collaboration read-tail r41 protected SQL isolation', () => {
 });
 
 describe('Collaboration read-tail r41 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 352, below the r41 BEFORE=355 baseline', () => {
+  test('retirement:ts-statements is pinned at 350 after r42, below the r41 BEFORE=355 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -159,7 +159,8 @@ describe('Collaboration read-tail r41 KPI pins', () => {
     walk(srcRoot);
     // Three 2->1 pair retirements, one SELECT head each: 355 -> 352. Prior
     // exact pins (r32-r40) were refreshed only where this value replaced 355.
-    expect(total).toBe(352);
+    // r42 deduped the comment head and UNION projection pair: 352 -> 350.
+    expect(total).toBe(350);
     expect(total).toBeLessThan(355);
   });
 });

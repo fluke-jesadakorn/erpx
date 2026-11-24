@@ -114,7 +114,7 @@ describe('Collaboration read-tail r39 isolation of protected SQL', () => {
 });
 
 describe('Collaboration read-tail r39 KPI pins', () => {
-  test('retirement:ts-statements is pinned at 352 after r41, below the r39 BEFORE=360 baseline', () => {
+  test('retirement:ts-statements is pinned at 350 after r42, below the r39 BEFORE=360 baseline', () => {
     let total = 0;
     const walk = (dir: string) => {
       for (const entry of readdirSync(dir, { withFileTypes: true })) {
@@ -127,7 +127,8 @@ describe('Collaboration read-tail r39 KPI pins', () => {
     // queued guard (-1), actor CTE (-2), requested sources select (-1): 360 -> 356.
     // r40 deduped the two source-rows absence heads into one renderer: 356 -> 355.
     // r41 deduped task-origin/by-key, AI-usage row and member guards: 355 -> 352.
-    expect(total).toBe(352);
+    // r42 deduped the comment head and UNION projection pair: 352 -> 350.
+    expect(total).toBe(350);
     expect(total).toBeLessThan(360);
   });
 });

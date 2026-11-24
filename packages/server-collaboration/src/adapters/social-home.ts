@@ -37,7 +37,11 @@ import { collaborationHomeSources as operations } from '@erpx/server-operations/
 import {handoverAcknowledgements} from '@erpx/server-operations/public/handover-acknowledgement-read';
 import {workSocialReadScope,workSocialPresentation} from '@erpx/server-collaboration/public/work-social-read-policy';
 import {withWorkSocialCommand} from '@erpx/server-collaboration/adapters/work-social-purchases';
-import {socialFollowPostExists,messagingMemberExists,publishedCommentRead,socialPostDraftById,socialPostTopicExists,socialCommentTopicExists,socialCommentAncestorStep,socialPostDraftExists,socialPostDraftFieldGuard,socialPostByIdPredicate,readablePostHead} from './read-tail-sql';
+import {socialFollowPostExists,messagingMemberExists,publishedCommentRead,socialPostDraftById,socialPostTopicExists,socialCommentTopicExists,socialCommentAncestorStep,socialCommentHead,socialCommentProjection,socialPostDraftExists,socialPostDraftFieldGuard,socialPostByIdPredicate,readablePostHead} from './read-tail-sql';
+// One column list drives both the qualified comment head and the UNION-arm
+// projections; the head renderer adds the `c.` alias, the projection does not.
+const commentCols='id,post_id,body,author_id,author_name,created_at,mentions_json,rich_content_json,author_kind,parent_comment_id';
+const commentColsQ=commentCols.split(',').map(c=>`c.${c}`).join(',');
 const draftVersionGuardSql = socialPostDraftExists('version=? AND published_post_id IS NULL');
 async function inward<T>(action: () => Promise<T>) {
     try {
@@ -127,11 +131,11 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
         UNION
         ${socialCommentAncestorStep}
       ), thread_comments AS (
-        SELECT id,post_id,body,author_id,author_name,created_at,mentions_json,rich_content_json,author_kind,parent_comment_id FROM selected
+        ${socialCommentProjection(commentCols,'selected')}
         UNION
-        SELECT id,post_id,body,author_id,author_name,created_at,mentions_json,rich_content_json,author_kind,parent_comment_id FROM ancestors
+        ${socialCommentProjection(commentCols,'ancestors')}
       )
-      SELECT c.id,c.post_id,c.body,c.author_id,c.author_name,c.created_at,c.mentions_json,c.rich_content_json,c.author_kind,c.parent_comment_id,
+      ${socialCommentHead(commentColsQ)}
         parent.author_name AS parent_author_name FROM thread_comments c
       LEFT JOIN social_comments parent ON parent.id=c.parent_comment_id AND parent.post_id=c.post_id
       ORDER BY c.created_at,c.id`)
@@ -276,7 +280,7 @@ function application(db: SqlDatabase,purchase:Awaited<ReturnType<typeof workSoci
     return createSocialHomeApplication<SqlStatement>({ repository, commands: { replay: (...args) => inward(() => replayCommand(db, ...args)), commit: (...args) => inward(() => executeCommand(db, ...args)) }, clock: { now: () => Date.now() }, identifiers: { next: () => crypto.randomUUID() }, commentsPage: (actor, id, cursor) => readListPage<CommentRow & {
             page_key: string;
         }>(db, {
-            sql: "SELECT c.id,c.post_id,c.body,c.author_id,c.author_name,c.created_at,c.mentions_json,c.rich_content_json,c.author_kind,c.parent_comment_id,parent.author_name AS parent_author_name,c.created_at::text AS page_key FROM social_comments c LEFT JOIN social_comments parent ON parent.id=c.parent_comment_id AND parent.post_id=c.post_id WHERE c.post_id=? AND c.state='published'",
+            sql: `${socialCommentHead(commentColsQ)}parent.author_name AS parent_author_name,c.created_at::text AS page_key FROM social_comments c LEFT JOIN social_comments parent ON parent.id=c.parent_comment_id AND parent.post_id=c.post_id WHERE c.post_id=? AND c.state='published'`,
             args: [id], scope: [actor.companyId, actor.userId, id], cursor, limit: 20, descending: true,
         }), getTask: (...args) => inward(() => getTask(db, ...args)), getProject: (...args) => inward(() => getProject(db, ...args)), readablePmsSource: (...args) => inward(() => readablePmsSource(db, ...args)), pmsSourceLink, readablePost: (...args) => inward(() => readablePost(db, ...args)), sourceGuard: (...args) => sourceGuard(db, ...args), notification: async (...args) => await notification(db, ...args), authorityGuard: (...args) => authorityGuard(db, ...args), requireCompanyAuthority: (...args) => inward(() => requireCompanyAuthority(db, ...args)), validateMentions: (...args) => inward(() => validateMentions(db, ...args)), textStatements: (...args) => textStatements(db, ...args) });
 }
