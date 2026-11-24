@@ -60,7 +60,7 @@ describe('crm read-tail r25 purchase row projection family', () => {
   });
 
   test('retirement:ts-statements stays strictly below the r24 BEFORE=141 baseline', () => {
-    expect(totalSelects()).toBe(136);
+    expect(totalSelects()).toBeLessThanOrEqual(132);
     expect(totalSelects()).toBeLessThan(141);
   });
 });

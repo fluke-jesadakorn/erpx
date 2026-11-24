@@ -5,6 +5,7 @@ import {assertion} from "@erpx/server-workflow/public/command-assertions";
 import { ApiError } from "@erpx/server-runtime/public/http";
 import { salesRecipientEligibility } from "@erpx/server-sales/public/sales-recipient";
 import { crmAccountCreatedByScopeSql } from "@erpx/server-crm/adapters/purchases";
+import { crmOpportunityOwnerGuardSql } from "./read-tail-r27-sql";
 const allowedTargets = new Set<string>(["crm_account", "crm_opportunity"]);
 const recordVersionTables: Record<string, {
     table: string;
@@ -16,10 +17,7 @@ function ownerVersionGuard(db: SqlDatabase, commandId: string, targetType: strin
     const companyId = actor.companyId;
     if (targetType === "crm_opportunity") {
         const ownerEligible = salesRecipientEligibility("l", "l.owner_id");
-        return assertion(db, commandId, `attachment-owner-${index}`, `EXISTS(SELECT 1 FROM crm_opportunities o JOIN crm_leads l ON l.id=o.lead_id
-      WHERE o.id=? AND l.company_id=? AND o.version=? AND l.owner_id=?
-        AND (?::text IS NULL OR l.branch_id=?) AND (?::text IS NULL OR l.department_id=?)
-        AND ${ownerEligible})`, [targetId, companyId, version, actor.userId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId]);
+        return assertion(db, commandId, `attachment-owner-${index}`, crmOpportunityOwnerGuardSql(ownerEligible), [targetId, companyId, version, actor.userId, actor.branchId, actor.branchId, actor.departmentId, actor.departmentId]);
     }
     if (targetType === "crm_account")
         return assertion(db, commandId, `attachment-owner-${index}`, `EXISTS(SELECT 1 FROM crm_accounts account

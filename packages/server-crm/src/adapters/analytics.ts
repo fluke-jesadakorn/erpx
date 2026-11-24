@@ -20,6 +20,7 @@ import {crmLeadProjectionScope} from '@erpx/server-crm/adapters/record-purchases
 import {crmAnalyticsAccess,requireCRMReportAccess} from '@erpx/server-crm/adapters/analytics-purchases';
 import {crmClockCteSql,crmBranchOptionsSql,crmAssignmentScopeExistsSql} from '@erpx/server-crm/adapters/purchases';
 import {crmCaseEventLeadReadSql} from './read-tail-r26-sql';
+import {crmCampaignOptionsSql} from './read-tail-r27-sql';
 export type {AnalyticsFilters} from '@erpx/server-crm/domain/analytics';
 const clock=`report_clock${crmClockCteSql}`;
 function hotelHistory(actor:WorkContext,access:CRMAnalyticsAccess|undefined,privateHistory:boolean){
@@ -38,7 +39,7 @@ function application(a:WorkContext,access?:CRMAnalyticsAccess){
    const [branches,properties,campaigns,owners]=await Promise.all([
     write.prepare(crmBranchOptionsSql(' name',false)).bind(a.companyId,a.branchId,a.branchId).all<Row>(),
     access&&!access.hotel?Promise.resolve({results:[] as Row[]}):write.prepare(`WITH ${clock} SELECT property.id,property.name FROM pms_properties property CROSS JOIN report_clock WHERE property.company_id=? AND (?::text IS NULL OR property.branch_id=?) ${access?`AND ${purchasedCapabilityPredicate('property.company_id','pms.reservations','history','report_clock.now_ms')} AND ${crmAssignmentScopeExistsSql('property.company_id,property.branch_id,?::text department_id','hotel_scope','pms.read')}`:''} ORDER BY property.name`).bind(a.companyId,a.branchId,a.branchId,...(access?[a.departmentId,a.assignmentId,a.userId,a.role]:[])).all<Row>(),
-    access&&!access.marketing?Promise.resolve({results:[] as Row[]}):write.prepare(`SELECT id,code name FROM (${marketing.sql}) campaign WHERE company_id=? ORDER BY code`).bind(...marketing.args,a.companyId).all<Row>(),
+    access&&!access.marketing?Promise.resolve({results:[] as Row[]}):write.prepare(crmCampaignOptionsSql(marketing.sql,'campaign',true)).bind(...marketing.args,a.companyId).all<Row>(),
     access&&!access.crm?Promise.resolve({results:[] as Row[]}):write.prepare(`SELECT DISTINCT l.owner_id id,COALESCE(person.legal_name,l.owner_id) name FROM crm_leads l LEFT JOIN (${peopleProjectionSources.hr_people}) person ON person.user_id=l.owner_id AND person.company_id=l.company_id AND person.merged_into_id IS NULL WHERE l.company_id=? AND (?::text IS NULL OR l.branch_id=?) AND ${crm.where} ORDER BY name`).bind(a.companyId,a.branchId,a.branchId,...crm.args).all<Row>()
    ]);return {branches:branches.results,properties:properties.results,campaigns:campaigns.results,owners:owners.results};
   },

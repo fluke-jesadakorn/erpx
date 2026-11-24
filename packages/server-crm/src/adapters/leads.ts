@@ -2,6 +2,7 @@ import { nativeCrmExecute } from './native-crm-command';
 import { activeCustomerPartiesSql } from './active-customer-parties';
 import { leadOwnerNameSql } from './lead-owner-name';
 import { crmGuestLinkReservationSourceSql } from './read-tail-r26-sql';
+import { crmCampaignOptionsSql } from './read-tail-r27-sql';
 import { nativeCrmActivityWork } from './native-activity-workspace';
 import {filterCRMPurchasedWork} from "@erpx/server-crm/adapters/record-purchases";
 import { commercialOwnerProjectionSources as commerceProjectionSources } from "@erpx/server-commerce/public/commercial-owner-projection-sources";
@@ -41,7 +42,7 @@ function application(a:WorkContext,provided?:SqlDatabase){let resource:Promise<S
 return createCRMApplication({actorId:a.userId,canRead:hasPermission(a,'commerce.read'),canSales:hasPermission(a,'commerce.sales'),canApprove:hasPermission(a,'commerce.approve'),canPms:hasPermission(a,'pms.read'),canSupport:hasPermission(a,'support.read'),clock:{now:()=>Date.now()},authorize:permission=>{requirePermission(a,permission);},activityWork:async()=>nativeCrmActivityWork(a),async repository(){const write=await database();const repository:CRMRepository={
 records:(id)=>records(write,a,id),
 async branches(){return (await write.prepare(crmBranchOptionsSql('',true)).bind(a.companyId,a.branchId,a.branchId).all<Row>()).results;},
-async campaigns(){if(!await crmReferenceHistory(write,a,'sales.marketing'))return [];return (await write.prepare(`SELECT id,code,name FROM (${marketingProjectionSources.marketing_campaigns}) marketing_campaigns WHERE company_id=? ORDER BY code`).bind(a.companyId).all<Row>()).results;},
+async campaigns(){if(!await crmReferenceHistory(write,a,'sales.marketing'))return [];return (await write.prepare(crmCampaignOptionsSql(marketingProjectionSources.marketing_campaigns,'marketing_campaigns')).bind(a.companyId).all<Row>()).results;},
 async evidence(id){return await write.prepare(`${crmLeadVersionProjection}v.stage,v.expected_minor,v.currency,v.close_date,v.version opportunity_version
  FROM crm_opportunities v JOIN crm_leads l ON l.id=v.lead_id WHERE ${scope} AND v.id=? LIMIT 1`).bind(...args(a),id).first<Row>();},
 async currency(){return write.prepare(`SELECT currency FROM (${commerceProjectionSources.commerce_settings}) commerce_settings WHERE company_id=?`).bind(a.companyId).first<Row>();},
