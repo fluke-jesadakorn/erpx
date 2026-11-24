@@ -44,7 +44,7 @@ describe('talent read-tail r31 owner-local point read native port', () => {
     let count = 0;
     const srcDir = new URL('../../../packages/server-talent/src/', import.meta.url);
     for (const f of await tsFiles(srcDir)) count += (await readFile(f, 'utf8')).split('SELECT ').length - 1;
-    expect(count).toBe(19);
+    expect(count).toBe(14);
     expect(count).toBeLessThan(40);
   });
 

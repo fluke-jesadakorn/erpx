@@ -9,7 +9,7 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
-const orgNameLabel = (ref: string, fallback: string) => `COALESCE((SELECT n.display_name ${organizationSources.talent_adapters_executive_metric_projections_organization_nodes_n_from} WHERE n.id=${ref} AND n.company_id=r.company_id),'${fallback}')`;
+const orgNameLabel = (ref: string, fallback: string) => `COALESCE((${selectProjection(`n.display_name ${organizationSources.talent_adapters_executive_metric_projections_organization_nodes_n_from} WHERE n.id=${ref} AND n.company_id=r.company_id`)}),'${fallback}')`;
 const metricSelect = (label: string, sourceSql: string) => `${selectProjection(label)} label,count(*)::text value FROM (${sourceSql}) `;
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const spec = specs[id], scopedAlias = (alias: string) => `${alias}.company_id=? AND (?::text IS NULL OR ${alias}.branch_id=?) AND (?::text IS NULL OR ${alias}.department_id=?)`, scopeArgs = [a.companyId, a.branchId, a.branchId, a.departmentId, a.departmentId];

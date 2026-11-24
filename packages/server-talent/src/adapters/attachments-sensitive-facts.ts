@@ -1,11 +1,11 @@
 import "server-only";
 import type {SqlDatabase,SqlStatement} from "@erpx/server-runtime/public/runtime/types";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
-import {nativeTalentReadFirst} from "./native-talent-read";import {existsVersionRow} from "./talent-read-tail-r27-sources";
+import {nativeTalentReadFirst} from "./native-talent-read";import {existsVersionRow} from "./talent-read-tail-r27-sources";import {selectProjection} from './talent-read-tail-r37-sources';
 const sensitiveTables:Record<string,string>={talent_candidate:"talent_candidates",talent_offer:"talent_offers"};
 // A document bind advances the Offer version. Keep the immutable accepted
 // source exact until its original HR delivery has actually been consumed.
-const offerFilesMutable=(alias:string)=>`(${alias}.status<>'accepted' OR EXISTS(SELECT 1 FROM talent_hire_handoffs handoff JOIN talent_hire_consumption_receipts receipt ON receipt.handoff_id=handoff.id AND receipt.company_id=handoff.company_id AND receipt.source_offer_version=handoff.source_offer_version WHERE handoff.offer_id=${alias}.id AND handoff.company_id=${alias}.company_id))`;
+const offerFilesMutable=(alias:string)=>`(${alias}.status<>'accepted' OR EXISTS(${selectProjection('1')} FROM talent_hire_handoffs handoff JOIN talent_hire_consumption_receipts receipt ON receipt.handoff_id=handoff.id AND receipt.company_id=handoff.company_id AND receipt.source_offer_version=handoff.source_offer_version WHERE handoff.offer_id=${alias}.id AND handoff.company_id=${alias}.company_id))`;
 const sensitiveRecordTables = new Set([
   "hr_evaluation_assessment",
   "hr_person",

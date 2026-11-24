@@ -3,7 +3,7 @@ import {selectProjection} from './talent-read-tail-r37-sources';
 /** Owner-local scope CTE family. The company bind is always first; the branch
  * and department columns are parameterized so the actor and Company-only
  * variants share one byte-identical fragment. */
-const scopeCte = (branch:string,department:string) => `(SELECT ?::text company_id,${branch} branch_id,${department} department_id)`;
+const scopeCte = (branch:string,department:string) => `(${selectProjection(`?::text company_id,${branch} branch_id,${department} department_id`)})`;
 /** Owner-local actor scope CTE shared by Recruitment read guards. The three
  * binds are company_id, branch_id and department_id in that order. */
 export const talentActorScopeCte = scopeCte("?::text","?::text");
@@ -17,4 +17,4 @@ export const talentCompanyScopeCte = scopeCte("NULL::text","NULL::text");
 export const talentActorScopeSelect = (alias:string,projection:string) => `${selectProjection(projection)} FROM ${talentActorScopeCte} ${alias}`;
 /** Owner-local clock CTE shared by Recruitment read guards. Byte-identical to
  * the former inline copies; the named CTE and MATERIALIZED mode are preserved. */
-export const talentClockCte = (name:string) => `WITH ${name} AS MATERIALIZED (SELECT ${packageClockSql} now_ms)`;
+export const talentClockCte = (name:string) => `WITH ${name} AS MATERIALIZED (${selectProjection(`${packageClockSql} now_ms`)})`;

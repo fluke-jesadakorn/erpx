@@ -126,7 +126,7 @@ describe('Talent read-tail r39 straggler projection-head family', () => {
     walk(resolve(__dirname, '../../../packages/server-talent/src'));
     let count = 0;
     for (const f of files) count += (readFileSync(f, 'utf8').match(/\bSELECT\b/g) ?? []).length;
-    expect(count).toBe(19);
+    expect(count).toBe(14);
     expect(count).toBeLessThan(27);
   });
 });

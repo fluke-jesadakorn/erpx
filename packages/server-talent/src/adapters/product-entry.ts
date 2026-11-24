@@ -10,7 +10,8 @@ import {holdingResources} from "../../../../packages/server-runtime/src/public/r
 import type {WorkContext} from "@erpx/server-identity_access/public/authorization";
 import {hasPermission} from "@erpx/feature-identity_access/lib/permissions";
 import {ApiError} from "@erpx/server-runtime/public/http";
-const assignmentVersionGuard = `EXISTS(SELECT 1 FROM assignments WHERE id=? AND version=?)`;
+import {selectProjection} from './talent-read-tail-r37-sources';
+const assignmentVersionGuard = `EXISTS(${selectProjection('1')} FROM assignments WHERE id=? AND version=?)`;
 /** Original hire consumption uses Company people.manage; it never requires a
  * Talent module assignment. This named discovery does not choose an HR role. */
 export async function talentHireProductSourceEntry(database:SqlDatabase,scope:TalentHireProductEntryScope,id:string){
