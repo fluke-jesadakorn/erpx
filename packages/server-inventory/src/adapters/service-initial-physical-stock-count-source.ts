@@ -1,4 +1,5 @@
 import 'server-only';
+import {serviceInitialPhysicalNativeRowSql} from './read-tail-sql';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {requireQueuedCommandAuthority} from '@erpx/server-identity_access/public/queued-command-authority';
 import {requirePermission} from '@erpx/server-identity_access/public/iam-permissions';
@@ -19,7 +20,7 @@ export async function serviceCountWriterOwner(actor:WorkContext,id:string):Promi
 export async function serviceCountWriterOwnerInDatabase(database:SqlDatabase,actor:WorkContext,id:string):Promise<'service'|'other'>{
  const marked=await serviceCountPersistedMarker(database,id);
  if(!marked)return 'other';
- const native=await database.prepare('SELECT 1 FROM inventory_service_initial_physical_sources WHERE count_id=? AND company_id=?').bind(id,actor.companyId).first();
+ const native=await database.prepare(serviceInitialPhysicalNativeRowSql).bind(id,actor.companyId).first();
  if(!native||!await serviceInitialPhysicalStockCountSource(database,actor,id))throw new ApiError(404,'COUNT_NOT_FOUND','Stock count not found in this workspace.');
  return 'service';
 }

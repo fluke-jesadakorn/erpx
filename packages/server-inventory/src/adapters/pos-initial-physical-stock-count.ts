@@ -5,13 +5,12 @@ import {minorToDecimal} from '@erpx/feature-finance/lib/finance-money';
 import type {WorkContext} from '@erpx/server-identity_access/public/authorization';
 import {loadIamAuthority} from '@erpx/server-identity_access/public/iam-store';
 import {assignmentReadSql} from '@erpx/server-identity_access/public/record-source-authority';
-import {platformOwnerProjectionSources as identitySources} from '@erpx/server-identity_access/public/platform-owner-projection-sources';
+import {initialEntryClockAssignmentsSql,stockHistoryExistsSql} from './read-tail-sql';
 import {readPurchasedAccesses} from '@erpx/server-commercial/public/purchase-command-boundary';
-import {packageClockSql,purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
+import {purchasedCapabilityPredicate} from '@erpx/server-commercial/public/purchased-capability-sql';
 import {posInitialPhysicalStockCommerceSource,initialPhysicalStockMasterChoices,initialPhysicalStockMasterSource} from '@erpx/server-commerce/public/pos-initial-physical-stock-sources';
 import {initialPhysicalStockCountFinanceSource} from '@erpx/server-finance/public/initial-physical-stock-count-sources';
 import {financeStarterOrganizationNodes} from '@erpx/server-organization/public/finance-starter-sources';
-import {inventoryQualitySnapshotSources} from '@erpx/server-quality/public/inventory-quality-snapshot-sources';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import {holdingResources} from '../../../../packages/server-runtime/src/public/runtime';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
@@ -23,14 +22,13 @@ import {readCountDetail,readScopedCount,transitionCount} from '@erpx/server-inve
 import {posInitialPhysicalStockCapabilities,posInitialPhysicalStockCountSource,withPosInitialPhysicalStockCountUnit,type PosInitialPhysicalStockProof} from '@erpx/server-inventory/adapters/pos-initial-physical-stock-count-source';
 import {canPrepareCounts,canEditCount,canReviewCount} from '@erpx/server-inventory/domain/counts';
 import {posInitialPhysicalStockCountSchema,posInitialPhysicalStockCountActionSchema,posInitialPhysicalStockCountSelectionSchema,posInitialPhysicalStockCountFlowSchema,type PosInitialPhysicalStockCountView,type PosInitialPhysicalStockCountRecord} from '@erpx/server-inventory/domain/pos-initial-physical-stock-count';
-const quality=inventoryQualitySnapshotSources();
 const hash=(value:unknown)=>createHash('sha256').update(JSON.stringify(value)).digest('hex');
 const authorityImage=(actor:WorkContext)=>[actor.holdingId,actor.companyId,actor.branchId,actor.departmentId,actor.userId,actor.assignmentId,actor.role,actor.authority??null,actor.iam?.queuedAssignmentVersion,actor.iam?.identityVersion,actor.iam?.roleRevision,actor.iam?.hrAppointmentVersion];
 function empty(actor:WorkContext,reason:PosInitialPhysicalStockCountView['unavailableReason']):PosInitialPhysicalStockCountView{return {companyId:actor.companyId,available:false,currency:null,documentCurrency:null,contextKey:null,unavailableReason:reason,canPrepare:false,canCreateWarehouse:false,canCreateProduct:false,selection:{warehouseId:null,productId:null,countDate:null},readiness:{schemaAvailable:false,postingConfigured:false,accountingApproved:false,varianceAccountAvailable:false,postingPeriodAvailable:false},warehouses:[],branches:[],products:[],record:null};}
 async function owner(actor:WorkContext){return (await holdingResources(actor.holdingId)).write;}
 async function schema(database:SqlDatabase){if(!await database.prepare("SELECT to_regclass('inventory_pos_initial_physical_sources') IS NOT NULL ready").first<boolean>('ready'))throw new ApiError(503,'POS_INITIAL_PHYSICAL_STOCK_SCHEMA_REQUIRED','Install the reviewed Initial Physical Stock Count schema before using this command.');}
 async function history(database:SqlDatabase,companyId:string,warehouseId:string,productId:string,except:string|null=null){
- return !!await database.prepare(`SELECT EXISTS(SELECT 1 FROM commerce_stock s WHERE s.warehouse_id=? AND s.product_id=?) OR EXISTS(SELECT 1 FROM inventory_ledger m WHERE m.warehouse_id=? AND m.product_id=?) OR EXISTS(SELECT 1 FROM inventory_lot_balances b JOIN inventory_lots l ON l.id=b.lot_id WHERE b.warehouse_id=? AND l.product_id=?) OR EXISTS(SELECT 1 FROM inventory_order_reservations r WHERE r.warehouse_id=? AND r.product_id=?) OR EXISTS(SELECT 1 ${quality.inventory_counts_inventory_quality_holds_from} WHERE warehouse_id=? AND product_id=?) OR EXISTS(SELECT 1 FROM inventory_count_lines l JOIN inventory_counts c ON c.id=l.count_id WHERE c.warehouse_id=? AND l.product_id=? AND (?::text IS NULL OR c.id<>?) AND (c.status<>'cancelled' OR c.posted_at IS NOT NULL OR c.journal_id IS NOT NULL)) history`).bind(warehouseId,productId,warehouseId,productId,warehouseId,productId,warehouseId,productId,warehouseId,productId,warehouseId,productId,except,except).first<boolean>('history');
+ return !!await database.prepare(stockHistoryExistsSql).bind(warehouseId,productId,warehouseId,productId,warehouseId,productId,warehouseId,productId,warehouseId,productId,warehouseId,productId,except,except).first<boolean>('history');
 }
 async function selectionSource(database:SqlDatabase,actor:WorkContext,warehouseId:string,productId:string,date:string){
  const goods=await posInitialPhysicalStockCommerceSource(database,actor.companyId,warehouseId),masters=await initialPhysicalStockMasterSource(database,actor,warehouseId,productId),finance=await initialPhysicalStockCountFinanceSource(database,actor.companyId,date);
@@ -112,7 +110,7 @@ export async function posInitialPhysicalStockCountProductEntry(database:SqlDatab
  if(scope.departmentId||!scope.sessionId||!Number.isSafeInteger(scope.assignmentVersion)||scope.assignmentVersion<1)return null;
  try{await loadIamAuthority(database,scope.companyId,scope.userId,scope.role,scope.sessionId);}catch(error){if(error instanceof ApiError&&(error.status===401||error.status===403))return null;throw error;}
  const count=target.countId?await posInitialPhysicalStockCountSource(database,scope,target.countId):null;if(target.countId&&!count)return null;
- const result=await database.prepare(`WITH initial_entry_clock AS MATERIALIZED(SELECT ${packageClockSql} now_ms) SELECT a.id FROM (${identitySources.assignments}) a CROSS JOIN (SELECT ?::text company_id,?::text branch_id,NULL::text department_id) initial_entry_scope CROSS JOIN initial_entry_clock
+ const result=await database.prepare(`${initialEntryClockAssignmentsSql}
  WHERE a.id=? AND a.user_id=? AND a.role=? AND a.company_id=initial_entry_scope.company_id AND a.version=? AND ${assignmentReadSql('initial_entry_scope','inventory.read')}
  ${target.countId?'':`AND ${assignmentReadSql('initial_entry_scope','inventory.prepare')}`}
  AND ${['pos','inventory','finance'].map(module=>scheduledFeaturePredicate('initial_entry_scope.company_id',module)).join(' AND ')}
