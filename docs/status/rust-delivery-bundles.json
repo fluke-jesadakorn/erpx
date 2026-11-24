@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12349,
+    "revision": 12352,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -182734,17 +182734,32 @@
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-projects/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f75015409",
+            "owner": "projects",
+            "before": 88,
+            "after": 81,
+            "note": "Member EXISTS helper and evidence projection union shared; locks/spaced joins/native untouched; dependency witness skip recorded."
+          },
+          {
+            "command": "vitest projects (234) + scoped tsc + 11 byte oracles",
+            "result": "passed",
+            "sourceSha": "f75015409"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": "Recovery: lease expired; same operator resumes with reviewed WIP",
-        "nextAction": "Member EXISTS fold (-4), projection super-head (-3): 88->81. BEFORE=88.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n54",
-          "at": "2026-11-24T15:07:42.843Z",
+          "runId": "run-20261124-d",
+          "agentId": "lead-opencode",
+          "at": "2026-11-24T15:20:41.678Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: lease expired; same operator resumes with reviewed WIP",
-          "nextAction": "Member EXISTS fold (-4), projection super-head (-3): 88->81. BEFORE=88."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -183272,7 +183287,7 @@
       }
     },
     "lastCoordinatorGeneration": 170,
-    "updatedAt": "2026-11-24T15:15:32.412Z",
+    "updatedAt": "2026-11-24T15:20:41.682Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
