@@ -13,3 +13,9 @@ export const projectionLookup = (select: string, source: string, alias: string, 
  * each composed guard stays byte-identical to its pre-dedupe literal. No LOCK
  * statement is accepted or changed. */
 export const existsGuardPrefix = (source: string): string => `EXISTS(SELECT 1 FROM ${source} WHERE `;
+/** Negated head over the same owner-local EXISTS witness. The Work assets read
+ * asserts that no active, non-terminal Work row references an asset; it reuses
+ * the single existsGuardPrefix head so no second query head is carried in the
+ * TS read tail. The composed guard stays byte-identical to its pre-dedupe
+ * literal. No LOCK statement is accepted or changed. */
+export const notExistsGuardPrefix = (source: string): string => `NOT ${existsGuardPrefix(source)}`;

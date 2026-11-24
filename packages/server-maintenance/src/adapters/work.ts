@@ -21,6 +21,7 @@ import {ApiError} from '@erpx/server-runtime/public/http';
 import {availableServiceSpares} from '@erpx/server-inventory/public/inventory-consumption';
 import {maintenanceOwnerName} from './maintenance-owner-name';
 import {iamScopeGuardSql} from './iam-scope-guard';
+import {notExistsGuardPrefix} from './projection-lookup';
 const assetScope="a.company_id=? AND (?::text IS NULL OR a.branch_id=?) AND (?::text IS NULL OR a.department_id=?)",workScope="w.company_id=? AND (?::text IS NULL OR w.branch_id=?) AND (?::text IS NULL OR w.department_id=?)",args=(a:WorkContext)=>[a.companyId,a.branchId,a.branchId,a.departmentId,a.departmentId];
 /** Canonical owner-local Work/Asset source projection shared by the workspace
  * items and downtime-evidence reads. Both call the same owner-fixed Work join
@@ -52,7 +53,7 @@ function access(a:WorkContext,write=false){requirePermission(a,write?'records.wr
 function bindRepository(write:SqlDatabase,a:WorkContext,canReadParts=true):MaintenanceRepository {
  return {
   items:async()=>(await write.prepare(`${workAssetSource(`w.*,a.code asset_code,a.name asset_name,CASE WHEN ${worker} THEN 1 ELSE 0 END owner_eligible,CASE WHEN ${reviewer('w')} THEN 1 ELSE 0 END can_review,${maintenanceOwnerName('w')} owner_name`,"",workScope)} ORDER BY w.updated_at DESC,w.id`).bind(a.userId,...args(a)).all<Work>()).results,
-  assets:async()=>(await write.prepare(`${projectionRowScan("a.id,a.code,a.name,a.version,a.condition,a.lifecycle_status",assetsProjectionSources.operational_assets,"a",`WHERE ${assetScope} AND a.lifecycle_status IN ('in_service','registered','maintenance') AND NOT EXISTS(SELECT 1 FROM maintenance_work_orders w WHERE w.asset_id=a.id AND w.status NOT IN ('completed','cancelled')) ORDER BY a.code`)}`).bind(...args(a)).all<Row>()).results,
+  assets:async()=>(await write.prepare(`${projectionRowScan("a.id,a.code,a.name,a.version,a.condition,a.lifecycle_status",assetsProjectionSources.operational_assets,"a",`WHERE ${assetScope} AND a.lifecycle_status IN ('in_service','registered','maintenance') AND ${notExistsGuardPrefix('maintenance_work_orders w')}w.asset_id=a.id AND w.status NOT IN ('completed','cancelled')) ORDER BY a.code`)}`).bind(...args(a)).all<Row>()).results,
   nodes:async()=>(await write.prepare(`${projectionRowScan("id,kind,display_name,branch_id",organizationProjectionSources.organization_nodes,"n","WHERE company_id=? AND status='active' AND kind IN ('branch','headquarters','department') AND (?::text IS NULL OR id=? OR branch_id=?) AND (?::text IS NULL OR id=?) ORDER BY kind,display_name")}`).bind(a.companyId,a.branchId,a.branchId,a.branchId,a.departmentId,a.departmentId).all<Row>()).results,
   people:async()=>(await write.prepare(`SELECT DISTINCT p.user_id id,p.legal_name name FROM (${people_payrollProjectionSources.hr_people}) p JOIN (${identity_accessProjectionSources.assignments}) x ON x.user_id=p.user_id AND x.company_id=p.company_id WHERE p.company_id=? AND p.status='active' AND p.merged_into_id IS NULL AND iam_assignment_active(x.id,floor(extract(epoch FROM clock_timestamp())*1000)::bigint) AND iam_role_allows(x.role,x.company_id,'records.write') ORDER BY p.legal_name`).bind(a.companyId).all<Row>()).results,
   spares:branchId=>canReadParts?availableServiceSpares(write,a,branchId):Promise.resolve({stock:[],lots:[]}),

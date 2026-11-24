@@ -711,7 +711,7 @@ describe('Maintenance record-image fixed SQL',()=>{
   }
  });
 
- it('retirement:ts-statements stays strictly below the r22 BEFORE=28 baseline',async()=>{
+ it('retirement:ts-statements stays strictly below the r24 BEFORE=25 baseline',async()=>{
   const {readdirSync,readFileSync}=await import('node:fs');
   const {resolve}=await import('node:path');
   let total=0;
@@ -724,8 +724,8 @@ describe('Maintenance record-image fixed SQL',()=>{
    }
   };
   walk(srcRoot);
-  expect(total).toBe(25);
-  expect(total).toBeLessThan(28);
+  expect(total).toBe(24);
+  expect(total).toBeLessThan(25);
  });
 });
 
@@ -904,8 +904,9 @@ describe('Maintenance work/asset source fixed SQL',()=>{
   expect(source.match(/export const workAssetSource = \(fields: string, assetJoin: string, where: string\) =>/g)).toHaveLength(1);
   expect(source.match(/`SELECT \$\{fields\} FROM maintenance_work_orders w JOIN \(\$\{assetsProjectionSources\.operational_assets\}\) a ON a\.id=w\.asset_id\$\{assetJoin\} WHERE \$\{where\}`/g)).toHaveLength(1);
   // r17 left 8 work.ts SELECTs; r18 folds the items/downtime Work/Asset source (8 -> 7);
-  // r21 folds the assets/nodes/consumptions projection source scans (7 -> 5).
-  expect(source.match(/SELECT/g)).toHaveLength(5);
+  // r21 folds the assets/nodes/consumptions projection source scans (7 -> 5);
+  // r24 reuses the existsGuardPrefix head for the Work assets absent-source guard (5 -> 4).
+  expect(source.match(/SELECT/g)).toHaveLength(4);
   expect(source).not.toContain('SELECT w.*,a.code asset_code,a.name asset_name,CASE WHEN');
   expect(source).not.toContain('`SELECT w.id,w.version::text version');
   expect(source).not.toMatch(/LOCK\s+TABLE/i);
@@ -1043,8 +1044,9 @@ describe('Maintenance projection row-scan fixed SQL',()=>{
   expect(source).not.toContain('`SELECT a.id,a.code,a.name,a.version,a.condition,a.lifecycle_status FROM (');
   expect(source).not.toContain('`SELECT id,kind,display_name,branch_id FROM (');
   expect(source).not.toContain('`SELECT p.*,j.status journal_status,product.name product_name FROM (');
-  // r18 left 7 work.ts SELECTs; r21 folds three row scans into one template (7 -> 5).
-  expect(source.match(/SELECT/g)).toHaveLength(5);
+  // r18 left 7 work.ts SELECTs; r21 folds three row scans into one template (7 -> 5);
+  // r24 reuses the existsGuardPrefix head for the Work assets absent-source guard (5 -> 4).
+  expect(source.match(/SELECT/g)).toHaveLength(4);
   // No write, row-lock or native read is accepted or changed.
   expect(source).not.toMatch(/INSERT INTO|DELETE FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|FOR\s+SHARE|LOCK\s+TABLE|pg_advisory/i);
 
@@ -1117,3 +1119,30 @@ describe('Maintenance EXISTS head and owner-name reuse fixed SQL',()=>{
    `(SELECT legal_name FROM (${pp.hr_people}) hr_people WHERE company_id=w.company_id AND user_id=w.owner_id AND merged_into_id IS NULL LIMIT 1)`);
  });
 });
+
+/** r24: the Work assets absent-source guard reuses the single EXISTS witness
+ * head through a negation wrapper, so no second query head is carried in the
+ * TS read tail. The composed guard stays byte-identical to its pre-dedupe
+ * literal; no lock, write or native read is introduced. */
+describe('Maintenance negated EXISTS head reuse fixed SQL',()=>{
+  const dir='../../../packages/server-maintenance/src/adapters/';
+  it('single-sources the NOT EXISTS head and keeps the composed assets read byte-identical',async()=>{
+   const {readFileSync}=await import('node:fs');
+   const shared=readFileSync(new URL(`${dir}projection-lookup.ts`,import.meta.url),'utf8');
+   const work=readFileSync(new URL(`${dir}work.ts`,import.meta.url),'utf8');
+   expect(shared.split('export const notExistsGuardPrefix =').length-1).toBe(1);
+   expect(shared).toContain('`NOT ${existsGuardPrefix(source)}`');
+   expect(shared.split('EXISTS(SELECT 1 FROM').length-1).toBe(1);
+   expect(work).not.toContain('AND NOT EXISTS(SELECT 1 FROM');
+   expect(work).toContain("AND ${notExistsGuardPrefix('maintenance_work_orders w')}w.asset_id=a.id");
+   expect(work).not.toMatch(/LOCK\s+TABLE|INSERT\s+INTO|UPDATE\s+\w+\s+SET|FOR\s+UPDATE/i);
+
+   const {notExistsGuardPrefix}=await import('../../../packages/server-maintenance/src/adapters/projection-lookup');
+   // Pre-r24 literal rebuilt verbatim with a closed scope fragment.
+   const scope='<assetScope>';
+   const preTail=`WHERE ${scope} AND a.lifecycle_status IN ('in_service','registered','maintenance') AND NOT EXISTS(SELECT 1 FROM maintenance_work_orders w WHERE w.asset_id=a.id AND w.status NOT IN ('completed','cancelled')) ORDER BY a.code`;
+   const tail=`WHERE ${scope} AND a.lifecycle_status IN ('in_service','registered','maintenance') AND ${notExistsGuardPrefix('maintenance_work_orders w')}w.asset_id=a.id AND w.status NOT IN ('completed','cancelled')) ORDER BY a.code`;
+   expect(tail).toBe(preTail);
+   expect(tail).not.toMatch(/INSERT\s+INTO|DELETE\s+FROM|UPDATE\s+\w+\s+SET|FOR\s+UPDATE|LOCK\s+TABLE|pg_advisory/i);
+  });
+ });
