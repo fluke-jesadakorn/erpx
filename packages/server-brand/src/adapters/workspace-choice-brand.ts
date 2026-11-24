@@ -1,6 +1,7 @@
 import "server-only";
 import type {SqlDatabase} from "@erpx/server-runtime/public/runtime/types";
-export async function workspaceChoiceBrands(write:SqlDatabase,companyIds:string[]){const placeholders=companyIds.map(()=>'?').join(',');
-  return (await write.prepare("SELECT scope_kind,scope_id,primary_publication_id FROM organization_brand_profiles WHERE scope_kind='holding' OR company_id IN (" + placeholders + ")")
-    .bind(...companyIds).all<{ scope_kind: "holding" | "branch"; scope_id: string; primary_publication_id: string | null }>()).results;
+import { BRAND_RD_WORKSPACE_CHOICE, planBrandRead } from "./native-brand-read-ports";
+export async function workspaceChoiceBrands(write:SqlDatabase,companyIds:string[]){
+  const plan = await planBrandRead(BRAND_RD_WORKSPACE_CHOICE, companyIds);
+  return (await write.prepare(plan.sql).bind(...plan.values).all<{ scope_kind: "holding" | "branch"; scope_id: string; primary_publication_id: string | null }>()).results;
 }

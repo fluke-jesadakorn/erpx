@@ -1,4 +1,3 @@
-import { commercialOwnerProjectionSources as organizationProjectionSources } from "@erpx/server-organization/public/commercial-owner-projection-sources";
 import { readMetricSources } from '@erpx/server-runtime/public/executive/metric-sources';
 import "server-only";
 import { type Breakdown, type Filters, type MetricId } from "@erpx/feature-shared/lib/executive/canvas";
@@ -6,22 +5,21 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { SqlDatabase } from '@erpx/server-runtime/public/runtime/types';
 import { specs } from '@erpx/server-runtime/public/executive/metric-projection-contract';
 import type { MetricSnapshot, RawMetricRow } from '@erpx/server-runtime/public/executive/metric-projection-contract';
+import {
+  BRAND_RD_METRIC_PROFILES_BRANCH,
+  BRAND_RD_METRIC_PROFILES_LABEL,
+  BRAND_RD_METRIC_UPDATES_BRANCH,
+  BRAND_RD_METRIC_UPDATES_MONTH,
+  planBrandRead,
+} from "./native-brand-read-ports";
 export async function readExecutiveMetricProjection(sourceDb: SqlDatabase, a: WorkContext, id: MetricId, f: Filters, breakdown: Breakdown): Promise<MetricSnapshot> {
     const spec = specs[id];
-    let sql = '', values: unknown[] = [];
-    const referenceAtOverride: number | null = null;
-    if (id === "brand-profiles" || id === "brand-profile-updates") {
-        const updates = id === "brand-profile-updates";
-        const label = updates && (breakdown === "month" || breakdown === "default")
-            ? "to_char(to_timestamp(p.updated_at/1000.0) AT TIME ZONE 'UTC','YYYY-MM')"
-            : breakdown === "branch"
-                ? "b.display_name"
-                : updates ? "'Updated profiles'" : "'Configured profiles'";
-        sql = `SELECT ${label} label,count(*)::text value FROM organization_brand_profiles p
-      JOIN (${organizationProjectionSources.organization_nodes}) b ON b.id=p.scope_id AND b.company_id=p.company_id AND b.kind='branch' AND b.status='active'
-      WHERE p.scope_kind='branch' AND p.company_id=? AND (?::text IS NULL OR p.scope_id=?) ${updates ? "AND p.updated_at>=? AND p.updated_at<?" : ""} GROUP BY 1 ORDER BY 1`;
-        values = [a.companyId, a.branchId, a.branchId, ...(updates ? [Date.parse(f.from), Date.parse(f.to) + 86400000] : [])];
-    }
-    const raw = (await sourceDb.prepare(sql).bind(...values).all<RawMetricRow>()).results;
-    return { raw, referenceAtOverride, source: (group, reported) => readMetricSources(sourceDb, id, sql, values, group, raw, `${spec.dateBasis} · ${f.from} to ${f.to} · ${f.currency}`, reported), watermarks: async () => [] };
+    const updates = id === "brand-profile-updates";
+    const kind = updates
+        ? (breakdown === "branch" ? BRAND_RD_METRIC_UPDATES_BRANCH : BRAND_RD_METRIC_UPDATES_MONTH)
+        : (breakdown === "branch" ? BRAND_RD_METRIC_PROFILES_BRANCH : BRAND_RD_METRIC_PROFILES_LABEL);
+    const values: unknown[] = [a.companyId, a.branchId, a.branchId, ...(updates ? [Date.parse(f.from), Date.parse(f.to) + 86400000] : [])];
+    const plan = await planBrandRead(kind, values, {}, a);
+    const raw = (await sourceDb.prepare(plan.sql).bind(...plan.values).all<RawMetricRow>()).results;
+    return { raw, referenceAtOverride: null, source: (group, reported) => readMetricSources(sourceDb, id, plan.sql, plan.values, group, raw, `${spec.dateBasis} · ${f.from} to ${f.to} · ${f.currency}`, reported), watermarks: async () => [] };
 }

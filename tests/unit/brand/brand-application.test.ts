@@ -1,5 +1,6 @@
-import { describe, expect, test } from "vitest";
+import { describe, expect, test, it, vi, beforeEach, afterEach } from "vitest";
 import { readFile } from "node:fs/promises";
+vi.mock("server-only", () => ({}));
 import { assertBrandCategoryLocks, assertBrandIndependentPublisher } from "@erpx/server-brand/domain/policy";
 import { brandIdentitySchema, type ActiveBrandIdentity, type BrandCategoryLock, type BrandDraft } from "@erpx/server-brand/domain/identity";
 import { readBrandIdentityWorkspace } from "@erpx/server-brand/application/identity-read";
@@ -112,5 +113,119 @@ describe("Brand residual read tail", () => {
     expect(source).toContain(
       ".bind(actor.companyId,actor.branchId,actor.departmentId,...currentScope.args)",
     );
+  });
+});
+
+/** G4 / retire.brand.read-tail-r1: the three pure Brand read tails now plan on
+ * the owner-local native read port. No TS SELECT literal remains in the cut
+ * adapters; the authority guard in branding.ts and the cross-owner attachment
+ * probe stay as classified residuals. */
+describe("native Brand pure-read cutover", () => {
+  const envKey = "ERPX_NATIVE_BRAND_READ_CONFIG";
+  const original = process.env[envKey];
+  const bodies: { kind: string; values: unknown[]; range?: boolean; query?: boolean; cursor?: boolean }[] = [];
+
+  beforeEach(() => {
+    bodies.length = 0;
+    process.env[envKey] = JSON.stringify({
+      privateBaseUrl: "http://127.0.0.1:44997",
+      timeoutMs: 1000,
+      holdings: [{ origin: "https://acme.example.com", holdingSlug: "acme", holdingId: "h001" }],
+    });
+    vi.stubGlobal("fetch", vi.fn(async (_url: URL, init: RequestInit) => {
+      const body = JSON.parse(String(init.body)) as typeof bodies[number];
+      bodies.push(body);
+      return new Response(JSON.stringify({ data: { sql: "SELECT 1 AS row", values: body.values } }), {
+        status: 200,
+        headers: { "content-type": "application/json" },
+      });
+    }));
+  });
+  afterEach(() => {
+    if (original === undefined) delete process.env[envKey];
+    else process.env[envKey] = original;
+    vi.unstubAllGlobals();
+  });
+
+  const actor = {
+    holdingId: "h001", holdingSlug: "acme", companyId: "company-1", branchId: "branch-1",
+    assignmentId: "assignment-1", scope: { kind: "branch", branchSlug: "north" },
+  } as never;
+  const fakeDb = () => {
+    const prepared: string[] = [];
+    const bound: unknown[][] = [];
+    const db = {
+      prepare(sql: string) {
+        prepared.push(sql);
+        return {
+          bind(...values: unknown[]) { bound.push(values); return this; },
+          async all() { return { results: [{ row: 1 }], success: true, meta: {} }; },
+        };
+      },
+    };
+    return { db, prepared, bound };
+  };
+
+  it("exposes only SQL-free read discriminators", async () => {
+    const ports = await import("../../../packages/server-brand/src/adapters/native-brand-read-ports");
+    for (const kind of [ports.BRAND_RD_EVIDENCE_SEARCH, ports.BRAND_RD_METRIC_PROFILES_LABEL,
+      ports.BRAND_RD_METRIC_PROFILES_BRANCH, ports.BRAND_RD_METRIC_UPDATES_MONTH, ports.BRAND_RD_WORKSPACE_CHOICE])
+      expect(kind).not.toMatch(/SELECT|INSERT|UPDATE|DELETE/);
+  });
+
+  it("plans workspace choice by kind and runs the returned SQL on the caller unit", async () => {
+    const { workspaceChoiceBrands } = await import("../../../packages/server-brand/src/adapters/workspace-choice-brand");
+    const { BRAND_RD_WORKSPACE_CHOICE } = await import("../../../packages/server-brand/src/adapters/native-brand-read-ports");
+    const { db, prepared, bound } = fakeDb();
+    expect(await workspaceChoiceBrands(db as never, ["co-a", "co-b"])).toEqual([{ row: 1 }]);
+    expect(bodies[0]).toMatchObject({ kind: BRAND_RD_WORKSPACE_CHOICE, values: ["co-a", "co-b"] });
+    expect(prepared[0]).toBe("SELECT 1 AS row");
+    expect(bound[0]).toEqual(["co-a", "co-b"]);
+  });
+
+  it("plans evidence search with the declared predicate families and bind order", async () => {
+    const { executiveEvidenceSources } = await import("../../../packages/server-brand/src/adapters/executive-evidence-sources");
+    const { BRAND_RD_EVIDENCE_SEARCH } = await import("../../../packages/server-brand/src/adapters/native-brand-read-ports");
+    const { db, bound } = fakeDb();
+    const input = {
+      metric: "brand-profile-updates",
+      filters: { from: "2026-01-01", to: "2026-01-31", currency: "THB" },
+      query: "north", limit: 25,
+    };
+    await executiveEvidenceSources(db as never).searchRows0(actor, input as never, { branchName: "North", id: "profile-1" });
+    expect(bodies[0]).toMatchObject({ kind: BRAND_RD_EVIDENCE_SEARCH, range: true, query: true, cursor: true });
+    expect(bodies[0].values).toEqual([
+      "company-1", "branch-1", "branch-1",
+      Date.parse("2026-01-01"), Date.parse("2026-01-31") + 86400000,
+      "north", "north", "north",
+      "North", "North", "profile-1", 26,
+    ]);
+    expect(bound[0]).toEqual(bodies[0].values);
+  });
+
+  it("selects the metric read kind per reachable compound breakdown", async () => {
+    const { readExecutiveMetricProjection } = await import("../../../packages/server-brand/src/adapters/executive-metric-projections");
+    const ports = await import("../../../packages/server-brand/src/adapters/native-brand-read-ports");
+    const { db } = fakeDb();
+    const filters = { from: "2026-01-01", to: "2026-01-31", currency: "THB" };
+    await readExecutiveMetricProjection(db as never, actor, "brand-profiles", filters, "default");
+    await readExecutiveMetricProjection(db as never, actor, "brand-profiles", filters, "branch");
+    await readExecutiveMetricProjection(db as never, actor, "brand-profile-updates", filters, "default");
+    expect(bodies.map((b) => b.kind)).toEqual([
+      ports.BRAND_RD_METRIC_PROFILES_LABEL,
+      ports.BRAND_RD_METRIC_PROFILES_BRANCH,
+      ports.BRAND_RD_METRIC_UPDATES_MONTH,
+    ]);
+    expect(bodies[2].values).toEqual([
+      "company-1", "branch-1", "branch-1",
+      Date.parse("2026-01-01"), Date.parse("2026-01-31") + 86400000,
+    ]);
+  });
+
+  it("leaves no TypeScript SELECT literal in the three cut adapters", async () => {
+    for (const name of ["executive-evidence-sources", "executive-metric-projections", "workspace-choice-brand"]) {
+      const src = await readFile(new URL(`../../../packages/server-brand/src/adapters/${name}.ts`, import.meta.url), "utf8");
+      expect(src).not.toMatch(/\bSELECT\s/);
+    }
   });
 });
