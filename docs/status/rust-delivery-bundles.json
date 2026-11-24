@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12094,
+    "revision": 12098,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -179792,7 +179792,7 @@
         "owner": "pos",
         "title": "pos TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -179804,22 +179804,22 @@
         "resources": [
           "owner:pos"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4m02",
-          "claimedAt": "2026-11-24T13:14:43.464Z",
-          "heartbeatAt": "2026-11-24T13:26:46.050Z",
-          "expiresAt": "2026-11-24T13:56:46.050Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "new lock-free stripe keyed kinds (-4): 188->184. BEFORE=188.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Blocked with AST evidence; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4m02",
+          "at": "2026-11-24T13:30:36.712Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with AST evidence; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -179828,7 +179828,7 @@
         "owner": "sales",
         "title": "sales TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -179840,22 +179840,37 @@
         "resources": [
           "owner:sales"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4m03",
-          "claimedAt": "2026-11-24T13:14:56.020Z",
-          "heartbeatAt": "2026-11-24T13:26:46.050Z",
-          "expiresAt": "2026-11-24T13:56:46.050Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-sales/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "7f672e624",
+            "owner": "sales",
+            "before": 54,
+            "after": 50,
+            "note": "Commercial projections share tableRead; price lists share priceListSelect; locks/authority/native untouched."
+          },
+          {
+            "command": "vitest sales (217) + scoped tsc + 5/5 byte oracle",
+            "result": "passed",
+            "sourceSha": "7f672e624"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "commercial projection tableRead family (-3) and price list (-1): 54->50. BEFORE=54.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4m03",
+          "at": "2026-11-24T13:30:36.395Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -180372,17 +180387,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 13,
+        "in_progress": 11,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1366,
+        "blocked": 1368,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T13:30:02.152Z",
+    "updatedAt": "2026-11-24T13:30:36.715Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
