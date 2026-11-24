@@ -12,6 +12,8 @@ export function projectTaskOwnerSql(task:string,user:string){return `EXISTS(SELE
       AND hp.company_id=${task}.company_id AND iam_same_person(hp.owner_user_id,${user},${task}.company_id))`;}
 export function projectTaskMemberSql(task:string,user:string){return `EXISTS(SELECT 1 FROM staff_projects hpm JOIN staff_project_members hm ON hm.project_id=hpm.id
       WHERE hpm.id=${task}.project_id AND hpm.company_id=${task}.company_id AND hm.user_id=${user})`;}
+/** Owner-or-member scope shared by structure handoff reads and executive milestone cohorts. */
+export function projectOwnerOrMemberSql(alias:string){return `(iam_same_person(${alias}.owner_user_id,?,${alias}.company_id) OR EXISTS(SELECT 1 FROM staff_project_members member WHERE member.project_id=${alias}.id AND iam_same_person(member.user_id,?,${alias}.company_id)))`;}
 export function projectHandoverSourceSql(post:string,user:string){return `SELECT 1 FROM staff_projects hp WHERE hp.id=hs.source_id AND hp.company_id=${post}.company_id
           AND (iam_same_person(hp.owner_user_id,${user},hp.company_id)
             OR EXISTS(SELECT 1 FROM staff_project_members hm WHERE hm.project_id=hp.id AND hm.user_id=${user}))`;}

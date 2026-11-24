@@ -1,6 +1,7 @@
 import "server-only";
 import type { Filters } from "@erpx/feature-shared/lib/executive/canvas";
 import type { WorkContext } from "@erpx/server-identity_access/public/authorization";
+import { projectOwnerOrMemberSql } from "@erpx/server-projects/adapters/project-read-projections";
 
 /** Shared current membership and due-time cohort for metric, search, and detail reads. */
 export function projectMilestoneOverdueCohort(actor: WorkContext, filters: Filters, referenceAt: number, milestone = "m", project = "p") {
@@ -18,9 +19,7 @@ export function projectMilestoneOverdueCohort(actor: WorkContext, filters: Filte
 export function projectDependencyBlockerCohort(actor: WorkContext, filters: Filters, milestone = "m", project = "p") {
   return {
     sql: `${project}.company_id=? AND (?::text IS NULL OR ${project}.branch_id=?) AND (?::text IS NULL OR ${project}.department_id=?)
-      AND (iam_same_person(${project}.owner_user_id,?,${project}.company_id) OR EXISTS(
-        SELECT 1 FROM staff_project_members member WHERE member.project_id=${project}.id
-          AND iam_same_person(member.user_id,?,${project}.company_id)))
+      AND ${projectOwnerOrMemberSql(project)}
       AND ${milestone}.company_id=${project}.company_id AND ${milestone}.state IN ('planned','in_progress')
       AND ${milestone}.due_at>=? AND ${milestone}.due_at<?
       AND EXISTS(SELECT 1 FROM staff_project_milestone_dependencies dependency
