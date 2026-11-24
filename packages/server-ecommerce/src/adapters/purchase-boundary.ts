@@ -17,6 +17,7 @@ import {ecommerceModuleAssignment,ecommerceScopeRow} from './read-tail-sql';
 type Target={kind:'channel'|'listing'|'cart'|'checkout';id:string};
 type Source={company_id:string;branch_id:string|null;department_id:string|null;version:number;identity:string;image:string};
 export type EcommercePurchaseCommand={operation:string;key:string;id:string;purpose:'new-work'|'settle-existing';review?:boolean;before?:Target;after:Target};
+const childAgg=(alias:string,table:string,orderBy:string,fk:string,parent:string)=>`COALESCE((SELECT jsonb_agg(to_jsonb(${alias}) ORDER BY ${alias}.${orderBy}) FROM ${table} ${alias} WHERE ${alias}.${fk}=${parent}.id),'[]'::jsonb)`;
 /** Closed owner joins use actual stored identities, including the exact native
  * Sales order. A channel label or supplied product name grants no authority. */
 async function source(database:SqlDatabase,actor:WorkContext,target:Target){
@@ -27,10 +28,10 @@ async function source(database:SqlDatabase,actor:WorkContext,target:Target){
   const checkout=target.kind==='checkout';
   sql=`SELECT c.company_id,c.branch_id,c.department_id,${checkout?'x':'c'}.version,jsonb_build_array(${checkout?'x.id,x.cart_id,x.sales_order_id,':''}c.id,c.company_id,c.branch_id,c.department_id,c.channel_id,c.party_id,c.warehouse_id,c.currency)::text identity,
    jsonb_build_array(to_jsonb(c),to_jsonb(channel),party.id,party.company_id,warehouse.id,warehouse.company_id,warehouse.branch_id,
-   COALESCE((SELECT jsonb_agg(to_jsonb(line) ORDER BY line.ordinal) FROM ecommerce_cart_lines line WHERE line.cart_id=c.id),'[]'::jsonb)
+   ${childAgg('line','ecommerce_cart_lines','ordinal','cart_id','c')}
    ${checkout?`,to_jsonb(x),o.id,o.company_id,o.branch_id,o.department_id,o.kind,o.party_id,o.warehouse_id,o.currency,
-   COALESCE((SELECT jsonb_agg(to_jsonb(link) ORDER BY link.id) FROM ecommerce_fulfillment_links link WHERE link.checkout_id=x.id),'[]'::jsonb),
-   COALESCE((SELECT jsonb_agg(to_jsonb(link) ORDER BY link.id) FROM ecommerce_return_links link WHERE link.checkout_id=x.id),'[]'::jsonb)`:''})::text image
+   ${childAgg('link','ecommerce_fulfillment_links','id','checkout_id','x')},
+   ${childAgg('link','ecommerce_return_links','id','checkout_id','x')}`:''})::text image
    FROM ${checkout?'ecommerce_checkouts x JOIN ecommerce_carts c ON c.id=x.cart_id':'ecommerce_carts c'}
    JOIN ecommerce_channels channel ON channel.id=c.channel_id AND channel.company_id=c.company_id
    JOIN (${finance.finance_parties}) party ON party.id=c.party_id AND party.company_id=c.company_id AND party.kind='customer'
