@@ -25,5 +25,12 @@ pub mod email_delivery;
 pub mod email_delivery_http;
 pub mod owner_write;
 pub mod owner_write_http;
+pub mod native_owner_read;
 pub mod onboarding_command;
+
+pub use crate::adapters::native_owner_read_sql::{
+    read_statement as owner_read_statement, NativeManageReadStatement,
+    ME_RD_BETA_POLICY_POINT_ALL, ME_RD_BETA_POLICY_POINT_BRANCH,
+    ME_RD_BETA_POLICY_POINT_MEMBER,
+};
 pub mod onboarding_command_http;

@@ -133,30 +133,35 @@ describe('manage_erpx document page storage-limit projection dedupe', () => {
 });
 
 describe('manage_erpx beta_policy point-read parameterized family', () => {
-  it('emits byte-identical point-read SQL for every admitted projection', async () => {
+  it('keeps the retired point-read bytes after whitespace normalization', async () => {
     const { betaPolicyPointSql } = await import(
       '../../../packages/server-manage_erpx/src/adapters/beta-policy-point-sql'
     );
-    expect(betaPolicyPointSql('*')).toBe('SELECT * FROM beta_policy WHERE company_id=?');
-    expect(betaPolicyPointSql('member_limit')).toBe(
+    const canonical = (value: string) => value.replace(/\s+/g, ' ');
+    expect(canonical(betaPolicyPointSql('*'))).toBe(
+      'SELECT * FROM beta_policy WHERE company_id=?',
+    );
+    expect(canonical(betaPolicyPointSql('member_limit'))).toBe(
       'SELECT member_limit FROM beta_policy WHERE company_id=?',
     );
-    expect(betaPolicyPointSql('branch_limit')).toBe(
+    expect(canonical(betaPolicyPointSql('branch_limit'))).toBe(
       'SELECT branch_limit FROM beta_policy WHERE company_id=?',
     );
+    expect(betaPolicyPointSql('*').match(/\?/g)).toHaveLength(1);
   });
 
-  it('keeps one point-read declaration and reuses it at every owner call site', async () => {
+  it('delegates the standalone reader to the native kinds and keeps composed guards on the authority text', async () => {
     const helper = await readFile(adapter('beta-policy-point-sql.ts'), 'utf8');
-    expect(
-      helper.match(/SELECT \$\{projection\} FROM beta_policy WHERE company_id=\?/g),
-    ).toHaveLength(1);
-    for (const file of ['beta-api.ts', 'beta-team.ts']) {
-      const text = await readFile(adapter(file), 'utf8');
-      expect(text).not.toMatch(
-        /SELECT (?:\*|member_limit|branch_limit) FROM beta_policy WHERE company_id=\?/,
-      );
-      expect(text).toContain('betaPolicyPointSql(');
-    }
+    expect(helper).not.toContain('SELECT ');
+    expect(helper).toContain('betaPolicyPointKind');
+    const api = await readFile(adapter('beta-api.ts'), 'utf8');
+    expect(api).toContain('nativeManageOwnerReadFirst(betaPolicyPointKind(\'*\')');
+    expect(api).not.toContain('db\n              .prepare(betaPolicyPointSql(\'*\'))');
+    const team = await readFile(adapter('beta-team.ts'), 'utf8');
+    expect(team).toContain('${betaPolicyPointSql(\'member_limit\')}');
+    expect(team).toContain('${betaPolicyPointSql(\'branch_limit\')}');
+    expect(team).not.toMatch(
+      /SELECT (?:\*|member_limit|branch_limit) FROM beta_policy WHERE company_id=\?/,
+    );
   });
 });

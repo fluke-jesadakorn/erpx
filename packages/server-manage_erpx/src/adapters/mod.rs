@@ -1,5 +1,6 @@
 pub mod beta_policy;
 pub mod email_delivery_http;
+pub mod native_owner_read_sql;
 pub mod owner_write_postgres;
 pub mod owner_write_http;
 pub mod email_delivery_postgres;

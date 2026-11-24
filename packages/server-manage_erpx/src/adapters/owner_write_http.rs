@@ -4,10 +4,11 @@
 //! backend opens the transaction and the owner adapter EXECUTES the write; this
 //! router never returns SQL and never falls back to TypeScript.
 use erpx_server_runtime::public::http_support::{
-    HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router, State,
-    StatusCode, body::to_bytes, header, routing::post, serde_json,
+    Body, HeaderMap, HeaderName, HeaderValue, IntoResponse, Json, Path, Request, Response, Router,
+    State, StatusCode, body::to_bytes, header, routing::post, serde_json,
 };
 use erpx_server_shared::public::{BusinessError, CommandKey, FailureKind};
+use crate::adapters::native_owner_read_sql::read_statement;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -27,6 +28,13 @@ pub struct OwnerWriteCommandInput {
     pub company_id: String,
     #[serde(default)]
     pub now: i64,
+}
+
+#[derive(Clone, Debug, Deserialize, Serialize)]
+#[serde(rename_all = "camelCase", deny_unknown_fields)]
+pub struct OwnerReadPlanInput {
+    pub kind: String,
+    pub values: Vec<Value>,
 }
 
 pub type OwnerWriteFuture<'a> =
@@ -194,6 +202,10 @@ pub fn owner_write_router(
             "/api/v1/holdings/{holding_slug}/manage/owner-write-control",
             post(write),
         )
+        .route(
+            "/api/v1/holdings/{holding_slug}/manage/command-plan",
+            post(command_plan),
+        )
         .with_state(Arc::new(AppState { targets: configured })))
 }
 
@@ -258,6 +270,45 @@ async fn write(
     }
 }
 
+/// Resolve a closed owner read kind to its exact fixed statement. No SQL is
+/// accepted from the wire; the caller prepares and executes the returned
+/// statement on its own already-open unit. Reads carry no write ledger.
+async fn command_plan(
+    State(state): State<Arc<AppState>>,
+    Path(slug): Path<String>,
+    request: Request,
+) -> Response {
+    let headers = request.headers().clone();
+    let result = async {
+        let _target = target(&state, &headers, &slug)?;
+        if request.uri().query().is_some() {
+            return Err(invalid());
+        }
+        let bytes = to_bytes(request.into_body(), BODY_LIMIT)
+            .await
+            .map_err(|_| invalid())?;
+        let plan: OwnerReadPlanInput =
+            serde_json::from_slice(&bytes).map_err(|_| invalid())?;
+        if plan.kind.is_empty()
+            || plan.kind.len() > 120
+            || plan.values.is_empty()
+            || plan.values.len() > 64
+        {
+            return Err(invalid());
+        }
+        let statement = read_statement(&plan.kind).ok_or_else(invalid)?;
+        if plan.values.len() != statement.bind_count {
+            return Err(invalid());
+        }
+        Ok(serde_json::json!({"data":{"statements":[{"sql":statement.sql,"values":plan.values}]}}))
+    }
+    .await;
+    match result {
+        Ok(data) => bounded(data),
+        Err(error) => error_response(error),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -292,5 +343,77 @@ mod tests {
     fn decode_rejects_unknown_fields_and_oversize_values() {
         let raw = serde_json::json!({"kind":"k","values":[1],"companyId":"c","now":1,"extra":1});
         assert!(serde_json::from_value::<OwnerWriteCommandInput>(raw).is_err());
+    }
+
+    fn plan_state() -> Arc<AppState> {
+        let mut targets = BTreeMap::new();
+        targets.insert(
+            ("acme.example.test".to_owned(), "acme".to_owned()),
+            OwnerWriteHttpTarget {
+                host: "acme.example.test".into(),
+                holding_slug: "acme".into(),
+                origin: "https://acme.example.test".into(),
+                control: false,
+                backend: Arc::new(Noop),
+            },
+        );
+        Arc::new(AppState { targets })
+    }
+
+    fn plan_request(origin: &str, body: &'static str) -> Request {
+        Request::builder()
+            .header(header::HOST, "acme.example.test")
+            .header(ORIGIN_HEADER, origin)
+            .method("POST")
+            .uri("/api/v1/holdings/acme/manage/command-plan")
+            .body(Body::from(body))
+            .expect("request")
+    }
+
+    #[tokio::test]
+    async fn command_plan_returns_the_registered_beta_policy_statement() {
+        let response = command_plan(
+            State(plan_state()),
+            Path("acme".into()),
+            plan_request(
+                "https://acme.example.test",
+                r#"{"kind":"manage_rd_beta_policy_point_all","values":["company-1"]}"#,
+            ),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::OK);
+        let bytes = to_bytes(response.into_body(), usize::MAX).await.expect("body");
+        let payload: Value = serde_json::from_slice(&bytes).expect("json");
+        let planned = &payload["data"]["statements"][0];
+        let expected = read_statement("manage_rd_beta_policy_point_all").expect("registered read");
+        assert_eq!(planned["sql"], expected.sql);
+        assert_eq!(planned["values"][0], "company-1");
+    }
+
+    #[tokio::test]
+    async fn command_plan_rejects_unadmitted_projection_arity_and_foreign_origin() {
+        for body in [
+            r#"{"kind":"manage_rd_beta_policy_point_ai_monthly_limit","values":["company-1"]}"#,
+            r#"{"kind":"manage_rd_beta_policy_point_all","values":[]}"#,
+            r#"{"kind":"me_beta_feedback_insert","values":["company-1"]}"#,
+        ] {
+            let response = command_plan(
+                State(plan_state()),
+                Path("acme".into()),
+                plan_request("https://acme.example.test", body),
+            )
+            .await;
+            assert_eq!(response.status(), StatusCode::UNPROCESSABLE_ENTITY);
+        }
+        let response = command_plan(
+            State(plan_state()),
+            Path("acme".into()),
+            plan_request(
+                "https://evil.test",
+                r#"{"kind":"manage_rd_beta_policy_point_all","values":["company-1"]}"#,
+            ),
+        )
+        .await;
+        assert_eq!(response.status(), StatusCode::FORBIDDEN);
     }
 }
