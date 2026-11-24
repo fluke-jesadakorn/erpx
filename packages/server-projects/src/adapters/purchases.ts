@@ -17,6 +17,7 @@ import {flushFinanceDeferredEffects} from "@erpx/server-finance/public/finance-t
 import {clearWorkflowCommandAssertions} from "@erpx/server-workflow/public/command-assertion-effects";
 import {projectMemberRows} from "@erpx/server-projects/adapters/work-ui-staff-facts";
 import {projectAssignmentAuthorityReadSql} from './read-tail-r23';
+import {projectMemberExistsSql} from './read-tail-r27';
 
 export type ProjectCapability="projects.wbs"|"projects.tasks"|"projects.time"|"projects.handover"|"projects.costs";
 export type ProjectPurchaseTarget={kind:"milestone"|"work_log"|"allocation"|"handoff";id:string}|{kind:"work_date";date:string}|{kind:"cost_line";id:string};
@@ -33,7 +34,7 @@ async function targetImage(database:SqlDatabase,actor:StaffActor,projectId:strin
 async function source(database:SqlDatabase,actor:StaffActor,id:string,member:boolean){
  const row=await database.prepare(`SELECT p.id,p.company_id,p.branch_id,p.department_id,p.owner_user_id FROM staff_projects p
  WHERE p.id=? AND p.company_id=?
- AND (NOT ?::boolean OR p.owner_user_id=? OR EXISTS(SELECT 1 FROM staff_project_members m WHERE m.project_id=p.id AND m.user_id=?))`)
+ AND (NOT ?::boolean OR p.owner_user_id=? OR ${projectMemberExistsSql()})`)
   .bind(id,actor.companyId,member,actor.userId,actor.userId).first<Source>();
  if(!row)throw new ApiError(404,"PROJECT_NOT_FOUND","Project not found in the current workspace.");
  return row;

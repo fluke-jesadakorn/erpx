@@ -73,7 +73,7 @@ describe('Projects read-tail r26 package-actual proof guard family dedupe', () =
     };
     walk(srcRoot);
     expect(total).toBeLessThan(119);
-    expect(total).toBe(118);
+    expect(total).toBe(117); // r27 member EXISTS family 118->117.
   });
 });
 
