@@ -1,4 +1,5 @@
 import { bankCashLinesSql } from './finance-read-tail-r39-sql';
+import { bankTxnGuardSql } from './finance-read-tail-r48-sql';
 import {withFinancePurchasedCommand,withFinancePurchasedRead} from "@erpx/server-finance/adapters/purchase-boundary";
 import { BANK_TRANSACTION_BY_ID_SQL } from './finance-read-tail-r17-sql';
 import { nativeFinanceBankAutomation } from '@erpx/server-collaboration/adapters/native-finance-bank-automation';
@@ -125,7 +126,7 @@ decisionCommit:async(facts)=>{const {actor,id,input,key,op,group,prepared,curren
             write,
             key,
             `bank-${b.id}`,
-            "EXISTS(SELECT 1 FROM finance_bank_transactions WHERE id=? AND company_id=? AND version=? AND match_status IN ('unmatched','proposed'))",
+            bankTxnGuardSql(" AND version=? AND match_status IN ('unmatched','proposed')"),
             [b.id, actor.companyId, b.version],
           ),
             await nativeFinanceBankAutomation(write, actor.companyId).txnMatch([id, b.id]),
@@ -148,7 +149,7 @@ decisionCommit:async(facts)=>{const {actor,id,input,key,op,group,prepared,curren
             write,
             key,
             `matched-${b}`,
-            "EXISTS(SELECT 1 FROM finance_bank_transactions WHERE id=? AND company_id=? AND match_status='matched' AND matched_type='group' AND matched_id=?)",
+            bankTxnGuardSql(" AND match_status='matched' AND matched_type='group' AND matched_id=?"),
             [b, actor.companyId, id],
           ),
             await nativeFinanceBankAutomation(write, actor.companyId).txnUnmatch([b]),

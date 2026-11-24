@@ -1,4 +1,5 @@
 import { chartPointSql } from './finance-read-tail-r42-sql';
+import { bankTxnGuardSql } from './finance-read-tail-r48-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { APPROVED_SECONDARY_CHART_RULE_SQL } from './finance-read-tail-r15-sql';
 import { APPROVED_SECONDARY_CHART_CORRELATED_GUARD } from './finance-read-tail-r41-sql';
@@ -203,7 +204,7 @@ reverseRunCommit:async(facts)=>{const {actor,id,input,key,op,row,run,reversalId,
           db,
           key,
           "instrument-bank-owned",
-          "EXISTS(SELECT 1 FROM finance_bank_transactions WHERE id=? AND company_id=? AND match_status='matched' AND matched_type='journal' AND matched_id=?)",
+          bankTxnGuardSql(" AND match_status='matched' AND matched_type='journal' AND matched_id=?"),
           [run.bank_transaction_id, actor.companyId, run.journal_id],
         ),
           await nativeFinanceInstruments(db, actor.companyId).bankUnmatch([run.bank_transaction_id]),

@@ -1,4 +1,5 @@
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
+import { acquisitionReadSql, acquisitionVersionGuardSql } from './finance-read-tail-r48-sql';
 import { nativeFinanceOwnerWriteSystem } from './native-finance-owner-write';
 import { groupCompanyPurchases, groupRecordPurchases, groupHistoryPredicate, groupSourceSql, groupRecordHistorySql } from "@erpx/server-finance/adapters/group-purchase-sources";
 import "server-only";
@@ -52,7 +53,7 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
             return await nativeFinanceOwnerWriteSystem(database, 'system', 'ownership_interest_decide', [value, userId, now, id]);
         },
         readAcquisitionSourceEffect(companyId: string, ownershipId: string, acquisitionDate: string, currency: string, value: string | number, currentId: string) {
-            return database.prepare("SELECT 1 FROM finance_acquisitions WHERE company_id=? AND ownership_id=? AND acquisition_date=? AND currency=? AND source_hash IS NOT NULL AND status IN ('draft','approved','impaired') AND id NOT IN (?,?)")
+            return database.prepare(acquisitionReadSql('1', "company_id=? AND ownership_id=? AND acquisition_date=? AND currency=? AND source_hash IS NOT NULL AND status IN ('draft','approved','impaired') AND id NOT IN (?,?)"))
                 .bind(companyId, ownershipId, acquisitionDate, currency, value, currentId)
                 .first();
         },
@@ -71,7 +72,7 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
                 .first<Row>();
         },
         guard13(key: string, value: "acquisition-parent", id: string | number | null, companyId: string, holdingId: string, value2: number) {
-            return assertion(database, key, value, "EXISTS(SELECT 1 FROM finance_acquisitions WHERE id=? AND company_id=? AND holding_id=? AND status='approved' AND version=?)", [
+            return assertion(database, key, value, acquisitionVersionGuardSql('approved'), [
                 id,
                 companyId,
                 holdingId,
@@ -82,7 +83,7 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
             return await nativeFinanceOwnerWriteSystem(database, 'system', 'acquisition_supersede', [now, id]);
         },
         guard15(key: string, value: "acquisition-version", id: string, companyId: string, holdingId: string, expectedVersion: number) {
-            return assertion(database, key, value, "EXISTS(SELECT 1 FROM finance_acquisitions WHERE id=? AND company_id=? AND holding_id=? AND status='draft' AND version=?)", [id, companyId, holdingId, expectedVersion]);
+            return assertion(database, key, value, acquisitionVersionGuardSql('draft'), [id, companyId, holdingId, expectedVersion]);
         },
         async stageDecideAcquisitionEditionEffect2(status: "approved" | "rejected", userId: string, now: number, id: string) {
             return await nativeFinanceOwnerWriteSystem(database, 'system', 'acquisition_decide', [status, userId, now, id]);

@@ -1,4 +1,5 @@
 import { PLAN_EDITION_POINT_SQL } from './finance-read-tail-r38-sql';
+import { planEditionPointSql } from './finance-read-tail-r48-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { FINANCE_ADVISORY_XACT_LOCK_SQL } from "./advisory-lock-dedupe-sql";
 import { ACTIVE_CHART_BASE_CURRENCY_SQL } from "./chart-base-currency-dedupe-sql";
@@ -56,7 +57,7 @@ commandReplay:async<Result>(actor:WorkContext,key:string,op:string,input:unknown
 return null;},
 parent:async(actor,parentId,chartId,kind)=>write
       .prepare(
-        "SELECT * FROM finance_plan_editions WHERE id=? AND company_id=? AND chart_id=? AND kind=? AND status='approved'",
+        planEditionPointSql(" AND chart_id=? AND kind=? AND status='approved'"),
       )
       .bind(parentId, actor.companyId, chartId, kind)
       .first<PlanRow>(),
@@ -123,7 +124,7 @@ editions:async(actor,chartId)=>(await write
 snapshots:async(actor,chartId)=>(await write.prepare("SELECT s.id,s.definition_id,s.start_date,s.end_date,s.source_hash,s.created_at,p.name FROM finance_report_snapshots s JOIN finance_plan_editions p ON p.id=s.definition_id WHERE s.company_id=? AND p.chart_id=? ORDER BY s.created_at DESC LIMIT 200").bind(actor.companyId,chartId).all()).results,
 plan:async(actor,id,kind)=>db
     .prepare(
-      "SELECT * FROM finance_plan_editions WHERE id=? AND company_id=? AND kind=? AND status='approved'",
+      planEditionPointSql(" AND kind=? AND status='approved'"),
     )
     .bind(id, actor.companyId, kind)
     .first<PlanRow>(),

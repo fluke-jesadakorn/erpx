@@ -1,4 +1,5 @@
 import { intercompanyPairPointSql } from './finance-read-tail-r42-sql';
+import { acquisitionReadSql } from './finance-read-tail-r48-sql';
 import { withFinancePurchasedCommand, withFinancePurchasedRead } from "@erpx/server-finance/adapters/purchase-boundary";
 import { financeGroupEditions } from '@erpx/server-collaboration/adapters/native-finance-group-editions';
 import { groupCompanyPurchases, groupEditionPurchases, requireGroupCompanyHistory, groupHistoryPredicate, groupSourceSql, groupEditionHistorySql, groupRecordHistorySql } from "@erpx/server-finance/adapters/group-purchase-sources";
@@ -57,7 +58,7 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
                 .first<Row>();
         },
         readSourceAcquisition(acquisitionId: string, holdingId: string, companyId: string, currency: string, endDate: string) {
-            return database.prepare("SELECT * FROM finance_acquisitions WHERE id=? AND holding_id=? AND company_id=? AND status='approved' AND currency=? AND acquisition_date<=?")
+            return database.prepare(acquisitionReadSql('*', "id=? AND holding_id=? AND company_id=? AND status='approved' AND currency=? AND acquisition_date<=?"))
                 .bind(acquisitionId, holdingId, companyId, currency, endDate)
                 .first<Row>();
         },
@@ -82,7 +83,7 @@ function nativePorts(provided?: SqlDatabase, owned = false, inheritedHistory?: (
                 .first<Row>();
         },
         readSourceEffect(value: string, holdingId: string, investee_entity_id: string | number | null, endDate: string, currency: string, id: string | number | null) {
-            return database.prepare("SELECT * FROM finance_acquisitions WHERE id=? AND holding_id=? AND investee_entity_id=? AND status IN ('approved','impaired') AND acquisition_date<=? AND currency=? AND calculation_run_id=?")
+            return database.prepare(acquisitionReadSql('*', "id=? AND holding_id=? AND investee_entity_id=? AND status IN ('approved','impaired') AND acquisition_date<=? AND currency=? AND calculation_run_id=?"))
                 .bind(value, holdingId, investee_entity_id, endDate, currency, id)
                 .first<Row>();
         },
