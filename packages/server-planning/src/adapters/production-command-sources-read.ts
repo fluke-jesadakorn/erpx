@@ -1,7 +1,7 @@
 import {productionReadProjection as productionmanufacturingProjection} from '@erpx/server-manufacturing/public/production-read-projections';
 import {productionReadProjection as productioncommerceProjection} from '@erpx/server-commerce/public/production-read-projections';
 import {productionReadProjection as productionorganizationProjection} from '@erpx/server-organization/public/production-read-projections';
-import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {productionResourcesExists,planningAllocatedMinutes} from "./planning-guard-sql";import {planningCommandExistsGuard} from "./planning-command-guard-sql";import {planningScopedBranchList} from "./planning-scoped-list-sql";
+import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';import type {Row} from '@erpx/server-commerce/public/commerce';import {assertion} from "@erpx/server-workflow/public/command-assertions";import {productionResourcesExists,planningAllocatedMinutes} from "./planning-guard-sql";import {planningCommandExistsGuard} from "./planning-command-guard-sql";import {planningScopedBranchList} from "./planning-scoped-list-sql";import {planningScopedBranchRow} from "./planning-scoped-row-sql";
 
 const sourceJoins = `
     ${productionmanufacturingProjection.executiveSpecification}
@@ -65,7 +65,7 @@ guardComparison(key:string,value:"comparison",comparisonScenarioId:string,compan
 prepareScenario(id:string,companyId:string,branch_id:string | number | null,warehouseId:string,specificationId:string,specificationVersion:number,demand:number,dueDate:string,capacityMinutes:number,value:string,userId:string,now:number,now2:number,value2:string){throw new Error("NATIVE_PLANNING_REQUIRED");},
 prepareRecommendation(recommendationId:string,id:string,value:1,demand:number,requiredMinutes:number,feasible:string,userId:string,now:number,now2:number){throw new Error("NATIVE_PLANNING_REQUIRED");},
 prepareCalculateEvent(value:string,id:string,userId:string,value2:"Calculated from confirmed Sales demand and captured supply/capacity" | "Calculated from declared manual demand and captured supply/capacity",now:number){throw new Error("NATIVE_PLANNING_REQUIRED");},
-async scenario(id:string,companyId:string,branchId:string | null,branchId2:string | null){return db.prepare("SELECT * FROM planning_scenarios WHERE id=? AND company_id=? AND (?::text IS NULL OR branch_id=?)")
+async scenario(id:string,companyId:string,branchId:string | null,branchId2:string | null){return db.prepare(planningScopedBranchRow('*', 'planning_scenarios', 'id', 'company_id', 'branch_id'))
     .bind(id, companyId, branchId, branchId2).first<Row>();},
 lockScenarioRecommendations(id:string){throw new Error("NATIVE_PLANNING_REQUIRED");},
 guardUnreleasedScenario(key:string,value:"scenario",id:string,companyId:string,expectedVersion:number){return assertion(db, key, value, planningCommandExistsGuard("planning_scenarios", "id=? AND company_id=? AND version=? AND status='calculated'"), [id, companyId, expectedVersion]);},
@@ -74,7 +74,7 @@ prepareRecommendationCancellation(userId:string,now:number,id:string){throw new 
 prepareCancelEvent(value:string,id:string,value2:number,userId:string,reason:string,now:number){throw new Error("NATIVE_PLANNING_REQUIRED");},
 async scopedRecommendation(id:string,companyId:string,branchId:string | null,branchId2:string | null){return db
       .prepare(
-        "SELECT r.*,s.company_id,s.branch_id,s.warehouse_id,s.specification_id,s.specification_version,s.context_json,s.created_by scenario_created_by FROM planning_recommendations r JOIN planning_scenarios s ON s.id=r.scenario_id WHERE r.id=? AND s.company_id=? AND (?::text IS NULL OR s.branch_id=?)",
+        planningScopedBranchRow('r.*,s.company_id,s.branch_id,s.warehouse_id,s.specification_id,s.specification_version,s.context_json,s.created_by scenario_created_by', 'planning_recommendations r JOIN planning_scenarios s ON s.id=r.scenario_id', 'r.id', 's.company_id', 's.branch_id'),
       )
       .bind(id, companyId, branchId, branchId2)
       .first<Row>();},

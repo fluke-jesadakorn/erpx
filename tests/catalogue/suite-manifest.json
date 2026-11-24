@@ -2527,33 +2527,6 @@
       },
       "ci": {
         "critical": true,
-        "reason": "Benefits owner existence-guard family must stay one generator."
-      },
-      "apps": [
-        "apps"
-      ],
-      "packages": [
-        "@erpx/server-benefits"
-      ],
-      "id": "benefits.read-tail-r20-dedupe.unit",
-      "files": [
-        "tests/unit/benefits/read-tail-r20-dedupe.test.ts"
-      ],
-      "framework": "vitest"
-    },
-    {
-      "lane": "unit",
-      "owner": "benefits",
-      "modules": [
-        "benefits"
-      ],
-      "fixture": "none",
-      "requires": {
-        "jobs": false,
-        "scanner": false
-      },
-      "ci": {
-        "critical": true,
         "reason": "Benefits scope CTE prefix must exist once and stay byte-identical."
       },
       "apps": [
@@ -66258,6 +66231,33 @@
       "id": "planning.read-tail-r8-dedupe.unit",
       "files": [
         "tests/unit/planning/read-tail-r8-dedupe.test.ts"
+      ],
+      "framework": "vitest"
+    },
+    {
+      "lane": "unit",
+      "owner": "planning",
+      "modules": [
+        "planning"
+      ],
+      "fixture": "none",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Planning scoped single row reads must stay one builder."
+      },
+      "apps": [
+        "planning"
+      ],
+      "packages": [
+        "@erpx/server-planning"
+      ],
+      "id": "planning.read-tail-r9-dedupe.unit",
+      "files": [
+        "tests/unit/planning/read-tail-r9-dedupe.test.ts"
       ],
       "framework": "vitest"
     },
