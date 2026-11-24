@@ -4,10 +4,11 @@ const peoplepayrollSources=peoplepayrollSnapshotSources();
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { runtimeEnv } from "../../../../packages/server-runtime/src/public/runtime";
 import {assertion} from "@erpx/server-workflow/public/command-assertions";
+import {userAttributeByIdSql} from './identity-user-projection-family-r18';
 export function peopleDirectoryIdentityFacts(database: SqlDatabase) {
     return { async readSaveDirectoryPersonAccount(linkedMemberUserId: string) {
             const env = await runtimeEnv();
-            return env.CONTROL_DB.prepare('SELECT id,email FROM "user" WHERE id=?')
+            return env.CONTROL_DB.prepare(userAttributeByIdSql('id,email'))
                 .bind(linkedMemberUserId)
                 .first<{
                 id: string;
@@ -31,7 +32,7 @@ export function peopleDirectoryIdentityFacts(database: SqlDatabase) {
         },
         async readPersonAccessAccount(user_id: string | number) {
             const env = await runtimeEnv();
-            return env.CONTROL_DB.prepare('SELECT id,name,email FROM "user" WHERE id=?')
+            return env.CONTROL_DB.prepare(userAttributeByIdSql('id,name,email'))
                 .bind(user_id)
                 .first();
         },
