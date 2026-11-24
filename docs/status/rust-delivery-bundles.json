@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8041,
+    "revision": 8049,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -134122,7 +134122,7 @@
         "owner": "commerce",
         "title": "commerce TS read tail native cutover (round 7)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -134134,22 +134134,42 @@
         "resources": [
           "owner:commerce"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wG95com",
-          "claimedAt": "2026-11-24T01:27:19.584Z",
-          "heartbeatAt": "2026-11-24T01:36:09.340Z",
-          "expiresAt": "2026-11-24T02:06:09.340Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-commerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "823abefec",
+            "owner": "commerce",
+            "before": 549,
+            "after": 531,
+            "note": "Seven duplicated projection fragments shared via projection-source-dedupe-sql; decoded SQL values identical for all contracts."
+          },
+          {
+            "command": "vitest commerce units (136)",
+            "result": "passed",
+            "sourceSha": "823abefec"
+          },
+          {
+            "command": "tsc commerce",
+            "result": "passed",
+            "sourceSha": "823abefec"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: finance-owned snapshot fragments or projection-source strings; TS-only byte-identical dedupe. BEFORE=549.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wG95com",
+          "at": "2026-11-24T01:37:19.857Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -134666,7 +134686,7 @@
         "owner": "workflow",
         "title": "workflow TS read tail native cutover (round 18)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -134678,22 +134698,42 @@
         "resources": [
           "owner:workflow"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGA7wor",
-          "claimedAt": "2026-11-24T01:32:19.427Z",
-          "heartbeatAt": "2026-11-24T01:36:09.340Z",
-          "expiresAt": "2026-11-24T02:06:09.340Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-workflow/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "823abefec",
+            "owner": "workflow",
+            "before": 81,
+            "after": 80,
+            "note": "Counts and transfers sources share inventory audit history literal; binds/filters unchanged."
+          },
+          {
+            "command": "vitest workflow transport (30)",
+            "result": "passed",
+            "sourceSha": "823abefec"
+          },
+          {
+            "command": "tsc workflow",
+            "result": "passed",
+            "sourceSha": "823abefec"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: scan for another byte-identical projection pair; keep assertion fragments/flow_*. BEFORE=81.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGA7wor",
+          "at": "2026-11-24T01:37:20.150Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -135149,6 +135189,78 @@
         "nextAction": "Next: clock CTE MATERIALIZED prefix (product-entry L18/L35, record-purchases L19) or candidate guard SELECT id prefix keeping SHARE/UPDATE distinct. BEFORE=76.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.commerce.read-tail-r8",
+        "goalId": "G4",
+        "owner": "commerce",
+        "title": "commerce TS read tail native cutover (r8)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-commerce/src/**",
+          "tests/unit/commerce/**",
+          "tests/integration/commerce/**"
+        ],
+        "resources": [
+          "owner:commerce"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGAMcom",
+          "claimedAt": "2026-11-24T01:37:20.359Z",
+          "heartbeatAt": "2026-11-24T01:37:20.359Z",
+          "expiresAt": "2026-11-24T02:07:20.359Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=531.",
+        "handoff": null,
+        "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.workflow.read-tail-r19",
+        "goalId": "G4",
+        "owner": "workflow",
+        "title": "workflow TS read tail native cutover (r19)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-workflow/src/**",
+          "tests/unit/workflow/**",
+          "tests/integration/workflow/**"
+        ],
+        "resources": [
+          "owner:workflow"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGANwor",
+          "claimedAt": "2026-11-24T01:37:20.562Z",
+          "heartbeatAt": "2026-11-24T01:37:20.562Z",
+          "expiresAt": "2026-11-24T02:07:20.562Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=80.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -135157,7 +135269,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 838,
+      "totalPackets": 840,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 16,
@@ -135165,13 +135277,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 465,
+        "blocked": 467,
         "deferred": 0,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:37:06.815Z",
+    "updatedAt": "2026-11-24T01:37:20.565Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
