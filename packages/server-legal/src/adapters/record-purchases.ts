@@ -10,6 +10,7 @@ import {legalKindCapability} from "@erpx/server-legal/domain/purchases";
 import type {LegalKind} from "@erpx/server-legal/domain/model";
 import {visibility} from "@erpx/server-legal/adapters/legal/access";
 import {legalItemPurchasePredicate,legalReleasePredicate} from "@erpx/server-legal/adapters/purchases";
+import {legalPointByKeySql} from './legal-read-tail-r36-sources';
 function nativeSource(actor:WorkContext,id:string,company:string,purchased=true){const scope=visibility(actor,"legal_native");return {where:`EXISTS(SELECT 1 FROM legal_items legal_native WHERE legal_native.id=${id} AND legal_native.company_id=${company} AND ${scope.sql} AND ${hasModuleAccess(actor.modules,"legal")&&hasPermission(actor,"legal.read")?"TRUE":"FALSE"} AND ${assignmentReadSql("legal_native","legal.read")} AND ${legalReleasePredicate(actor,"legal_native")} ${purchased?`AND ${legalItemPurchasePredicate("legal_native")}`:""})`,args:[...scope.values,actor.assignmentId,actor.userId,actor.role]};}
 /** Only persisted Legal sources are classified. Unrelated generic records keep
  * their original policy; a notification with a missing native source is hidden. */
@@ -21,7 +22,7 @@ export async function legalSourceReadScope(database:SqlDatabase,actor:WorkContex
 }
 export async function requireLegalWorkspaceRecordRead(database:SqlDatabase,actor:WorkContext,moduleId:string,id:string){
  const mode=await legalPackageEnforcementMode();if(mode==="disabled"||moduleId!=="legal")return;
- const native=await database.prepare('SELECT kind FROM legal_items WHERE id=?').bind(id).first<{kind:LegalKind}>();if(!native)return;
+ const native=await database.prepare(legalPointByKeySql("kind","legal_items","id")).bind(id).first<{kind:LegalKind}>();if(!native)return;
  const scope=nativeSource(actor,"workspace_records.id","workspace_records.company_id",false);if(!await database.prepare(`SELECT 1 FROM workspace_records WHERE module_id='legal' AND id=? AND ${scope.where}`).bind(id,...scope.args).first())throw new ApiError(404,"LEGAL_SOURCE_NOT_FOUND","The actual Legal source is unavailable in this workspace.");
  await checkPurchasedCapability(database,mode,{companyId:actor.companyId,capability:legalKindCapability(native.kind),purpose:"history"});
 }
