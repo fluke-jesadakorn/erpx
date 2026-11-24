@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11749,
+    "revision": 11751,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -175057,7 +175057,7 @@
         "owner": "ecommerce",
         "title": "ecommerce TS read tail (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -175069,22 +175069,37 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4b03",
-          "claimedAt": "2026-11-24T11:46:22.760Z",
-          "heartbeatAt": "2026-11-24T11:53:11.142Z",
-          "expiresAt": "2026-11-24T12:23:11.142Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-ecommerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "bceb6a33f",
+            "owner": "ecommerce",
+            "before": 42,
+            "after": 38,
+            "note": "Money snapshot, delivery/link guards and no-space scope row reuse r14 frames; duplicate probe left inline; locks/native untouched."
+          },
+          {
+            "command": "vitest ecommerce (86) + scoped tsc + byte oracle",
+            "result": "passed",
+            "sourceSha": "bceb6a33f"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none report blocked. BEFORE=42.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4b03",
+          "at": "2026-11-24T12:03:05.126Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -176205,17 +176220,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 21,
-        "in_progress": 18,
+        "in_progress": 17,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1279,
+        "blocked": 1280,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T12:02:36.428Z",
+    "updatedAt": "2026-11-24T12:03:05.131Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
