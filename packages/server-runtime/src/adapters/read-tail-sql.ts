@@ -16,3 +16,13 @@ export const holdingBindingsSql = (columns: string, suffix = '') =>
  */
 export const executiveGenerationJobsSql = (columns: string, suffix = '') =>
   `SELECT ${columns} FROM executive_generation_jobs${suffix}`;
+
+/**
+ * Runtime-owned canonical SQL for the closed `runtime_health` heartbeat read
+ * family. App and Platform surfaces project different column subsets of the
+ * same fixed read; one builder keeps the query text identical across callers.
+ * No relation name or predicate is accepted from an untrusted caller.
+ * Control-plane lock and migration statements are not part of this family.
+ */
+export const runtimeHealthSql = (columns: string, suffix = '') =>
+  `SELECT ${columns} FROM runtime_health${suffix}`;
