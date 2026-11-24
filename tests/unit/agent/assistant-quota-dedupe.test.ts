@@ -16,6 +16,19 @@ async function agentSelectCount(dir: URL): Promise<number> {
   return total;
 }
 
+/** Verbatim pre-dedupe source-witness statement (settings/connection/revision snapshots). */
+const sourceWitness = "SELECT jsonb_build_object('settings',(SELECT to_jsonb(s) FROM ai_company_settings s WHERE s.company_id=?),'connection',(SELECT to_jsonb(c) FROM ai_connections c WHERE c.company_id=? AND c.id=?),'revision',(SELECT to_jsonb(r) FROM ai_connection_revisions r WHERE r.connection_id=? AND r.revision=?))::text image";
+const sourceWitnessHead = 'SELECT to_jsonb(${alias}) FROM ${table} ${alias} WHERE ${predicate}';
+
+function assertSourceWitnessUntouched(locks: string) {
+  const def = locks.match(/const agentSourceWitnessSql = \(alias: string, table: string, predicate: string\) =>\s*`(SELECT [^`]*?)`;/)?.[1];
+  expect(def).toBe(sourceWitnessHead);
+  const render = (a: string, t: string, p: string) => def!.replaceAll('${alias}', a).replaceAll('${table}', t).replaceAll('${predicate}', p);
+  const body = locks.match(/\.prepare\(`(SELECT jsonb_build_object[\s\S]*?)`\)/)?.[1];
+  expect(body!.replace(/\$\{agentSourceWitnessSql\('([^']+)','([^']+)','([^']+)'\)\}/g, (_m, a, t, p) => render(a, t, p))).toBe(sourceWitness);
+  expect(locks.match(/SELECT/g)).toHaveLength(2);
+}
+
 /** Verbatim pre-dedupe expression (guided-intake ↔ workspace assistant). */
 const quotaExpression = '(SELECT count(*) FROM (SELECT company_id,created_at FROM ai_workspace_turns UNION ALL ${agentExecutiveDatedUsage()} UNION ALL ${agentFinanceDatedUsage()}) ai_calls WHERE company_id=? AND created_at>=?)+(${agentSocialMonthlyCount()})+(${agentExpenseMonthlyCount()})+(${agentRequestMonthlyCount()})<${financeAiCompanyAllowanceSql}';
 
@@ -195,8 +208,7 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     expect(helper).toContain(quotaExpression);
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
     expect(assistant).toContain(') calls WHERE company_id=? AND created_at>=?');
-    expect(locks.match(/SELECT/g)).toHaveLength(4);
-    expect(locks).toContain("'settings',(SELECT to_jsonb(s) FROM ai_company_settings s WHERE s.company_id=?)");
+    assertSourceWitnessUntouched(locks);
   });
 
   /** Verbatim pre-dedupe parameterized company-settings projection. */
@@ -243,8 +255,7 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
     expect(rt).toContain(`const aiConnectionSelectSql = '${runtimeConnectionSelect}';`);
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
     expect(assistant).toContain(') calls WHERE company_id=? AND created_at>=?');
-    expect(locks.match(/SELECT/g)).toHaveLength(4);
-    expect(locks).toContain("'settings',(SELECT to_jsonb(s) FROM ai_company_settings s WHERE s.company_id=?)");
+    assertSourceWitnessUntouched(locks);
   });
 
   /** Verbatim pre-dedupe parameterized active-private-session witness (r15 -> r16 BEFORE: 61 SELECTs).
@@ -289,7 +300,7 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
       '"SELECT x.id FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id JOIN agent_catalog c ON c.id=v.agent_id WHERE x.id=? FOR SHARE OF x,v,c"',
       '"SELECT id FROM agent_pools WHERE id=? FOR SHARE"',
     ]) expect(gov).toContain(lock);
-    expect(locks.match(/SELECT/g)).toHaveLength(4);
+    assertSourceWitnessUntouched(locks);
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
     expect(assistant).toContain('agentWorkspaceTurnByIdSql("state,answer_json")');
     expect(assistant).toContain('agentWorkspaceTurnByIdSql("*")');
@@ -336,7 +347,7 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
       '"SELECT x.id FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id JOIN agent_catalog c ON c.id=v.agent_id WHERE x.id=? FOR SHARE OF x,v,c"',
       '"SELECT id FROM agent_pools WHERE id=? FOR SHARE"',
     ]) expect(gov).toContain(lock);
-    expect(locks.match(/SELECT/g)).toHaveLength(4);
+    assertSourceWitnessUntouched(locks);
     expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
     expect(assistant).toContain('agentWorkspaceTurnByIdSql("state,answer_json")');
     expect(assistant).toContain('agentWorkspaceTurnByIdSql("*")');
@@ -406,7 +417,39 @@ describe('Agent read-tail r7 fixed SQL dedupe', () => {
       '"SELECT x.id FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id JOIN agent_catalog c ON c.id=v.agent_id WHERE x.id=? FOR SHARE OF x,v,c"',
       '"SELECT id FROM agent_pools WHERE id=? FOR SHARE"',
     ]) expect(gov).toContain(lock);
-    expect(locks.match(/SELECT/g)).toHaveLength(4);
-    expect(locks).toContain("'settings',(SELECT to_jsonb(s) FROM ai_company_settings s WHERE s.company_id=?)");
+    assertSourceWitnessUntouched(locks);
+  });
+
+  it('r22: authors the parameterized source-witness head once, byte-identically', async () => {
+    const locks = await src('adapters/social-ai-source-locks.ts');
+    assertSourceWitnessUntouched(locks);
+    expect(locks.match(/agentSourceWitnessSql\(/g)).toHaveLength(3);
+    expect(locks.match(/SELECT to_jsonb\(\$\{alias\}\) FROM \$\{table\} \$\{alias\} WHERE \$\{predicate\}/g)).toHaveLength(1);
+    const calls = [...locks.matchAll(/agentSourceWitnessSql\('([^']+)','([^']+)','([^']+)'\)/g)].map((m) => [m[1], m[2], m[3]]);
+    expect(calls).toEqual([
+      ['s', 'ai_company_settings', 's.company_id=?'],
+      ['c', 'ai_connections', 'c.company_id=? AND c.id=?'],
+      ['r', 'ai_connection_revisions', 'r.connection_id=? AND r.revision=?'],
+    ]);
+    expect(locks).toContain('.bind(snapshot.companyId,snapshot.companyId,snapshot.connectionId,snapshot.connectionId,snapshot.revision)');
+  });
+
+  it('r22: records a strictly lower SELECT count than BEFORE=55', async () => {
+    expect(await agentSelectCount(new URL('../../../packages/server-agent/src/', import.meta.url))).toBeLessThan(55);
+  });
+
+  it('r22: pool-member access, guards and FOR SHARE locks stay untouched', async () => {
+    const gov = await src('adapters/agent-governance.ts');
+    const assistant = await src('adapters/workspace-assistant.ts');
+    expect(gov).toContain(`const agentPoolMemberAccessSql = '${poolMemberAccess}';`);
+    for (const lock of [
+      '"SELECT session_id FROM ai_private_session_controls WHERE session_id=? FOR SHARE"',
+      '"SELECT x.id FROM agent_assignments x JOIN agent_versions v ON v.id=x.agent_version_id JOIN agent_catalog c ON c.id=v.agent_id WHERE x.id=? FOR SHARE OF x,v,c"',
+      '"SELECT id FROM agent_pools WHERE id=? FOR SHARE"',
+    ]) expect(gov).toContain(lock);
+    expect(assistant).toContain('guardTranslationQuota(id:string,companyId:string,value:number,month:string){return assertion(db,id,"translation-quota"');
+    expect(assistant).toContain(') calls WHERE company_id=? AND created_at>=?');
+    const locks = await src('adapters/social-ai-source-locks.ts');
+    expect(locks).toContain("'LOCK TABLE ai_company_settings,ai_connections,ai_connection_revisions IN SHARE ROW EXCLUSIVE MODE'");
   });
 });
