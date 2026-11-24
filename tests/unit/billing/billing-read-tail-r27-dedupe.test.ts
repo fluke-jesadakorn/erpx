@@ -82,6 +82,6 @@ describe('billing read-tail r27 metric count projection dedupe', () => {
     let count = 0;
     for (const file of files) count += (await readFile(file, 'utf8')).split('SELECT').length - 1;
     expect(count).toBeLessThan(59);
-    expect(count).toBe(55); // r29 deduped the point-read-by-id family (receipt, invoice, job).
+    expect(count).toBe(54); // r29 left 55; r30 deduped the whole-account column-projection family.
   });
 });
