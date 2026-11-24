@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11021,
+    "revision": 11025,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -169279,7 +169279,7 @@
         "owner": "planning",
         "title": "planning TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -169291,22 +169291,37 @@
         "resources": [
           "owner:planning"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMpln2",
-          "claimedAt": "2026-11-24T09:27:34.054Z",
-          "heartbeatAt": "2026-11-24T09:33:43.274Z",
-          "expiresAt": "2026-11-24T10:03:43.274Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-planning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "1bdf9bc5e",
+            "owner": "planning",
+            "before": 27,
+            "after": 26,
+            "note": "Inner calendar and outer resource/capacity jsonb_agg aggregates share planningJsonbAggOrdered; LOCK TABLE and r1-r13 untouched."
+          },
+          {
+            "command": "vitest planning r5-r14 (53) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "1bdf9bc5e"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=27.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMpln2",
+          "at": "2026-11-24T09:36:51.016Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -169778,6 +169793,42 @@
         "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.planning.read-tail-r15",
+        "goalId": "G4",
+        "owner": "planning",
+        "title": "planning TS read tail native cutover (round 15)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-planning/src/**",
+          "tests/unit/planning/**",
+          "tests/integration/planning/**"
+        ],
+        "resources": [
+          "owner:planning"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMpln3",
+          "claimedAt": "2026-11-24T09:36:51.480Z",
+          "heartbeatAt": "2026-11-24T09:36:51.480Z",
+          "expiresAt": "2026-11-24T10:06:51.480Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=26.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -169786,7 +169837,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1527,
+      "totalPackets": 1528,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 24,
@@ -169794,13 +169845,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1140,
+        "blocked": 1141,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:36:15.726Z",
+    "updatedAt": "2026-11-24T09:36:51.491Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
