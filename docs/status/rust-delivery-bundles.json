@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 10918,
+    "revision": 10922,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -168185,7 +168185,7 @@
         "owner": "pms",
         "title": "pms TS read tail native cutover (round 32)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -168197,22 +168197,37 @@
         "resources": [
           "owner:pms"
         ],
-        "claim": {
-          "runId": "run-20261124-a",
-          "agentId": "wGCMpms7",
-          "claimedAt": "2026-11-24T09:11:30.181Z",
-          "heartbeatAt": "2026-11-24T09:11:30.181Z",
-          "expiresAt": "2026-11-24T09:41:30.181Z",
-          "generation": 167
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-pms/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f1fe4ae40",
+            "owner": "pms",
+            "before": 347,
+            "after": 345,
+            "note": "Two booking allocation refund reads share pmsBookingAllocationRefundSql ordered variant; locks, r17-r31 fragments and registries untouched."
+          },
+          {
+            "command": "vitest pms r17-r32 (60) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "f1fe4ae40"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=347.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMpms7",
+          "at": "2026-11-24T09:20:06.397Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -168502,6 +168517,42 @@
         "nextAction": "Next: safe byte-identical or parameterized SELECT-head family; if none, report blocked. BEFORE=73.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.pms.read-tail-r33",
+        "goalId": "G4",
+        "owner": "pms",
+        "title": "pms TS read tail native cutover (round 33)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-pms/src/**",
+          "tests/unit/pms/**",
+          "tests/integration/pms/**"
+        ],
+        "resources": [
+          "owner:pms"
+        ],
+        "claim": {
+          "runId": "run-20261124-a",
+          "agentId": "wGCMpms8",
+          "claimedAt": "2026-11-24T09:20:06.768Z",
+          "heartbeatAt": "2026-11-24T09:20:06.768Z",
+          "expiresAt": "2026-11-24T09:50:06.768Z",
+          "generation": 167
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: safe byte-identical or parameterized SELECT-head family outside locks; if none, report blocked. BEFORE=345.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -168510,7 +168561,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1500,
+      "totalPackets": 1501,
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 22,
@@ -168518,13 +168569,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1123,
+        "blocked": 1124,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 167,
-    "updatedAt": "2026-11-24T09:19:52.451Z",
+    "updatedAt": "2026-11-24T09:20:06.773Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
