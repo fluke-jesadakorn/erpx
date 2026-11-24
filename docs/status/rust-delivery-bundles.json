@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8860,
+    "revision": 8862,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -145418,6 +145418,42 @@
         "nextAction": "Next: remaining parameterized families not covered by r19-r22; locks untouched. BEFORE=1485.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.finance.read-tail-r21",
+        "goalId": "G4",
+        "owner": "finance",
+        "title": "finance TS read tail native cutover (round 21)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-finance/src/**",
+          "tests/unit/finance/**",
+          "tests/integration/finance/**"
+        ],
+        "resources": [
+          "owner:finance"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGC0fin",
+          "claimedAt": "2026-11-24T03:30:27.035Z",
+          "heartbeatAt": "2026-11-24T03:30:27.035Z",
+          "expiresAt": "2026-11-24T04:00:27.035Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: remaining 5 jsonb_agg variants with extra predicates/two-column ORDER BY; helper needs optional extra/order args. BEFORE=2083.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -145426,11 +145462,11 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1038,
+      "totalPackets": 1039,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 15,
-        "in_progress": 33,
+        "in_progress": 34,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
@@ -145440,7 +145476,7 @@
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T03:29:51.181Z",
+    "updatedAt": "2026-11-24T03:30:27.048Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
