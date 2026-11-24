@@ -187,6 +187,50 @@ const READ_HIRE_HANDOFF_QUEUE: NativeTalentReadStatement = NativeTalentReadState
     bind_count: 1,
 };
 
+/// Native successors of the TypeScript `talentOwnerSourceQuery` candidate
+/// image reads in `adapters/purchases.ts`. The caller binds `[id, company_id]`
+/// on its open unit. The file variant strips the private version/updated_at
+/// columns, byte-for-byte matching the retired TS literal.
+pub const RD_CANDIDATE_SOURCE_IMAGE: &str = "talent_rd_candidate_source_image";
+const SQL_RD_CANDIDATE_SOURCE_IMAGE: &str =
+    "SELECT to_jsonb(c)::text image FROM talent_candidates c WHERE c.id=? AND c.company_id=?";
+const READ_CANDIDATE_SOURCE_IMAGE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_CANDIDATE_SOURCE_IMAGE,
+    sql: SQL_RD_CANDIDATE_SOURCE_IMAGE,
+    bind_count: 2,
+};
+
+pub const RD_CANDIDATE_SOURCE_IMAGE_FILE: &str = "talent_rd_candidate_source_image_file";
+const SQL_RD_CANDIDATE_SOURCE_IMAGE_FILE: &str =
+    "SELECT (to_jsonb(c)-'version'-'updated_at')::text image FROM talent_candidates c WHERE c.id=? AND c.company_id=?";
+const READ_CANDIDATE_SOURCE_IMAGE_FILE: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_CANDIDATE_SOURCE_IMAGE_FILE,
+    sql: SQL_RD_CANDIDATE_SOURCE_IMAGE_FILE,
+    bind_count: 2,
+};
+
+/// Owner event-history plans for the candidate and offer read families. They
+/// mirror the existing `talent_rd_application_events` shape; the caller binds
+/// `[candidate_id]` or `[offer_id]` on its open unit. Rows are immutable and
+/// ordered by version so a read observes its own unit's uncommitted history.
+pub const RD_CANDIDATE_EVENTS: &str = "talent_rd_candidate_events";
+const SQL_RD_CANDIDATE_EVENTS: &str =
+    "SELECT * FROM talent_candidate_events WHERE candidate_id=? ORDER BY version";
+const READ_CANDIDATE_EVENTS: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_CANDIDATE_EVENTS,
+    sql: SQL_RD_CANDIDATE_EVENTS,
+    bind_count: 1,
+};
+
+pub const RD_OFFER_EVENTS: &str = "talent_rd_offer_events";
+const SQL_RD_OFFER_EVENTS: &str =
+    "SELECT * FROM talent_offer_events WHERE offer_id=? ORDER BY version";
+const READ_OFFER_EVENTS: NativeTalentReadStatement = NativeTalentReadStatement {
+    kind: RD_OFFER_EVENTS,
+    sql: SQL_RD_OFFER_EVENTS,
+    bind_count: 1,
+};
+
 const STATEMENTS: &[NativeTalentReadStatement] = &[
     READ_APPLICATION_EVENTS,
     READ_PROPOSALS,
@@ -203,6 +247,10 @@ const STATEMENTS: &[NativeTalentReadStatement] = &[
     READ_SENSITIVE_APPLICATIONS,
     READ_HIRE_SOURCE_ROW,
     READ_HIRE_HANDOFF_QUEUE,
+    READ_CANDIDATE_SOURCE_IMAGE,
+    READ_CANDIDATE_SOURCE_IMAGE_FILE,
+    READ_CANDIDATE_EVENTS,
+    READ_OFFER_EVENTS,
 ];
 
 /// Resolve an allow-listed owner read kind. Any unregistered kind fails closed.
@@ -237,7 +285,64 @@ mod tests {
             );
             assert_eq!(sql.matches('?').count(), 1);
         }
-        assert_eq!(STATEMENTS.len(), 15);
+        assert_eq!(STATEMENTS.len(), 19);
+    }
+
+    #[test]
+    fn candidate_and_offer_read_families_are_owner_authored_select_only() {
+        let expected = [
+            (
+                RD_CANDIDATE_SOURCE_IMAGE,
+                SQL_RD_CANDIDATE_SOURCE_IMAGE,
+                2usize,
+                "talent_candidates",
+            ),
+            (
+                RD_CANDIDATE_SOURCE_IMAGE_FILE,
+                SQL_RD_CANDIDATE_SOURCE_IMAGE_FILE,
+                2usize,
+                "talent_candidates",
+            ),
+            (
+                RD_CANDIDATE_EVENTS,
+                SQL_RD_CANDIDATE_EVENTS,
+                1usize,
+                "talent_candidate_events",
+            ),
+            (
+                RD_OFFER_EVENTS,
+                SQL_RD_OFFER_EVENTS,
+                1usize,
+                "talent_offer_events",
+            ),
+        ];
+        for (kind, sql, binds, table) in expected {
+            let statement = read_statement(kind).expect("registered owner read kind");
+            assert_eq!(statement.kind, kind);
+            assert_eq!(statement.sql, sql);
+            assert_eq!(statement.bind_count, binds);
+            assert!(sql.starts_with("SELECT "), "owner read must be SELECT-only: {sql}");
+            for forbidden in ["INSERT", "UPDATE ", "DELETE", "RETURNING", ";", "FOR UPDATE"] {
+                assert!(!sql.contains(forbidden), "owner read must not mutate: {forbidden}");
+            }
+            assert!(
+                sql.contains(table),
+                "candidate/offer read must stay on owner-local Talent table {table}: {sql}"
+            );
+            assert_eq!(sql.matches('?').count(), binds);
+        }
+        // The candidate image reads are byte-exact mirrors of the two retired
+        // TypeScript `talentOwnerSourceQuery` literals (purchases.ts candidate).
+        assert_eq!(
+            SQL_RD_CANDIDATE_SOURCE_IMAGE,
+            "SELECT to_jsonb(c)::text image FROM talent_candidates c WHERE c.id=? AND c.company_id=?"
+        );
+        assert_eq!(
+            SQL_RD_CANDIDATE_SOURCE_IMAGE_FILE,
+            "SELECT (to_jsonb(c)-'version'-'updated_at')::text image FROM talent_candidates c WHERE c.id=? AND c.company_id=?"
+        );
+        assert!(read_statement("talent_rd_candidate_events").is_some());
+        assert!(read_statement("talent_rd_offer_events").is_some());
     }
 
     #[test]

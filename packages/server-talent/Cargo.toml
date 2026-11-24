@@ -53,5 +53,9 @@ path = "../../tests/unit/talent/rust-talent-lifecycle-http.test.rs"
 name = "talent_lifecycle_postgres"
 path = "../../tests/integration/talent/rust-talent-lifecycle-postgres.test.rs"
 
+[[test]]
+name = "talent_offer_read_parity_postgres"
+path = "../../tests/integration/talent/rust-talent-offer-read-parity-postgres.test.rs"
+
 [lints]
 workspace = true

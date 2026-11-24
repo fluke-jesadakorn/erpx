@@ -104565,6 +104565,46 @@
       ]
     },
     {
+      "id": "talent.offer-read-parity-postgres.integration",
+      "lane": "integration",
+      "owner": "talent",
+      "modules": [
+        "talent"
+      ],
+      "files": [
+        "tests/integration/talent/rust-talent-offer-read-parity-postgres.test.rs"
+      ],
+      "fixture": "postgres",
+      "requires": {
+        "jobs": false,
+        "scanner": false
+      },
+      "ci": {
+        "critical": true,
+        "reason": "Native talent candidate/offer read plans must match retained TS literals and PG rows."
+      },
+      "apps": [
+        "recruit"
+      ],
+      "framework": "cargo",
+      "cargo": {
+        "package": "erpx-server-talent",
+        "targets": [
+          "talent_offer_read_parity_postgres"
+        ],
+        "features": []
+      },
+      "verificationInputs": [
+        "Cargo.toml",
+        "Cargo.lock",
+        "rust-toolchain.toml",
+        "packages/server-talent/Cargo.toml"
+      ],
+      "packages": [
+        "@erpx/server-talent"
+      ]
+    },
+    {
       "id": "talent.rust-talent-application-proposal.unit",
       "lane": "unit",
       "owner": "talent",
