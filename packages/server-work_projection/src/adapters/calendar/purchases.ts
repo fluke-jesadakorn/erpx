@@ -18,6 +18,9 @@ import {lockScheduledFeatureSources} from '@erpx/server-pms/public/scheduled-fea
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {captureCalendarReminderAuthority} from '@erpx/server-work_projection/adapters/calendar/reminder-authority';
+import {versionById} from '../read-tail-sql';
+const actorScopeSql=(where:string)=>`SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope WHERE ${where}`;
+const roleAllowsSql=(permission:string)=>`SELECT iam_role_allows(?,?,'${permission}') allowed`;
 
 // Calendar historically has no separate Module ID/readiness rule. Its manual
 // Work-core events now use the existing Work landing's Operations readiness.
@@ -31,7 +34,7 @@ export function calendarCommandPurpose(input:CalendarCommand):CapabilityPurpose{
 }
 async function current(database:SqlDatabase,actor:WorkContext,key:string,guards=false){
  const scope=currentAssignmentReadScope(actor,'workforce_actor_scope');
- if(!await database.prepare(`SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope WHERE ${scope.where}`).bind(actor.companyId,actor.branchId,actor.departmentId,...scope.args).first())throw new ApiError(403,'CALENDAR_AUTHORITY_CHANGED','Choose a current Calendar account, Company and role.');
+ if(!await database.prepare(actorScopeSql(scope.where)).bind(actor.companyId,actor.branchId,actor.departmentId,...scope.args).first())throw new ApiError(403,'CALENDAR_AUTHORITY_CHANGED','Choose a current Calendar account, Company and role.');
  if(guards)await database.batch([...workContextGuards(database,actor,key),...iamMutationGuards(database,actor,key),await nativeClearCommandAssertions(database, actor.companyId, key)]);
 }
 async function ready(database:SqlDatabase,actor:WorkContext){
@@ -63,15 +66,15 @@ async function recordAuthority(database:SqlDatabase,actor:WorkContext,input:Pick
  const type=kind(input),row=await database.prepare(`SELECT company_id,branch_id,department_id,created_by${type==='appointment'?',organizer_person_id':''} FROM ${type==='appointment'?'calendar_appointments':'calendar_announcements'} WHERE id=? AND company_id=?`).bind(id,actor.companyId).first<{company_id:string;branch_id:string|null;department_id:string|null;created_by:string;organizer_person_id?:string|null}>();
  if(!row){if(existing)throw new ApiError(404,'NOT_FOUND','The original Calendar record is unavailable.');return;}
  const placement=currentAssignmentReadScope(actor,'workforce_actor_scope');
- if(!await database.prepare(`SELECT 1 FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) workforce_actor_scope WHERE ${placement.where}`).bind(row.company_id,row.branch_id,row.department_id,...placement.args).first())throw new ApiError(403,'CALENDAR_SOURCE_CHANGED','The original Calendar workspace is outside the selected role.');
+ if(!await database.prepare(actorScopeSql(placement.where)).bind(row.company_id,row.branch_id,row.department_id,...placement.args).first())throw new ApiError(403,'CALENDAR_SOURCE_CHANGED','The original Calendar workspace is outside the selected role.');
  if(type==='announcement'){
-  if(!hasPermission(actor,'calendar.announcements.publish')||!await database.prepare("SELECT iam_role_allows(?,?,'calendar.announcements.publish') allowed").bind(actor.role,actor.companyId).first<boolean>('allowed'))throw new ApiError(403,'PERMISSION_REQUIRED','The current role cannot publish or manage Calendar announcements.');return;
+  if(!hasPermission(actor,'calendar.announcements.publish')||!await database.prepare(roleAllowsSql('calendar.announcements.publish')).bind(actor.role,actor.companyId).first<boolean>('allowed'))throw new ApiError(403,'PERMISSION_REQUIRED','The current role cannot publish or manage Calendar announcements.');return;
  }
  if(input.action==='appointment.respond'||input.action==='appointment.reminder.set'){
   if(!await database.prepare('SELECT 1 FROM calendar_attendees WHERE appointment_id=? AND company_id=? AND user_id=?').bind(id,actor.companyId,actor.userId).first())throw new ApiError(403,'INVITATION_UNAVAILABLE','The original Calendar invitation is unavailable.');return;
  }
  const own=row.created_by===actor.userId||!!await database.prepare(`SELECT 1 FROM (${calendarPeopleProjectionSources.people}) person WHERE person.id=? AND person.company_id=? AND iam_same_person(person.user_id,?,person.company_id)`).bind(row.organizer_person_id??null,actor.companyId,actor.userId).first();
- if(!own&&(!hasPermission(actor,'calendar.appointments.manage')||!await database.prepare("SELECT iam_role_allows(?,?,'calendar.appointments.manage') allowed").bind(actor.role,actor.companyId).first<boolean>('allowed')))throw new ApiError(403,'PERMISSION_REQUIRED','The current role cannot manage this original Calendar appointment.');
+ if(!own&&(!hasPermission(actor,'calendar.appointments.manage')||!await database.prepare(roleAllowsSql('calendar.appointments.manage')).bind(actor.role,actor.companyId).first<boolean>('allowed')))throw new ApiError(403,'PERMISSION_REQUIRED','The current role cannot manage this original Calendar appointment.');
 }
 export async function calendarManualSourceReadLocks(database:SqlDatabase,companyId:string){
  const locks=companyPurchaseReadLocks(database,companyId);
@@ -99,7 +102,7 @@ export async function withCalendarPurchasedTransaction<Result>(owner:SqlDatabase
   if(input.action==='appointment.reschedule'&&input.scope==='future'&&input.occurrenceId){const child=`calendar-${key}`;if(!ids.includes(child)&&await database.prepare('SELECT 1 FROM calendar_appointments WHERE id=? AND company_id=?').bind(child,actor.companyId).first())ids.push(child);}
   const completed=await Promise.all(ids.map(recordId=>image(database,actor.companyId,kind(input),recordId)));
   const queued=receipt?undefined:await captureCalendarReminderAuthority(database,actor,input,key,ids);
-  if(await database.prepare(`SELECT version FROM ${kind(input)==='appointment'?'calendar_appointments':'calendar_announcements'} WHERE id=? AND company_id=?`).bind(resultId,actor.companyId).first<number>('version')!==result.version&&!receipt)throw new ApiError(409,'CALENDAR_SOURCE_CHANGED','The original Calendar acknowledgement no longer matches its source.');
+  if(await database.prepare(versionById(kind(input)==='appointment'?'calendar_appointments':'calendar_announcements')).bind(resultId,actor.companyId).first<number>('version')!==result.version&&!receipt)throw new ApiError(409,'CALENDAR_SOURCE_CHANGED','The original Calendar acknowledgement no longer matches its source.');
   await flushFinanceDeferredEffects(database);
   for(let i=0;i<ids.length;i++)if(!completed[i]||await image(database,actor.companyId,kind(input),ids[i])!==completed[i])throw new ApiError(409,'CALENDAR_SOURCE_CHANGED','The completed Calendar source changed during deferred effects.');
   await current(database,actor,guard,true);await ready(database,actor);await recordAuthority(database,actor,input,resultId,true);if(queued)await requireQueuedAccountAuthority(database,queued);const results=await database.batch([...boundary.after,await nativeClearCommandAssertions(database, actor.companyId, guard)]);boundary.observe?.(results);return result;

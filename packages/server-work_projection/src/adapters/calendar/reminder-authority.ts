@@ -9,11 +9,12 @@ import type {CalendarCommand} from '@erpx/server-work_projection/public/rules/ca
 import {purchasedCapabilityPredicate,packageClockSql} from '@erpx/server-commercial/public/purchased-capability-sql';
 import { scheduledFeaturePredicate } from "@erpx/server-pms/public/feature-availability";
 import { nativeOwnerWrite } from "../native-owner-write";
+import { versionById } from '../read-tail-sql';
 /** Closed native aliases a/t. Responses and mutable row versions do not change
  * the captured reminder configuration; their current policy is checked live. */
 const configuration=`jsonb_build_object('record',to_jsonb(a)-ARRAY['version','updated_at'],'attendee',to_jsonb(t)-ARRAY['response','response_at'],'series',(SELECT to_jsonb(s)-'version' FROM calendar_series s WHERE s.appointment_id=a.id AND s.company_id=a.company_id),'exceptions',(SELECT jsonb_agg(to_jsonb(e)-'version' ORDER BY e.occurrence_key) FROM calendar_occurrence_exceptions e WHERE e.appointment_id=a.id AND e.company_id=a.company_id))::text`;
 const hash=(value:string)=>createHash('sha256').update(value).digest('hex');
-export const appointmentVersionSql='SELECT version FROM calendar_appointments WHERE id=? AND company_id=?';
+export const appointmentVersionSql=versionById('calendar_appointments');
 export type CalendarReminderAuthorization={command_id:string;appointment_id:string;recipient_id:string;company_id:string;actor_id:string;assignment_id:string;authority_json:string;source_hash:string;source_version:number;action:'appointment.save'|'appointment.reschedule'|'appointment.reminder.set'};
 export async function calendarReminderConfiguration(database:SqlDatabase,companyId:string,id:string,userId:string){return database.prepare(`SELECT ${configuration} image FROM calendar_appointments a JOIN calendar_attendees t ON t.appointment_id=a.id AND t.company_id=a.company_id WHERE a.id=? AND a.company_id=? AND t.user_id=?`).bind(id,companyId,userId).first<string>('image');}
 function snapshot(actor:WorkContext){const {holdingId,holdingSlug,holdingName,companyId,branchId,departmentId,userId,assignmentId,role,authority,iam,name,email,scope,assignmentScope,inherited,modules}=actor;return {holdingId,holdingSlug,holdingName,companyId,branchId,departmentId,userId,assignmentId,role,authority,iam,name,email,scope,assignmentScope,inherited,modules,assignments:[],workspaces:[]};}
