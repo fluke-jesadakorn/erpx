@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 8144,
+    "revision": 8151,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -135926,7 +135926,7 @@
         "owner": "files",
         "title": "files TS read tail native cutover (round 5)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -135939,22 +135939,42 @@
         "resources": [
           "owner:files"
         ],
-        "claim": {
-          "runId": "run-20261123-i",
-          "agentId": "wGAVfil",
-          "claimedAt": "2026-11-24T01:40:31.424Z",
-          "heartbeatAt": "2026-11-24T01:42:53.920Z",
-          "expiresAt": "2026-11-24T02:12:53.920Z",
-          "generation": 161
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "3e437930c",
+            "owner": "files",
+            "before": 365,
+            "after": 363,
+            "note": "legacy writer assert and advisory lock literals shared as consts; each call still prepares/executes."
+          },
+          {
+            "command": "vitest files suites (15)",
+            "result": "passed",
+            "sourceSha": "3e437930c"
+          },
+          {
+            "command": "tsc files",
+            "result": "passed",
+            "sourceSha": "3e437930c"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: service.ts legacy writer guard + advisory lock text-only dedupe or another byte-identical pair. BEFORE=365.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGAVfil",
+          "at": "2026-11-24T01:46:53.653Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -136121,20 +136141,39 @@
         ],
         "claim": {
           "runId": "run-20261123-i",
-          "agentId": "wGB4wor",
-          "claimedAt": "2026-11-24T01:41:46.824Z",
-          "heartbeatAt": "2026-11-24T01:42:53.920Z",
-          "expiresAt": "2026-11-24T02:12:53.920Z",
+          "agentId": "wGBGwor",
+          "claimedAt": "2026-11-24T01:46:54.242Z",
+          "heartbeatAt": "2026-11-24T01:46:54.242Z",
+          "expiresAt": "2026-11-24T02:16:54.242Z",
           "generation": 161
         },
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "workflow byte-identical scan (59 literals)",
+            "result": "passed",
+            "sourceSha": "3402b63d9",
+            "note": "Sole cross-file pair is legal-approval-facts vs flow-planning-ports; needs flow file permission."
+          },
+          {
+            "command": "vitest workflow transport (30)",
+            "result": "passed",
+            "sourceSha": "3402b63d9"
+          }
+        ],
         "retainedLegacy": [],
         "blocker": null,
-        "nextAction": "Next: safe byte-identical dedupe; if none, report blocked. BEFORE=78.",
-        "handoff": null,
+        "nextAction": "Blocked with evidence; awaiting path refinement.",
+        "handoff": {
+          "runId": "run-20261123-i",
+          "agentId": "wGB4wor",
+          "at": "2026-11-24T01:46:54.012Z",
+          "previousStatus": "blocked",
+          "reason": "handoff",
+          "nextAction": "Blocked with evidence; awaiting path refinement."
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -136619,6 +136658,43 @@
         "nextAction": "Scout: byte-identical groups - reminder-authority:35 + reminder-purchases:33 version read; reminder-purchases:26/33 occurrence exception read; availability-facts:13 + reminder-purchases:26/33 response read; calendar/purchases:67/73 iam_role_allows core. Avoid SELECT 1 markers and generated predicates. BEFORE=106.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.files.read-tail-r6",
+        "goalId": "G4",
+        "owner": "files",
+        "title": "files TS read tail native cutover (round 6)",
+        "kind": "migration",
+        "status": "in_progress",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-files/src/**",
+          "packages/server-files/package.json",
+          "tests/unit/files/**",
+          "tests/integration/files/**"
+        ],
+        "resources": [
+          "owner:files"
+        ],
+        "claim": {
+          "runId": "run-20261123-i",
+          "agentId": "wGBHfil",
+          "claimedAt": "2026-11-24T01:46:54.602Z",
+          "heartbeatAt": "2026-11-24T01:46:54.602Z",
+          "expiresAt": "2026-11-24T02:16:54.602Z",
+          "generation": 161
+        },
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Next: another same-file literal pair in service.ts/service-repository.ts; avoid excluded categories. BEFORE=363.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -136627,7 +136703,7 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 867,
+      "totalPackets": 868,
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
@@ -136635,13 +136711,13 @@
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 487,
+        "blocked": 488,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 161,
-    "updatedAt": "2026-11-24T01:46:34.458Z",
+    "updatedAt": "2026-11-24T01:46:54.619Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
