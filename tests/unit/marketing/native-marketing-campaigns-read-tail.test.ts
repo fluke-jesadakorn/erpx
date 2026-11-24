@@ -252,4 +252,23 @@ describe('Marketing owner-local campaign read tail', () => {
     expect(analytics).toContain("marketingAnalyticsCostRows('marketing_campaign_costs cost JOIN marketing_campaigns campaign ON campaign.id=cost.campaign_id AND campaign.company_id=cost.company_id')");
     expect(analytics).toContain("marketingAnalyticsCostRows('marketing_campaign_costs cost')");
   });
+
+  it('keeps one fixed owner guard for attachment reviewer checks', async () => {
+    const { readFile } = await import('node:fs/promises');
+    const base = new URL('../../../packages/server-marketing/src/adapters/', import.meta.url);
+    const helper = await readFile(new URL('attachment-reviewer-guard.ts', base), 'utf8');
+    const purchases = await readFile(new URL('attachment-purchases.ts', base), 'utf8');
+
+    const predicate = "SELECT (${assignmentReadSql('marketing_file_review','records.review')} OR ${assignmentReadSql('marketing_file_review','commerce.approve')})${alias ? ` ${alias}` : ''} FROM (SELECT ?::text company_id,?::text branch_id,?::text department_id) marketing_file_review";
+    // One canonical guard owns both read tokens; its comment must not smuggle
+    // an extra token into the retirement KPI.
+    expect(helper.match(/SELECT/g)).toHaveLength(2);
+    expect(helper).toContain('export const attachmentReviewerGuardSql');
+    expect(helper).toContain(predicate);
+
+    expect(purchases).toContain('import {attachmentReviewerGuardSql} from "./attachment-reviewer-guard"');
+    expect(purchases).not.toContain('assignmentReadSql("marketing_file_review"');
+    expect(purchases).toContain("attachmentReviewerGuardSql('allowed')");
+    expect(purchases).toContain('`(${attachmentReviewerGuardSql()})`');
+  });
 });
