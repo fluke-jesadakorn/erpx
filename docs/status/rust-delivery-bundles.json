@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11723,
+    "revision": 11724,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -175949,6 +175949,35 @@
         "nextAction": "F1 factBranch (-6), F2 gate frame (-2), F3 scope row separator (-1): 42->33.",
         "handoff": null,
         "scopeRefinementRequired": false
+      },
+      {
+        "id": "retire.quality.read-tail-r23",
+        "goalId": "G4",
+        "owner": "quality",
+        "title": "quality lineage terminal and inspection heads",
+        "kind": "migration",
+        "status": "pending",
+        "dependsOn": [],
+        "requiredPorts": [],
+        "workflowIds": [],
+        "allowedPaths": [
+          "packages/server-quality/src/**",
+          "tests/unit/quality/**",
+          "tests/integration/quality/**"
+        ],
+        "resources": [
+          "owner:quality"
+        ],
+        "claim": null,
+        "baseSha": null,
+        "implementedCommit": null,
+        "lastPushedSha": null,
+        "checks": [],
+        "retainedLegacy": [],
+        "blocker": null,
+        "nextAction": "Lineage terminals (-3) and inspection heads (-1): 63->59.",
+        "handoff": null,
+        "scopeRefinementRequired": false
       }
     ],
     "migrationProgress": {
@@ -175957,10 +175986,10 @@
       "surfaceDenominator": 7,
       "workflowDenominator": 206,
       "baselineAssessment": "source inventory pending",
-      "totalPackets": 1647,
+      "totalPackets": 1648,
       "migratedPackets": 330,
       "statusCounts": {
-        "pending": 19,
+        "pending": 20,
         "in_progress": 28,
         "ready_for_integration": 0,
         "integrating": 0,
@@ -175971,7 +176000,7 @@
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T11:58:25.305Z",
+    "updatedAt": "2026-11-24T11:58:45.010Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
