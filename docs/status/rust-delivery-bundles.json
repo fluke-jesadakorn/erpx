@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9810,
+    "revision": 9812,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -155506,7 +155506,7 @@
         "owner": "sales",
         "title": "sales TS read tail native cutover (r18)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -155518,28 +155518,21 @@
         "resources": [
           "owner:sales"
         ],
-        "claim": {
-          "runId": "run-20261123-l",
-          "agentId": "wGCPsal",
-          "claimedAt": "2026-11-24T05:56:23.261Z",
-          "heartbeatAt": "2026-11-24T05:56:24.357Z",
-          "expiresAt": "2026-11-24T06:26:24.357Z",
-          "generation": 164
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=68.",
+        "blocker": "released with work preserved",
+        "nextAction": "BLOCKED at 68: AST scan shows 49 literals with zero exact duplicate groups; cross-file assignmentReadSql pattern differs in alias/permission/scope/binds so no byte-identical family. Do not re-open r7-r17 or touch LOCK TABLE. Refinement requires named generator + bind-equivalence ruling.",
         "handoff": {
-          "runId": "run-20261123-k",
+          "runId": "run-20261123-l",
           "agentId": "wGCPsal",
-          "at": "2026-11-24T05:56:18.484Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired at 05:55Z; WIP reviewed in shared checkout; release claims and continue under new generation.",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=68."
+          "at": "2026-11-24T05:59:42.806Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "BLOCKED at 68: AST scan shows 49 literals with zero exact duplicate groups; cross-file assignmentReadSql pattern differs in alias/permission/scope/binds so no byte-identical family. Do not re-open r7-r17 or touch LOCK TABLE. Refinement requires named generator + bind-equivalence ruling."
         },
         "scopeRefinementRequired": false
       },
@@ -156029,17 +156022,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
-        "in_progress": 23,
+        "in_progress": 22,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 870,
+        "blocked": 871,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 164,
-    "updatedAt": "2026-11-24T05:59:21.923Z",
+    "updatedAt": "2026-11-24T05:59:42.824Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
