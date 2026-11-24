@@ -1,4 +1,5 @@
 import {activeRolloutPredicate} from "@erpx/server-pms/adapters/feature-availability";
+import { PMS_ROLLOUT_ENABLED_SQL, PMS_ROLLOUT_ACTIVE_SQL } from './pms-read-tail-r22-sql';
 import 'server-only';
 import { holdingResources } from "../../../../packages/server-runtime/src/public/runtime";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
@@ -49,10 +50,10 @@ function repository(write: SqlDatabase): PmsRolloutRepository {
                 assertion(write, key, 'feature-rollout-version', 'COALESCE((SELECT version FROM company_feature_rollouts WHERE company_id=? AND module_id=?),0)=?', [actor.companyId, input.moduleId, input.expectedVersion]),
             ]);
         },
-        enabled: (companyId, modules) => write.prepare(`SELECT module_id FROM company_feature_rollouts f WHERE company_id=? ${modules ? `AND module_id IN (${modules.map(() => '?').join(',')})` : ''} AND ${activeRolloutPredicate('f')}`).bind(companyId, ...(modules ?? [])).all<{
+        enabled: (companyId, modules) => write.prepare(`${PMS_ROLLOUT_ENABLED_SQL} ${modules ? `AND module_id IN (${modules.map(() => '?').join(',')})` : ''} AND ${activeRolloutPredicate('f')}`).bind(companyId, ...(modules ?? [])).all<{
             module_id: string;
         }>().then(rows => rows.results),
-        active: (companyId, moduleId) => write.prepare(`SELECT 1 FROM company_feature_rollouts f WHERE company_id=? AND module_id=? AND ${activeRolloutPredicate('f')}`).bind(companyId, moduleId).first()
+        active: (companyId, moduleId) => write.prepare(`${PMS_ROLLOUT_ACTIVE_SQL} ${activeRolloutPredicate('f')}`).bind(companyId, moduleId).first()
     };
 }
 const application = createPmsRollout({ repository: async (actor) => repository((await holdingResources(actor.holdingId)).write), clock: { now: () => Date.now() }, require: requirePermission, error: (status, code, message) => new ApiError(status, code, message), environment: () => process.env.NODE_ENV, deployment: () => process.env.ERPX_ENVIRONMENT, inventoryAccepted: productionAccepted });

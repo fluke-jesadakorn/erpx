@@ -1,5 +1,6 @@
 import { assertPmsProviderAuthority } from "@erpx/server-pms/adapters/provider-authority";
 import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
+import { PMS_STRIPE_REFUND_COLUMNS_SQL } from "./pms-read-tail-r22-sql";
 import 'server-only';
 import { createHash, randomUUID } from 'node:crypto';
 import { type Snapshot } from "@erpx/server-pms/public/rules/pms";
@@ -213,7 +214,7 @@ function unit(db: SqlDatabase, _whole?: TransactionalSqlDatabase, companyId = ''
         }) => write('pms_w071', [facts.now, facts.id]),
         readPmsStripePayments15: (facts: {
             companyId: string;
-        }) => db.prepare("SELECT id,property_id,guest_account_id,amount_minor,refund_amount_minor,refund_state,last_error,refund_reason,payer_email FROM pms_stripe_payments WHERE company_id=? AND refund_state IS NOT NULL ORDER BY updated_at DESC LIMIT 100").bind(facts.companyId).all<{
+        }) => db.prepare(`${PMS_STRIPE_REFUND_COLUMNS_SQL} WHERE company_id=? AND refund_state IS NOT NULL ORDER BY updated_at DESC LIMIT 100`).bind(facts.companyId).all<{
             id: string;
             property_id: string;
             guest_account_id: string;

@@ -1,5 +1,6 @@
 import {decodePmsRecord,type PmsStoredRecord} from "@erpx/server-pms/domain/stored-record";
 import { PMS_WRITE_CONTEXT_SQL } from "./pms-read-tail-r17-sql";
+import { PMS_STRIPE_REFUND_COLUMNS_SQL } from "./pms-read-tail-r22-sql";
 import { roomChargeReversalWork } from "@erpx/server-pos/public/room-charge-reversal-queue";
 import { withPmsPurchasedCommand } from "@erpx/server-pms/adapters/purchase-boundary";
 import { readPurchasedAccesses, pmsPackageEnforcementMode, type PurchasedAccess } from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -149,7 +150,7 @@ function unit(db: SqlDatabase, companyId = ''): PmsUnit<SqlStatement> {
             last_error: string | null;
         }>(db, "SELECT id,reservation_id,state,attempts,last_error FROM pms_booking_emails WHERE property_id=? AND state!='sent' ORDER BY created_at DESC LIMIT 50", facts.id),
         readPosConnections: facts => pos.readPosConnections(facts),
-        readPmsStripeRefunds: propertyId => query(db,"SELECT id,property_id,guest_account_id,amount_minor,refund_amount_minor,refund_state,last_error,refund_reason,payer_email FROM pms_stripe_payments WHERE property_id=? AND refund_state IS NOT NULL ORDER BY updated_at DESC LIMIT 100",propertyId),
+        readPmsStripeRefunds: propertyId => query(db,`${PMS_STRIPE_REFUND_COLUMNS_SQL} WHERE property_id=? AND refund_state IS NOT NULL ORDER BY updated_at DESC LIMIT 100`,propertyId),
         readPmsStripePayments: (facts: {
             id: string;
         }) => query<{

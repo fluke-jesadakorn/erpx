@@ -5,7 +5,8 @@ import type { WorkContext } from "@erpx/server-identity_access/public/authorizat
 import type { StaffActor } from "@erpx/server-operations/public/staff-policy";
 import { pmsSourceRecipients as recipients } from "@erpx/server-identity_access/public/pms-source-recipients";
 import { ApiError } from "@erpx/server-runtime/public/http";
-import { pmsSourcesSql, pmsSourceReadableSql } from "@erpx/server-pms/adapters/pms/source-policy";
+import { pmsSourceReadableSql } from "@erpx/server-pms/adapters/pms/source-policy";
+import { PMS_RECIPIENT_FROM_SQL } from "../pms-read-tail-r22-sql";
 import { createPmsSourceApplication } from "@erpx/server-pms/application/source";
 import type { PmsSource } from "@erpx/server-pms/domain/source";
 import { pmsPackageEnforcementMode, readPurchasedAccess } from "@erpx/server-commercial/public/purchase-command-boundary";
@@ -15,7 +16,7 @@ export type { PmsSource } from "@erpx/server-pms/domain/source";
 function application(db: SqlDatabase) {
     return createPmsSourceApplication({ clock: { now: () => Date.now() }, error: (status, code, message) => new ApiError(status, code, message), repository: { source: async (actor, id) => {
       if (!(await readPurchasedAccess(db,await pmsPackageEnforcementMode(),{companyId:actor.companyId,capability:'pms.front-desk'})).history) return null;
-      return db.prepare(`SELECT pr.* FROM (SELECT ?::text user_id) recipient CROSS JOIN (${pmsSourcesSql}) pr WHERE pr.id=? AND pr.company_id=?
+      return db.prepare(`SELECT pr.* ${PMS_RECIPIENT_FROM_SQL} WHERE pr.id=? AND pr.company_id=?
     AND (?::text IS NULL OR pr.branch_id=?) AND ?::text IS NULL
     AND ${pmsSourceReadableSql("pr", "recipient.user_id", actor.assignmentId ? "?::text" : undefined)}`)
                 .bind(actor.userId, id, actor.companyId, actor.branchId, actor.branchId, actor.departmentId, ...(actor.assignmentId ? [actor.assignmentId] : [])).first<PmsSource>(); }, recipients: async (actor, now) => {
@@ -43,7 +44,7 @@ export async function readablePmsSourceIds(actor: StaffActor) {
     const enforced=await pmsPackageEnforcementMode()==='enforced';
     const clock=enforced?`WITH purchase_clock AS MATERIALIZED (SELECT ${packageClockSql} observed_at) `:'',join=enforced?' CROSS JOIN purchase_clock':'';
     const purchase=enforced?purchasedCapabilityPredicate('pr.company_id','pms.front-desk','history','purchase_clock.observed_at'):'TRUE';
-    return { sql: `${clock}SELECT pr.id FROM (SELECT ?::text user_id) recipient CROSS JOIN (${pmsSourcesSql}) pr${join} WHERE pr.company_id=? AND ${purchase}
+    return { sql: `${clock}SELECT pr.id ${PMS_RECIPIENT_FROM_SQL}${join} WHERE pr.company_id=? AND ${purchase}
       AND (?::text IS NULL OR pr.branch_id=?) AND (${conditions.length ? conditions.map(value => `(${value})`).join(" OR ") : "FALSE"})
       AND ${pmsSourceReadableSql("pr", "recipient.user_id", actor.assignmentId ? "?::text" : undefined)}`,
       bindings: [actor.userId, actor.companyId, actor.branchId, actor.branchId, ...(actor.assignmentId ? [actor.assignmentId] : [])] };
