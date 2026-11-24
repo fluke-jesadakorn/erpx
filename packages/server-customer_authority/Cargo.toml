@@ -108,3 +108,7 @@ path = "../../tests/unit/customer_authority/rust-portal-support-http.test.rs"
 [[test]]
 name = "portal_support_postgres"
 path = "../../tests/integration/customer_authority/rust-portal-support-postgres.test.rs"
+
+[[test]]
+name = "portal_read_parity_postgres"
+path = "../../tests/integration/customer_authority/rust-portal-read-parity-postgres.test.rs"

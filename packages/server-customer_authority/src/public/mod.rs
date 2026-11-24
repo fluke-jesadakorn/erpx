@@ -10,6 +10,8 @@ pub mod portal_enrollment;
 pub mod portal_evidence;
 pub mod portal_invitation_delivery;
 pub mod portal_invitations;
+pub mod portal_read;
+pub use crate::adapters::portal_read::{bind, BoundPlan, ReadScope};
 pub mod portal_session;
 pub mod portal_support_commands;
 
