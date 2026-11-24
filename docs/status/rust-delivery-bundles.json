@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 9816,
+    "revision": 9820,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -154958,7 +154958,7 @@
         "owner": "benefits",
         "title": "benefits TS read tail native cutover (r19)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -154970,28 +154970,36 @@
         "resources": [
           "owner:benefits"
         ],
-        "claim": {
-          "runId": "run-20261123-l",
-          "agentId": "wGCOben",
-          "claimedAt": "2026-11-24T05:56:21.266Z",
-          "heartbeatAt": "2026-11-24T05:56:24.357Z",
-          "expiresAt": "2026-11-24T06:26:24.357Z",
-          "generation": 164
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-benefits/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "f9a05eb2a",
+            "owner": "benefits",
+            "before": 45,
+            "after": 44,
+            "note": "Learning and missing learning consumption fact arms share benefitLearningFactArm; r7-r18 and locks untouched."
+          },
+          {
+            "command": "vitest benefits r19 (4) + tsc benefits",
+            "result": "passed",
+            "sourceSha": "f9a05eb2a"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=45.",
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
         "handoff": {
-          "runId": "run-20261123-k",
+          "runId": "run-20261123-l",
           "agentId": "wGCOben",
-          "at": "2026-11-24T05:56:18.484Z",
+          "at": "2026-11-24T06:00:54.219Z",
           "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired at 05:55Z; WIP reviewed in shared checkout; release claims and continue under new generation.",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=45."
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
         },
         "scopeRefinementRequired": false
       },
@@ -155291,7 +155299,7 @@
         "owner": "customer_360",
         "title": "customer_360 TS read tail native cutover (round 11)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -155303,28 +155311,21 @@
         "resources": [
           "owner:customer_360"
         ],
-        "claim": {
-          "runId": "run-20261123-l",
-          "agentId": "wGCOc361",
-          "claimedAt": "2026-11-24T05:56:22.442Z",
-          "heartbeatAt": "2026-11-24T05:56:24.357Z",
-          "expiresAt": "2026-11-24T06:26:24.357Z",
-          "generation": 164
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
         "checks": [],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=15.",
+        "blocker": "released with work preserved",
+        "nextAction": "BLOCKED at 15: all 15 SELECT tokens enumerated; helpers r5-r10 single definitions, remaining literals are structurally unique singletons. No byte-identical or parameterized lowering. Further drop requires native port cutover removing a singleton.",
         "handoff": {
-          "runId": "run-20261123-k",
+          "runId": "run-20261123-l",
           "agentId": "wGCOc361",
-          "at": "2026-11-24T05:56:18.484Z",
-          "previousStatus": "in_progress",
-          "reason": "Recovery: Lease expired at 05:55Z; WIP reviewed in shared checkout; release claims and continue under new generation.",
-          "nextAction": "Next: safe byte-identical or parameterized family; if none, report blocked. BEFORE=15."
+          "at": "2026-11-24T06:00:54.720Z",
+          "previousStatus": "blocked",
+          "reason": "released with work preserved",
+          "nextAction": "BLOCKED at 15: all 15 SELECT tokens enumerated; helpers r5-r10 single definitions, remaining literals are structurally unique singletons. No byte-identical or parameterized lowering. Further drop requires native port cutover removing a singleton."
         },
         "scopeRefinementRequired": false
       },
@@ -156038,17 +156039,17 @@
       "migratedPackets": 329,
       "statusCounts": {
         "pending": 17,
-        "in_progress": 20,
+        "in_progress": 18,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 329,
-        "blocked": 873,
+        "blocked": 875,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 164,
-    "updatedAt": "2026-11-24T06:00:09.350Z",
+    "updatedAt": "2026-11-24T06:00:54.727Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
