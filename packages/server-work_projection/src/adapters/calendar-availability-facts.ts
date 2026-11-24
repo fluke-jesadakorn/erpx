@@ -1,6 +1,7 @@
 import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { type RecurrenceRule } from "@erpx/feature-work_projection/lib/calendar-recurrence";
+import { occurrenceExceptionPointSql } from './read-tail-sql';
 
 export const occurrenceResponseSql="SELECT response FROM calendar_occurrence_responses WHERE appointment_id=? AND company_id=? AND occurrence_key=? AND user_id=?";
 
@@ -21,7 +22,7 @@ export function readOccurrenceException(db: SqlDatabase, facts: {
         value2: string;
         value3: string;
     }) {
-    return db.prepare("SELECT start_local,end_local,cancelled FROM calendar_occurrence_exceptions WHERE appointment_id=? AND company_id=? AND occurrence_key=?").bind(facts.value1, facts.value2, facts.value3).first<{
+    return db.prepare(occurrenceExceptionPointSql('start_local,end_local,cancelled')).bind(facts.value1, facts.value2, facts.value3).first<{
         start_local: string | null;
         end_local: string | null;
         cancelled: boolean;

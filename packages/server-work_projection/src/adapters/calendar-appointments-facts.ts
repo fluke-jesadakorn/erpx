@@ -3,7 +3,7 @@ import "server-only";
 import type { SqlDatabase } from "@erpx/server-runtime/public/runtime/types";
 import { type RecurrenceRule } from "@erpx/feature-work_projection/lib/calendar-recurrence";
 import type { AppointmentRow } from "@erpx/server-work_projection/domain/calendar/appointments";
-import { inList } from './read-tail-sql';
+import { inList, overlapProbe } from './read-tail-sql';
 export const byAppointmentIds = (table: 'calendar_series' | 'calendar_occurrence_exceptions') =>
     `SELECT * FROM ${table} WHERE company_id=? AND ${inList("appointment_id")}`;
 export function calendarAppointmentsWorkProjectionFacts(db: SqlDatabase) {
@@ -88,7 +88,7 @@ export function calendarAppointmentsWorkProjectionFacts(db: SqlDatabase) {
             value3: number;
             value4: number;
             value5: string;
-        }) => { return db.prepare(`SELECT 1 FROM calendar_appointments a JOIN calendar_appointment_participants p ON p.appointment_id=a.id WHERE a.company_id=? AND a.status='scheduled' AND a.id!=? AND a.starts_at<? AND a.ends_at>? AND ${inList("p.person_id")} LIMIT 1`).bind(facts.value1, facts.value2, facts.value3, facts.value4, facts.value5).first<Record<string, unknown>>(); },
+        }) => { return db.prepare(overlapProbe('calendar_appointment_participants', 'p.person_id')).bind(facts.value1, facts.value2, facts.value3, facts.value4, facts.value5).first<Record<string, unknown>>(); },
         read8: (facts: {
             value1: string;
             value2: string;
@@ -96,8 +96,6 @@ export function calendarAppointmentsWorkProjectionFacts(db: SqlDatabase) {
             value4: number;
             value5: string;
         }) => {
-            return db.prepare(`SELECT 1 FROM calendar_appointments a JOIN calendar_attendees p ON p.appointment_id=a.id
-    WHERE a.company_id=? AND a.status='scheduled' AND a.id!=? AND a.starts_at<? AND a.ends_at>?
-    AND p.response!='declined' AND ${inList("p.user_id")} LIMIT 1`).bind(facts.value1, facts.value2, facts.value3, facts.value4, facts.value5).first<Record<string, unknown>>();
+            return db.prepare(overlapProbe('calendar_attendees', 'p.user_id', " AND p.response!='declined'")).bind(facts.value1, facts.value2, facts.value3, facts.value4, facts.value5).first<Record<string, unknown>>();
         } };
 }

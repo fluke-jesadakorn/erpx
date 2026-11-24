@@ -5,12 +5,13 @@ import type {Row} from '@erpx/server-work_projection/domain/calendar/reminders';
 import {calendarManualSourceReadLocks,requireCalendarReminderRecordAuthority} from '@erpx/server-work_projection/adapters/calendar/purchases';
 import {calendarReminderConfiguration,requireCalendarReminderBinding,appointmentVersionSql,type CalendarReminderAuthorization} from '@erpx/server-work_projection/adapters/calendar/reminder-authority';
 import {occurrenceResponseSql} from '@erpx/server-work_projection/adapters/calendar-availability-facts';
+import {occurrenceExceptionPointSql} from '@erpx/server-work_projection/adapters/read-tail-sql';
 import {appsPackageEnforcementMode,checkPurchasedCapability,purchaseCommandBoundary,purchaseCommandFailure} from '@erpx/server-commercial/public/purchase-command-boundary';
 import {flushFinanceDeferredEffects} from '@erpx/server-finance/public/finance-transactions';
 import {isTransactionalSqlDatabase,type SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
 import {ApiError} from '@erpx/server-runtime/public/http';
 import {localDateTimeToInstant} from '@erpx/feature-work_projection/lib/calendar-timeline';
-const occurrenceExceptionSql='SELECT cancelled,start_local FROM calendar_occurrence_exceptions WHERE appointment_id=? AND company_id=? AND occurrence_key=?';
+const occurrenceExceptionSql=occurrenceExceptionPointSql('cancelled,start_local');
 /** A worker receives a candidate, never a trusted SQL snapshot or inferred
  * recipient role. The complete ledger and private notification stay inside
  * this fresh source-leased Holding transaction until final validation. */
