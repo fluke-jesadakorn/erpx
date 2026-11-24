@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 11307,
+    "revision": 11311,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -171582,7 +171582,7 @@
         "owner": "learning",
         "title": "learning TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -171594,22 +171594,37 @@
         "resources": [
           "owner:learning"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMlrn8",
-          "claimedAt": "2026-11-24T10:16:14.612Z",
-          "heartbeatAt": "2026-11-24T10:20:25.536Z",
-          "expiresAt": "2026-11-24T10:50:25.536Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-learning/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "742620f5b",
+            "owner": "learning",
+            "before": 63,
+            "after": 57,
+            "note": "Benefit consumption, latest-event lateral, identity source, workspace image and clocked source families share five helpers; 7 LOCK TABLE and r1-r12 untouched."
+          },
+          {
+            "command": "vitest learning r7-r13 (45) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "742620f5b"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Five families: benefit consumption head (-1), latest-event LATERAL (-1), identity source read (-2), workspace image frame (-1), clocked source CTE (-1). 7 LOCK TABLE untouched. BEFORE=63.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMlrn8",
+          "at": "2026-11-24T10:33:30.871Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -172288,7 +172303,7 @@
         "owner": "ecommerce",
         "title": "ecommerce TS read tail native cutover (next round)",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -172300,22 +172315,37 @@
         "resources": [
           "owner:ecommerce"
         ],
-        "claim": {
-          "runId": "run-20261124-b",
-          "agentId": "wGCMeco3",
-          "claimedAt": "2026-11-24T10:25:13.101Z",
-          "heartbeatAt": "2026-11-24T10:25:13.101Z",
-          "expiresAt": "2026-11-24T10:55:13.101Z",
-          "generation": 168
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-ecommerce/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "aa431b80b",
+            "owner": "ecommerce",
+            "before": 48,
+            "after": 47,
+            "note": "r9 attachmentVersionGuardSql and r14 ecommerceExistsGuard unify to the canonical frame; LOCK TABLE and native plans untouched."
+          },
+          {
+            "command": "vitest ecommerce dedupe (72) + scoped tsc",
+            "result": "passed",
+            "sourceSha": "aa431b80b"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Next: safe byte-identical/parameterized head or native read port; if none, report blocked. BEFORE=48.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-b",
+          "agentId": "wGCMeco3",
+          "at": "2026-11-24T10:33:31.385Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -172977,17 +173007,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 19,
-        "in_progress": 26,
+        "in_progress": 24,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1210,
+        "blocked": 1212,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 168,
-    "updatedAt": "2026-11-24T10:32:54.926Z",
+    "updatedAt": "2026-11-24T10:33:31.390Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
