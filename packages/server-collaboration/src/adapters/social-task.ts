@@ -8,12 +8,13 @@ import { aiSnapshotGuard } from '@erpx/server-agent/public/ai-providers';
 import {readablePost,sourceSnapshot,sourceGuard} from '@erpx/server-collaboration/public/social-source';
 import type { StaffActor } from '@erpx/server-operations/public/staff-policy';
 import { createSocialTaskApplication } from '@erpx/server-collaboration/application/social-task';
+import {socialTaskOriginByTask} from './read-tail-sql';
 import type { TaskSource } from '@erpx/server-collaboration/domain/social-task';
 export { taskSourceSchema } from '@erpx/server-collaboration/domain/social-task';
 export type { TaskSource } from '@erpx/server-collaboration/domain/social-task';
 export async function taskSourceStatements(db: SqlDatabase, actor: StaffActor, key: string, taskId: string, users: string[], source?: TaskSource, projectId?: string | null) {
     const app = createSocialTaskApplication<SqlStatement>({ clock: { now: () => Date.now() }, repository: {
-            taskOrigin: taskId => db.prepare('SELECT post_id FROM social_task_origins WHERE task_id=?').bind(taskId).first<{
+            taskOrigin: taskId => db.prepare(socialTaskOriginByTask).bind(taskId).first<{
                 post_id: string;
             }>(),
             aiProvider: (id, user) => db.prepare('SELECT provider_json FROM social_ai_drafts WHERE id=? AND actor_id=?').bind(id, user).first<{

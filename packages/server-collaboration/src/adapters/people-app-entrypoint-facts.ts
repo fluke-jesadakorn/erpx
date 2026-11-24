@@ -1,7 +1,8 @@
 import 'server-only';
 import type {SqlDatabase} from '@erpx/server-runtime/public/runtime/types';
+import {socialTaskOriginByTask} from './read-tail-sql';
 export function taskSocialOrigin(db:SqlDatabase,taskId:string){return db
-    .prepare("SELECT post_id FROM social_task_origins WHERE task_id=?")
+    .prepare(socialTaskOriginByTask)
     .bind(taskId)
     .first<{ post_id: string }>();}
 export function sentNoticeRows(db:SqlDatabase,companyId:string,senderId:string){return db.prepare(`SELECT n.id,n.title,n.recipient_count accepted_count,n.created_at,
