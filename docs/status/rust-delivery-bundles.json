@@ -9257,7 +9257,7 @@
       }
     ],
     "schemaVersion": 2,
-    "revision": 12277,
+    "revision": 12279,
     "targetBranch": "codex/rust-backend-migration",
     "planRef": "docs/production-plan.md#rust-migration-current",
     "coordinator": {
@@ -182062,7 +182062,7 @@
         "owner": "files",
         "title": "files field upload ancestor and attachment guard heads",
         "kind": "migration",
-        "status": "in_progress",
+        "status": "blocked",
         "dependsOn": [],
         "requiredPorts": [],
         "workflowIds": [],
@@ -182073,22 +182073,37 @@
         "resources": [
           "owner:files"
         ],
-        "claim": {
-          "runId": "run-20261124-c",
-          "agentId": "wH4n41",
-          "claimedAt": "2026-11-24T14:11:59.514Z",
-          "heartbeatAt": "2026-11-24T14:11:59.514Z",
-          "expiresAt": "2026-11-24T14:41:59.514Z",
-          "generation": 169
-        },
+        "claim": null,
         "baseSha": null,
         "implementedCommit": null,
         "lastPushedSha": null,
-        "checks": [],
+        "checks": [
+          {
+            "command": "retirement:ts-statements -- ':(glob)packages/server-files/src/**/*.ts'",
+            "result": "passed",
+            "sourceSha": "d1e786be3",
+            "owner": "files",
+            "before": 248,
+            "after": 246,
+            "note": "Field upload ancestor EXISTS and upload intents head shared; third head is token-neutral (honest delta -2); advisory/FOR UPDATE/LOCK TABLE/nativeWrite untouched."
+          },
+          {
+            "command": "vitest files r43 (5) + 89 read-tail tests + scoped tsc",
+            "result": "passed",
+            "sourceSha": "d1e786be3"
+          }
+        ],
         "retainedLegacy": [],
-        "blocker": null,
-        "nextAction": "Field upload ancestor EXISTS (-1), upload_intents OR EXISTS head (-1), attachments id-AND head (-1): 248->245.",
-        "handoff": null,
+        "blocker": "handoff",
+        "nextAction": "Integrated; claim released",
+        "handoff": {
+          "runId": "run-20261124-c",
+          "agentId": "wH4n41",
+          "at": "2026-11-24T14:26:38.672Z",
+          "previousStatus": "in_progress",
+          "reason": "handoff",
+          "nextAction": "Integrated; claim released"
+        },
         "scopeRefinementRequired": false
       },
       {
@@ -182454,17 +182469,17 @@
       "migratedPackets": 330,
       "statusCounts": {
         "pending": 18,
-        "in_progress": 8,
+        "in_progress": 7,
         "ready_for_integration": 0,
         "integrating": 0,
         "migrated": 330,
-        "blocked": 1413,
+        "blocked": 1414,
         "deferred": 2,
         "done": 0
       }
     },
     "lastCoordinatorGeneration": 169,
-    "updatedAt": "2026-11-24T14:25:22.025Z",
+    "updatedAt": "2026-11-24T14:26:38.675Z",
     "handoff": {
       "fromRun": "run-20261121-a",
       "verifiedPushedCheckpoint": "e97604afb60ac40a60ca0e1414e8d8ad8d502cae",
